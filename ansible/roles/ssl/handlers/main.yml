@@ -1,0 +1,11 @@
+---
+# SSL handlers
+
+- name: reload nginx
+  systemd:
+    name: nginx
+    state: reloaded
+
+- name: renew certificates
+  command: certbot renew --nginx --quiet
+  changed_when: false

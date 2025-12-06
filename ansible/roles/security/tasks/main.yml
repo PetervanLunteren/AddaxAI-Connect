@@ -1,0 +1,112 @@
+---
+# Security Role - Basic firewall and user setup
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install ufw (firewall)
+  apt:
+    name: ufw
+    state: present
+
+- name: Allow SSH through firewall
+  ufw:
+    rule: allow
+    port: "{{ allowed_ssh_port | default('22') }}"
+    proto: tcp
+  when: enable_firewall | default(true)
+
+- name: Allow HTTP through firewall (for future web access)
+  ufw:
+    rule: allow
+    port: '80'
+    proto: tcp
+  when: enable_firewall | default(true)
+
+- name: Allow HTTPS through firewall (for future web access)
+  ufw:
+    rule: allow
+    port: '443'
+    proto: tcp
+  when: enable_firewall | default(true)
+
+- name: Allow FTP through firewall (for camera trap uploads)
+  ufw:
+    rule: allow
+    port: '21'
+    proto: tcp
+  when: enable_firewall | default(true)
+
+- name: Allow FTPS through firewall (explicit TLS)
+  ufw:
+    rule: allow
+    port: '990'
+    proto: tcp
+  when: enable_firewall | default(true)
+
+- name: Allow FTP passive mode ports
+  ufw:
+    rule: allow
+    port: "{{ ftps_passive_port_min | default('40000') }}:{{ ftps_passive_port_max | default('50000') }}"
+    proto: tcp
+  when: enable_firewall | default(true)
+
+- name: Set firewall default policy to deny incoming
+  ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+  when: enable_firewall | default(true)
+
+- name: Set firewall default policy to allow outgoing
+  ufw:
+    state: enabled
+    policy: allow
+    direction: outgoing
+  when: enable_firewall | default(true)
+
+- name: Create application user
+  user:
+    name: "{{ app_user | default('ubuntu') }}"
+    shell: /bin/bash
+    create_home: yes
+    groups: sudo
+    append: yes
+    state: present
+    password: "{{ app_user_password | default('') | password_hash('sha512') if app_user_password is defined else omit }}"
+    update_password: on_create
+
+- name: Add application user to docker group (will be created by docker role)
+  user:
+    name: "{{ app_user | default('ubuntu') }}"
+    groups: docker
+    append: yes
+  failed_when: false  # Will succeed after docker is installed
+
+- name: Ensure .ssh directory exists for app user
+  file:
+    path: "/home/{{ app_user | default('ubuntu') }}/.ssh"
+    state: directory
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0700'
+
+- name: Check if root authorized_keys exists
+  stat:
+    path: /root/.ssh/authorized_keys
+  register: root_auth_keys
+
+- name: Copy authorized_keys from root to app user
+  copy:
+    src: /root/.ssh/authorized_keys
+    dest: "/home/{{ app_user | default('ubuntu') }}/.ssh/authorized_keys"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0600'
+    remote_src: yes
+    force: yes
+  when:
+    - ansible_user == 'root'
+    - root_auth_keys.stat.exists

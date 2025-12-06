@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Docker
+docker-compose.override.yml
+docker-compose.yml
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite3
+
+# ML Models (large files)
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.onnx
+models/*.pb
+models/detection/
+models/classification/
+
+# Ansible secrets (DO NOT COMMIT)
+ansible/inventory.yml
+ansible/group_vars/dev.yml
+ansible/group_vars/production.yml
+ansible/*.retry
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.tgz
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Secrets and credentials
+credentials.json
+secrets.yaml
+*.pem
+*.key
+!*.example
+
+# Backup files
+*.bak
+*.backup
+
+# User shell configs (VM-specific)
+.bash_logout
+.bashrc
+.profile
+.cloud-locale-test.skip
+
+# dont add FTPS uploads
+uploads/*

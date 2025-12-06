@@ -1,0 +1,142 @@
+---
+# Dev Tools Role - Install development tools and utilities
+
+- name: Install essential development packages
+  apt:
+    name:
+      - git
+      - build-essential
+      - python3
+      - python3-pip
+      - python3-venv
+      - curl
+      - wget
+      - unzip
+      - jq
+    state: present
+    update_cache: yes
+
+- name: Install optional development tools
+  apt:
+    name:
+      - vim
+      - htop
+      - tree
+      - ncdu
+      - net-tools
+    state: present
+  when: install_vim | default(true) or install_htop | default(true) or install_tree | default(true)
+
+- name: Check if app directory exists
+  stat:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  register: app_dir_exists
+
+- name: Check if repository already exists
+  stat:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/.git"
+  register: repo_exists
+
+- name: Prompt to remove existing non-git directory
+  pause:
+    prompt: |
+
+      WARNING: Directory {{ app_directory | default('/opt/addaxai-connect') }} exists but is not a git repository.
+
+      Do you want to remove it and clone fresh? (yes/no)
+  register: remove_dir_prompt
+  when:
+    - app_dir_exists.stat.exists
+    - not repo_exists.stat.exists
+    - git_repo is defined
+
+- name: Remove existing non-git directory
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}"
+    state: absent
+  when:
+    - app_dir_exists.stat.exists
+    - not repo_exists.stat.exists
+    - git_repo is defined
+    - remove_dir_prompt.user_input | default('no') | lower in ['yes', 'y']
+
+- name: Ensure parent directory exists before clone
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') | dirname }}"
+    state: directory
+    mode: '0755'
+  when:
+    - not repo_exists.stat.exists
+    - git_repo is defined
+
+- name: Clone AddaxAI Connect repository
+  git:
+    repo: "{{ git_repo }}"
+    dest: "{{ app_directory | default('/opt/addaxai-connect') }}"
+    version: "{{ git_branch | default('main') }}"
+    force: no
+    accept_hostkey: yes
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when:
+    - not repo_exists.stat.exists
+    - git_repo is defined
+
+- name: Fix ownership of repository files before update
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    recurse: yes
+  when:
+    - repo_exists.stat.exists
+    - git_repo is defined
+
+- name: Update AddaxAI Connect repository if it exists
+  git:
+    repo: "{{ git_repo }}"
+    dest: "{{ app_directory | default('/opt/addaxai-connect') }}"
+    version: "{{ git_branch | default('main') }}"
+    force: yes
+    accept_hostkey: yes
+    update: yes
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when:
+    - repo_exists.stat.exists
+    - git_repo is defined
+
+- name: Set up git safe directory (for root and app user access)
+  command: git config --global --add safe.directory "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when: git_repo is defined
+  ignore_errors: true
+
+- name: Ensure app directory ownership is correct
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    recurse: yes
+    state: directory
+  when: app_directory is defined or true
+
+- name: Display completion message
+  debug:
+    msg: |
+
+      ========================================
+      Development environment setup complete!
+      ========================================
+
+      Next steps:
+      1. SSH into the VM: ssh {{ app_user | default('ubuntu') }}@{{ ansible_host }}
+      2. Navigate to the project: cd {{ app_directory | default('/opt/addaxai-connect') }}
+      3. Start building the application!
+
+      Useful commands:
+      - docker ps                  # List running containers
+      - docker compose up -d       # Start all services
+      - docker compose logs -f     # View logs
+      - docker compose down        # Stop all services
+
+      The repository is at: {{ app_directory | default('/opt/addaxai-connect') }}
+

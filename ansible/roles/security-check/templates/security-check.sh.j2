@@ -1,0 +1,347 @@
+#!/bin/bash
+# Security Verification Script
+# Automatically checks security configuration after Ansible deployment
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+FAILED_CHECKS=0
+WARNING_CHECKS=0
+PASSED_CHECKS=0
+
+echo ""
+echo "======================================================================="
+echo "                    SECURITY VERIFICATION CHECK"
+echo "======================================================================="
+echo ""
+echo "Host: {{ ansible_host }}"
+echo "Environment: {{ app_environment | default('development') }}"
+echo "Date: $(date)"
+echo ""
+
+# Function to print test results
+pass() {
+    echo -e "${GREEN}[PASS]${NC} $1"
+    PASSED_CHECKS=$((PASSED_CHECKS + 1))
+}
+
+fail() {
+    echo -e "${RED}[FAIL]${NC} $1"
+    echo "       $2"
+    FAILED_CHECKS=$((FAILED_CHECKS + 1))
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo "       $2"
+    WARNING_CHECKS=$((WARNING_CHECKS + 1))
+}
+
+info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+echo "======================================================================="
+echo "1. FIREWALL CONFIGURATION"
+echo "======================================================================="
+echo ""
+
+# Check if UFW is enabled
+if sudo ufw status | grep -q "Status: active"; then
+    pass "UFW firewall is enabled"
+else
+    fail "UFW firewall is NOT enabled" "Run: sudo ufw enable"
+fi
+
+# Check allowed ports (UFW displays as "22/tcp", "80/tcp", etc.)
+EXPECTED_PORTS=(22 80 443 21 990)
+for port in "${EXPECTED_PORTS[@]}"; do
+    if sudo ufw status | grep -q "$port/tcp"; then
+        pass "Port $port is allowed in firewall"
+    else
+        warn "Port $port not found in firewall rules" "May need to allow it"
+    fi
+done
+
+# Check passive FTP ports
+if sudo ufw status | grep -q "40000:50000/tcp"; then
+    pass "FTPS passive ports (40000-50000) are allowed"
+else
+    warn "FTPS passive ports may not be configured" "Check if FTPS is needed"
+fi
+
+echo ""
+echo "======================================================================="
+echo "2. PORT EXPOSURE CHECK"
+echo "======================================================================="
+echo ""
+
+# Check that sensitive ports are NOT publicly exposed
+SENSITIVE_PORTS=(5432 6379 9000 9001 9090 3100)
+PORT_NAMES=("PostgreSQL" "Redis" "MinIO-API" "MinIO-Console" "Prometheus" "Loki")
+
+for i in "${!SENSITIVE_PORTS[@]}"; do
+    port="${SENSITIVE_PORTS[$i]}"
+    name="${PORT_NAMES[$i]}"
+
+    if netstat -tuln 2>/dev/null | grep -q "0.0.0.0:$port " || ss -tuln 2>/dev/null | grep -q "0.0.0.0:$port "; then
+        fail "$name (port $port) is PUBLICLY EXPOSED" "Remove port binding in docker-compose.yml"
+    else
+        pass "$name (port $port) is not publicly exposed"
+    fi
+done
+
+echo ""
+echo "======================================================================="
+echo "3. DOCKER SERVICES STATUS"
+echo "======================================================================="
+echo ""
+
+# Check if Docker is running
+if systemctl is-active --quiet docker; then
+    pass "Docker service is running"
+else
+    fail "Docker service is NOT running" "Run: sudo systemctl start docker"
+fi
+
+# Check Docker containers
+EXPECTED_CONTAINERS=("addaxai-postgres" "addaxai-redis" "addaxai-minio" "addaxai-prometheus" "addaxai-loki")
+
+cd {{ app_directory | default('/opt/addaxai-connect') }} 2>/dev/null || {
+    warn "Application directory not found" "Check if app-deploy role has run"
+}
+
+for container in "${EXPECTED_CONTAINERS[@]}"; do
+    if docker ps --format '{{ '{{' }}.Names{{ '}}' }}' 2>/dev/null | grep -q "^$container$"; then
+        pass "Container $container is running"
+    else
+        warn "Container $container is NOT running" "Check: docker ps -a | grep $container"
+    fi
+done
+
+echo ""
+echo "======================================================================="
+echo "4. REDIS SECURITY"
+echo "======================================================================="
+echo ""
+
+# Check Redis port binding
+if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-redis" | grep -q "6379->6379"; then
+    fail "Redis port 6379 is mapped to host" "Remove ports section from redis service in docker-compose.yml"
+else
+    pass "Redis port is not exposed on host"
+fi
+
+# Check Redis authentication
+if docker exec addaxai-redis redis-cli ping 2>&1 | grep -q "NOAUTH"; then
+    pass "Redis requires authentication"
+elif docker exec addaxai-redis redis-cli ping 2>&1 | grep -q "PONG"; then
+    fail "Redis does NOT require authentication" "Add --requirepass to Redis command"
+else
+    warn "Unable to check Redis authentication" "Container may not be running"
+fi
+
+echo ""
+echo "======================================================================="
+echo "5. POSTGRESQL SECURITY"
+echo "======================================================================="
+echo ""
+
+# Check PostgreSQL port binding
+if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-postgres" | grep -q "5432->5432"; then
+    fail "PostgreSQL port 5432 is mapped to host" "Remove ports section from postgres service"
+else
+    pass "PostgreSQL port is not exposed on host"
+fi
+
+echo ""
+echo "======================================================================="
+echo "6. MINIO SECURITY"
+echo "======================================================================="
+echo ""
+
+# Check MinIO port bindings
+if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-minio" | grep -q "9000->9000"; then
+    fail "MinIO API port 9000 is mapped to host" "Remove ports section from minio service"
+else
+    pass "MinIO API port is not exposed on host"
+fi
+
+if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-minio" | grep -q "9001->9001"; then
+    fail "MinIO Console port 9001 is mapped to host" "Remove ports section from minio service"
+else
+    pass "MinIO Console port is not exposed on host"
+fi
+
+echo ""
+echo "======================================================================="
+echo "7. MONITORING SECURITY"
+echo "======================================================================="
+echo ""
+
+# Check Prometheus port binding
+if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-prometheus" | grep -q "9090->9090"; then
+    fail "Prometheus port 9090 is mapped to host" "Remove ports section from prometheus service"
+else
+    pass "Prometheus port is not exposed on host"
+fi
+
+# Check Loki port binding
+if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-loki" | grep -q "3100->3100"; then
+    fail "Loki port 3100 is mapped to host" "Remove ports section from loki service"
+else
+    pass "Loki port is not exposed on host"
+fi
+
+echo ""
+echo "======================================================================="
+echo "8. NGINX CONFIGURATION"
+echo "======================================================================="
+echo ""
+
+# Check if nginx is running
+if systemctl is-active --quiet nginx; then
+    pass "Nginx service is running"
+else
+    fail "Nginx service is NOT running" "Run: sudo systemctl start nginx"
+fi
+
+# Check nginx configuration
+if nginx -t 2>&1 | grep -q "syntax is ok"; then
+    pass "Nginx configuration is valid"
+else
+    fail "Nginx configuration has errors" "Run: sudo nginx -t"
+fi
+
+# Check htpasswd file exists
+if [ -f /etc/nginx/.htpasswd ]; then
+    pass "HTTP basic auth password file exists"
+else
+    warn "HTTP basic auth password file not found" "Monitoring endpoints may be publicly accessible"
+fi
+
+{% if enable_ssl | default(false) and domain_name is defined %}
+# Check SSL certificate
+if [ -f "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem" ]; then
+    pass "Let's Encrypt SSL certificate exists"
+
+    # Check certificate expiry
+    EXPIRY_DATE=$(openssl x509 -enddate -noout -in "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem" | cut -d= -f2)
+    EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s)
+    NOW_EPOCH=$(date +%s)
+    DAYS_UNTIL_EXPIRY=$(( ($EXPIRY_EPOCH - $NOW_EPOCH) / 86400 ))
+
+    if [ $DAYS_UNTIL_EXPIRY -lt 30 ]; then
+        warn "SSL certificate expires in $DAYS_UNTIL_EXPIRY days" "Renew soon"
+    else
+        pass "SSL certificate is valid (expires in $DAYS_UNTIL_EXPIRY days)"
+    fi
+else
+    warn "Let's Encrypt SSL certificate not found" "HTTPS may not be configured"
+fi
+{% else %}
+info "SSL not enabled or domain not configured"
+{% endif %}
+
+echo ""
+echo "======================================================================="
+echo "9. FTPS CONFIGURATION"
+echo "======================================================================="
+echo ""
+
+# Check if vsftpd is running
+if systemctl is-active --quiet vsftpd; then
+    pass "vsftpd service is running"
+else
+    warn "vsftpd service is NOT running" "FTPS uploads may not work"
+fi
+
+# Check FTPS SSL certificate
+if [ -f /etc/ssl/certs/vsftpd.crt ]; then
+    pass "FTPS SSL certificate exists"
+
+    # Check if it's a symlink (Let's Encrypt)
+    if [ -L /etc/ssl/certs/vsftpd.crt ]; then
+        pass "FTPS using Let's Encrypt certificate (recommended)"
+    else
+        info "FTPS using self-signed certificate (consider using Let's Encrypt)"
+    fi
+else
+    warn "FTPS SSL certificate not found" "FTPS may not work correctly"
+fi
+
+echo ""
+echo "======================================================================="
+echo "10. PASSWORD/SECRET CONFIGURATION"
+echo "======================================================================="
+echo ""
+
+# Check if .env file exists
+ENV_FILE="{{ app_directory | default('/opt/addaxai-connect') }}/.env"
+if [ -f "$ENV_FILE" ]; then
+    pass ".env file exists"
+
+    # Check if passwords are set (not using defaults)
+    if grep -q "REDIS_PASSWORD=changeme" "$ENV_FILE" 2>/dev/null; then
+        fail "Redis password is using default value" "Change REDIS_PASSWORD in .env"
+    else
+        pass "Redis password is configured"
+    fi
+
+    if grep -q "POSTGRES_PASSWORD=changeme" "$ENV_FILE" 2>/dev/null; then
+        fail "PostgreSQL password is using default value" "Change POSTGRES_PASSWORD in .env"
+    else
+        pass "PostgreSQL password is configured"
+    fi
+
+    if grep -q "MINIO_ROOT_PASSWORD=changeme" "$ENV_FILE" 2>/dev/null; then
+        fail "MinIO password is using default value" "Change MINIO_ROOT_PASSWORD in .env"
+    else
+        pass "MinIO password is configured"
+    fi
+else
+    warn ".env file not found" "Application may not be deployed yet"
+fi
+
+echo ""
+echo "======================================================================="
+echo "                         SUMMARY"
+echo "======================================================================="
+echo ""
+
+if [ $FAILED_CHECKS -eq 0 ] && [ $WARNING_CHECKS -eq 0 ]; then
+    echo -e "${GREEN}✅ ALL CHECKS PASSED!${NC}"
+    echo ""
+    echo "Security configuration is optimal."
+    echo "  - $PASSED_CHECKS security checks passed"
+    EXIT_CODE=0
+elif [ $FAILED_CHECKS -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  SOME WARNINGS DETECTED${NC}"
+    echo ""
+    echo "Security configuration is acceptable but could be improved."
+    echo "  - $PASSED_CHECKS checks passed"
+    echo "  - $WARNING_CHECKS warnings (non-critical)"
+    EXIT_CODE=0
+else
+    echo -e "${RED}❌ CRITICAL ISSUES DETECTED!${NC}"
+    echo ""
+    echo "Security configuration has critical issues that must be fixed."
+    echo "  - $PASSED_CHECKS checks passed"
+    echo "  - $WARNING_CHECKS warnings"
+    echo "  - $FAILED_CHECKS FAILED (critical)"
+    echo ""
+    echo "Please review the failures above and fix them before using in production."
+    EXIT_CODE=1
+fi
+
+echo ""
+echo "======================================================================="
+echo ""
+
+exit $EXIT_CODE

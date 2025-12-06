@@ -1,0 +1,68 @@
+---
+# Development Environment Variables
+# Copy this to dev.yml and customize as needed
+#
+# Usage:
+#   cp group_vars/dev.yml.example group_vars/dev.yml
+
+# Application Settings
+app_user: ubuntu                          # Non-root user for development
+app_user_password: "PASSWORD"             # Password for sudo access (CHANGE THIS!)
+app_directory: /opt/addaxai-connect       # Where the repo will be cloned
+app_environment: development              # Environment (development/production)
+log_level: DEBUG                          # Log level (DEBUG/INFO/WARNING/ERROR)
+
+# Git Repository
+git_repo: https://github.com/PetervanLunteren/addaxai-connect.git
+git_branch: main                          # Branch to clone
+
+# Docker Settings
+docker_compose_version: "2.23.0"          # Docker Compose version to install
+deploy_pull_images: false                 # Pull images before deploy (set true for production)
+
+# Development Tools
+install_vim: true                         # Install vim text editor
+install_htop: true                        # Install htop for monitoring
+install_tree: true                        # Install tree for directory visualization
+
+# Security Settings
+enable_firewall: true                     # Enable UFW firewall
+allowed_ssh_port: 22                      # SSH port
+allowed_ssh_ips:                          # IPs allowed to SSH (empty = allow all)
+  # - "YOUR_IP_HERE/32"                   # Uncomment and add your IP for security
+
+# FTPS Server Settings
+ftps_username: camera                     # FTP user for camera trap uploads
+ftps_password: "changeme_ftps123"         # FTP password (CHANGE THIS!)
+ftps_upload_dir: /opt/addaxai-connect/uploads  # Upload directory for images
+ftps_passive_port_min: 40000              # Passive mode port range start
+ftps_passive_port_max: 50000              # Passive mode port range end
+
+# SSL/HTTPS Settings
+enable_ssl: true                          # Enable SSL/HTTPS (requires domain)
+domain_name: ""                           # Domain name (REQUIRED if enable_ssl=true)
+letsencrypt_email: ""                     # Email for Let's Encrypt (REQUIRED if enable_ssl=true)
+
+# Database Settings
+db_user: addaxai                          # PostgreSQL user
+db_password: "changeme_db123"             # PostgreSQL password (CHANGE THIS!)
+db_name: addaxai_connect                  # Database name
+
+# Redis Settings
+redis_password: "changeme_redis123"       # Redis password (CHANGE THIS!)
+
+# MinIO Settings
+minio_user: minioadmin                    # MinIO root user
+minio_password: "changeme_minio123"       # MinIO password (CHANGE THIS!)
+
+# JWT Settings
+jwt_secret: "changeme_jwt_secret_very_long_random_string_123"  # JWT secret (CHANGE THIS!)
+
+# Monitoring & Admin Access
+monitoring_password: "changeme_monitoring123"  # Password for Prometheus/Loki/MinIO console (CHANGE THIS!)
+
+# Security Verification
+fail_on_security_issues: true             # Fail playbook if critical security issues detected (recommended: true)
+
+# ML Model Settings
+use_gpu: false                            # Use GPU for inference (requires CUDA)

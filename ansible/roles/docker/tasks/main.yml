@@ -1,0 +1,104 @@
+---
+# Docker Role - Install Docker and Docker Compose
+
+- name: Install required packages for Docker
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: yes
+
+- name: Create directory for Docker GPG key
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Add Docker GPG key
+  shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+
+- name: Set permissions on Docker GPG key
+  file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: '0644'
+
+- name: Add Docker repository
+  shell: |
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  args:
+    creates: /etc/apt/sources.list.d/docker.list
+
+- name: Update apt cache after adding Docker repo
+  apt:
+    update_cache: yes
+
+- name: Install Docker Engine
+  apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+
+- name: Ensure Docker service is started and enabled
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Create docker group
+  group:
+    name: docker
+    state: present
+
+- name: Add app user to docker group
+  user:
+    name: "{{ app_user | default('ubuntu') }}"
+    groups: docker
+    append: yes
+
+- name: Test Docker installation
+  command: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: Display Docker version
+  debug:
+    msg: "Docker installed successfully: {{ docker_version.stdout }}"
+
+- name: Test Docker Compose installation
+  command: docker compose version
+  register: compose_version
+  changed_when: false
+
+- name: Display Docker Compose version
+  debug:
+    msg: "Docker Compose installed successfully: {{ compose_version.stdout }}"
+
+- name: Pull hello-world image to verify Docker works
+  command: docker pull hello-world
+  register: docker_pull
+  changed_when: "'Downloaded' in docker_pull.stdout"
+  ignore_errors: yes
+
+- name: Run hello-world container to verify Docker works
+  command: docker run --rm hello-world
+  register: docker_test
+  changed_when: false
+  ignore_errors: yes
+
+- name: Display Docker test result
+  debug:
+    msg: "Docker is working correctly!"
+  when: docker_test.rc == 0

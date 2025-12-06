@@ -1,0 +1,71 @@
+---
+# AddaxAI Connect - Full Infrastructure Playbook
+# This playbook sets up a complete production-ready VM
+
+- name: Deploy AddaxAI Connect Infrastructure
+  hosts: dev
+  become: yes
+
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          ========================================
+          AddaxAI Connect Deployment
+          ========================================
+          Target: {{ inventory_hostname }} ({{ ansible_host }})
+          User: {{ app_user | default('ubuntu') }}
+          Directory: {{ app_directory | default('/opt/addaxai-connect') }}
+          Environment: {{ app_environment | default('development') }}
+          SSL Enabled: {{ enable_ssl | default(false) }}
+          {% if domain_name is defined and domain_name %}Domain: {{ domain_name }}{% endif %}
+
+  roles:
+    # Phase 1: Security & Base System
+    - role: security
+      tags: [security, base]
+    - role: docker
+      tags: [docker, base]
+
+    # Phase 2: Infrastructure Services
+    - role: vsftpd
+      tags: [vsftpd, ftps]
+    - role: nginx
+      tags: [nginx, web]
+    - role: ssl
+      tags: [ssl, web]
+
+    # Phase 3: Application Deployment
+    - role: dev-tools
+      tags: [dev-tools, deploy]
+    - role: app-deploy
+      tags: [app-deploy, deploy]
+
+    # Phase 4: Security Verification
+    - role: security-check
+      tags: [security-check, verify]
+
+  post_tasks:
+    - name: Display completion summary
+      debug:
+        msg: |
+
+          ========================================
+          🎉 Deployment Complete!
+          ========================================
+
+          VM Configuration:
+          - FTPS Server: ftp://{{ ftps_username | default('cameratrap') }}@{{ ansible_host }}:21
+          - Web UI: http://{{ ansible_host }}
+          - API Endpoint: http://{{ ansible_host }}/api
+          - MinIO Console: http://{{ ansible_host }}:9001
+          - Prometheus: http://{{ ansible_host }}:9090
+
+          Next Steps:
+          1. SSH into VM: ssh {{ app_user | default('ubuntu') }}@{{ ansible_host }}
+          2. Check services: docker compose ps
+          3. View logs: docker compose logs -f
+          4. Start building your application!
+
+          Documentation: See README.md and PROJECT_PLAN.md
+          ========================================

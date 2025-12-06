@@ -1,0 +1,12 @@
+---
+# vsftpd handlers
+
+- name: restart vsftpd
+  systemd:
+    name: vsftpd
+    state: restarted
+
+- name: reload vsftpd
+  systemd:
+    name: vsftpd
+    state: reloaded

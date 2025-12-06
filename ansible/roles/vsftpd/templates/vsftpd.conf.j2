@@ -1,0 +1,67 @@
+# vsftpd configuration for AddaxAI Connect
+# FTPS server for camera trap image uploads
+
+# Basic settings
+listen=NO
+listen_ipv6=YES
+anonymous_enable=NO
+local_enable=YES
+write_enable=YES
+local_umask=022
+dirmessage_enable=YES
+use_localtime=YES
+xferlog_enable=YES
+connect_from_port_20=YES
+
+# Upload only - disable download/read permissions
+download_enable=NO
+dirlist_enable=NO
+
+# Chroot settings - confine users to their home directory
+chroot_local_user=YES
+allow_writeable_chroot=YES
+
+# Passive mode settings
+pasv_enable=YES
+pasv_min_port={{ ftps_passive_port_min | default('40000') }}
+pasv_max_port={{ ftps_passive_port_max | default('50000') }}
+pasv_address={{ ansible_host }}
+
+# SSL/TLS settings for FTPS
+ssl_enable=YES
+allow_anon_ssl=NO
+force_local_data_ssl=YES
+force_local_logins_ssl=YES
+ssl_tlsv1=YES
+ssl_sslv2=NO
+ssl_sslv3=NO
+require_ssl_reuse=NO
+ssl_ciphers=HIGH
+
+# SSL certificate paths
+rsa_cert_file=/etc/ssl/certs/vsftpd.crt
+rsa_private_key_file=/etc/ssl/private/vsftpd.key
+
+# Security settings
+seccomp_sandbox=NO
+pam_service_name=vsftpd
+
+# User list settings
+userlist_enable=YES
+userlist_file=/etc/vsftpd.userlist
+userlist_deny=NO
+
+# Performance and logging
+xferlog_std_format=YES
+xferlog_file=/var/log/vsftpd.log
+log_ftp_protocol=YES
+
+# File permissions
+file_open_mode=0644
+local_root={{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}
+
+# Connection settings
+max_clients=10
+max_per_ip=5
+idle_session_timeout=600
+data_connection_timeout=120

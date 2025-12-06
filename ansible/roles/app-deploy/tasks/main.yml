@@ -1,0 +1,132 @@
+---
+# App Deploy Role - Deploy Docker Compose stack
+
+- name: Create docker-compose.yml from template
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.yml"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0644'
+
+- name: Create .env file from template
+  template:
+    src: .env.j2
+    dest: "{{ app_directory | default('/opt/addaxai-connect') }}/.env"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0600'
+
+- name: Check if monitoring configs are directories (Docker created them incorrectly)
+  stat:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/monitoring/{{ item }}"
+  register: monitoring_check
+  loop:
+    - prometheus.yml
+    - loki-config.yml
+    - promtail-config.yml
+
+- name: Stop Docker containers if monitoring configs are directories
+  command: docker compose down
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when: monitoring_check.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length > 0
+  ignore_errors: yes
+
+- name: Remove incorrectly created monitoring directories
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/monitoring/{{ item.item }}"
+    state: absent
+  loop: "{{ monitoring_check.results }}"
+  when: item.stat.exists and item.stat.isdir
+
+- name: Create required directories for volumes
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/{{ item }}"
+    state: directory
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0755'
+  loop:
+    - data/postgres
+    - data/redis
+    - data/minio
+    - data/prometheus
+    - data/loki
+    - logs
+
+- name: Pull Docker images
+  command: docker compose pull
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  register: docker_pull
+  changed_when: "'Pulling' in docker_pull.stdout"
+  when: deploy_pull_images | default(true)
+
+- name: Start Docker Compose services (force recreate to fix mount issues)
+  command: docker compose up -d --force-recreate
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  register: docker_up
+  changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
+  async: 600
+  poll: 10
+
+- name: Wait for services to be healthy
+  command: docker compose ps --format json
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  register: compose_status
+  until: compose_status.rc == 0
+  retries: 5
+  delay: 10
+  changed_when: false
+
+- name: Fix ownership of FTPS upload directory (after git deploy overwrites it)
+  file:
+    path: "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}"
+    state: directory
+    owner: "{{ ftps_username | default('camera') }}"
+    group: "{{ ftps_username | default('camera') }}"
+    mode: '0755'
+    recurse: yes
+  when: ftps_username is defined
+
+- name: Ensure app user can read uploads (for Docker containers)
+  user:
+    name: "{{ app_user | default('ubuntu') }}"
+    groups: "{{ ftps_username | default('camera') }}"
+    append: yes
+  when: ftps_username is defined
+
+- name: Display deployment information
+  debug:
+    msg: |
+      ========================================
+      Docker Compose Stack Deployed
+      ========================================
+      Location: {{ app_directory | default('/opt/addaxai-connect') }}
+
+      Services running:
+      - PostgreSQL (port 5432)
+      - Redis (port 6379)
+      - MinIO (ports 9000, 9001)
+      - FastAPI (port 8000)
+      - Prometheus (port 9090)
+      - Loki (port 3100)
+
+      Useful commands:
+      docker compose ps              # Check service status
+      docker compose logs -f         # View logs
+      docker compose restart         # Restart all services
+      docker compose down            # Stop all services
+
+      Access:
+      - Web UI: http://{{ ansible_host }}
+      - API: http://{{ ansible_host }}/api
+      - MinIO Console: http://{{ ansible_host }}:9001
+      - Prometheus: http://{{ ansible_host }}:9090

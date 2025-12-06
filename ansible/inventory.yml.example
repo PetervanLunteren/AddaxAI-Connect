@@ -1,0 +1,27 @@
+---
+# Ansible Inventory - Copy this to inventory.yml and fill in your VM details
+#
+# Usage:
+#   1. Copy this file: cp inventory.yml.example inventory.yml
+#   2. Replace the placeholders with your actual VM IP and SSH settings
+#   3. Run: ansible-playbook -i inventory.yml playbook.yml
+
+all:
+  children:
+    # Development VM - for building and testing
+    dev:
+      hosts:
+        addaxai-dev:
+          ansible_host: your_vm_ipv4             # Replace with VM IPv4 (e.g., 192.168.1.100)
+          ansible_user: root                     # Initial user (Ubuntu VMs typically start with root)
+          ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Path to your SSH private key
+          ansible_python_interpreter: /usr/bin/python3
+
+    # Production VM - for final deployment (add later)
+    # production:
+    #   hosts:
+    #     addaxai-prod:
+    #       ansible_host: your_prod_ip
+    #       ansible_user: root
+    #       ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    #       ansible_python_interpreter: /usr/bin/python3

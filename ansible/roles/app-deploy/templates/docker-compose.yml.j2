@@ -1,0 +1,216 @@
+services:
+  # PostgreSQL Database with PostGIS
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: addaxai-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    # Port binding removed for security - only accessible within Docker network
+    # Application containers access via postgres:5432
+    # For direct access: docker exec -it addaxai-postgres psql -U ${POSTGRES_USER}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - addaxai-network
+
+  # Redis Message Queue
+  redis:
+    image: redis:7-alpine
+    container_name: addaxai-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
+    # Port binding removed for security - only accessible within Docker network
+    # External connections blocked; containers access via redis://redis:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - addaxai-network
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: addaxai-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ./data/minio:/data
+    # Port bindings removed for security - only accessible within Docker network
+    # S3 API: Application containers access via minio:9000
+    # Console: Access via nginx proxy at https://yourdomain.com/minio-console/
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - addaxai-network
+
+  # MinIO Bucket Initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: addaxai-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set minio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb --ignore-existing minio/raw-images;
+      /usr/bin/mc mb --ignore-existing minio/crops;
+      /usr/bin/mc mb --ignore-existing minio/thumbnails;
+      /usr/bin/mc mb --ignore-existing minio/models;
+      echo 'MinIO buckets created successfully';
+      "
+    networks:
+      - addaxai-network
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: addaxai-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./data/prometheus:/prometheus
+    # Port binding removed for security - only accessible within Docker network
+    # Access via nginx proxy at https://yourdomain.com/prometheus/ (password protected)
+    networks:
+      - addaxai-network
+
+  # Loki Log Aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: addaxai-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - ./data/loki:/loki
+    # Port binding removed for security - only accessible within Docker network
+    # Access via nginx proxy at https://yourdomain.com/loki/ (password protected)
+    networks:
+      - addaxai-network
+
+  # Promtail Log Collector
+  promtail:
+    image: grafana/promtail:latest
+    container_name: addaxai-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./monitoring/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./logs:/logs:ro
+    networks:
+      - addaxai-network
+
+  # FastAPI Backend (placeholder - will be built later)
+  # api:
+  #   build: ./services/api
+  #   container_name: addaxai-api
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  #     JWT_SECRET: ${JWT_SECRET}
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - minio
+  #   networks:
+  #     - addaxai-network
+
+  # Ingestion Service (placeholder - will be built later)
+  # ingestion:
+  #   build: ./services/ingestion
+  #   container_name: addaxai-ingestion
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     FTPS_UPLOAD_DIR: {{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}
+  #   volumes:
+  #     - {{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}:/uploads:ro
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - minio
+  #   networks:
+  #     - addaxai-network
+
+  # Detection Worker (placeholder - will be built later)
+  # detection:
+  #   build: ./services/detection
+  #   container_name: addaxai-detection
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     MODEL_PATH: ${MODEL_DETECTION_PATH}
+  #     USE_GPU: ${USE_GPU}
+  #   volumes:
+  #     - ./models:/models:ro
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - minio
+  #   networks:
+  #     - addaxai-network
+
+  # Classification Worker (placeholder - will be built later)
+  # classification:
+  #   build: ./services/classification
+  #   container_name: addaxai-classification
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     MODEL_PATH: ${MODEL_CLASSIFICATION_PATH}
+  #     USE_GPU: ${USE_GPU}
+  #   volumes:
+  #     - ./models:/models:ro
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - minio
+  #   networks:
+  #     - addaxai-network
+
+networks:
+  addaxai-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  prometheus-data:
+  loki-data:

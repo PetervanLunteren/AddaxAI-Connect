@@ -1,0 +1,56 @@
+---
+# Security Check Role - Verify security configuration after deployment
+
+- name: Install security check dependencies
+  apt:
+    name:
+      - netstat-nat  # For netstat
+      - net-tools    # For netstat (alternative)
+      - nmap         # For port scanning
+      - curl         # For HTTP checks
+    state: present
+    update_cache: yes
+
+- name: Deploy security verification script
+  template:
+    src: security-check.sh.j2
+    dest: /usr/local/bin/security-check.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Run security verification
+  command: /usr/local/bin/security-check.sh
+  register: security_check_result
+  failed_when: false
+  changed_when: false
+
+- name: Display security check results
+  debug:
+    msg: "{{ security_check_result.stdout_lines }}"
+
+- name: Check if any critical security issues found
+  fail:
+    msg: |
+      ❌ CRITICAL SECURITY ISSUES DETECTED!
+
+      Please review the security check output above.
+      Fix the issues and re-run the playbook.
+
+      Common issues:
+      - Sensitive ports (6379, 5432, 9000, 9001, 9090, 3100) are publicly accessible
+      - Docker containers not running
+      - Required passwords not configured
+      - Firewall not enabled
+  when:
+    - security_check_result.rc != 0
+    - fail_on_security_issues | default(true)
+
+- name: Display security warnings (non-critical)
+  debug:
+    msg: |
+      ⚠️  Some security warnings detected.
+      Review the output above, but deployment can continue.
+  when:
+    - security_check_result.rc != 0
+    - not (fail_on_security_issues | default(true))

@@ -1,0 +1,120 @@
+---
+# SSL/Let's Encrypt Role - HTTPS certificates
+
+- name: Install certbot and required packages
+  apt:
+    name:
+      - certbot
+      - python3-certbot-nginx
+    state: present
+    update_cache: yes
+
+- name: Check if SSL certificate already exists
+  stat:
+    path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+  register: ssl_cert_exists
+  when: enable_ssl | default(false) and domain_name is defined
+
+- name: Prompt for DNS configuration
+  pause:
+    prompt: |
+
+      ========================================
+      DNS CONFIGURATION REQUIRED
+      ========================================
+
+      Before obtaining SSL certificate, configure your DNS:
+
+      Add an A record:
+        Domain: {{ domain_name }}
+        Type: A
+        Value: {{ ansible_host }}
+        TTL: 300 (or Auto)
+
+      Wait 5-10 minutes for DNS propagation, then verify:
+        dig {{ domain_name }}
+        # or
+        nslookup {{ domain_name }}
+
+      Press ENTER when DNS is configured and propagated...
+
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - not ssl_cert_exists.stat.exists
+
+- name: Obtain Let's Encrypt certificate
+  command: >
+    certbot certonly --nginx
+    --non-interactive
+    --agree-tos
+    --email {{ letsencrypt_email }}
+    --domain {{ domain_name }}
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - letsencrypt_email is defined
+    - not ssl_cert_exists.stat.exists
+  notify: reload nginx
+
+- name: Regenerate nginx config with SSL enabled
+  template:
+    src: ../../nginx/templates/addaxai-connect.conf.j2
+    dest: /etc/nginx/sites-available/addaxai-connect.conf
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    ssl_cert_exists:
+      stat:
+        exists: true
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+  notify: reload nginx
+
+- name: Flush handlers to reload nginx with SSL
+  meta: flush_handlers
+
+- name: Create certbot renewal script
+  template:
+    src: certbot-renew.sh.j2
+    dest: /usr/local/bin/certbot-renew.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: enable_ssl | default(false)
+
+- name: Set up automatic certificate renewal (cron)
+  cron:
+    name: "Renew Let's Encrypt certificates"
+    minute: "0"
+    hour: "3"
+    day: "*"
+    month: "*"
+    weekday: "0"
+    user: root
+    job: "/usr/local/bin/certbot-renew.sh >> /var/log/certbot-renew.log 2>&1"
+    state: present
+  when: enable_ssl | default(false)
+
+- name: Display SSL configuration info
+  debug:
+    msg: |
+      ========================================
+      SSL Configuration
+      ========================================
+      {% if enable_ssl | default(false) and domain_name is defined %}
+      ✅ SSL Enabled
+      Domain: {{ domain_name }}
+      Certificate: /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem
+      Auto-renewal: Configured (runs every Sunday at 3 AM)
+      {% else %}
+      ⚠️  SSL Not Configured
+      To enable SSL:
+      1. Set domain_name in group_vars
+      2. Set letsencrypt_email in group_vars
+      3. Set enable_ssl: true
+      4. Point your domain DNS to: {{ ansible_host }}
+      5. Re-run the playbook
+      {% endif %}
