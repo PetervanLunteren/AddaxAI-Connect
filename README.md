@@ -1,11 +1,15 @@
 # AddaxAI Connect
 Containerized microservices platform that processes camera trap images through machine learning models and presents results via a modern web interface. The system automatically ingests images from remote camera traps via FTPS, runs object detection and species classification, and provides real-time updates to users through an interactive dashboard.
 
-*This repo is under active development! It doesnt work yet...*
+**A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
-## Main TODOs:
-(See [project plan](PROJECT_PLAN.md) for more elaborate steps)
-- [ ] Add auth stack to project plan. Make sure to take note of mutli tentant / multi project.
+## Roadmap
+*This repo is in development! It doesn't work yet...*
+See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
+- [x] **Infrastructure** - Ansible automation, Docker configs, security hardening
+- [ ] **ML Pipeline** - Ingestion, detection, classification workers
+- [ ] **Web App** - FastAPI backend + React frontend
+- [ ] **Production** - Testing, deployment, documentation
 
 ## Repository structure
 - Ansible-based deployment with roles for security, Docker, vsftpd, nginx, SSL, and app deployment
@@ -18,6 +22,8 @@ Containerized microservices platform that processes camera trap images through m
 - PostgreSQL with PostGIS for spatial data
 - Redis for message queuing
 - MinIO for S3-compatible object storage
+- FastAPI-Users for authentication with email verification
+- SMTP for transactional emails (verification, password reset)
 - Prometheus/Loki/Promtail for monitoring and logging
 - vsftpd for FTPS uploads
 - Nginx as reverse proxy

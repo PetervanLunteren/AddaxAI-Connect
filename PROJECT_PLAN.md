@@ -249,6 +249,8 @@ This document outlines the complete plan to build AddaxAI Connect: a near real-t
 | Storage | MinIO | S3-compatible, self-hosted |
 | Database | PostgreSQL + PostGIS | Spatial queries, robust |
 | API | FastAPI | Python, async, auto docs |
+| Authentication | FastAPI-Users | Production-ready auth, email verification, JWT |
+| Email | Gmail SMTP | Simple setup, reliable delivery |
 | Frontend | React + Vite | Modern, fast dev experience |
 | Orchestration | Docker Compose | Simple multi-container mgmt |
 | Monitoring | Prometheus + Loki | Metrics and log aggregation |
@@ -574,7 +576,10 @@ docker compose up -d --build
   - [ ] `cameras` table (id, name, location as geography, installed_at, config)
   - [ ] `detections` table (id, image_id, bbox, confidence, crop_path)
   - [ ] `classifications` table (id, detection_id, species, confidence)
-  - [ ] `users` table (id, email, password_hash, role)
+  - [ ] `projects` table (id, name, description, created_at) - for multi-project support
+  - [ ] `users` table (id, email, hashed_password, is_active, is_verified, is_superuser, project_id) - FastAPI-Users schema
+  - [ ] `email_allowlist` table (id, email, domain, added_by_user_id, created_at) - for registration control
+  - [ ] `accesstoken` table (id, user_id, token, created_at) - FastAPI-Users OAuth tokens (optional)
   - [ ] `audit_logs` table (id, user_id, action, resource_type, timestamp)
 - [ ] Set up Alembic for migrations in `services/api/`
 - [ ] Create initial migration with all tables
@@ -582,6 +587,9 @@ docker compose up -d --build
   - `images(camera_id, uploaded_at DESC)`
   - `images(status)`
   - `classifications(species)`
+  - `users(email)` - unique index
+  - `email_allowlist(email)` - unique index
+  - `email_allowlist(domain)` - for domain-based allowlist
   - PostGIS spatial index on `cameras(location)`
 
 **Deliverable:** PostgreSQL running with complete schema
@@ -658,19 +666,48 @@ docker compose up -d --build
 
 ---
 
-### 1.7 Authentication System
-- [ ] Implement JWT token generation/validation
-- [ ] Create user authentication endpoints:
-  - [ ] `POST /api/auth/login` - Email/password login
-  - [ ] `POST /api/auth/refresh` - Refresh access token
-  - [ ] `GET /api/auth/me` - Get current user info
-  - [ ] `POST /api/auth/logout` - Invalidate refresh token
-- [ ] Implement password hashing (bcrypt)
-- [ ] Add role-based access control (RBAC) middleware
-- [ ] Define roles: Admin, Analyst, Viewer
-- [ ] Create admin user creation script: `scripts/create_user.py`
+### 1.7 Authentication System (FastAPI-Users)
+- [ ] Install FastAPI-Users: `pip install fastapi-users[sqlalchemy]`
+- [ ] Configure FastAPI-Users with SQLAlchemy models:
+  - [ ] Create User model (extends FastAPI-Users base)
+  - [ ] Add `project_id` field for multi-project support
+  - [ ] Add `role` field (Admin, Analyst, Viewer) for RBAC
+  - [ ] Set up UserManager with custom logic
+- [ ] Configure email allowlist system:
+  - [ ] Create `email_allowlist` table migration
+  - [ ] Implement allowlist validation in registration flow
+  - [ ] Support both specific emails and domain patterns (e.g., `@university.edu`)
+- [ ] Configure Gmail SMTP for transactional emails:
+  - [ ] Set up environment variables (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD)
+  - [ ] Generate Gmail App Password (requires 2FA enabled)
+  - [ ] Configure email sender utility
+- [ ] Implement authentication endpoints (via FastAPI-Users):
+  - [ ] `POST /auth/register` - Email/password registration with allowlist check
+  - [ ] `POST /auth/login` - Email/password login
+  - [ ] `POST /auth/logout` - Logout
+  - [ ] `GET /auth/verify` - Email verification link
+  - [ ] `POST /auth/forgot-password` - Request password reset
+  - [ ] `POST /auth/reset-password` - Reset password with token
+  - [ ] `GET /users/me` - Get current user info
+- [ ] Create email templates:
+  - [ ] Welcome email with verification link
+  - [ ] Password reset email
+  - [ ] Account activated email (after verification)
+- [ ] Implement allowlist management endpoints (Admin only):
+  - [ ] `POST /api/admin/allowlist` - Add email or domain to allowlist
+  - [ ] `GET /api/admin/allowlist` - List allowed emails/domains
+  - [ ] `DELETE /api/admin/allowlist/{id}` - Remove from allowlist
+- [ ] Add RBAC middleware:
+  - [ ] Check user role on protected endpoints
+  - [ ] Define role permissions (Admin, Analyst, Viewer)
+  - [ ] Implement `@requires_role` decorator
+- [ ] Create initial admin user script: `scripts/create_admin_user.py`
+- [ ] Password requirements:
+  - [ ] Minimum 8 characters
+  - [ ] Basic validation (no complexity rules for MVP)
+- [ ] Write authentication tests
 
-**Deliverable:** Working authentication system with JWT
+**Deliverable:** Working authentication system with FastAPI-Users, email verification, password reset, and allowlist-based registration
 
 ---
 
