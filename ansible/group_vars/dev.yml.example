@@ -13,7 +13,7 @@ app_environment: development              # Environment (development/production)
 log_level: DEBUG                          # Log level (DEBUG/INFO/WARNING/ERROR)
 
 # Git Repository
-git_repo: https://github.com/PetervanLunteren/addaxai-connect.git
+git_repo: https://github.com/PetervanLunteren/AddaxAI-Connect.git
 git_branch: main                          # Branch to clone
 
 # Docker Settings

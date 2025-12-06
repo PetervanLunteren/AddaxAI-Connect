@@ -46,7 +46,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 3. **Clone current repo**
     ```bash
-    git clone https://github.com/PetervanLunteren/addaxai-connect.git
+    git clone https://github.com/PetervanLunteren/AddaxAI-Connect.git
     ```
 
 4. **Create Ansible inventory and dev files**
