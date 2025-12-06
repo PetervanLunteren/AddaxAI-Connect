@@ -1,5 +1,5 @@
 # AddaxAI Connect
-Containerized microservices platform that processes camera trap images through machine learning models and presents results via a modern web interface. The system automatically ingests images from remote camera traps via FTPS, runs object detection and species classification, and provides real-time updates to users through an interactive dashboard.
+Containerized microservices platform that processes camera trap images through machine learning models and presents results via web interface. The system automatically ingests images from remote camera traps via FTPS, runs object detection and species classification, and provides real-time updates to users.
 
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
