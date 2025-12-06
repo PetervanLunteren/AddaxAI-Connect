@@ -1,9 +1,11 @@
-TODO:
-- [ ] Add auth stack to project plan. Make sure to take note of mutli tentant / multi project. 
-- [ ] Make it ready for open-source, see [this file](TASK-MAKE-OPEN-SOURCE-FRIENDLY.md). 
-
 # AddaxAI Connect
 Containerized microservices platform that processes camera trap images through machine learning models and presents results via a modern web interface. The system automatically ingests images from remote camera traps via FTPS, runs object detection and species classification, and provides real-time updates to users through an interactive dashboard.
+
+*This repo is under active development! It doesnt work yet...*
+
+## Main TODOs:
+(See [project plan](PROJECT_PLAN.md) for more elaborate steps)
+- [ ] Add auth stack to project plan. Make sure to take note of mutli tentant / multi project.
 
 ## Repository structure
 - Ansible-based deployment with roles for security, Docker, vsftpd, nginx, SSL, and app deployment
