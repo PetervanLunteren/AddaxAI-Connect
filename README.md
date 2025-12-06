@@ -5,6 +5,7 @@ Containerized microservices platform that processes camera trap images through m
 
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
+
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 - [x] **Infrastructure** - Ansible automation, Docker configs, security hardening
 - [ ] **ML Pipeline** - Ingestion, detection, classification workers
@@ -30,12 +31,12 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 - Docker Compose for orchestration
 
 ## Security
-Multi-layered security with UFW firewall, TLS/SSL encryption (Let's Encrypt), password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO, Prometheus, Loki) accessible only within Docker network. Monitoring endpoints protected via nginx reverse proxy with HTTP basic auth. Automated security verification runs after each deployment.
+Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO, Prometheus, Loki) accessible only within Docker network. Monitoring endpoints protected via nginx reverse proxy with HTTP basic auth.
 
 ## Setup
 1. **Deploy a VM** - You can use a provider of you choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.02 (LTS) x64`, but other Ubuntu versions should also work. After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
 
-2. **Add to `.ssh/config`** - For easy termnial access. 
+2. **Add to `.ssh/config`** - For easy termnial access. Log in via `ssh <friendly_name>` to test and add host to known hosts. Then exit again. 
     ```bash
     Host <friendly_name>
     HostName <your_vm_ipv4>
@@ -43,24 +44,19 @@ Multi-layered security with UFW firewall, TLS/SSL encryption (Let's Encrypt), pa
     IdentityFile ~/.ssh/id_rsa
     ```
 
-3. **Test SSH connection** - Just to check connection and to add to known hosts to avoid rejections during the Ansible workflow.
-    ```bash
-    ssh <friendly_name>
-    ```
-
-4. **Clone current repo**
+3. **Clone current repo**
     ```bash
     git clone https://github.com/PetervanLunteren/addaxai-connect.git
     ```
 
-5. **Create Ansible inventory and dev files**
+4. **Create Ansible inventory and dev files**
     ```bash
     cd addaxai-connect/ansible/
     cp inventory.yml.example inventory.yml
     cp group_vars/dev.yml.example group_vars/dev.yml
     ```
 
-6. **Configure variables** - Make sure to create secure passwords (e.g., with `openssl rand -base64 32`). 
+5. **Configure variables** - Make sure to create secure passwords (e.g., with `openssl rand -base64 32`). 
     - Replace in `inventory.yml`:
         - `your_vm_ipv4`
     - Replace in `group_vars/dev.yml`:
@@ -74,12 +70,12 @@ Multi-layered security with UFW firewall, TLS/SSL encryption (Let's Encrypt), pa
         - `domain_name`
         - `letsencrypt_email`
 
-7. **Test Asible connection** - Should return `"pong"` if succesful.
+6. **Test Asible connection** - Should return `"pong"` if succesful.
     ```bash
     ansible -i inventory.yml dev -m ping
     ```
 
-8. **Run playbook**
+7. **Run playbook**
     ```cmd
     ansible-playbook -i inventory.yml playbook.yml
     ```
