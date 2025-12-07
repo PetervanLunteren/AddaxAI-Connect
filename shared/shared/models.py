@@ -24,7 +24,7 @@ class Image(Base):
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     storage_path = Column(String(512), nullable=False)
     status = Column(String(50), nullable=False, default="pending", index=True)
-    metadata = Column(JSON)
+    image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
     # Relationships
     camera = relationship("Camera", back_populates="images")
