@@ -2,8 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install setuptools for editable installs
-RUN pip install --no-cache-dir setuptools
+# Install build tools for shared library
+RUN pip install --no-cache-dir setuptools wheel
 
 # Copy and install shared library
 COPY shared /shared

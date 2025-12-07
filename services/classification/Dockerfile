@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install setuptools for editable installs
-RUN pip install --no-cache-dir setuptools
+# Install build tools for shared library
+RUN pip install --no-cache-dir setuptools wheel
 
 # Copy and install shared library
 COPY shared /shared

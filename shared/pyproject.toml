@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "addaxai-connect-shared"
+version = "0.1.0"
+description = "Shared library for AddaxAI Connect services"
+requires-python = ">=3.11"
+dependencies = [
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "redis>=5.0.0",
+    "boto3>=1.34.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "geoalchemy2>=0.14.0",
+]
+
+[tool.setuptools]
+packages = ["shared"]
