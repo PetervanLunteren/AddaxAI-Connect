@@ -38,7 +38,6 @@ env/
 
 # Docker
 docker-compose.override.yml
-docker-compose.yml
 data/
 
 # IDE
@@ -63,8 +62,10 @@ models/*.pth
 models/*.h5
 models/*.onnx
 models/*.pb
-models/detection/
-models/classification/
+models/detection/*
+models/classification/*
+!models/detection/README.md
+!models/classification/README.md
 
 # Ansible secrets (DO NOT COMMIT)
 ansible/inventory.yml
@@ -105,5 +106,8 @@ secrets.yaml
 .profile
 .cloud-locale-test.skip
 
-# dont add FTPS uploads
+# FTPS uploads
 uploads/*
+
+# Alembic
+services/api/alembic/versions/*.pyc

@@ -14,12 +14,14 @@
 ---
 
 **Key principles:**
-1. **Crash early, crash loudly** - No silent failures during development
-2. **Explicit configuration** - No default values, crash if missing
-3. **Type hints** - Make expectations clear
-4. **Stay short on text** - don't trouble the waters with overly complex documentation, keep it short and clear
-5. **Open source friendly** - no secrets, domains, IP addresses, security vunerabilities, etc in the code/text
-6. **No backwards compatibility** - This is a project in development. There are no users. If we change something, we don't need to trouble the waters with backward compatibility. 
+1. **Crash early and loudly** - Fail hard in development so bugs cannot hide. Never allow silent failures.
+2. **Explicit configuration** - No defaults. If something is missing, stop and surface it immediately.
+3. **Type hints everywhere** - Make expectations clear and support safe refactoring.
+4. **Short and clear documentation** - Keep explanations concise without losing clarity.
+5. **Open source friendly** - Never commit secrets or anything that should not be public.
+6. **No backward compatibility** - The project is in motion and has no users. Refactor freely when needed.
+7. **Prefer simple solutions** - Use straightforward approaches that follow the conventions. Avoid cleverness when simplicity works.
+8. **Follow the established conventions** - Keep structure predictable so the codebase stays readable and easy to maintain. 
 
 **Remember:** It's better to crash during development than to hide bugs that cause problems later. We'll add resilience (retries, fallbacks, graceful degradation) after the core functionality works.
 
