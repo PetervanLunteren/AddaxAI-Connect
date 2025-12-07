@@ -2,6 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install setuptools for editable installs
+RUN pip install --no-cache-dir setuptools
+
 # Copy and install shared library
 COPY shared /shared
 RUN pip install --no-cache-dir -e /shared
