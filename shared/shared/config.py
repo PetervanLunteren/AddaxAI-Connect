@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     jwt_expiration_hours: int = 24
 
     # ML Models (workers only)
-    model_detection_path: Optional[str] = None
-    model_classification_path: Optional[str] = None
+    detection_model_path: Optional[str] = None
+    classification_model_path: Optional[str] = None
     use_gpu: bool = False
 
     # FTPS (ingestion only)
