@@ -17,5 +17,6 @@ dependencies = [
     "geoalchemy2>=0.14.0",
 ]
 
-[tool.setuptools]
-packages = ["shared"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["shared*"]
