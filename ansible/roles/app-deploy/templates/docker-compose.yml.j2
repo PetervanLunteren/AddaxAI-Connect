@@ -126,7 +126,9 @@ services:
 
   # FastAPI Backend (placeholder - will be built later)
   # api:
-  #   build: ./services/api
+  #   build:
+  #     context: .
+  #     dockerfile: services/api/Dockerfile
   #   container_name: addaxai-api
   #   restart: unless-stopped
   #   environment:

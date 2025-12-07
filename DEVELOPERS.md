@@ -11,7 +11,7 @@
 **Deployment:** Ubuntu VM (DigitalOcean)
 **Scale:** Hundreds of images per day, 1-10 concurrent users
 **Development:** This repo is still in development. We do the testing and deployment on the VM directly, not on the local device. 
-**GitHub:** Always manually commit, never automatically. 
+**GitHub:** Always commit manually. Never commit automatically. 
 
 ---
 
@@ -24,6 +24,7 @@
 6. **No backward compatibility** - The project is in motion and has no users. Refactor freely when needed.
 7. **Prefer simple solutions** - Use straightforward approaches that follow the conventions. Avoid cleverness when simplicity works.
 8. **Follow the established conventions** - Keep structure predictable so the codebase stays readable and easy to maintain. 
+9. **No quick fixes** - Fix issues in a way that holds for all future deployments, not only the current device.
 
 **Remember:** It's better to crash during development than to hide bugs that cause problems later. We'll add resilience (retries, fallbacks, graceful degradation) after the core functionality works.
 

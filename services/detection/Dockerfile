@@ -8,9 +8,15 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# Copy and install shared library
+COPY shared /shared
+RUN pip install --no-cache-dir -e /shared
+
+# Install service dependencies
+COPY services/detection/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy service code
+COPY services/detection .
 
 CMD ["python", "worker.py"]

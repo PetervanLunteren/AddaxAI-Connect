@@ -114,7 +114,9 @@ services:
 
   # FastAPI Backend
   api:
-    build: ./services/api
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
     container_name: addaxai-api
     restart: unless-stopped
     environment:
@@ -139,7 +141,9 @@ services:
 
   # Ingestion Service
   ingestion:
-    build: ./services/ingestion
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
     container_name: addaxai-ingestion
     restart: unless-stopped
     environment:
@@ -163,7 +167,9 @@ services:
 
   # Detection Worker
   detection:
-    build: ./services/detection
+    build:
+      context: .
+      dockerfile: services/detection/Dockerfile
     container_name: addaxai-detection
     restart: unless-stopped
     environment:
@@ -188,7 +194,9 @@ services:
 
   # Classification Worker
   classification:
-    build: ./services/classification
+    build:
+      context: .
+      dockerfile: services/classification/Dockerfile
     container_name: addaxai-classification
     restart: unless-stopped
     environment:
@@ -213,7 +221,9 @@ services:
 
   # Alert Worker
   alerts:
-    build: ./services/alerts
+    build:
+      context: .
+      dockerfile: services/alerts/Dockerfile
     container_name: addaxai-alerts
     restart: unless-stopped
     environment:
