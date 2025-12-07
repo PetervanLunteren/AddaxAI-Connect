@@ -36,13 +36,19 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 ## Setup
 1. **Deploy a VM** - You can use a provider of you choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.02 (LTS) x64`, but other Ubuntu versions should also work. After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
 
-2. **Add to `.ssh/config`** - For easy termnial access. Log in via `ssh <friendly_name>` to test and add host to known hosts. Then exit again. 
+2. **Add to `.ssh/config`** - For easy access. 
     ```bash
     Host <friendly_name>
     HostName <your_vm_ipv4>
     User ubuntu
     IdentityFile ~/.ssh/id_rsa
     ```
+
+3. **Test SSH connection** - Log in to test the connection and to add host to known hosts. 
+    ```bash
+    ssh <friendly_name>
+    ```
+    Then `exit` again and go back to your local device, no need to be on VM at this point.
 
 3. **Clone current repo**
     ```bash

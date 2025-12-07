@@ -10,6 +10,7 @@
 **Architecture:** Microservices in a monorepo, orchestrated with Docker Compose
 **Deployment:** Ubuntu VM (DigitalOcean)
 **Scale:** Hundreds of images per day, 1-10 concurrent users
+**Development:** This repo is still in development. We do the testing and deployment on the VM directly, not on the local device. 
 
 ---
 
