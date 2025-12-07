@@ -14,7 +14,7 @@ services:
     # Application containers access via postgres:5432
     # For direct access: docker exec -it addaxai-postgres psql -U ${POSTGRES_USER}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
