@@ -35,7 +35,7 @@ docker compose run --rm -v "$(pwd)/services/api/alembic/versions:/app/alembic/ve
 
 echo ""
 echo "✅ Database initialized! Checking tables..."
-docker exec -it addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
+docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
 
 echo ""
 echo "🎉 Done! Your database is ready."

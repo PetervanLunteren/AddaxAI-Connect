@@ -51,7 +51,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ```
     Then `exit` again and go back to your local device, no need to be on VM at this point.
 
-3. **Clone current repo**
+3. **Clone current repo** - Make sure you have the latest code on your local device
     ```bash
     git clone https://github.com/PetervanLunteren/AddaxAI-Connect.git
     ```

@@ -27,43 +27,34 @@
     state: present
   when: install_vim | default(true) or install_htop | default(true) or install_tree | default(true)
 
-- name: Check if app directory exists
-  stat:
-    path: "{{ app_directory | default('/opt/addaxai-connect') }}"
-  register: app_dir_exists
-
 - name: Check if repository already exists
   stat:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}/.git"
   register: repo_exists
 
-- name: Prompt to remove existing non-git directory
-  pause:
-    prompt: |
-
-      WARNING: Directory {{ app_directory | default('/opt/addaxai-connect') }} exists but is not a git repository.
-
-      Do you want to remove it and clone fresh? (yes/no)
-  register: remove_dir_prompt
-  when:
-    - app_dir_exists.stat.exists
-    - not repo_exists.stat.exists
-    - git_repo is defined
-
-- name: Remove existing non-git directory
+- name: Remove existing non-git directory (auto-clean for fresh deployments)
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}"
     state: absent
   when:
-    - app_dir_exists.stat.exists
     - not repo_exists.stat.exists
     - git_repo is defined
-    - remove_dir_prompt.user_input | default('no') | lower in ['yes', 'y']
 
 - name: Ensure parent directory exists before clone
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') | dirname }}"
     state: directory
+    mode: '0755'
+  when:
+    - not repo_exists.stat.exists
+    - git_repo is defined
+
+- name: Create app directory with proper ownership before clone
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}"
+    state: directory
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
     mode: '0755'
   when:
     - not repo_exists.stat.exists
