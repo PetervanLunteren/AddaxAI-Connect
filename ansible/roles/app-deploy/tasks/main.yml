@@ -103,6 +103,20 @@
     append: yes
   when: ftps_username is defined
 
+- name: Initialize database with Alembic migrations
+  command: bash scripts/init-database.sh
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  register: db_init
+  changed_when: "'✅ Database initialized!' in db_init.stdout"
+  failed_when: db_init.rc != 0
+
+- name: Display database initialization result
+  debug:
+    var: db_init.stdout_lines
+  when: db_init is defined
+
 - name: Display deployment information
   debug:
     msg: |
