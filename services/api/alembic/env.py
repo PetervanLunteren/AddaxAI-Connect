@@ -59,10 +59,11 @@ def process_revision_directives(context, revision, directives):
     if directives[0].upgrade_ops is not None:
         script = directives[0]
         # Always add geoalchemy2 import since we use PostGIS types
+        # script.imports is a set, so we add to it
         if script.imports is None:
-            script.imports = 'import geoalchemy2'
-        elif 'import geoalchemy2' not in script.imports:
-            script.imports = 'import geoalchemy2\n' + script.imports
+            script.imports = {'import geoalchemy2'}
+        else:
+            script.imports.add('import geoalchemy2')
 
 
 def run_migrations_online() -> None:
