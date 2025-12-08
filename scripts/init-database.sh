@@ -9,7 +9,8 @@ docker compose build api
 
 echo ""
 echo "Creating initial migration..."
-docker compose run --rm api alembic revision --autogenerate -m "Initial schema with images, cameras, detections, classifications, users"
+# Mount the alembic/versions directory so the migration file persists to the host
+docker compose run --rm -v "$(pwd)/services/api/alembic/versions:/app/alembic/versions" api alembic revision --autogenerate -m "Initial schema with images, cameras, detections, classifications, users"
 
 echo ""
 echo "Applying migrations..."
