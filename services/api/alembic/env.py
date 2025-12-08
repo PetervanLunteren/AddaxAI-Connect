@@ -63,8 +63,9 @@ def process_revision_directives(context, revision, directives):
         has_geoalchemy2 = False
         for op in script.upgrade_ops.ops:
             if hasattr(op, 'columns'):
-                for column in op.columns:
-                    if 'geoalchemy2' in str(column.type):
+                for item in op.columns:
+                    # Only check Column objects, skip constraints
+                    if hasattr(item, 'type') and 'geoalchemy2' in str(item.type):
                         has_geoalchemy2 = True
                         break
 
