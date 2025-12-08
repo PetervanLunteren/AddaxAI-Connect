@@ -35,37 +35,24 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO, Prometheus, Loki) accessible only within Docker network. Monitoring endpoints protected via nginx reverse proxy with HTTP basic auth.
 
 ## Setup
-1. **Deploy a VM** - You can use a provider of you choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.02 (LTS) x64`, but other Ubuntu versions should also work. After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
+1. **Deploy a VM** - You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.04 (LTS) x64`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
 
-2. **Add to `.ssh/config`** - For easy access. 
-    ```bash
-    Host <friendly_name>
-    HostName <your_vm_ipv4>
-    User ubuntu
-    IdentityFile ~/.ssh/id_rsa
-    ```
-
-3. **Test SSH connection** - Log in to test the connection and to add host to known hosts. 
-    ```bash
-    ssh <friendly_name>
-    ```
-    Then `exit` again and go back to your local device, no need to be on VM at this point.
-
-3. **Clone current repo** - Make sure you have the latest code on your local device
+2. **Clone this repo** - On your local machine
     ```bash
     git clone https://github.com/PetervanLunteren/AddaxAI-Connect.git
+    cd AddaxAI-Connect
     ```
 
-4. **Create Ansible inventory and dev files**
+3. **Create Ansible inventory and dev files**
     ```bash
-    cd addaxai-connect/ansible/
+    cd ansible/
     cp inventory.yml.example inventory.yml
     cp group_vars/dev.yml.example group_vars/dev.yml
     ```
 
-5. **Configure variables** - Make sure to create secure passwords (e.g., with `openssl rand -base64 32`). 
+4. **Configure variables** - Make sure to create secure passwords (e.g., with `openssl rand -base64 32`).
     - Replace in `inventory.yml`:
-        - `your_vm_ipv4`
+        - `your_vm_ipv4` (the IP address from step 1)
     - Replace in `group_vars/dev.yml`:
         - `app_user_password`
         - `ftps_password`
@@ -77,12 +64,17 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
         - `domain_name`
         - `letsencrypt_email`
 
-6. **Test Asible connection** - Should return `"pong"` if succesful.
+5. **Add VM to known_hosts** - SSH to the VM to accept the host key. Type `yes` when prompted, then `exit` to disconnect.
+    ```bash
+    ssh root@<your_vm_ipv4>
+    ```
+
+6. **Test Ansible connection** - Should return `pong` if successful.
     ```bash
     ansible -i inventory.yml dev -m ping
     ```
 
-7. **Run playbook**
-    ```cmd
+6. **Run playbook** - Deploys entire infrastructure automatically.
+    ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
