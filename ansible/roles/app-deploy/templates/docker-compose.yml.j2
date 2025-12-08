@@ -124,28 +124,32 @@ services:
     networks:
       - addaxai-network
 
-  # FastAPI Backend (placeholder - will be built later)
-  # api:
-  #   build:
-  #     context: .
-  #     dockerfile: services/api/Dockerfile
-  #   container_name: addaxai-api
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL}
-  #     REDIS_URL: ${REDIS_URL}
-  #     MINIO_ENDPOINT: minio:9000
-  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-  #     JWT_SECRET: ${JWT_SECRET}
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #     - minio
-  #   networks:
-  #     - addaxai-network
+  # FastAPI Backend
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    container_name: addaxai-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network
 
   # Ingestion Service (placeholder - will be built later)
   # ingestion:
