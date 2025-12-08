@@ -70,8 +70,10 @@ def process_revision_directives(context, revision, directives):
                         break
 
         # Add geoalchemy2 import if needed
-        if has_geoalchemy2 and script.imports:
-            if 'import geoalchemy2' not in script.imports:
+        if has_geoalchemy2:
+            if script.imports is None:
+                script.imports = 'import geoalchemy2'
+            elif 'import geoalchemy2' not in script.imports:
                 script.imports += '\nimport geoalchemy2'
 
 
