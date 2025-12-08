@@ -73,12 +73,10 @@ def include_object(object, name, type_, reflected, compare_to):
     Exclude spatial indexes on Geography/Geometry columns since
     GeoAlchemy2 creates them automatically.
     """
-    if type_ == "index" and name and name.startswith("idx_") and compare_to is None:
-        # Check if this is a spatial index (GIST on geography/geometry column)
-        # These are auto-created by GeoAlchemy2, so we skip them in migrations
-        if hasattr(object, 'dialect_options') and 'postgresql_using' in object.dialect_options:
-            if object.dialect_options['postgresql_using'] == 'gist':
-                return False
+    if type_ == "index" and name == "idx_cameras_location":
+        # This spatial index is automatically created by GeoAlchemy2
+        # when the Geography column is added, so exclude it from migrations
+        return False
     return True
 
 
