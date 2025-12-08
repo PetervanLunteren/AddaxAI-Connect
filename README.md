@@ -66,7 +66,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 5. **Add VM to known_hosts** - SSH to the VM to accept the host key. Type `yes` when prompted, then `exit` to disconnect.
     ```bash
-    ssh root@<your_vm_ipv4>
+    ssh -i ~/.ssh/id_rsa root@<your_vm_ipv4>
     ```
 
 6. **Test Ansible connection** - Should return `pong` if successful.
