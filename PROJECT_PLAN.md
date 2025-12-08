@@ -570,29 +570,30 @@ docker compose up -d --build
 ---
 
 ### 1.2 Database Setup
-- [ ] Create `docker-compose.yml` service for PostgreSQL + PostGIS
-- [ ] Design database schema:
-  - [ ] `images` table (id, filename, camera_id, uploaded_at, storage_path, status)
-  - [ ] `cameras` table (id, name, location as geography, installed_at, config)
-  - [ ] `detections` table (id, image_id, bbox, confidence, crop_path)
-  - [ ] `classifications` table (id, detection_id, species, confidence)
-  - [ ] `projects` table (id, name, description, created_at) - for multi-project support
-  - [ ] `users` table (id, email, hashed_password, is_active, is_verified, is_superuser, project_id) - FastAPI-Users schema
-  - [ ] `email_allowlist` table (id, email, domain, added_by_user_id, created_at) - for registration control
-  - [ ] `accesstoken` table (id, user_id, token, created_at) - FastAPI-Users OAuth tokens (optional)
-  - [ ] `audit_logs` table (id, user_id, action, resource_type, timestamp)
-- [ ] Set up Alembic for migrations in `services/api/`
-- [ ] Create initial migration with all tables
-- [ ] Add indexes:
-  - `images(camera_id, uploaded_at DESC)`
-  - `images(status)`
-  - `classifications(species)`
-  - `users(email)` - unique index
-  - `email_allowlist(email)` - unique index
-  - `email_allowlist(domain)` - for domain-based allowlist
-  - PostGIS spatial index on `cameras(location)`
+- [x] Create `docker-compose.yml` service for PostgreSQL + PostGIS
+- [x] Design database schema:
+  - [x] `images` table (id, filename, camera_id, uploaded_at, storage_path, status)
+  - [x] `cameras` table (id, name, location as geography, installed_at, config)
+  - [x] `detections` table (id, image_id, bbox, confidence, crop_path)
+  - [x] `classifications` table (id, detection_id, species, confidence)
+  - [x] `users` table (id, email, hashed_password, is_active, is_verified, is_superuser) - FastAPI-Users schema
+  - [x] `email_allowlist` table (id, email, domain, added_by_user_id, created_at) - for registration control
+  - [x] `alert_rules` table (id, name, rule_type, condition, notification_method, is_active, created_at)
+  - [x] `alert_logs` table (id, rule_id, triggered_at, details, status)
+- [x] Set up Alembic for migrations in `services/api/`
+- [x] Create initial migration with all tables
+- [x] Add indexes:
+  - [x] `images(camera_id, uploaded_at DESC)`
+  - [x] `images(status)`
+  - [x] `images(uuid)` - unique index
+  - [x] `classifications(species)`
+  - [x] `classifications(detection_id)`
+  - [x] `detections(image_id)`
+  - [x] `users(email)` - unique index
+  - [x] `email_allowlist(email)` - unique index
+  - [x] PostGIS spatial index on `cameras(location)` - auto-created by GeoAlchemy2
 
-**Deliverable:** PostgreSQL running with complete schema
+**Deliverable:** ✅ PostgreSQL running with complete schema
 
 ---
 
