@@ -66,6 +66,22 @@ def process_revision_directives(context, revision, directives):
             script.imports.add('import geoalchemy2')
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """
+    Filter objects to include in migrations.
+
+    Exclude spatial indexes on Geography/Geometry columns since
+    GeoAlchemy2 creates them automatically.
+    """
+    if type_ == "index" and name and name.startswith("idx_") and compare_to is None:
+        # Check if this is a spatial index (GIST on geography/geometry column)
+        # These are auto-created by GeoAlchemy2, so we skip them in migrations
+        if hasattr(object, 'dialect_options') and 'postgresql_using' in object.dialect_options:
+            if object.dialect_options['postgresql_using'] == 'gist':
+                return False
+    return True
+
+
 def run_migrations_online() -> None:
     """
     Run migrations in 'online' mode.
@@ -92,7 +108,8 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            process_revision_directives=process_revision_directives
+            process_revision_directives=process_revision_directives,
+            include_object=include_object
         )
 
         with context.begin_transaction():
