@@ -8,6 +8,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 - [x] **Infrastructure** - Ansible automation, Docker configs, security hardening
+- [x] **Database setup** - SQLAlchemy models, Alembic migrations, PostGIS integration
 - [ ] **ML Pipeline** - Ingestion, detection, classification workers
 - [ ] **Web App** - FastAPI backend + React frontend
 - [ ] **Production** - Testing, deployment, documentation
