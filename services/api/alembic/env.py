@@ -70,13 +70,27 @@ def include_object(object, name, type_, reflected, compare_to):
     """
     Filter objects to include in migrations.
 
-    Exclude spatial indexes on Geography/Geometry columns since
-    GeoAlchemy2 creates them automatically.
+    Exclude:
+    - Spatial indexes automatically created by GeoAlchemy2
+    - PostGIS system tables (from tiger and topology schemas)
     """
+    # Exclude spatial index automatically created by GeoAlchemy2
     if type_ == "index" and name == "idx_cameras_location":
-        # This spatial index is automatically created by GeoAlchemy2
-        # when the Geography column is added, so exclude it from migrations
         return False
+
+    # Exclude PostGIS system tables - these are from extensions and shouldn't be managed
+    if type_ == "table":
+        # Exclude tables from tiger and topology schemas
+        if hasattr(object, 'schema') and object.schema in ('tiger', 'topology'):
+            return False
+        # Exclude PostGIS system tables in public schema
+        postgis_tables = {
+            'spatial_ref_sys', 'geometry_columns', 'geography_columns',
+            'raster_columns', 'raster_overviews'
+        }
+        if name in postgis_tables:
+            return False
+
     return True
 
 
