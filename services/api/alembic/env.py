@@ -70,25 +70,24 @@ def include_object(object, name, type_, reflected, compare_to):
     """
     Filter objects to include in migrations.
 
-    Exclude:
+    Only include our application tables. Exclude everything else:
     - Spatial indexes automatically created by GeoAlchemy2
-    - PostGIS system tables (from tiger and topology schemas)
+    - PostGIS extension tables
     """
     # Exclude spatial index automatically created by GeoAlchemy2
     if type_ == "index" and name == "idx_cameras_location":
         return False
 
-    # Exclude PostGIS system tables - these are from extensions and shouldn't be managed
+    # Only include our application tables - exclude all PostGIS tables
     if type_ == "table":
-        # Exclude tables from tiger and topology schemas
-        if hasattr(object, 'schema') and object.schema in ('tiger', 'topology'):
-            return False
-        # Exclude PostGIS system tables in public schema
-        postgis_tables = {
-            'spatial_ref_sys', 'geometry_columns', 'geography_columns',
-            'raster_columns', 'raster_overviews'
+        # Whitelist our application tables
+        app_tables = {
+            'images', 'cameras', 'detections', 'classifications',
+            'users', 'alert_rules', 'alert_logs', 'email_allowlist',
+            'alembic_version'
         }
-        if name in postgis_tables:
+        # If it's not one of our tables, exclude it
+        if name not in app_tables:
             return False
 
     return True
