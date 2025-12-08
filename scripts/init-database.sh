@@ -14,7 +14,8 @@ docker compose run --rm -v "$(pwd)/services/api/alembic/versions:/app/alembic/ve
 
 echo ""
 echo "Applying migrations..."
-docker compose run --rm api alembic upgrade head
+# Mount the alembic/versions directory so the migration file is accessible
+docker compose run --rm -v "$(pwd)/services/api/alembic/versions:/app/alembic/versions" api alembic upgrade head
 
 echo ""
 echo "✅ Database initialized! Checking tables..."
