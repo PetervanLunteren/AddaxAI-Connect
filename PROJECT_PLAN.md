@@ -725,32 +725,146 @@ docker compose up -d --build
 
 ---
 
+## Phase 1.9: Camera Management Schema Extension
+
+**Goal:** Extend database with field operations and camera lifecycle management capabilities
+
+### 1.9.1 Database Schema for Camera Management
+- [ ] Create `projects` table (tenant isolation via project_id)
+  - Name, description, default settings/firmware references
+  - Maintenance thresholds (battery_low_threshold, sd_high_threshold, silence_threshold_hours)
+  - Default placement values (FOV, range)
+- [ ] Extend `cameras` table with camera management fields:
+  - **Identifiers:** `serial_number` (IMEI), `imei`, `manufacturer`, `model`, `hardware_revision`
+  - **Assignment:** `project_id` (FK), `status` (inventory/assigned/deployed/suspended/retired)
+  - **Health metrics:** `battery_percent`, `sd_used_mb`, `sd_total_mb`, `temperature_c`, `signal_quality`
+  - **Timestamps:** `last_seen`, `last_daily_report_at`, `last_image_at`, `last_maintenance_at`
+  - **Metadata:** `tags` (JSON), `notes` (text), `created_at`, `updated_at`
+  - **Indexes:** serial_number (unique), imei (unique), project_id, status, last_seen, manufacturer, model
+- [ ] Add `project_id` to existing tables:
+  - Add `users.project_id` with FK and index
+  - Add `images.project_id` with FK and index
+- [ ] Create `sims` table (SIM inventory):
+  - ICCID (unique), MSISDN, provider, status, subscription_type
+  - Data allowance, subscription start/end dates, auto_renew flag
+  - project_id (FK), notes, timestamps
+- [ ] Create `camera_sim_assignments` table (assignment history):
+  - camera_id (FK), sim_id (FK), assigned_at, assigned_by_user_id (FK)
+  - unassigned_at, unassigned_by_user_id (FK), is_active flag
+- [ ] Create `settings_profiles` table (offline settings, project-scoped):
+  - project_id (FK), name, description, status (draft/active/deprecated)
+  - file_path (MinIO), file_version, compatible_models (JSON)
+  - install_instructions (text), created_by_user_id (FK), timestamps
+- [ ] Create `firmware_releases` table (offline firmware, project-scoped):
+  - project_id (FK), version, release_date, status (draft/active/deprecated/recalled)
+  - criticality (optional/recommended/mandatory), file_path (MinIO), checksum_sha256
+  - compatible_models (JSON), release_notes, install_instructions
+  - created_by_user_id (FK), timestamps
+- [ ] Create `placement_plans` table (planned vs actual placement):
+  - camera_id (FK, unique), project_id (FK)
+  - **Planned:** planned_location (PostGIS geography), planned_bearing (0-360°), planned_range_m, planned_fov_degrees, plan_status
+  - **Actual:** actual_location (PostGIS geography), actual_bearing, last_confirmed_at, confirmed_by_user_id (FK)
+  - timestamps
+- [ ] Create `maintenance_tasks` table (task management):
+  - camera_id (FK), project_id (FK), task_type, priority (low/medium/high/critical)
+  - origin (system/admin/technician), reason (text), due_date
+  - status (open/planned/in_progress/blocked/done/cancelled)
+  - assigned_to_user_id (FK), resolution_notes, created_by_user_id (FK)
+  - created_at, status_changed_at, completed_at
+  - **Indexes:** camera_id, project_id, task_type, priority, status, created_at
+- [ ] Create `unknown_devices` table (quarantine queue):
+  - serial_number, first_contact_at, last_contact_at, contact_count
+  - manufacturer, model, first_gps_location (PostGIS geography)
+  - claimed (bool), claimed_at, claimed_by_user_id (FK), claimed_to_camera_id (FK), claimed_to_project_id (FK)
+  - **Indexes:** serial_number, claimed, first_contact_at
+- [ ] Create Alembic migration script: `add_camera_management_schema.py`
+- [ ] Run migration on dev database: `alembic upgrade head`
+- [ ] Verify all tables created, indexes exist, foreign keys enforced
+- [ ] Update `shared/shared/models.py` with all new SQLAlchemy model classes
+- [ ] Write unit tests for model relationships
+
+**Deliverable:** Complete camera management schema with project-scoped multi-tenancy
+
+**Estimated Time:** 2-3 days
+
+---
+
 ## Phase 2: ML Pipeline
 
-### 2.1 FTPS Ingestion Service
+### 2.1 FTPS Ingestion Service (Enhanced for Camera Management)
 - [ ] Create `services/ingestion/` structure:
   ```
   ingestion/
   ├── Dockerfile
   ├── requirements.txt
-  ├── main.py
-  ├── watcher.py
-  ├── processor.py
+  ├── main.py              # Main watcher loop
+  ├── watcher.py           # Watchdog file monitor
+  ├── image_processor.py   # Image + EXIF handling
+  ├── report_processor.py  # Daily report parsing
+  ├── camera_matcher.py    # Identifier matching logic
+  ├── unknown_handler.py   # Unknown device queue
   └── tests/
   ```
-- [ ] Implement FTPS connection using `paramiko` or `pyftpdlib`
-- [ ] Implement file system watcher with `watchdog`
-- [ ] On new image detected:
-  - [ ] Validate image file (MIME type, magic bytes)
-  - [ ] Generate UUID for image
-  - [ ] Upload to MinIO (`raw-images` bucket)
-  - [ ] Insert record into `images` table (status: 'pending')
-  - [ ] Publish message to `image-ingested` queue
-  - [ ] Handle errors with retry logic (3 attempts, exponential backoff)
-- [ ] Add structured logging with correlation IDs
-- [ ] Write unit tests
+- [ ] **File type detection:**
+  - Images: `*.jpg`, `*.jpeg` (case-insensitive)
+  - Daily reports: `*-dr.txt` (filename pattern)
+  - Unknown files: log warning and skip
+- [ ] **Daily report parser** (`report_processor.py`):
+  - Parse key:value format from TXT file
+  - Extract: IMEI, battery%, SD utilization (used/total MB), temperature (°C), signal quality (CSQ)
+  - Extract: GPS coordinates (decimal degrees), timestamp, total images, images sent
+  - Validate data types (int for battery, parse SD string, etc.)
+  - Handle malformed reports gracefully (log errors, don't crash)
+- [ ] **Image EXIF parser** (`image_processor.py`):
+  - Use `exiftool` or `Pillow` + `piexif` to extract EXIF
+  - Extract: `Serial Number` field (primary camera identifier = IMEI)
+  - Extract: `GPS Position` (lat/lon), `Make`, `Camera Model Name`, `Date/Time Original`
+  - Handle missing EXIF fields gracefully (some fields may be absent)
+- [ ] **Camera identifier matching** (`camera_matcher.py`):
+  - Primary identifier: `serial_number` from EXIF or daily report IMEI
+  - Query `cameras` table: `WHERE serial_number = ?`
+  - If found: Return camera record
+  - If not found: Call `unknown_handler.handle_unknown_device()`
+- [ ] **Unknown device handling** (`unknown_handler.py`):
+  - Check if serial_number already in `unknown_devices` table
+  - If exists: Update `last_contact_at`, increment `contact_count`
+  - If new: Insert with `first_contact_at`, manufacturer, model, GPS from first data
+  - Log warning: "Unknown device detected: {serial_number}"
+  - Create alert for admins (future: push notification)
+- [ ] **Update camera health from daily reports:**
+  - Update `cameras.battery_percent`, `cameras.sd_used_mb`, `cameras.sd_total_mb`
+  - Update `cameras.temperature_c`, `cameras.signal_quality`
+  - Update `cameras.last_daily_report_at`, `cameras.last_seen`
+  - If GPS present: Update `cameras.location` (PostGIS POINT)
+  - If camera has placement_plan: Update `placement_plans.actual_location`
+  - Trigger maintenance threshold check (call maintenance monitor)
+- [ ] **Process images as before:**
+  - Validate image file (MIME type, magic bytes)
+  - Generate UUID for image
+  - Upload to MinIO (`raw-images` bucket)
+  - Create record in `images` table (status: 'pending', project_id from camera)
+  - Update `cameras.last_image_at`, `cameras.last_seen`
+  - If GPS in EXIF: Update `cameras.location` and `placement_plans.actual_location`
+  - Link to camera via `serial_number` from EXIF
+  - Publish message to `image-ingested` queue with image metadata
+- [ ] Handle errors with retry logic (3 attempts, exponential backoff)
+- [ ] Implement file system watcher with `watchdog` library
+  - Watch `/uploads` directory for new files
+  - Debounce: Wait 2 seconds after file modified event before processing (ensure upload complete)
+  - Move processed files to `/uploads/processed/` subdirectory
+  - Move failed files to `/uploads/failed/` with error log
+- [ ] Add structured logging with correlation IDs (UUID per file processed)
+- [ ] Expose `/metrics` endpoint for Prometheus (files processed, parse errors, unknown devices)
+- [ ] Write unit tests:
+  - Test daily report parser with sample TXT files
+  - Test EXIF parser with sample images (use test-ftps-files/)
+  - Test camera matcher (found, not found, collision scenarios)
+  - Test unknown device handler (new, existing)
+  - Mock database and MinIO for testing
 
-**Deliverable:** Ingestion service that watches FTPS and queues images
+**Deliverable:** Enhanced ingestion service that handles images + daily reports + unknown devices + camera health updates
+
+**Estimated Time:** 4-5 days
 
 ---
 
@@ -843,6 +957,70 @@ docker compose up -d --build
 - [ ] Document pipeline behavior in `docs/pipeline.md`
 
 **Deliverable:** Fully working ML pipeline from FTPS to database
+
+---
+
+### 2.6 Maintenance Task Engine
+
+**Goal:** Automatically generate maintenance tasks based on camera health thresholds
+
+#### 2.6.1 Maintenance Monitor Background Service
+- [ ] Create `services/maintenance-monitor/` structure:
+  ```
+  maintenance-monitor/
+  ├── Dockerfile
+  ├── requirements.txt
+  ├── main.py              # Background scheduler loop
+  ├── threshold_checker.py # Threshold logic
+  ├── task_creator.py      # Task creation with cooldown
+  └── tests/
+  ```
+- [ ] **Background scheduler:**
+  - Run every 15 minutes (configurable via env var)
+  - Query all cameras with recent data (last_seen within past week)
+  - For each camera: Check health against project thresholds
+  - Use APScheduler or simple while loop with sleep
+- [ ] **Battery threshold check:**
+  - If `cameras.battery_percent < project.battery_low_threshold`:
+    - Create task: type='battery_replacement'
+    - Priority: 'high' if <10%, 'medium' if <20%, otherwise 'low'
+    - Reason: "Battery at {battery_percent}% (threshold: {threshold}%)"
+    - Origin: 'system'
+- [ ] **SD utilization threshold check:**
+  - Calculate: `sd_percent = (cameras.sd_used_mb / cameras.sd_total_mb) * 100`
+  - If `sd_percent > project.sd_high_threshold`:
+    - Create task: type='sd_swap'
+    - Priority: 'high' if >95%, 'medium' if >80%, otherwise 'low'
+    - Reason: "SD card at {sd_percent:.0f}% full (threshold: {threshold}%)"
+    - Origin: 'system'
+- [ ] **Silence threshold check (no daily reports):**
+  - Calculate: `hours_silent = (now - cameras.last_daily_report_at).total_seconds() / 3600`
+  - If `hours_silent > project.silence_threshold_hours`:
+    - Create task: type='connectivity_investigation'
+    - Priority: 'high' if >72h, 'medium' if >48h, otherwise 'low'
+    - Reason: "No daily report for {hours_silent:.0f} hours (threshold: {threshold}h)"
+    - Origin: 'system'
+- [ ] **Cooldown logic to prevent duplicate tasks:**
+  - Before creating task: Check if similar task already exists
+  - Query: `WHERE camera_id=X AND task_type=Y AND status IN ('open','planned','in_progress') AND created_at > (now - 24 hours)`
+  - If exists: Skip creation (don't spam duplicate tasks)
+  - If not exists: Create new task
+- [ ] **Task creation helper:**
+  - Insert into `maintenance_tasks` table
+  - Set: camera_id, project_id, task_type, priority, origin='system', reason, status='open'
+  - Set: created_at to now
+  - Log: "Created maintenance task: {task_type} for camera {serial_number}"
+- [ ] Add structured logging (tasks created, checks performed, errors)
+- [ ] Expose `/metrics` endpoint for Prometheus (tasks created per type, checks per minute)
+- [ ] Write unit tests:
+  - Test threshold checks with mock camera data
+  - Test cooldown logic (no duplicates)
+  - Test task priority calculation
+  - Mock database for testing
+
+**Deliverable:** Automated maintenance task generation from health thresholds
+
+**Estimated Time:** 3-4 days
 
 ---
 
@@ -1099,6 +1277,222 @@ docker compose up -d --build
 - [ ] Require Admin role for access
 
 **Deliverable:** User management interface for admins
+
+---
+
+### 3.9 Camera Management Frontend
+
+**Goal:** Build field operations UI for camera lifecycle management
+
+**Reference:** See `docs/camera-management-spec.md` for detailed specifications
+
+#### 3.9.1 Camera Registry Page
+- [ ] Searchable camera list DataTable (columns: Serial #, Name, Project, Status, Battery %, SD %, Last Seen, Location)
+- [ ] Filters: project, status, manufacturer, model, last-seen date range, battery range, SD range
+- [ ] Search by serial number, name, IMEI
+- [ ] Bulk actions: Assign to project, change status, export CSV
+- [ ] Import Cameras CSV button with validation
+- [ ] Create Camera button (modal form)
+- [ ] Pagination (50 cameras per page)
+
+**Estimated Time:** 2 days
+
+#### 3.9.2 Camera Detail Page
+- [ ] Section: Identifiers (Serial #, IMEI, Make, Model, Hardware Rev) with edit
+- [ ] Section: Assignment & Status (Project link, status badge, dates) with actions
+- [ ] Section: Health Metrics (Battery gauge, SD progress bar, Temp, Signal) with charts over time
+- [ ] Section: Location & Map (Leaflet map with marker, lat/lon display)
+- [ ] Section: Timestamps (Last Seen, Last Daily Report, Last Image, Last Maintenance)
+- [ ] Section: Assigned SIM (ICCID, Provider, Status, Subscription End) with assign/unassign actions
+- [ ] Section: Settings & Firmware (Current profile, Target firmware) with download buttons and instructions
+- [ ] Section: Placement Plan (Planned vs Actual on map, deviation calculation)
+- [ ] Section: Maintenance Tasks (Open tasks table) with create task button
+- [ ] Section: History (accordion with Project/SIM/Settings/Firmware history)
+- [ ] Action buttons: Edit, Delete (admin), View All Images
+
+**Estimated Time:** 3 days
+
+#### 3.9.3 Placement Planning Map
+- [ ] Leaflet map with OpenStreetMap tiles
+- [ ] Display camera markers: Planned (blue), Actual (green), No plan (grey)
+- [ ] Color-code by status: deployed=green, planned=yellow, offline=red
+- [ ] Marker popups: Camera name, Serial #, Battery %, SD %, Last Seen, link to detail
+- [ ] Add Placement Plan mode: Select camera, click map, form for bearing/range/FOV
+- [ ] Edit Placement Plan: Click marker, modal to update or drag marker
+- [ ] Show deviation: Dashed line between planned/actual with distance label
+- [ ] Filters: Show All / Planned Only / Actual Only / Deviation > X meters
+- [ ] Side panel with camera list (click to center map)
+
+**Estimated Time:** 2-3 days
+
+#### 3.9.4 Maintenance List Page
+- [ ] Summary cards: Critical Tasks, High Priority, Overdue, Completed This Week
+- [ ] Maintenance tasks table with filters (priority, status, type, assigned to, due date, camera)
+- [ ] Expandable rows: Click to show full reason, resolution notes, history
+- [ ] Actions: Change Status, Assign To, Add Notes, Mark Complete
+- [ ] Bulk actions: Assign selected, change status
+- [ ] Create Task button (modal form)
+- [ ] Sorting: Priority, Due Date, Created Date
+- [ ] Pagination (50 tasks per page)
+
+**Estimated Time:** 2-3 days
+
+#### 3.9.5 SIM Inventory Page
+- [ ] SIM list DataTable (ICCID, Provider, Status, Subscription Type, End Date, Assigned Camera)
+- [ ] Filters: Provider, Status, Subscription Type, Expiring Soon, Assigned/Unassigned
+- [ ] Search by ICCID or MSISDN
+- [ ] Import SIMs CSV button
+- [ ] Create SIM button (modal form)
+- [ ] Actions per row: View Detail, Assign to Camera, Unassign, Edit, Delete
+- [ ] SIM Detail Modal with assignment history
+
+**Estimated Time:** 1-2 days
+
+#### 3.9.6 Settings Profiles Library
+- [ ] Settings profiles list (project-scoped): Name, Version, Status, Compatible Models, Created At
+- [ ] Create Profile button: Upload file, metadata form, install instructions (Markdown)
+- [ ] Actions: Download File, View Instructions, Edit (metadata only), Change Status, Assign to Cameras, Delete
+- [ ] Filters: Status, Compatible Models
+- [ ] Search by name or version
+
+**Estimated Time:** 1-2 days
+
+#### 3.9.7 Firmware Releases Library
+- [ ] Firmware releases list (project-scoped): Version, Date, Status, Criticality, Compatible Models
+- [ ] Create Release button: Upload file (auto-calculate checksum), metadata form, release notes, instructions
+- [ ] Actions: Download File (with checksum display), View Notes, View Instructions, Edit, Change Status, Assign to Cameras, Delete
+- [ ] Warning for Recalled status
+- [ ] Client-side checksum verification after download
+- [ ] Filters: Status, Criticality, Compatible Models
+
+**Estimated Time:** 1-2 days
+
+#### 3.9.8 Unknown Devices Queue (Admin Only)
+- [ ] Unknown devices list: Serial #, First Contact, Last Contact, Count, Make, Model, GPS
+- [ ] Admin-only route guard
+- [ ] Auto-refresh every 30 seconds
+- [ ] Claim Device action: Modal form (assign to project, camera name, optional SIM assignment)
+- [ ] Ignore action (marks claimed without creating camera)
+- [ ] Filters: Claimed/Unclaimed, date range
+- [ ] Alert badge: "X Unclaimed Devices"
+
+**Estimated Time:** 1 day
+
+#### 3.9.9 Camera Onboarding Page (Field Technician)
+- [ ] Mobile-optimized UI (large touch targets, responsive)
+- [ ] Barcode scan input using `html5-qrcode` library (camera-based)
+- [ ] Manual serial number input fallback
+- [ ] Lookup camera endpoint call
+- [ ] If not found: "Camera Not Registered" with create option
+- [ ] If found: Onboarding checklist (Project, SIM, Settings, Firmware, Placement)
+- [ ] Download buttons for settings/firmware files
+- [ ] Install instructions (collapsible Markdown sections)
+- [ ] Placement guidance: Show planned location on map, coordinates, bearing
+- [ ] Mark as Deployed button with deployment form (installer name, notes, photo upload)
+- [ ] Success screen with summary
+
+**Estimated Time:** 2-3 days
+
+**Total Frontend Estimated Time:** 15-20 days
+
+---
+
+### 3.11 Camera Management API Endpoints
+
+**Goal:** Build REST API for all camera management functionality
+
+**Reference:** See `docs/camera-management-spec.md` for detailed endpoint specifications
+
+#### 3.11.1 Projects API
+- [ ] `GET /api/projects` - List all projects (paginated)
+- [ ] `POST /api/projects` - Create new project (admin only)
+- [ ] `GET /api/projects/{id}` - Get project detail with defaults and thresholds
+- [ ] `PUT /api/projects/{id}` - Update project metadata, defaults, thresholds (admin only)
+- [ ] `DELETE /api/projects/{id}` - Delete project (admin only, if no cameras assigned)
+- [ ] `GET /api/projects/{id}/cameras` - List all cameras in project
+- [ ] `GET /api/projects/{id}/placement-plans` - Get all placement plans for project (map data)
+- [ ] `GET /api/projects/{id}/maintenance-list` - Get prioritized maintenance list for project
+
+#### 3.11.2 Cameras API (Extended)
+- [ ] `GET /api/cameras` - List cameras with filters (project_id, status, manufacturer, model, last_seen_after, battery_lt, sd_gt, search)
+- [ ] `POST /api/cameras` - Create camera
+- [ ] `POST /api/cameras/bulk-import` - Bulk import from CSV
+- [ ] `GET /api/cameras/{id}` - Get camera detail with all relationships
+- [ ] `PUT /api/cameras/{id}` - Update camera metadata
+- [ ] `DELETE /api/cameras/{id}` - Delete camera (admin only)
+- [ ] `POST /api/cameras/{id}/assign-to-project` - Assign camera to project
+- [ ] `POST /api/cameras/{id}/change-status` - Change camera status
+- [ ] `GET /api/cameras/{id}/history` - Get assignment and change history
+
+#### 3.11.3 SIMs API
+- [ ] `GET /api/sims` - List SIMs with filters (provider, status, expiring_within_days, assigned, project_id)
+- [ ] `POST /api/sims` - Create SIM
+- [ ] `POST /api/sims/bulk-import` - Bulk import from CSV
+- [ ] `GET /api/sims/{id}` - Get SIM detail with assignment history
+- [ ] `PUT /api/sims/{id}` - Update SIM metadata
+- [ ] `DELETE /api/sims/{id}` - Delete SIM (only if not assigned)
+- [ ] `POST /api/sims/{id}/assign-to-camera` - Assign SIM to camera
+- [ ] `POST /api/sims/{id}/unassign` - Unassign SIM from current camera
+
+#### 3.11.4 Settings Profiles API
+- [ ] `GET /api/settings-profiles` - List profiles for project
+- [ ] `POST /api/settings-profiles` - Create profile with file upload (multipart/form-data)
+- [ ] `GET /api/settings-profiles/{id}` - Get profile detail
+- [ ] `GET /api/settings-profiles/{id}/download` - Generate presigned MinIO URL
+- [ ] `PUT /api/settings-profiles/{id}` - Update metadata (not file)
+- [ ] `POST /api/settings-profiles/{id}/change-status` - Change status
+- [ ] `DELETE /api/settings-profiles/{id}` - Delete profile (only if status=draft)
+
+#### 3.11.5 Firmware Releases API
+- [ ] `GET /api/firmware-releases` - List releases for project
+- [ ] `POST /api/firmware-releases` - Create release with file upload + checksum calculation
+- [ ] `GET /api/firmware-releases/{id}` - Get release detail
+- [ ] `GET /api/firmware-releases/{id}/download` - Generate presigned MinIO URL + return checksum
+- [ ] `PUT /api/firmware-releases/{id}` - Update metadata
+- [ ] `POST /api/firmware-releases/{id}/change-status` - Change status (validate Recalled)
+- [ ] `DELETE /api/firmware-releases/{id}` - Delete release (only if status=draft)
+
+#### 3.11.6 Placement Plans API
+- [ ] `GET /api/placement-plans` - List plans for project
+- [ ] `POST /api/placement-plans` - Create plan for camera
+- [ ] `GET /api/placement-plans/{id}` - Get plan detail
+- [ ] `PUT /api/placement-plans/{id}` - Update plan or actual placement
+- [ ] `GET /api/placement-plans/{id}/deviation` - Calculate deviation (distance + bearing difference)
+- [ ] `DELETE /api/placement-plans/{id}` - Delete plan (admin only)
+
+#### 3.11.7 Maintenance Tasks API
+- [ ] `GET /api/maintenance-tasks` - List tasks with filters (project_id, camera_id, task_type, priority, status, assigned_to, due_before)
+- [ ] `POST /api/maintenance-tasks` - Create task manually
+- [ ] `GET /api/maintenance-tasks/{id}` - Get task detail with history
+- [ ] `PUT /api/maintenance-tasks/{id}/status` - Change status with resolution notes
+- [ ] `POST /api/maintenance-tasks/{id}/assign` - Assign task to user
+- [ ] `DELETE /api/maintenance-tasks/{id}` - Cancel/delete task
+
+#### 3.11.8 Unknown Devices API (Admin Only)
+- [ ] `GET /api/unknown-devices` - List unknown devices (claimed=false for unclaimed)
+- [ ] `GET /api/unknown-devices/{id}` - Get unknown device detail
+- [ ] `POST /api/unknown-devices/{id}/claim` - Claim device (create camera record)
+- [ ] `POST /api/unknown-devices/{id}/ignore` - Mark as claimed without creating camera
+
+#### 3.11.9 Onboarding API (Field Technician)
+- [ ] `POST /api/onboarding/lookup-camera` - Lookup camera by serial_number with onboarding checklist
+- [ ] `POST /api/onboarding/mark-deployed` - Mark camera as deployed with metadata
+
+#### 3.11.10 API Implementation Details
+- [ ] Use FastAPI with Pydantic schemas for request/response validation
+- [ ] RBAC: Admin-only endpoints (projects CRUD, unknown devices, delete actions)
+- [ ] Project-scoped queries: Filter by user's project_id (except admin sees all)
+- [ ] File uploads: Use `UploadFile` from FastAPI
+- [ ] MinIO upload helper: Use `shared/shared/storage.py`
+- [ ] Presigned URLs: Expire after 1 hour
+- [ ] Error handling: 404 not found, 403 forbidden, 400 validation errors
+- [ ] Pagination: offset/limit with default limit=50, max limit=200
+- [ ] Sorting: Support `sort_by` and `order` query params
+- [ ] Write API tests: Use pytest with test database
+
+**Deliverable:** Complete REST API for camera management with 40+ endpoints
+
+**Estimated Time:** 8-10 days
 
 ---
 
@@ -1596,37 +1990,58 @@ docker compose up -d --build
 
 ### Critical Path (Must Have for MVP)
 
-1. **Database Setup** (1.2) - Foundation for all data
-2. **Object Storage Setup** (1.3) - Required for storing images
-3. **Message Queue Setup** (1.4) - Required for decoupling
-4. **API Backend Scaffold** (1.6) - Foundation for all APIs
-5. **Authentication System** (1.7) - Required for security
-6. **Ingestion Service** (2.1) - Entry point for images
-7. **Detection Worker** (2.2, 2.3) - Core ML processing
-8. **Classification Worker** (2.4) - Core ML processing
-9. **Images API** (3.1) - View processed images
-10. **Frontend Scaffold** (3.5) - Display data to users
-11. **Authentication UI** (3.6) - User login
-12. **Image Gallery View** (3.7) - Primary user interface
+**Phase 1: Foundation (COMPLETED ✅)**
+1. **Database Setup** (1.2) ✅ - Foundation for all data
+2. **Object Storage Setup** (1.3) ✅ - Required for storing images
+3. **Message Queue Setup** (1.4) ✅ - Required for decoupling
+4. **API Backend Scaffold** (1.6) ✅ - Foundation for all APIs
+5. **Authentication System** (1.7) ✅ - Required for security
 
-### Important (Needed for Production)
+**Phase 1.9: Camera Management Schema (NEW - PRIORITY)**
+6. **Database Schema Migration** (1.9.1) - **Start here** - Extend with camera management tables
 
-13. **Image Detail View** (3.8) - View individual images
-14. **Cameras API** (3.2) - Manage camera locations
-15. **Statistics API** (3.3) - Business insights
-16. **Statistics Dashboard** (3.10) - Visualize data
-17. **Prometheus Setup** (4.1) - Monitoring
-18. **Prometheus Queries** (4.2) - Observability
-19. **HTTPS/TLS Setup** (4.5) - Security
-20. **Backup & Recovery** (4.7) - Data protection
+**Phase 2: ML Pipeline with Enhanced Ingestion**
+7. **Enhanced Ingestion Service** (2.1) - Entry point for images + daily reports + unknown devices
+8. **Detection Worker** (2.2, 2.3) - Core ML processing
+9. **Classification Worker** (2.4) - Core ML processing
+10. **Maintenance Task Engine** (2.6) - Auto-generate tasks from thresholds
+
+**Phase 3: Web Application**
+11. **Frontend Scaffold** (3.5) - Display data to users
+12. **Authentication UI** (3.6) - User login
+13. **Camera Registry Page** (3.9.1) - Camera management UI
+14. **Camera Detail Page** (3.9.2) - Camera health and history
+15. **Maintenance List Page** (3.9.4) - Operations dashboard
+16. **Camera Management API Endpoints** (3.11) - Backend for camera management
+17. **Images API** (3.1) - View processed images
+18. **Image Gallery View** (3.7) - Primary ML interface
+
+**Phase 3: Camera Management (Core Operations)**
+19. **SIM Inventory Page** (3.9.5) - SIM management
+20. **Camera Onboarding Page** (3.9.9) - Field technician workflow
+21. **Unknown Devices Queue** (3.9.8) - Admin claiming
+
+### Important (Needed for Field Operations)
+
+22. **Placement Planning Map** (3.9.3) - Planned vs actual visualization
+23. **Settings Profiles Library** (3.9.6) - Settings file management
+24. **Firmware Releases Library** (3.9.7) - Firmware file management
+25. **Statistics API** (3.3) - Business insights
+26. **Statistics Dashboard** (3.10) - Visualize data
+27. **Prometheus Setup** (4.1) - Monitoring
+28. **HTTPS/TLS Setup** (4.5) - Security
+29. **Backup & Recovery** (4.7) - Data protection
 
 ### Nice to Have (Can Add Later)
 
-21. **WebSocket Real-time Updates** (3.4, 3.11) - Enhance UX
-22. **Map View** (3.9) - Spatial visualization
-23. **Loki & Promtail** (4.3) - Log aggregation
-24. **Prometheus Alerting** (4.4) - Proactive monitoring
-25. **Admin User Management** (3.12) - User administration
+30. **Image Detail View** (3.8) - View individual images (lower priority than camera mgmt)
+31. **Cameras API** (3.2) - Original cameras API (superseded by 3.11.2)
+32. **WebSocket Real-time Updates** (3.4, 3.11) - Enhance UX
+33. **Loki & Promtail** (4.3) - Log aggregation
+34. **Prometheus Alerting** (4.4) - Proactive monitoring
+35. **Admin User Management** (3.12) - User administration
+36. **Coverage Sector Visualization** (Phase 4+) - Advanced map features
+37. **Location-aware Task Sorting** (Phase 4+) - GPS-based technician routing
 
 ---
 
@@ -1702,37 +2117,103 @@ docker compose up -d --build
 
 ## Success Criteria
 
-### MVP Success
+### MVP Success (Original ML Pipeline)
 - [ ] System processes test images end-to-end (FTPS → detection → classification → web UI)
 - [ ] Users can log in and view processed images with bounding boxes
 - [ ] System handles 100 images/day without manual intervention
 - [ ] All services are monitored with Prometheus metrics
 - [ ] System is deployed on production VM with HTTPS
 
-### Production Success
-- [ ] System processes 300 images/day reliably
+### MVP Success (Camera Management Addition)
+- [ ] System processes daily reports and updates camera health automatically
+- [ ] Unknown devices are queued for admin claiming
+- [ ] Maintenance tasks auto-generate from thresholds (battery, SD, silence)
+- [ ] Field technicians can onboard cameras via barcode scanning
+- [ ] Admins can manage SIM inventory and assignments
+- [ ] Placement plans show planned vs actual location with deviation
+- [ ] Settings and firmware files can be uploaded/downloaded with instructions
+- [ ] All camera management data is project-scoped (multi-tenancy)
+
+### Production Success (Combined System)
+- [ ] System processes 300 images/day + 100 daily reports reliably
 - [ ] Processing latency < 1 minute per image (p95)
-- [ ] Zero data loss (all images ingested and processed)
+- [ ] Zero data loss (all images and daily reports ingested)
 - [ ] Uptime > 99% (< 7 hours downtime/month)
 - [ ] Users are actively using the platform (5+ active users)
 - [ ] Alerts are actionable and not noisy (<5 false alarms/week)
+- [ ] 100+ cameras tracked with real-time health metrics
+- [ ] Maintenance tasks processed and completed by field technicians
+- [ ] Unknown devices claimed within 24 hours of first contact
+- [ ] Camera registry searched efficiently (response <1s for 1000 cameras)
+- [ ] Placement planning map renders 200+ cameras without performance issues
+- [ ] Field onboarding workflow completed in <5 minutes per camera
 
 ### Long-term Success
-- [ ] System scales to 1000+ images/day
+- [ ] System scales to 1000+ images/day + 10,000 cameras
 - [ ] Model accuracy improved via retraining
 - [ ] Users report high satisfaction with platform
 - [ ] System requires <4 hours/week maintenance
 - [ ] Cost per image processed is optimized
+- [ ] Field operations streamlined (minimal manual camera configuration)
+- [ ] Maintenance tasks predicted before failures occur
+
+---
+
+## Estimated Timeline
+
+### Original ML Pipeline (Without Camera Management)
+| Phase | Component | Duration |
+|-------|-----------|----------|
+| **Phase 1** | Foundation & Infrastructure | 10-15 days |
+| **Phase 2** | ML Pipeline (Ingestion, Detection, Classification) | 15-20 days |
+| **Phase 3** | Web Application (API + Frontend) | 15-20 days |
+| **Phase 4** | Monitoring & Security | 5-7 days |
+| **Phase 5** | Testing & Deployment | 5-7 days |
+| **Total** | **Original System** | **50-69 days (10-14 weeks)** |
+
+### Camera Management Addition
+| Phase | Component | Duration |
+|-------|-----------|----------|
+| **Phase 1.9** | Database migration | 2-3 days |
+| **Phase 2.1** | Enhanced ingestion (daily reports + EXIF) | 4-5 days |
+| **Phase 2.6** | Maintenance task engine | 3-4 days |
+| **Phase 3.11** | Camera management API (40+ endpoints) | 8-10 days |
+| **Phase 3.9** | Frontend (9 pages: registry, detail, map, etc.) | 15-20 days |
+| **Phase 5.2** | Testing & refinement | 4-5 days |
+| **Total** | **Camera Management Module** | **36-47 days (7-9 weeks)** |
+
+### Combined System Timeline
+**For 1 developer:** 86-116 days (17-23 weeks / 4-6 months)
+**For 2 developers:** 50-70 days (10-14 weeks / 2.5-3.5 months) with good parallelization
+
+### Recommended Approach (Phased Delivery)
+
+**Phase A: Core ML Pipeline (10-14 weeks)**
+- Deliver working image processing system first
+- Users can view images, detections, classifications
+- Provides immediate value
+
+**Phase B: Camera Management (7-9 weeks)**
+- Add field operations capabilities
+- Build on top of working ML pipeline
+- Can start after Phase A is stable
+
+**Total with Phased Approach:** 17-23 weeks (4-6 months)
+
+**Note:** Camera management can be developed in parallel with ML pipeline if resources allow, reducing total timeline to 12-16 weeks (3-4 months) for 2 developers.
 
 ---
 
 ## Next Immediate Steps
 
-1. **Review this plan** with the team - Get feedback, adjust priorities
-2. **Make key technology decisions** - ML framework, UI library, etc.
-3. **Set up development environment** - Clone repo, install Docker
-4. **Start Phase 1: Foundation & Infrastructure** - Create repository structure and database schema
-5. **Schedule regular check-ins** - Review progress, unblock issues
+1. **Review this plan** with the team and collaborator - Get feedback on camera management integration, adjust priorities
+2. **Run database migration (Phase 1.9)** - Apply camera management schema: `alembic upgrade head`
+3. **Review data formats documentation** - Study `docs/data-formats.md` for EXIF and daily report parsing
+4. **Make key technology decisions** - ML framework, UI library, etc.
+5. **Set up development environment** - Clone repo, install Docker
+6. **Start Phase 2.1: Enhanced Ingestion** - Implement daily report parser and unknown device handler
+7. **Build Phase 2.6: Maintenance Engine** - Implement threshold monitoring and task generation
+8. **Schedule regular check-ins** - Review progress, unblock issues
 
 ---
 
