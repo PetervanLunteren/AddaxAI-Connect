@@ -52,7 +52,8 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 4. **Configure variables** - Make sure to create secure passwords (e.g., with `openssl rand -base64 32`).
     - Replace in `inventory.yml`:
-        - `your_vm_ipv4` (the IP address from step 1)
+        - `your_vm_ipv4`
+        - `your_ssh_key`
     - Replace in `group_vars/dev.yml`:
         - `app_user_password`
         - `ftps_password`

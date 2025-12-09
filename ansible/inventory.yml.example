@@ -12,9 +12,9 @@ all:
     dev:
       hosts:
         addaxai-dev:
-          ansible_host: your_vm_ipv4             # Replace with VM IPv4 (e.g., 192.168.1.100)
-          ansible_user: root                     # Initial user (Ubuntu VMs typically start with root)
-          ansible_ssh_private_key_file: ~/.ssh/id_rsa  # Path to your SSH private key
+          ansible_host: your_vm_ipv4                    # Replace with VM IPv4 (e.g., 192.168.1.100)
+          ansible_user: root                            # Initial user (Ubuntu VMs typically start with root)
+          ansible_ssh_private_key_file: your_ssh_key    # Path to your SSH private key (e.g., ~/.ssh/id_rsa or C:\Users\username\.ssh\id_rsa on Windows)
           ansible_python_interpreter: /usr/bin/python3
 
     # Production VM - for final deployment (add later)
@@ -23,5 +23,5 @@ all:
     #     addaxai-prod:
     #       ansible_host: your_prod_ip
     #       ansible_user: root
-    #       ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    #       ansible_ssh_private_key_file: your_ssh_key
     #       ansible_python_interpreter: /usr/bin/python3
