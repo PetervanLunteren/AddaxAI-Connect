@@ -145,103 +145,103 @@ services:
     networks:
       - addaxai-network
 
-  # Ingestion Service
-  ingestion:
-    build:
-      context: .
-      dockerfile: services/ingestion/Dockerfile
-    container_name: addaxai-ingestion
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      FTPS_UPLOAD_DIR: ${FTPS_UPLOAD_DIR}
-    volumes:
-      - ${FTPS_UPLOAD_DIR}:/uploads:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - addaxai-network
+  # Ingestion Service (placeholder - not yet implemented)
+  # ingestion:
+  #   build:
+  #     context: .
+  #     dockerfile: services/ingestion/Dockerfile
+  #   container_name: addaxai-ingestion
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  #     FTPS_UPLOAD_DIR: ${FTPS_UPLOAD_DIR}
+  #   volumes:
+  #     - ${FTPS_UPLOAD_DIR}:/uploads:ro
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - addaxai-network
 
-  # Detection Worker
-  detection:
-    build:
-      context: .
-      dockerfile: services/detection/Dockerfile
-    container_name: addaxai-detection
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      DETECTION_MODEL_PATH: ${DETECTION_MODEL_PATH}
-      USE_GPU: ${USE_GPU}
-    volumes:
-      - ./models:/models:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - addaxai-network
+  # Detection Worker (placeholder - not yet implemented)
+  # detection:
+  #   build:
+  #     context: .
+  #     dockerfile: services/detection/Dockerfile
+  #   container_name: addaxai-detection
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  #     DETECTION_MODEL_PATH: ${DETECTION_MODEL_PATH}
+  #     USE_GPU: ${USE_GPU}
+  #   volumes:
+  #     - ./models:/models:ro
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - addaxai-network
 
-  # Classification Worker
-  classification:
-    build:
-      context: .
-      dockerfile: services/classification/Dockerfile
-    container_name: addaxai-classification
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      CLASSIFICATION_MODEL_PATH: ${CLASSIFICATION_MODEL_PATH}
-      USE_GPU: ${USE_GPU}
-    volumes:
-      - ./models:/models:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - addaxai-network
+  # Classification Worker (placeholder - not yet implemented)
+  # classification:
+  #   build:
+  #     context: .
+  #     dockerfile: services/classification/Dockerfile
+  #   container_name: addaxai-classification
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     MINIO_ENDPOINT: minio:9000
+  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  #     CLASSIFICATION_MODEL_PATH: ${CLASSIFICATION_MODEL_PATH}
+  #     USE_GPU: ${USE_GPU}
+  #   volumes:
+  #     - ./models:/models:ro
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   networks:
+  #     - addaxai-network
 
-  # Alert Worker
-  alerts:
-    build:
-      context: .
-      dockerfile: services/alerts/Dockerfile
-    container_name: addaxai-alerts
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - addaxai-network
+  # Alert Worker (placeholder - not yet implemented)
+  # alerts:
+  #   build:
+  #     context: .
+  #     dockerfile: services/alerts/Dockerfile
+  #   container_name: addaxai-alerts
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - addaxai-network
 
   # Frontend
   frontend:
