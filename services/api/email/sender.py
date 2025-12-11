@@ -18,9 +18,20 @@ class EmailSender:
         """
         Initialize email sender with SMTP configuration.
 
-        Crashes if required email settings are not configured.
+        Configuration is validated lazily on first use.
         """
         self.settings = get_settings()
+        self._validated = False
+
+    def _validate_config(self):
+        """
+        Validate email configuration.
+
+        Crashes if required email settings are not configured.
+        Called on first email send attempt.
+        """
+        if self._validated:
+            return
 
         # Explicit configuration - crash if not set
         if not all([
@@ -35,6 +46,8 @@ class EmailSender:
                 "Email configuration incomplete. Required: "
                 "MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM, DOMAIN_NAME"
             )
+
+        self._validated = True
 
     async def send_email(
         self,
@@ -52,7 +65,11 @@ class EmailSender:
 
         Raises:
             aiosmtplib.SMTPException: If email sending fails
+            ValueError: If email configuration is incomplete
         """
+        # Validate configuration on first use
+        self._validate_config()
+
         message = EmailMessage()
         message["From"] = self.settings.mail_from
         message["To"] = to_email
