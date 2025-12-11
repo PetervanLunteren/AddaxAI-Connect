@@ -75,10 +75,8 @@ def create_superuser(email: str, database_url: str) -> None:
 
         # Generate password (random, user should reset via forgot password)
         import secrets
-        password = secrets.token_urlsafe(32)
-
-        # Bcrypt has a 72-byte limit, truncate if needed
-        password = password[:72]
+        # Generate 24 bytes = ~32 chars after base64url encoding (well under bcrypt's 72 byte limit)
+        password = secrets.token_urlsafe(24)
 
         # Create superuser
         hashed_password = pwd_context.hash(password)
