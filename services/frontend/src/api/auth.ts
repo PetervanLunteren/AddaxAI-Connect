@@ -45,11 +45,12 @@ export interface VerifyEmailRequest {
  * Login with email and password
  */
 export const login = async (email: string, password: string): Promise<LoginResponse> => {
-  const formData = new FormData();
-  formData.append('username', email); // FastAPI-Users expects 'username' field
-  formData.append('password', password);
+  // FastAPI-Users expects application/x-www-form-urlencoded
+  const params = new URLSearchParams();
+  params.append('username', email); // FastAPI-Users expects 'username' field
+  params.append('password', password);
 
-  const response = await apiClient.post<LoginResponse>('/auth/login', formData, {
+  const response = await apiClient.post<LoginResponse>('/auth/login', params, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
