@@ -16,4 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy API code
 COPY services/api .
 
+# Copy scripts directory (for superuser creation, etc.)
+COPY scripts /app/scripts
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

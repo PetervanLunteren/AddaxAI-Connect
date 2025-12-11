@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Create superuser account and add to email allowlist.
+Create superuser account(s) and add to email allowlist.
 
 Usage:
     python create_superuser.py
 
 Environment variables required:
-    SUPERADMIN_EMAIL - Email address for superuser
+    SUPERADMIN_EMAIL - Email address(es) for superuser(s), separated by semicolons (;)
+                       Example: "admin@example.com" or "admin1@example.com;admin2@example.com"
     DATABASE_URL - PostgreSQL connection string
 """
 import os
@@ -120,25 +121,49 @@ def create_superuser(email: str, database_url: str) -> None:
 def main():
     """Main entry point"""
     # Get environment variables
-    email = os.getenv("SUPERADMIN_EMAIL")
+    emails_input = os.getenv("SUPERADMIN_EMAIL")
     database_url = os.getenv("DATABASE_URL")
 
-    if not email:
+    if not emails_input:
         print("❌ ERROR: SUPERADMIN_EMAIL environment variable not set")
         print("   Usage: SUPERADMIN_EMAIL=admin@example.com python create_superuser.py")
+        print("   Multiple emails: SUPERADMIN_EMAIL='admin1@example.com;admin2@example.com'")
         sys.exit(1)
 
     if not database_url:
         print("❌ ERROR: DATABASE_URL environment variable not set")
         sys.exit(1)
 
-    try:
-        create_superuser(email, database_url)
-    except Exception as e:
-        print(f"❌ ERROR: Failed to create superuser: {e}")
-        import traceback
-        traceback.print_exc()
+    # Split by semicolon and strip whitespace
+    emails = [email.strip() for email in emails_input.split(';') if email.strip()]
+
+    if not emails:
+        print("❌ ERROR: No valid email addresses found in SUPERADMIN_EMAIL")
         sys.exit(1)
+
+    print(f"Creating {len(emails)} superuser(s)...\n")
+
+    # Create each superuser
+    failed = []
+    for email in emails:
+        try:
+            create_superuser(email, database_url)
+            print()  # Blank line between users
+        except Exception as e:
+            print(f"❌ ERROR: Failed to create superuser {email}: {e}")
+            import traceback
+            traceback.print_exc()
+            failed.append(email)
+            print()
+
+    # Report results
+    if failed:
+        print(f"⚠️  Warning: {len(failed)} superuser(s) failed to create:")
+        for email in failed:
+            print(f"   - {email}")
+        sys.exit(1)
+    else:
+        print(f"✅ All {len(emails)} superuser(s) processed successfully")
 
 
 if __name__ == "__main__":

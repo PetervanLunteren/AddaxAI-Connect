@@ -94,7 +94,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `mail_username` | `"your.email@example.com"` | Username for authenticating with your mail provider. |
    | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
    | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
-   | `superadmin_email` | `"your.email@example.com"` | Email address used for the first superadmin account. This is the only person allowed to register for a password initially. Other user management will be done from within the UI. |
+   | `superadmin_email` | `"admin@example.com"` or `"admin1@example.com;admin2@example.com"` | Email address(es) for initial superadmin account(s). Multiple emails can be separated by semicolons. These users will be automatically created and added to the allowlist. Other user management will be done from within the UI. |
 
 
 8. **Add VM to known_hosts**  
@@ -110,7 +110,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ```
 
 10. **Run playbook**  
-   Deploys entire infrastructure automatically.
+   Deploys entire infrastructure automatically. It will prompt you to do some manual tasks, like DNS record creation. 
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
