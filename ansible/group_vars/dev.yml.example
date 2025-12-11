@@ -75,4 +75,4 @@ mail_password: ""                         # SMTP password or app password (REQUI
 mail_from: ""                             # From email address (REQUIRED)
 
 # Superadmin Settings
-superadmin_email: ""                      # Initial superadmin email (REQUIRED)
+superadmin_email: ""                      # Initial superadmin email(s) (REQUIRED). Use semicolons to separate multiple emails: "admin1@example.com;admin2@example.com"
