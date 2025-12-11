@@ -183,14 +183,23 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         return await super().create(user_create, safe, request)
 
 
-def get_user_db_dependency():
-    """Import get_user_db to avoid circular imports."""
-    from .users import get_user_db
-    return get_user_db
+async def get_user_db(session: AsyncSession = Depends(get_async_session)):
+    """
+    Get user database adapter.
+
+    Duplicated here to avoid circular import with users.py
+
+    Args:
+        session: Database session
+
+    Yields:
+        SQLAlchemyUserDatabase instance
+    """
+    yield SQLAlchemyUserDatabase(session, User)
 
 
 async def get_user_manager(
-    user_db: SQLAlchemyUserDatabase = Depends(get_user_db_dependency()),
+    user_db: SQLAlchemyUserDatabase = Depends(get_user_db),
 ) -> UserManager:
     """
     Dependency to get UserManager instance.
