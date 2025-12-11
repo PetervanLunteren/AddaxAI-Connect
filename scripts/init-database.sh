@@ -6,7 +6,7 @@
 set -e
 
 echo "Building API service with shared library..."
-docker compose build api
+docker compose build --no-cache api
 
 # Check if migration files exist
 VERSIONS_DIR="services/api/alembic/versions"
