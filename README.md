@@ -114,10 +114,10 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
-11. **Log in to the frontend**
+11. **Log in to the frontend**  
     When the deployment finishes, open your `domain_name` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in.
 
-12. **Configure camera traps**
+12. **Configure camera traps**  
     Set up your camera traps to upload via FTPS.
 
     | Setting | Value |
