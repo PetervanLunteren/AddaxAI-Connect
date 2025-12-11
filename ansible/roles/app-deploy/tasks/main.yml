@@ -117,6 +117,18 @@
     var: db_init.stdout_lines
   when: db_init is defined
 
+- name: Check API container logs for errors
+  command: docker compose logs --tail=50 api
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  register: api_logs
+  changed_when: false
+
+- name: Display API container logs
+  debug:
+    var: api_logs.stdout_lines
+
 - name: Create superuser account
   command: >
     docker compose exec -T api
