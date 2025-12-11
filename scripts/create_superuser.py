@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""
+Create superuser account and add to email allowlist.
+
+Usage:
+    python create_superuser.py
+
+Environment variables required:
+    SUPERADMIN_EMAIL - Email address for superuser
+    DATABASE_URL - PostgreSQL connection string
+"""
+import os
+import sys
+from pathlib import Path
+
+# Add shared module to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "services" / "api"))
+
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from passlib.context import CryptContext
+
+from shared.models import User, EmailAllowlist
+from shared.database import Base
+
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def create_superuser(email: str, database_url: str) -> None:
+    """
+    Create superuser account.
+
+    Args:
+        email: Superuser email address
+        database_url: PostgreSQL connection string
+
+    Raises:
+        ValueError: If email not provided or database connection fails
+    """
+    if not email:
+        raise ValueError("SUPERADMIN_EMAIL environment variable must be set")
+
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable must be set")
+
+    # Create engine and session
+    engine = create_engine(database_url)
+
+    # Create tables if they don't exist
+    Base.metadata.create_all(bind=engine)
+
+    with Session(engine) as db:
+        # Check if superuser already exists
+        result = db.execute(
+            select(User).where(User.email == email)
+        )
+        existing_user = result.scalar_one_or_none()
+
+        if existing_user:
+            print(f"Superuser {email} already exists. Skipping creation.")
+
+            # Ensure is_superuser flag is set
+            if not existing_user.is_superuser:
+                existing_user.is_superuser = True
+                existing_user.is_verified = True
+                existing_user.is_active = True
+                db.commit()
+                print(f"Updated {email} to superuser status.")
+
+            return
+
+        # Generate password (random, user should reset via forgot password)
+        import secrets
+        password = secrets.token_urlsafe(32)
+
+        # Create superuser
+        hashed_password = pwd_context.hash(password)
+
+        superuser = User(
+            email=email,
+            hashed_password=hashed_password,
+            is_active=True,
+            is_superuser=True,
+            is_verified=True,  # Pre-verified
+        )
+
+        db.add(superuser)
+        db.commit()
+        db.refresh(superuser)
+
+        print(f"✅ Superuser created: {email}")
+        print(f"   Temporary password: {password}")
+        print(f"   Please use 'Forgot Password' to set a permanent password.")
+
+        # Add superuser email to allowlist
+        result = db.execute(
+            select(EmailAllowlist).where(
+                (EmailAllowlist.email == email) |
+                (EmailAllowlist.domain == f"@{email.split('@')[1]}")
+            )
+        )
+        existing_allowlist = result.scalar_one_or_none()
+
+        if not existing_allowlist:
+            allowlist_entry = EmailAllowlist(
+                email=email,
+                domain=None,
+                added_by_user_id=superuser.id,
+            )
+            db.add(allowlist_entry)
+            db.commit()
+            print(f"✅ Added {email} to allowlist")
+        else:
+            print(f"   Email already in allowlist")
+
+
+def main():
+    """Main entry point"""
+    # Get environment variables
+    email = os.getenv("SUPERADMIN_EMAIL")
+    database_url = os.getenv("DATABASE_URL")
+
+    if not email:
+        print("❌ ERROR: SUPERADMIN_EMAIL environment variable not set")
+        print("   Usage: SUPERADMIN_EMAIL=admin@example.com python create_superuser.py")
+        sys.exit(1)
+
+    if not database_url:
+        print("❌ ERROR: DATABASE_URL environment variable not set")
+        sys.exit(1)
+
+    try:
+        create_superuser(email, database_url)
+    except Exception as e:
+        print(f"❌ ERROR: Failed to create superuser: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

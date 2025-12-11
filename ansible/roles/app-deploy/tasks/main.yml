@@ -117,6 +117,24 @@
     var: db_init.stdout_lines
   when: db_init is defined
 
+- name: Create superuser account
+  command: python3 scripts/create_superuser.py
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  environment:
+    SUPERADMIN_EMAIL: "{{ superadmin_email }}"
+    DATABASE_URL: "postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@localhost:5432/{{ db_name | default('addaxai_connect') }}"
+  register: superuser_create
+  changed_when: "'Superuser created' in superuser_create.stdout"
+  failed_when: superuser_create.rc != 0
+  when: superadmin_email is defined and superadmin_email != ""
+
+- name: Display superuser creation result
+  debug:
+    var: superuser_create.stdout_lines
+  when: superuser_create is defined
+
 - name: Display deployment information
   debug:
     msg: |

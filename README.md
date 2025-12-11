@@ -65,6 +65,16 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
         - `domain_name`
         - `letsencrypt_email`
 
+  # Email Configuration
+  mail_server: "smtp.gmail.com"
+  mail_port: 587
+  mail_username: "addaxai.connect@gmail.com"
+  mail_password: "uszw wsbx eatp aupe"
+  mail_from: "addaxai.connect@gmail.com"
+
+  # Superadmin Setup
+  superadmin_email: "your-email@example.com"  # You'll provide this
+
 5. **Add VM to known_hosts** - SSH to the VM to accept the host key. Type `yes` when prompted, then `exit` to disconnect.
     ```bash
     ssh -i <your_ssh_key> root@<your_vm_ipv4>

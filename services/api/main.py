@@ -3,25 +3,63 @@ AddaxAI Connect API
 
 FastAPI backend providing REST API and WebSocket endpoints.
 """
-from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+from shared.config import get_settings
+from shared.database import get_async_session
+from auth.routes import get_auth_router
+from routers import admin
+
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup
+    print("Starting AddaxAI Connect API...")
+    yield
+    # Shutdown
+    print("Shutting down AddaxAI Connect API...")
+
 
 app = FastAPI(
     title="AddaxAI Connect API",
     description="Camera trap image processing platform",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan,
 )
 
+
+# Middleware to inject database session into request state
+@app.middleware("http")
+async def db_session_middleware(request: Request, call_next):
+    """
+    Inject database session into request state.
+
+    Required for FastAPI-Users UserManager to access database.
+    """
+    async for session in get_async_session():
+        request.state.db = session
+        response = await call_next(request)
+        return response
+
+
 # CORS middleware
+cors_origins = settings.cors_origins.split(",") if hasattr(settings, "cors_origins") and settings.cors_origins else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Configure from environment
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+# Health check endpoints
 @app.get("/")
 def root():
     return {"message": "AddaxAI Connect API", "status": "running"}
@@ -32,9 +70,6 @@ def health():
     return {"status": "healthy"}
 
 
-# TODO: Add routers
-# from routers import images, cameras, stats, auth
-# app.include_router(auth.router, prefix="/auth", tags=["auth"])
-# app.include_router(images.router, prefix="/api/images", tags=["images"])
-# app.include_router(cameras.router, prefix="/api/cameras", tags=["cameras"])
-# app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
+# Include routers
+app.include_router(get_auth_router())
+app.include_router(admin.router)

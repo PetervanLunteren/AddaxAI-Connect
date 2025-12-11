@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     # FTPS (ingestion only)
     ftps_upload_dir: Optional[str] = None
 
+    # Email (API only)
+    mail_server: Optional[str] = None
+    mail_port: Optional[int] = None
+    mail_username: Optional[str] = None
+    mail_password: Optional[str] = None
+    mail_from: Optional[str] = None
+    domain_name: Optional[str] = None  # For constructing verification links
+
     # Logging
     log_level: str = "INFO"
     environment: str = "development"
