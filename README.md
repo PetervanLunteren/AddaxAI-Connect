@@ -114,8 +114,19 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
-11. **Check frontend**  
-   If all went well, you can now browse to `domain_name` and you should be able to register for a password using your `superadmin_email`.
+11. **Log in to the frontend**
+    When the deployment finishes, open your `domain_name` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in.
 
-12. **Check backend**   
-   If all went well, you should see an incoming image if you set your camera traps to FPTS .... TODO
+12. **Configure camera traps**
+    Set up your camera traps to upload via FTPS.
+
+    | Setting | Value |
+    |---------|-------|
+    | Host | `<your_vm_ipv4>` |
+    | Port | `21` (control), `990` (FTPS), `40000-50000` (passive) |
+    | Username | `camera` |
+    | Password | `<ftps_password>` |
+    | Protocol | FTPS (explicit TLS) |
+
+13. **Finish and manage your system**
+    After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
