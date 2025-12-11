@@ -1,13 +1,7 @@
 ---
 # App Deploy Role - Deploy Docker Compose stack
-
-- name: Create docker-compose.yml from template
-  template:
-    src: docker-compose.yml.j2
-    dest: "{{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.yml"
-    owner: "{{ app_user | default('ubuntu') }}"
-    group: "{{ app_user | default('ubuntu') }}"
-    mode: '0644'
+# Note: docker-compose.yml comes from git repository (single source of truth)
+# Only .env is templated to inject secrets and environment-specific values
 
 - name: Create .env file from template
   template:
