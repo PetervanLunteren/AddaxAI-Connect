@@ -171,7 +171,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         db: AsyncSession = request.state.db
 
         # Check allowlist
-        email = user_create.get("email")
+        email = user_create.email
         if not await self._check_allowlist(email, db):
             raise exceptions.InvalidPasswordException(
                 reason=f"Email {email} is not in the allowlist. "
