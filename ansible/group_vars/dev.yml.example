@@ -66,3 +66,13 @@ fail_on_security_issues: true             # Fail playbook if critical security i
 
 # ML Model Settings
 use_gpu: false                            # Use GPU for inference (requires CUDA)
+
+# Email Settings (for authentication)
+mail_server: "smtp.gmail.com"             # SMTP server
+mail_port: 587                            # SMTP port
+mail_username: ""                         # SMTP username (REQUIRED)
+mail_password: ""                         # SMTP password or app password (REQUIRED)
+mail_from: ""                             # From email address (REQUIRED)
+
+# Superadmin Settings
+superadmin_email: ""                      # Initial superadmin email (REQUIRED)

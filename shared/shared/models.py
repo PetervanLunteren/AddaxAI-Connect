@@ -84,6 +84,10 @@ class User(Base):
     is_superuser = Column(Boolean, default=False, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
 
+    # RBAC and multi-tenancy (schema ready, enforcement later)
+    role = Column(String(50), nullable=True)  # admin, analyst, viewer
+    project_id = Column(Integer, nullable=True)  # Will add FK constraint when projects table exists
+
 
 class EmailAllowlist(Base):
     """Allowed emails/domains for registration"""

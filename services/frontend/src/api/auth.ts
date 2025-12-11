@@ -1,0 +1,119 @@
+/**
+ * Authentication API functions
+ */
+import apiClient from './client';
+
+export interface LoginRequest {
+  username: string; // FastAPI-Users uses 'username' field for email
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  is_active: boolean;
+  is_superuser: boolean;
+  is_verified: boolean;
+  role?: string | null;
+  project_id?: number | null;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+/**
+ * Login with email and password
+ */
+export const login = async (email: string, password: string): Promise<LoginResponse> => {
+  const formData = new FormData();
+  formData.append('username', email); // FastAPI-Users expects 'username' field
+  formData.append('password', password);
+
+  const response = await apiClient.post<LoginResponse>('/auth/login', formData, {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  return response.data;
+};
+
+/**
+ * Logout (client-side only - clear token)
+ */
+export const logout = async (): Promise<void> => {
+  // FastAPI-Users doesn't have server-side logout for JWT
+  // Just clear client-side token
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('user');
+};
+
+/**
+ * Register new user
+ */
+export const register = async (email: string, password: string): Promise<User> => {
+  const response = await apiClient.post<User>('/auth/register', {
+    email,
+    password,
+  });
+
+  return response.data;
+};
+
+/**
+ * Get current user info
+ */
+export const getCurrentUser = async (): Promise<User> => {
+  const response = await apiClient.get<User>('/users/me');
+  return response.data;
+};
+
+/**
+ * Verify email with token
+ */
+export const verifyEmail = async (token: string): Promise<User> => {
+  const response = await apiClient.post<User>('/auth/verify', {
+    token,
+  });
+
+  return response.data;
+};
+
+/**
+ * Request password reset email
+ */
+export const forgotPassword = async (email: string): Promise<void> => {
+  await apiClient.post('/auth/forgot-password', {
+    email,
+  });
+};
+
+/**
+ * Reset password with token
+ */
+export const resetPassword = async (token: string, password: string): Promise<void> => {
+  await apiClient.post('/auth/reset-password', {
+    token,
+    password,
+  });
+};
