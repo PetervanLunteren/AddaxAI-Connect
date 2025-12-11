@@ -128,5 +128,5 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     | Password | `<ftps_password>` |
     | Protocol | FTPS (explicit TLS) |
 
-13. **Finish and manage your system**
+13. **Finish and manage your system**  
     After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
