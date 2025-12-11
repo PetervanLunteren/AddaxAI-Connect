@@ -76,14 +76,31 @@ class EmailSender:
         message["Subject"] = subject
         message.set_content(body)
 
-        await aiosmtplib.send(
-            message,
-            hostname=self.settings.mail_server,
-            port=self.settings.mail_port,
-            username=self.settings.mail_username,
-            password=self.settings.mail_password,
-            start_tls=True,
-        )
+        # Auto-detect TLS mode based on port
+        # Port 465: use_tls=True (implicit TLS/SSL from start)
+        # Port 587: start_tls=True (STARTTLS upgrade)
+        # Port 25: no TLS (not recommended)
+        port = self.settings.mail_port
+        if port == 465:
+            # Implicit TLS for port 465 (SMTPS)
+            await aiosmtplib.send(
+                message,
+                hostname=self.settings.mail_server,
+                port=port,
+                username=self.settings.mail_username,
+                password=self.settings.mail_password,
+                use_tls=True,
+            )
+        else:
+            # STARTTLS for port 587 or other ports
+            await aiosmtplib.send(
+                message,
+                hostname=self.settings.mail_server,
+                port=port,
+                username=self.settings.mail_username,
+                password=self.settings.mail_password,
+                start_tls=True,
+            )
 
     async def send_verification_email(
         self,
