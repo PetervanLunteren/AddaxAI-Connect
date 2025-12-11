@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
 
+    # CORS (API only)
+    cors_origins: Optional[str] = None
+
     # ML Models (workers only)
     detection_model_path: Optional[str] = None
     classification_model_path: Optional[str] = None
