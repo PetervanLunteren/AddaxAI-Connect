@@ -77,6 +77,9 @@ def create_superuser(email: str, database_url: str) -> None:
         import secrets
         password = secrets.token_urlsafe(32)
 
+        # Bcrypt has a 72-byte limit, truncate if needed
+        password = password[:72]
+
         # Create superuser
         hashed_password = pwd_context.hash(password)
 
