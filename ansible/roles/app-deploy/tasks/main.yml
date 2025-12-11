@@ -131,14 +131,14 @@
 
 - name: Create superuser account
   command: >
-    docker compose exec -T api
+    docker compose exec -T
+    -e SUPERADMIN_EMAIL="{{ superadmin_email }}"
+    -e DATABASE_URL="postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
+    api
     python3 /app/scripts/create_superuser.py
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
-  environment:
-    SUPERADMIN_EMAIL: "{{ superadmin_email }}"
-    DATABASE_URL: "postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
   register: superuser_create
   until: superuser_create.rc == 0
   retries: 10
