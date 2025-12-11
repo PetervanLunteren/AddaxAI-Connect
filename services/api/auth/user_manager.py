@@ -15,7 +15,7 @@ from sqlalchemy import select
 from shared.models import User, EmailAllowlist
 from shared.database import get_async_session
 from shared.config import get_settings
-from ..email.sender import get_email_sender
+from mailer.sender import get_email_sender
 
 
 settings = get_settings()
