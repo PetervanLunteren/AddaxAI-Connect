@@ -9,6 +9,7 @@ Implements:
 from typing import Optional
 from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, IntegerIDMixin, exceptions
+from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -182,16 +183,22 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         return await super().create(user_create, safe, request)
 
 
+def get_user_db_dependency():
+    """Import get_user_db to avoid circular imports."""
+    from .users import get_user_db
+    return get_user_db
+
+
 async def get_user_manager(
-    db: AsyncSession = Depends(get_async_session),
+    user_db: SQLAlchemyUserDatabase = Depends(get_user_db_dependency()),
 ) -> UserManager:
     """
     Dependency to get UserManager instance.
 
     Args:
-        db: Database session
+        user_db: User database adapter
 
     Yields:
         UserManager instance
     """
-    yield UserManager(db)
+    yield UserManager(user_db)
