@@ -32,7 +32,7 @@
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
   when: monitoring_check.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length > 0
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Remove incorrectly created monitoring directories
   file:
