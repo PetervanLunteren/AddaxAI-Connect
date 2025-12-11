@@ -43,12 +43,19 @@
     group: "{{ app_user | default('ubuntu') }}"
     mode: '0755'
   loop:
-    - data/postgres
     - data/redis
     - data/minio
     - data/prometheus
     - data/loki
     - logs
+
+- name: Create postgres data directory with correct ownership
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/data/postgres"
+    state: directory
+    owner: "999"
+    group: "999"
+    mode: '0700'
 
 - name: Pull Docker images
   command: docker compose pull
