@@ -35,9 +35,11 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO, Prometheus, Loki) accessible only within Docker network. Monitoring endpoints protected via nginx reverse proxy with HTTP basic auth.
 
 ## Setup
-1. **Deploy a VM** - You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.04 (LTS) x64`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
+1. **Deploy a VM**  
+   You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.04 (LTS) x64`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
 
-2. **Clone this repo** - On your local machine
+2. **Clone this repo**  
+   On your local machine
     ```bash
     git clone https://github.com/PetervanLunteren/AddaxAI-Connect.git
     cd AddaxAI-Connect
@@ -50,42 +52,70 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     cp group_vars/dev.yml.example group_vars/dev.yml
     ```
 
-4. **Configure variables** - Make sure to create secure passwords (e.g., with `openssl rand -base64 32`).
-    - Replace in `inventory.yml`:
-        - `your_vm_ipv4`
-        - `your_ssh_key`
-    - Replace in `group_vars/dev.yml`:
-        - `app_user_password`
-        - `ftps_password`
-        - `db_password`
-        - `minio_password`
-        - `redis_password`
-        - `jwt_secret`
-        - `monitoring_password`
-        - `domain_name`
-        - `letsencrypt_email`
+4. **Configure inventory variables**  
+   Replace in `inventory.yml`.
 
-  # Email Configuration
-  mail_server: "smtp.gmail.com"
-  mail_port: 587
-  mail_username: "addaxai.connect@gmail.com"
-  mail_password: "uszw wsbx eatp aupe"
-  mail_from: "addaxai.connect@gmail.com"
+   | Variable | Example | Description |
+   |---------|---------|-------------|
+   | `your_vm_ipv4` | `123.456.789.01` | The IPv4 address of the virtual machine you created in step 1. |
+   | `your_ssh_key` | `~/.ssh/id_rsa` | The path to your private SSH key on your local device. |
 
-  # Superadmin Setup
-  superadmin_email: "your-email@example.com"  # You'll provide this
 
-5. **Add VM to known_hosts** - SSH to the VM to accept the host key. Type `yes` when prompted, then `exit` to disconnect.
+5. **Set core passwords**  
+   Replace in `group_vars/dev.yml`. Make sure to create secure passwords (for example with `openssl rand -base64 32`).
+
+   | Variable | Example | Description |
+   |---------|---------|-------------|
+   | `app_user_password` | `"securepassword"` | Password you define for `sudo` access on the server. |
+   | `ftps_password` | `"securepassword"` | Password you define for FTPS access. |
+   | `db_password` | `"securepassword"` | Password you define for the database user. |
+   | `minio_password` | `"securepassword"` | Password you define for the Minio storage admin user. |
+   | `redis_password` | `"securepassword"` | Password you define for the Redis instance. |
+   | `jwt_secret` | `"securesecret"` | Secret key you define for signing JWT tokens. |
+   | `monitoring_password` | `"securepassword"` | Password you define for accessing monitoring tools. |
+
+
+6. **Set domain and tls settings**  
+   Still in `group_vars/dev.yml`.
+
+   | Variable | Example | Description |
+   |---------|---------|-------------|
+   | `domain_name` | `"dev.example.com"` | The domain name your application will use. You must own the domain and have access to its DNS records. |
+   | `letsencrypt_email` | `"you@example.com"` | Email address used for Letsencrypt SSL certificate registration. |
+
+
+7. **Configure email and superadmin**  
+   Still in `group_vars/dev.yml`.
+
+   | Variable | Example | Description |
+   |---------|---------|-------------|
+   | `mail_server` | `"smtp.gmail.com"` | SMTP server address for outgoing email for password resets, registration, and other notifications. |
+   | `mail_port` | `587` | SMTP port number. |
+   | `mail_username` | `"your.email@example.com"` | Username for authenticating with your mail provider. |
+   | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
+   | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
+   | `superadmin_email` | `"your.email@example.com"` | Email address used for the first superadmin account. This is the only person allowed to register for a password initially. Other user management will be done from within the UI. |
+
+
+8. **Add VM to known_hosts**  
+   SSH to the VM to accept the host key. Type `yes` when prompted, then `exit` to disconnect.
     ```bash
     ssh -i <your_ssh_key> root@<your_vm_ipv4>
     ```
 
-6. **Test Ansible connection** - Should return `pong` if successful.
+9. **Test Ansible connection**  
+   Should return `pong` if successful.  
     ```bash
     ansible -i inventory.yml dev -m ping
     ```
 
-6. **Run playbook** - Deploys entire infrastructure automatically.
+10. **Run playbook**  
+   Deploys entire infrastructure automatically.
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
+11. **Check frontend**  
+   If all went well, you can now browse to `domain_name` and you should be able to register for a password using your `superadmin_email`.
+
+12. **Check backend**   
+   If all went well, you should see an incoming image if you set your camera traps to FPTS .... TODO
