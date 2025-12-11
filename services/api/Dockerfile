@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir -e /shared
 COPY services/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Force bcrypt 3.2.2 to override any newer version pulled by dependencies
+RUN pip install --force-reinstall --no-cache-dir bcrypt==3.2.2
+
 # Copy API code
 COPY services/api .
 
