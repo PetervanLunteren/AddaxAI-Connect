@@ -1,0 +1,39 @@
+---
+# SSL Finalization - Re-check and regenerate nginx config
+# This runs after all other roles to ensure SSL is properly configured
+
+- name: Re-check SSL certificate exists (finalization)
+  stat:
+    path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+  register: ssl_cert_exists_final
+
+- name: Regenerate nginx config with SSL enabled (finalization)
+  template:
+    src: ../../nginx/templates/addaxai-connect.conf.j2
+    dest: /etc/nginx/sites-available/addaxai-connect.conf
+    owner: root
+    group: root
+    mode: '0644'
+  vars:
+    ssl_cert_exists: "{{ ssl_cert_exists_final }}"
+  when: ssl_cert_exists_final.stat.exists
+  notify: reload nginx
+
+- name: Reload nginx with final SSL configuration
+  meta: flush_handlers
+
+- name: Verify nginx is listening on port 443
+  wait_for:
+    port: 443
+    timeout: 10
+  when: ssl_cert_exists_final.stat.exists
+
+- name: Display SSL finalization status
+  debug:
+    msg: |
+      ========================================
+      SSL Finalization Complete
+      ========================================
+      ✅ Nginx config regenerated with SSL
+      ✅ Nginx reloaded
+      ✅ HTTPS is now active on port 443
