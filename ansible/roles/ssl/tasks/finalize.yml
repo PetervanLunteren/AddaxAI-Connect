@@ -7,17 +7,20 @@
     path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
   register: ssl_cert_exists_final
 
-- name: Regenerate nginx config with SSL enabled (finalization)
+- name: Force regenerate nginx config with SSL enabled (finalization)
   template:
     src: ../../nginx/templates/addaxai-connect.conf.j2
     dest: /etc/nginx/sites-available/addaxai-connect.conf
     owner: root
     group: root
     mode: '0644'
+    force: yes
   vars:
     ssl_cert_exists: "{{ ssl_cert_exists_final }}"
+    enable_ssl: true
   when: ssl_cert_exists_final.stat.exists
   register: nginx_config_regenerated
+  changed_when: true
 
 - name: Force reload nginx with SSL configuration
   service:
@@ -27,14 +30,46 @@
 
 - name: Wait for nginx to fully reload
   pause:
-    seconds: 2
+    seconds: 5
 
-- name: Verify nginx is listening on port 443
-  wait_for:
-    port: 443
-    timeout: 30
+- name: Verify and fix HTTPS configuration (with retries)
+  block:
+    - name: Check if port 443 is listening
+      wait_for:
+        port: 443
+        timeout: 10
+      register: port_443_check
+      failed_when: false
+
+    - name: Retry nginx config regeneration if port 443 not listening
+      block:
+        - name: Regenerate nginx config again
+          template:
+            src: ../../nginx/templates/addaxai-connect.conf.j2
+            dest: /etc/nginx/sites-available/addaxai-connect.conf
+            owner: root
+            group: root
+            mode: '0644'
+            force: yes
+          vars:
+            ssl_cert_exists: "{{ ssl_cert_exists_final }}"
+            enable_ssl: true
+
+        - name: Restart nginx (hard restart)
+          service:
+            name: nginx
+            state: restarted
+
+        - name: Wait for nginx restart
+          pause:
+            seconds: 10
+
+        - name: Verify port 443 is now listening
+          wait_for:
+            port: 443
+            timeout: 30
+      when: port_443_check.failed | default(false)
   when: ssl_cert_exists_final.stat.exists
-  ignore_errors: yes
 
 - name: Display SSL finalization status
   debug:

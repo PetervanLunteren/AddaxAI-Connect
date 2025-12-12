@@ -50,6 +50,7 @@
     --agree-tos
     --email {{ letsencrypt_email }}
     --domain {{ domain_name }}
+    {% if letsencrypt_staging | default(false) %}--staging{% endif %}
   when:
     - enable_ssl | default(false)
     - domain_name is defined

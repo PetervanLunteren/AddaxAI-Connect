@@ -3,6 +3,9 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
+REMEMBER
+- [ ] Change `letsencrypt_staging` to `false` in `ansible/group_vars/dev.yml` if the Let's Encrypt limit is reset.  
+
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
 
