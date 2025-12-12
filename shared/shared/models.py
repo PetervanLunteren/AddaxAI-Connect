@@ -90,12 +90,19 @@ class User(Base):
 
 
 class EmailAllowlist(Base):
-    """Allowed emails/domains for registration"""
+    """
+    Allowed emails/domains for registration.
+
+    Determines who can register and whether they become server admins.
+    - is_superuser=True: User becomes admin with full control over all projects
+    - is_superuser=False: Regular user (will get project-specific roles later)
+    """
     __tablename__ = "email_allowlist"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), nullable=True, unique=True)
     domain = Column(String(255), nullable=True)
+    is_superuser = Column(Boolean, default=False, nullable=False)  # Admin flag
     added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

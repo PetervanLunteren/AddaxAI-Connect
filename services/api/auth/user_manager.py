@@ -55,32 +55,37 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         self,
         email: str,
         db: AsyncSession,
-    ) -> bool:
+    ) -> EmailAllowlist | None:
         """
-        Check if email is in allowlist.
+        Check if email is in allowlist and return the entry.
 
         Checks both specific emails and domain patterns.
+        Prioritizes exact email matches over domain matches.
 
         Args:
             email: Email address to check
             db: Database session
 
         Returns:
-            True if email is allowed, False otherwise
+            EmailAllowlist entry if allowed, None otherwise
         """
         # Extract domain from email
         domain = "@" + email.split("@")[1]
 
-        # Check for exact email match or domain match
+        # Check for exact email match first (higher priority)
         result = await db.execute(
-            select(EmailAllowlist).where(
-                (EmailAllowlist.email == email) |
-                (EmailAllowlist.domain == domain)
-            )
+            select(EmailAllowlist).where(EmailAllowlist.email == email)
         )
         allowlist_entry = result.scalar_one_or_none()
 
-        return allowlist_entry is not None
+        # If no exact match, check for domain match
+        if not allowlist_entry:
+            result = await db.execute(
+                select(EmailAllowlist).where(EmailAllowlist.domain == domain)
+            )
+            allowlist_entry = result.scalar_one_or_none()
+
+        return allowlist_entry
 
     async def on_after_register(
         self,
@@ -154,7 +159,13 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         request: Optional[Request] = None,
     ) -> User:
         """
-        Create a new user with allowlist validation.
+        Create a new user with allowlist validation and role assignment.
+
+        The user's is_superuser flag is set based on the allowlist entry:
+        - If allowlist entry has is_superuser=True, user becomes server admin
+        - If allowlist entry has is_superuser=False, user is a regular user
+
+        Regular users will get project-specific roles assigned later.
 
         Args:
             user_create: User creation data
@@ -171,13 +182,19 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         # Get database session from request state
         db: AsyncSession = request.state.db
 
-        # Check allowlist
+        # Check allowlist and get entry
         email = user_create.email
-        if not await self._check_allowlist(email, db):
+        allowlist_entry = await self._check_allowlist(email, db)
+
+        if not allowlist_entry:
             raise exceptions.InvalidPasswordException(
                 reason=f"Email {email} is not in the allowlist. "
                        "Please contact an administrator to request access."
             )
+
+        # Apply is_superuser flag from allowlist entry
+        # This determines if user becomes a server admin
+        user_create.is_superuser = allowlist_entry.is_superuser
 
         # Call parent create method
         return await super().create(user_create, safe, request)
