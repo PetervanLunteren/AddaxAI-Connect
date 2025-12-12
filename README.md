@@ -136,7 +136,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 ### Email SMTP doesn't work
 
-Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) to prevent spam. This prevents verification and password reset emails from being sent. You can test this with the the following command. The workaround here is submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
+Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) to prevent spam. This prevents verification and password reset emails from being sent. You can test this with the command below. If they are blocked, that is because of the cloud provider, and we can't really do anything about that. The solution would be to submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
 
 ```bash
 python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"

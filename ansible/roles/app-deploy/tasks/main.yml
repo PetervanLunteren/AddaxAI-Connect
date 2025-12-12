@@ -118,6 +118,25 @@
     var: db_init.stdout_lines
   when: db_init is defined
 
+- name: Seed email allowlist with admin entries
+  command: >
+    docker compose exec -T postgres
+    psql -U {{ db_user | default('addaxai') }}
+    -d {{ db_name | default('addaxai_connect') }}
+    -c "INSERT INTO email_allowlist (email, is_superuser) VALUES ('{{ item }}', true) ON CONFLICT (email) DO UPDATE SET is_superuser = true;"
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  loop: "{{ admin_emails | default([]) }}"
+  register: allowlist_seed
+  changed_when: "'INSERT' in allowlist_seed.stdout"
+  when: admin_emails is defined and admin_emails | length > 0
+
+- name: Display allowlist seeding result
+  debug:
+    msg: "✅ Seeded {{ admin_emails | length }} admin email(s) to allowlist: {{ admin_emails | join(', ') }}"
+  when: admin_emails is defined and admin_emails | length > 0
+
 - name: Check API container logs for errors
   command: docker compose logs --tail=50 api
   args:
@@ -130,27 +149,29 @@
   debug:
     var: api_logs.stdout_lines
 
-- name: Create superuser account
-  command: >
-    docker compose exec -T
-    -e SUPERADMIN_EMAIL="{{ superadmin_email }}"
-    -e DATABASE_URL="postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
-    api
-    python3 /app/scripts/create_superuser.py
-  args:
-    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
-  become_user: "{{ app_user | default('ubuntu') }}"
-  register: superuser_create
-  until: superuser_create.rc == 0
-  retries: 10
-  delay: 3
-  changed_when: "'Superuser created' in superuser_create.stdout"
-  when: superadmin_email is defined and superadmin_email != ""
-
-- name: Display superuser creation result
-  debug:
-    var: superuser_create.stdout_lines
-  when: superuser_create is defined
+# DEPRECATED: Using allowlist-based admin assignment instead
+# Admins now register normally, and automatically become admins based on email allowlist
+# - name: Create superuser account
+#   command: >
+#     docker compose exec -T
+#     -e SUPERADMIN_EMAIL="{{ superadmin_email }}"
+#     -e DATABASE_URL="postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
+#     api
+#     python3 /app/scripts/create_superuser.py
+#   args:
+#     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+#   become_user: "{{ app_user | default('ubuntu') }}"
+#   register: superuser_create
+#   until: superuser_create.rc == 0
+#   retries: 10
+#   delay: 3
+#   changed_when: "'Superuser created' in superuser_create.stdout"
+#   when: superadmin_email is defined and superadmin_email != ""
+#
+# - name: Display superuser creation result
+#   debug:
+#     var: superuser_create.stdout_lines
+#   when: superuser_create is defined
 
 - name: Display deployment information
   debug:
@@ -168,6 +189,22 @@
       - Prometheus (port 9090)
       - Loki (port 3100)
 
+      Admin Email Allowlist Seeded:
+      {% if admin_emails is defined and admin_emails | length > 0 %}
+      {% for email in admin_emails %}
+      - {{ email }} (server admin)
+      {% endfor %}
+
+      Next Steps:
+      1. Go to https://{{ domain_name | default(ansible_host) }}/register
+      2. Register with one of the admin emails above
+      3. Check email for verification link
+      4. After verification, you'll have full admin access!
+      {% else %}
+      - No admin emails configured
+      - Add emails to admin_emails in group_vars/dev.yml
+      {% endif %}
+
       Useful commands:
       docker compose ps              # Check service status
       docker compose logs -f         # View logs
@@ -175,7 +212,7 @@
       docker compose down            # Stop all services
 
       Access:
-      - Web UI: http://{{ ansible_host }}
-      - API: http://{{ ansible_host }}/api
+      - Web UI: https://{{ domain_name | default(ansible_host) }}
+      - API: https://{{ domain_name | default(ansible_host) }}/api
       - MinIO Console: http://{{ ansible_host }}:9001
       - Prometheus: http://{{ ansible_host }}:9090
