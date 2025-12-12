@@ -191,10 +191,13 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         # Apply is_superuser flag from allowlist entry
         # This determines if user becomes a server admin
+        # Must set safe=False to allow is_superuser to be set
         user_create.is_superuser = allowlist_entry.is_superuser
 
-        # Call parent create method
-        return await super().create(user_create, safe, request)
+        # Call parent create method with safe=False to allow is_superuser
+        created_user = await super().create(user_create, safe=False, request=request)
+
+        return created_user
 
 
 async def get_user_db(session: AsyncSession = Depends(get_async_session)):
