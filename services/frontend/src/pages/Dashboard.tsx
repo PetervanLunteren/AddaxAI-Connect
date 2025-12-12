@@ -20,8 +20,12 @@ export const Dashboard: React.FC = () => {
       <nav className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">AddaxAI Connect</h1>
+            <div className="flex items-center space-x-3">
+              <img
+                src="/logo-wide.svg"
+                alt="AddaxAI Connect"
+                className="h-10 w-auto"
+              />
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-700">{user?.email}</span>
