@@ -56,8 +56,13 @@
 
           VM Configuration:
           - FTPS Server: ftp://{{ ftps_username | default('cameratrap') }}@{{ ansible_host }}:21
+          {% if enable_ssl | default(false) and domain_name is defined -%}
+          - Web UI: https://{{ domain_name }}
+          - API Endpoint: https://{{ domain_name }}/api
+          {% else -%}
           - Web UI: http://{{ ansible_host }}
           - API Endpoint: http://{{ ansible_host }}/api
+          {% endif -%}
           - MinIO Console: http://{{ ansible_host }}:9001
           - Prometheus: http://{{ ansible_host }}:9090
 

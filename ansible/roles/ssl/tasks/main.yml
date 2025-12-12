@@ -55,7 +55,14 @@
     - domain_name is defined
     - letsencrypt_email is defined
     - not ssl_cert_exists.stat.exists
+  register: certbot_result
   notify: reload nginx
+
+- name: Re-check SSL certificate exists after certbot
+  stat:
+    path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+  register: ssl_cert_exists_after
+  when: enable_ssl | default(false) and domain_name is defined
 
 - name: Regenerate nginx config with SSL enabled
   template:
@@ -65,12 +72,11 @@
     group: root
     mode: '0644'
   vars:
-    ssl_cert_exists:
-      stat:
-        exists: true
+    ssl_cert_exists: "{{ ssl_cert_exists_after }}"
   when:
     - enable_ssl | default(false)
     - domain_name is defined
+    - ssl_cert_exists_after.stat.exists
   notify: reload nginx
 
 - name: Flush handlers to reload nginx with SSL
