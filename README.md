@@ -115,7 +115,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ansible-playbook -i inventory.yml playbook.yml
     ```
 11. **Log in to the frontend**  
-    When the deployment finishes, open your `domain_name` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in.
+    When the deployment finishes, open your `domain_name` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in. You're automatically assigned the 'admin' role (full control). 
 
 12. **Configure camera traps**  
     Set up your camera traps to upload via FTPS.
@@ -130,3 +130,8 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 13. **Finish and manage your system**  
     After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
+
+
+## Possible hickups
+### Email SMTP doesnt work
+Some cloud providers block access to the SMTP ports to avoid spam. This then blocks the email flow, and you cant get any password registration emails, password forgot emails, weekly updates, etc. 
