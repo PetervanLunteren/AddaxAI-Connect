@@ -132,6 +132,12 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
 
 
-## Possible hickups
-### Email SMTP doesnt work
-Some cloud providers block access to the SMTP ports to avoid spam. This then blocks the email flow, and you cant get any password registration emails, password forgot emails, weekly updates, etc. 
+## Possible Hiccups
+
+### Email SMTP doesn't work
+
+Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) to prevent spam. This prevents verification and password reset emails from being sent. You can test this with the the following command. The workaround here is submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
+
+```bash
+python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
+```
