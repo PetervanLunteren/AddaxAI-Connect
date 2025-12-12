@@ -24,6 +24,17 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
 
       {/* Content */}
       <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Logo */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-white bg-opacity-50 backdrop-blur-sm px-8 py-4 rounded-lg shadow-2xl">
+            <img
+              src="/logo-wide.svg"
+              alt="AddaxAI Connect"
+              className="h-12 w-auto"
+            />
+          </div>
+        </div>
+
         <h2 className="mt-6 text-center text-3xl font-bold text-white drop-shadow-lg">
           {title}
         </h2>

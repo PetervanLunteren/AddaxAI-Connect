@@ -133,7 +133,7 @@ If you did not create an account, please ignore this email.
 
 ---
 AddaxAI Connect
-Camera Trap Image Processing Platform
+Realtime camera trap image processing platform
 """
 
         await self.send_email(email, subject, body)
@@ -170,7 +170,7 @@ Your password will not be changed.
 
 ---
 AddaxAI Connect
-Camera Trap Image Processing Platform
+Realtime camera trap image processing platform
 """
 
         await self.send_email(email, subject, body)
