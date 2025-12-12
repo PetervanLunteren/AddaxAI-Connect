@@ -105,6 +105,14 @@
     state: present
   when: enable_ssl | default(false)
 
+- name: Finalize nginx SSL config when a cert is present
+  import_tasks: finalize.yml
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - ssl_cert_exists_after.stat.exists | default(false)
+  tags: [ssl, web]
+
 - name: Display SSL configuration info
   debug:
     msg: |
