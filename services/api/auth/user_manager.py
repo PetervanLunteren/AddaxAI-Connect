@@ -95,20 +95,17 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         """
         Called after user registration.
 
-        Sends verification email.
+        Triggers verification email via on_after_request_verify callback.
 
         Args:
             user: Newly registered user
             request: Request object
         """
-        # Generate verification token
-        token = await self.request_verify(user, request)
+        # Request verification - this triggers on_after_request_verify callback
+        # which sends the email with the actual token
+        await self.request_verify(user, request)
 
-        # Send verification email
-        email_sender = get_email_sender()
-        await email_sender.send_verification_email(user.email, token)
-
-        print(f"User {user.email} registered. Verification email sent.")
+        print(f"User {user.email} registered. Verification email requested.")
 
     async def on_after_forgot_password(
         self,
