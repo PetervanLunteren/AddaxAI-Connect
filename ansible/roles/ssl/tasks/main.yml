@@ -120,6 +120,7 @@
     timeout: 10
     validate_certs: false  # Set to true when using production certs (letsencrypt_staging: false)
   delegate_to: localhost
+  become: false
   run_once: true
   retries: 30
   delay: 20
