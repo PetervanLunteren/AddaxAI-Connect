@@ -46,13 +46,6 @@
       tags: [security-check, verify]
 
   post_tasks:
-    - name: Finalize SSL configuration
-      include_role:
-        name: ssl
-        tasks_from: finalize
-      when: enable_ssl | default(false) and domain_name is defined
-      tags: [ssl, web]
-
     - name: Display completion summary
       debug:
         msg: |
