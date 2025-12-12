@@ -61,9 +61,8 @@
 
 - name: Re-check SSL certificate exists after certbot
   stat:
-    path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+    path: "/etc/letsencrypt/live/{{ domain_name | default('localhost') }}/fullchain.pem"
   register: ssl_cert_exists_after
-  when: enable_ssl | default(false) and domain_name is defined
 
 - name: Regenerate nginx config with SSL enabled
   template:
@@ -106,7 +105,26 @@
   when: enable_ssl | default(false)
 
 - name: Finalize nginx SSL config when a cert is present
-  import_tasks: finalize.yml
+  include_tasks: finalize.yml
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - ssl_cert_exists_after.stat.exists | default(false)
+  tags: [ssl, web]
+
+- name: Wait for HTTPS to respond via public DNS
+  uri:
+    url: "https://{{ domain_name }}/health"
+    method: GET
+    status_code: 200
+    timeout: 10
+    validate_certs: false  # Set to true when using production certs (letsencrypt_staging: false)
+  delegate_to: localhost
+  run_once: true
+  retries: 30
+  delay: 20
+  register: https_check
+  until: https_check.status == 200
   when:
     - enable_ssl | default(false)
     - domain_name is defined
