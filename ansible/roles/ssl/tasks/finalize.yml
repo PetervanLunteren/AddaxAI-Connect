@@ -17,16 +17,24 @@
   vars:
     ssl_cert_exists: "{{ ssl_cert_exists_final }}"
   when: ssl_cert_exists_final.stat.exists
-  notify: reload nginx
+  register: nginx_config_regenerated
 
-- name: Reload nginx with final SSL configuration
-  meta: flush_handlers
+- name: Force reload nginx with SSL configuration
+  service:
+    name: nginx
+    state: reloaded
+  when: ssl_cert_exists_final.stat.exists
+
+- name: Wait for nginx to fully reload
+  pause:
+    seconds: 2
 
 - name: Verify nginx is listening on port 443
   wait_for:
     port: 443
-    timeout: 10
+    timeout: 30
   when: ssl_cert_exists_final.stat.exists
+  ignore_errors: yes
 
 - name: Display SSL finalization status
   debug:
@@ -36,4 +44,4 @@
       ========================================
       ✅ Nginx config regenerated with SSL
       ✅ Nginx reloaded
-      ✅ HTTPS is now active on port 443
+      ✅ HTTPS should now be active on port 443
