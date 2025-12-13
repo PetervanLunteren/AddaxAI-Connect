@@ -111,3 +111,6 @@ uploads/*
 
 # Alembic
 services/api/alembic/versions/*.pyc
+
+# Debug stuff
+debug-evidence/*
