@@ -46,6 +46,38 @@
       tags: [security-check, verify]
 
   post_tasks:
+    # ═══════════════════════════════════════════════════════════════
+    # SSL Finalization - MUST run in post_tasks after all roles complete
+    # ═══════════════════════════════════════════════════════════════
+    - name: Finalize SSL configuration
+      include_role:
+        name: ssl
+        tasks_from: finalize
+      when: enable_ssl | default(false) and domain_name is defined
+      tags: [ssl, web]
+
+    # ═══════════════════════════════════════════════════════════════
+    # DEBUG CHECKPOINT 5: After Finalize (in post_tasks)
+    # ═══════════════════════════════════════════════════════════════
+    - name: "[DEBUG] Capture state after finalize in post_tasks"
+      include_role:
+        name: debug-ssl
+      vars:
+        checkpoint_name: "05-after-finalize-post-tasks"
+      when: enable_ssl | default(false) and domain_name is defined
+      tags: [debug]
+
+    # ═══════════════════════════════════════════════════════════════
+    # DEBUG CHECKPOINT 6: Final State (Everything Complete)
+    # ═══════════════════════════════════════════════════════════════
+    - name: "[DEBUG] Capture final state after everything completes"
+      include_role:
+        name: debug-ssl
+      vars:
+        checkpoint_name: "06-final-state"
+      when: enable_ssl | default(false) and domain_name is defined
+      tags: [debug]
+
     - name: Display completion summary
       debug:
         msg: |

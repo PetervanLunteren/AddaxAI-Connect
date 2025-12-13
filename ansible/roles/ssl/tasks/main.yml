@@ -178,40 +178,8 @@
     state: present
   when: enable_ssl | default(false)
 
-- name: "[DEBUG] About to run finalize.yml"
-  debug:
-    msg: |
-      Finalize condition check:
-        enable_ssl: {{ enable_ssl | default(false) }}
-        domain_name defined: {{ domain_name is defined }}
-        ssl_cert_exists_after.stat.exists: {{ ssl_cert_exists_after.stat.exists | default('UNDEFINED') }}
-
-      Will finalize run? {{ (enable_ssl | default(false)) and (domain_name is defined) and (ssl_cert_exists_after.stat.exists | default(false)) }}
-  when:
-    - enable_ssl | default(false)
-    - domain_name is defined
-  tags: [debug]
-
-- name: Finalize nginx SSL config when a cert is present
-  include_tasks: finalize.yml
-  when:
-    - enable_ssl | default(false)
-    - domain_name is defined
-    - ssl_cert_exists_after.stat.exists | default(false)
-  tags: [ssl, web]
-
-# ═══════════════════════════════════════════════════════════════
-# DEBUG CHECKPOINT 4: After Finalize
-# ═══════════════════════════════════════════════════════════════
-- name: "[DEBUG] Capture state after finalize"
-  include_role:
-    name: debug-ssl
-  vars:
-    checkpoint_name: "04-after-finalize"
-  when:
-    - enable_ssl | default(false)
-    - domain_name is defined
-  tags: [debug]
+# Note: SSL finalization now runs in playbook post_tasks (after all roles complete)
+# This ensures correct timing and variable scope for HTTPS configuration
 
 - name: Wait for HTTPS to respond via public DNS
   uri:
@@ -249,13 +217,13 @@
   tags: [debug]
 
 # ═══════════════════════════════════════════════════════════════
-# DEBUG CHECKPOINT 5: Final State
+# DEBUG CHECKPOINT 4: End of SSL Role
 # ═══════════════════════════════════════════════════════════════
-- name: "[DEBUG] Capture final state after all SSL tasks"
+- name: "[DEBUG] Capture state at end of SSL role (before finalize in post_tasks)"
   include_role:
     name: debug-ssl
   vars:
-    checkpoint_name: "05-final-state"
+    checkpoint_name: "04-end-of-ssl-role"
   when:
     - enable_ssl | default(false)
     - domain_name is defined
