@@ -9,11 +9,30 @@
     state: present
     update_cache: yes
 
+# ═══════════════════════════════════════════════════════════════
+# DEBUG CHECKPOINT 1: Before Certificate Generation
+# ═══════════════════════════════════════════════════════════════
+- name: "[DEBUG] Capture state before SSL certificate generation"
+  include_role:
+    name: debug-ssl
+  vars:
+    checkpoint_name: "01-before-certbot"
+  when: enable_ssl | default(false) and domain_name is defined
+  tags: [debug]
+
 - name: Check if SSL certificate already exists
   stat:
     path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
   register: ssl_cert_exists
   when: enable_ssl | default(false) and domain_name is defined
+
+- name: "[DEBUG] Display ssl_cert_exists variable structure"
+  debug:
+    msg: |
+      ssl_cert_exists variable:
+      {{ ssl_cert_exists | to_nice_yaml(indent=2) }}
+  when: ssl_cert_exists is defined
+  tags: [debug]
 
 - name: Prompt for DNS configuration
   pause:
@@ -59,10 +78,41 @@
   register: certbot_result
   notify: reload nginx
 
+- name: "[DEBUG] Display certbot result"
+  debug:
+    msg: |
+      Certbot execution result:
+      Return code: {{ certbot_result.rc | default('N/A') }}
+      Stdout: {{ certbot_result.stdout | default('N/A') }}
+      Stderr: {{ certbot_result.stderr | default('N/A') }}
+  when: certbot_result is defined
+  tags: [debug]
+
 - name: Re-check SSL certificate exists after certbot
   stat:
     path: "/etc/letsencrypt/live/{{ domain_name | default('localhost') }}/fullchain.pem"
   register: ssl_cert_exists_after
+
+- name: "[DEBUG] Display ssl_cert_exists_after variable structure"
+  debug:
+    msg: |
+      ssl_cert_exists_after variable:
+      {{ ssl_cert_exists_after | to_nice_yaml(indent=2) }}
+  when: ssl_cert_exists_after is defined
+  tags: [debug]
+
+# ═══════════════════════════════════════════════════════════════
+# DEBUG CHECKPOINT 2: After Certificate Generation, Before Nginx Regen
+# ═══════════════════════════════════════════════════════════════
+- name: "[DEBUG] Capture state after certbot, before nginx regeneration"
+  include_role:
+    name: debug-ssl
+  vars:
+    checkpoint_name: "02-after-certbot-before-nginx-regen"
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+  tags: [debug]
 
 - name: Regenerate nginx config with SSL enabled
   template:
@@ -78,9 +128,33 @@
     - domain_name is defined
     - ssl_cert_exists_after.stat.exists
   notify: reload nginx
+  register: nginx_regen_result
+
+- name: "[DEBUG] Display nginx regeneration result"
+  debug:
+    msg: |
+      Nginx config regeneration:
+      Changed: {{ nginx_regen_result.changed | default('N/A') }}
+      Template vars passed:
+        ssl_cert_exists: {{ ssl_cert_exists_after | to_nice_yaml(indent=2) }}
+  when: nginx_regen_result is defined
+  tags: [debug]
 
 - name: Flush handlers to reload nginx with SSL
   meta: flush_handlers
+
+# ═══════════════════════════════════════════════════════════════
+# DEBUG CHECKPOINT 3: After Nginx Reload, Before Finalize
+# ═══════════════════════════════════════════════════════════════
+- name: "[DEBUG] Capture state after nginx reload, before finalize"
+  include_role:
+    name: debug-ssl
+  vars:
+    checkpoint_name: "03-after-nginx-reload-before-finalize"
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+  tags: [debug]
 
 - name: Create certbot renewal script
   template:
@@ -104,6 +178,20 @@
     state: present
   when: enable_ssl | default(false)
 
+- name: "[DEBUG] About to run finalize.yml"
+  debug:
+    msg: |
+      Finalize condition check:
+        enable_ssl: {{ enable_ssl | default(false) }}
+        domain_name defined: {{ domain_name is defined }}
+        ssl_cert_exists_after.stat.exists: {{ ssl_cert_exists_after.stat.exists | default('UNDEFINED') }}
+
+      Will finalize run? {{ (enable_ssl | default(false)) and (domain_name is defined) and (ssl_cert_exists_after.stat.exists | default(false)) }}
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+  tags: [debug]
+
 - name: Finalize nginx SSL config when a cert is present
   include_tasks: finalize.yml
   when:
@@ -111,6 +199,19 @@
     - domain_name is defined
     - ssl_cert_exists_after.stat.exists | default(false)
   tags: [ssl, web]
+
+# ═══════════════════════════════════════════════════════════════
+# DEBUG CHECKPOINT 4: After Finalize
+# ═══════════════════════════════════════════════════════════════
+- name: "[DEBUG] Capture state after finalize"
+  include_role:
+    name: debug-ssl
+  vars:
+    checkpoint_name: "04-after-finalize"
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+  tags: [debug]
 
 - name: Wait for HTTPS to respond via public DNS
   uri:
@@ -130,7 +231,35 @@
     - enable_ssl | default(false)
     - domain_name is defined
     - ssl_cert_exists_after.stat.exists | default(false)
+  failed_when: false  # Don't fail the playbook, just log the result
   tags: [ssl, web]
+
+- name: "[DEBUG] Display HTTPS health check result"
+  debug:
+    msg: |
+      HTTPS Health Check Result:
+      Status: {{ https_check.status | default('FAILED - No status') }}
+      {% if https_check.msg is defined %}
+      Message: {{ https_check.msg }}
+      {% endif %}
+      {% if https_check.status != 200 %}
+      ⚠️  HTTPS is not responding correctly!
+      {% endif %}
+  when: https_check is defined
+  tags: [debug]
+
+# ═══════════════════════════════════════════════════════════════
+# DEBUG CHECKPOINT 5: Final State
+# ═══════════════════════════════════════════════════════════════
+- name: "[DEBUG] Capture final state after all SSL tasks"
+  include_role:
+    name: debug-ssl
+  vars:
+    checkpoint_name: "05-final-state"
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+  tags: [debug]
 
 - name: Display SSL configuration info
   debug:
@@ -143,6 +272,14 @@
       Domain: {{ domain_name }}
       Certificate: /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem
       Auto-renewal: Configured (runs every Sunday at 3 AM)
+
+      {% if https_check is defined and https_check.status == 200 %}
+      ✅ HTTPS is responding correctly
+      {% else %}
+      ⚠️  HTTPS health check failed or was skipped
+      {% endif %}
+
+      Debug data collected at: /tmp/ansible-ssl-debug/
       {% else %}
       ⚠️  SSL Not Configured
       To enable SSL:

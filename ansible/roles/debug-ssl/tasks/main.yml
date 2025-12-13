@@ -1,0 +1,367 @@
+---
+# Debug Role - SSL Investigation
+# Captures comprehensive system state for debugging SSL deployment issues
+
+- name: Create debug output directory on remote host
+  file:
+    path: /tmp/ansible-ssl-debug
+    state: directory
+    mode: '0755'
+
+- name: Set debug checkpoint name
+  set_fact:
+    debug_checkpoint: "{{ checkpoint_name | default('unknown') }}"
+
+- name: Create checkpoint-specific subdirectory
+  file:
+    path: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}"
+    state: directory
+    mode: '0755'
+
+- name: Capture timestamp
+  shell: date '+%Y-%m-%d %H:%M:%S'
+  register: debug_timestamp
+  changed_when: false
+
+- name: Log checkpoint entry
+  lineinfile:
+    path: /tmp/ansible-ssl-debug/timeline.log
+    line: "[{{ debug_timestamp.stdout }}] === CHECKPOINT: {{ debug_checkpoint }} ==="
+    create: yes
+
+# === SSL Certificate State ===
+- name: Check SSL certificate files
+  stat:
+    path: "{{ item }}"
+  register: ssl_files_stat
+  loop:
+    - "/etc/letsencrypt/live/{{ domain_name | default('NONE') }}/fullchain.pem"
+    - "/etc/letsencrypt/live/{{ domain_name | default('NONE') }}/privkey.pem"
+    - "/etc/letsencrypt/live/{{ domain_name | default('NONE') }}/chain.pem"
+  when: domain_name is defined
+  failed_when: false
+
+- name: Save SSL certificate state
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      SSL Certificate Files:
+      {% for result in ssl_files_stat.results | default([]) %}
+      {{ result.item }}: {{ 'EXISTS' if result.stat.exists else 'MISSING' }}
+      {% if result.stat.exists %}  - Size: {{ result.stat.size }} bytes
+        - Modified: {{ result.stat.mtime }}
+      {% endif %}
+      {% endfor %}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/01-ssl-certificates.txt"
+  when: ssl_files_stat is defined
+
+# === Nginx Configuration ===
+- name: Capture nginx configuration file
+  slurp:
+    src: /etc/nginx/sites-available/addaxai-connect.conf
+  register: nginx_config_content
+  failed_when: false
+
+- name: Save nginx configuration
+  copy:
+    content: "{{ nginx_config_content.content | b64decode }}"
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/02-nginx-config.conf"
+  when: nginx_config_content.content is defined
+
+- name: Check for HTTPS block in nginx config
+  shell: grep -c "listen 443" /etc/nginx/sites-available/addaxai-connect.conf || echo "0"
+  register: https_block_count
+  changed_when: false
+  failed_when: false
+
+- name: Save nginx config analysis
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      HTTPS server blocks found: {{ https_block_count.stdout }}
+
+      Config file analysis:
+      {% if https_block_count.stdout | int > 0 %}
+      ✅ HTTPS block IS present in nginx config
+      {% else %}
+      ❌ HTTPS block NOT found in nginx config
+      {% endif %}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/03-nginx-analysis.txt"
+
+- name: Test nginx configuration syntax
+  command: nginx -t
+  register: nginx_test
+  changed_when: false
+  failed_when: false
+
+- name: Save nginx syntax test
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      Exit Code: {{ nginx_test.rc }}
+
+      STDOUT:
+      {{ nginx_test.stdout }}
+
+      STDERR:
+      {{ nginx_test.stderr }}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/04-nginx-test.txt"
+
+- name: Get full nginx parsed configuration
+  command: nginx -T
+  register: nginx_full_config
+  changed_when: false
+  failed_when: false
+
+- name: Save full parsed nginx config
+  copy:
+    content: "{{ nginx_full_config.stdout }}"
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/05-nginx-parsed-full.conf"
+
+# === Nginx Service State ===
+- name: Get nginx service status
+  systemd:
+    name: nginx
+  register: nginx_service_state
+  failed_when: false
+
+- name: Get nginx systemd journal
+  shell: journalctl -u nginx -n 100 --no-pager
+  register: nginx_journal
+  changed_when: false
+  failed_when: false
+
+- name: Save nginx service state
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      Service State: {{ nginx_service_state.status.ActiveState | default('UNKNOWN') }}
+      Service SubState: {{ nginx_service_state.status.SubState | default('UNKNOWN') }}
+      Service Loaded: {{ nginx_service_state.status.LoadState | default('UNKNOWN') }}
+
+      === SYSTEMD JOURNAL (last 100 lines) ===
+      {{ nginx_journal.stdout }}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/06-nginx-service.txt"
+
+- name: Get nginx error log
+  slurp:
+    src: /var/log/nginx/error.log
+  register: nginx_error_log
+  failed_when: false
+
+- name: Save nginx error log
+  copy:
+    content: "{{ nginx_error_log.content | b64decode }}"
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/07-nginx-error.log"
+  when: nginx_error_log.content is defined
+
+# === Network State ===
+- name: Check listening ports
+  shell: ss -tlnp | grep -E ':(80|443|8000|3000)' || echo "No matching ports listening"
+  register: listening_ports
+  changed_when: false
+  failed_when: false
+
+- name: Save port state
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      Listening Ports (80, 443, 8000, 3000):
+      {{ listening_ports.stdout }}
+
+      Analysis:
+      {% if '443' in listening_ports.stdout %}
+      ✅ Port 443 (HTTPS) IS listening
+      {% else %}
+      ❌ Port 443 (HTTPS) NOT listening
+      {% endif %}
+      {% if '80' in listening_ports.stdout %}
+      ✅ Port 80 (HTTP) IS listening
+      {% else %}
+      ❌ Port 80 (HTTP) NOT listening
+      {% endif %}
+      {% if '8000' in listening_ports.stdout %}
+      ✅ Port 8000 (API) IS listening
+      {% else %}
+      ❌ Port 8000 (API) NOT listening
+      {% endif %}
+      {% if '3000' in listening_ports.stdout %}
+      ✅ Port 3000 (Frontend) IS listening
+      {% else %}
+      ❌ Port 3000 (Frontend) NOT listening
+      {% endif %}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/08-network-ports.txt"
+
+# === Docker Container State ===
+- name: Check if docker is running
+  command: docker ps --format "table {% raw %}{{.Names}}\t{{.Status}}\t{{.Ports}}{% endraw %}"
+  register: docker_containers
+  changed_when: false
+  failed_when: false
+
+- name: Save docker container state
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      Docker Containers:
+      {{ docker_containers.stdout }}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/09-docker-containers.txt"
+
+# === Health Endpoint Test ===
+- name: Test HTTP health endpoint
+  uri:
+    url: "http://localhost/health"
+    return_content: yes
+    status_code: [200, 404, 502, 503, -1]
+    timeout: 5
+  register: http_health_check
+  failed_when: false
+
+- name: Test HTTPS health endpoint (if port 443 listening)
+  uri:
+    url: "https://{{ domain_name | default('localhost') }}/health"
+    return_content: yes
+    status_code: [200, 404, 502, 503, -1]
+    timeout: 5
+    validate_certs: false
+  register: https_health_check
+  when:
+    - domain_name is defined
+    - "'443' in listening_ports.stdout"
+  failed_when: false
+
+- name: Save health endpoint tests
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      === HTTP Health Check (http://localhost/health) ===
+      Status: {{ http_health_check.status | default('FAILED') }}
+      {% if http_health_check.content is defined %}
+      Content: {{ http_health_check.content }}
+      {% endif %}
+      {% if http_health_check.msg is defined %}
+      Error: {{ http_health_check.msg }}
+      {% endif %}
+
+      === HTTPS Health Check (https://{{ domain_name | default('N/A') }}/health) ===
+      {% if https_health_check.status is defined %}
+      Status: {{ https_health_check.status }}
+      {% if https_health_check.content is defined %}
+      Content: {{ https_health_check.content }}
+      {% endif %}
+      {% else %}
+      Status: SKIPPED (port 443 not listening or domain not defined)
+      {% endif %}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/10-health-checks.txt"
+
+# === Ansible Variables State ===
+- name: Capture SSL-related Ansible variables
+  copy:
+    content: |
+      Checkpoint: {{ debug_checkpoint }}
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      === Ansible Variables (SSL-related) ===
+
+      enable_ssl: {{ enable_ssl | default('UNDEFINED') }}
+      domain_name: {{ domain_name | default('UNDEFINED') }}
+      letsencrypt_staging: {{ letsencrypt_staging | default('UNDEFINED') }}
+
+      ssl_cert_exists (if defined):
+      {% if ssl_cert_exists is defined %}
+      {{ ssl_cert_exists | to_nice_yaml(indent=2) }}
+      {% else %}
+      UNDEFINED
+      {% endif %}
+
+      ssl_cert_exists_after (if defined):
+      {% if ssl_cert_exists_after is defined %}
+      {{ ssl_cert_exists_after | to_nice_yaml(indent=2) }}
+      {% else %}
+      UNDEFINED
+      {% endif %}
+
+      ssl_cert_exists_final (if defined):
+      {% if ssl_cert_exists_final is defined %}
+      {{ ssl_cert_exists_final | to_nice_yaml(indent=2) }}
+      {% else %}
+      UNDEFINED
+      {% endif %}
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/11-ansible-variables.txt"
+
+# === Summary ===
+- name: Create checkpoint summary
+  copy:
+    content: |
+      ╔════════════════════════════════════════════════════════════════╗
+      ║          DEBUG CHECKPOINT: {{ debug_checkpoint | upper }}
+      ╚════════════════════════════════════════════════════════════════╝
+
+      Timestamp: {{ debug_timestamp.stdout }}
+
+      QUICK STATUS:
+
+      SSL Certificates:
+      {% if ssl_files_stat is defined and ssl_files_stat.results is defined %}
+      {% for result in ssl_files_stat.results %}
+      {{ '  ✅' if result.stat.exists else '  ❌' }} {{ result.item | basename }}
+      {% endfor %}
+      {% else %}
+      ⚠️  Certificate check not performed
+      {% endif %}
+
+      Nginx Config:
+      {{ '  ✅' if https_block_count.stdout | int > 0 else '  ❌' }} HTTPS block present: {{ https_block_count.stdout }} occurrence(s)
+      {{ '  ✅' if nginx_test.rc == 0 else '  ❌' }} Config syntax: {{ 'VALID' if nginx_test.rc == 0 else 'INVALID' }}
+
+      Network:
+      {{ '  ✅' if '443' in listening_ports.stdout else '  ❌' }} Port 443 (HTTPS)
+      {{ '  ✅' if '80' in listening_ports.stdout else '  ❌' }} Port 80 (HTTP)
+      {{ '  ✅' if '8000' in listening_ports.stdout else '  ❌' }} Port 8000 (API)
+      {{ '  ✅' if '3000' in listening_ports.stdout else '  ❌' }} Port 3000 (Frontend)
+
+      Health Checks:
+      {{ '  ✅' if http_health_check.status | default(0) == 200 else '  ❌' }} HTTP: {{ http_health_check.status | default('FAILED') }}
+      {% if https_health_check.status is defined %}
+      {{ '  ✅' if https_health_check.status == 200 else '  ❌' }} HTTPS: {{ https_health_check.status }}
+      {% else %}
+      {{ '  ⚠️ ' }} HTTPS: Not tested
+      {% endif %}
+
+      ════════════════════════════════════════════════════════════════
+
+      Full debug data saved to: /tmp/ansible-ssl-debug/{{ debug_checkpoint }}/
+
+    dest: "/tmp/ansible-ssl-debug/{{ debug_checkpoint }}/00-SUMMARY.txt"
+
+- name: Display checkpoint summary to console
+  debug:
+    msg: |
+
+      ╔════════════════════════════════════════════════════════════════╗
+      ║   DEBUG CHECKPOINT CAPTURED: {{ debug_checkpoint }}
+      ╚════════════════════════════════════════════════════════════════╝
+
+      Location: /tmp/ansible-ssl-debug/{{ debug_checkpoint }}/
+
+      Key findings:
+        - SSL Certs: {% if ssl_files_stat is defined and ssl_files_stat.results is defined %}{{ ssl_files_stat.results | selectattr('stat.exists') | list | length }}/{{ ssl_files_stat.results | length }} present{% else %}N/A{% endif %}
+        - HTTPS block: {{ '✅ YES' if https_block_count.stdout | int > 0 else '❌ NO' }}
+        - Port 443: {{ '✅ LISTENING' if '443' in listening_ports.stdout else '❌ NOT LISTENING' }}
+        - HTTPS works: {{ '✅ YES' if https_health_check.status | default(0) == 200 else '❌ NO' }}
+
+      See 00-SUMMARY.txt for full report
