@@ -7,6 +7,11 @@
     path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
   register: ssl_cert_exists_final
 
+- name: Set ssl_cert_exists fact globally for finalize
+  set_fact:
+    ssl_cert_exists: "{{ ssl_cert_exists_final }}"
+  when: ssl_cert_exists_final.stat.exists
+
 - name: Force regenerate nginx config with SSL enabled (finalization)
   template:
     src: ../../nginx/templates/addaxai-connect.conf.j2
@@ -16,7 +21,6 @@
     mode: '0644'
     force: yes
   vars:
-    ssl_cert_exists: "{{ ssl_cert_exists_final }}"
     enable_ssl: true
   when: ssl_cert_exists_final.stat.exists
   register: nginx_config_regenerated
@@ -52,7 +56,6 @@
             mode: '0644'
             force: yes
           vars:
-            ssl_cert_exists: "{{ ssl_cert_exists_final }}"
             enable_ssl: true
 
         - name: Restart nginx (hard restart)

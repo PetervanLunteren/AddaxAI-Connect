@@ -114,6 +114,14 @@
     - domain_name is defined
   tags: [debug]
 
+- name: Set ssl_cert_exists fact to true after successful cert generation
+  set_fact:
+    ssl_cert_exists: "{{ ssl_cert_exists_after }}"
+  when:
+    - enable_ssl | default(false)
+    - domain_name is defined
+    - ssl_cert_exists_after.stat.exists
+
 - name: Regenerate nginx config with SSL enabled
   template:
     src: ../../nginx/templates/addaxai-connect.conf.j2
@@ -121,8 +129,6 @@
     owner: root
     group: root
     mode: '0644'
-  vars:
-    ssl_cert_exists: "{{ ssl_cert_exists_after }}"
   when:
     - enable_ssl | default(false)
     - domain_name is defined
