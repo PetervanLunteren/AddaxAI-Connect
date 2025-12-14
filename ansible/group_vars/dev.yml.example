@@ -42,6 +42,7 @@ ftps_passive_port_max: 50000              # Passive mode port range end
 enable_ssl: true                          # Enable SSL/HTTPS (requires domain)
 domain_name: ""                           # Domain name (REQUIRED if enable_ssl=true)
 letsencrypt_email: ""                     # Email for Let's Encrypt (REQUIRED if enable_ssl=true)
+letsencrypt_staging: false                 # Use Let's Encrypt staging for testing (avoids rate limits, but certificate not trusted)
 
 # Database Settings
 db_user: addaxai                          # PostgreSQL user
