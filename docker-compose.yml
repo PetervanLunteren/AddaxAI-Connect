@@ -83,6 +83,7 @@ services:
       - '--storage.tsdb.retention.time=15d'
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
       - ./data/prometheus:/prometheus
     networks:
       - addaxai-network
