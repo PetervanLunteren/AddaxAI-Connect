@@ -78,7 +78,53 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
             log_record["exc_info"] = self.formatException(record.exc_info)
 
 
-def get_logger(service_name: str) -> logging.Logger:
+class StructuredLogger:
+    """
+    Wrapper around logging.Logger that accepts keyword arguments.
+
+    This allows structlog-style logging:
+        logger.info("Message", key1="value1", key2="value2")
+
+    Instead of the standard library's:
+        logger.info("Message", extra={"key1": "value1", "key2": "value2"})
+    """
+
+    def __init__(self, logger: logging.Logger):
+        self._logger = logger
+
+    def _log(self, level: int, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Internal log method that handles kwargs."""
+        # Separate exc_info from other kwargs
+        exc_info = kwargs.pop("exc_info", False)
+
+        # All remaining kwargs go into extra
+        extra = kwargs if kwargs else {}
+
+        # Call the underlying logger with extra parameter
+        self._logger.log(level, msg, *args, extra=extra, exc_info=exc_info)
+
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log debug message with optional kwargs."""
+        self._log(logging.DEBUG, msg, *args, **kwargs)
+
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log info message with optional kwargs."""
+        self._log(logging.INFO, msg, *args, **kwargs)
+
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log warning message with optional kwargs."""
+        self._log(logging.WARNING, msg, *args, **kwargs)
+
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log error message with optional kwargs."""
+        self._log(logging.ERROR, msg, *args, **kwargs)
+
+    def critical(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log critical message with optional kwargs."""
+        self._log(logging.CRITICAL, msg, *args, **kwargs)
+
+
+def get_logger(service_name: str) -> StructuredLogger:
     """
     Get a configured logger for a service.
 
@@ -135,7 +181,7 @@ def get_logger(service_name: str) -> logging.Logger:
     # Don't propagate to root logger (avoid duplicate logs)
     logger.propagate = False
 
-    return logger
+    return StructuredLogger(logger)
 
 
 def set_request_id(request_id: str) -> None:
