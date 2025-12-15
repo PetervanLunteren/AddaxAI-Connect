@@ -25,6 +25,8 @@
 7. **Prefer simple solutions** - Use straightforward approaches that follow the conventions. Avoid cleverness when simplicity works.
 8. **Follow the established conventions** - Keep structure predictable so the codebase stays readable and easy to maintain. 
 9. **No quick fixes** - Fix issues in a way that holds for all future deployments, not only the current device.
+10. **Clean repo** - Value simplicity and cleanliness. No redundant MD files. 
+
 
 **Remember:** It's better to crash during development than to hide bugs that cause problems later. We'll add resilience (retries, fallbacks, graceful degradation) after the core functionality works.
 
