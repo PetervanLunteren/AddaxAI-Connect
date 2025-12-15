@@ -92,6 +92,7 @@ services:
     image: grafana/loki:latest
     container_name: addaxai-loki
     restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
     command: -config.file=/etc/loki/loki-config.yml
     volumes:
       - ./monitoring/loki-config.yml:/etc/loki/loki-config.yml:ro
