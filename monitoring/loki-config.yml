@@ -31,6 +31,7 @@ schema_config:
 ruler:
   alertmanager_url: http://localhost:9093
 
-# Retention (optional)
+# Retention and limits
 limits_config:
   retention_period: 168h  # 7 days
+  allow_structured_metadata: false  # Disable structured metadata to work with schema v11
