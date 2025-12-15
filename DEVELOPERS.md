@@ -227,3 +227,41 @@ docker logs addaxai-redis
 # Verify password in .env matches docker-compose
 grep REDIS_PASSWORD /opt/addaxai-connect/.env
 ```
+
+## Logging & Debugging
+
+**We use structured JSON logging with correlation IDs.** All logs flow to Loki for centralized querying.
+
+**How to log in your code:**
+```python
+# Backend (Python)
+from shared.logger import get_logger
+logger = get_logger("my-service")
+logger.info("Processing started", image_id="abc-123", duration_ms=450)
+logger.error("Processing failed", error=str(e), exc_info=True)
+```
+
+```typescript
+// Frontend (TypeScript)
+import { logger } from '@/utils/logger';
+logger.info('Component mounted');
+logger.error('API call failed', { component: 'Dashboard', status: 500 });
+```
+
+**View logs:**
+```bash
+# Local: Docker logs (JSON format)
+docker compose logs api --tail 50
+docker compose logs -f api  # Follow
+
+# Production: Loki at https://dev.addaxai.com/loki/
+# Query: {service="api"} | json | level="ERROR"
+# Query: {} | json | image_id="abc-123"  # Trace an image
+```
+
+**Correlation IDs for tracing:**
+- `request_id` - Auto-generated per API request
+- `image_id` - Track one image through the entire pipeline
+- `user_id` - Track user actions
+
+**Full guide:** See [docs/logging.md](docs/logging.md) for LogQL queries, best practices, and debugging workflows.

@@ -16,10 +16,12 @@ from sqlalchemy import select
 from shared.models import User, EmailAllowlist
 from shared.database import get_async_session
 from shared.config import get_settings
+from shared.logger import get_logger
 from mailer.sender import get_email_sender
 
 
 settings = get_settings()
+logger = get_logger("api.auth")
 
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
@@ -105,7 +107,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         # which sends the email with the actual token
         await self.request_verify(user, request)
 
-        print(f"User {user.email} registered. Verification email requested.")
+        logger.info(
+            "User registered, verification email requested",
+            email=user.email,
+            user_id=user.id,
+            event="user_registration",
+        )
 
     async def on_after_forgot_password(
         self,
@@ -126,7 +133,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         email_sender = get_email_sender()
         await email_sender.send_password_reset_email(user.email, token)
 
-        print(f"Password reset requested for {user.email}")
+        logger.info(
+            "Password reset requested",
+            email=user.email,
+            user_id=user.id,
+            event="password_reset_requested",
+        )
 
     async def on_after_request_verify(
         self,
@@ -147,7 +159,12 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         email_sender = get_email_sender()
         await email_sender.send_verification_email(user.email, token)
 
-        print(f"Verification email requested for {user.email}")
+        logger.info(
+            "Verification email requested",
+            email=user.email,
+            user_id=user.id,
+            event="email_verification_requested",
+        )
 
     async def create(
         self,

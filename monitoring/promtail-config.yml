@@ -23,6 +23,24 @@ scrape_configs:
         target_label: 'container'
       - source_labels: ['__meta_docker_container_log_stream']
         target_label: 'stream'
+    # Parse JSON logs from application containers
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            service: service
+            logger: logger
+            message: message
+            request_id: request_id
+            image_id: image_id
+            user_id: user_id
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      - labels:
+          service:
+          level:
 
   # Collect application logs from files (if needed)
   - job_name: application

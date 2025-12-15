@@ -9,21 +9,24 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from shared.config import get_settings
 from shared.database import get_async_session
+from shared.logger import get_logger
 from auth.routes import get_auth_router
-from routers import admin
+from routers import admin, logs
+from middleware.logging import RequestLoggingMiddleware
 
 
 settings = get_settings()
+logger = get_logger("api")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    print("Starting AddaxAI Connect API...")
+    logger.info("Starting AddaxAI Connect API", version="0.1.0", environment=settings.environment)
     yield
     # Shutdown
-    print("Shutting down AddaxAI Connect API...")
+    logger.info("Shutting down AddaxAI Connect API")
 
 
 app = FastAPI(
@@ -47,6 +50,9 @@ async def db_session_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
 
+
+# Request logging middleware (must be added BEFORE CORS)
+app.add_middleware(RequestLoggingMiddleware)
 
 # CORS middleware
 cors_origins = settings.cors_origins.split(",") if hasattr(settings, "cors_origins") and settings.cors_origins else ["*"]
@@ -73,3 +79,4 @@ def health():
 # Include routers
 app.include_router(get_auth_router())
 app.include_router(admin.router)
+app.include_router(logs.router, prefix="/api", tags=["logs"])
