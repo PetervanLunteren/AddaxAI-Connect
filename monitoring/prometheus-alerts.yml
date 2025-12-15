@@ -1,0 +1,143 @@
+# Prometheus Alert Rules for AddaxAI Connect
+#
+# These rules trigger alerts based on log patterns and metrics.
+# Alerts can be sent to Alertmanager for notification via email, Slack, etc.
+
+groups:
+  - name: logging_alerts
+    interval: 30s
+    rules:
+      # Alert when error rate is high across any service
+      - alert: HighErrorRate
+        expr: |
+          rate({level="ERROR"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: logging
+        annotations:
+          summary: "High error rate detected"
+          description: "Service {{ $labels.service }} is logging more than 5 errors per minute for the last 5 minutes."
+
+      # Alert on any CRITICAL level logs
+      - alert: CriticalError
+        expr: |
+          count_over_time({level="CRITICAL"}[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: logging
+        annotations:
+          summary: "Critical error detected"
+          description: "Service {{ $labels.service }} logged a CRITICAL error: {{ $labels.message }}"
+
+      # Alert when a service stops logging (possible crash)
+      - alert: ServiceNotLogging
+        expr: |
+          absent_over_time({service=~"api|detection|classification|ingestion"}[10m])
+        for: 10m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Service stopped logging"
+          description: "Service {{ $labels.service }} has not logged anything for 10 minutes. It may have crashed."
+
+      # Alert on frontend errors (rate)
+      - alert: HighFrontendErrorRate
+        expr: |
+          rate({service="frontend", level="ERROR"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: frontend
+        annotations:
+          summary: "High frontend error rate"
+          description: "Frontend is logging more than 10 errors per minute for the last 5 minutes."
+
+      # Alert on authentication failures
+      - alert: HighAuthenticationFailureRate
+        expr: |
+          rate({service="api.auth", level="ERROR"}[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: security
+        annotations:
+          summary: "High authentication failure rate"
+          description: "More than 5 authentication failures per minute detected. Possible brute force attack."
+
+      # Alert on database connection issues
+      - alert: DatabaseConnectionErrors
+        expr: |
+          count_over_time({service="api", message=~".*database.*connection.*"}[5m]) > 3
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Database connection errors"
+          description: "Multiple database connection errors detected in the last 5 minutes."
+
+      # Alert on Redis connection issues
+      - alert: RedisConnectionErrors
+        expr: |
+          count_over_time({service=~".*", message=~".*redis.*connection.*"}[5m]) > 3
+        for: 2m
+        labels:
+          severity: critical
+          category: queue
+        annotations:
+          summary: "Redis connection errors"
+          description: "Multiple Redis connection errors detected in the last 5 minutes."
+
+      # Alert on MinIO/S3 errors
+      - alert: StorageErrors
+        expr: |
+          count_over_time({service=~".*", message=~".*minio.*|.*s3.*"}[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "Object storage errors"
+          description: "Multiple MinIO/S3 errors detected in the last 5 minutes."
+
+  - name: worker_alerts
+    interval: 1m
+    rules:
+      # Alert when detection worker has high failure rate
+      - alert: DetectionWorkerHighFailureRate
+        expr: |
+          rate({service="detection", level="ERROR"}[10m]) > 2
+        for: 10m
+        labels:
+          severity: warning
+          category: ml_pipeline
+        annotations:
+          summary: "Detection worker high failure rate"
+          description: "Detection worker is failing to process images at a rate > 2 per minute."
+
+      # Alert when classification worker has high failure rate
+      - alert: ClassificationWorkerHighFailureRate
+        expr: |
+          rate({service="classification", level="ERROR"}[10m]) > 2
+        for: 10m
+        labels:
+          severity: warning
+          category: ml_pipeline
+        annotations:
+          summary: "Classification worker high failure rate"
+          description: "Classification worker is failing to process crops at a rate > 2 per minute."
+
+      # Alert on model loading failures
+      - alert: ModelLoadingFailure
+        expr: |
+          count_over_time({service=~"detection|classification", message=~".*model.*load.*failed.*"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: ml_pipeline
+        annotations:
+          summary: "ML model loading failed"
+          description: "Service {{ $labels.service }} failed to load ML model. Pipeline will not function."

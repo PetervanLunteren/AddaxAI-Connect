@@ -234,9 +234,10 @@ This document outlines the complete plan to build AddaxAI Connect: a near real-t
 **8. Monitoring:**
 - All services expose `/metrics` endpoint (Prometheus format)
 - Prometheus scrapes metrics every 15 seconds
-- All services log to stdout (JSON format)
+- All services log to stdout using structlog (JSON format with `request_id` + `image_id` correlation)
 - Promtail collects logs and sends to Loki
 - Can view Prometheus metrics at port 9090 and Loki logs at port 3100
+- Query logs by correlation IDs: `{service="detection"} | json | image_id="abc-123"`
 
 ### Technology Stack Summary
 
@@ -253,7 +254,7 @@ This document outlines the complete plan to build AddaxAI Connect: a near real-t
 | Email | Gmail SMTP | Simple setup, reliable delivery |
 | Frontend | React + Vite | Modern, fast dev experience |
 | Orchestration | Docker Compose | Simple multi-container mgmt |
-| Monitoring | Prometheus + Loki | Metrics and log aggregation |
+| Monitoring | Prometheus + Loki + structlog | Metrics and structured JSON logs |
 | Registry | GitHub Container Registry | Free, private Docker image storage |
 
 ---
@@ -581,7 +582,7 @@ docker compose up -d --build
   - [ ] `queue_client.py` - Redis queue wrapper
   - [ ] `storage_client.py` - MinIO/S3 wrapper
   - [ ] `config.py` - Environment variable loading
-  - [ ] `logger.py` - Structured logging setup (structlog)
+  - [ ] `logger.py` - Structured logging setup (structlog with `request_id` + `image_id` correlation) - **See Phase 1.9**
 - [ ] Make shared library installable as package
 
 **Deliverable:** Reusable utilities for all services
@@ -675,11 +676,88 @@ docker compose up -d --build
 
 ---
 
-## Phase 1.9: Camera Management Schema Extension
+### 1.9 Structured Logging System
+
+**Goal:** Implement centralized structured logging with correlation IDs for easy debugging across all services
+
+#### Overview
+- Use **structlog** for JSON-formatted logs
+- All logs flow to **Loki** (already deployed via Promtail)
+- **Correlation IDs:**
+  - `request_id` - Technical tracing (per API call / worker operation)
+  - `image_id` - Business tracing (track one image through pipeline)
+- **Frontend logs** sent to backend `/api/logs` endpoint
+- **LOG_LEVEL** environment variable (INFO default, DEBUG optional)
+- **Prometheus alerts** on error rate spikes
+
+#### 1.9.1 Shared Logger Utility
+- [ ] Create `shared/shared/logger.py`:
+  - [ ] Configure structlog with JSON renderer
+  - [ ] Add processor for auto-injecting `service`, `timestamp`, `level`
+  - [ ] Support for `request_id` and `image_id` in log context
+  - [ ] Read `LOG_LEVEL` from environment (default: INFO)
+  - [ ] Export `get_logger(service_name)` function
+- [ ] Add `structlog` dependency to `shared/requirements.txt`
+- [ ] Write unit tests for logger utility
+
+#### 1.9.2 Update Backend Services
+- [ ] Update `services/api/main.py`:
+  - [ ] Import and use shared logger
+  - [ ] Add middleware to generate `request_id` for each API call
+  - [ ] Auto-inject `request_id` into all log messages within request scope
+- [ ] Create `/api/logs` endpoint:
+  - [ ] Accept JSON payload: `{level, message, context}`
+  - [ ] Log frontend messages to backend log stream
+  - [ ] Include `user_id` if authenticated
+  - [ ] Rate limit to prevent abuse (100 logs/min per user)
+- [ ] Update existing API routers to use shared logger
+- [ ] Add `LOG_LEVEL` to docker-compose.yml environment
+
+#### 1.9.3 Frontend Logging
+- [ ] Create `services/frontend/src/utils/logger.ts`:
+  - [ ] Console wrapper that also sends to `/api/logs`
+  - [ ] Methods: `log.info()`, `log.warn()`, `log.error()`, `log.debug()`
+  - [ ] Auto-capture unhandled errors and promise rejections
+  - [ ] Include page URL, user agent in context
+- [ ] Replace console.log usage in critical paths
+- [ ] Add error boundary component for React error capturing
+
+#### 1.9.4 Worker Services (Stub for Now)
+- [ ] Document in comments: Workers will use shared logger with:
+  - [ ] `request_id` generated when pulling message from queue
+  - [ ] `image_id` extracted from message payload
+  - [ ] Both IDs included in all log messages within processing scope
+
+#### 1.9.5 Prometheus Alerts
+- [ ] Update `monitoring/prometheus-alerts.yml`:
+  - [ ] Alert: Error rate > 5 errors/min for 5 minutes
+  - [ ] Alert: Critical errors (level=CRITICAL) > 1 in 1 minute
+  - [ ] Alert: Any service logging zero messages (service down)
+- [ ] Configure Alertmanager webhook (future: to Alert Worker)
+
+#### 1.9.6 Documentation
+- [ ] Create `docs/logging.md`:
+  - [ ] How to use shared logger in new services
+  - [ ] Loki query examples:
+    - `{service="detection"} | json | level="ERROR"`
+    - `{service="detection"} | json | image_id="abc-123"`
+    - `{service="api"} | json | request_id="xyz-789"`
+    - `{} | json | level="CRITICAL"` (all critical errors)
+  - [ ] How to toggle log levels (LOG_LEVEL env var)
+  - [ ] Frontend logging best practices
+- [ ] Add logging section to README.md
+
+**Deliverable:** Centralized structured logging system with correlation IDs, ready for all services to use
+
+**Estimated Time:** 2-3 hours
+
+---
+
+## Phase 1.10: Camera Management Schema Extension
 
 **Goal:** Extend database with field operations and camera lifecycle management capabilities
 
-### 1.9.1 Database Schema for Camera Management
+### 1.10.1 Database Schema for Camera Management
 - [ ] Create `projects` table (tenant isolation via project_id)
   - Name, description, default settings/firmware references
   - Maintenance thresholds (battery_low_threshold, sd_high_threshold, silence_threshold_hours)
@@ -803,7 +881,7 @@ docker compose up -d --build
   - Debounce: Wait 2 seconds after file modified event before processing (ensure upload complete)
   - Move processed files to `/uploads/processed/` subdirectory
   - Move failed files to `/uploads/failed/` with error log
-- [ ] Add structured logging with correlation IDs (UUID per file processed)
+- [ ] Use shared logger (from Phase 1.9) with `request_id` (per file processed) and `image_id` correlation
 - [ ] Expose `/metrics` endpoint for Prometheus (files processed, parse errors, unknown devices)
 - [ ] Write unit tests:
   - Test daily report parser with sample TXT files
@@ -836,7 +914,7 @@ docker compose up -d --build
   - [ ] Load image into memory
   - [ ] Update image status to 'processing'
   - [ ] Error handling with dead-letter queue
-- [ ] Add structured logging with image_id correlation
+- [ ] Use shared logger (from Phase 1.9) with `request_id` (per message) and `image_id` correlation
 
 **Deliverable:** Detection worker consuming messages (no model yet)
 
@@ -859,6 +937,7 @@ docker compose up -d --build
   - [ ] Insert detections into `detections` table (bbox, confidence, crop_path)
   - [ ] Publish message to `detection-complete` queue with crop paths
   - [ ] Update image status to 'detected'
+- [ ] Log all steps with shared logger (model load time, inference time, detection count, errors)
 - [ ] Write unit tests with mock model
 
 **Deliverable:** Detection worker processing images and generating crops
@@ -883,6 +962,8 @@ docker compose up -d --build
 - [ ] Generate thumbnail:
   - [ ] Resize image for web display
   - [ ] Save to MinIO (`thumbnails` bucket)
+- [ ] Use shared logger (from Phase 1.9) with `request_id` and `image_id` correlation
+- [ ] Log all steps (model load, inference time, species predictions, confidence scores, errors)
 - [ ] Write unit tests with mock model
 
 **Deliverable:** Classification worker completing the pipeline
@@ -960,7 +1041,8 @@ docker compose up -d --build
   - Set: camera_id, project_id, task_type, priority, origin='system', reason, status='open'
   - Set: created_at to now
   - Log: "Created maintenance task: {task_type} for camera {serial_number}"
-- [ ] Add structured logging (tasks created, checks performed, errors)
+- [ ] Use shared logger (from Phase 1.9) with `request_id` for each check cycle
+- [ ] Log tasks created, checks performed, thresholds exceeded, errors
 - [ ] Expose `/metrics` endpoint for Prometheus (tasks created per type, checks per minute)
 - [ ] Write unit tests:
   - Test threshold checks with mock camera data
@@ -1497,10 +1579,13 @@ docker compose up -d --build
   - [ ] Parse JSON logs
   - [ ] Add labels (service name, container ID)
 - [ ] Access Loki at `http://localhost:3100`
-- [ ] Document useful LogQL queries in `docs/monitoring.md`:
-  - [ ] Error logs: `{service="detection"} |= "ERROR"`
-  - [ ] Logs for specific image: `{service="detection"} |= "image_id: abc-123"`
-  - [ ] All errors across services: `{} |= "ERROR"`
+- [ ] Document useful LogQL queries in `docs/monitoring.md` (leveraging JSON format from Phase 1.9):
+  - [ ] Error logs: `{service="detection"} | json | level="ERROR"`
+  - [ ] Logs for specific image: `{service="detection"} | json | image_id="abc-123"`
+  - [ ] Logs for specific request: `{service="api"} | json | request_id="xyz-789"`
+  - [ ] All critical errors: `{} | json | level="CRITICAL"`
+  - [ ] All errors across services: `{} | json | level="ERROR"`
+  - [ ] Detection timing: `{service="detection"} | json | line_format "{{.inference_time_ms}}ms"`
 
 **Deliverable:** Centralized log aggregation with Loki
 
@@ -1947,51 +2032,52 @@ docker compose up -d --build
 4. **API Backend Scaffold** (1.6) ✅ - Foundation for all APIs
 5. **Authentication System** (1.7) ✅ - Required for security
 
-**Phase 1.9: Camera Management Schema (NEW - PRIORITY)**
-6. **Database Schema Migration** (1.9.1) - **Start here** - Extend with camera management tables
+**Phase 1 (Continued - NEW PRIORITIES)**
+6. **Structured Logging System** (1.9) - **Do this first** - Centralized logging with correlation IDs for easy debugging
+7. **Database Schema Migration** (1.10.1) - Extend with camera management tables
 
 **Phase 2: ML Pipeline with Enhanced Ingestion**
-7. **Enhanced Ingestion Service** (2.1) - Entry point for images + daily reports + unknown devices
-8. **Detection Worker** (2.2, 2.3) - Core ML processing
-9. **Classification Worker** (2.4) - Core ML processing
-10. **Maintenance Task Engine** (2.6) - Auto-generate tasks from thresholds
+8. **Enhanced Ingestion Service** (2.1) - Entry point for images + daily reports + unknown devices
+9. **Detection Worker** (2.2, 2.3) - Core ML processing
+10. **Classification Worker** (2.4) - Core ML processing
+11. **Maintenance Task Engine** (2.6) - Auto-generate tasks from thresholds
 
 **Phase 3: Web Application**
-11. **Frontend Scaffold** (3.5) - Display data to users
-12. **Authentication UI** (3.6) - User login
-13. **Camera Registry Page** (3.9.1) - Camera management UI
-14. **Camera Detail Page** (3.9.2) - Camera health and history
-15. **Maintenance List Page** (3.9.4) - Operations dashboard
-16. **Camera Management API Endpoints** (3.11) - Backend for camera management
-17. **Images API** (3.1) - View processed images
-18. **Image Gallery View** (3.7) - Primary ML interface
+12. **Frontend Scaffold** (3.5) - Display data to users
+13. **Authentication UI** (3.6) - User login
+14. **Camera Registry Page** (3.9.1) - Camera management UI
+15. **Camera Detail Page** (3.9.2) - Camera health and history
+16. **Maintenance List Page** (3.9.4) - Operations dashboard
+17. **Camera Management API Endpoints** (3.11) - Backend for camera management
+18. **Images API** (3.1) - View processed images
+19. **Image Gallery View** (3.7) - Primary ML interface
 
 **Phase 3: Camera Management (Core Operations)**
-19. **SIM Inventory Page** (3.9.5) - SIM management
-20. **Camera Onboarding Page** (3.9.9) - Field technician workflow
-21. **Unknown Devices Queue** (3.9.8) - Admin claiming
+20. **SIM Inventory Page** (3.9.5) - SIM management
+21. **Camera Onboarding Page** (3.9.9) - Field technician workflow
+22. **Unknown Devices Queue** (3.9.8) - Admin claiming
 
 ### Important (Needed for Field Operations)
 
-22. **Placement Planning Map** (3.9.3) - Planned vs actual visualization
-23. **Settings Profiles Library** (3.9.6) - Settings file management
-24. **Firmware Releases Library** (3.9.7) - Firmware file management
-25. **Statistics API** (3.3) - Business insights
-26. **Statistics Dashboard** (3.10) - Visualize data
-27. **Prometheus Setup** (4.1) - Monitoring
-28. **HTTPS/TLS Setup** (4.5) - Security
-29. **Backup & Recovery** (4.7) - Data protection
+23. **Placement Planning Map** (3.9.3) - Planned vs actual visualization
+24. **Settings Profiles Library** (3.9.6) - Settings file management
+25. **Firmware Releases Library** (3.9.7) - Firmware file management
+26. **Statistics API** (3.3) - Business insights
+27. **Statistics Dashboard** (3.10) - Visualize data
+28. **Prometheus Setup** (4.1) - Monitoring
+29. **HTTPS/TLS Setup** (4.5) - Security
+30. **Backup & Recovery** (4.7) - Data protection
 
 ### Nice to Have (Can Add Later)
 
-30. **Image Detail View** (3.8) - View individual images (lower priority than camera mgmt)
-31. **Cameras API** (3.2) - Original cameras API (superseded by 3.11.2)
-32. **WebSocket Real-time Updates** (3.4, 3.11) - Enhance UX
-33. **Loki & Promtail** (4.3) - Log aggregation
-34. **Prometheus Alerting** (4.4) - Proactive monitoring
-35. **Admin User Management** (3.12) - User administration
-36. **Coverage Sector Visualization** (Phase 4+) - Advanced map features
-37. **Location-aware Task Sorting** (Phase 4+) - GPS-based technician routing
+31. **Image Detail View** (3.8) - View individual images (lower priority than camera mgmt)
+32. **Cameras API** (3.2) - Original cameras API (superseded by 3.11.2)
+33. **WebSocket Real-time Updates** (3.4, 3.11) - Enhance UX
+34. **Loki & Promtail** (4.3) - Log aggregation (infrastructure already deployed, just needs query examples)
+35. **Prometheus Alerting** (4.4) - Proactive monitoring
+36. **Admin User Management** (3.12) - User administration
+37. **Coverage Sector Visualization** (Phase 4+) - Advanced map features
+38. **Location-aware Task Sorting** (Phase 4+) - GPS-based technician routing
 
 ---
 
@@ -2157,10 +2243,11 @@ docker compose up -d --build
 ## Next Immediate Steps
 
 1. **Review this plan** with the team and collaborator - Get feedback on camera management integration, adjust priorities
-2. **Run database migration (Phase 1.9)** - Apply camera management schema: `alembic upgrade head`
-3. **Review data formats documentation** - Study `docs/data-formats.md` for EXIF and daily report parsing
-4. **Make key technology decisions** - ML framework, UI library, etc.
-5. **Set up development environment** - Clone repo, install Docker
-6. **Start Phase 2.1: Enhanced Ingestion** - Implement daily report parser and unknown device handler
-7. **Build Phase 2.6: Maintenance Engine** - Implement threshold monitoring and task generation
-8. **Schedule regular check-ins** - Review progress, unblock issues
+2. **Implement Phase 1.9: Structured Logging System** - Set up shared logger with correlation IDs (2-3 hours)
+3. **Run database migration (Phase 1.10)** - Apply camera management schema: `alembic upgrade head`
+4. **Review data formats documentation** - Study `docs/data-formats.md` for EXIF and daily report parsing
+5. **Make key technology decisions** - ML framework, UI library, etc.
+6. **Set up development environment** - Clone repo, install Docker
+7. **Start Phase 2.1: Enhanced Ingestion** - Implement daily report parser and unknown device handler
+8. **Build Phase 2.6: Maintenance Engine** - Implement threshold monitoring and task generation
+9. **Schedule regular check-ins** - Review progress, unblock issues

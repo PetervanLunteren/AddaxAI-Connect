@@ -3,8 +3,8 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
-REMEMBER
-- [ ] Change `letsencrypt_staging` to `false` in `ansible/group_vars/dev.yml` if the Let's Encrypt limit is reset.  
+## TODO
+- [ ] add template to mention that mobile / tablet view is also important. 
 
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
@@ -144,3 +144,48 @@ Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports
 ```bash
 python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
 ```
+
+## Logging & Debugging
+
+AddaxAI Connect uses **structured JSON logging** with correlation IDs for easy debugging across all services.
+
+### Quick Start
+
+**View logs in Loki:**
+```bash
+# Access Loki at: https://<your_domain>/loki/
+# Username: admin
+# Password: <monitoring_password from group_vars>
+```
+
+**Common queries:**
+```logql
+# All errors across all services
+{} | json | level="ERROR"
+
+# Errors from API service
+{service="api"} | json | level="ERROR"
+
+# Trace a specific image through the pipeline
+{} | json | image_id="abc-123"
+
+# Frontend errors
+{service="frontend"} | json | level="ERROR"
+```
+
+### Features
+
+- **Correlation IDs:** Track requests (`request_id`) and images (`image_id`) through entire system
+- **Centralized logging:** All backend, frontend, and worker logs in Loki
+- **Structured JSON:** Easy to query and filter
+- **Prometheus alerts:** Automatic alerts on high error rates, service crashes, etc.
+- **Log levels:** Control verbosity via `LOG_LEVEL` environment variable
+
+### Documentation
+
+See [docs/logging.md](docs/logging.md) for complete guide including:
+- How to use the logger in your code
+- Loki query examples
+- Debugging workflows
+- Best practices
+- Prometheus alert rules

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+    log_format: str = "json"  # "json" or "text" (text for human-readable dev logs)
     environment: str = "development"
 
     class Config:

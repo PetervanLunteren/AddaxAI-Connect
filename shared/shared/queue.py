@@ -7,8 +7,10 @@ import redis
 import json
 from typing import Any, Optional, Callable
 from .config import get_settings
+from .logger import get_logger
 
 settings = get_settings()
+logger = get_logger("queue")
 
 
 class RedisQueue:
@@ -54,14 +56,19 @@ class RedisQueue:
         Args:
             callback: Function to call with each message
         """
-        print(f"Worker listening on queue: {self.queue_name}")
+        logger.info("Worker listening on queue", queue=self.queue_name)
         while True:
             message = self.consume()
             if message:
                 try:
                     callback(message)
                 except Exception as e:
-                    print(f"Error processing message: {e}")
+                    logger.error(
+                        "Error processing message",
+                        queue=self.queue_name,
+                        error=str(e),
+                        exc_info=True,
+                    )
                     # TODO: Add to dead-letter queue
 
     def queue_depth(self) -> int:

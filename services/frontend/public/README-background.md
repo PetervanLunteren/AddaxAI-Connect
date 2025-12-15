@@ -17,8 +17,24 @@ Place your background image here as `auth-background.jpg`
 # Resize and optimize JPEG
 convert your-image.jpg -resize 1920x1080^ -gravity center -extent 1920x1080 -quality 85 auth-background.jpg
 
+magick "/Users/peter/Downloads/background-img/original1.jpg" \
+  -resize 2560x \
+  -gaussian-blur 0x2 \  
+  -quality 65 \
+  -define webp:target-size=102400 \
+  "/Users/peter/Downloads/background-img/background.webp"
+
 # Convert to WebP (smaller file size)
 convert your-image.jpg -resize 1920x1080^ -gravity center -extent 1920x1080 -quality 85 auth-background.webp
+
+magick "/Users/peter/Downloads/background-img/original1.jpg" \
+  -resize 2560x \
+  -gaussian-blur 0x2 \
+  -quality 60 \
+  -interlace Plane \
+  -strip \
+  "/Users/peter/Downloads/background-img/background.jpg"
+
 ```
 
 ### Using online tools:
