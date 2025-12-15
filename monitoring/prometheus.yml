@@ -7,6 +7,10 @@ global:
     cluster: 'addaxai-connect'
     environment: 'development'
 
+# Alert rules
+rule_files:
+  - '/etc/prometheus/prometheus-alerts.yml'
+
 # Alertmanager configuration (optional, add later)
 # alerting:
 #   alertmanagers:
