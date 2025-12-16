@@ -3,7 +3,7 @@ File validation functions
 """
 import os
 from shared.logger import get_logger
-from .utils import ValidationError
+from utils import ValidationError
 
 logger = get_logger("ingestion")
 

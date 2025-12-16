@@ -7,7 +7,7 @@ from typing import Optional, Tuple
 from datetime import datetime
 
 from shared.logger import get_logger
-from .utils import convert_gps_dms_to_decimal, format_datetime_exif
+from utils import convert_gps_dms_to_decimal, format_datetime_exif
 
 logger = get_logger("ingestion")
 
@@ -136,7 +136,7 @@ def get_datetime_original(exif: dict, filepath: str, allow_fallback: bool = Fals
 
     # DateTimeOriginal missing or failed to parse
     if allow_fallback:
-        from .utils import get_file_mtime
+        from utils import get_file_mtime
         mtime = get_file_mtime(filepath)
         logger.warning(
             "Using file mtime as fallback for DateTimeOriginal",
