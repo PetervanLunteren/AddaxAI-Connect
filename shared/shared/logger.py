@@ -146,7 +146,7 @@ def get_logger(service_name: str) -> StructuredLogger:
 
     # Avoid adding handlers multiple times
     if logger.handlers:
-        return logger
+        return StructuredLogger(logger)
 
     # Set log level from environment
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
