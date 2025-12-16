@@ -136,7 +136,7 @@ def create_image_record(
         # Create image record
         image = Image(
             uuid=image_uuid,
-            file_name=filename,
+            filename=filename,
             camera_id=camera_id,
             storage_path=storage_path,
             status="pending",  # Will be updated by detection worker
