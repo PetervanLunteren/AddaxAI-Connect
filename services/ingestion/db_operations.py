@@ -89,7 +89,7 @@ def check_duplicate_image(
             logger.warning(
                 "Duplicate image detected",
                 camera_id=camera_id,
-                filename=filename,
+                file_name=filename,
                 datetime_original=datetime_original.isoformat(),
                 existing_image_id=existing.id
             )
@@ -133,7 +133,7 @@ def create_image_record(
         # Create image record
         image = Image(
             uuid=image_uuid,
-            filename=filename,
+            file_name=filename,
             camera_id=camera.id,
             storage_path=storage_path,
             status="pending",  # Will be updated by detection worker
@@ -152,7 +152,7 @@ def create_image_record(
             image_id=image.id,
             image_uuid=image_uuid,
             camera_id=camera.id,
-            filename=filename,
+            file_name=filename,
             has_gps=bool(gps_location)
         )
 

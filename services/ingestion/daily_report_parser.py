@@ -52,7 +52,7 @@ def parse_daily_report(filepath: str) -> dict:
             key, value = line.split(':', 1)
             raw_data[key.strip()] = value.strip()
 
-    logger.debug("Parsed daily report raw data", filename=filename, keys=list(raw_data.keys()))
+    logger.debug("Parsed daily report raw data", file_name=filename, keys=list(raw_data.keys()))
 
     # Determine camera ID
     camera_id = None
