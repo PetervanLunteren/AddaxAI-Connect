@@ -152,31 +152,34 @@ services:
     networks:
       - addaxai-network
 
-  # Ingestion Service (placeholder - not yet implemented)
-  # ingestion:
-  #   build:
-  #     context: .
-  #     dockerfile: services/ingestion/Dockerfile
-  #   container_name: addaxai-ingestion
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL}
-  #     REDIS_URL: ${REDIS_URL}
-  #     MINIO_ENDPOINT: minio:9000
-  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-  #     FTPS_UPLOAD_DIR: ${FTPS_UPLOAD_DIR}
-  #   volumes:
-  #     - ${FTPS_UPLOAD_DIR}:/uploads:ro
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #   networks:
-  #     - addaxai-network
+  # Ingestion Service
+  ingestion:
+    build:
+      context: .
+      dockerfile: services/ingestion/Dockerfile
+    container_name: addaxai-ingestion
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      FTPS_UPLOAD_DIR: /uploads
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    volumes:
+      - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network
 
   # Detection Worker (placeholder - not yet implemented)
   # detection:
