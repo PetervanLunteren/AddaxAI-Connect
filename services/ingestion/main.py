@@ -14,18 +14,18 @@ from shared.logger import get_logger, set_image_id
 from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED
 from shared.config import get_settings
 
-from .validators import validate_image, validate_daily_report
-from .exif_parser import extract_exif, get_datetime_original
-from .camera_profiles import identify_camera_profile
-from .db_operations import (
+from validators import validate_image, validate_daily_report
+from exif_parser import extract_exif, get_datetime_original
+from camera_profiles import identify_camera_profile
+from db_operations import (
     get_or_create_camera,
     check_duplicate_image,
     create_image_record,
     update_camera_health
 )
-from .storage_operations import upload_image_to_minio
-from .daily_report_parser import parse_daily_report
-from .utils import ValidationError, reject_file, delete_file
+from storage_operations import upload_image_to_minio
+from daily_report_parser import parse_daily_report
+from utils import ValidationError, reject_file, delete_file
 
 logger = get_logger("ingestion")
 settings = get_settings()

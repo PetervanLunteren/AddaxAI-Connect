@@ -9,7 +9,7 @@ from sqlalchemy import and_
 from shared.database import get_db_session
 from shared.models import Camera, Image
 from shared.logger import get_logger
-from .camera_profiles import CameraProfile
+from camera_profiles import CameraProfile
 
 logger = get_logger("ingestion")
 
