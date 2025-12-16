@@ -2,6 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    exiftool \
+    libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install build tools for shared library
 RUN pip install --no-cache-dir setuptools wheel
 
