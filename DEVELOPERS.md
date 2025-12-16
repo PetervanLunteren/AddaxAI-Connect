@@ -267,3 +267,11 @@ docker compose logs -f api  # Follow
 - `user_id` - Track user actions
 
 **Full guide:** See [docs/logging.md](docs/logging.md) for LogQL queries, best practices, and debugging workflows.
+
+# Git commit messages
+Do NOT add these lines to the git commit messages. there should not be any trace of Claude Code in the git history. 
+```
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```

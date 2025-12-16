@@ -127,11 +127,11 @@ def process_image(filepath: str) -> None:
             reject_file(filepath, "missing_datetime", str(e))
             return
 
-        # Step 6: Get or create camera
-        camera = get_or_create_camera(camera_id, profile)
+        # Step 6: Get or create camera (returns database ID)
+        camera_db_id = get_or_create_camera(camera_id, profile)
 
         # Step 7: Check for duplicates
-        if check_duplicate_image(camera.id, filename, datetime_original):
+        if check_duplicate_image(camera_db_id, filename, datetime_original):
             reject_file(
                 filepath,
                 "duplicate",
@@ -145,10 +145,10 @@ def process_image(filepath: str) -> None:
         # Step 9: Upload to MinIO
         storage_path = upload_image_to_minio(filepath, camera_id)
 
-        # Step 10: Create database record
-        image = create_image_record(
-            camera=camera,
-            file_name=filename,
+        # Step 10: Create database record (returns image UUID)
+        image_uuid = create_image_record(
+            camera_id=camera_db_id,
+            filename=filename,
             storage_path=storage_path,
             datetime_original=datetime_original,
             gps_location=gps_location,
@@ -156,19 +156,19 @@ def process_image(filepath: str) -> None:
         )
 
         # Set correlation ID for subsequent logs
-        set_image_id(str(image.id))
+        set_image_id(image_uuid)
 
         # Step 11: Publish to Redis queue
         queue = RedisQueue(QUEUE_IMAGE_INGESTED)
         queue.publish({
-            'image_id': image.id,
+            'image_uuid': image_uuid,
             'storage_path': storage_path,
-            'camera_id': camera.id,
+            'camera_id': camera_db_id,
         })
 
         logger.info(
             "Image ingestion complete",
-            image_id=image.id,
+            image_uuid=image_uuid,
             camera_id=camera_id,
             file_name=filename,
             queued=True
