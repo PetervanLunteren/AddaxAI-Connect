@@ -14,7 +14,7 @@ from camera_profiles import CameraProfile
 logger = get_logger("ingestion")
 
 
-def get_or_create_camera(camera_id: str, profile: CameraProfile) -> Camera:
+def get_or_create_camera(camera_id: str, profile: CameraProfile) -> int:
     """
     Get camera by ID, or create if doesn't exist.
 
@@ -23,15 +23,16 @@ def get_or_create_camera(camera_id: str, profile: CameraProfile) -> Camera:
         profile: Camera profile (for logging camera model)
 
     Returns:
-        Camera instance
+        Database ID of camera (integer)
     """
     with get_db_session() as session:
         # Check if camera exists
         camera = session.query(Camera).filter_by(name=camera_id).first()
 
         if camera:
-            logger.debug("Found existing camera", camera_id=camera_id, db_id=camera.id)
-            return camera
+            db_id = camera.id  # Access ID before session closes
+            logger.debug("Found existing camera", camera_id=camera_id, db_id=db_id)
+            return db_id
 
         # Create new camera
         camera = Camera(
@@ -42,14 +43,16 @@ def get_or_create_camera(camera_id: str, profile: CameraProfile) -> Camera:
         session.add(camera)
         session.flush()  # Get camera.id before commit
 
+        db_id = camera.id  # Access ID before session closes
+
         logger.info(
             "Auto-created camera",
             camera_id=camera_id,
             profile=profile.name,
-            db_id=camera.id
+            db_id=db_id
         )
 
-        return camera
+        return db_id
 
 
 def check_duplicate_image(
@@ -99,18 +102,18 @@ def check_duplicate_image(
 
 
 def create_image_record(
-    camera: Camera,
+    camera_id: int,
     filename: str,
     storage_path: str,
     datetime_original: datetime,
     gps_location: Optional[Tuple[float, float]],
     exif_metadata: dict
-) -> Image:
+) -> str:
     """
     Create image record in database.
 
     Args:
-        camera: Camera instance
+        camera_id: Database ID of camera
         filename: Image filename
         storage_path: Path in MinIO (e.g., "WUH09/2025/12/image.jpg")
         datetime_original: Image capture datetime
@@ -118,7 +121,7 @@ def create_image_record(
         exif_metadata: Full EXIF data dictionary
 
     Returns:
-        Created Image instance
+        Image UUID (string)
     """
     with get_db_session() as session:
         # Generate UUID for image
@@ -134,7 +137,7 @@ def create_image_record(
         image = Image(
             uuid=image_uuid,
             file_name=filename,
-            camera_id=camera.id,
+            camera_id=camera_id,
             storage_path=storage_path,
             status="pending",  # Will be updated by detection worker
             image_metadata=exif_metadata  # Store full EXIF as JSON
@@ -147,16 +150,18 @@ def create_image_record(
         session.add(image)
         session.flush()  # Get image.id
 
+        db_id = image.id  # Access before session closes
+
         logger.info(
             "Created image record",
-            image_id=image.id,
+            image_id=db_id,
             image_uuid=image_uuid,
-            camera_id=camera.id,
+            camera_id=camera_id,
             file_name=filename,
             has_gps=bool(gps_location)
         )
 
-        return image
+        return image_uuid
 
 
 def update_camera_health(camera_id: str, health_data: dict) -> None:
