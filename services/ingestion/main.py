@@ -81,7 +81,7 @@ def process_image(filepath: str) -> None:
     """
     filename = os.path.basename(filepath)
 
-    logger.info("Processing image", filename=filename, filepath=filepath)
+    logger.info("Processing image", file_name=filename, filepath=filepath)
 
     try:
         # Step 1: Validate file
@@ -104,7 +104,7 @@ def process_image(filepath: str) -> None:
             reject_file(filepath, "unsupported_camera", str(e))
             return
 
-        logger.info("Camera profile identified", filename=filename, profile=profile.name)
+        logger.info("Camera profile identified", file_name=filename, profile=profile.name)
 
         # Step 4: Extract camera ID
         camera_id = profile.get_camera_id(exif, filename)
@@ -148,7 +148,7 @@ def process_image(filepath: str) -> None:
         # Step 10: Create database record
         image = create_image_record(
             camera=camera,
-            filename=filename,
+            file_name=filename,
             storage_path=storage_path,
             datetime_original=datetime_original,
             gps_location=gps_location,
@@ -170,7 +170,7 @@ def process_image(filepath: str) -> None:
             "Image ingestion complete",
             image_id=image.id,
             camera_id=camera_id,
-            filename=filename,
+            file_name=filename,
             queued=True
         )
 
@@ -185,7 +185,7 @@ def process_image(filepath: str) -> None:
         # Unexpected error - crash loudly (don't delete file)
         logger.error(
             "Image processing failed",
-            filename=filename,
+            file_name=filename,
             error=str(e),
             exc_info=True
         )
@@ -208,7 +208,7 @@ def process_daily_report(filepath: str) -> None:
     """
     filename = os.path.basename(filepath)
 
-    logger.info("Processing daily report", filename=filename)
+    logger.info("Processing daily report", file_name=filename)
 
     try:
         # Step 1: Validate file
@@ -244,7 +244,7 @@ def process_daily_report(filepath: str) -> None:
         # Unexpected error - crash loudly (don't delete file)
         logger.error(
             "Daily report processing failed",
-            filename=filename,
+            file_name=filename,
             error=str(e),
             exc_info=True
         )

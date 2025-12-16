@@ -71,7 +71,7 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None) -> No
 
     logger.warning(
         "File rejected",
-        filename=filename,
+        file_name=filename,
         reason=reason,
         details=details,
         dest_path=str(dest_path)
@@ -89,11 +89,11 @@ def delete_file(filepath: str) -> None:
 
     try:
         os.remove(filepath)
-        logger.info("File deleted after processing", filename=filename)
+        logger.info("File deleted after processing", file_name=filename)
     except Exception as e:
         logger.error(
             "Failed to delete file",
-            filename=filename,
+            file_name=filename,
             error=str(e),
             exc_info=True
         )

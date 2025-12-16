@@ -43,7 +43,7 @@ def upload_image_to_minio(filepath: str, camera_id: str) -> str:
 
     logger.info(
         "Uploaded image to MinIO",
-        filename=filename,
+        file_name=filename,
         camera_id=camera_id,
         storage_path=object_path
     )
