@@ -17,14 +17,14 @@ from config import get_settings
 logger = get_logger("classification.model_loader")
 settings = get_settings()
 
-# DeepFaune v1.4 species classes (37 European wildlife species)
+# DeepFaune v1.4 species classes (38 European wildlife species)
 DEEPFAUNE_CLASSES = [
     "bison", "badger", "ibex", "beaver", "roe_deer", "fallow_deer", "red_deer",
     "sika_deer", "marmot", "chamois", "cat", "dog", "squirrel", "blackbird",
     "pheasant", "fox", "hare", "human", "mouflon", "marten", "nutria",
     "bird", "raptor", "field_mouse", "rat", "wild_boar", "raccoon",
     "raccoon_dog", "skunk", "hedgehog", "undefined", "weasel", "empty",
-    "small_rodent", "muskrat", "livestock", "wolf"
+    "small_rodent", "muskrat", "livestock", "wolf", "otter"
 ]
 
 
