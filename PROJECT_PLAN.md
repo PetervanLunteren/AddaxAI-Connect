@@ -1,12 +1,47 @@
 # AddaxAI Connect - Project Plan
 
-**Status:** Planning & Architecture Phase
-**Last Updated:** December 2, 2025
+**Status:** Phase 1 Complete (~90%) | Phase 2 In Progress (~25%)
+**Last Updated:** December 17, 2024
 **Target:** Production-ready camera trap platform with AI processing pipeline
 
 ---
 
-IMPORTANT: This document is a draft plan. It is not set in stone. Things can change down the line if we start working on it. Its important to know that this PROJECT_PLAN.md was created a the start, and contains the initial general ideas. It is not set in stone, we can always divert from the plan if we think that is best. Never blindly follow that plan, always keep thinking and asking questions. If we divert from the plan, make sure to update it accordingly. 
+## 🎯 Current Status Summary
+
+**Overall Progress: ~60-65% Complete**
+
+### ✅ What's Working
+- **Infrastructure** (Phase 1): PostgreSQL, Redis, MinIO, monitoring stack
+- **API Backend**: FastAPI with health checks, CORS, database middleware
+- **Authentication**: FastAPI-Users with email verification, password reset, allowlist system
+- **Shared Library**: Complete utilities for logging, database, queue, storage, config
+- **Structured Logging**: JSON logs with correlation IDs, frontend→backend logging, Loki integration
+- **Ingestion Service**: Full FTPS ingestion with camera profiles, EXIF parsing, daily reports, health updates
+
+### ⚠️ In Progress / Partial
+- **Camera Management Schema**: Basic tables exist, extended features (projects, sims, placement_plans, maintenance_tasks, unknown_devices) not yet implemented
+- **RBAC**: Role field exists but middleware/decorator not implemented
+- **Dead-Letter Queue**: Not implemented for failed jobs
+- **Frontend**: Basic auth pages exist, dashboard needs completion
+
+### ❌ Critical Gaps
+- **Detection Worker**: Not implemented (blocks end-to-end pipeline)
+- **Classification Worker**: Not implemented (blocks end-to-end pipeline)
+- **Alert Worker**: Not implemented
+- **Unit Tests**: Missing across all services
+- **Prometheus Metrics**: /metrics endpoints not exposed
+- **Development Setup**: docs/development.md missing, no docker-compose.dev.yml
+
+### 📋 Recommended Next Steps
+1. **Implement Detection Worker** (5-6 days) - Critical for MVP
+2. **Implement Classification Worker** (4-5 days) - Critical for MVP
+3. **End-to-End Testing** (2-3 days) - Validate complete pipeline
+4. **Add Dead-Letter Queue** (1-2 days) - Production reliability
+5. **Complete Frontend Dashboard** (5-7 days) - User-facing features
+
+---
+
+IMPORTANT: This document is a draft plan. It is not set in stone. Things can change down the line if we start working on it. Its important to know that this PROJECT_PLAN.md was created at the start, and contains the initial general ideas. It is not set in stone, we can always divert from the plan if we think that is best. Never blindly follow that plan, always keep thinking and asking questions. If we divert from the plan, make sure to update it accordingly. 
 
 ---
 
@@ -549,130 +584,135 @@ docker compose up -d --build
 ---
 
 ### 1.3 Object Storage Setup
-- [ ] Add MinIO service to `docker-compose.yml`
-- [ ] Configure MinIO with persistent volumes
-- [ ] Create initialization script to set up buckets:
-  - `raw-images`
-  - `crops`
-  - `thumbnails`
-- [ ] Test S3 client connectivity (boto3)
+- [x] Add MinIO service to `docker-compose.yml`
+- [x] Configure MinIO with persistent volumes
+- [x] Create initialization script to set up buckets:
+  - [x] `raw-images`
+  - [x] `crops`
+  - [x] `thumbnails`
+  - [x] `models`
+- [x] Test S3 client connectivity (boto3)
+- [x] Create `shared/shared/storage.py` with MinIO client wrapper
 
-**Deliverable:** MinIO running with all buckets created
+**Deliverable:** ✅ MinIO running with all buckets created
 
 ---
 
 ### 1.4 Message Queue Setup
-- [ ] Add Redis service to `docker-compose.yml`
-- [ ] Configure Redis with AOF persistence
-- [ ] Test queue operations (push/pop)
-- [ ] Document queue naming convention:
-  - `image-ingested`
-  - `detection-complete`
-  - `classification-complete`
-  - `failed-jobs`
+- [x] Add Redis service to `docker-compose.yml`
+- [x] Configure Redis with AOF persistence
+- [x] Test queue operations (push/pop)
+- [x] Document queue naming convention:
+  - [x] `image-ingested`
+  - [x] `detection-complete`
+  - [x] `classification-complete`
+  - [ ] `failed-jobs` (not yet implemented - dead-letter queue missing)
+- [x] Create `shared/shared/queue.py` with RedisQueue wrapper (FIFO implementation)
 
-**Deliverable:** Redis running and ready for queue operations
+**Deliverable:** ✅ Redis running and ready for queue operations (dead-letter queue pending)
 
 ---
 
-### 1.5 Shared Python Utilities (Optional)
-- [ ] Create `shared/python-common/` directory
-- [ ] Implement common utilities:
-  - [ ] `db_models.py` - SQLAlchemy models (shared across services)
-  - [ ] `queue_client.py` - Redis queue wrapper
-  - [ ] `storage_client.py` - MinIO/S3 wrapper
-  - [ ] `config.py` - Environment variable loading
-  - [ ] `logger.py` - Structured logging setup (structlog with `request_id` + `image_id` correlation) - **See Phase 1.9**
-- [ ] Make shared library installable as package
+### 1.5 Shared Python Utilities
+- [x] Create `shared/shared/` directory (installable package)
+- [x] Implement common utilities:
+  - [x] `models.py` - SQLAlchemy models (shared across services)
+  - [x] `queue.py` - Redis queue wrapper with RedisQueue class
+  - [x] `storage.py` - MinIO/S3 wrapper with MinIOClient class
+  - [x] `config.py` - Environment variable loading with Pydantic Settings
+  - [x] `logger.py` - Structured JSON logging with correlation IDs (`request_id`, `image_id`, `user_id`)
+  - [x] `database.py` - SQLAlchemy session management
+- [x] Make shared library installable as package (`pyproject.toml` with dependencies)
 
-**Deliverable:** Reusable utilities for all services
+**Deliverable:** ✅ Reusable utilities for all services
 
 ---
 
 ### 1.6 API Backend Scaffold
-- [ ] Create `services/api/` structure:
+- [x] Create `services/api/` structure:
   ```
   api/
   ├── Dockerfile
   ├── requirements.txt
   ├── main.py
   ├── routers/
-  │   ├── images.py
-  │   ├── cameras.py
-  │   ├── stats.py
-  │   └── auth.py
-  ├── models/         # SQLAlchemy models
-  ├── schemas/        # Pydantic schemas
-  ├── auth.py         # JWT handling
-  ├── database.py     # DB connection
+  │   ├── admin.py
+  │   └── logs.py
+  ├── auth/           # FastAPI-Users auth
+  │   ├── routes.py
+  │   ├── manager.py
+  │   └── schemas.py
+  ├── middleware/     # Custom middleware
+  │   └── logging.py
+  ├── mailer/         # Email utilities
   ├── alembic/        # Migrations
-  └── tests/
+  └── schemas/        # Pydantic schemas (partial)
   ```
-- [ ] Set up FastAPI app with basic structure
-- [ ] Implement database connection pooling
-- [ ] Create basic health check endpoint: `GET /api/health`
-- [ ] Add CORS middleware
-- [ ] Set up logging
+- [x] Set up FastAPI app with basic structure
+- [x] Implement database connection pooling (via middleware injection)
+- [x] Create basic health check endpoints: `GET /` and `GET /health`
+- [x] Add CORS middleware
+- [x] Set up structured JSON logging with RequestLoggingMiddleware
 
-**Deliverable:** FastAPI running with health check endpoint
+**Deliverable:** ✅ FastAPI running with health check endpoint
 
 ---
 
 ### 1.7 Authentication System (FastAPI-Users)
-- [ ] Install FastAPI-Users: `pip install fastapi-users[sqlalchemy]`
-- [ ] Configure FastAPI-Users with SQLAlchemy models:
-  - [ ] Create User model (extends FastAPI-Users base)
-  - [ ] Add `project_id` field for multi-project support
-  - [ ] Add `role` field (Admin, Analyst, Viewer) for RBAC
-  - [ ] Set up UserManager with custom logic
-- [ ] Configure email allowlist system:
-  - [ ] Create `email_allowlist` table migration
-  - [ ] Implement allowlist validation in registration flow
-  - [ ] Support both specific emails and domain patterns (e.g., `@university.edu`)
-- [ ] Configure Gmail SMTP for transactional emails:
-  - [ ] Set up environment variables (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD)
-  - [ ] Generate Gmail App Password (requires 2FA enabled)
-  - [ ] Configure email sender utility
-- [ ] Implement authentication endpoints (via FastAPI-Users):
-  - [ ] `POST /auth/register` - Email/password registration with allowlist check
-  - [ ] `POST /auth/login` - Email/password login
-  - [ ] `POST /auth/logout` - Logout
-  - [ ] `GET /auth/verify` - Email verification link
-  - [ ] `POST /auth/forgot-password` - Request password reset
-  - [ ] `POST /auth/reset-password` - Reset password with token
-  - [ ] `GET /users/me` - Get current user info
-- [ ] Create email templates:
-  - [ ] Welcome email with verification link
-  - [ ] Password reset email
-  - [ ] Account activated email (after verification)
-- [ ] Implement allowlist management endpoints (Admin only):
-  - [ ] `POST /api/admin/allowlist` - Add email or domain to allowlist
-  - [ ] `GET /api/admin/allowlist` - List allowed emails/domains
-  - [ ] `DELETE /api/admin/allowlist/{id}` - Remove from allowlist
+- [x] Install FastAPI-Users: `pip install fastapi-users[sqlalchemy]`
+- [x] Configure FastAPI-Users with SQLAlchemy models:
+  - [x] Create User model (extends FastAPI-Users base) in `shared/shared/models.py`
+  - [x] Add `project_id` field for multi-project support
+  - [x] Add `role` field (Admin, Analyst, Viewer) for RBAC
+  - [x] Set up UserManager with custom logic in `services/api/auth/manager.py`
+- [x] Configure email allowlist system:
+  - [x] Create `email_allowlist` table migration
+  - [x] Implement allowlist validation in registration flow
+  - [x] Support both specific emails and domain patterns (e.g., `@university.edu`)
+- [x] Configure SMTP for transactional emails:
+  - [x] Set up environment variables (MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD)
+  - [x] Configure email sender utility in `services/api/mailer/`
+- [x] Implement authentication endpoints (via FastAPI-Users):
+  - [x] `POST /auth/register` - Email/password registration with allowlist check
+  - [x] `POST /auth/jwt/login` - Email/password login
+  - [x] `POST /auth/jwt/logout` - Logout
+  - [x] `POST /auth/request-verify-token` - Request verification email
+  - [x] `POST /auth/verify` - Email verification
+  - [x] `POST /auth/forgot-password` - Request password reset
+  - [x] `POST /auth/reset-password` - Reset password with token
+  - [x] `GET /users/me` - Get current user info
+- [x] Create email templates in `services/api/mailer/templates.py`:
+  - [x] Welcome email with verification link
+  - [x] Password reset email
+- [x] Implement allowlist management endpoints (Admin only) in `services/api/routers/admin.py`:
+  - [x] `POST /api/admin/allowlist` - Add email or domain to allowlist
+  - [x] `GET /api/admin/allowlist` - List allowed emails/domains
+  - [x] `DELETE /api/admin/allowlist/{id}` - Remove from allowlist
 - [ ] Add RBAC middleware:
   - [ ] Check user role on protected endpoints
   - [ ] Define role permissions (Admin, Analyst, Viewer)
   - [ ] Implement `@requires_role` decorator
 - [ ] Create initial admin user script: `scripts/create_admin_user.py`
-- [ ] Password requirements:
-  - [ ] Minimum 8 characters
-  - [ ] Basic validation (no complexity rules for MVP)
+- [x] Password requirements:
+  - [x] Minimum 8 characters
+  - [x] Validated by FastAPI-Users
 - [ ] Write authentication tests
 
-**Deliverable:** Working authentication system with FastAPI-Users, email verification, password reset, and allowlist-based registration
+**Deliverable:** ✅ Working authentication system with FastAPI-Users, email verification, password reset, and allowlist-based registration (RBAC middleware pending)
 
 ---
 
 ### 1.8 Local Development Setup
-- [ ] Document local setup in `docs/development.md`
+- [ ] Document local setup in `docs/development.md` (missing)
+- [x] Create production Docker Compose (`docker-compose.yml`)
 - [ ] Create development Docker Compose with:
-  - Hot reload for API (mount source code)
-  - Development database with test data
-  - Exposed ports for debugging
-- [ ] Test full stack startup: `docker compose -f docker-compose.dev.yml up -d`
-- [ ] Verify all services are healthy
+  - [ ] Hot reload for API (mount source code)
+  - [ ] Development database with test data
+  - [ ] Exposed ports for debugging
+- [x] Test full stack startup works (production compose on VM)
+- [x] Verify services are healthy (PostgreSQL, Redis, MinIO, API, Ingestion, Frontend)
 
-**Deliverable:** Documented, working local development environment
+**Deliverable:** ⚠️ Partially complete - Production Docker Compose works, but development setup and documentation missing
 
 ---
 
@@ -691,42 +731,42 @@ docker compose up -d --build
 - **Prometheus alerts** on error rate spikes
 
 #### 1.9.1 Shared Logger Utility
-- [ ] Create `shared/shared/logger.py`:
-  - [ ] Configure structlog with JSON renderer
-  - [ ] Add processor for auto-injecting `service`, `timestamp`, `level`
-  - [ ] Support for `request_id` and `image_id` in log context
-  - [ ] Read `LOG_LEVEL` from environment (default: INFO)
-  - [ ] Export `get_logger(service_name)` function
-- [ ] Add `structlog` dependency to `shared/requirements.txt`
+- [x] Create `shared/shared/logger.py`:
+  - [x] Configure python-json-logger with JSON renderer
+  - [x] Add processor for auto-injecting `service`, `timestamp`, `level`
+  - [x] Support for `request_id`, `image_id`, and `user_id` in log context via ContextVars
+  - [x] Read `LOG_LEVEL` from environment (default: INFO)
+  - [x] Export `get_logger(service_name)` function
+  - [x] StructuredLogger wrapper for keyword argument support
+- [x] Add `python-json-logger` dependency to `shared/pyproject.toml`
 - [ ] Write unit tests for logger utility
 
 #### 1.9.2 Update Backend Services
-- [ ] Update `services/api/main.py`:
-  - [ ] Import and use shared logger
-  - [ ] Add middleware to generate `request_id` for each API call
-  - [ ] Auto-inject `request_id` into all log messages within request scope
-- [ ] Create `/api/logs` endpoint:
-  - [ ] Accept JSON payload: `{level, message, context}`
-  - [ ] Log frontend messages to backend log stream
-  - [ ] Include `user_id` if authenticated
-  - [ ] Rate limit to prevent abuse (100 logs/min per user)
-- [ ] Update existing API routers to use shared logger
-- [ ] Add `LOG_LEVEL` to docker-compose.yml environment
+- [x] Update `services/api/main.py`:
+  - [x] Import and use shared logger
+  - [x] Add RequestLoggingMiddleware to generate `request_id` for each API call
+  - [x] Auto-inject `request_id` into all log messages within request scope
+- [x] Create `/api/logs` endpoint in `services/api/routers/logs.py`:
+  - [x] Accept JSON payload: `{level, message, context}`
+  - [x] Log frontend messages to backend log stream
+  - [x] Include `user_id` if authenticated
+  - [ ] Rate limit to prevent abuse (100 logs/min per user) - not implemented
+- [x] Update existing API routers to use shared logger
+- [x] Add `LOG_LEVEL` to docker-compose.yml environment
 
 #### 1.9.3 Frontend Logging
-- [ ] Create `services/frontend/src/utils/logger.ts`:
-  - [ ] Console wrapper that also sends to `/api/logs`
-  - [ ] Methods: `log.info()`, `log.warn()`, `log.error()`, `log.debug()`
-  - [ ] Auto-capture unhandled errors and promise rejections
-  - [ ] Include page URL, user agent in context
-- [ ] Replace console.log usage in critical paths
-- [ ] Add error boundary component for React error capturing
+- [x] Create `services/frontend/src/utils/logger.ts`:
+  - [x] Console wrapper that also sends to `/api/logs`
+  - [x] Methods: `logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug()`
+  - [x] Auto-capture unhandled errors and promise rejections in `main.tsx`
+  - [x] Include page URL, user agent in context
+- [ ] Replace console.log usage in critical paths (minimal usage currently)
+- [x] Add error boundary component for React error capturing (`ErrorBoundary.tsx`)
 
-#### 1.9.4 Worker Services (Stub for Now)
-- [ ] Document in comments: Workers will use shared logger with:
-  - [ ] `request_id` generated when pulling message from queue
-  - [ ] `image_id` extracted from message payload
-  - [ ] Both IDs included in all log messages within processing scope
+#### 1.9.4 Worker Services
+- [x] Ingestion service uses shared logger with `image_id` correlation (implemented)
+- [ ] Detection worker (not yet implemented)
+- [ ] Classification worker (not yet implemented)
 
 #### 1.9.5 Prometheus Alerts
 - [ ] Update `monitoring/prometheus-alerts.yml`:
@@ -736,20 +776,18 @@ docker compose up -d --build
 - [ ] Configure Alertmanager webhook (future: to Alert Worker)
 
 #### 1.9.6 Documentation
-- [ ] Create `docs/logging.md`:
-  - [ ] How to use shared logger in new services
-  - [ ] Loki query examples:
+- [x] Create `docs/logging.md`:
+  - [x] How to use shared logger in new services
+  - [x] Loki query examples:
     - `{service="detection"} | json | level="ERROR"`
     - `{service="detection"} | json | image_id="abc-123"`
     - `{service="api"} | json | request_id="xyz-789"`
     - `{} | json | level="CRITICAL"` (all critical errors)
-  - [ ] How to toggle log levels (LOG_LEVEL env var)
-  - [ ] Frontend logging best practices
-- [ ] Add logging section to README.md
+  - [x] How to toggle log levels (LOG_LEVEL env var)
+  - [x] Frontend logging best practices
+- [x] Add logging section to README.md
 
-**Deliverable:** Centralized structured logging system with correlation IDs, ready for all services to use
-
-**Estimated Time:** 2-3 hours
+**Deliverable:** ✅ Centralized structured logging system with correlation IDs, fully implemented and documented (minor items pending: rate limiting, Prometheus alerts)
 
 ---
 
@@ -758,11 +796,11 @@ docker compose up -d --build
 **Goal:** Extend database with field operations and camera lifecycle management capabilities
 
 ### 1.10.1 Database Schema for Camera Management
-- [ ] Create `projects` table (tenant isolation via project_id)
+- [ ] Create `projects` table (tenant isolation via project_id) - NOT IMPLEMENTED
   - Name, description, default settings/firmware references
   - Maintenance thresholds (battery_low_threshold, sd_high_threshold, silence_threshold_hours)
   - Default placement values (FOV, range)
-- [ ] Extend `cameras` table with camera management fields:
+- [ ] Extend `cameras` table with camera management fields - BASIC SCHEMA EXISTS but needs extension
   - **Identifiers:** `serial_number` (IMEI), `imei`, `manufacturer`, `model`, `hardware_revision`
   - **Assignment:** `project_id` (FK), `status` (inventory/assigned/deployed/suspended/retired)
   - **Health metrics:** `battery_percent`, `sd_used_mb`, `sd_total_mb`, `temperature_c`, `signal_quality`
@@ -770,129 +808,93 @@ docker compose up -d --build
   - **Metadata:** `tags` (JSON), `notes` (text), `created_at`, `updated_at`
   - **Indexes:** serial_number (unique), imei (unique), project_id, status, last_seen, manufacturer, model
 - [ ] Add `project_id` to existing tables:
-  - Add `users.project_id` with FK and index
-  - Add `images.project_id` with FK and index
-- [ ] Create `sims` table (SIM inventory):
-  - ICCID (unique), MSISDN, provider, status, subscription_type
-  - Data allowance, subscription start/end dates, auto_renew flag
-  - project_id (FK), notes, timestamps
-- [ ] Create `camera_sim_assignments` table (assignment history):
-  - camera_id (FK), sim_id (FK), assigned_at, assigned_by_user_id (FK)
-  - unassigned_at, unassigned_by_user_id (FK), is_active flag
-- [ ] Create `settings_profiles` table (offline settings, project-scoped):
-  - project_id (FK), name, description, status (draft/active/deprecated)
-  - file_path (MinIO), file_version, compatible_models (JSON)
-  - install_instructions (text), created_by_user_id (FK), timestamps
-- [ ] Create `firmware_releases` table (offline firmware, project-scoped):
-  - project_id (FK), version, release_date, status (draft/active/deprecated/recalled)
-  - criticality (optional/recommended/mandatory), file_path (MinIO), checksum_sha256
-  - compatible_models (JSON), release_notes, install_instructions
-  - created_by_user_id (FK), timestamps
-- [ ] Create `placement_plans` table (planned vs actual placement):
-  - camera_id (FK, unique), project_id (FK)
-  - **Planned:** planned_location (PostGIS geography), planned_bearing (0-360°), planned_range_m, planned_fov_degrees, plan_status
-  - **Actual:** actual_location (PostGIS geography), actual_bearing, last_confirmed_at, confirmed_by_user_id (FK)
-  - timestamps
-- [ ] Create `maintenance_tasks` table (task management):
-  - camera_id (FK), project_id (FK), task_type, priority (low/medium/high/critical)
-  - origin (system/admin/technician), reason (text), due_date
-  - status (open/planned/in_progress/blocked/done/cancelled)
-  - assigned_to_user_id (FK), resolution_notes, created_by_user_id (FK)
-  - created_at, status_changed_at, completed_at
-  - **Indexes:** camera_id, project_id, task_type, priority, status, created_at
-- [ ] Create `unknown_devices` table (quarantine queue):
-  - serial_number, first_contact_at, last_contact_at, contact_count
-  - manufacturer, model, first_gps_location (PostGIS geography)
-  - claimed (bool), claimed_at, claimed_by_user_id (FK), claimed_to_camera_id (FK), claimed_to_project_id (FK)
-  - **Indexes:** serial_number, claimed, first_contact_at
-- [ ] Create Alembic migration script: `add_camera_management_schema.py`
-- [ ] Run migration on dev database: `alembic upgrade head`
+  - [ ] Add `users.project_id` with FK and index (schema has field, not FK)
+  - [ ] Add `images.project_id` with FK and index
+- [ ] Create `sims` table (SIM inventory) - NOT IMPLEMENTED
+- [ ] Create `camera_sim_assignments` table (assignment history) - NOT IMPLEMENTED
+- [ ] Create `settings_profiles` table (offline settings, project-scoped) - NOT IMPLEMENTED
+- [ ] Create `firmware_releases` table (offline firmware, project-scoped) - NOT IMPLEMENTED
+- [ ] Create `placement_plans` table (planned vs actual placement) - NOT IMPLEMENTED
+- [ ] Create `maintenance_tasks` table (task management) - NOT IMPLEMENTED
+- [ ] Create `unknown_devices` table (quarantine queue) - NOT IMPLEMENTED
+- [x] Create Alembic migration scripts (basic schema exists)
+- [x] Run migration on dev database
 - [ ] Verify all tables created, indexes exist, foreign keys enforced
-- [ ] Update `shared/shared/models.py` with all new SQLAlchemy model classes
+- [x] Basic models exist in `shared/shared/models.py` (Image, Camera, Detection, Classification, User, EmailAllowlist, AlertRule, AlertLog)
 - [ ] Write unit tests for model relationships
 
-**Deliverable:** Complete camera management schema with project-scoped multi-tenancy
+**Deliverable:** ❌ NOT COMPLETE - Basic schema exists but extended camera management features not implemented
 
-**Estimated Time:** 2-3 days
+**Estimated Time:** 2-3 days (still required)
 
 ---
 
 ## Phase 2: ML Pipeline
 
 ### 2.1 FTPS Ingestion Service (Enhanced for Camera Management)
-- [ ] Create `services/ingestion/` structure:
+- [x] Create `services/ingestion/` structure:
   ```
   ingestion/
   ├── Dockerfile
   ├── requirements.txt
-  ├── main.py              # Main watcher loop
-  ├── watcher.py           # Watchdog file monitor
-  ├── image_processor.py   # Image + EXIF handling
-  ├── report_processor.py  # Daily report parsing
-  ├── camera_matcher.py    # Identifier matching logic
-  ├── unknown_handler.py   # Unknown device queue
-  └── tests/
+  ├── main.py                 # Main watcher loop ✅
+  ├── validators.py           # File validation ✅
+  ├── exif_parser.py          # EXIF extraction ✅
+  ├── camera_profiles.py      # Camera profile detection ✅
+  ├── db_operations.py        # Database operations ✅
+  ├── storage_operations.py   # MinIO operations ✅
+  ├── daily_report_parser.py  # Daily report parsing ✅
+  ├── utils.py                # Rejection/error handling ✅
+  └── tests/                  # NOT IMPLEMENTED
   ```
-- [ ] **File type detection:**
-  - Images: `*.jpg`, `*.jpeg` (case-insensitive)
-  - Daily reports: `*-dr.txt` (filename pattern)
-  - Unknown files: log warning and skip
-- [ ] **Daily report parser** (`report_processor.py`):
-  - Parse key:value format from TXT file
-  - Extract: IMEI, battery%, SD utilization (used/total MB), temperature (°C), signal quality (CSQ)
-  - Extract: GPS coordinates (decimal degrees), timestamp, total images, images sent
-  - Validate data types (int for battery, parse SD string, etc.)
-  - Handle malformed reports gracefully (log errors, don't crash)
-- [ ] **Image EXIF parser** (`image_processor.py`):
-  - Use `exiftool` or `Pillow` + `piexif` to extract EXIF
-  - Extract: `Serial Number` field (primary camera identifier = IMEI)
-  - Extract: `GPS Position` (lat/lon), `Make`, `Camera Model Name`, `Date/Time Original`
-  - Handle missing EXIF fields gracefully (some fields may be absent)
-- [ ] **Camera identifier matching** (`camera_matcher.py`):
-  - Primary identifier: `serial_number` from EXIF or daily report IMEI
-  - Query `cameras` table: `WHERE serial_number = ?`
-  - If found: Return camera record
-  - If not found: Call `unknown_handler.handle_unknown_device()`
-- [ ] **Unknown device handling** (`unknown_handler.py`):
-  - Check if serial_number already in `unknown_devices` table
-  - If exists: Update `last_contact_at`, increment `contact_count`
-  - If new: Insert with `first_contact_at`, manufacturer, model, GPS from first data
-  - Log warning: "Unknown device detected: {serial_number}"
-  - Create alert for admins (future: push notification)
-- [ ] **Update camera health from daily reports:**
-  - Update `cameras.battery_percent`, `cameras.sd_used_mb`, `cameras.sd_total_mb`
-  - Update `cameras.temperature_c`, `cameras.signal_quality`
-  - Update `cameras.last_daily_report_at`, `cameras.last_seen`
-  - If GPS present: Update `cameras.location` (PostGIS POINT)
-  - If camera has placement_plan: Update `placement_plans.actual_location`
-  - Trigger maintenance threshold check (call maintenance monitor)
-- [ ] **Process images as before:**
-  - Validate image file (MIME type, magic bytes)
-  - Generate UUID for image
-  - Upload to MinIO (`raw-images` bucket)
-  - Create record in `images` table (status: 'pending', project_id from camera)
-  - Update `cameras.last_image_at`, `cameras.last_seen`
-  - If GPS in EXIF: Update `cameras.location` and `placement_plans.actual_location`
-  - Link to camera via `serial_number` from EXIF
-  - Publish message to `image-ingested` queue with image metadata
-- [ ] Handle errors with retry logic (3 attempts, exponential backoff)
-- [ ] Implement file system watcher with `watchdog` library
-  - Watch `/uploads` directory for new files
-  - Debounce: Wait 2 seconds after file modified event before processing (ensure upload complete)
-  - Move processed files to `/uploads/processed/` subdirectory
-  - Move failed files to `/uploads/failed/` with error log
-- [ ] Use shared logger (from Phase 1.9) with `request_id` (per file processed) and `image_id` correlation
-- [ ] Expose `/metrics` endpoint for Prometheus (files processed, parse errors, unknown devices)
-- [ ] Write unit tests:
-  - Test daily report parser with sample TXT files
-  - Test EXIF parser with sample images (use test-ftps-files/)
-  - Test camera matcher (found, not found, collision scenarios)
-  - Test unknown device handler (new, existing)
-  - Mock database and MinIO for testing
+- [x] **File type detection:**
+  - [x] Images: `*.jpg`, `*.jpeg` (case-insensitive)
+  - [x] Daily reports: `*.txt` files
+  - [x] Unknown files: reject to `/uploads/rejected/unsupported_file_type/`
+- [x] **Daily report parser** (`daily_report_parser.py`):
+  - [x] Parse key:value format from TXT file
+  - [x] Extract: IMEI, battery%, SD usage, temperature, signal quality
+  - [x] Extract: GPS coordinates, timestamp, image counts
+  - [x] Validate data types and handle malformed reports
+- [x] **Image EXIF parser** (`exif_parser.py`):
+  - [x] Use `exiftool` to extract EXIF metadata
+  - [x] Extract: Serial Number, GPS, Make, Model, DateTime
+  - [x] Handle missing EXIF fields gracefully
+  - [x] Convert GPS to decimal degrees
+- [x] **Camera identifier matching** (via camera profiles):
+  - [x] Identify camera profile from EXIF (Willfine, SY, extensible)
+  - [x] Extract camera ID per profile rules
+  - [x] Query `cameras` table to get/create camera
+  - [x] Duplicate detection by camera_id + filename + datetime
+- [ ] **Unknown device handling** - NOT FULLY IMPLEMENTED
+  - [ ] `unknown_devices` table doesn't exist yet
+  - [x] Rejects unsupported cameras to rejection directory
+- [x] **Update camera health from daily reports:**
+  - [x] Update battery, SD, temperature, signal via `update_camera_health()`
+  - [x] Implements flag_modified() for JSONB updates
+  - [ ] Placement plan updates not implemented (table doesn't exist)
+  - [ ] Maintenance threshold checks not implemented
+- [x] **Process images:**
+  - [x] Validate image file (MIME type via libmagic)
+  - [x] Generate UUID for image
+  - [x] Upload to MinIO (`raw-images` bucket)
+  - [x] Create record in `images` table (status: 'pending')
+  - [x] Extract GPS from EXIF if present
+  - [x] Link to camera via profile-detected camera_id
+  - [x] Publish message to `image-ingested` queue
+- [x] Handle errors with rejection system (move to rejection subdirectories by reason)
+- [x] Implement file system watcher with `watchdog` library
+  - [x] Watch `/uploads` directory for new files
+  - [x] Debounce: 0.5s wait after file created
+  - [x] Delete processed files (not moved)
+  - [x] Rejected files moved to categorized subdirectories
+- [x] Use shared logger with `image_id` correlation
+- [ ] Expose `/metrics` endpoint for Prometheus - NOT IMPLEMENTED
+- [ ] Write unit tests - NOT IMPLEMENTED
 
-**Deliverable:** Enhanced ingestion service that handles images + daily reports + unknown devices + camera health updates
+**Deliverable:** ✅ Core ingestion service fully functional (images + daily reports + camera profiles + health updates). Missing: unit tests, metrics endpoint, unknown_devices table integration, placement plans, maintenance thresholds
 
-**Estimated Time:** 4-5 days
+**Estimated Time:** COMPLETED (additional 1-2 days for remaining items)
 
 ---
 
