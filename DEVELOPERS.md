@@ -275,3 +275,49 @@ Do NOT add these lines to the git commit messages. there should not be any trace
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
+
+
+## Logging & Debugging
+
+AddaxAI Connect uses **structured JSON logging** with correlation IDs for easy debugging across all services.
+
+### Quick Start
+
+**View logs in Loki:**
+```bash
+# Access Loki at: https://<your_domain>/loki/
+# Username: admin
+# Password: <monitoring_password from group_vars>
+```
+
+**Common queries:**
+```logql
+# All errors across all services
+{} | json | level="ERROR"
+
+# Errors from API service
+{service="api"} | json | level="ERROR"
+
+# Trace a specific image through the pipeline
+{} | json | image_id="abc-123"
+
+# Frontend errors
+{service="frontend"} | json | level="ERROR"
+```
+
+### Features
+
+- **Correlation IDs:** Track requests (`request_id`) and images (`image_id`) through entire system
+- **Centralized logging:** All backend, frontend, and worker logs in Loki
+- **Structured JSON:** Easy to query and filter
+- **Prometheus alerts:** Automatic alerts on high error rates, service crashes, etc.
+- **Log levels:** Control verbosity via `LOG_LEVEL` environment variable
+
+### Documentation
+
+See [docs/logging.md](docs/logging.md) for complete guide including:
+- How to use the logger in your code
+- Loki query examples
+- Debugging workflows
+- Best practices
+- Prometheus alert rules
