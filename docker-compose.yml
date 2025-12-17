@@ -181,32 +181,35 @@ services:
     networks:
       - addaxai-network
 
-  # Detection Worker (placeholder - not yet implemented)
-  # detection:
-  #   build:
-  #     context: .
-  #     dockerfile: services/detection/Dockerfile
-  #   container_name: addaxai-detection
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL}
-  #     REDIS_URL: ${REDIS_URL}
-  #     MINIO_ENDPOINT: minio:9000
-  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-  #     DETECTION_MODEL_PATH: ${DETECTION_MODEL_PATH}
-  #     USE_GPU: ${USE_GPU}
-  #   volumes:
-  #     - ./models:/models:ro
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #   networks:
-  #     - addaxai-network
+  # Detection Worker
+  detection:
+    build:
+      context: .
+      dockerfile: services/detection/Dockerfile
+    container_name: addaxai-detection
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      DETECTION_MODEL_PATH: /models/detection/md_v1000.0.0-redwood.pt
+      DETECTION_MODEL_URL: https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt
+      CONFIDENCE_THRESHOLD: 0.25
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    volumes:
+      - ./models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network
 
   # Classification Worker (placeholder - not yet implemented)
   # classification:
