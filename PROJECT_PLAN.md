@@ -1,6 +1,6 @@
 # AddaxAI Connect - Project Plan
 
-**Status:** Phase 1 Complete (~90%) | Phase 2 In Progress (~40%)
+**Status:** Phase 1 Complete (~95%) | Phase 2 Complete (~90%)
 **Last Updated:** December 17, 2024
 **Target:** Production-ready camera trap platform with AI processing pipeline
 
@@ -8,7 +8,7 @@
 
 ## 🎯 Current Status Summary
 
-**Overall Progress: ~70% Complete**
+**Overall Progress: ~85% Complete**
 
 ### ✅ What's Working
 - **Infrastructure** (Phase 1): PostgreSQL, Redis, MinIO, monitoring stack
@@ -16,8 +16,9 @@
 - **Authentication**: FastAPI-Users with email verification, password reset, allowlist system
 - **Shared Library**: Complete utilities for logging, database, queue, storage, config
 - **Structured Logging**: JSON logs with correlation IDs, frontend→backend logging, Loki integration
-- **Ingestion Service**: Full FTPS ingestion with camera profiles, EXIF parsing, daily reports, health updates
+- **Ingestion Service**: Full FTPS ingestion with camera profiles, EXIF parsing (including ImageWidth/ImageHeight), daily reports, health updates
 - **Detection Worker**: MegaDetector v1000 Redwood integration complete with persistent model caching, threshold 0.1, validated on VM with 17 test images (94% exact match rate, 6-7s per image, 13,551 images/day throughput)
+- **Classification Worker**: DeepFaune v1.4 (ViT-Large + DINOv2) integration complete with persistent model caching, 38 European wildlife species, validated with 3 test images (100% exact match with reference implementation for detections, bboxes, confidences, and species predictions)
 
 ### ⚠️ In Progress / Partial
 - **Camera Management Schema**: Basic tables exist, extended features (projects, sims, placement_plans, maintenance_tasks, unknown_devices) not yet implemented
@@ -26,22 +27,66 @@
 - **Frontend**: Basic auth pages exist, dashboard needs completion
 
 ### ❌ Critical Gaps
-- **Classification Worker**: Not implemented (blocks end-to-end pipeline)
 - **Alert Worker**: Not implemented
 - **Unit Tests**: Missing across all services
 - **Prometheus Metrics**: /metrics endpoints not exposed
 - **Development Setup**: docs/development.md missing, no docker-compose.dev.yml
 
 ### 📋 Recommended Next Steps
-1. **Implement Classification Worker** (4-5 days) - Critical for MVP, blocks end-to-end pipeline
-2. **End-to-End Testing** (2-3 days) - Validate complete ingestion→detection→classification flow
+1. **Complete Frontend Dashboard** (5-7 days) - User-facing features for viewing detections and classifications
+2. **Implement Alert Worker** (3-4 days) - Notification system for detections
 3. **Add Dead-Letter Queue** (1-2 days) - Production reliability for failed jobs
-4. **Complete Frontend Dashboard** (5-7 days) - User-facing features for viewing detections
-5. **Implement Alert Worker** (3-4 days) - Notification system for detections
+4. **Add Unit Tests** (3-5 days) - Test coverage for all services
+5. **Expose Prometheus Metrics** (1-2 days) - /metrics endpoints for monitoring
 
 ---
 
-IMPORTANT: This document is a draft plan. It is not set in stone. Things can change down the line if we start working on it. Its important to know that this PROJECT_PLAN.md was created at the start, and contains the initial general ideas. It is not set in stone, we can always divert from the plan if we think that is best. Never blindly follow that plan, always keep thinking and asking questions. If we divert from the plan, make sure to update it accordingly. 
+## 🔧 Recent Implementation Notes
+
+### Classification Worker (December 17, 2024)
+**Status**: ✅ Complete and validated
+
+**Key Implementation Details**:
+- **Model**: DeepFaune v1.4 using ViT-Large (vit_large_patch14_dinov2.lvd142m) with DINOv2 backbone
+- **Input Resolution**: 182x182 pixels (requires `dynamic_img_size=True` in timm to handle non-518 inputs)
+- **Normalization**: Custom DeepFaune values (NOT ImageNet): mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250]
+- **Species**: 38 European wildlife classes in specific order matching model training
+
+**Critical Issues Resolved**:
+1. **Missing Image Dimensions** (services/ingestion/exif_parser.py:45-70)
+   - Added ImageWidth/ImageHeight extraction from EXIF
+   - Normalized to 'width'/'height' fields for classification worker
+
+2. **MinIO Bucket Routing** (services/classification/storage_operations.py:42)
+   - Fixed hardcoded bucket name to "raw-images" instead of parsing from storage_path
+
+3. **Model Architecture Mismatch** (services/classification/model_loader.py:127)
+   - Added `dynamic_img_size=True` to allow 182x182 inputs with 518x518 architecture
+
+4. **Preprocessing Normalization** (services/classification/classifier.py:54)
+   - Corrected normalization values from ImageNet defaults to DeepFaune custom values
+
+5. **Cropping Logic** (services/classification/classifier.py:58-95)
+   - Implemented exact reference squaring/padding logic with proper rounding
+
+6. **Class List Ordering** (services/classification/model_loader.py:22-29) ⚠️ CRITICAL
+   - **Root Cause**: Class list order was completely wrong, causing systematic misclassifications
+   - **Fix**: Reordered all 38 species to match training order (e.g., fox moved from index 15→34)
+   - **Impact**: This was the primary issue - model predictions were correct but mapped to wrong species names
+
+**Validation Results**:
+- Tested with 3 camera trap images (4 animal detections total)
+- Achieved **100% exact match** with reference implementation:
+  - All detection bboxes matched exactly (normalized coordinates)
+  - All detection confidences matched exactly
+  - All species predictions matched exactly (roe_deer, wolf, red_deer)
+  - All classification confidences matched exactly (within floating-point precision)
+
+**Reference Implementation**: https://github.com/PetervanLunteren/AddaxAI/blob/main/classification_utils/model_types/deepfaune-v1.4/classify_detections.py
+
+---
+
+IMPORTANT: This document is a draft plan. It is not set in stone. Things can change down the line if we start working on it. Its important to know that this PROJECT_PLAN.md was created at the start, and contains the initial general ideas. It is not set in stone, we can always divert from the plan if we think that is best. Never blindly follow that plan, always keep thinking and asking questions. If we divert from the plan, make sure to update it accordingly.
 
 ---
 
@@ -946,26 +991,29 @@ docker compose up -d --build
 
 ---
 
-### 2.4 Classification Worker
-- [ ] Create `services/classification/` structure (similar to detection)
-- [ ] Set up Dockerfile with different ML environment (TensorFlow if detection used PyTorch, or vice versa)
-- [ ] Implement Redis queue consumer (BRPOP on `detection-complete`)
-- [ ] Implement model loading:
-  - [ ] Load classification model from `/models/classification.pt`
-  - [ ] Support GPU and CPU modes
-- [ ] Implement inference:
-  - [ ] Fetch crop from MinIO
-  - [ ] Run classification model
-  - [ ] Get species prediction and confidence
-- [ ] Store results:
-  - [ ] Insert into `classifications` table (species, confidence)
-  - [ ] Publish to `classification-complete` queue
-  - [ ] Update image status to 'completed'
-- [ ] Generate thumbnail:
-  - [ ] Resize image for web display
-  - [ ] Save to MinIO (`thumbnails` bucket)
-- [ ] Use shared logger (from Phase 1.9) with `request_id` and `image_id` correlation
-- [ ] Log all steps (model load, inference time, species predictions, confidence scores, errors)
+### 2.4 Classification Worker ✅ COMPLETE
+- [x] Create `services/classification/` structure (similar to detection)
+- [x] Set up Dockerfile with PyTorch + timm environment for Vision Transformer
+- [x] Implement Redis queue consumer (BRPOP on `detection-complete`)
+- [x] Implement model loading:
+  - [x] Download and cache DeepFaune v1.4 model from HuggingFace to `/models/classification/`
+  - [x] Load ViT-Large with DINOv2 backbone using timm
+  - [x] Support CPU mode with dynamic_img_size for flexible input dimensions
+  - [x] Handle 38 European wildlife species with correct class ordering
+- [x] Implement inference:
+  - [x] Download full image from MinIO (raw-images bucket)
+  - [x] Extract square crops from detection bboxes using reference cropping logic
+  - [x] Preprocess to 182x182 with DeepFaune normalization (mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250])
+  - [x] Run classification model and get top-1 species prediction
+  - [x] Only classify "animal" category detections (skip person/vehicle)
+- [x] Store results:
+  - [x] Insert into `classifications` table (species, confidence, detection_id)
+  - [x] Publish to `classification-complete` queue
+  - [x] Update image status to 'completed'
+- [x] Use shared logger with `request_id`, `image_id`, and `detection_id` correlation
+- [x] Log all steps (model load, download, crop extraction, inference time, species predictions, confidence scores, errors)
+- [x] **Validation**: Tested with 3 camera trap images, achieved 100% exact match with reference implementation for all detections, bboxes, confidences, and species predictions
+- [ ] Generate thumbnail (deferred - not critical for MVP)
 - [ ] Write unit tests with mock model
 
 **Deliverable:** Classification worker completing the pipeline
