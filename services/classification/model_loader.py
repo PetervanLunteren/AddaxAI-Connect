@@ -136,6 +136,11 @@ def load_model() -> Any:
         else:
             state_dict = checkpoint
 
+        # Remove "base_model." prefix if present (DeepFaune wraps model)
+        if any(k.startswith('base_model.') for k in state_dict.keys()):
+            state_dict = {k.replace('base_model.', ''): v for k, v in state_dict.items() if k.startswith('base_model.')}
+            logger.info("Removed base_model prefix from state dict keys")
+
         model.load_state_dict(state_dict)
 
         # Set to evaluation mode
