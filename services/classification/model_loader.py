@@ -118,12 +118,12 @@ def load_model() -> Any:
 
         # Create ViT-Large model with DINOv2 backbone
         # Architecture: vit_large_patch14_dinov2.lvd142m
-        # DeepFaune uses 182x182 input resolution (not the default 518x518)
+        # Note: dynamic_img_size=True allows 182x182 inputs despite 518x518 architecture
         model = timm.create_model(
             'vit_large_patch14_dinov2.lvd142m',
             pretrained=False,  # Don't load ImageNet weights
             num_classes=len(DEEPFAUNE_CLASSES),
-            img_size=182  # DeepFaune v1.4 uses 182x182 resolution
+            dynamic_img_size=True  # Allow flexible input dimensions
         )
 
         # Load DeepFaune weights
