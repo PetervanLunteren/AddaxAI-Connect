@@ -77,29 +77,26 @@ def load_model() -> tuple[Any, torch.device]:
     # Detect device
     device = detect_device()
 
-    # Load model directly with PyTorch (YOLOv5)
+    # Load model using YOLOv5 package
     logger.info("Loading MegaDetector model", path=str(model_path))
 
     try:
-        # Load checkpoint with torch
-        checkpoint = torch.load(str(model_path), map_location=device)
+        # Import YOLOv5
+        import yolov5
 
-        # Extract model from checkpoint
-        if isinstance(checkpoint, dict) and 'model' in checkpoint:
-            model = checkpoint['model'].float()
-        else:
-            model = checkpoint.float()
-
+        # Load custom model
+        model = yolov5.load(str(model_path))
         model.to(device)
         model.eval()
 
-        logger.info("Model loaded successfully", device=str(device), model_type=type(model).__name__)
+        logger.info("Model loaded successfully", device=str(device))
 
         # Warmup inference
         logger.info("Performing warmup inference")
-        dummy_input = torch.randn(1, 3, 640, 640).to(device)
+        import numpy as np
+        dummy_img = np.zeros((640, 640, 3), dtype=np.uint8)
         with torch.no_grad():
-            _ = model(dummy_input)
+            _ = model(dummy_img)
         logger.info("Warmup complete")
 
         return model, device

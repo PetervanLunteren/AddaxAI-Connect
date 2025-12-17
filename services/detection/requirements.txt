@@ -16,4 +16,4 @@ matplotlib==3.8.2
 seaborn==0.13.0
 pandas==2.1.4
 tqdm==4.66.1
-ultralytics==8.0.196
+yolov5==7.0.13
