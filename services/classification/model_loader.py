@@ -126,11 +126,15 @@ def load_model() -> Any:
 
         # Load DeepFaune weights
         logger.info("Loading model weights", model_path=model_path)
-        state_dict = torch.load(model_path, map_location=device)
+        checkpoint = torch.load(model_path, map_location=device)
 
-        # Handle potential 'model' wrapper in state dict
-        if 'model' in state_dict:
-            state_dict = state_dict['model']
+        # Handle nested state dict (checkpoint may have 'state_dict', 'model', or weights directly)
+        if 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        elif 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        else:
+            state_dict = checkpoint
 
         model.load_state_dict(state_dict)
 
