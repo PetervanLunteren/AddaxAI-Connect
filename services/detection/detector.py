@@ -1,13 +1,10 @@
 """
 Detection inference logic
 
-Runs MegaDetector inference and processes results.
+Runs MegaDetector inference and processes results using official MegaDetector API.
 """
-import torch
-import numpy as np
 from PIL import Image
 from typing import Any
-from pathlib import Path
 
 from shared.logger import get_logger
 from config import get_settings
@@ -17,9 +14,9 @@ settings = get_settings()
 
 # MegaDetector category mapping
 CATEGORY_MAP = {
-    0: "animal",
-    1: "person",
-    2: "vehicle"
+    "1": "animal",
+    "2": "person",
+    "3": "vehicle"
 }
 
 
@@ -53,15 +50,15 @@ class Detection:
 
 def run_detection(
     model: Any,
-    device: torch.device,
+    device: str,
     image_path: str
 ) -> list[Detection]:
     """
-    Run MegaDetector inference on image.
+    Run MegaDetector inference on image using official API.
 
     Args:
-        model: Loaded YOLO model
-        device: Torch device (CPU or CUDA)
+        model: Loaded MegaDetector model
+        device: Device string ('cpu' or 'cuda')
         image_path: Path to image file
 
     Returns:
@@ -77,58 +74,43 @@ def run_detection(
         image = Image.open(image_path)
         image_width, image_height = image.size
 
-        # Run inference
-        results = model(image_path, conf=settings.confidence_threshold, verbose=False)
+        # Run inference using MegaDetector API
+        result = model.generate_detections_one_image(
+            image,
+            image_path,
+            detection_threshold=settings.confidence_threshold
+        )
 
         # Parse results
         detections = []
-        for result in results:
-            boxes = result.boxes
+        for det in result["detections"]:
+            # MegaDetector returns bbox in [x_min, y_min, width, height] normalized format
+            bbox_normalized = det["bbox"]
+            conf = det["conf"]
+            category_id = det["category"]
 
-            for i in range(len(boxes)):
-                # Get box coordinates (xyxy format)
-                xyxy = boxes.xyxy[i].cpu().numpy()
-                conf = float(boxes.conf[i].cpu().numpy())
-                cls = int(boxes.cls[i].cpu().numpy())
+            # Get category name
+            category = CATEGORY_MAP.get(category_id, "unknown")
 
-                # Convert to MegaDetector format [x_min, y_min, width, height]
-                x_min = float(xyxy[0])
-                y_min = float(xyxy[1])
-                x_max = float(xyxy[2])
-                y_max = float(xyxy[3])
+            # Convert to pixel coordinates
+            x_min_norm, y_min_norm, width_norm, height_norm = bbox_normalized
+            bbox_pixels = [
+                int(x_min_norm * image_width),
+                int(y_min_norm * image_height),
+                int(width_norm * image_width),
+                int(height_norm * image_height)
+            ]
 
-                width = x_max - x_min
-                height = y_max - y_min
+            detection = Detection(
+                category=category,
+                confidence=conf,
+                bbox_normalized=bbox_normalized,
+                bbox_pixels=bbox_pixels,
+                image_width=image_width,
+                image_height=image_height
+            )
 
-                # Normalized coordinates (0-1)
-                bbox_normalized = [
-                    x_min / image_width,
-                    y_min / image_height,
-                    width / image_width,
-                    height / image_height
-                ]
-
-                # Pixel coordinates
-                bbox_pixels = [
-                    int(x_min),
-                    int(y_min),
-                    int(width),
-                    int(height)
-                ]
-
-                # Get category name
-                category = CATEGORY_MAP.get(cls, "unknown")
-
-                detection = Detection(
-                    category=category,
-                    confidence=conf,
-                    bbox_normalized=bbox_normalized,
-                    bbox_pixels=bbox_pixels,
-                    image_width=image_width,
-                    image_height=image_height
-                )
-
-                detections.append(detection)
+            detections.append(detection)
 
         logger.info(
             "Detection complete",
