@@ -27,7 +27,7 @@ def download_image_from_minio(storage_path: str) -> str:
     Download image from MinIO to temporary file.
 
     Args:
-        storage_path: MinIO storage path (format: "bucket/path/to/image.jpg")
+        storage_path: MinIO object path within raw-images bucket (format: "camera/year/month/image.jpg")
 
     Returns:
         str: Path to temporary file
@@ -38,13 +38,9 @@ def download_image_from_minio(storage_path: str) -> str:
     logger.info("Downloading image from MinIO", storage_path=storage_path)
 
     try:
-        # Parse bucket and object path
-        parts = storage_path.split("/", 1)
-        if len(parts) != 2:
-            raise ValueError(f"Invalid storage path format: {storage_path}")
-
-        bucket_name = parts[0]
-        object_name = parts[1]
+        # Images are stored in the raw-images bucket
+        bucket_name = "raw-images"
+        object_name = storage_path
 
         # Create temporary file
         temp_file = NamedTemporaryFile(delete=False, suffix=".jpg")
