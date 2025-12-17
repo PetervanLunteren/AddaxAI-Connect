@@ -47,17 +47,18 @@ class Classification:
         self.confidence = confidence
 
 
-# DeepFaune preprocessing transform (182x182, ImageNet normalization)
+# DeepFaune preprocessing transform (182x182, custom normalization)
 TRANSFORM = transforms.Compose([
     transforms.Resize((settings.crop_resolution, settings.crop_resolution), interpolation=transforms.InterpolationMode.BICUBIC),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250])
 ])
 
 
 def get_crop(image: Image.Image, bbox_normalized: list[float]) -> Image.Image:
     """
     Extract and square crop from image using normalized bbox coordinates.
+    Matches the reference DeepFaune implementation exactly.
 
     Args:
         image: PIL Image
@@ -67,36 +68,31 @@ def get_crop(image: Image.Image, bbox_normalized: list[float]) -> Image.Image:
         PIL Image: Squared crop
     """
     width, height = image.size
-    x_min_norm, y_min_norm, width_norm, height_norm = bbox_normalized
 
-    # Convert to pixel coordinates
-    x_min = int(x_min_norm * width)
-    y_min = int(y_min_norm * height)
-    bbox_width = int(width_norm * width)
-    bbox_height = int(height_norm * height)
+    # Convert normalized coordinates to pixels (with rounding)
+    xmin = int(round(bbox_normalized[0] * width))
+    ymin = int(round(bbox_normalized[1] * height))
+    xmax = int(round(bbox_normalized[2] * width)) + xmin
+    ymax = int(round(bbox_normalized[3] * height)) + ymin
 
-    # Square the bbox by padding the shorter dimension symmetrically
-    if bbox_width > bbox_height:
-        # Wider than tall - pad vertically
-        padding = (bbox_width - bbox_height) // 2
-        y_min -= padding
-        bbox_height = bbox_width
-    else:
-        # Taller than wide - pad horizontally
-        padding = (bbox_height - bbox_width) // 2
-        x_min -= padding
-        bbox_width = bbox_height
+    # Calculate sizes
+    xsize = xmax - xmin
+    ysize = ymax - ymin
 
-    # Clip to image boundaries
-    x_min = max(0, x_min)
-    y_min = max(0, y_min)
-    x_max = min(width, x_min + bbox_width)
-    y_max = min(height, y_min + bbox_height)
+    # Square the bbox by padding the shorter dimension
+    if xsize > ysize:
+        ymin = ymin - int((xsize - ysize) / 2)
+        ymax = ymax + int((xsize - ysize) / 2)
+    if ysize > xsize:
+        xmin = xmin - int((ysize - xsize) / 2)
+        xmax = xmax + int((ysize - xsize) / 2)
 
-    # Extract crop
-    crop = image.crop((x_min, y_min, x_max, y_max))
+    # Clip to image boundaries and extract crop
+    image_cropped = image.crop((max(0, xmin), max(0, ymin),
+                                min(xmax, image.width),
+                                min(ymax, image.height)))
 
-    return crop
+    return image_cropped
 
 
 def run_classification(
