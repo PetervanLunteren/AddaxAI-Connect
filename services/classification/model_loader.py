@@ -18,13 +18,14 @@ logger = get_logger("classification.model_loader")
 settings = get_settings()
 
 # DeepFaune v1.4 species classes (38 European wildlife species)
+# Order MUST match the model's training - from reference implementation
 DEEPFAUNE_CLASSES = [
-    "bison", "badger", "ibex", "beaver", "roe_deer", "fallow_deer", "red_deer",
-    "sika_deer", "marmot", "chamois", "cat", "dog", "squirrel", "blackbird",
-    "pheasant", "fox", "hare", "human", "mouflon", "marten", "nutria",
-    "bird", "raptor", "field_mouse", "rat", "wild_boar", "raccoon",
-    "raccoon_dog", "skunk", "hedgehog", "undefined", "weasel", "empty",
-    "small_rodent", "muskrat", "livestock", "wolf", "otter"
+    "bison", "badger", "ibex", "beaver", "red_deer", "golden_jackal", "chamois",
+    "cat", "goat", "roe_deer", "dog", "raccoon_dog", "fallow_deer", "squirrel",
+    "moose", "equid", "genet", "wolverine", "hedgehog", "lagomorph", "wolf",
+    "otter", "lynx", "marmot", "micromammal", "mouflon", "sheep", "mustelid",
+    "bird", "bear", "porcupine", "nutria", "muskrat", "raccoon", "fox",
+    "reindeer", "wild_boar", "cow"
 ]
 
 
