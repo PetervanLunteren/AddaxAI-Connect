@@ -211,32 +211,37 @@ services:
     networks:
       - addaxai-network
 
-  # Classification Worker (placeholder - not yet implemented)
-  # classification:
-  #   build:
-  #     context: .
-  #     dockerfile: services/classification/Dockerfile
-  #   container_name: addaxai-classification
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL}
-  #     REDIS_URL: ${REDIS_URL}
-  #     MINIO_ENDPOINT: minio:9000
-  #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-  #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-  #     CLASSIFICATION_MODEL_PATH: ${CLASSIFICATION_MODEL_PATH}
-  #     USE_GPU: ${USE_GPU}
-  #   volumes:
-  #     - ./models:/models:ro
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_healthy
-  #   networks:
-  #     - addaxai-network
+  # Classification Worker
+  classification:
+    build:
+      context: .
+      dockerfile: services/classification/Dockerfile
+    container_name: addaxai-classification
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      CLASSIFICATION_MODEL_PATH: /models/classification/deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt
+      CLASSIFICATION_MODEL_URL: https://huggingface.co/Addax-Data-Science/Deepfaune_v1.4/resolve/main/deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt?download=true
+      CROP_RESOLUTION: 182
+      CONFIDENCE_THRESHOLD: 0.0
+      TOP_N_PREDICTIONS: 1
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    volumes:
+      - ./models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network
 
   # Alert Worker (placeholder - not yet implemented)
   # alerts:

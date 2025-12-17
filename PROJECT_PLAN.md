@@ -17,7 +17,7 @@
 - **Shared Library**: Complete utilities for logging, database, queue, storage, config
 - **Structured Logging**: JSON logs with correlation IDs, frontend→backend logging, Loki integration
 - **Ingestion Service**: Full FTPS ingestion with camera profiles, EXIF parsing, daily reports, health updates
-- **Detection Worker**: MegaDetector v1000 integration complete, tested and validated on VM (confidence 0.97, exact bbox match)
+- **Detection Worker**: MegaDetector v1000 Redwood integration complete with persistent model caching, threshold 0.1, validated on VM with 17 test images (94% exact match rate, 6-7s per image, 13,551 images/day throughput)
 
 ### ⚠️ In Progress / Partial
 - **Camera Management Schema**: Basic tables exist, extended features (projects, sims, placement_plans, maintenance_tasks, unknown_devices) not yet implemented
