@@ -49,16 +49,14 @@ class Detection:
 
 
 def run_detection(
-    model: Any,
-    device: str,
+    detector: Any,
     image_path: str
 ) -> list[Detection]:
     """
     Run MegaDetector inference on image using official API.
 
     Args:
-        model: Loaded MegaDetector model
-        device: Device string ('cpu' or 'cuda')
+        detector: Loaded MegaDetector PTDetector model
         image_path: Path to image file
 
     Returns:
@@ -75,7 +73,19 @@ def run_detection(
         image_width, image_height = image.size
 
         # Run inference using MegaDetector API
-        result = model.generate_detections_one_image(
+        # The detector.generate_detections_one_image() method returns a dict with:
+        # {
+        #   "file": image_path,
+        #   "max_detection_conf": float,
+        #   "detections": [
+        #     {
+        #       "category": "1" | "2" | "3",
+        #       "conf": float,
+        #       "bbox": [x_min_norm, y_min_norm, width_norm, height_norm]
+        #     }, ...
+        #   ]
+        # }
+        result = detector.generate_detections_one_image(
             image,
             image_path,
             detection_threshold=settings.confidence_threshold
