@@ -20,14 +20,13 @@ logger = get_logger("detection")
 settings = get_settings()
 
 
-def process_image(message: dict, model, device) -> None:
+def process_image(message: dict, detector) -> None:
     """
     Process image through detection pipeline.
 
     Args:
         message: Queue message with image metadata
-        model: Loaded detection model
-        device: Torch device
+        detector: Loaded MegaDetector model
 
     Raises:
         Exception: If processing fails (crashes worker)
@@ -60,7 +59,7 @@ def process_image(message: dict, model, device) -> None:
         temp_files.append(image_path)
 
         # Step 3: Run detection
-        detections = run_detection(model, device, image_path)
+        detections = run_detection(detector, image_path)
 
         logger.info(
             "Detections found",
@@ -161,7 +160,7 @@ def main():
 
     # Load model on startup
     logger.info("Loading MegaDetector model")
-    model, device = load_model()
+    detector = load_model()
     logger.info("Model loaded successfully")
 
     # Initialize queue consumer
@@ -169,7 +168,7 @@ def main():
 
     # Process messages forever
     logger.info("Listening for messages", queue=QUEUE_IMAGE_INGESTED)
-    queue.consume_forever(lambda msg: process_image(msg, model, device))
+    queue.consume_forever(lambda msg: process_image(msg, detector))
 
 
 if __name__ == "__main__":
