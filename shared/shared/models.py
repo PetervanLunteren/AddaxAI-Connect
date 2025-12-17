@@ -51,6 +51,7 @@ class Detection(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     image_id = Column(Integer, ForeignKey("images.id"), nullable=False, index=True)
+    category = Column(String(50), nullable=True, index=True)  # animal, person, vehicle
     bbox = Column(JSON, nullable=False)  # {x, y, width, height}
     confidence = Column(Float, nullable=False)
     crop_path = Column(String(512), nullable=False)

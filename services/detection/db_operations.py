@@ -96,6 +96,7 @@ def insert_detections(
 
                 detection_record = DetectionModel(
                     image_id=image.id,
+                    category=detection.category,
                     bbox=bbox,
                     confidence=detection.confidence,
                     crop_path=crop_path
