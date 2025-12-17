@@ -1,63 +1,34 @@
 """
 MegaDetector v1000 Redwood model loader
 
-Handles model download, caching, and initialization with GPU/CPU auto-detection.
+Handles model initialization using official MegaDetector package.
 """
-import os
 import torch
-import urllib.request
-from pathlib import Path
 from typing import Any
 
+from megadetector.detection import load_detector
+
 from shared.logger import get_logger
-from config import get_settings
 
 logger = get_logger("detection.model_loader")
-settings = get_settings()
 
 
-def download_model(url: str, dest_path: str) -> None:
-    """
-    Download model from URL to destination path.
-
-    Args:
-        url: Model download URL
-        dest_path: Destination file path
-
-    Raises:
-        Exception: If download fails
-    """
-    dest = Path(dest_path)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    logger.info("Downloading MegaDetector model", url=url, dest=dest_path)
-
-    try:
-        urllib.request.urlretrieve(url, dest_path)
-        logger.info("Model download complete", size_mb=dest.stat().st_size / (1024 * 1024))
-    except Exception as e:
-        logger.error("Model download failed", url=url, error=str(e), exc_info=True)
-        raise
-
-
-def detect_device() -> torch.device:
+def detect_device() -> str:
     """
     Configure CPU device for inference.
 
     Returns:
-        torch.device: CPU device
-
+        str: Device string ('cpu')
     """
     logger.info("Using CPU for inference")
-    return torch.device("cpu")
+    return "cpu"
 
 
-def load_model() -> tuple[Any, torch.device]:
+def load_model() -> tuple[Any, str]:
     """
-    Load MegaDetector v1000 Redwood model.
+    Load MegaDetector v1000 Redwood model using official package.
 
-    Downloads model if not cached locally, detects GPU/CPU,
-    loads model and performs warmup inference.
+    Downloads model if not cached locally and loads using MegaDetector API.
 
     Returns:
         tuple: (model, device)
@@ -65,38 +36,30 @@ def load_model() -> tuple[Any, torch.device]:
     Raises:
         Exception: If model loading fails
     """
-    model_path = Path(settings.detection_model_path)
-
-    # Download model if not cached
-    if not model_path.exists():
-        logger.info("Model not found locally, downloading", path=str(model_path))
-        download_model(settings.detection_model_url, str(model_path))
-    else:
-        logger.info("Using cached model", path=str(model_path))
-
     # Detect device
     device = detect_device()
 
-    # Load model using YOLOv5 package
-    logger.info("Loading MegaDetector model", path=str(model_path))
+    # Load model using MegaDetector package
+    logger.info("Loading MegaDetector model", model_alias="MD1000-redwood")
 
     try:
-        # Import YOLOv5
-        import yolov5
+        # Load using official MegaDetector API with model alias
+        model = load_detector("MD1000-redwood", device=device)
 
-        # Load custom model
-        model = yolov5.load(str(model_path))
-        model.to(device)
-        model.eval()
-
-        logger.info("Model loaded successfully", device=str(device))
+        logger.info("Model loaded successfully", device=device)
 
         # Warmup inference
         logger.info("Performing warmup inference")
         import numpy as np
-        dummy_img = np.zeros((640, 640, 3), dtype=np.uint8)
+        from PIL import Image
+
+        # Create dummy image
+        dummy_img_array = np.zeros((640, 640, 3), dtype=np.uint8)
+        dummy_img = Image.fromarray(dummy_img_array)
+
         with torch.no_grad():
-            _ = model(dummy_img)
+            _ = model.generate_detections_one_image(dummy_img)
+
         logger.info("Warmup complete")
 
         return model, device

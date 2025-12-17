@@ -1,8 +1,4 @@
-torch==2.1.0
-torchvision==0.16.0
-numpy<2
-opencv-python-headless==4.8.1.78
-pillow==10.1.0
+# Core dependencies
 redis==5.0.1
 boto3==1.34.0
 sqlalchemy==2.0.23
@@ -10,10 +6,6 @@ psycopg2-binary==2.9.9
 asyncpg==0.29.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
-pyyaml==6.0.1
-scipy==1.11.4
-matplotlib==3.8.2
-seaborn==0.13.0
-pandas==2.1.4
-tqdm==4.66.1
-yolov5==7.0.13
+
+# MegaDetector - official package includes torch, torchvision, etc.
+megadetector
