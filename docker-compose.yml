@@ -196,7 +196,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       DETECTION_MODEL_PATH: /models/detection/md_v1000.0.0-redwood.pt
       DETECTION_MODEL_URL: https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt
-      CONFIDENCE_THRESHOLD: 0.25
+      CONFIDENCE_THRESHOLD: 0.1
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
     volumes:
