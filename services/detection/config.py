@@ -29,7 +29,7 @@ class DetectionSettings(BaseSettings):
     # Model configuration
     detection_model_url: str = "https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt"
     detection_model_path: str = "/models/detection/md_v1000.0.0-redwood.pt"
-    confidence_threshold: float = 0.25
+    confidence_threshold: float = 0.1
 
     # GPU configuration (auto-detect if not set)
     use_gpu: Optional[bool] = None
