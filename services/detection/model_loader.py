@@ -42,24 +42,14 @@ def download_model(url: str, dest_path: str) -> None:
 
 def detect_device() -> torch.device:
     """
-    Detect and configure GPU/CPU device.
+    Configure CPU device for inference.
 
     Returns:
-        torch.device: CUDA device if available, otherwise CPU
+        torch.device: CPU device
 
     """
-    if settings.use_gpu is False:
-        logger.info("GPU disabled by configuration, using CPU")
-        return torch.device("cpu")
-
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        gpu_name = torch.cuda.get_device_name(0)
-        logger.info("GPU detected and enabled", device=gpu_name)
-        return device
-    else:
-        logger.info("No GPU detected, using CPU")
-        return torch.device("cpu")
+    logger.info("Using CPU for inference")
+    return torch.device("cpu")
 
 
 def load_model() -> tuple[Any, torch.device]:
