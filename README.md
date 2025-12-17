@@ -34,6 +34,22 @@ See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 - Nginx as reverse proxy
 - Docker Compose for orchestration
 
+## Technology choices
+
+| Component  | Tech                        | Notes                                      |
+|------------|-----------------------------|--------------------------------------------|
+| Queue      | Redis                       | FIFO lists with BRPOP, simple pub/sub      |
+| Storage    | MinIO                       | S3-compatible, self-hosted                 |
+| DB         | PostgreSQL 15 + PostGIS 3.3 | Spatial queries for GPS data               |
+| API        | FastAPI                     | Async, auto docs, FastAPI-Users            |
+| Auth       | FastAPI-Users               | Email verification, password reset         |
+| Email      | SMTP                        | Port blocking possible on some providers   |
+| Frontend   | React + Vite + TypeScript   | Modern, fast dev                           |
+| Logging    | JSON + Loki + Promtail      | Structured logs, correlation IDs           |
+| Metrics    | Prometheus                  | Alerts configured, metrics not exposed yet |
+| Deployment | Ansible + Docker Compose    | Single-VM Ubuntu 24.04                     |
+| SSL        | Let's Encrypt (certbot)     | Auto-renewal configured                    |
+
 ## Security
 Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO, Prometheus, Loki) accessible only within Docker network. Monitoring endpoints protected via nginx reverse proxy with HTTP basic auth.
 
