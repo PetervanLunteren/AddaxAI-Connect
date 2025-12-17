@@ -42,6 +42,8 @@ def extract_exif(filepath: str) -> dict:
                 '-DateTimeOriginal',
                 '-GPSLatitude',
                 '-GPSLongitude',
+                '-ImageWidth',
+                '-ImageHeight',
                 filepath
             ],
             capture_output=True,
@@ -61,13 +63,20 @@ def extract_exif(filepath: str) -> dict:
             if gps_decimal:
                 data['gps_decimal'] = gps_decimal
 
+        # Normalize image dimension field names
+        if 'ImageWidth' in data:
+            data['width'] = data['ImageWidth']
+        if 'ImageHeight' in data:
+            data['height'] = data['ImageHeight']
+
         logger.debug(
             "EXIF extracted",
             filepath=filepath,
             make=data.get('Make'),
             model=data.get('Model'),
             has_serial=bool(data.get('SerialNumber')),
-            has_gps=bool(data.get('gps_decimal'))
+            has_gps=bool(data.get('gps_decimal')),
+            dimensions=f"{data.get('width')}x{data.get('height')}" if data.get('width') else None
         )
 
         return data
