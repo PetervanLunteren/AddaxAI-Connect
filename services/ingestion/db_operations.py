@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional, Tuple
 
 from sqlalchemy import and_
+from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
 from shared.models import Camera, Image
 from shared.logger import get_logger
@@ -209,6 +210,9 @@ def update_camera_health(camera_id: str, health_data: dict) -> None:
             # Note: This requires PostGIS Geography type
             # For now, store in config JSON as well
             camera.config['gps_from_report'] = {'lat': lat, 'lon': lon}
+
+        # Mark config as modified so SQLAlchemy detects the change
+        flag_modified(camera, 'config')
 
         session.flush()
 
