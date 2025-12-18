@@ -4,7 +4,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
 ## TODO
-- [ ] add template to mention that mobile / tablet view is also important. 
+- [ ] make sure user ubuntu gets read AND write over the FTPS uploads folder (fix in Ansible)
 
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
