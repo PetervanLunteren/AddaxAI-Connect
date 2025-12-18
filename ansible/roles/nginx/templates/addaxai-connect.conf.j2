@@ -105,6 +105,27 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # MinIO S3 API - for presigned URLs (public access for image serving)
+    location /minio/ {
+        proxy_pass http://localhost:9000/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # MinIO specific headers
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+
+        # Allow large file uploads
+        client_max_body_size 500M;
+    }
+
     # MinIO Console - password protected
     location /minio-console/ {
         auth_basic "MinIO Admin Console";
@@ -287,6 +308,27 @@ server {
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+    }
+
+    # MinIO S3 API - for presigned URLs (public access for image serving)
+    location /minio/ {
+        proxy_pass http://localhost:9000/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # MinIO specific headers
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+
+        # Allow large file uploads
+        client_max_body_size 500M;
     }
 
     # MinIO Console - password protected
