@@ -9,6 +9,9 @@ from email.message import EmailMessage
 from typing import Optional
 
 from shared.config import get_settings
+from shared.logger import get_logger
+
+logger = get_logger("api.mailer")
 
 
 class EmailSender:
@@ -70,37 +73,63 @@ class EmailSender:
         # Validate configuration on first use
         self._validate_config()
 
-        message = EmailMessage()
-        message["From"] = self.settings.mail_from
-        message["To"] = to_email
-        message["Subject"] = subject
-        message.set_content(body)
+        logger.info(
+            "Attempting to send email",
+            to_email=to_email,
+            subject=subject,
+            mail_server=self.settings.mail_server,
+            mail_port=self.settings.mail_port,
+        )
 
-        # Auto-detect TLS mode based on port
-        # Port 465: use_tls=True (implicit TLS/SSL from start)
-        # Port 587: start_tls=True (STARTTLS upgrade)
-        # Port 25: no TLS (not recommended)
-        port = self.settings.mail_port
-        if port == 465:
-            # Implicit TLS for port 465 (SMTPS)
-            await aiosmtplib.send(
-                message,
-                hostname=self.settings.mail_server,
-                port=port,
-                username=self.settings.mail_username,
-                password=self.settings.mail_password,
-                use_tls=True,
+        try:
+            message = EmailMessage()
+            message["From"] = self.settings.mail_from
+            message["To"] = to_email
+            message["Subject"] = subject
+            message.set_content(body)
+
+            # Auto-detect TLS mode based on port
+            # Port 465: use_tls=True (implicit TLS/SSL from start)
+            # Port 587: start_tls=True (STARTTLS upgrade)
+            # Port 25: no TLS (not recommended)
+            port = self.settings.mail_port
+            if port == 465:
+                # Implicit TLS for port 465 (SMTPS)
+                await aiosmtplib.send(
+                    message,
+                    hostname=self.settings.mail_server,
+                    port=port,
+                    username=self.settings.mail_username,
+                    password=self.settings.mail_password,
+                    use_tls=True,
+                )
+            else:
+                # STARTTLS for port 587 or other ports
+                await aiosmtplib.send(
+                    message,
+                    hostname=self.settings.mail_server,
+                    port=port,
+                    username=self.settings.mail_username,
+                    password=self.settings.mail_password,
+                    start_tls=True,
+                )
+
+            logger.info(
+                "Email sent successfully",
+                to_email=to_email,
+                subject=subject,
             )
-        else:
-            # STARTTLS for port 587 or other ports
-            await aiosmtplib.send(
-                message,
-                hostname=self.settings.mail_server,
-                port=port,
-                username=self.settings.mail_username,
-                password=self.settings.mail_password,
-                start_tls=True,
+
+        except Exception as e:
+            logger.error(
+                "Failed to send email",
+                to_email=to_email,
+                subject=subject,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
             )
+            raise
 
     async def send_verification_email(
         self,
@@ -153,6 +182,12 @@ Realtime camera trap image processing platform
         Raises:
             aiosmtplib.SMTPException: If email sending fails
         """
+        logger.info(
+            "Preparing password reset email",
+            email=email,
+            token_length=len(token) if token else 0,
+        )
+
         reset_url = f"https://{self.settings.domain_name}/reset-password?token={token}"
 
         subject = "AddaxAI Connect - Password Reset"
@@ -174,6 +209,11 @@ Realtime camera trap image processing platform
 """
 
         await self.send_email(email, subject, body)
+
+        logger.info(
+            "Password reset email sent",
+            email=email,
+        )
 
 
 # Singleton instance

@@ -130,15 +130,34 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             token: Reset token
             request: Request object
         """
-        email_sender = get_email_sender()
-        await email_sender.send_password_reset_email(user.email, token)
-
         logger.info(
-            "Password reset requested",
+            "on_after_forgot_password callback triggered",
             email=user.email,
             user_id=user.id,
-            event="password_reset_requested",
+            token_length=len(token) if token else 0,
         )
+
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_password_reset_email(user.email, token)
+
+            logger.info(
+                "Password reset email sent successfully",
+                email=user.email,
+                user_id=user.id,
+                event="password_reset_requested",
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send password reset email",
+                email=user.email,
+                user_id=user.id,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
+            )
+            # Re-raise to ensure the error is not silently swallowed
+            raise
 
     async def on_after_request_verify(
         self,
