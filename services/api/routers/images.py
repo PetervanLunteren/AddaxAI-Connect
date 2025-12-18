@@ -199,9 +199,16 @@ async def list_images(
                             max_confidence = classification.confidence
                             top_species = classification.species
 
-        # Generate thumbnail URL (presigned)
+        # Generate thumbnail URL (presigned) - using raw image for now
         thumbnail_url = None
-        # TODO: Generate from thumbnails bucket when available
+        if image.storage_path:
+            storage_parts = image.storage_path.split('/', 1)
+            if len(storage_parts) == 2:
+                bucket, object_name = storage_parts
+            else:
+                bucket = "raw-images"
+                object_name = image.storage_path
+            thumbnail_url = storage_client.get_presigned_url(bucket, object_name, expiration=3600)
 
         items.append(ImageListItemResponse(
             uuid=image.uuid,
