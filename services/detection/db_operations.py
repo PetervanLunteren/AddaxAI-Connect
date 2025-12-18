@@ -51,8 +51,7 @@ def update_image_status(image_uuid: str, status: str) -> None:
 
 def insert_detections(
     image_uuid: str,
-    detections: list[Detection],
-    crop_paths: list[str]
+    detections: list[Detection]
 ) -> list[int]:
     """
     Insert detection records into database.
@@ -60,7 +59,6 @@ def insert_detections(
     Args:
         image_uuid: UUID of source image
         detections: List of Detection objects
-        crop_paths: List of crop storage paths (same order as detections)
 
     Returns:
         List of detection IDs
@@ -84,7 +82,7 @@ def insert_detections(
 
             # Insert detections
             detection_ids = []
-            for detection, crop_path in zip(detections, crop_paths):
+            for detection in detections:
                 # Create bbox dict for JSON storage
                 bbox = {
                     "x_min": detection.bbox_pixels[0],
@@ -98,8 +96,7 @@ def insert_detections(
                     image_id=image.id,
                     category=detection.category,
                     bbox=bbox,
-                    confidence=detection.confidence,
-                    crop_path=crop_path
+                    confidence=detection.confidence
                 )
 
                 db.add(detection_record)

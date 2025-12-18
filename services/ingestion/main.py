@@ -23,7 +23,7 @@ from db_operations import (
     create_image_record,
     update_camera_health
 )
-from storage_operations import upload_image_to_minio
+from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail
 from daily_report_parser import parse_daily_report
 from utils import ValidationError, reject_file, delete_file
 
@@ -145,11 +145,15 @@ def process_image(filepath: str) -> None:
         # Step 9: Upload to MinIO
         storage_path = upload_image_to_minio(filepath, camera_id)
 
-        # Step 10: Create database record (returns image UUID)
+        # Step 10: Generate and upload thumbnail
+        thumbnail_path = generate_and_upload_thumbnail(filepath, camera_id)
+
+        # Step 11: Create database record (returns image UUID)
         image_uuid = create_image_record(
             camera_id=camera_db_id,
             filename=filename,
             storage_path=storage_path,
+            thumbnail_path=thumbnail_path,
             datetime_original=datetime_original,
             gps_location=gps_location,
             exif_metadata=exif
@@ -158,7 +162,7 @@ def process_image(filepath: str) -> None:
         # Set correlation ID for subsequent logs
         set_image_id(image_uuid)
 
-        # Step 11: Publish to Redis queue
+        # Step 12: Publish to Redis queue
         queue = RedisQueue(QUEUE_IMAGE_INGESTED)
         queue.publish({
             'image_uuid': image_uuid,
@@ -174,7 +178,7 @@ def process_image(filepath: str) -> None:
             queued=True
         )
 
-        # Step 12: Delete original file
+        # Step 13: Delete original file
         delete_file(filepath)
 
     except ValidationError as e:
