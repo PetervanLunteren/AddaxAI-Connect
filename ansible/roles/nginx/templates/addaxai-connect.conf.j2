@@ -105,7 +105,8 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # MinIO S3 API - for presigned URLs (public access for image serving)
+    # MinIO S3 API endpoint (legacy - buckets are private)
+    # Images are now served via authenticated /api/images endpoints
     location /minio/ {
         proxy_pass http://localhost:9000/;
         proxy_http_version 1.1;
@@ -311,7 +312,8 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # MinIO S3 API - for presigned URLs (public access for image serving)
+    # MinIO S3 API endpoint (legacy - buckets are private)
+    # Images are now served via authenticated /api/images endpoints
     location /minio/ {
         proxy_pass http://localhost:9000/;
         proxy_http_version 1.1;
