@@ -40,6 +40,9 @@ services:
     container_name: addaxai-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9000:9000"  # S3 API - localhost only for nginx proxy
+      - "127.0.0.1:9001:9001"  # Web Console - localhost only for nginx proxy
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
