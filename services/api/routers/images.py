@@ -324,13 +324,10 @@ async def _stream_image_from_storage(
     Raises:
         HTTPException: If image cannot be fetched from storage
     """
-    # Parse storage path
-    storage_parts = image.storage_path.split('/', 1)
-    if len(storage_parts) == 2:
-        bucket, object_name = storage_parts
-    else:
-        bucket = "raw-images"
-        object_name = image.storage_path
+    # Images are always stored in the raw-images bucket
+    # storage_path format: "camera_id/year/month/filename"
+    bucket = "raw-images"
+    object_name = image.storage_path
 
     # Fetch image from MinIO
     try:
