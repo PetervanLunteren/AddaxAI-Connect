@@ -100,11 +100,18 @@ class StorageClient:
         Returns:
             Presigned URL
         """
-        return self.client.generate_presigned_url(
+        url = self.client.generate_presigned_url(
             'get_object',
             Params={'Bucket': bucket, 'Key': object_name},
             ExpiresIn=expiration
         )
+
+        # Replace internal endpoint with public endpoint if configured
+        if settings.minio_public_endpoint:
+            internal_url = f"http://{settings.minio_endpoint}"
+            url = url.replace(internal_url, settings.minio_public_endpoint)
+
+        return url
 
     def delete_object(self, bucket: str, object_name: str) -> None:
         """
