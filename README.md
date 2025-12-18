@@ -3,8 +3,8 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
-## TODO
-- [ ] make sure user ubuntu gets read AND write over the FTPS uploads folder (fix in Ansible)
+## WHEREWASI?
+- I just built the ML workers, the frontend, and wanted to check if everything did what is is supposed to do on a fresh VM. So next time, rebuilt the VM and run ansible again. Fix all the errors down the line and check if you have read/write as ubuntu in the FTPS uploads dir. And whether or not the thumbs are actually thumbs. 
 
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
