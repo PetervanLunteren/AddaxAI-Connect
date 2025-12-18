@@ -1,117 +1,302 @@
 /**
- * Dashboard page (placeholder)
+ * Dashboard page with statistics and charts
  */
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions,
+} from 'chart.js';
+import { Camera, Images, Layers, TrendingUp } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { statisticsApi } from '../api/statistics';
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  // Fetch all statistics
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['statistics', 'overview'],
+    queryFn: () => statisticsApi.getOverview(),
+  });
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+  const { data: timeline, isLoading: timelineLoading } = useQuery({
+    queryKey: ['statistics', 'timeline'],
+    queryFn: () => statisticsApi.getImagesTimeline(),
+  });
+
+  const { data: species, isLoading: speciesLoading } = useQuery({
+    queryKey: ['statistics', 'species'],
+    queryFn: () => statisticsApi.getSpeciesDistribution(),
+  });
+
+  const { data: cameraActivity, isLoading: activityLoading } = useQuery({
+    queryKey: ['statistics', 'activity'],
+    queryFn: () => statisticsApi.getCameraActivity(),
+  });
+
+  // Summary cards data
+  const summaryCards = [
+    {
+      title: 'Total Images',
+      value: overview?.total_images ?? 0,
+      icon: Images,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100',
+    },
+    {
+      title: 'Total Cameras',
+      value: overview?.total_cameras ?? 0,
+      icon: Camera,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+    },
+    {
+      title: 'Species Detected',
+      value: overview?.total_species ?? 0,
+      icon: Layers,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100',
+    },
+    {
+      title: 'Images Today',
+      value: overview?.images_today ?? 0,
+      icon: TrendingUp,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
+    },
+  ];
+
+  // Timeline chart data
+  const timelineData = {
+    labels: timeline?.map((d) => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) ?? [],
+    datasets: [
+      {
+        label: 'Images Uploaded',
+        data: timeline?.map((d) => d.count) ?? [],
+        borderColor: 'rgb(59, 130, 246)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        tension: 0.3,
+        fill: true,
+      },
+    ],
   };
 
+  const timelineOptions: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      title: {
+        display: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+        },
+      },
+    },
+  };
+
+  // Species distribution chart data
+  const speciesData = {
+    labels: species?.map((s) => s.species) ?? [],
+    datasets: [
+      {
+        label: 'Count',
+        data: species?.map((s) => s.count) ?? [],
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(16, 185, 129, 0.8)',
+          'rgba(245, 158, 11, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+          'rgba(139, 92, 246, 0.8)',
+          'rgba(236, 72, 153, 0.8)',
+          'rgba(14, 165, 233, 0.8)',
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(251, 146, 60, 0.8)',
+          'rgba(244, 63, 94, 0.8)',
+        ],
+      },
+    ],
+  };
+
+  const speciesOptions: ChartOptions<'bar'> = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      title: {
+        display: false,
+      },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+        },
+      },
+    },
+  };
+
+  // Camera activity chart data
+  const activityData = {
+    labels: ['Active', 'Inactive', 'Never Reported'],
+    datasets: [
+      {
+        data: [
+          cameraActivity?.active ?? 0,
+          cameraActivity?.inactive ?? 0,
+          cameraActivity?.never_reported ?? 0,
+        ],
+        backgroundColor: [
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(251, 146, 60, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+        ],
+        borderWidth: 0,
+      },
+    ],
+  };
+
+  const activityOptions: ChartOptions<'doughnut'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+      title: {
+        display: false,
+      },
+    },
+  };
+
+  const isLoading = overviewLoading || timelineLoading || speciesLoading || activityLoading;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <img
-                src="/logo-wide.svg"
-                alt="AddaxAI Connect"
-                className="h-10 w-auto"
-              />
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">{user?.email}</span>
-              {user?.is_verified && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Verified
-                </span>
-              )}
-              {user?.is_superuser && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                  Admin
-                </span>
-              )}
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Welcome to AddaxAI Connect</h2>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Your Account</h3>
-                <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Email</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{user?.email}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Status</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
-                      {user?.is_active ? 'Active' : 'Inactive'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Email Verification</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
-                      {user?.is_verified ? 'Verified' : 'Not verified'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium text-gray-500">Role</dt>
-                    <dd className="mt-1 text-sm text-gray-900">
-                      {user?.is_superuser ? 'Superuser' : user?.role || 'User'}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Coming Soon</h3>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-900">Image Gallery</h4>
-                    <p className="mt-2 text-sm text-gray-500">
-                      View and manage camera trap images
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-900">Detection Results</h4>
-                    <p className="mt-2 text-sm text-gray-500">
-                      Browse ML detection and classification results
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-900">Camera Map</h4>
-                    <p className="mt-2 text-sm text-gray-500">
-                      Interactive map of camera locations
-                    </p>
-                  </div>
+      {/* Summary Cards */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+        {summaryCards.map((card) => (
+          <Card key={card.title}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                  <p className="text-3xl font-bold mt-2">
+                    {overviewLoading ? '...' : card.value.toLocaleString()}
+                  </p>
+                </div>
+                <div className={`${card.bgColor} ${card.color} p-3 rounded-lg`}>
+                  <card.icon className="h-6 w-6" />
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {/* Charts */}
+      <div className="grid gap-6 md:grid-cols-2 mb-6">
+        {/* Images Timeline */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Images Over Time (Last 30 Days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              {timelineLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : timeline && timeline.length > 0 ? (
+                <Line data={timelineData} options={timelineOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Camera Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Camera Activity Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              {activityLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : cameraActivity ? (
+                <Doughnut data={activityData} options={activityOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Species Distribution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Top 10 Species Detected</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-96">
+            {speciesLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground">Loading...</p>
+              </div>
+            ) : species && species.length > 0 ? (
+              <Bar data={speciesData} options={speciesOptions} />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground">No species data available</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
