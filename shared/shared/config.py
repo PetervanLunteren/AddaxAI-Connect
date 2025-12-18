@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # MinIO
     minio_endpoint: str
+    minio_public_endpoint: Optional[str] = None  # Public URL for presigned URLs (e.g., https://dev.addaxai.com/minio)
     minio_access_key: str
     minio_secret_key: str
     minio_secure: bool = False
