@@ -5,7 +5,7 @@
  * the image with credentials and create a blob URL to display it.
  */
 import React, { useEffect, useState } from 'react';
-import { api } from '../api/client';
+import apiClient from '../api/client';
 
 interface AuthenticatedImageProps {
   src: string;
@@ -33,7 +33,7 @@ export const AuthenticatedImage: React.FC<AuthenticatedImageProps> = ({
         setError(false);
 
         // Fetch image with authentication
-        const response = await api.get(src, {
+        const response = await apiClient.get(src, {
           responseType: 'blob',
         });
 

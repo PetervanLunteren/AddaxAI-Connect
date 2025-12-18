@@ -39,8 +39,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       if (!imageDetail?.full_image_url) return;
 
       try {
-        const { api } = await import('../api/client');
-        const response = await api.get(imageDetail.full_image_url, {
+        const apiClient = (await import('../api/client')).default;
+        const response = await apiClient.get(imageDetail.full_image_url, {
           responseType: 'blob',
         });
 
