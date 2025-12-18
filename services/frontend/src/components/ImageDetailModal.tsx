@@ -7,6 +7,7 @@ import { X, Calendar, Camera, MapPin, Loader2 } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
+import { AuthenticatedImage } from './AuthenticatedImage';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -22,12 +23,46 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
 
   const { data: imageDetail, isLoading } = useQuery({
     queryKey: ['image', imageUuid],
     queryFn: () => imagesApi.getById(imageUuid),
     enabled: isOpen && !!imageUuid,
   });
+
+  // Fetch authenticated image and create blob URL
+  useEffect(() => {
+    let objectUrl: string | null = null;
+
+    const fetchAuthenticatedImage = async () => {
+      if (!imageDetail?.full_image_url) return;
+
+      try {
+        const { api } = await import('../api/client');
+        const response = await api.get(imageDetail.full_image_url, {
+          responseType: 'blob',
+        });
+
+        objectUrl = URL.createObjectURL(response.data);
+        setImageBlobUrl(objectUrl);
+      } catch (err) {
+        console.error('Failed to load authenticated full image:', err);
+      }
+    };
+
+    if (imageDetail) {
+      fetchAuthenticatedImage();
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      setImageBlobUrl(null);
+      setImageLoaded(false);
+    };
+  }, [imageDetail]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {
@@ -130,17 +165,25 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           {/* Image Display */}
           <div className="md:col-span-2">
             <div className="relative">
-              <img
-                ref={imageRef}
-                src={imageDetail.full_image_url}
-                alt={imageDetail.filename}
-                className="w-full h-auto rounded-lg"
-                onLoad={() => setImageLoaded(true)}
-              />
-              <canvas
-                ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              />
+              {imageBlobUrl ? (
+                <>
+                  <img
+                    ref={imageRef}
+                    src={imageBlobUrl}
+                    alt={imageDetail.filename}
+                    className="w-full h-auto rounded-lg"
+                    onLoad={() => setImageLoaded(true)}
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                  />
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              )}
             </div>
           </div>
 
