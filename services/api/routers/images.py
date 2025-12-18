@@ -4,10 +4,12 @@ Image endpoints for viewing camera trap images with detections and classificatio
 from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
+import io
 
 from shared.models import User, Image, Camera, Detection, Classification
 from shared.database import get_async_session
@@ -199,16 +201,8 @@ async def list_images(
                             max_confidence = classification.confidence
                             top_species = classification.species
 
-        # Generate thumbnail URL (presigned) - using raw image for now
-        thumbnail_url = None
-        if image.storage_path:
-            storage_parts = image.storage_path.split('/', 1)
-            if len(storage_parts) == 2:
-                bucket, object_name = storage_parts
-            else:
-                bucket = "raw-images"
-                object_name = image.storage_path
-            thumbnail_url = storage_client.get_presigned_url(bucket, object_name, expiration=3600)
+        # Generate thumbnail URL using the streaming endpoint
+        thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
 
         items.append(ImageListItemResponse(
             uuid=image.uuid,
@@ -321,3 +315,59 @@ async def get_image(
         full_image_url=full_image_url,
         detections=detections_response,
     )
+
+
+@router.get("/{uuid}/thumbnail")
+async def get_image_thumbnail(
+    uuid: str,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Stream image thumbnail directly from MinIO with authentication.
+
+    This endpoint fetches the image from MinIO and streams it to the client,
+    providing secure access without exposing presigned URLs.
+    """
+    # Fetch image record
+    query = select(Image).where(Image.uuid == uuid)
+    result = await db.execute(query)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    # Parse storage path
+    storage_parts = image.storage_path.split('/', 1)
+    if len(storage_parts) == 2:
+        bucket, object_name = storage_parts
+    else:
+        bucket = "raw-images"
+        object_name = image.storage_path
+
+    # Fetch image from MinIO
+    try:
+        storage_client = StorageClient()
+        image_data = storage_client.download_fileobj(bucket, object_name)
+
+        # Determine content type from filename
+        content_type = "image/jpeg"  # default
+        if image.filename.lower().endswith('.png'):
+            content_type = "image/png"
+        elif image.filename.lower().endswith('.gif'):
+            content_type = "image/gif"
+
+        # Return as streaming response
+        return StreamingResponse(
+            io.BytesIO(image_data),
+            media_type=content_type,
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch image: {str(e)}",
+        )
