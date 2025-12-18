@@ -88,29 +88,6 @@ class StorageClient:
         response = self.client.get_object(Bucket=bucket, Key=object_name)
         return response['Body'].read()
 
-    def get_presigned_url(self, bucket: str, object_name: str, expiration: int = 3600) -> str:
-        """
-        Generate public URL for object access.
-
-        Note: This generates a public URL without signatures since the raw-images
-        bucket is configured for public read access.
-
-        Args:
-            bucket: Bucket name
-            object_name: Object name
-            expiration: URL expiration in seconds (ignored, kept for API compatibility)
-
-        Returns:
-            Public URL
-        """
-        # Generate public URL without signatures
-        if settings.minio_public_endpoint:
-            # Use public endpoint (for browser access through nginx)
-            return f"{settings.minio_public_endpoint.rstrip('/')}/{bucket}/{object_name}"
-        else:
-            # Use internal endpoint
-            return f"http://{settings.minio_endpoint}/{bucket}/{object_name}"
-
     def delete_object(self, bucket: str, object_name: str) -> None:
         """
         Delete object from MinIO.
