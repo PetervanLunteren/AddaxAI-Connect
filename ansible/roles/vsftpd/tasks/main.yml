@@ -43,7 +43,13 @@
     state: directory
     owner: "{{ ftps_username | default('cameratrap') }}"
     group: "{{ ftps_username | default('cameratrap') }}"
-    mode: '0775'
+    mode: '2775'  # setgid bit ensures new files inherit group ownership
+
+- name: Set permissions recursively on existing subdirectories
+  shell: |
+    find "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}" -type d -exec chmod 2775 {} \;
+    find "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}" -type d -exec chown {{ ftps_username | default('cameratrap') }}:{{ ftps_username | default('cameratrap') }} {} \;
+  changed_when: false
 
 - name: Add ubuntu user to camera group for Docker access
   user:
