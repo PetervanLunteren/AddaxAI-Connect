@@ -90,41 +90,26 @@ class StorageClient:
 
     def get_presigned_url(self, bucket: str, object_name: str, expiration: int = 3600) -> str:
         """
-        Generate presigned URL for temporary access.
+        Generate public URL for object access.
+
+        Note: This generates a public URL without signatures since the raw-images
+        bucket is configured for public read access.
 
         Args:
             bucket: Bucket name
             object_name: Object name
-            expiration: URL expiration in seconds (default 1 hour)
+            expiration: URL expiration in seconds (ignored, kept for API compatibility)
 
         Returns:
-            Presigned URL
+            Public URL
         """
-        # Generate presigned URL with internal endpoint
-        url = self.client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': bucket, 'Key': object_name},
-            ExpiresIn=expiration
-        )
-
-        # Replace internal endpoint with public endpoint if configured
-        # The signature remains valid because nginx passes through the Host header
+        # Generate public URL without signatures
         if settings.minio_public_endpoint:
-            from urllib.parse import urlparse
-
-            # Parse the generated URL
-            parsed = urlparse(url)
-
-            # Extract path and query (includes signature)
-            path_and_query = parsed.path
-            if parsed.query:
-                path_and_query += '?' + parsed.query
-
-            # Build new URL with public endpoint
-            new_url = settings.minio_public_endpoint.rstrip('/') + path_and_query
-            return new_url
-
-        return url
+            # Use public endpoint (for browser access through nginx)
+            return f"{settings.minio_public_endpoint.rstrip('/')}/{bucket}/{object_name}"
+        else:
+            # Use internal endpoint
+            return f"http://{settings.minio_endpoint}/{bucket}/{object_name}"
 
     def delete_object(self, bucket: str, object_name: str) -> None:
         """
