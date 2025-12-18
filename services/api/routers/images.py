@@ -268,18 +268,8 @@ async def get_image(
 
     image, camera = row
 
-    # Generate presigned URL for full image
-    storage_client = StorageClient()
-    # storage_path format: "bucket/path/to/file.jpg" or just "path/to/file.jpg"
-    # Assume "raw-images" bucket if no bucket specified
-    storage_parts = image.storage_path.split('/', 1)
-    if len(storage_parts) == 2:
-        bucket, object_name = storage_parts
-    else:
-        bucket = "raw-images"
-        object_name = image.storage_path
-
-    full_image_url = storage_client.get_presigned_url(bucket, object_name, expiration=3600)
+    # Generate full image URL using the streaming endpoint
+    full_image_url = f"/api/images/{image.uuid}/full"
 
     # Build detections response
     detections_response = []
@@ -317,29 +307,23 @@ async def get_image(
     )
 
 
-@router.get("/{uuid}/thumbnail")
-async def get_image_thumbnail(
-    uuid: str,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
-):
+async def _stream_image_from_storage(
+    image: Image,
+    cache_max_age: int = 3600,
+) -> StreamingResponse:
     """
-    Stream image thumbnail directly from MinIO with authentication.
+    Internal helper to stream an image from MinIO storage.
 
-    This endpoint fetches the image from MinIO and streams it to the client,
-    providing secure access without exposing presigned URLs.
+    Args:
+        image: Image database record
+        cache_max_age: Cache-Control max-age in seconds
+
+    Returns:
+        StreamingResponse with image data
+
+    Raises:
+        HTTPException: If image cannot be fetched from storage
     """
-    # Fetch image record
-    query = select(Image).where(Image.uuid == uuid)
-    result = await db.execute(query)
-    image = result.scalar_one_or_none()
-
-    if not image:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Image not found",
-        )
-
     # Parse storage path
     storage_parts = image.storage_path.split('/', 1)
     if len(storage_parts) == 2:
@@ -360,14 +344,70 @@ async def get_image_thumbnail(
         elif image.filename.lower().endswith('.gif'):
             content_type = "image/gif"
 
-        # Return as streaming response
+        # Return as streaming response with caching
         return StreamingResponse(
             io.BytesIO(image_data),
             media_type=content_type,
-            headers={"Cache-Control": "public, max-age=3600"}
+            headers={
+                "Cache-Control": f"private, max-age={cache_max_age}",
+                "ETag": f'"{image.uuid}"',
+            }
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch image: {str(e)}",
         )
+
+
+@router.get("/{uuid}/thumbnail")
+async def get_image_thumbnail(
+    uuid: str,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Stream image thumbnail directly from MinIO with authentication.
+
+    This endpoint fetches the image from MinIO and streams it to the client,
+    providing secure access without presigned URLs. Includes 1-hour cache.
+    """
+    # Fetch image record
+    query = select(Image).where(Image.uuid == uuid)
+    result = await db.execute(query)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    return await _stream_image_from_storage(image, cache_max_age=3600)
+
+
+@router.get("/{uuid}/full")
+async def get_image_full(
+    uuid: str,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Stream full-size image directly from MinIO with authentication.
+
+    This endpoint fetches the full-resolution image from MinIO and streams it
+    to the client with JWT authentication. Includes 24-hour cache to reduce
+    server load while maintaining security.
+    """
+    # Fetch image record
+    query = select(Image).where(Image.uuid == uuid)
+    result = await db.execute(query)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    return await _stream_image_from_storage(image, cache_max_age=86400)
