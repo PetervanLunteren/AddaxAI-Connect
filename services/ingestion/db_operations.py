@@ -106,6 +106,7 @@ def create_image_record(
     camera_id: int,
     filename: str,
     storage_path: str,
+    thumbnail_path: str,
     datetime_original: datetime,
     gps_location: Optional[Tuple[float, float]],
     exif_metadata: dict
@@ -117,6 +118,7 @@ def create_image_record(
         camera_id: Database ID of camera
         filename: Image filename
         storage_path: Path in MinIO (e.g., "WUH09/2025/12/image.jpg")
+        thumbnail_path: Path to thumbnail in MinIO (e.g., "WUH09/2025/12/image.jpg")
         datetime_original: Image capture datetime
         gps_location: (latitude, longitude) or None
         exif_metadata: Full EXIF data dictionary
@@ -140,6 +142,7 @@ def create_image_record(
             filename=filename,
             camera_id=camera_id,
             storage_path=storage_path,
+            thumbnail_path=thumbnail_path,
             status="pending",  # Will be updated by detection worker
             image_metadata=exif_metadata  # Store full EXIF as JSON
         )
@@ -159,7 +162,8 @@ def create_image_record(
             image_uuid=image_uuid,
             camera_id=camera_id,
             file_name=filename,
-            has_gps=bool(gps_location)
+            has_gps=bool(gps_location),
+            has_thumbnail=bool(thumbnail_path)
         )
 
         return image_uuid

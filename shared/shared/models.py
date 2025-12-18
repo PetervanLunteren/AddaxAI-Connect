@@ -23,6 +23,7 @@ class Image(Base):
     camera_id = Column(Integer, ForeignKey("cameras.id"), nullable=False, index=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     storage_path = Column(String(512), nullable=False)
+    thumbnail_path = Column(String(512), nullable=True)  # Path to thumbnail in MinIO
     status = Column(String(50), nullable=False, default="pending", index=True)
     image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
@@ -54,7 +55,6 @@ class Detection(Base):
     category = Column(String(50), nullable=True, index=True)  # animal, person, vehicle
     bbox = Column(JSON, nullable=False)  # {x, y, width, height}
     confidence = Column(Float, nullable=False)
-    crop_path = Column(String(512), nullable=False)
 
     # Relationships
     image = relationship("Image", back_populates="detections")

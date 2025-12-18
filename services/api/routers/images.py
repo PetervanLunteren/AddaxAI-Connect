@@ -46,7 +46,6 @@ class DetectionResponse(BaseModel):
     category: str
     bbox: dict  # {x, y, width, height}
     confidence: float
-    crop_path: str
     classifications: List[ClassificationResponse]
 
     class Config:
@@ -288,7 +287,6 @@ async def get_image(
             category=detection.category,
             bbox=detection.bbox,
             confidence=detection.confidence,
-            crop_path=detection.crop_path,
             classifications=classifications_response,
         ))
 
@@ -309,6 +307,7 @@ async def get_image(
 
 async def _stream_image_from_storage(
     image: Image,
+    use_thumbnail: bool = False,
     cache_max_age: int = 3600,
 ) -> StreamingResponse:
     """
@@ -316,6 +315,7 @@ async def _stream_image_from_storage(
 
     Args:
         image: Image database record
+        use_thumbnail: If True, stream thumbnail instead of full image
         cache_max_age: Cache-Control max-age in seconds
 
     Returns:
@@ -324,10 +324,14 @@ async def _stream_image_from_storage(
     Raises:
         HTTPException: If image cannot be fetched from storage
     """
-    # Images are always stored in the raw-images bucket
-    # storage_path format: "camera_id/year/month/filename"
-    bucket = "raw-images"
-    object_name = image.storage_path
+    # Determine bucket and object path
+    if use_thumbnail and image.thumbnail_path:
+        bucket = "thumbnails"
+        object_name = image.thumbnail_path
+    else:
+        # Fall back to full image if no thumbnail or use_thumbnail=False
+        bucket = "raw-images"
+        object_name = image.storage_path
 
     # Fetch image from MinIO
     try:
@@ -366,8 +370,8 @@ async def get_image_thumbnail(
     """
     Stream image thumbnail directly from MinIO with authentication.
 
-    This endpoint fetches the image from MinIO and streams it to the client,
-    providing secure access without presigned URLs. Includes 1-hour cache.
+    Returns the pre-generated 300px thumbnail if available, otherwise falls back
+    to the full-size image. Includes 1-hour cache for faster grid loading.
     """
     # Fetch image record
     query = select(Image).where(Image.uuid == uuid)
@@ -380,7 +384,7 @@ async def get_image_thumbnail(
             detail="Image not found",
         )
 
-    return await _stream_image_from_storage(image, cache_max_age=3600)
+    return await _stream_image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
 
 
 @router.get("/{uuid}/full")

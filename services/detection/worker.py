@@ -12,8 +12,7 @@ from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED, QUEUE_DETECTION_COMPL
 from config import get_settings
 from model_loader import load_model
 from detector import run_detection
-from cropper import crop_detection, generate_crop_filename
-from storage_operations import download_image_from_minio, upload_crop_to_minio
+from storage_operations import download_image_from_minio
 from db_operations import update_image_status, insert_detections
 
 logger = get_logger("detection")
@@ -69,7 +68,7 @@ def process_image(message: dict, detector) -> None:
 
         # If no detections, update status and publish message
         if len(detections) == 0:
-            logger.info("No detections found, skipping crop generation", image_uuid=image_uuid)
+            logger.info("No detections found", image_uuid=image_uuid)
             update_image_status(image_uuid, "detected")
 
             # Publish to next queue (classification will handle empty detections)
@@ -83,44 +82,18 @@ def process_image(message: dict, detector) -> None:
             logger.info("Image processing complete (no detections)", image_uuid=image_uuid)
             return
 
-        # Step 4: Generate and upload crops
-        crop_paths = []
-        for idx, detection in enumerate(detections):
-            # Generate crop filename
-            crop_filename = generate_crop_filename(image_uuid, idx)
+        # Step 4: Insert detections into database
+        detection_ids = insert_detections(image_uuid, detections)
 
-            # Create temporary crop file
-            temp_crop = NamedTemporaryFile(delete=False, suffix=".jpg")
-            temp_crop_path = temp_crop.name
-            temp_crop.close()
-            temp_files.append(temp_crop_path)
-
-            # Crop detection
-            crop_detection(image_path, detection, temp_crop_path)
-
-            # Upload to MinIO
-            crop_storage_path = upload_crop_to_minio(temp_crop_path, crop_filename)
-            crop_paths.append(crop_storage_path)
-
-        logger.info(
-            "Crops generated and uploaded",
-            image_uuid=image_uuid,
-            num_crops=len(crop_paths)
-        )
-
-        # Step 5: Insert detections into database
-        detection_ids = insert_detections(image_uuid, detections, crop_paths)
-
-        # Step 6: Update image status to detected
+        # Step 5: Update image status to detected
         update_image_status(image_uuid, "detected")
 
-        # Step 7: Publish to detection-complete queue
+        # Step 6: Publish to detection-complete queue
         queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
         queue.publish({
             "image_uuid": image_uuid,
             "num_detections": len(detections),
-            "detection_ids": detection_ids,
-            "crop_paths": crop_paths
+            "detection_ids": detection_ids
         })
 
         logger.info(
