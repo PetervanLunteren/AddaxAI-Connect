@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification
 from shared.database import get_async_session
-from shared.storage import MinIOClient
+from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_active_user
 
@@ -180,7 +180,7 @@ async def list_images(
     rows = result.all()
 
     # Build response items
-    minio_client = MinIOClient()
+    storage_client = StorageClient()
     items = []
 
     for image, camera in rows:
@@ -268,8 +268,17 @@ async def get_image(
     image, camera = row
 
     # Generate presigned URL for full image
-    minio_client = MinIOClient()
-    full_image_url = minio_client.get_presigned_url(image.storage_path, expires=3600)
+    storage_client = StorageClient()
+    # storage_path format: "bucket/path/to/file.jpg" or just "path/to/file.jpg"
+    # Assume "raw-images" bucket if no bucket specified
+    storage_parts = image.storage_path.split('/', 1)
+    if len(storage_parts) == 2:
+        bucket, object_name = storage_parts
+    else:
+        bucket = "raw-images"
+        object_name = image.storage_path
+
+    full_image_url = storage_client.get_presigned_url(bucket, object_name, expiration=3600)
 
     # Build detections response
     detections_response = []
