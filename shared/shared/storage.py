@@ -100,13 +100,30 @@ class StorageClient:
         Returns:
             Presigned URL
         """
-        # Generate presigned URL
-        # If MINIO_SERVER_URL is set in MinIO container, it will use that as the base URL
+        # Generate presigned URL with internal endpoint
         url = self.client.generate_presigned_url(
             'get_object',
             Params={'Bucket': bucket, 'Key': object_name},
             ExpiresIn=expiration
         )
+
+        # Replace internal endpoint with public endpoint if configured
+        # The signature remains valid because nginx passes through the Host header
+        if settings.minio_public_endpoint:
+            from urllib.parse import urlparse
+
+            # Parse the generated URL
+            parsed = urlparse(url)
+
+            # Extract path and query (includes signature)
+            path_and_query = parsed.path
+            if parsed.query:
+                path_and_query += '?' + parsed.query
+
+            # Build new URL with public endpoint
+            new_url = settings.minio_public_endpoint.rstrip('/') + path_and_query
+            return new_url
+
         return url
 
     def delete_object(self, bucket: str, object_name: str) -> None:
