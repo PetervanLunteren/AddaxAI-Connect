@@ -20,7 +20,7 @@
 
 - name: Create FTPS user for camera trap uploads
   user:
-    name: "{{ ftps_username | default('cameratrap') }}"
+    name: "{{ ftps_username | default('camera') }}"
     shell: /bin/bash
     home: "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}"
     create_home: yes
@@ -41,20 +41,20 @@
   file:
     path: "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}"
     state: directory
-    owner: "{{ ftps_username | default('cameratrap') }}"
-    group: "{{ ftps_username | default('cameratrap') }}"
+    owner: "{{ ftps_username | default('camera') }}"
+    group: "{{ ftps_username | default('camera') }}"
     mode: '2775'  # setgid bit ensures new files inherit group ownership
 
 - name: Set permissions recursively on existing subdirectories
   shell: |
     find "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}" -type d -exec chmod 2775 {} \;
-    find "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}" -type d -exec chown {{ ftps_username | default('cameratrap') }}:{{ ftps_username | default('cameratrap') }} {} \;
+    find "{{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}" -type d -exec chown {{ ftps_username | default('camera') }}:{{ ftps_username | default('camera') }} {} \;
   changed_when: false
 
 - name: Add ubuntu user to camera group for Docker access
   user:
     name: "{{ app_user | default('ubuntu') }}"
-    groups: "{{ ftps_username | default('cameratrap') }}"
+    groups: "{{ ftps_username | default('camera') }}"
     append: yes
 
 - name: Check if Let's Encrypt certificate exists
@@ -121,7 +121,7 @@
 - name: Create vsftpd user list
   lineinfile:
     path: /etc/vsftpd.userlist
-    line: "{{ ftps_username | default('cameratrap') }}"
+    line: "{{ ftps_username | default('camera') }}"
     create: yes
     owner: root
     group: root
@@ -141,8 +141,8 @@
       ========================================
       Host: {{ ansible_host }}
       Port: 21 (FTP), 990 (FTPS)
-      Username: {{ ftps_username | default('cameratrap') }}
+      Username: {{ ftps_username | default('camera') }}
       Upload directory: {{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}
 
-      Connect with: ftp://{{ ftps_username | default('cameratrap') }}@{{ ansible_host }}
+      Connect with: ftp://{{ ftps_username | default('camera') }}@{{ ansible_host }}
       Use FTPS (explicit TLS) for secure connection.

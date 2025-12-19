@@ -93,7 +93,7 @@
     state: directory
     owner: "{{ ftps_username | default('camera') }}"
     group: "{{ ftps_username | default('camera') }}"
-    mode: '0755'
+    mode: '2775'  # setgid bit + group write permissions for ubuntu user
     recurse: yes
   when: ftps_username is defined
 

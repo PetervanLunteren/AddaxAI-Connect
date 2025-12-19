@@ -107,14 +107,22 @@ def process_image(filepath: str) -> None:
         logger.info("Camera profile identified", file_name=filename, profile=profile.name)
 
         # Step 4: Extract camera ID
-        camera_id = profile.get_camera_id(exif, filename)
-        if not camera_id:
+        camera_id_result = profile.get_camera_id(exif, filename)
+        if not camera_id_result:
             reject_file(
                 filepath,
                 "missing_camera_id",
                 f"Could not extract camera ID for profile {profile.name}"
             )
             return
+
+        # Handle tuple return (friendly_name, serial_number) from SY cameras
+        if isinstance(camera_id_result, tuple):
+            friendly_name, serial_number = camera_id_result
+            camera_id_for_storage = friendly_name  # Use friendly name for MinIO paths
+        else:
+            camera_id_for_storage = camera_id_result
+            friendly_name = camera_id_result
 
         # Step 5: Get datetime (with fallback for SY cameras)
         try:
@@ -128,14 +136,14 @@ def process_image(filepath: str) -> None:
             return
 
         # Step 6: Get or create camera (returns database ID)
-        camera_db_id = get_or_create_camera(camera_id, profile)
+        camera_db_id = get_or_create_camera(camera_id_result, profile)
 
         # Step 7: Check for duplicates
         if check_duplicate_image(camera_db_id, filename, datetime_original):
             reject_file(
                 filepath,
                 "duplicate",
-                f"Image already exists: camera={camera_id}, file={filename}, datetime={datetime_original}"
+                f"Image already exists: camera={friendly_name}, file={filename}, datetime={datetime_original}"
             )
             return
 
@@ -143,10 +151,10 @@ def process_image(filepath: str) -> None:
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
         # Step 9: Upload to MinIO
-        storage_path = upload_image_to_minio(filepath, camera_id)
+        storage_path = upload_image_to_minio(filepath, camera_id_for_storage)
 
         # Step 10: Generate and upload thumbnail
-        thumbnail_path = generate_and_upload_thumbnail(filepath, camera_id)
+        thumbnail_path = generate_and_upload_thumbnail(filepath, camera_id_for_storage)
 
         # Step 11: Create database record (returns image UUID)
         image_uuid = create_image_record(
@@ -173,7 +181,7 @@ def process_image(filepath: str) -> None:
         logger.info(
             "Image ingestion complete",
             image_uuid=image_uuid,
-            camera_id=camera_id,
+            camera_id=friendly_name,
             file_name=filename,
             queued=True
         )

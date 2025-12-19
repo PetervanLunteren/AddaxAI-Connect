@@ -42,6 +42,36 @@ class Camera(Base):
     installed_at = Column(DateTime(timezone=True), nullable=True)
     config = Column(JSON)
 
+    # Identifiers (from camera management migration)
+    serial_number = Column(String(50), nullable=True, index=True, unique=True)
+    imei = Column(String(50), nullable=True, index=True, unique=True)
+    manufacturer = Column(String(100), nullable=True, index=True)
+    model = Column(String(100), nullable=True, index=True)
+    hardware_revision = Column(String(50), nullable=True)
+
+    # Project assignment
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
+    status = Column(String(50), nullable=False, server_default='inventory', index=True)
+
+    # Health metrics (from daily reports)
+    battery_percent = Column(Integer, nullable=True)
+    sd_used_mb = Column(Integer, nullable=True)
+    sd_total_mb = Column(Integer, nullable=True)
+    temperature_c = Column(Integer, nullable=True)
+    signal_quality = Column(Integer, nullable=True)
+
+    # Timestamps
+    last_seen = Column(DateTime(timezone=True), nullable=True, index=True)
+    last_daily_report_at = Column(DateTime(timezone=True), nullable=True)
+    last_image_at = Column(DateTime(timezone=True), nullable=True)
+    last_maintenance_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Metadata
+    tags = Column(JSON, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
     # Relationships
     images = relationship("Image", back_populates="camera")
 
