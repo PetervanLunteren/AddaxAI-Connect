@@ -9,9 +9,9 @@ from typing import Callable, Optional, Tuple
 import re
 
 
-# SY Camera Serial Number Mapping
+# Willfine-2024 Camera Serial Number Mapping
 # Maps friendly names (with prefix) to serial numbers (IMEI)
-SY_SERIAL_MAPPING = {
+WILLFINE_2024_SERIAL_MAPPING = {
     '0000000WUH01': '860946063666658',
     '0000000WUH02': '860946063362308',
     '0000000WUH03': '860946063655883',
@@ -72,15 +72,15 @@ class CameraProfile:
         return make_matches and model_matches
 
 
-def extract_willfine_camera_id(exif: dict, filename: str) -> Optional[str]:
+def extract_willfine_2025_camera_id(exif: dict, filename: str) -> Optional[str]:
     """
-    Extract camera ID from Willfine cameras.
+    Extract camera ID from Willfine-2025 cameras.
 
-    Willfine cameras embed SerialNumber in EXIF metadata.
+    Willfine-2025 cameras embed SerialNumber in EXIF metadata.
 
     Args:
         exif: EXIF metadata dictionary
-        filename: Image filename (unused for Willfine)
+        filename: Image filename (unused for Willfine-2025)
 
     Returns:
         Serial number as string, or None if not found
@@ -89,17 +89,17 @@ def extract_willfine_camera_id(exif: dict, filename: str) -> Optional[str]:
     return str(serial) if serial else None
 
 
-def extract_sy_camera_id(exif: dict, filename: str) -> Optional[Tuple[str, str]]:
+def extract_willfine_2024_camera_id(exif: dict, filename: str) -> Optional[Tuple[str, str]]:
     """
-    Extract camera ID and serial number from SY cameras.
+    Extract camera ID and serial number from Willfine-2024 cameras.
 
-    SY cameras don't have SerialNumber in EXIF, so extract from filename.
+    Willfine-2024 cameras don't have SerialNumber in EXIF, so extract from filename.
     Filename pattern: 0000000WUH09-SYPR1113.JPG
     Camera ID: WUH09
-    Serial number: Looked up from SY_SERIAL_MAPPING
+    Serial number: Looked up from WILLFINE_2024_SERIAL_MAPPING
 
     Args:
-        exif: EXIF metadata dictionary (unused for SY)
+        exif: EXIF metadata dictionary (unused for Willfine-2024)
         filename: Image filename
 
     Returns:
@@ -120,32 +120,32 @@ def extract_sy_camera_id(exif: dict, filename: str) -> Optional[Tuple[str, str]]
     full_key = f'0000000{friendly_name}'  # e.g., '0000000WUH09'
 
     # Look up serial number
-    serial_number = SY_SERIAL_MAPPING.get(full_key)
+    serial_number = WILLFINE_2024_SERIAL_MAPPING.get(full_key)
     if not serial_number:
         raise ValueError(
-            f"Unknown SY camera: {friendly_name}. "
+            f"Unknown Willfine-2024 camera: {friendly_name}. "
             f"Camera not found in serial number mapping. "
-            f"Please add {full_key} to SY_SERIAL_MAPPING."
+            f"Please add {full_key} to WILLFINE_2024_SERIAL_MAPPING."
         )
 
     return (friendly_name, serial_number)
 
 
 # Camera profile definitions
-WILLFINE_PROFILE = CameraProfile(
-    name="Willfine 4G Camera",
+WILLFINE_2025_PROFILE = CameraProfile(
+    name="Willfine-2025",
     make_pattern=r"Willfine",
     model_pattern=r"4\.0T CG",
-    get_camera_id=extract_willfine_camera_id,
+    get_camera_id=extract_willfine_2025_camera_id,
     requires_datetime=True,
     requires_gps=False,
 )
 
-SY_PROFILE = CameraProfile(
-    name="SY 4.0PCG Camera",
+WILLFINE_2024_PROFILE = CameraProfile(
+    name="Willfine-2024",
     make_pattern=r"SY",
     model_pattern=r"4\.0PCG",
-    get_camera_id=extract_sy_camera_id,
+    get_camera_id=extract_willfine_2024_camera_id,
     requires_datetime=True,  # DateTimeOriginal now required
     requires_gps=False,
 )
@@ -153,8 +153,8 @@ SY_PROFILE = CameraProfile(
 # Registry of all supported camera profiles
 # Order matters: first match wins
 CAMERA_PROFILES = [
-    WILLFINE_PROFILE,
-    SY_PROFILE,
+    WILLFINE_2025_PROFILE,
+    WILLFINE_2024_PROFILE,
 ]
 
 
