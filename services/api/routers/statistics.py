@@ -43,6 +43,11 @@ class CameraActivitySummary(BaseModel):
     never_reported: int
 
 
+class LastUpdateResponse(BaseModel):
+    """Last update timestamp"""
+    last_update: str | None  # ISO timestamp or null
+
+
 @router.get(
     "/overview",
     response_model=StatisticsOverview,
@@ -235,4 +240,38 @@ async def get_camera_activity(
         active=active_count,
         inactive=inactive_count,
         never_reported=never_reported_count,
+    )
+
+
+@router.get(
+    "/last-update",
+    response_model=LastUpdateResponse,
+)
+async def get_last_update(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Get timestamp of most recently classified image
+
+    Args:
+        db: Database session
+        current_user: Current authenticated user
+
+    Returns:
+        Last update timestamp or null if no images exist
+    """
+    # Query most recent classified image
+    query = (
+        select(Image.uploaded_at)
+        .where(Image.status == "classified")
+        .order_by(desc(Image.uploaded_at))
+        .limit(1)
+    )
+
+    result = await db.execute(query)
+    last_update = result.scalar_one_or_none()
+
+    return LastUpdateResponse(
+        last_update=last_update.isoformat() if last_update else None
     )

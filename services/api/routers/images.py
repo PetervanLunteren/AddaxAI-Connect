@@ -127,7 +127,10 @@ async def list_images(
         Paginated list of images with detection summaries
     """
     # Build query filters
-    filters = []
+    filters = [
+        # Only show images that have completed ML processing
+        Image.status == "classified"
+    ]
 
     if camera_id:
         filters.append(Image.camera_id == camera_id)

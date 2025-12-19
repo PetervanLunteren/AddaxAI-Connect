@@ -2,7 +2,7 @@
  * Statistics API endpoints
  */
 import apiClient from './client';
-import type { StatisticsOverview, TimelineDataPoint, SpeciesCount, CameraActivitySummary } from './types';
+import type { StatisticsOverview, TimelineDataPoint, SpeciesCount, CameraActivitySummary, LastUpdateResponse } from './types';
 
 export const statisticsApi = {
   /**
@@ -34,6 +34,14 @@ export const statisticsApi = {
    */
   getCameraActivity: async (): Promise<CameraActivitySummary> => {
     const response = await apiClient.get<CameraActivitySummary>('/api/statistics/camera-activity');
+    return response.data;
+  },
+
+  /**
+   * Get last update timestamp
+   */
+  getLastUpdate: async (): Promise<LastUpdateResponse> => {
+    const response = await apiClient.get<LastUpdateResponse>('/api/statistics/last-update');
     return response.data;
   },
 };

@@ -7,6 +7,7 @@ import { Camera, LayoutDashboard, Images, Settings, Info, LogOut, X, Menu } from
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
+import { LastUpdate } from '../LastUpdate';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -83,6 +84,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
         </nav>
+
+        {/* Last Update Widget */}
+        <LastUpdate />
 
         {/* User info and logout */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-card">
