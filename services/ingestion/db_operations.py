@@ -15,29 +15,54 @@ from camera_profiles import CameraProfile
 logger = get_logger("ingestion")
 
 
-def get_or_create_camera(camera_id: str, profile: CameraProfile) -> int:
+def get_or_create_camera(
+    camera_id: str | tuple[str, str],
+    profile: CameraProfile
+) -> int:
     """
     Get camera by ID, or create if doesn't exist.
 
     Args:
-        camera_id: Unique camera identifier (SerialNumber or extracted ID)
+        camera_id: Either a string (camera identifier) or tuple of (friendly_name, serial_number)
         profile: Camera profile (for logging camera model)
 
     Returns:
         Database ID of camera (integer)
     """
+    # Handle tuple input (friendly_name, serial_number) from SY cameras
+    if isinstance(camera_id, tuple):
+        friendly_name, serial_number = camera_id
+        lookup_field = 'serial_number'
+        lookup_value = serial_number
+    else:
+        friendly_name = camera_id
+        serial_number = None
+        lookup_field = 'name'
+        lookup_value = camera_id
+
     with get_db_session() as session:
-        # Check if camera exists
-        camera = session.query(Camera).filter_by(name=camera_id).first()
+        # Check if camera exists (by serial_number or name)
+        if lookup_field == 'serial_number':
+            camera = session.query(Camera).filter_by(serial_number=lookup_value).first()
+        else:
+            camera = session.query(Camera).filter_by(name=lookup_value).first()
 
         if camera:
             db_id = camera.id  # Access ID before session closes
-            logger.debug("Found existing camera", camera_id=camera_id, db_id=db_id)
+            logger.debug(
+                "Found existing camera",
+                camera_id=friendly_name,
+                serial_number=serial_number,
+                db_id=db_id
+            )
             return db_id
 
         # Create new camera
         camera = Camera(
-            name=camera_id,
+            name=friendly_name,
+            serial_number=serial_number,
+            manufacturer=profile.make_pattern if profile.make_pattern else None,
+            model=profile.model_pattern if profile.model_pattern else None,
             location=None,  # Will be updated from GPS data
             config={'profile': profile.name}
         )
@@ -48,7 +73,8 @@ def get_or_create_camera(camera_id: str, profile: CameraProfile) -> int:
 
         logger.info(
             "Auto-created camera",
-            camera_id=camera_id,
+            camera_id=friendly_name,
+            serial_number=serial_number,
             profile=profile.name,
             db_id=db_id
         )
