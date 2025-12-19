@@ -96,3 +96,7 @@ export interface CameraActivitySummary {
   inactive: number;
   never_reported: number;
 }
+
+export interface LastUpdateResponse {
+  last_update: string | null;
+}
