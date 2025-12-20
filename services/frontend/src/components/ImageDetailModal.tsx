@@ -188,13 +188,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   };
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} maxWidth="max-w-7xl">
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : imageDetail ? (
-        <div className="grid md:grid-cols-3 gap-6">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <div className="bg-background p-6 rounded-lg shadow-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : imageDetail ? (
+          <div className="grid md:grid-cols-3 gap-6">
           {/* Image Display */}
           <div className="md:col-span-2">
             <div className="relative">
@@ -322,11 +323,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             </div>
           </div>
         </div>
-      ) : (
-        <div className="py-12 text-center">
-          <p className="text-muted-foreground">Image not found</p>
-        </div>
-      )}
+        ) : (
+          <div className="py-12 text-center">
+            <p className="text-muted-foreground">Image not found</p>
+          </div>
+        )}
+      </div>
     </Dialog>
   );
 };
