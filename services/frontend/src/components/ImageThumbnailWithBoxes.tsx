@@ -57,6 +57,9 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     canvas.width = rect.width;
     canvas.height = rect.height;
 
+    console.log('Canvas dimensions:', { width: canvas.width, height: canvas.height });
+    console.log('Original image dimensions:', { width: imageWidth, height: imageHeight });
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -64,15 +67,25 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     const scaleX = canvas.width / imageWidth;
     const scaleY = canvas.height / imageHeight;
 
+    console.log('Scale factors:', { scaleX, scaleY });
+
     // Draw each detection bounding box
     detections.forEach((detection, index) => {
       const bbox = detection.bbox;
+
+      console.log(`Detection ${index}:`, {
+        category: detection.category,
+        confidence: detection.confidence,
+        bbox,
+      });
 
       // Scale bbox coordinates from original image size to thumbnail size
       const x = bbox.x * scaleX;
       const y = bbox.y * scaleY;
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
+
+      console.log(`  Scaled bbox:`, { x, y, width, height });
 
       // Generate a color based on detection index
       const hue = (index * 137.5) % 360; // Golden angle for good distribution
