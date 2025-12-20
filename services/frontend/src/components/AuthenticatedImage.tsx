@@ -4,7 +4,7 @@
  * Regular <img> tags can't send Authorization headers, so we fetch
  * the image with credentials and create a blob URL to display it.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, forwardRef } from 'react';
 import apiClient from '../api/client';
 
 interface AuthenticatedImageProps {
@@ -12,17 +12,14 @@ interface AuthenticatedImageProps {
   alt: string;
   className?: string;
   fallback?: React.ReactNode;
+  onLoad?: () => void;
 }
 
-export const AuthenticatedImage: React.FC<AuthenticatedImageProps> = ({
-  src,
-  alt,
-  className,
-  fallback,
-}) => {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+export const AuthenticatedImage = forwardRef<HTMLImageElement, AuthenticatedImageProps>(
+  ({ src, alt, className, fallback, onLoad }, ref) => {
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -68,15 +65,18 @@ export const AuthenticatedImage: React.FC<AuthenticatedImageProps> = ({
     );
   }
 
-  if (error || !blobUrl) {
-    return fallback ? (
-      <>{fallback}</>
-    ) : (
-      <div className={`flex items-center justify-center bg-muted ${className}`}>
-        <div className="text-muted-foreground text-sm">Failed to load image</div>
-      </div>
-    );
-  }
+    if (error || !blobUrl) {
+      return fallback ? (
+        <>{fallback}</>
+      ) : (
+        <div className={`flex items-center justify-center bg-muted ${className}`}>
+          <div className="text-muted-foreground text-sm">Failed to load image</div>
+        </div>
+      );
+    }
 
-  return <img src={blobUrl} alt={alt} className={className} />;
-};
+    return <img ref={ref} src={blobUrl} alt={alt} className={className} onLoad={onLoad} />;
+  }
+);
+
+AuthenticatedImage.displayName = 'AuthenticatedImage';

@@ -28,6 +28,9 @@ export interface ImageListItem {
   top_species: string | null;
   max_confidence: number | null;
   thumbnail_url: string | null;
+  detections: Detection[];
+  image_width: number | null;
+  image_height: number | null;
 }
 
 export interface BoundingBox {

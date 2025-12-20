@@ -64,6 +64,9 @@ class ImageListItemResponse(BaseModel):
     top_species: Optional[str] = None
     max_confidence: Optional[float] = None
     thumbnail_url: Optional[str] = None
+    detections: List[DetectionResponse] = []
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -206,6 +209,33 @@ async def list_images(
         # Generate thumbnail URL using the streaming endpoint
         thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
 
+        # Build detections response
+        detections_response = []
+        for detection in image.detections:
+            classifications_response = [
+                ClassificationResponse(
+                    id=cls.id,
+                    species=cls.species,
+                    confidence=cls.confidence,
+                )
+                for cls in detection.classifications
+            ]
+
+            detections_response.append(DetectionResponse(
+                id=detection.id,
+                category=detection.category,
+                bbox=detection.bbox,
+                confidence=detection.confidence,
+                classifications=classifications_response,
+            ))
+
+        # Get image dimensions from metadata
+        image_width = None
+        image_height = None
+        if image.image_metadata:
+            image_width = image.image_metadata.get('width')
+            image_height = image.image_metadata.get('height')
+
         items.append(ImageListItemResponse(
             uuid=image.uuid,
             filename=image.filename,
@@ -217,6 +247,9 @@ async def list_images(
             top_species=top_species,
             max_confidence=max_confidence,
             thumbnail_url=thumbnail_url,
+            detections=detections_response,
+            image_width=image_width,
+            image_height=image_height,
         ))
 
     return PaginatedImagesResponse(
