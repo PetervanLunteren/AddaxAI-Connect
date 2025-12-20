@@ -66,6 +66,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   // Draw bounding boxes on canvas
   useEffect(() => {
+    console.log('ImageDetailModal draw effect:', {
+      hasImageDetail: !!imageDetail,
+      imageLoaded,
+      hasCanvas: !!canvasRef.current,
+      hasImage: !!imageRef.current,
+    });
+
     if (!imageDetail || !imageLoaded || !canvasRef.current || !imageRef.current) return;
 
     const canvas = canvasRef.current;
@@ -86,19 +93,37 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     const naturalWidth = img.naturalWidth;
     const naturalHeight = img.naturalHeight;
 
+    console.log('Modal image dimensions:', {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      naturalWidth,
+      naturalHeight,
+      detectionsCount: imageDetail.detections.length,
+    });
+
     // Calculate scale factors
     const scaleX = canvas.width / naturalWidth;
     const scaleY = canvas.height / naturalHeight;
 
+    console.log('Modal scale factors:', { scaleX, scaleY });
+
     // Draw each detection bounding box
     imageDetail.detections.forEach((detection, index) => {
       const bbox = detection.bbox;
+
+      console.log(`Modal detection ${index}:`, {
+        category: detection.category,
+        bbox,
+        confidence: detection.confidence,
+      });
 
       // Scale bbox coordinates from natural image size to canvas size
       const x = bbox.x * scaleX;
       const y = bbox.y * scaleY;
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
+
+      console.log(`  Modal scaled bbox:`, { x, y, width, height });
 
       // Generate a color based on detection index
       const hue = (index * 137.5) % 360; // Golden angle for good distribution
