@@ -24,13 +24,27 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
   className = '',
   fallback,
 }) => {
+  console.log('ImageThumbnailWithBoxes render:', {
+    alt,
+    thumbnailUrl,
+    detectionsCount: detections.length,
+    detections,
+    imageWidth,
+    imageHeight,
+  });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
+  // Reset imageLoaded when thumbnailUrl changes
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [thumbnailUrl]);
+
   // Draw bounding boxes on canvas
   useEffect(() => {
     console.log('ImageThumbnailWithBoxes useEffect:', {
+      alt,
       imageLoaded,
       hasCanvas: !!canvasRef.current,
       hasImage: !!imageRef.current,
@@ -39,6 +53,14 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       detectionsCount: detections.length,
       detections,
     });
+
+    // Always clear canvas first, even if we're not drawing
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
 
     if (!imageLoaded || !canvasRef.current || !imageRef.current || !imageWidth || !imageHeight) {
       return;
@@ -117,7 +139,7 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
         ctx.fillText(text, x + 2, y - 4);
       }
     });
-  }, [imageLoaded, detections, imageWidth, imageHeight]);
+  }, [imageLoaded, detections, imageWidth, imageHeight, alt, thumbnailUrl]);
 
   return (
     <div className="relative w-full h-full">
