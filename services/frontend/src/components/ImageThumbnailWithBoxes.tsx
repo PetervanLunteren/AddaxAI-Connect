@@ -30,6 +30,16 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
 
   // Draw bounding boxes on canvas
   useEffect(() => {
+    console.log('ImageThumbnailWithBoxes useEffect:', {
+      imageLoaded,
+      hasCanvas: !!canvasRef.current,
+      hasImage: !!imageRef.current,
+      imageWidth,
+      imageHeight,
+      detectionsCount: detections.length,
+      detections,
+    });
+
     if (!imageLoaded || !canvasRef.current || !imageRef.current || !imageWidth || !imageHeight) {
       return;
     }
@@ -39,6 +49,8 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     const img = imageRef.current;
 
     if (!ctx) return;
+
+    console.log('Drawing bounding boxes:', detections.length);
 
     // Set canvas size to match image display size
     const rect = img.getBoundingClientRect();
