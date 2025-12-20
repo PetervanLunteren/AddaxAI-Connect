@@ -9,7 +9,7 @@ import { Button } from '../components/ui/Button';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
 import { ImageDetailModal } from '../components/ImageDetailModal';
-import { AuthenticatedImage } from '../components/AuthenticatedImage';
+import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
 import type { ImageListItem } from '../api/types';
 
 export const ImagesPage: React.FC = () => {
@@ -190,9 +190,12 @@ export const ImagesPage: React.FC = () => {
               >
                 <div className="aspect-video bg-muted relative overflow-hidden">
                   {image.thumbnail_url ? (
-                    <AuthenticatedImage
-                      src={image.thumbnail_url}
+                    <ImageThumbnailWithBoxes
+                      thumbnailUrl={image.thumbnail_url}
                       alt={image.filename}
+                      detections={image.detections}
+                      imageWidth={image.image_width}
+                      imageHeight={image.image_height}
                       className="w-full h-full object-cover"
                       fallback={
                         <div className="flex items-center justify-center h-full">
