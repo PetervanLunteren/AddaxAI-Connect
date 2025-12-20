@@ -221,10 +221,19 @@ async def list_images(
                 for cls in detection.classifications
             ]
 
+            # Transform bbox from database format {x_min, y_min, width, height}
+            # to frontend format {x, y, width, height}
+            bbox_transformed = {
+                "x": detection.bbox.get("x_min", 0),
+                "y": detection.bbox.get("y_min", 0),
+                "width": detection.bbox.get("width", 0),
+                "height": detection.bbox.get("height", 0),
+            }
+
             detections_response.append(DetectionResponse(
                 id=detection.id,
                 category=detection.category,
-                bbox=detection.bbox,
+                bbox=bbox_transformed,
                 confidence=detection.confidence,
                 classifications=classifications_response,
             ))
@@ -318,10 +327,19 @@ async def get_image(
             for cls in detection.classifications
         ]
 
+        # Transform bbox from database format {x_min, y_min, width, height}
+        # to frontend format {x, y, width, height}
+        bbox_transformed = {
+            "x": detection.bbox.get("x_min", 0),
+            "y": detection.bbox.get("y_min", 0),
+            "width": detection.bbox.get("width", 0),
+            "height": detection.bbox.get("height", 0),
+        }
+
         detections_response.append(DetectionResponse(
             id=detection.id,
             category=detection.category,
-            bbox=detection.bbox,
+            bbox=bbox_transformed,
             confidence=detection.confidence,
             classifications=classifications_response,
         ))
