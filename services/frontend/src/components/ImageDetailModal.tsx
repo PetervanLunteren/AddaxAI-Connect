@@ -25,10 +25,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
 
-  const { data: imageDetail, isLoading } = useQuery({
+  const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
     queryFn: () => imagesApi.getById(imageUuid),
     enabled: isOpen && !!imageUuid,
+  });
+
+  console.log('ImageDetailModal query state:', {
+    imageUuid,
+    isOpen,
+    isLoading,
+    hasData: !!imageDetail,
+    error,
   });
 
   // Fetch authenticated image and create blob URL
