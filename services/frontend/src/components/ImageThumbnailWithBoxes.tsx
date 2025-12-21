@@ -58,40 +58,40 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     canvas.width = rect.width;
     canvas.height = rect.height;
 
-    // Get natural (actual loaded) image dimensions
-    const naturalWidth = img.naturalWidth;
-    const naturalHeight = img.naturalHeight;
-
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Use original image dimensions from database for bbox coordinates
+    // The thumbnail loaded is smaller, but bbox coords are based on original image
+    if (!imageWidth || !imageHeight) return;
 
     // Calculate scale and offset for object-cover
     // The image is scaled to cover the container, which may crop it
     const containerAspect = canvas.width / canvas.height;
-    const imageAspect = naturalWidth / naturalHeight;
+    const imageAspect = imageWidth / imageHeight;
 
-    console.log('Aspect ratios:', { containerAspect, imageAspect, naturalWidth, naturalHeight });
+    console.log('Aspect ratios:', { containerAspect, imageAspect, imageWidth, imageHeight });
 
     let renderWidth, renderHeight, offsetX, offsetY;
 
     if (imageAspect > containerAspect) {
       // Image is wider - will be cropped on left/right
       renderHeight = canvas.height;
-      renderWidth = naturalWidth * (canvas.height / naturalHeight);
+      renderWidth = imageWidth * (canvas.height / imageHeight);
       offsetX = (canvas.width - renderWidth) / 2;
       offsetY = 0;
     } else {
       // Image is taller - will be cropped on top/bottom
       renderWidth = canvas.width;
-      renderHeight = naturalHeight * (canvas.width / naturalWidth);
+      renderHeight = imageHeight * (canvas.width / imageWidth);
       offsetX = 0;
       offsetY = (canvas.height - renderHeight) / 2;
     }
 
     console.log('Render dimensions:', { renderWidth, renderHeight, offsetX, offsetY });
 
-    const scaleX = renderWidth / naturalWidth;
-    const scaleY = renderHeight / naturalHeight;
+    const scaleX = renderWidth / imageWidth;
+    const scaleY = renderHeight / imageHeight;
 
     console.log('Scale factors:', { scaleX, scaleY });
 
