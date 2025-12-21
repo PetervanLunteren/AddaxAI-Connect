@@ -188,7 +188,7 @@ export const ImagesPage: React.FC = () => {
                 className="cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => setSelectedImageUuid(image.uuid)}
               >
-                <div className="aspect-video bg-muted relative overflow-hidden">
+                <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                   {image.thumbnail_url ? (
                     <ImageThumbnailWithBoxes
                       thumbnailUrl={image.thumbnail_url}
@@ -196,7 +196,7 @@ export const ImagesPage: React.FC = () => {
                       detections={image.detections}
                       imageWidth={image.image_width}
                       imageHeight={image.image_height}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       fallback={
                         <div className="flex items-center justify-center h-full">
                           <Grid3x3 className="h-12 w-12 text-muted-foreground" />

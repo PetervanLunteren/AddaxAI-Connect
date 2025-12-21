@@ -65,51 +65,20 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     // The thumbnail loaded is smaller, but bbox coords are based on original image
     if (!imageWidth || !imageHeight) return;
 
-    // Calculate scale and offset for object-cover
-    // The image is scaled to cover the container, which may crop it
-    const containerAspect = canvas.width / canvas.height;
-    const imageAspect = imageWidth / imageHeight;
-
-    console.log('Aspect ratios:', { containerAspect, imageAspect, imageWidth, imageHeight });
-
-    let renderWidth, renderHeight, offsetX, offsetY;
-
-    if (imageAspect > containerAspect) {
-      // Image is wider - will be cropped on left/right
-      renderHeight = canvas.height;
-      renderWidth = imageWidth * (canvas.height / imageHeight);
-      offsetX = (canvas.width - renderWidth) / 2;
-      offsetY = 0;
-    } else {
-      // Image is taller - will be cropped on top/bottom
-      renderWidth = canvas.width;
-      renderHeight = imageHeight * (canvas.width / imageWidth);
-      offsetX = 0;
-      offsetY = (canvas.height - renderHeight) / 2;
-    }
-
-    console.log('Render dimensions:', { renderWidth, renderHeight, offsetX, offsetY });
-
-    const scaleX = renderWidth / imageWidth;
-    const scaleY = renderHeight / imageHeight;
-
-    console.log('Scale factors:', { scaleX, scaleY });
+    // Calculate scale factors from original image size to canvas size
+    // No offset needed since we're using object-contain (no cropping)
+    const scaleX = canvas.width / imageWidth;
+    const scaleY = canvas.height / imageHeight;
 
     // Draw each detection bounding box
     detections.forEach((detection, index) => {
       const bbox = detection.bbox;
 
-      // Scale and offset bbox coordinates
-      const x = bbox.x * scaleX + offsetX;
-      const y = bbox.y * scaleY + offsetY;
+      // Scale bbox coordinates from original image to canvas size
+      const x = bbox.x * scaleX;
+      const y = bbox.y * scaleY;
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
-
-      console.log(`Detection ${index}:`, {
-        category: detection.category,
-        originalBbox: bbox,
-        scaledBbox: { x, y, width, height }
-      });
 
       // Generate a color based on detection index
       const hue = (index * 137.5) % 360; // Golden angle for good distribution
