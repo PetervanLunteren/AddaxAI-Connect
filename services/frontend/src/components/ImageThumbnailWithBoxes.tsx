@@ -79,15 +79,20 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     canvas.width = rect.width;
     canvas.height = rect.height;
 
+    // Get natural (actual loaded) image dimensions
+    const naturalWidth = img.naturalWidth;
+    const naturalHeight = img.naturalHeight;
+
     console.log('Canvas dimensions:', { width: canvas.width, height: canvas.height });
-    console.log('Original image dimensions:', { width: imageWidth, height: imageHeight });
+    console.log('Natural image dimensions:', { width: naturalWidth, height: naturalHeight });
+    console.log('Database image dimensions:', { width: imageWidth, height: imageHeight });
 
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate scale factors from original image to thumbnail display
-    const scaleX = canvas.width / imageWidth;
-    const scaleY = canvas.height / imageHeight;
+    // Calculate scale factors from natural (loaded) image to canvas display
+    const scaleX = canvas.width / naturalWidth;
+    const scaleY = canvas.height / naturalHeight;
 
     console.log('Scale factors:', { scaleX, scaleY });
 
