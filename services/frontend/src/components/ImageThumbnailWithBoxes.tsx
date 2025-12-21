@@ -87,12 +87,20 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     console.log('Natural image dimensions:', { width: naturalWidth, height: naturalHeight });
     console.log('Database image dimensions:', { width: imageWidth, height: imageHeight });
 
+    // If natural dimensions aren't available yet, use database dimensions
+    if (!naturalWidth || !naturalHeight) {
+      console.warn('Natural dimensions not available, using database dimensions');
+    }
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Calculate scale factors from natural (loaded) image to canvas display
-    const scaleX = canvas.width / naturalWidth;
-    const scaleY = canvas.height / naturalHeight;
+    // Fall back to database dimensions if natural dimensions not available
+    const actualWidth = naturalWidth || imageWidth;
+    const actualHeight = naturalHeight || imageHeight;
+    const scaleX = canvas.width / actualWidth;
+    const scaleY = canvas.height / actualHeight;
 
     console.log('Scale factors:', { scaleX, scaleY });
 
