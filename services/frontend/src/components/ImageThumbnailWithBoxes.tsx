@@ -65,20 +65,37 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate scale factors from natural (loaded) image to canvas display
-    // Fall back to database dimensions if natural dimensions not available
-    const actualWidth = naturalWidth || imageWidth;
-    const actualHeight = naturalHeight || imageHeight;
-    const scaleX = canvas.width / actualWidth;
-    const scaleY = canvas.height / actualHeight;
+    // Calculate scale and offset for object-cover
+    // The image is scaled to cover the container, which may crop it
+    const containerAspect = canvas.width / canvas.height;
+    const imageAspect = naturalWidth / naturalHeight;
+
+    let renderWidth, renderHeight, offsetX, offsetY;
+
+    if (imageAspect > containerAspect) {
+      // Image is wider - will be cropped on left/right
+      renderHeight = canvas.height;
+      renderWidth = naturalWidth * (canvas.height / naturalHeight);
+      offsetX = (canvas.width - renderWidth) / 2;
+      offsetY = 0;
+    } else {
+      // Image is taller - will be cropped on top/bottom
+      renderWidth = canvas.width;
+      renderHeight = naturalHeight * (canvas.width / naturalWidth);
+      offsetX = 0;
+      offsetY = (canvas.height - renderHeight) / 2;
+    }
+
+    const scaleX = renderWidth / naturalWidth;
+    const scaleY = renderHeight / naturalHeight;
 
     // Draw each detection bounding box
     detections.forEach((detection, index) => {
       const bbox = detection.bbox;
 
-      // Scale bbox coordinates from original image size to thumbnail size
-      const x = bbox.x * scaleX;
-      const y = bbox.y * scaleY;
+      // Scale and offset bbox coordinates
+      const x = bbox.x * scaleX + offsetX;
+      const y = bbox.y * scaleY + offsetY;
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
 
