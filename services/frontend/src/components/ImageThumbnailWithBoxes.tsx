@@ -24,14 +24,6 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
   className = '',
   fallback,
 }) => {
-  console.log('ImageThumbnailWithBoxes render:', {
-    alt,
-    thumbnailUrl,
-    detectionsCount: detections.length,
-    detections,
-    imageWidth,
-    imageHeight,
-  });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -43,17 +35,6 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
 
   // Draw bounding boxes on canvas
   useEffect(() => {
-    console.log('ImageThumbnailWithBoxes useEffect:', {
-      alt,
-      imageLoaded,
-      hasCanvas: !!canvasRef.current,
-      hasImage: !!imageRef.current,
-      imageWidth,
-      imageHeight,
-      detectionsCount: detections.length,
-      detections,
-    });
-
     // Always clear canvas first, even if we're not drawing
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
@@ -72,8 +53,6 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
 
     if (!ctx) return;
 
-    console.log('Drawing bounding boxes:', detections.length);
-
     // Set canvas size to match image display size
     const rect = img.getBoundingClientRect();
     canvas.width = rect.width;
@@ -82,15 +61,6 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     // Get natural (actual loaded) image dimensions
     const naturalWidth = img.naturalWidth;
     const naturalHeight = img.naturalHeight;
-
-    console.log('Canvas dimensions:', { width: canvas.width, height: canvas.height });
-    console.log('Natural image dimensions:', { width: naturalWidth, height: naturalHeight });
-    console.log('Database image dimensions:', { width: imageWidth, height: imageHeight });
-
-    // If natural dimensions aren't available yet, use database dimensions
-    if (!naturalWidth || !naturalHeight) {
-      console.warn('Natural dimensions not available, using database dimensions');
-    }
 
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -102,25 +72,15 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     const scaleX = canvas.width / actualWidth;
     const scaleY = canvas.height / actualHeight;
 
-    console.log('Scale factors:', { scaleX, scaleY });
-
     // Draw each detection bounding box
     detections.forEach((detection, index) => {
       const bbox = detection.bbox;
-
-      console.log(`Detection ${index}:`, {
-        category: detection.category,
-        confidence: detection.confidence,
-        bbox,
-      });
 
       // Scale bbox coordinates from original image size to thumbnail size
       const x = bbox.x * scaleX;
       const y = bbox.y * scaleY;
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
-
-      console.log(`  Scaled bbox:`, { x, y, width, height });
 
       // Generate a color based on detection index
       const hue = (index * 137.5) % 360; // Golden angle for good distribution

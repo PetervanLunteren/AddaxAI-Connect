@@ -25,9 +25,6 @@ export const ImagesPage: React.FC = () => {
 
   const limit = 24; // Images per page
 
-  // Debug: log when selectedImageUuid changes
-  console.log('ImagesPage selectedImageUuid:', selectedImageUuid);
-
   // Fetch images with current filters and pagination
   const { data: imagesData, isLoading: imagesLoading } = useQuery({
     queryKey: ['images', page, filters],
@@ -189,10 +186,7 @@ export const ImagesPage: React.FC = () => {
               <Card
                 key={image.uuid}
                 className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => {
-                  console.log('Card clicked, setting UUID:', image.uuid);
-                  setSelectedImageUuid(image.uuid);
-                }}
+                onClick={() => setSelectedImageUuid(image.uuid)}
               >
                 <div className="aspect-video bg-muted relative overflow-hidden">
                   {image.thumbnail_url ? (
