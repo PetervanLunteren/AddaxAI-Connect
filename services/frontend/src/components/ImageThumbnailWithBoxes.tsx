@@ -70,6 +70,8 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
     const containerAspect = canvas.width / canvas.height;
     const imageAspect = naturalWidth / naturalHeight;
 
+    console.log('Aspect ratios:', { containerAspect, imageAspect, naturalWidth, naturalHeight });
+
     let renderWidth, renderHeight, offsetX, offsetY;
 
     if (imageAspect > containerAspect) {
@@ -86,8 +88,12 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       offsetY = (canvas.height - renderHeight) / 2;
     }
 
+    console.log('Render dimensions:', { renderWidth, renderHeight, offsetX, offsetY });
+
     const scaleX = renderWidth / naturalWidth;
     const scaleY = renderHeight / naturalHeight;
+
+    console.log('Scale factors:', { scaleX, scaleY });
 
     // Draw each detection bounding box
     detections.forEach((detection, index) => {
@@ -98,6 +104,12 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       const y = bbox.y * scaleY + offsetY;
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
+
+      console.log(`Detection ${index}:`, {
+        category: detection.category,
+        originalBbox: bbox,
+        scaledBbox: { x, y, width, height }
+      });
 
       // Generate a color based on detection index
       const hue = (index * 137.5) % 360; // Golden angle for good distribution
