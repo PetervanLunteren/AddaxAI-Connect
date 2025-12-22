@@ -3,7 +3,7 @@
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Calendar, Camera, MapPin, Loader2 } from 'lucide-react';
+import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -13,17 +13,26 @@ interface ImageDetailModalProps {
   imageUuid: string;
   isOpen: boolean;
   onClose: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
 }
 
 export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   imageUuid,
   isOpen,
   onClose,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
+  const [showBboxes, setShowBboxes] = useState(true);
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -82,6 +91,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // If bboxes are hidden, just clear and return
+    if (!showBboxes) return;
+
     // Get natural image dimensions
     const naturalWidth = img.naturalWidth;
     const naturalHeight = img.naturalHeight;
@@ -125,7 +137,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.fillStyle = 'white';
       ctx.fillText(text, x + 4, y - 8);
     });
-  }, [imageDetail, imageLoaded]);
+  }, [imageDetail, imageLoaded, showBboxes]);
 
   // Handle window resize
   useEffect(() => {
@@ -153,6 +165,51 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     });
   };
 
+  const handleDownload = async () => {
+    if (!imageBlobUrl || !imageDetail) return;
+
+    try {
+      const response = await fetch(imageBlobUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = imageDetail.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download image:', err);
+    }
+  };
+
+  // Group detections by category and classifications by species
+  const getDetectionSummary = () => {
+    if (!imageDetail) return { detections: '', classifications: '' };
+
+    const categoryCount: Record<string, number> = {};
+    const speciesCount: Record<string, number> = {};
+
+    imageDetail.detections.forEach(detection => {
+      categoryCount[detection.category] = (categoryCount[detection.category] || 0) + 1;
+
+      detection.classifications.forEach(classification => {
+        speciesCount[classification.species] = (speciesCount[classification.species] || 0) + 1;
+      });
+    });
+
+    const detections = Object.entries(categoryCount)
+      .map(([category, count]) => `${category} (${count})`)
+      .join(', ');
+
+    const classifications = Object.entries(speciesCount)
+      .map(([species, count]) => `${species} (${count})`)
+      .join(', ');
+
+    return { detections, classifications };
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <div className="bg-background p-6 rounded-lg shadow-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
@@ -163,7 +220,50 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         ) : imageDetail ? (
           <div className="grid md:grid-cols-3 gap-6">
           {/* Image Display */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 space-y-4">
+            {/* Image controls */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBboxes(!showBboxes)}
+                  className="flex items-center gap-2"
+                >
+                  {showBboxes ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showBboxes ? 'Hide' : 'Show'} Boxes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onPrevious}
+                  disabled={!hasPrevious}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onNext}
+                  disabled={!hasNext}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Image */}
             <div className="relative">
               {imageBlobUrl ? (
                 <>
@@ -200,6 +300,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             {/* Metadata */}
             <div className="space-y-4">
               <div>
+                <div className="text-sm text-muted-foreground mb-1">Filename</div>
+                <p className="text-sm font-mono break-all">{imageDetail.filename}</p>
+              </div>
+
+              <div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Camera className="h-4 w-4" />
                   <span>Camera</span>
@@ -210,22 +315,35 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               <div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Calendar className="h-4 w-4" />
-                  <span>Uploaded</span>
+                  <span>Captured</span>
                 </div>
-                <p className="text-sm">{formatTimestamp(imageDetail.uploaded_at)}</p>
+                <p className="text-sm">
+                  {imageDetail.image_metadata?.DateTimeOriginal
+                    ? formatTimestamp(imageDetail.image_metadata.DateTimeOriginal)
+                    : formatTimestamp(imageDetail.uploaded_at)}
+                </p>
               </div>
 
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Filename</div>
-                <p className="text-sm font-mono break-all">{imageDetail.filename}</p>
-              </div>
+              {(() => {
+                const summary = getDetectionSummary();
+                return (
+                  <>
+                    {summary.detections && (
+                      <div>
+                        <div className="text-sm text-muted-foreground mb-1">Detections</div>
+                        <p className="text-sm">{summary.detections}</p>
+                      </div>
+                    )}
 
-              <div>
-                <div className="text-sm text-muted-foreground mb-1">Status</div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                  {imageDetail.status}
-                </span>
-              </div>
+                    {summary.classifications && (
+                      <div>
+                        <div className="text-sm text-muted-foreground mb-1">Classifications</div>
+                        <p className="text-sm">{summary.classifications}</p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {/* Detections */}

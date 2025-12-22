@@ -325,11 +325,25 @@ export const ImagesPage: React.FC = () => {
       )}
 
       {/* Image Detail Modal */}
-      {selectedImageUuid && (
+      {selectedImageUuid && imagesData && (
         <ImageDetailModal
           imageUuid={selectedImageUuid}
           isOpen={!!selectedImageUuid}
           onClose={() => setSelectedImageUuid(null)}
+          onPrevious={() => {
+            const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
+            if (currentIndex > 0) {
+              setSelectedImageUuid(imagesData.items[currentIndex - 1].uuid);
+            }
+          }}
+          onNext={() => {
+            const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
+            if (currentIndex < imagesData.items.length - 1) {
+              setSelectedImageUuid(imagesData.items[currentIndex + 1].uuid);
+            }
+          }}
+          hasPrevious={imagesData.items.findIndex(img => img.uuid === selectedImageUuid) > 0}
+          hasNext={imagesData.items.findIndex(img => img.uuid === selectedImageUuid) < imagesData.items.length - 1}
         />
       )}
     </div>
