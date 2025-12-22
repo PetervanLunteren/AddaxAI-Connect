@@ -121,22 +121,37 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.lineWidth = 2;
       ctx.strokeRect(x, y, width, height);
 
-      // Draw label background
-      const label = detection.category;
-      const confidence = Math.round(detection.confidence * 100);
-      const text = `${label} ${confidence}%`;
+      // Build label text with detection and top classification
+      const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
+
+      // Get top classification if available
+      let classificationLabel = '';
+      if (detection.classifications.length > 0) {
+        const topClassification = detection.classifications[0];
+        classificationLabel = `${topClassification.species} ${Math.round(topClassification.confidence * 100)}%`;
+      }
+
+      // Combine labels
+      const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
 
       ctx.font = 'bold 14px sans-serif';
-      const textMetrics = ctx.measureText(text);
-      const textWidth = textMetrics.width;
-      const textHeight = 20;
 
+      // Calculate dimensions for label box
+      const labelWidths = labels.map(label => ctx.measureText(label).width);
+      const maxLabelWidth = Math.max(...labelWidths);
+      const lineHeight = 18;
+      const padding = 4;
+      const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
+
+      // Draw label background
       ctx.fillStyle = color;
-      ctx.fillRect(x, y - textHeight - 4, textWidth + 8, textHeight + 4);
+      ctx.fillRect(x, y - labelBoxHeight - 4, maxLabelWidth + 8, labelBoxHeight);
 
       // Draw label text
       ctx.fillStyle = 'white';
-      ctx.fillText(text, x + 4, y - 8);
+      labels.forEach((label, idx) => {
+        ctx.fillText(label, x + 4, y - labelBoxHeight - 4 + padding + (idx + 1) * lineHeight - 4);
+      });
     });
   }, [imageDetail, imageLoaded, showBboxes]);
 
