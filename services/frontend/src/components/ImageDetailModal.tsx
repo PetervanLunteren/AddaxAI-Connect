@@ -141,15 +141,27 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       const lineHeight = 18;
       const padding = 4;
       const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
+      const margin = 4;
+
+      // Calculate label position - try above box first, but ensure it's not cut off
+      let labelY = Math.max(margin, y - labelBoxHeight - margin);
+
+      // If label would be cut off at top, place it below the box instead
+      if (labelY < margin) {
+        labelY = Math.min(y + height + margin, canvas.height - labelBoxHeight - margin);
+      }
+
+      // Ensure label doesn't go off right edge
+      const labelX = Math.min(x, canvas.width - maxLabelWidth - 8 - margin);
 
       // Draw label background
       ctx.fillStyle = color;
-      ctx.fillRect(x, y - labelBoxHeight - 4, maxLabelWidth + 8, labelBoxHeight);
+      ctx.fillRect(labelX, labelY, maxLabelWidth + 8, labelBoxHeight);
 
       // Draw label text
       ctx.fillStyle = 'white';
       labels.forEach((label, idx) => {
-        ctx.fillText(label, x + 4, y - labelBoxHeight - 4 + padding + (idx + 1) * lineHeight - 4);
+        ctx.fillText(label, labelX + 4, labelY + padding + (idx + 1) * lineHeight - 4);
       });
     });
   }, [imageDetail, imageLoaded, showBboxes]);
