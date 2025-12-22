@@ -100,13 +100,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
 
-      // Generate a color based on detection index
-      const hue = (index * 137.5) % 360; // Golden angle for good distribution
-      const color = `hsl(${hue}, 70%, 50%)`;
+      // Use consistent color for all boxes
+      const color = '#0f6064';
 
       // Draw rectangle
       ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 2;
       ctx.strokeRect(x, y, width, height);
 
       // Draw label background
@@ -237,14 +236,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               {imageDetail.detections.length > 0 ? (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {imageDetail.detections.map((detection, index) => {
-                    const hue = (index * 137.5) % 360;
-                    const color = `hsl(${hue}, 70%, 50%)`;
+                    const color = '#0f6064';
 
                     return (
                       <div
                         key={detection.id}
                         className="p-3 border rounded-lg"
-                        style={{ borderColor: color, borderWidth: 2 }}
+                        style={{ borderColor: color, borderWidth: 1 }}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{detection.category}</span>
