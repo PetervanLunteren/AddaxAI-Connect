@@ -3,7 +3,7 @@
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, FileImage, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, FileImage } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -33,7 +33,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
-  const [showDetailedDetections, setShowDetailedDetections] = useState(false);
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -373,74 +372,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 );
               })()}
             </div>
-
-            {/* Detailed Detections (Collapsible) */}
-            {imageDetail.detections.length > 0 && (
-              <div>
-                <button
-                  onClick={() => setShowDetailedDetections(!showDetailedDetections)}
-                  className="flex items-center justify-between w-full font-semibold mb-3 hover:text-primary transition-colors"
-                >
-                  <span>Detailed Detections ({imageDetail.detections.length})</span>
-                  {showDetailedDetections ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-
-                {showDetailedDetections && (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {imageDetail.detections.map((detection, index) => {
-                      const color = '#0f6064';
-
-                      return (
-                        <div
-                          key={detection.id}
-                          className="p-3 border rounded-lg"
-                          style={{ borderColor: color, borderWidth: 1 }}
-                        >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{detection.category}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {Math.round(detection.confidence * 100)}%
-                          </span>
-                        </div>
-
-                        {/* Classifications */}
-                        {detection.classifications.length > 0 && (
-                          <div className="space-y-1">
-                            <div className="text-xs text-muted-foreground mb-1">
-                              Species Classifications:
-                            </div>
-                            {detection.classifications.map((classification) => (
-                              <div
-                                key={classification.id}
-                                className="flex items-center justify-between text-sm bg-muted px-2 py-1 rounded"
-                              >
-                                <span className="font-medium text-primary">
-                                  {classification.species}
-                                </span>
-                                <span className="text-xs">
-                                  {Math.round(classification.confidence * 100)}%
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Bounding Box Info */}
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          BBox: [{Math.round(detection.bbox.x)}, {Math.round(detection.bbox.y)},{' '}
-                          {Math.round(detection.bbox.width)}x{Math.round(detection.bbox.height)}]
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
         ) : (
