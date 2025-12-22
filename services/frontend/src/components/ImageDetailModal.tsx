@@ -127,8 +127,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
 
-      const bracketLength = 20;
-      const cornerRadius = 8;
+      const bracketLength = 15;
+      const cornerRadius = 4;
 
       // Top-left corner
       ctx.beginPath();
@@ -286,8 +286,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           ctx.lineWidth = Math.round(4 * scaleFactor);
           ctx.lineCap = 'round';
 
-          const bracketLength = Math.round(20 * scaleFactor);
-          const cornerRadius = Math.round(8 * scaleFactor);
+          const bracketLength = Math.round(15 * scaleFactor);
+          const cornerRadius = Math.round(4 * scaleFactor);
 
           // Top-left corner
           ctx.beginPath();
