@@ -133,13 +133,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       // Combine labels
       const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
 
-      ctx.font = 'bold 14px sans-serif';
+      ctx.font = 'bold 7px sans-serif';
 
       // Calculate dimensions for label box
       const labelWidths = labels.map(label => ctx.measureText(label).width);
       const maxLabelWidth = Math.max(...labelWidths);
-      const lineHeight = 18;
-      const padding = 4;
+      const lineHeight = 9;
+      const padding = 2;
       const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
       const margin = 4;
 
@@ -152,16 +152,16 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       }
 
       // Ensure label doesn't go off right edge
-      const labelX = Math.min(x, canvas.width - maxLabelWidth - 8 - margin);
+      const labelX = Math.min(x, canvas.width - maxLabelWidth - 4 - margin);
 
-      // Draw label background
-      ctx.fillStyle = color;
-      ctx.fillRect(labelX, labelY, maxLabelWidth + 8, labelBoxHeight);
+      // Draw label background with semi-transparent black
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(labelX, labelY, maxLabelWidth + 4, labelBoxHeight);
 
       // Draw label text
       ctx.fillStyle = 'white';
       labels.forEach((label, idx) => {
-        ctx.fillText(label, labelX + 4, labelY + padding + (idx + 1) * lineHeight - 4);
+        ctx.fillText(label, labelX + 2, labelY + padding + (idx + 1) * lineHeight - 2);
       });
     });
   }, [imageDetail, imageLoaded, showBboxes]);
