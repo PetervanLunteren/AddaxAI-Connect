@@ -112,13 +112,61 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
 
+      // Add padding around bbox
+      const bboxPadding = 8;
+      const paddedX = x - bboxPadding;
+      const paddedY = y - bboxPadding;
+      const paddedWidth = width + (bboxPadding * 2);
+      const paddedHeight = height + (bboxPadding * 2);
+
       // Use consistent color for all boxes
       const color = '#0f6064';
 
-      // Draw rectangle
+      // Draw corner brackets instead of full rectangle
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, width, height);
+      ctx.lineCap = 'round';
+
+      // Calculate bracket length (20% of bbox dimensions)
+      const bracketLengthX = Math.min(paddedWidth * 0.2, 30);
+      const bracketLengthY = Math.min(paddedHeight * 0.2, 30);
+      const cornerRadius = 6;
+
+      // Top-left corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + cornerRadius, paddedY);
+      ctx.lineTo(paddedX + bracketLengthX, paddedY);
+      ctx.moveTo(paddedX, paddedY + cornerRadius);
+      ctx.lineTo(paddedX, paddedY + bracketLengthY);
+      ctx.quadraticCurveTo(paddedX, paddedY, paddedX + cornerRadius, paddedY);
+      ctx.stroke();
+
+      // Top-right corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY);
+      ctx.lineTo(paddedX + paddedWidth - bracketLengthX, paddedY);
+      ctx.moveTo(paddedX + paddedWidth, paddedY + cornerRadius);
+      ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLengthY);
+      ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth - cornerRadius, paddedY);
+      ctx.stroke();
+
+      // Bottom-left corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + cornerRadius, paddedY + paddedHeight);
+      ctx.lineTo(paddedX + bracketLengthX, paddedY + paddedHeight);
+      ctx.moveTo(paddedX, paddedY + paddedHeight - cornerRadius);
+      ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLengthY);
+      ctx.quadraticCurveTo(paddedX, paddedY + paddedHeight, paddedX + cornerRadius, paddedY + paddedHeight);
+      ctx.stroke();
+
+      // Bottom-right corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
+      ctx.lineTo(paddedX + paddedWidth - bracketLengthX, paddedY + paddedHeight);
+      ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - cornerRadius);
+      ctx.lineTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLengthY);
+      ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
+      ctx.stroke();
 
       // Build label text with detection and top classification
       const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
@@ -147,15 +195,15 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       const borderRadius = 3;
 
       // Calculate label position - try above box first, but ensure it's not cut off
-      let labelY = Math.max(margin, y - labelBoxHeight - margin);
+      let labelY = Math.max(margin, paddedY - labelBoxHeight - margin);
 
       // If label would be cut off at top, place it below the box instead
       if (labelY < margin) {
-        labelY = Math.min(y + height + margin, canvas.height - labelBoxHeight - margin);
+        labelY = Math.min(paddedY + paddedHeight + margin, canvas.height - labelBoxHeight - margin);
       }
 
       // Ensure label doesn't go off right edge
-      const labelX = Math.min(x, canvas.width - labelBoxWidth - margin);
+      const labelX = Math.min(paddedX, canvas.width - labelBoxWidth - margin);
 
       // Draw label background with semi-transparent black and rounded corners
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -233,10 +281,61 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           const width = bbox.width;
           const height = bbox.height;
 
-          // Draw rectangle
+          // Scale factor for download canvas
+          const scaleFactor = downloadCanvas.width / (canvasRef.current?.width || 1);
+
+          // Add padding around bbox (scaled for full resolution)
+          const bboxPadding = Math.round(8 * scaleFactor);
+          const paddedX = x - bboxPadding;
+          const paddedY = y - bboxPadding;
+          const paddedWidth = width + (bboxPadding * 2);
+          const paddedHeight = height + (bboxPadding * 2);
+
+          // Draw corner brackets instead of full rectangle
           ctx.strokeStyle = '#0f6064';
-          ctx.lineWidth = 4; // Thicker for full resolution
-          ctx.strokeRect(x, y, width, height);
+          ctx.lineWidth = Math.round(4 * scaleFactor);
+          ctx.lineCap = 'round';
+
+          // Calculate bracket length (20% of bbox dimensions)
+          const bracketLengthX = Math.min(paddedWidth * 0.2, 60 * scaleFactor);
+          const bracketLengthY = Math.min(paddedHeight * 0.2, 60 * scaleFactor);
+          const cornerRadius = Math.round(6 * scaleFactor);
+
+          // Top-left corner
+          ctx.beginPath();
+          ctx.moveTo(paddedX + cornerRadius, paddedY);
+          ctx.lineTo(paddedX + bracketLengthX, paddedY);
+          ctx.moveTo(paddedX, paddedY + cornerRadius);
+          ctx.lineTo(paddedX, paddedY + bracketLengthY);
+          ctx.quadraticCurveTo(paddedX, paddedY, paddedX + cornerRadius, paddedY);
+          ctx.stroke();
+
+          // Top-right corner
+          ctx.beginPath();
+          ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY);
+          ctx.lineTo(paddedX + paddedWidth - bracketLengthX, paddedY);
+          ctx.moveTo(paddedX + paddedWidth, paddedY + cornerRadius);
+          ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLengthY);
+          ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth - cornerRadius, paddedY);
+          ctx.stroke();
+
+          // Bottom-left corner
+          ctx.beginPath();
+          ctx.moveTo(paddedX + cornerRadius, paddedY + paddedHeight);
+          ctx.lineTo(paddedX + bracketLengthX, paddedY + paddedHeight);
+          ctx.moveTo(paddedX, paddedY + paddedHeight - cornerRadius);
+          ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLengthY);
+          ctx.quadraticCurveTo(paddedX, paddedY + paddedHeight, paddedX + cornerRadius, paddedY + paddedHeight);
+          ctx.stroke();
+
+          // Bottom-right corner
+          ctx.beginPath();
+          ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
+          ctx.lineTo(paddedX + paddedWidth - bracketLengthX, paddedY + paddedHeight);
+          ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - cornerRadius);
+          ctx.lineTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLengthY);
+          ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
+          ctx.stroke();
 
           // Build label text
           const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
@@ -248,8 +347,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
           const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
 
-          // Scale font size for full resolution (proportional to image size)
-          const scaleFactor = downloadCanvas.width / (canvasRef.current?.width || 1);
+          // Scale font size for full resolution (scaleFactor already calculated above)
           const fontSize = Math.round(9 * scaleFactor);
           ctx.font = `bold ${fontSize}px sans-serif`;
 
@@ -257,19 +355,19 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           const labelWidths = labels.map(label => ctx.measureText(label).width);
           const maxLabelWidth = Math.max(...labelWidths);
           const lineHeight = Math.round(12 * scaleFactor);
-          const paddingX = Math.round(4 * scaleFactor);
-          const paddingY = Math.round(3 * scaleFactor);
-          const labelBoxWidth = maxLabelWidth + (paddingX * 2);
-          const labelBoxHeight = (labels.length * lineHeight) + (paddingY * 2);
+          const labelPaddingX = Math.round(4 * scaleFactor);
+          const labelPaddingY = Math.round(3 * scaleFactor);
+          const labelBoxWidth = maxLabelWidth + (labelPaddingX * 2);
+          const labelBoxHeight = (labels.length * lineHeight) + (labelPaddingY * 2);
           const margin = Math.round(4 * scaleFactor);
           const borderRadius = Math.round(3 * scaleFactor);
 
-          // Calculate label position
-          let labelY = Math.max(margin, y - labelBoxHeight - margin);
+          // Calculate label position - use padded bbox coordinates
+          let labelY = Math.max(margin, paddedY - labelBoxHeight - margin);
           if (labelY < margin) {
-            labelY = Math.min(y + height + margin, downloadCanvas.height - labelBoxHeight - margin);
+            labelY = Math.min(paddedY + paddedHeight + margin, downloadCanvas.height - labelBoxHeight - margin);
           }
-          const labelX = Math.min(x, downloadCanvas.width - labelBoxWidth - margin);
+          const labelX = Math.min(paddedX, downloadCanvas.width - labelBoxWidth - margin);
 
           // Draw label background with rounded corners
           ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -280,7 +378,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           // Draw label text
           ctx.fillStyle = 'white';
           labels.forEach((label, idx) => {
-            ctx.fillText(label, labelX + paddingX, labelY + paddingY + (idx + 1) * lineHeight - 2);
+            ctx.fillText(label, labelX + labelPaddingX, labelY + labelPaddingY + (idx + 1) * lineHeight - 2);
           });
         });
       }
