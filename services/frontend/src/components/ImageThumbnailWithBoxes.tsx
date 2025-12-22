@@ -83,46 +83,10 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       // Use consistent color for all boxes
       const color = '#0f6064';
 
-      // Draw rectangle
+      // Draw rectangle (no labels on thumbnails)
       ctx.strokeStyle = color;
       ctx.lineWidth = 1;
       ctx.strokeRect(x, y, width, height);
-
-      // For thumbnails, optionally draw a small label
-      // Only show label if box is large enough
-      if (width > 40 && height > 30) {
-        // Build label text with detection and top classification
-        const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
-
-        // Get top classification if available
-        let classificationLabel = '';
-        if (detection.classifications.length > 0) {
-          const topClassification = detection.classifications[0];
-          classificationLabel = `${topClassification.species} ${Math.round(topClassification.confidence * 100)}%`;
-        }
-
-        // Combine labels
-        const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
-
-        ctx.font = 'bold 10px sans-serif';
-
-        // Calculate dimensions for label box
-        const labelWidths = labels.map(label => ctx.measureText(label).width);
-        const maxLabelWidth = Math.max(...labelWidths);
-        const lineHeight = 12;
-        const padding = 2;
-        const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
-
-        // Draw label background
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y - labelBoxHeight - 2, maxLabelWidth + 4, labelBoxHeight);
-
-        // Draw label text
-        ctx.fillStyle = 'white';
-        labels.forEach((label, idx) => {
-          ctx.fillText(label, x + 2, y - labelBoxHeight - 2 + padding + (idx + 1) * lineHeight - 2);
-        });
-      }
     });
   }, [imageLoaded, detections, imageWidth, imageHeight, alt, thumbnailUrl]);
 
