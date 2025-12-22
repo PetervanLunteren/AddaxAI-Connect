@@ -80,13 +80,12 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
 
-      // Generate a color based on detection index
-      const hue = (index * 137.5) % 360; // Golden angle for good distribution
-      const color = `hsl(${hue}, 70%, 50%)`;
+      // Use consistent color for all boxes
+      const color = '#0f6064';
 
       // Draw rectangle
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1;
       ctx.strokeRect(x, y, width, height);
 
       // For thumbnails, optionally draw a small label
