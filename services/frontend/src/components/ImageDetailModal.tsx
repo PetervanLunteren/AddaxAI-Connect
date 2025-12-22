@@ -200,19 +200,93 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   };
 
   const handleDownload = async () => {
-    if (!imageBlobUrl || !imageDetail) return;
+    if (!imageRef.current || !imageDetail) return;
 
     try {
-      const response = await fetch(imageBlobUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = imageDetail.filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Create a temporary canvas to combine image and bboxes
+      const downloadCanvas = document.createElement('canvas');
+      const ctx = downloadCanvas.getContext('2d');
+      if (!ctx) return;
+
+      const img = imageRef.current;
+
+      // Set canvas to natural image size
+      downloadCanvas.width = img.naturalWidth;
+      downloadCanvas.height = img.naturalHeight;
+
+      // Draw the image
+      ctx.drawImage(img, 0, 0);
+
+      // Draw bounding boxes if they're visible
+      if (showBboxes && imageDetail.detections.length > 0) {
+        imageDetail.detections.forEach((detection) => {
+          const bbox = detection.bbox;
+
+          // Use bbox coordinates directly (they're already in natural image size)
+          const x = bbox.x;
+          const y = bbox.y;
+          const width = bbox.width;
+          const height = bbox.height;
+
+          // Draw rectangle
+          ctx.strokeStyle = '#0f6064';
+          ctx.lineWidth = 4; // Thicker for full resolution
+          ctx.strokeRect(x, y, width, height);
+
+          // Build label text
+          const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
+          let classificationLabel = '';
+          if (detection.classifications.length > 0) {
+            const topClassification = detection.classifications[0];
+            classificationLabel = `${topClassification.species} ${Math.round(topClassification.confidence * 100)}%`;
+          }
+
+          const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
+
+          // Scale font size for full resolution (proportional to image size)
+          const scaleFactor = downloadCanvas.width / (canvasRef.current?.width || 1);
+          const fontSize = Math.round(9 * scaleFactor);
+          ctx.font = `bold ${fontSize}px sans-serif`;
+
+          // Calculate dimensions for label box
+          const labelWidths = labels.map(label => ctx.measureText(label).width);
+          const maxLabelWidth = Math.max(...labelWidths);
+          const lineHeight = Math.round(12 * scaleFactor);
+          const padding = Math.round(2 * scaleFactor);
+          const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
+          const margin = Math.round(4 * scaleFactor);
+
+          // Calculate label position
+          let labelY = Math.max(margin, y - labelBoxHeight - margin);
+          if (labelY < margin) {
+            labelY = Math.min(y + height + margin, downloadCanvas.height - labelBoxHeight - margin);
+          }
+          const labelX = Math.min(x, downloadCanvas.width - maxLabelWidth - 4 - margin);
+
+          // Draw label background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+          ctx.fillRect(labelX, labelY, maxLabelWidth + 4, labelBoxHeight);
+
+          // Draw label text
+          ctx.fillStyle = 'white';
+          labels.forEach((label, idx) => {
+            ctx.fillText(label, labelX + 2, labelY + padding + (idx + 1) * lineHeight - 2);
+          });
+        });
+      }
+
+      // Convert canvas to blob and download
+      downloadCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = imageDetail.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 'image/jpeg', 0.95);
     } catch (err) {
       console.error('Failed to download image:', err);
     }
