@@ -3,7 +3,7 @@
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, FileImage } from 'lucide-react';
+import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, File, Scan, PawPrint } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -325,7 +325,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             <div className="space-y-4">
               <div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <FileImage className="h-4 w-4" />
+                  <File className="h-4 w-4" />
                   <span>Filename</span>
                 </div>
                 <p className="text-sm font-mono break-all">{imageDetail.filename}</p>
@@ -357,14 +357,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <>
                     {summary.detections && (
                       <div>
-                        <div className="text-sm text-muted-foreground mb-1">Detections</div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                          <Scan className="h-4 w-4" />
+                          <span>Detections</span>
+                        </div>
                         <p className="text-sm">{summary.detections}</p>
                       </div>
                     )}
 
                     {summary.classifications && (
                       <div>
-                        <div className="text-sm text-muted-foreground mb-1">Classifications</div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                          <PawPrint className="h-4 w-4" />
+                          <span>Classifications</span>
+                        </div>
                         <p className="text-sm">{summary.classifications}</p>
                       </div>
                     )}
