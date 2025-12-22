@@ -139,9 +139,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       const labelWidths = labels.map(label => ctx.measureText(label).width);
       const maxLabelWidth = Math.max(...labelWidths);
       const lineHeight = 12;
-      const padding = 2;
-      const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
+      const paddingX = 4;
+      const paddingY = 3;
+      const labelBoxWidth = maxLabelWidth + (paddingX * 2);
+      const labelBoxHeight = (labels.length * lineHeight) + (paddingY * 2);
       const margin = 4;
+      const borderRadius = 3;
 
       // Calculate label position - try above box first, but ensure it's not cut off
       let labelY = Math.max(margin, y - labelBoxHeight - margin);
@@ -152,16 +155,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       }
 
       // Ensure label doesn't go off right edge
-      const labelX = Math.min(x, canvas.width - maxLabelWidth - 4 - margin);
+      const labelX = Math.min(x, canvas.width - labelBoxWidth - margin);
 
-      // Draw label background with semi-transparent black
+      // Draw label background with semi-transparent black and rounded corners
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(labelX, labelY, maxLabelWidth + 4, labelBoxHeight);
+      ctx.beginPath();
+      ctx.roundRect(labelX, labelY, labelBoxWidth, labelBoxHeight, borderRadius);
+      ctx.fill();
 
       // Draw label text
       ctx.fillStyle = 'white';
       labels.forEach((label, idx) => {
-        ctx.fillText(label, labelX + 2, labelY + padding + (idx + 1) * lineHeight - 2);
+        ctx.fillText(label, labelX + paddingX, labelY + paddingY + (idx + 1) * lineHeight - 2);
       });
     });
   }, [imageDetail, imageLoaded, showBboxes]);
@@ -252,25 +257,30 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           const labelWidths = labels.map(label => ctx.measureText(label).width);
           const maxLabelWidth = Math.max(...labelWidths);
           const lineHeight = Math.round(12 * scaleFactor);
-          const padding = Math.round(2 * scaleFactor);
-          const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
+          const paddingX = Math.round(4 * scaleFactor);
+          const paddingY = Math.round(3 * scaleFactor);
+          const labelBoxWidth = maxLabelWidth + (paddingX * 2);
+          const labelBoxHeight = (labels.length * lineHeight) + (paddingY * 2);
           const margin = Math.round(4 * scaleFactor);
+          const borderRadius = Math.round(3 * scaleFactor);
 
           // Calculate label position
           let labelY = Math.max(margin, y - labelBoxHeight - margin);
           if (labelY < margin) {
             labelY = Math.min(y + height + margin, downloadCanvas.height - labelBoxHeight - margin);
           }
-          const labelX = Math.min(x, downloadCanvas.width - maxLabelWidth - 4 - margin);
+          const labelX = Math.min(x, downloadCanvas.width - labelBoxWidth - margin);
 
-          // Draw label background
+          // Draw label background with rounded corners
           ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-          ctx.fillRect(labelX, labelY, maxLabelWidth + 4, labelBoxHeight);
+          ctx.beginPath();
+          ctx.roundRect(labelX, labelY, labelBoxWidth, labelBoxHeight, borderRadius);
+          ctx.fill();
 
           // Draw label text
           ctx.fillStyle = 'white';
           labels.forEach((label, idx) => {
-            ctx.fillText(label, labelX + 2, labelY + padding + (idx + 1) * lineHeight - 2);
+            ctx.fillText(label, labelX + paddingX, labelY + paddingY + (idx + 1) * lineHeight - 2);
           });
         });
       }
