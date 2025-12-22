@@ -127,44 +127,35 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
 
-      // Fixed bracket length
       const bracketLength = 20;
-      const cornerRadius = 6;
+      const cornerRadius = 8;
 
       // Top-left corner
       ctx.beginPath();
-      ctx.moveTo(paddedX + cornerRadius, paddedY);
+      ctx.moveTo(paddedX, paddedY + bracketLength);
+      ctx.arcTo(paddedX, paddedY, paddedX + bracketLength, paddedY, cornerRadius);
       ctx.lineTo(paddedX + bracketLength, paddedY);
-      ctx.moveTo(paddedX, paddedY + cornerRadius);
-      ctx.lineTo(paddedX, paddedY + bracketLength);
-      ctx.quadraticCurveTo(paddedX, paddedY, paddedX + cornerRadius, paddedY);
       ctx.stroke();
 
       // Top-right corner
       ctx.beginPath();
-      ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY);
-      ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY);
-      ctx.moveTo(paddedX + paddedWidth, paddedY + cornerRadius);
+      ctx.moveTo(paddedX + paddedWidth - bracketLength, paddedY);
+      ctx.arcTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth, paddedY + bracketLength, cornerRadius);
       ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLength);
-      ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth - cornerRadius, paddedY);
       ctx.stroke();
 
       // Bottom-left corner
       ctx.beginPath();
-      ctx.moveTo(paddedX + cornerRadius, paddedY + paddedHeight);
-      ctx.lineTo(paddedX + bracketLength, paddedY + paddedHeight);
-      ctx.moveTo(paddedX, paddedY + paddedHeight - cornerRadius);
+      ctx.moveTo(paddedX + bracketLength, paddedY + paddedHeight);
+      ctx.arcTo(paddedX, paddedY + paddedHeight, paddedX, paddedY + paddedHeight - bracketLength, cornerRadius);
       ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLength);
-      ctx.quadraticCurveTo(paddedX, paddedY + paddedHeight, paddedX + cornerRadius, paddedY + paddedHeight);
       ctx.stroke();
 
       // Bottom-right corner
       ctx.beginPath();
-      ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
+      ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
+      ctx.arcTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - bracketLength, paddedY + paddedHeight, cornerRadius);
       ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY + paddedHeight);
-      ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - cornerRadius);
-      ctx.lineTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
-      ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
       ctx.stroke();
 
       // Build label text with detection and top classification
@@ -295,44 +286,35 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           ctx.lineWidth = Math.round(4 * scaleFactor);
           ctx.lineCap = 'round';
 
-          // Fixed bracket length (scaled for full resolution)
           const bracketLength = Math.round(20 * scaleFactor);
-          const cornerRadius = Math.round(6 * scaleFactor);
+          const cornerRadius = Math.round(8 * scaleFactor);
 
           // Top-left corner
           ctx.beginPath();
-          ctx.moveTo(paddedX + cornerRadius, paddedY);
+          ctx.moveTo(paddedX, paddedY + bracketLength);
+          ctx.arcTo(paddedX, paddedY, paddedX + bracketLength, paddedY, cornerRadius);
           ctx.lineTo(paddedX + bracketLength, paddedY);
-          ctx.moveTo(paddedX, paddedY + cornerRadius);
-          ctx.lineTo(paddedX, paddedY + bracketLength);
-          ctx.quadraticCurveTo(paddedX, paddedY, paddedX + cornerRadius, paddedY);
           ctx.stroke();
 
           // Top-right corner
           ctx.beginPath();
-          ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY);
-          ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY);
-          ctx.moveTo(paddedX + paddedWidth, paddedY + cornerRadius);
+          ctx.moveTo(paddedX + paddedWidth - bracketLength, paddedY);
+          ctx.arcTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth, paddedY + bracketLength, cornerRadius);
           ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLength);
-          ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth - cornerRadius, paddedY);
           ctx.stroke();
 
           // Bottom-left corner
           ctx.beginPath();
-          ctx.moveTo(paddedX + cornerRadius, paddedY + paddedHeight);
-          ctx.lineTo(paddedX + bracketLength, paddedY + paddedHeight);
-          ctx.moveTo(paddedX, paddedY + paddedHeight - cornerRadius);
+          ctx.moveTo(paddedX + bracketLength, paddedY + paddedHeight);
+          ctx.arcTo(paddedX, paddedY + paddedHeight, paddedX, paddedY + paddedHeight - bracketLength, cornerRadius);
           ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLength);
-          ctx.quadraticCurveTo(paddedX, paddedY + paddedHeight, paddedX + cornerRadius, paddedY + paddedHeight);
           ctx.stroke();
 
           // Bottom-right corner
           ctx.beginPath();
-          ctx.moveTo(paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
+          ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
+          ctx.arcTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - bracketLength, paddedY + paddedHeight, cornerRadius);
           ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY + paddedHeight);
-          ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - cornerRadius);
-          ctx.lineTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
-          ctx.quadraticCurveTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - cornerRadius, paddedY + paddedHeight);
           ctx.stroke();
 
           // Build label text
