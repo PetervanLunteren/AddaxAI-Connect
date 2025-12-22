@@ -196,7 +196,7 @@ export const ImagesPage: React.FC = () => {
                       detections={image.detections}
                       imageWidth={image.image_width}
                       imageHeight={image.image_height}
-                      className="w-full h-full object-contain"
+                      className="w-full object-contain"
                       fallback={
                         <div className="flex items-center justify-center h-full">
                           <Grid3x3 className="h-12 w-12 text-muted-foreground" />
