@@ -348,7 +348,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <Camera className="h-4 w-4" />
                   <span>Camera</span>
                 </div>
-                <p className="font-medium">{imageDetail.camera_name}</p>
+                <p className="text-sm">{imageDetail.camera_name}</p>
               </div>
 
               <div>
