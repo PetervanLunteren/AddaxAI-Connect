@@ -3,7 +3,7 @@
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, FileImage, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -33,6 +33,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
+  const [showDetailedDetections, setShowDetailedDetections] = useState(false);
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -154,7 +155,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   }, [imageLoaded]);
 
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
+    // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
+    const exifFormatted = timestamp.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+    const date = new Date(exifFormatted);
+
+    if (isNaN(date.getTime())) {
+      return timestamp; // Return original if can't parse
+    }
+
     return date.toLocaleString('en-US', {
       month: 'long',
       day: 'numeric',
@@ -302,7 +310,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             {/* Metadata */}
             <div className="space-y-4">
               <div>
-                <div className="text-sm text-muted-foreground mb-1">Filename</div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <FileImage className="h-4 w-4" />
+                  <span>Filename</span>
+                </div>
                 <p className="text-sm font-mono break-all">{imageDetail.filename}</p>
               </div>
 
@@ -348,22 +359,32 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               })()}
             </div>
 
-            {/* Detections */}
-            <div>
-              <h3 className="font-semibold mb-3">
-                Detections ({imageDetail.detections.length})
-              </h3>
-              {imageDetail.detections.length > 0 ? (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {imageDetail.detections.map((detection, index) => {
-                    const color = '#0f6064';
+            {/* Detailed Detections (Collapsible) */}
+            {imageDetail.detections.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowDetailedDetections(!showDetailedDetections)}
+                  className="flex items-center justify-between w-full font-semibold mb-3 hover:text-primary transition-colors"
+                >
+                  <span>Detailed Detections ({imageDetail.detections.length})</span>
+                  {showDetailedDetections ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
 
-                    return (
-                      <div
-                        key={detection.id}
-                        className="p-3 border rounded-lg"
-                        style={{ borderColor: color, borderWidth: 1 }}
-                      >
+                {showDetailedDetections && (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {imageDetail.detections.map((detection, index) => {
+                      const color = '#0f6064';
+
+                      return (
+                        <div
+                          key={detection.id}
+                          className="p-3 border rounded-lg"
+                          style={{ borderColor: color, borderWidth: 1 }}
+                        >
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{detection.category}</span>
                           <span className="text-sm text-muted-foreground">
@@ -399,13 +420,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                           {Math.round(detection.bbox.width)}x{Math.round(detection.bbox.height)}]
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No detections found</p>
-              )}
-            </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         ) : (
