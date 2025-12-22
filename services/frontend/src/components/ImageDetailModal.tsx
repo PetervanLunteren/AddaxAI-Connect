@@ -220,50 +220,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         ) : imageDetail ? (
           <div className="grid md:grid-cols-3 gap-6">
           {/* Image Display */}
-          <div className="md:col-span-2 space-y-4">
-            {/* Image controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBboxes(!showBboxes)}
-                  className="flex items-center gap-2"
-                >
-                  {showBboxes ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  {showBboxes ? 'Hide' : 'Show'} Boxes
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownload}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onPrevious}
-                  disabled={!hasPrevious}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onNext}
-                  disabled={!hasNext}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Image */}
+          <div className="md:col-span-2">
             <div className="relative">
               {imageBlobUrl ? (
                 <>
@@ -295,6 +252,52 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               <Button variant="ghost" size="icon" onClick={onClose}>
                 <X className="h-5 w-5" />
               </Button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowBboxes(!showBboxes)}
+                  className="flex items-center justify-center gap-2"
+                >
+                  {showBboxes ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showBboxes ? 'Hide' : 'Show'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onPrevious}
+                  disabled={!hasPrevious}
+                  className="flex items-center justify-center gap-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onNext}
+                  disabled={!hasNext}
+                  className="flex items-center justify-center gap-2"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Metadata */}
