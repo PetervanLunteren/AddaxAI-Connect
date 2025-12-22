@@ -133,12 +133,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       // Combine labels
       const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
 
-      ctx.font = 'bold 7px sans-serif';
+      ctx.font = 'bold 9px sans-serif';
 
       // Calculate dimensions for label box
       const labelWidths = labels.map(label => ctx.measureText(label).width);
       const maxLabelWidth = Math.max(...labelWidths);
-      const lineHeight = 9;
+      const lineHeight = 12;
       const padding = 2;
       const labelBoxHeight = (labels.length * lineHeight) + (padding * 2);
       const margin = 4;
