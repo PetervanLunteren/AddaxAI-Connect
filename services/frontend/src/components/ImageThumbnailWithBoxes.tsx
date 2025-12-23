@@ -95,7 +95,7 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       ctx.lineWidth = 1;
       ctx.lineCap = 'round';
 
-      const bracketLength = 10;
+      const bracketLength = 8;
       const cornerRadius = 3;
 
       // Top-left corner
