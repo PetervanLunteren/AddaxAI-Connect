@@ -495,10 +495,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
             {/* Details Card */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <Camera className="h-4 w-4" />
