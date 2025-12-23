@@ -87,41 +87,42 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       const paddedWidth = width + (bboxPadding * 2);
       const paddedHeight = height + (bboxPadding * 2);
 
-      // Use consistent color for all boxes
-      const color = '#0f6064';
+      // Use red color for all boxes
+      const color = '#ef4444';
 
-      // Draw corner brackets (simplified - no rounded corners for thumbnails)
+      // Draw corner brackets with rounded corners
       ctx.strokeStyle = color;
       ctx.lineWidth = 1;
       ctx.lineCap = 'round';
 
       const bracketLength = 10;
+      const cornerRadius = 3;
 
       // Top-left corner
       ctx.beginPath();
       ctx.moveTo(paddedX, paddedY + bracketLength);
-      ctx.lineTo(paddedX, paddedY);
+      ctx.arcTo(paddedX, paddedY, paddedX + bracketLength, paddedY, cornerRadius);
       ctx.lineTo(paddedX + bracketLength, paddedY);
       ctx.stroke();
 
       // Top-right corner
       ctx.beginPath();
       ctx.moveTo(paddedX + paddedWidth - bracketLength, paddedY);
-      ctx.lineTo(paddedX + paddedWidth, paddedY);
+      ctx.arcTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth, paddedY + bracketLength, cornerRadius);
       ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLength);
       ctx.stroke();
 
       // Bottom-left corner
       ctx.beginPath();
       ctx.moveTo(paddedX + bracketLength, paddedY + paddedHeight);
-      ctx.lineTo(paddedX, paddedY + paddedHeight);
+      ctx.arcTo(paddedX, paddedY + paddedHeight, paddedX, paddedY + paddedHeight - bracketLength, cornerRadius);
       ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLength);
       ctx.stroke();
 
       // Bottom-right corner
       ctx.beginPath();
       ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
-      ctx.lineTo(paddedX + paddedWidth, paddedY + paddedHeight);
+      ctx.arcTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - bracketLength, paddedY + paddedHeight, cornerRadius);
       ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY + paddedHeight);
       ctx.stroke();
     });
