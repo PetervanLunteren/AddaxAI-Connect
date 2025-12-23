@@ -150,6 +150,7 @@ async def list_images(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
+    show_empty: bool = Query(False),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
@@ -163,6 +164,7 @@ async def list_images(
         start_date: Filter by start date (ISO format)
         end_date: Filter by end date (ISO format)
         species: Filter by species name(s) - comma-separated for multiple
+        show_empty: If False (default), hide images without detections
         db: Database session
         current_user: Current authenticated user
 
@@ -208,6 +210,15 @@ async def list_images(
         species_list = [s.strip() for s in species.split(',') if s.strip()]
         if species_list:
             species_filter = species_list
+
+    # Filter out empty images if show_empty is False (default)
+    if not show_empty:
+        # Only show images that have at least one detection
+        filters.append(
+            Image.id.in_(
+                select(Detection.image_id).distinct()
+            )
+        )
 
     # Count total
     count_query = select(func.count(Image.id))

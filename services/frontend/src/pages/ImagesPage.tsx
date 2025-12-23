@@ -21,6 +21,7 @@ export const ImagesPage: React.FC = () => {
     start_date: '',
     end_date: '',
     species: [] as Option[],
+    show_empty: false, // Default: hide empty images
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -41,6 +42,7 @@ export const ImagesPage: React.FC = () => {
         species: filters.species.length > 0
           ? filters.species.map(s => s.value).join(',')
           : undefined,
+        show_empty: filters.show_empty,
       }),
   });
 
@@ -67,6 +69,7 @@ export const ImagesPage: React.FC = () => {
       start_date: '',
       end_date: '',
       species: [],
+      show_empty: false,
     });
     setPage(1);
   };
@@ -75,7 +78,8 @@ export const ImagesPage: React.FC = () => {
     filters.camera_ids.length > 0 ||
     filters.start_date !== '' ||
     filters.end_date !== '' ||
-    filters.species.length > 0;
+    filters.species.length > 0 ||
+    filters.show_empty;
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -104,7 +108,8 @@ export const ImagesPage: React.FC = () => {
           {hasActiveFilters && (
             <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
               {filters.camera_ids.length + filters.species.length +
-               (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0)}
+               (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
+               (filters.show_empty ? 1 : 0)}
             </span>
           )}
         </Button>
@@ -161,6 +166,19 @@ export const ImagesPage: React.FC = () => {
                   isLoading={speciesLoading}
                 />
               </div>
+            </div>
+
+            {/* Show Empty Images Toggle */}
+            <div className="mt-4">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.show_empty}
+                  onChange={(e) => handleFilterChange('show_empty', e.target.checked)}
+                  className="w-4 h-4 rounded border-input bg-background cursor-pointer"
+                />
+                <span>Show images without detections</span>
+              </label>
             </div>
 
             {hasActiveFilters && (
