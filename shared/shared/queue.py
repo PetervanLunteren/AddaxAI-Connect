@@ -80,4 +80,5 @@ class RedisQueue:
 QUEUE_IMAGE_INGESTED = "image-ingested"
 QUEUE_DETECTION_COMPLETE = "detection-complete"
 QUEUE_CLASSIFICATION_COMPLETE = "classification-complete"
+QUEUE_CLASSIFICATION_REPROCESS = "classification-reprocess"
 QUEUE_FAILED_JOBS = "failed-jobs"
