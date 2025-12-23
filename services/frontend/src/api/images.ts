@@ -11,6 +11,7 @@ export interface ImageFilters {
   start_date?: string;
   end_date?: string;
   species?: string;
+  show_empty?: boolean;
 }
 
 export interface SpeciesOption {
