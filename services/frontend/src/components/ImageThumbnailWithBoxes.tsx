@@ -80,13 +80,50 @@ export const ImageThumbnailWithBoxes: React.FC<ImageThumbnailWithBoxesProps> = (
       const width = bbox.width * scaleX;
       const height = bbox.height * scaleY;
 
+      // Add padding around bbox
+      const bboxPadding = 4;
+      const paddedX = x - bboxPadding;
+      const paddedY = y - bboxPadding;
+      const paddedWidth = width + (bboxPadding * 2);
+      const paddedHeight = height + (bboxPadding * 2);
+
       // Use consistent color for all boxes
       const color = '#0f6064';
 
-      // Draw rectangle (no labels on thumbnails)
+      // Draw corner brackets (simplified - no rounded corners for thumbnails)
       ctx.strokeStyle = color;
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, width, height);
+      ctx.lineCap = 'round';
+
+      const bracketLength = 10;
+
+      // Top-left corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX, paddedY + bracketLength);
+      ctx.lineTo(paddedX, paddedY);
+      ctx.lineTo(paddedX + bracketLength, paddedY);
+      ctx.stroke();
+
+      // Top-right corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + paddedWidth - bracketLength, paddedY);
+      ctx.lineTo(paddedX + paddedWidth, paddedY);
+      ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLength);
+      ctx.stroke();
+
+      // Bottom-left corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + bracketLength, paddedY + paddedHeight);
+      ctx.lineTo(paddedX, paddedY + paddedHeight);
+      ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLength);
+      ctx.stroke();
+
+      // Bottom-right corner
+      ctx.beginPath();
+      ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
+      ctx.lineTo(paddedX + paddedWidth, paddedY + paddedHeight);
+      ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY + paddedHeight);
+      ctx.stroke();
     });
   }, [imageLoaded, detections, imageWidth, imageHeight, alt, thumbnailUrl]);
 
