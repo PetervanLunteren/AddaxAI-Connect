@@ -7,10 +7,15 @@ import type { ImageListItem, ImageDetail, PaginatedResponse } from './types';
 export interface ImageFilters {
   page?: number;
   limit?: number;
-  camera_id?: number;
+  camera_id?: string;
   start_date?: string;
   end_date?: string;
   species?: string;
+}
+
+export interface SpeciesOption {
+  label: string;
+  value: string;
 }
 
 export const imagesApi = {
@@ -29,6 +34,14 @@ export const imagesApi = {
    */
   getByUuid: async (uuid: string): Promise<ImageDetail> => {
     const response = await apiClient.get<ImageDetail>(`/api/images/${uuid}`);
+    return response.data;
+  },
+
+  /**
+   * Get list of unique species for filter dropdown
+   */
+  getSpecies: async (): Promise<SpeciesOption[]> => {
+    const response = await apiClient.get<SpeciesOption[]>('/api/images/species');
     return response.data;
   },
 };
