@@ -230,10 +230,12 @@ export const ImagesPage: React.FC = () => {
 
                     {/* Detections List */}
                     {(() => {
-                      // Collect all detections with their confidences
-                      const detectionsList = image.detections
-                        .map(detection => `${detection.category} (${Math.round(detection.confidence * 100)}%)`)
-                        .join(', ');
+                      // Collect unique detection categories
+                      const uniqueDetections = Array.from(new Set(
+                        image.detections.map(detection => detection.category)
+                      ));
+
+                      const detectionsList = uniqueDetections.join(', ');
 
                       return detectionsList ? (
                         <div className="flex items-start gap-1">
@@ -247,15 +249,14 @@ export const ImagesPage: React.FC = () => {
 
                     {/* Species List */}
                     {(() => {
-                      // Collect all species classifications from all detections
-                      const allSpecies: string[] = [];
-                      image.detections.forEach(detection => {
-                        detection.classifications.forEach(classification => {
-                          allSpecies.push(`${classification.species} (${Math.round(classification.confidence * 100)}%)`);
-                        });
-                      });
+                      // Collect unique species from all classifications
+                      const uniqueSpecies = Array.from(new Set(
+                        image.detections.flatMap(detection =>
+                          detection.classifications.map(cls => cls.species)
+                        )
+                      ));
 
-                      const speciesList = allSpecies.join(', ');
+                      const speciesList = uniqueSpecies.join(', ');
 
                       return speciesList ? (
                         <div className="flex items-start gap-1">
