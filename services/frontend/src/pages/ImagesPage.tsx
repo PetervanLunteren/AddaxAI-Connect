@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, PawPrint } from 'lucide-react';
+import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, PawPrint, Scan } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { imagesApi } from '../api/images';
@@ -227,6 +227,33 @@ export const ImagesPage: React.FC = () => {
                       <Calendar className="h-3 w-3" />
                       <span>{formatTimestamp(image.uploaded_at)}</span>
                     </div>
+
+                    {/* Detections List */}
+                    {(() => {
+                      // Collect all detection categories with their confidences
+                      const detectionsMap: Record<string, number> = {};
+                      image.detections.forEach(detection => {
+                        const category = detection.category;
+                        const conf = detection.confidence;
+                        // Keep the highest confidence for each category
+                        if (!detectionsMap[category] || detectionsMap[category] < conf) {
+                          detectionsMap[category] = conf;
+                        }
+                      });
+
+                      const detectionsList = Object.entries(detectionsMap)
+                        .map(([category, conf]) => `${category} (${Math.round(conf * 100)}%)`)
+                        .join(', ');
+
+                      return detectionsList ? (
+                        <div className="flex items-start gap-1">
+                          <Scan className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <span className="text-xs text-muted-foreground break-words">
+                            {detectionsList}
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
 
                     {/* Species List */}
                     {(() => {
