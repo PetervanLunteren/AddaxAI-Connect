@@ -124,7 +124,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
       // Draw corner brackets instead of full rectangle
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.lineCap = 'round';
 
       const bracketLength = 12;
@@ -201,10 +201,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.roundRect(labelX, labelY, labelBoxWidth, labelBoxHeight, borderRadius);
       ctx.fill();
 
-      // Draw label text
+      // Draw label text (vertically centered)
       ctx.fillStyle = 'white';
+      ctx.textBaseline = 'middle';
       labels.forEach((label, idx) => {
-        ctx.fillText(label, labelX + paddingX, labelY + paddingY + (idx + 1) * lineHeight - 2);
+        const textY = labelY + paddingY + (idx * lineHeight) + (lineHeight / 2);
+        ctx.fillText(label, labelX + paddingX, textY);
       });
     });
   }, [imageDetail, imageLoaded, showBboxes]);
@@ -355,10 +357,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           ctx.roundRect(labelX, labelY, labelBoxWidth, labelBoxHeight, borderRadius);
           ctx.fill();
 
-          // Draw label text
+          // Draw label text (vertically centered)
           ctx.fillStyle = 'white';
+          ctx.textBaseline = 'middle';
           labels.forEach((label, idx) => {
-            ctx.fillText(label, labelX + labelPaddingX, labelY + labelPaddingY + (idx + 1) * lineHeight - 2);
+            const textY = labelY + labelPaddingY + (idx * lineHeight) + (lineHeight / 2);
+            ctx.fillText(label, labelX + labelPaddingX, textY);
           });
         });
       }
