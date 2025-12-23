@@ -5,6 +5,7 @@ Runs DeepFaune v1.4 inference on animal detections and processes results.
 """
 import torch
 import torch.nn.functional as F
+import numpy as np
 from PIL import Image
 from torchvision import transforms
 from typing import Any, List, Optional
@@ -40,11 +41,15 @@ class Classification:
         self,
         detection_id: int,
         species: str,
-        confidence: float
+        confidence: float,
+        raw_predictions: dict[str, float] = None,
+        model_version: str = None
     ):
         self.detection_id = detection_id
         self.species = species
         self.confidence = confidence
+        self.raw_predictions = raw_predictions or {}  # All predictions >0.05
+        self.model_version = model_version
 
 
 # DeepFaune preprocessing transform (182x182, custom normalization)
@@ -162,16 +167,26 @@ def run_classification(
                 probabilities = F.softmax(logits, dim=1)
                 confidence, predicted_class = torch.max(probabilities, dim=1)
 
-            # Get species name
+            # Get top-1 species name
             species_idx = predicted_class.item()
             species_name = DEEPFAUNE_CLASSES[species_idx]
             confidence_score = confidence.item()
 
-            # Create classification result (top-1 only)
+            # Extract all predictions above threshold (0.05)
+            threshold = 0.05
+            probs_array = probabilities[0].cpu().numpy()  # Get first (and only) batch item
+            raw_predictions = {}
+            for idx, prob in enumerate(probs_array):
+                if prob >= threshold:
+                    raw_predictions[DEEPFAUNE_CLASSES[idx]] = float(prob)
+
+            # Create classification result with raw predictions
             classification = Classification(
                 detection_id=detection.detection_id,
                 species=species_name,
-                confidence=confidence_score
+                confidence=confidence_score,
+                raw_predictions=raw_predictions,
+                model_version="deepfaune_v1.4"
             )
 
             classifications.append(classification)
