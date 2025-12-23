@@ -509,7 +509,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <File className="h-4 w-4" />
                   <span>Filename</span>
                 </div>
-                <p className="text-sm font-mono break-all">{imageDetail.filename}</p>
+                <p className="text-sm break-all">{imageDetail.filename}</p>
               </div>
 
               <div>
