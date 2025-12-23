@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, PawPrint } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { imagesApi } from '../api/images';
@@ -228,19 +228,34 @@ export const ImagesPage: React.FC = () => {
                       <span>{formatTimestamp(image.uploaded_at)}</span>
                     </div>
 
-                    {/* Top Species */}
-                    {image.top_species && (
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium text-primary truncate">
-                          {image.top_species}
-                        </span>
-                        {image.max_confidence !== null && (
-                          <span className="text-xs text-muted-foreground">
-                            {Math.round(image.max_confidence * 100)}%
+                    {/* Species List */}
+                    {(() => {
+                      // Collect all species with their confidences
+                      const speciesMap: Record<string, number> = {};
+                      image.detections.forEach(detection => {
+                        detection.classifications.forEach(classification => {
+                          const species = classification.species;
+                          const conf = classification.confidence;
+                          // Keep the highest confidence for each species
+                          if (!speciesMap[species] || speciesMap[species] < conf) {
+                            speciesMap[species] = conf;
+                          }
+                        });
+                      });
+
+                      const speciesList = Object.entries(speciesMap)
+                        .map(([species, conf]) => `${species} (${Math.round(conf * 100)}%)`)
+                        .join(', ');
+
+                      return speciesList ? (
+                        <div className="flex items-start gap-1">
+                          <PawPrint className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <span className="text-xs text-muted-foreground break-words">
+                            {speciesList}
                           </span>
-                        )}
-                      </div>
-                    )}
+                        </div>
+                      ) : null;
+                    })()}
 
                     {/* Filename */}
                     <div className="text-xs text-muted-foreground truncate" title={image.filename}>
