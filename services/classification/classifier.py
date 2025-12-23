@@ -172,13 +172,11 @@ def run_classification(
             species_name = DEEPFAUNE_CLASSES[species_idx]
             confidence_score = confidence.item()
 
-            # Extract all predictions above threshold (0.05)
-            threshold = 0.05
+            # Extract ALL predictions (no threshold)
             probs_array = probabilities[0].cpu().numpy()  # Get first (and only) batch item
             raw_predictions = {}
             for idx, prob in enumerate(probs_array):
-                if prob >= threshold:
-                    raw_predictions[DEEPFAUNE_CLASSES[idx]] = float(prob)
+                raw_predictions[DEEPFAUNE_CLASSES[idx]] = float(prob)
 
             # Create classification result with raw predictions
             classification = Classification(
