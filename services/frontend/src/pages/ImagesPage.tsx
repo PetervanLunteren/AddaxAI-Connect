@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, PawPrint, Scan } from 'lucide-react';
+import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, PawPrint } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { imagesApi } from '../api/images';
@@ -228,41 +228,29 @@ export const ImagesPage: React.FC = () => {
                       <span>{formatTimestamp(image.uploaded_at)}</span>
                     </div>
 
-                    {/* Detections List */}
+                    {/* Combined Detections and Species */}
                     {(() => {
-                      // Collect unique detection categories
-                      const uniqueDetections = Array.from(new Set(
-                        image.detections.map(detection => detection.category)
-                      ));
-
-                      const detectionsList = uniqueDetections.join(', ');
-
-                      return detectionsList ? (
-                        <div className="flex items-start gap-1">
-                          <Scan className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
-                          <span className="text-xs text-muted-foreground break-words">
-                            {detectionsList}
-                          </span>
-                        </div>
-                      ) : null;
-                    })()}
-
-                    {/* Species List */}
-                    {(() => {
-                      // Collect unique species from all classifications
+                      // Collect unique species from classifications
                       const uniqueSpecies = Array.from(new Set(
                         image.detections.flatMap(detection =>
                           detection.classifications.map(cls => cls.species)
                         )
                       ));
 
-                      const speciesList = uniqueSpecies.join(', ');
+                      // Collect unique detection categories, excluding "animal"
+                      const uniqueDetections = Array.from(new Set(
+                        image.detections.map(detection => detection.category)
+                      )).filter(category => category !== 'animal');
 
-                      return speciesList ? (
+                      // Combine species and non-animal detections
+                      const combined = [...uniqueSpecies, ...uniqueDetections];
+                      const combinedList = combined.join(', ');
+
+                      return combinedList ? (
                         <div className="flex items-start gap-1">
                           <PawPrint className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <span className="text-xs text-muted-foreground break-words">
-                            {speciesList}
+                            {combinedList}
                           </span>
                         </div>
                       ) : null;
