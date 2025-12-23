@@ -460,7 +460,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             {/* Actions Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Actions</CardTitle>
+                <CardTitle className="text-base">Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
@@ -511,17 +511,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             {/* Details Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Details</CardTitle>
+                <CardTitle className="text-base">Details</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <File className="h-4 w-4" />
-                    <span>Filename</span>
-                  </div>
-                  <p className="text-sm break-all">{imageDetail.filename}</p>
-                </div>
-
                 <div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <Camera className="h-4 w-4" />
@@ -542,20 +534,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   </p>
                 </div>
 
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <File className="h-4 w-4" />
+                    <span>Filename</span>
+                  </div>
+                  <p className="text-sm break-all">{imageDetail.filename}</p>
+                </div>
+
                 {(() => {
                   const summary = getDetectionSummary();
                   return (
                     <>
-                      {summary.detections && (
-                        <div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <Scan className="h-4 w-4" />
-                            <span>Detections</span>
-                          </div>
-                          <p className="text-sm">{summary.detections}</p>
-                        </div>
-                      )}
-
                       {summary.classifications && (
                         <div>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
