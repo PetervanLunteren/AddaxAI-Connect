@@ -119,8 +119,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       const paddedWidth = width + (bboxPadding * 2);
       const paddedHeight = height + (bboxPadding * 2);
 
-      // Use consistent color for all boxes
-      const color = '#0f6064';
+      // Use red color for all boxes
+      const color = '#ef4444';
 
       // Draw corner brackets instead of full rectangle
       ctx.strokeStyle = color;
@@ -282,7 +282,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           const paddedHeight = height + (bboxPadding * 2);
 
           // Draw corner brackets instead of full rectangle
-          ctx.strokeStyle = '#0f6064';
+          ctx.strokeStyle = '#ef4444';
           ctx.lineWidth = Math.round(4 * scaleFactor);
           ctx.lineCap = 'round';
 
