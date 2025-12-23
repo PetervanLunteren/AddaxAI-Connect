@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, Scan } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
 import { ImageDetailModal } from '../components/ImageDetailModal';
@@ -16,10 +17,10 @@ export const ImagesPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
   const [filters, setFilters] = useState({
-    camera_id: undefined as number | undefined,
+    camera_ids: [] as Option[],
     start_date: '',
     end_date: '',
-    species: '',
+    species: [] as Option[],
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -32,10 +33,14 @@ export const ImagesPage: React.FC = () => {
       imagesApi.getAll({
         page,
         limit,
-        camera_id: filters.camera_id,
+        camera_id: filters.camera_ids.length > 0
+          ? filters.camera_ids.map(c => c.value).join(',')
+          : undefined,
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
-        species: filters.species || undefined,
+        species: filters.species.length > 0
+          ? filters.species.map(s => s.value).join(',')
+          : undefined,
       }),
   });
 
@@ -45,6 +50,12 @@ export const ImagesPage: React.FC = () => {
     queryFn: () => camerasApi.getAll(),
   });
 
+  // Fetch species for filter dropdown
+  const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
+    queryKey: ['species'],
+    queryFn: () => imagesApi.getSpecies(),
+  });
+
   const handleFilterChange = (key: string, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPage(1); // Reset to first page when filters change
@@ -52,19 +63,19 @@ export const ImagesPage: React.FC = () => {
 
   const clearFilters = () => {
     setFilters({
-      camera_id: undefined,
+      camera_ids: [],
       start_date: '',
       end_date: '',
-      species: '',
+      species: [],
     });
     setPage(1);
   };
 
   const hasActiveFilters =
-    filters.camera_id !== undefined ||
+    filters.camera_ids.length > 0 ||
     filters.start_date !== '' ||
     filters.end_date !== '' ||
-    filters.species !== '';
+    filters.species.length > 0;
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -92,7 +103,8 @@ export const ImagesPage: React.FC = () => {
           {showFilters ? 'Hide Filters' : 'Show Filters'}
           {hasActiveFilters && (
             <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-              {Object.values(filters).filter((v) => v !== undefined && v !== '').length}
+              {filters.camera_ids.length + filters.species.length +
+               (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0)}
             </span>
           )}
         </Button>
@@ -107,21 +119,16 @@ export const ImagesPage: React.FC = () => {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Camera</label>
-                <select
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                  value={filters.camera_id || ''}
-                  onChange={(e) =>
-                    handleFilterChange('camera_id', e.target.value ? parseInt(e.target.value) : undefined)
-                  }
-                >
-                  <option value="">All Cameras</option>
-                  {cameras?.map((camera) => (
-                    <option key={camera.id} value={camera.id}>
-                      {camera.name}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium mb-2">Cameras</label>
+                <MultiSelect
+                  options={cameras?.map(camera => ({
+                    label: camera.name,
+                    value: camera.id,
+                  })) || []}
+                  value={filters.camera_ids}
+                  onChange={(selected) => handleFilterChange('camera_ids', selected)}
+                  placeholder="Select cameras..."
+                />
               </div>
 
               <div>
@@ -146,12 +153,12 @@ export const ImagesPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium mb-2">Species</label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
-                  placeholder="Enter species name..."
+                <MultiSelect
+                  options={speciesOptions || []}
                   value={filters.species}
-                  onChange={(e) => handleFilterChange('species', e.target.value)}
+                  onChange={(selected) => handleFilterChange('species', selected)}
+                  placeholder="Select species..."
+                  isLoading={speciesLoading}
                 />
               </div>
             </div>

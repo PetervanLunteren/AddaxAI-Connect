@@ -99,6 +99,46 @@ class PaginatedImagesResponse(BaseModel):
     pages: int
 
 
+class SpeciesOption(BaseModel):
+    """Species filter option"""
+    label: str
+    value: str
+
+
+@router.get(
+    "/species",
+    response_model=List[SpeciesOption],
+)
+async def get_species(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Get list of unique species found in classified images.
+
+    Returns list of species for use in filter dropdown.
+    """
+    # Query for unique species from classifications
+    query = (
+        select(Classification.species)
+        .distinct()
+        .join(Detection)
+        .join(Image)
+        .where(Image.status == "classified")
+        .order_by(Classification.species)
+    )
+
+    result = await db.execute(query)
+    species_list = result.scalars().all()
+
+    # Convert to label/value format for react-select
+    return [
+        SpeciesOption(label=species, value=species)
+        for species in species_list
+        if species  # Filter out any null/empty values
+    ]
+
+
 @router.get(
     "",
     response_model=PaginatedImagesResponse,
@@ -106,7 +146,7 @@ class PaginatedImagesResponse(BaseModel):
 async def list_images(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
-    camera_id: Optional[int] = None,
+    camera_id: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
@@ -119,10 +159,10 @@ async def list_images(
     Args:
         page: Page number (starts at 1)
         limit: Items per page (max 100)
-        camera_id: Filter by camera ID
+        camera_id: Filter by camera ID(s) - comma-separated for multiple
         start_date: Filter by start date (ISO format)
         end_date: Filter by end date (ISO format)
-        species: Filter by species name
+        species: Filter by species name(s) - comma-separated for multiple
         db: Database session
         current_user: Current authenticated user
 
@@ -135,8 +175,11 @@ async def list_images(
         Image.status == "classified"
     ]
 
+    # Handle camera_id filter (supports comma-separated values)
     if camera_id:
-        filters.append(Image.camera_id == camera_id)
+        camera_ids = [int(id.strip()) for id in camera_id.split(',') if id.strip()]
+        if camera_ids:
+            filters.append(Image.camera_id.in_(camera_ids))
 
     if start_date:
         try:
@@ -158,10 +201,29 @@ async def list_images(
                 detail="Invalid end_date format. Use ISO format (YYYY-MM-DD)",
             )
 
+    # Handle species filter (supports comma-separated values)
+    # Need to join with classifications to filter by species
+    species_filter = None
+    if species:
+        species_list = [s.strip() for s in species.split(',') if s.strip()]
+        if species_list:
+            species_filter = species_list
+
     # Count total
     count_query = select(func.count(Image.id))
     if filters:
         count_query = count_query.where(and_(*filters))
+
+    # Add species filter if present (requires subquery)
+    if species_filter:
+        count_query = count_query.where(
+            Image.id.in_(
+                select(Image.id)
+                .join(Detection)
+                .join(Classification)
+                .where(Classification.species.in_(species_filter))
+            )
+        )
 
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
@@ -182,6 +244,17 @@ async def list_images(
 
     if filters:
         query = query.where(and_(*filters))
+
+    # Add species filter if present (requires subquery)
+    if species_filter:
+        query = query.where(
+            Image.id.in_(
+                select(Image.id)
+                .join(Detection)
+                .join(Classification)
+                .where(Classification.species.in_(species_filter))
+            )
+        )
 
     result = await db.execute(query)
     rows = result.all()
