@@ -255,11 +255,6 @@ export const ImagesPage: React.FC = () => {
                         </div>
                       ) : null;
                     })()}
-
-                    {/* Filename */}
-                    <div className="text-xs text-muted-foreground truncate" title={image.filename}>
-                      {image.filename}
-                    </div>
                   </div>
                 </CardContent>
               </Card>
