@@ -97,11 +97,26 @@ class Classification(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     detection_id = Column(Integer, ForeignKey("detections.id"), nullable=False, index=True)
-    species = Column(String(255), nullable=False, index=True)
-    confidence = Column(Float, nullable=False)
+    species = Column(String(255), nullable=False, index=True)  # Top-1 species for fast access
+    confidence = Column(Float, nullable=False)  # Top-1 confidence for fast access
+    raw_predictions = Column(JSON, nullable=True)  # All predictions >0.05 as JSON: {"species_name": confidence, ...}
+    model_version = Column(String(100), nullable=True, index=True)  # Track which model generated predictions
 
     # Relationships
     detection = relationship("Detection", back_populates="classifications")
+
+
+class Project(Base):
+    """Project/study area with species configuration"""
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    location = Column(Geography(geometry_type='POLYGON', srid=4326), nullable=True)
+    excluded_species = Column(JSON, nullable=True)  # List of species names that are NOT present in project area
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
 class User(Base):
@@ -117,7 +132,7 @@ class User(Base):
 
     # RBAC and multi-tenancy (schema ready, enforcement later)
     role = Column(String(50), nullable=True)  # admin, analyst, viewer
-    project_id = Column(Integer, nullable=True)  # Will add FK constraint when projects table exists
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
 
 
 class EmailAllowlist(Base):
