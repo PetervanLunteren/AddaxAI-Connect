@@ -450,57 +450,48 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
           {/* Details Panel */}
           <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-end">
-              <Button variant="ghost" size="icon" onClick={onClose}>
+            {/* Header with action buttons */}
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowBboxes(!showBboxes)}
+                  title={showBboxes ? 'Hide boxes' : 'Show boxes'}
+                >
+                  {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleDownload}
+                  title="Download image"
+                >
+                  <Download className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onPrevious}
+                  disabled={!hasPrevious}
+                  title="Previous image"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onNext}
+                  disabled={!hasNext}
+                  title="Next image"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+              <Button variant="ghost" size="icon" onClick={onClose} title="Close">
                 <X className="h-5 w-5" />
               </Button>
             </div>
-
-            {/* Actions Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowBboxes(!showBboxes)}
-                    title={showBboxes ? 'Hide boxes' : 'Show boxes'}
-                  >
-                    {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleDownload}
-                    title="Download image"
-                  >
-                    <Download className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onPrevious}
-                    disabled={!hasPrevious}
-                    title="Previous image"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onNext}
-                    disabled={!hasNext}
-                    title="Next image"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Details Card */}
             <Card>
