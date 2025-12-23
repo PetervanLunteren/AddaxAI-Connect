@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install build tools for shared library
+RUN pip install --no-cache-dir setuptools wheel
+
+# Copy and install shared library
+COPY shared /shared
+RUN pip install --no-cache-dir -e /shared
+
+# Install minimal dependencies (no torch/PIL needed for reprocessing)
+RUN pip install --no-cache-dir \
+    psycopg2-binary==2.9.9 \
+    sqlalchemy==2.0.23 \
+    redis==5.0.1
+
+# Copy service code
+COPY services/classification .
+
+CMD ["python", "reprocess_worker.py"]

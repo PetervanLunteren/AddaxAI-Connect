@@ -11,7 +11,7 @@ from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
 from auth.routes import get_auth_router
-from routers import admin, logs, cameras, images, statistics
+from routers import admin, logs, cameras, images, statistics, projects
 from middleware.logging import RequestLoggingMiddleware
 
 
@@ -83,3 +83,4 @@ app.include_router(logs.router, prefix="/api", tags=["logs"])
 app.include_router(cameras.router)
 app.include_router(images.router)
 app.include_router(statistics.router)
+app.include_router(projects.router)
