@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, File, Scan, PawPrint } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { imagesApi } from '../api/images';
 import { AuthenticatedImage } from './AuthenticatedImage';
 
@@ -242,6 +243,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
+      hour12: false,
     });
   };
 
@@ -447,118 +449,127 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           </div>
 
           {/* Details Panel */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Image details</h2>
+            <div className="flex items-center justify-end">
               <Button variant="ghost" size="icon" onClick={onClose}>
                 <X className="h-5 w-5" />
               </Button>
             </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBboxes(!showBboxes)}
-                  className="flex items-center justify-center gap-2"
-                >
-                  {showBboxes ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  {showBboxes ? 'Hide' : 'Show'}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownload}
-                  className="flex items-center justify-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Download
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onPrevious}
-                  disabled={!hasPrevious}
-                  className="flex items-center justify-center gap-2"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onNext}
-                  disabled={!hasNext}
-                  className="flex items-center justify-center gap-2"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Metadata */}
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <File className="h-4 w-4" />
-                  <span>Filename</span>
+            {/* Actions Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBboxes(!showBboxes)}
+                    className="flex items-center justify-center gap-2"
+                  >
+                    {showBboxes ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showBboxes ? 'Hide' : 'Show'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownload}
+                    className="flex items-center justify-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
                 </div>
-                <p className="text-sm break-all">{imageDetail.filename}</p>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <Camera className="h-4 w-4" />
-                  <span>Camera</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onPrevious}
+                    disabled={!hasPrevious}
+                    className="flex items-center justify-center gap-2"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onNext}
+                    disabled={!hasNext}
+                    className="flex items-center justify-center gap-2"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
-                <p className="text-sm">{imageDetail.camera_name}</p>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>Captured</span>
+            {/* Details Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <File className="h-4 w-4" />
+                    <span>Filename</span>
+                  </div>
+                  <p className="text-sm break-all">{imageDetail.filename}</p>
                 </div>
-                <p className="text-sm">
-                  {imageDetail.image_metadata?.DateTimeOriginal
-                    ? formatTimestamp(imageDetail.image_metadata.DateTimeOriginal)
-                    : formatTimestamp(imageDetail.uploaded_at)}
-                </p>
-              </div>
 
-              {(() => {
-                const summary = getDetectionSummary();
-                return (
-                  <>
-                    {summary.detections && (
-                      <div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                          <Scan className="h-4 w-4" />
-                          <span>Detections</span>
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Camera className="h-4 w-4" />
+                    <span>Camera</span>
+                  </div>
+                  <p className="text-sm">{imageDetail.camera_name}</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Calendar className="h-4 w-4" />
+                    <span>Captured</span>
+                  </div>
+                  <p className="text-sm">
+                    {imageDetail.image_metadata?.DateTimeOriginal
+                      ? formatTimestamp(imageDetail.image_metadata.DateTimeOriginal)
+                      : formatTimestamp(imageDetail.uploaded_at)}
+                  </p>
+                </div>
+
+                {(() => {
+                  const summary = getDetectionSummary();
+                  return (
+                    <>
+                      {summary.detections && (
+                        <div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <Scan className="h-4 w-4" />
+                            <span>Detections</span>
+                          </div>
+                          <p className="text-sm">{summary.detections}</p>
                         </div>
-                        <p className="text-sm">{summary.detections}</p>
-                      </div>
-                    )}
+                      )}
 
-                    {summary.classifications && (
-                      <div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                          <PawPrint className="h-4 w-4" />
-                          <span>Classifications</span>
+                      {summary.classifications && (
+                        <div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                            <PawPrint className="h-4 w-4" />
+                            <span>Classifications</span>
+                          </div>
+                          <p className="text-sm">{summary.classifications}</p>
                         </div>
-                        <p className="text-sm">{summary.classifications}</p>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </div>
         </div>
         ) : (

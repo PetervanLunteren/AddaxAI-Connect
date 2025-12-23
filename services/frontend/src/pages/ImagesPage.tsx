@@ -74,6 +74,7 @@ export const ImagesPage: React.FC = () => {
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: false,
     });
   };
 
@@ -217,9 +218,9 @@ export const ImagesPage: React.FC = () => {
                 <CardContent className="p-4">
                   <div className="space-y-2">
                     {/* Camera Name */}
-                    <div className="flex items-center gap-1 text-sm">
-                      <Camera className="h-3 w-3 text-muted-foreground" />
-                      <span className="font-medium truncate">{image.camera_name}</span>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Camera className="h-3 w-3" />
+                      <span className="truncate">{image.camera_name}</span>
                     </div>
 
                     {/* Timestamp */}
