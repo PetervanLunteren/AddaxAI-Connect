@@ -449,7 +449,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           {/* Details Panel */}
           <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-end justify-end">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Image details</h2>
               <Button variant="ghost" size="icon" onClick={onClose}>
                 <X className="h-5 w-5" />
               </Button>
