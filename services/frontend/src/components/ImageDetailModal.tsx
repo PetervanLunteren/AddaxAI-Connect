@@ -462,47 +462,41 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               <CardHeader>
                 <CardTitle className="text-base">Actions</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
+              <CardContent>
+                <div className="grid grid-cols-4 gap-2">
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setShowBboxes(!showBboxes)}
-                    className="flex items-center justify-center gap-2"
+                    title={showBboxes ? 'Hide boxes' : 'Show boxes'}
                   >
-                    {showBboxes ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    {showBboxes ? 'Hide' : 'Show'}
+                    {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
                     onClick={handleDownload}
-                    className="flex items-center justify-center gap-2"
+                    title="Download image"
                   >
-                    <Download className="h-4 w-4" />
-                    Download
+                    <Download className="h-5 w-5" />
                   </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
                     onClick={onPrevious}
                     disabled={!hasPrevious}
-                    className="flex items-center justify-center gap-2"
+                    title="Previous image"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
+                    <ChevronLeft className="h-5 w-5" />
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
                     onClick={onNext}
                     disabled={!hasNext}
-                    className="flex items-center justify-center gap-2"
+                    title="Next image"
                   >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-5 w-5" />
                   </Button>
                 </div>
               </CardContent>
