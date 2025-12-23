@@ -205,7 +205,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.fillStyle = 'white';
       ctx.textBaseline = 'middle';
       labels.forEach((label, idx) => {
-        const textY = labelY + paddingY + (idx * lineHeight) + (lineHeight / 2);
+        // Calculate Y position: start from labelY, offset by paddingY, then center in each line
+        const textY = labelY + paddingY + (idx + 0.5) * lineHeight;
         ctx.fillText(label, labelX + paddingX, textY);
       });
     });
@@ -361,7 +362,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           ctx.fillStyle = 'white';
           ctx.textBaseline = 'middle';
           labels.forEach((label, idx) => {
-            const textY = labelY + labelPaddingY + (idx * lineHeight) + (lineHeight / 2);
+            // Calculate Y position: start from labelY, offset by paddingY, then center in each line
+            const textY = labelY + labelPaddingY + (idx + 0.5) * lineHeight;
             ctx.fillText(label, labelX + labelPaddingX, textY);
           });
         });
