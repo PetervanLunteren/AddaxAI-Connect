@@ -230,19 +230,9 @@ export const ImagesPage: React.FC = () => {
 
                     {/* Detections List */}
                     {(() => {
-                      // Collect all detection categories with their confidences
-                      const detectionsMap: Record<string, number> = {};
-                      image.detections.forEach(detection => {
-                        const category = detection.category;
-                        const conf = detection.confidence;
-                        // Keep the highest confidence for each category
-                        if (!detectionsMap[category] || detectionsMap[category] < conf) {
-                          detectionsMap[category] = conf;
-                        }
-                      });
-
-                      const detectionsList = Object.entries(detectionsMap)
-                        .map(([category, conf]) => `${category} (${Math.round(conf * 100)}%)`)
+                      // Collect all detections with their confidences
+                      const detectionsList = image.detections
+                        .map(detection => `${detection.category} (${Math.round(detection.confidence * 100)}%)`)
                         .join(', ');
 
                       return detectionsList ? (
@@ -257,22 +247,15 @@ export const ImagesPage: React.FC = () => {
 
                     {/* Species List */}
                     {(() => {
-                      // Collect all species with their confidences
-                      const speciesMap: Record<string, number> = {};
+                      // Collect all species classifications from all detections
+                      const allSpecies: string[] = [];
                       image.detections.forEach(detection => {
                         detection.classifications.forEach(classification => {
-                          const species = classification.species;
-                          const conf = classification.confidence;
-                          // Keep the highest confidence for each species
-                          if (!speciesMap[species] || speciesMap[species] < conf) {
-                            speciesMap[species] = conf;
-                          }
+                          allSpecies.push(`${classification.species} (${Math.round(classification.confidence * 100)}%)`);
                         });
                       });
 
-                      const speciesList = Object.entries(speciesMap)
-                        .map(([species, conf]) => `${species} (${Math.round(conf * 100)}%)`)
-                        .join(', ');
+                      const speciesList = allSpecies.join(', ');
 
                       return speciesList ? (
                         <div className="flex items-start gap-1">
