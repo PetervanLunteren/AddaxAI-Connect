@@ -103,3 +103,34 @@ export interface CameraActivitySummary {
 export interface LastUpdateResponse {
   last_update: string | null;
 }
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  excluded_species: string[] | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface ProjectCreate {
+  name: string;
+  description?: string;
+  excluded_species?: string[];
+}
+
+export interface ProjectUpdate {
+  name?: string;
+  description?: string;
+  excluded_species?: string[];
+}
+
+export interface ReprocessRequest {
+  project_id: number;
+}
+
+export interface ReprocessResponse {
+  message: string;
+  images_queued: number;
+  project_id: number;
+}
