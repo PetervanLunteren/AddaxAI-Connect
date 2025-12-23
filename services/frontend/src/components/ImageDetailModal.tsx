@@ -541,23 +541,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   </div>
                   <p className="text-sm break-all">{imageDetail.filename}</p>
                 </div>
-
-                {(() => {
-                  const summary = getDetectionSummary();
-                  return (
-                    <>
-                      {summary.classifications && (
-                        <div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                            <PawPrint className="h-4 w-4" />
-                            <span>Classifications</span>
-                          </div>
-                          <p className="text-sm">{summary.classifications}</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
               </CardContent>
             </Card>
           </div>
