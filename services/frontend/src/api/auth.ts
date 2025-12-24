@@ -50,7 +50,7 @@ export const login = async (email: string, password: string): Promise<LoginRespo
   params.append('username', email); // FastAPI-Users expects 'username' field
   params.append('password', password);
 
-  const response = await apiClient.post<LoginResponse>('/auth/login', params, {
+  const response = await apiClient.post<LoginResponse>('/auth/jwt/login', params, {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
