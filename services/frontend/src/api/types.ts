@@ -124,13 +124,3 @@ export interface ProjectUpdate {
   description?: string;
   excluded_species?: string[];
 }
-
-export interface ReprocessRequest {
-  project_id: number;
-}
-
-export interface ReprocessResponse {
-  message: string;
-  images_queued: number;
-  project_id: number;
-}

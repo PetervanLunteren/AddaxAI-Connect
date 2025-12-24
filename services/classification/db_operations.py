@@ -7,22 +7,22 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from shared.database import get_db_session
-from shared.models import Image, Detection, Classification as ClassificationModel
+from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project
 from shared.logger import get_logger
 from classifier import Classification, DetectionInfo
 
 logger = get_logger("classification.db_operations")
 
 
-def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo]]:
+def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], List[str]]:
     """
-    Fetch detection records for an image.
+    Fetch detection records and project configuration for an image.
 
     Args:
         image_uuid: UUID of image
 
     Returns:
-        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects)
+        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, excluded_species)
 
     Raises:
         Exception: If query fails
@@ -36,6 +36,14 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
 
             if not image:
                 raise ValueError(f"Image not found: {image_uuid}")
+
+            # Get project's excluded species via camera
+            excluded_species = []
+            camera = db.query(Camera).filter(Camera.id == image.camera_id).first()
+            if camera and camera.project_id:
+                project = db.query(Project).filter(Project.id == camera.project_id).first()
+                if project and project.excluded_species:
+                    excluded_species = project.excluded_species
 
             # Get image dimensions from metadata
             image_metadata = image.image_metadata or {}
@@ -70,10 +78,11 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
             logger.info(
                 "Detections fetched",
                 image_uuid=image_uuid,
-                num_detections=len(detection_infos)
+                num_detections=len(detection_infos),
+                excluded_species_count=len(excluded_species)
             )
 
-            return (image.id, image_width, image_height, detection_infos)
+            return (image.id, image_width, image_height, detection_infos, excluded_species)
 
     except Exception as e:
         logger.error(
