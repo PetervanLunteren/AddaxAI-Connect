@@ -108,7 +108,7 @@ export interface Project {
   id: number;
   name: string;
   description: string | null;
-  excluded_species: string[] | null;
+  included_species: string[] | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -116,11 +116,11 @@ export interface Project {
 export interface ProjectCreate {
   name: string;
   description?: string;
-  excluded_species?: string[];
+  included_species?: string[];
 }
 
 export interface ProjectUpdate {
   name?: string;
   description?: string;
-  excluded_species?: string[];
+  included_species?: string[];
 }

@@ -37,13 +37,13 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
             if not image:
                 raise ValueError(f"Image not found: {image_uuid}")
 
-            # Get project's excluded species via camera
-            excluded_species = []
+            # Get project's included species via camera
+            included_species = None  # None = all species allowed
             camera = db.query(Camera).filter(Camera.id == image.camera_id).first()
             if camera and camera.project_id:
                 project = db.query(Project).filter(Project.id == camera.project_id).first()
-                if project and project.excluded_species:
-                    excluded_species = project.excluded_species
+                if project and project.included_species:
+                    included_species = project.included_species
 
             # Get image dimensions from metadata
             image_metadata = image.image_metadata or {}
@@ -79,10 +79,11 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
                 "Detections fetched",
                 image_uuid=image_uuid,
                 num_detections=len(detection_infos),
-                excluded_species_count=len(excluded_species)
+                included_species_count=len(included_species) if included_species else 0,
+                filter_mode="included" if included_species else "all"
             )
 
-            return (image.id, image_width, image_height, detection_infos, excluded_species)
+            return (image.id, image_width, image_height, detection_infos, included_species)
 
     except Exception as e:
         logger.error(

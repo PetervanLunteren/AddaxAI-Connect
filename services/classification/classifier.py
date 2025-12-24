@@ -104,20 +104,20 @@ def run_classification(
     model: Any,
     image_path: str,
     detections: List[DetectionInfo],
-    excluded_species: Optional[List[str]] = None
+    included_species: Optional[List[str]] = None
 ) -> List[Classification]:
     """
     Run DeepFaune v1.4 classification on animal detections.
 
     Only processes detections with category="animal".
     Extracts square crops, preprocesses to 182x182, and runs inference.
-    Filters out excluded species before selecting top-1 prediction.
+    Filters to only included species before selecting top-1 prediction.
 
     Args:
         model: Loaded DeepFaune model
         image_path: Path to full image file
         detections: List of DetectionInfo objects with bbox coordinates
-        excluded_species: List of species names to exclude from predictions
+        included_species: List of species names to include in predictions (None = all species)
 
     Returns:
         List of Classification objects (top-1 predictions per animal)
@@ -125,13 +125,14 @@ def run_classification(
     Raises:
         Exception: If inference fails
     """
-    excluded_species = excluded_species or []
+    # None = all species allowed, List = only these species allowed
 
     logger.info(
         "Running classification",
         image_path=image_path,
         num_detections=len(detections),
-        excluded_species_count=len(excluded_species)
+        included_species_count=len(included_species) if included_species else 0,
+        filter_mode="included" if included_species else "all"
     )
 
     try:
@@ -175,15 +176,30 @@ def run_classification(
             # Convert to numpy for easier processing
             probs_array = probabilities[0].cpu().numpy()
 
-            # Filter out excluded species and find top-1
+            # Filter to only included species and re-normalize
+            # Step 1: Calculate sum of probabilities for included species
+            remaining_prob_sum = 0.0
+            for idx, prob in enumerate(probs_array):
+                species = DEEPFAUNE_CLASSES[idx]
+                # If included_species is None, include all species
+                # If included_species is a list, only include species in the list
+                if included_species is None or species in included_species:
+                    remaining_prob_sum += prob
+
+            # Step 2: Re-normalize probabilities and find top-1
             species_name = None
             confidence_score = 0.0
 
             for idx, prob in enumerate(probs_array):
                 species = DEEPFAUNE_CLASSES[idx]
-                if species not in excluded_species and prob > confidence_score:
-                    species_name = species
-                    confidence_score = float(prob)
+                # If included_species is None, include all species
+                # If included_species is a list, only include species in the list
+                if included_species is None or species in included_species:
+                    # Re-normalize: divide by sum of remaining probabilities
+                    normalized_prob = float(prob / remaining_prob_sum) if remaining_prob_sum > 0 else 0.0
+                    if normalized_prob > confidence_score:
+                        species_name = species
+                        confidence_score = normalized_prob
 
             # Fallback if all species are excluded (shouldn't happen in practice)
             if species_name is None:

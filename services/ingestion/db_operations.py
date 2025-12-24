@@ -1,6 +1,7 @@
 """
 Database operations for ingestion service
 """
+import os
 import uuid
 from datetime import datetime
 from typing import Optional, Tuple
@@ -8,7 +9,7 @@ from typing import Optional, Tuple
 from sqlalchemy import and_
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, Image
+from shared.models import Camera, Image, Project
 from shared.logger import get_logger
 from camera_profiles import CameraProfile
 
@@ -57,14 +58,31 @@ def get_or_create_camera(
             )
             return db_id
 
-        # Create new camera
+        # Get default project (create if doesn't exist)
+        default_project_name = os.getenv("DEFAULT_PROJECT_NAME", "Wildlife Monitoring")
+        project = session.query(Project).filter_by(name=default_project_name).first()
+
+        if not project:
+            logger.info(
+                "Creating default project",
+                project_name=default_project_name
+            )
+            project = Project(
+                name=default_project_name,
+                description="Auto-created default project for camera assignments"
+            )
+            session.add(project)
+            session.flush()
+
+        # Create new camera with project assignment
         camera = Camera(
             name=friendly_name,
             serial_number=serial_number,
             manufacturer=profile.make_pattern if profile.make_pattern else None,
             model=profile.model_pattern if profile.model_pattern else None,
             location=None,  # Will be updated from GPS data
-            config={'profile': profile.name}
+            config={'profile': profile.name},
+            project_id=project.id  # Auto-assign to default project
         )
         session.add(camera)
         session.flush()  # Get camera.id before commit
@@ -76,6 +94,8 @@ def get_or_create_camera(
             camera_id=friendly_name,
             serial_number=serial_number,
             profile=profile.name,
+            project_id=project.id,
+            project_name=project.name,
             db_id=db_id
         )
 
@@ -214,10 +234,28 @@ def update_camera_health(camera_id: str, health_data: dict) -> None:
                 "Daily report for unknown camera - creating camera",
                 camera_id=camera_id
             )
+
+            # Get default project (create if doesn't exist)
+            default_project_name = os.getenv("DEFAULT_PROJECT_NAME", "Wildlife Monitoring")
+            project = session.query(Project).filter_by(name=default_project_name).first()
+
+            if not project:
+                logger.info(
+                    "Creating default project",
+                    project_name=default_project_name
+                )
+                project = Project(
+                    name=default_project_name,
+                    description="Auto-created default project for camera assignments"
+                )
+                session.add(project)
+                session.flush()
+
             camera = Camera(
                 name=camera_id,
                 location=None,
-                config={}
+                config={},
+                project_id=project.id  # Auto-assign to default project
             )
             session.add(camera)
 

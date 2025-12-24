@@ -19,14 +19,14 @@ class ProjectCreate(BaseModel):
     """Request body for creating a project"""
     name: str
     description: Optional[str] = None
-    excluded_species: Optional[List[str]] = None
+    included_species: Optional[List[str]] = None
 
 
 class ProjectUpdate(BaseModel):
     """Request body for updating a project"""
     name: Optional[str] = None
     description: Optional[str] = None
-    excluded_species: Optional[List[str]] = None
+    included_species: Optional[List[str]] = None
 
 
 class ProjectResponse(BaseModel):
@@ -34,7 +34,7 @@ class ProjectResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
-    excluded_species: Optional[List[str]] = None
+    included_species: Optional[List[str]] = None
     created_at: str
     updated_at: Optional[str] = None
 
@@ -64,7 +64,7 @@ async def list_projects(
             id=project.id,
             name=project.name,
             description=project.description,
-            excluded_species=project.excluded_species,
+            included_species=project.included_species,
             created_at=project.created_at.isoformat(),
             updated_at=project.updated_at.isoformat() if project.updated_at else None,
         )
@@ -107,7 +107,7 @@ async def get_project(
         id=project.id,
         name=project.name,
         description=project.description,
-        excluded_species=project.excluded_species,
+        included_species=project.included_species,
         created_at=project.created_at.isoformat(),
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
     )
@@ -135,7 +135,7 @@ async def create_project(
     project = Project(
         name=project_data.name,
         description=project_data.description,
-        excluded_species=project_data.excluded_species,
+        included_species=project_data.included_species,
     )
 
     db.add(project)
@@ -146,7 +146,7 @@ async def create_project(
         id=project.id,
         name=project.name,
         description=project.description,
-        excluded_species=project.excluded_species,
+        included_species=project.included_species,
         created_at=project.created_at.isoformat(),
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
     )
@@ -191,8 +191,8 @@ async def update_project(
         project.name = project_data.name
     if project_data.description is not None:
         project.description = project_data.description
-    if project_data.excluded_species is not None:
-        project.excluded_species = project_data.excluded_species
+    if project_data.included_species is not None:
+        project.included_species = project_data.included_species
 
     await db.commit()
     await db.refresh(project)
@@ -201,7 +201,7 @@ async def update_project(
         id=project.id,
         name=project.name,
         description=project.description,
-        excluded_species=project.excluded_species,
+        included_species=project.included_species,
         created_at=project.created_at.isoformat(),
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
     )
