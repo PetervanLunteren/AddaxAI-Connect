@@ -97,10 +97,8 @@ class Classification(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     detection_id = Column(Integer, ForeignKey("detections.id"), nullable=False, index=True)
-    species = Column(String(255), nullable=False, index=True)  # Top-1 species for fast access
-    confidence = Column(Float, nullable=False)  # Top-1 confidence for fast access
-    raw_predictions = Column(JSON, nullable=True)  # All predictions >0.05 as JSON: {"species_name": confidence, ...}
-    model_version = Column(String(100), nullable=True, index=True)  # Track which model generated predictions
+    species = Column(String(255), nullable=False, index=True)  # Top-1 species
+    confidence = Column(Float, nullable=False)  # Top-1 confidence
 
     # Relationships
     detection = relationship("Detection", back_populates="classifications")

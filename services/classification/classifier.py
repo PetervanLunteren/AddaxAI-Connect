@@ -103,18 +103,21 @@ def get_crop(image: Image.Image, bbox_normalized: list[float]) -> Image.Image:
 def run_classification(
     model: Any,
     image_path: str,
-    detections: List[DetectionInfo]
+    detections: List[DetectionInfo],
+    excluded_species: Optional[List[str]] = None
 ) -> List[Classification]:
     """
     Run DeepFaune v1.4 classification on animal detections.
 
     Only processes detections with category="animal".
     Extracts square crops, preprocesses to 182x182, and runs inference.
+    Filters out excluded species before selecting top-1 prediction.
 
     Args:
         model: Loaded DeepFaune model
         image_path: Path to full image file
         detections: List of DetectionInfo objects with bbox coordinates
+        excluded_species: List of species names to exclude from predictions
 
     Returns:
         List of Classification objects (top-1 predictions per animal)
@@ -122,10 +125,13 @@ def run_classification(
     Raises:
         Exception: If inference fails
     """
+    excluded_species = excluded_species or []
+
     logger.info(
         "Running classification",
         image_path=image_path,
-        num_detections=len(detections)
+        num_detections=len(detections),
+        excluded_species_count=len(excluded_species)
     )
 
     try:
@@ -165,26 +171,37 @@ def run_classification(
             with torch.no_grad():
                 logits = model(crop_tensor)
                 probabilities = F.softmax(logits, dim=1)
-                confidence, predicted_class = torch.max(probabilities, dim=1)
 
-            # Get top-1 species name
-            species_idx = predicted_class.item()
-            species_name = DEEPFAUNE_CLASSES[species_idx]
-            confidence_score = confidence.item()
+            # Convert to numpy for easier processing
+            probs_array = probabilities[0].cpu().numpy()
 
-            # Extract ALL predictions (no threshold)
-            probs_array = probabilities[0].cpu().numpy()  # Get first (and only) batch item
-            raw_predictions = {}
+            # Filter out excluded species and find top-1
+            species_name = None
+            confidence_score = 0.0
+
             for idx, prob in enumerate(probs_array):
-                raw_predictions[DEEPFAUNE_CLASSES[idx]] = float(prob)
+                species = DEEPFAUNE_CLASSES[idx]
+                if species not in excluded_species and prob > confidence_score:
+                    species_name = species
+                    confidence_score = float(prob)
 
-            # Create classification result with raw predictions
+            # Fallback if all species are excluded (shouldn't happen in practice)
+            if species_name is None:
+                logger.warning(
+                    "All species excluded, falling back to highest probability",
+                    detection_id=detection.detection_id
+                )
+                species_idx = np.argmax(probs_array)
+                species_name = DEEPFAUNE_CLASSES[species_idx]
+                confidence_score = float(probs_array[species_idx])
+
+            # Create classification result (without raw predictions)
             classification = Classification(
                 detection_id=detection.detection_id,
                 species=species_name,
                 confidence=confidence_score,
-                raw_predictions=raw_predictions,
-                model_version="deepfaune_v1.4"
+                raw_predictions=None,  # No longer storing raw predictions
+                model_version=None  # No longer tracking model version
             )
 
             classifications.append(classification)

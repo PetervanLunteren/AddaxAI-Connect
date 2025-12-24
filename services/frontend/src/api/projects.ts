@@ -2,7 +2,7 @@
  * Projects API client
  */
 import apiClient from './client';
-import type { Project, ProjectCreate, ProjectUpdate, ReprocessRequest, ReprocessResponse } from './types';
+import type { Project, ProjectCreate, ProjectUpdate } from './types';
 
 export const projectsApi = {
   /**
@@ -42,13 +42,5 @@ export const projectsApi = {
    */
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/api/projects/${id}`);
-  },
-
-  /**
-   * Trigger reprocessing of classifications for a project
-   */
-  reprocess: async (data: ReprocessRequest): Promise<ReprocessResponse> => {
-    const response = await apiClient.post<ReprocessResponse>('/api/projects/reprocess', data);
-    return response.data;
   },
 };

@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 from shared.models import User, Project, Image, Detection, Classification
 from shared.database import get_async_session
-from shared.queue import RedisQueue, QUEUE_CLASSIFICATION_REPROCESS
 from auth.users import current_active_user
 
 
@@ -41,18 +40,6 @@ class ProjectResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-class ReprocessRequest(BaseModel):
-    """Request to reprocess classifications for a project"""
-    project_id: int
-
-
-class ReprocessResponse(BaseModel):
-    """Response from reprocessing trigger"""
-    message: str
-    images_queued: int
-    project_id: int
 
 
 @router.get(
@@ -252,80 +239,3 @@ async def delete_project(
     # Delete project
     await db.execute(sql_delete(Project).where(Project.id == project_id))
     await db.commit()
-
-
-@router.post(
-    "/reprocess",
-    response_model=ReprocessResponse,
-)
-async def reprocess_classifications(
-    request: ReprocessRequest,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
-):
-    """
-    Trigger reprocessing of classifications for a project
-
-    This endpoint queues all classified images from cameras in the specified project
-    for reprocessing. The reprocessing will:
-    1. Apply the project's excluded_species filter
-    2. Recalculate top-1 species from raw_predictions excluding filtered species
-    3. Update classification records with new top-1 species and confidence
-
-    Args:
-        request: Reprocessing request with project_id
-
-    Returns:
-        Number of images queued for reprocessing
-
-    Raises:
-        HTTPException: If project not found or no images to reprocess
-    """
-    project_id = request.project_id
-
-    # Verify project exists
-    query = select(Project).where(Project.id == project_id)
-    result = await db.execute(query)
-    project = result.scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
-    # Find all classified images from cameras in this project
-    # Note: This assumes cameras have project_id foreign key
-    from shared.models import Camera
-
-    query = (
-        select(Image)
-        .join(Camera, Image.camera_id == Camera.id)
-        .where(Camera.project_id == project_id)
-        .where(Image.status == "classified")
-    )
-
-    result = await db.execute(query)
-    images = result.scalars().all()
-
-    if not images:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No classified images found for this project",
-        )
-
-    # Queue images for reprocessing
-    queue = RedisQueue(QUEUE_CLASSIFICATION_REPROCESS)
-
-    for image in images:
-        queue.publish({
-            "image_uuid": image.uuid,
-            "project_id": project_id,
-            "excluded_species": project.excluded_species or [],
-        })
-
-    return ReprocessResponse(
-        message=f"Queued {len(images)} images for reprocessing",
-        images_queued=len(images),
-        project_id=project_id,
-    )
