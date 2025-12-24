@@ -249,26 +249,6 @@ services:
     networks:
       - addaxai-network
 
-  # Classification Reprocessing Worker
-  reprocess:
-    build:
-      context: .
-      dockerfile: services/classification/Dockerfile.reprocess
-    container_name: addaxai-reprocess
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LOG_FORMAT: ${LOG_FORMAT:-json}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - addaxai-network
-
   # Alert Worker (placeholder - not yet implemented)
   # alerts:
   #   build:
