@@ -67,7 +67,7 @@ def process_detection_complete(message: dict, classifier) -> None:
             return
 
         # Step 2: Fetch detection records and project config from database
-        image_id, image_width, image_height, detections, excluded_species = get_detections_for_image(image_uuid)
+        image_id, image_width, image_height, detections, included_species = get_detections_for_image(image_uuid)
 
         # Check if any detections are animals
         animal_detections = [d for d in detections if d.category == "animal"]
@@ -105,7 +105,7 @@ def process_detection_complete(message: dict, classifier) -> None:
         temp_files.append(image_path)
 
         # Step 4: Run classification on animal detections with species filtering
-        classifications = run_classification(classifier, image_path, detections, excluded_species)
+        classifications = run_classification(classifier, image_path, detections, included_species)
 
         logger.info(
             "Classifications generated",

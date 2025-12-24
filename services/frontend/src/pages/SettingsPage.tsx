@@ -1,5 +1,5 @@
 /**
- * Settings page with project management and species exclusion
+ * Settings page with project management and species filtering
  */
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,15 +24,15 @@ const DEEPFAUNE_SPECIES = [
 export const SettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { selectedProject, loading: projectsLoading, refreshProjects } = useProject();
-  const [excludedSpecies, setExcludedSpecies] = useState<Option[]>([]);
+  const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
-  // Load excluded species when project changes
+  // Load included species when project changes
   useEffect(() => {
     if (selectedProject) {
-      const excluded = selectedProject.excluded_species || [];
-      setExcludedSpecies(
-        excluded.map(species => ({
+      const included = selectedProject.included_species || [];
+      setIncludedSpecies(
+        included.map(species => ({
           label: species.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
           value: species
         }))
@@ -63,7 +63,7 @@ export const SettingsPage: React.FC = () => {
     updateMutation.mutate({
       id: selectedProject.id,
       update: {
-        excluded_species: excludedSpecies.map(s => s.value as string),
+        included_species: includedSpecies.map(s => s.value as string),
       },
     });
   };
@@ -79,12 +79,12 @@ export const SettingsPage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       <div className="grid gap-6">
-        {/* Species Exclusion Card */}
+        {/* Species Filtering Card */}
         <Card>
           <CardHeader>
             <CardTitle>Species Filtering</CardTitle>
             <CardDescription>
-              Exclude species that are not present in your study area to improve classification accuracy.
+              Select which species are present in your study area to improve classification accuracy.
               Note: Species filtering applies to newly uploaded images only. Existing classifications are not affected.
             </CardDescription>
           </CardHeader>
@@ -102,21 +102,21 @@ export const SettingsPage: React.FC = () => {
                 {/* Species Selection */}
                 <div>
                   <label className="text-sm font-medium block mb-2">
-                    Excluded Species
+                    Species Present in Study Area
                   </label>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Select species that do NOT occur in your study area. These will be excluded from classification results.
+                    Select which species occur in your study area. Only these species will appear in classification results. Leave empty to allow all species.
                   </p>
                   <MultiSelect
                     options={speciesOptions}
-                    value={excludedSpecies}
-                    onChange={setExcludedSpecies}
-                    placeholder="Select species to exclude..."
+                    value={includedSpecies}
+                    onChange={setIncludedSpecies}
+                    placeholder="Select species present in your area..."
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    {excludedSpecies.length === 0
-                      ? 'No species excluded - all 38 species will be considered'
-                      : `${excludedSpecies.length} ${excludedSpecies.length === 1 ? 'species' : 'species'} excluded`}
+                    {includedSpecies.length === 0
+                      ? 'No filter applied - all 38 species will be considered'
+                      : `${includedSpecies.length} ${includedSpecies.length === 1 ? 'species' : 'species'} allowed`}
                   </p>
                 </div>
 

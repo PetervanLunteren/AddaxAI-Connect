@@ -99,6 +99,8 @@ class Classification(Base):
     detection_id = Column(Integer, ForeignKey("detections.id"), nullable=False, index=True)
     species = Column(String(255), nullable=False, index=True)  # Top-1 species
     confidence = Column(Float, nullable=False)  # Top-1 confidence
+    raw_predictions = Column(JSON, nullable=True)  # All species probabilities
+    model_version = Column(String(100), nullable=True, index=True)  # Model version used
 
     # Relationships
     detection = relationship("Detection", back_populates="classifications")
@@ -112,7 +114,7 @@ class Project(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     location = Column(Geography(geometry_type='POLYGON', srid=4326), nullable=True)
-    excluded_species = Column(JSON, nullable=True)  # List of species names that are NOT present in project area
+    included_species = Column(JSON, nullable=True)  # List of species names that ARE present in project area (null = all species)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
