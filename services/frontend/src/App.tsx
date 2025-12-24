@@ -4,6 +4,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ProjectProvider } from './contexts/ProjectContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
@@ -25,7 +26,8 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <ProjectProvider>
+            <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -90,7 +92,8 @@ function App() {
 
             {/* 404 - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+            </Routes>
+          </ProjectProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { LastUpdate } from '../LastUpdate';
+import { ProjectSelector } from '../ProjectSelector';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -63,8 +64,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
+        {/* Project Selector */}
+        <div className="px-4 pt-4 pb-2">
+          <ProjectSelector />
+        </div>
+
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-1">
+        <nav className="flex-1 px-4 py-4 space-y-1">
           {navItems.map((item) => (
             <NavLink
               key={item.to}

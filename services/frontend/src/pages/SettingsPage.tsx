@@ -1,14 +1,15 @@
 /**
  * Settings page with project management and species exclusion
  */
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, RefreshCw, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
+import { useProject } from '../contexts/ProjectContext';
 import { projectsApi } from '../api/projects';
-import type { Project, ProjectUpdate } from '../api/types';
+import type { ProjectUpdate } from '../api/types';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
 const DEEPFAUNE_SPECIES = [
@@ -22,26 +23,16 @@ const DEEPFAUNE_SPECIES = [
 
 export const SettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const { selectedProject, loading: projectsLoading, refreshProjects } = useProject();
   const [excludedSpecies, setExcludedSpecies] = useState<Option[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [reprocessStatus, setReprocessStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [reprocessMessage, setReprocessMessage] = useState<string>('');
 
-  // Fetch all projects
-  const { data: projects, isLoading: projectsLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => projectsApi.getAll(),
-  });
-
-  // Select first project automatically
-  React.useEffect(() => {
-    if (projects && projects.length > 0 && !selectedProject) {
-      const firstProject = projects[0];
-      setSelectedProject(firstProject);
-
-      // Convert excluded_species to Option format
-      const excluded = firstProject.excluded_species || [];
+  // Load excluded species when project changes
+  useEffect(() => {
+    if (selectedProject) {
+      const excluded = selectedProject.excluded_species || [];
       setExcludedSpecies(
         excluded.map(species => ({
           label: species.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -49,7 +40,7 @@ export const SettingsPage: React.FC = () => {
         }))
       );
     }
-  }, [projects, selectedProject]);
+  }, [selectedProject]);
 
   // Update project mutation
   const updateMutation = useMutation({
@@ -57,6 +48,7 @@ export const SettingsPage: React.FC = () => {
       projectsApi.update(data.id, data.update),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      refreshProjects();
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 3000);
     },
@@ -136,14 +128,6 @@ export const SettingsPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Project Info */}
-                <div>
-                  <h3 className="text-sm font-medium mb-1">Project: {selectedProject.name}</h3>
-                  {selectedProject.description && (
-                    <p className="text-sm text-muted-foreground">{selectedProject.description}</p>
-                  )}
-                </div>
-
                 {/* Species Selection */}
                 <div>
                   <label className="text-sm font-medium block mb-2">
