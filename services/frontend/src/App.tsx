@@ -20,6 +20,7 @@ import { CamerasPage } from './pages/CamerasPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AboutPage } from './pages/AboutPage';
+import { DebugPage } from './pages/DebugPage';
 
 function App() {
   return (
@@ -82,6 +83,16 @@ function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <AboutPage />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/debug"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <DebugPage />
                   </AppLayout>
                 </ProtectedRoute>
               }

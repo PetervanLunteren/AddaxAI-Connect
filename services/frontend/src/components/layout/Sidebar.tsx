@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Camera, LayoutDashboard, Images, Settings, Info, LogOut, X, Menu } from 'lucide-react';
+import { Camera, LayoutDashboard, Images, Settings, Info, LogOut, X, Menu, Bug } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -89,6 +89,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <span>{item.label}</span>
             </NavLink>
           ))}
+
+          {/* Debug link (superuser only) */}
+          {user?.is_superuser && (
+            <NavLink
+              to="/debug"
+              onClick={onClose}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center space-x-3 px-4 py-3 rounded-md text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                )
+              }
+            >
+              <Bug className="h-5 w-5" />
+              <span>Debug</span>
+            </NavLink>
+          )}
         </nav>
 
         {/* Bottom section with Last Update and User info */}
