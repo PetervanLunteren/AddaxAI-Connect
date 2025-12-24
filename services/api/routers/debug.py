@@ -80,7 +80,7 @@ async def upload_file_to_ftps(
 
     logger.info(
         "Debug upload started",
-        filename=filename,
+        file_name=filename,
         user_id=current_user.id,
         user_email=current_user.email,
         upload_path=str(upload_path)
@@ -97,7 +97,7 @@ async def upload_file_to_ftps(
 
         logger.info(
             "Debug upload successful",
-            filename=filename,
+            file_name=filename,
             size_bytes=len(content),
             user_email=current_user.email
         )
@@ -111,7 +111,7 @@ async def upload_file_to_ftps(
     except Exception as e:
         logger.error(
             "Debug upload failed",
-            filename=filename,
+            file_name=filename,
             error=str(e),
             exc_info=True
         )
