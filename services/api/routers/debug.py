@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification
 from shared.database import get_async_session
-from shared.storage import MinIOStorage
+from shared.storage import StorageClient
 from shared.config import get_settings
 from shared.logger import get_logger
 from auth.users import current_superuser
@@ -182,17 +182,16 @@ async def clear_all_data(
         logger.info("Database cleared", deleted_counts=deleted_counts)
 
         # 2. Clear MinIO buckets
-        storage = MinIOStorage()
+        storage = StorageClient()
         buckets = ["raw-images", "crops", "thumbnails"]
 
         for bucket in buckets:
             try:
                 # List and delete all objects in bucket
-                objects = storage.client.list_objects(bucket, recursive=True)
-                object_names = [obj.object_name for obj in objects]
+                object_names = storage.list_objects(bucket)
 
                 for obj_name in object_names:
-                    storage.client.remove_object(bucket, obj_name)
+                    storage.delete_object(bucket, obj_name)
 
                 deleted_counts[f"minio_{bucket.replace('-', '_')}"] = len(object_names)
 
