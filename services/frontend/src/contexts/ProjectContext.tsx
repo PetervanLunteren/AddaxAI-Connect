@@ -31,11 +31,15 @@ interface ProjectProviderProps {
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  // Fetch all projects
+  // Check if user is authenticated
+  const isAuthenticated = !!localStorage.getItem('access_token');
+
+  // Fetch all projects (only if authenticated)
   const { data: projects, isLoading, refetch } = useQuery({
     queryKey: ['projects'],
     queryFn: () => projectsApi.getAll(),
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    enabled: isAuthenticated, // Only fetch if user is authenticated
   });
 
   // Load selected project from localStorage on mount
