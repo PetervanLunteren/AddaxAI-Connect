@@ -131,6 +131,7 @@
   loop: "{{ admin_emails | default([]) }}"
   register: allowlist_seed
   changed_when: "'INSERT' in allowlist_seed.stdout"
+  failed_when: false  # Don't fail if table doesn't exist yet (migrations still running)
   when: admin_emails is defined and admin_emails | length > 0
 
 - name: Display allowlist seeding result
