@@ -144,6 +144,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      # Default project configuration
+      DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Wildlife Monitoring}
     ports:
       - "8000:8000"
     depends_on:

@@ -114,6 +114,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
    | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
    | `superadmin_email` | `"admin@example.com"` or `"admin1@example.com;admin2@example.com"` | Email address(es) for initial superadmin account(s). Multiple emails can be separated by semicolons. These users will be automatically created and added to the allowlist. Other user management will be done from within the UI. |
+   | `project_name` | `"Wildlife Monitoring"` | Name for the default project that will be automatically created on first startup. All cameras and images will belong to this project. |
 
 
 8. **Add VM to known_hosts**  

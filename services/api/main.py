@@ -24,6 +24,31 @@ async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
     logger.info("Starting AddaxAI Connect API", version="0.1.0", environment=settings.environment)
+
+    # Auto-create default project if none exist
+    from shared.models import Project
+    from sqlalchemy import select
+
+    async for session in get_async_session():
+        try:
+            result = await session.execute(select(Project))
+            projects = result.scalars().all()
+
+            if not projects:
+                default_project = Project(
+                    name=settings.default_project_name,
+                    description=f"Default project created automatically",
+                    excluded_species=[],
+                )
+                session.add(default_project)
+                await session.commit()
+                logger.info("Created default project", project_name=settings.default_project_name)
+            else:
+                logger.info("Projects already exist, skipping default project creation", count=len(projects))
+        except Exception as e:
+            logger.error("Failed to check/create default project", error=str(e))
+        break
+
     yield
     # Shutdown
     logger.info("Shutting down AddaxAI Connect API")
