@@ -146,8 +146,11 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       # Default project configuration
       DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Wildlife Monitoring}
+      FTPS_UPLOAD_DIR: /uploads
     ports:
       - "8000:8000"
+    volumes:
+      - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
     depends_on:
       postgres:
         condition: service_healthy
