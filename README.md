@@ -4,7 +4,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
 ## WHEREWASI?
-- I just built the ML workers, the frontend, and wanted to check if everything did what is is supposed to do on a fresh VM. So next time, rebuilt the VM and run ansible again. Fix all the errors down the line and check if you have read/write as ubuntu in the FTPS uploads dir. And whether or not the thumbs are actually thumbs. 
+- I just built the project selections, and i was rebuilding the Ansible VM. No luck there. I believe there is a problem with the data migration part, and the Ansible should_error var was set to False, so that is probably the culprit. Set this to True and wolve the problem. If all runs smoothly again, see if the species exclusion setting works. Then implement the det threshold.
 
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
