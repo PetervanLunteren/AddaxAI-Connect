@@ -1,9 +1,10 @@
-"""Add raw_predictions and model_version to classifications, create projects table
+"""Add raw_predictions and model_version to classifications, add location and excluded_species to projects
 
 Revision ID: add_raw_pred_proj
 Revises: add_thumb_rm_crop
 Create Date: 2025-12-23 14:30:00.000000
 
+Note: projects table was created in add_camera_mgmt migration. This migration only adds columns.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -18,21 +19,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Add raw_predictions and model_version to classifications, create projects table"""
+    """Add raw_predictions and model_version to classifications, add location and excluded_species to projects"""
 
-    # Create projects table
-    op.create_table(
-        'projects',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('name', sa.String(length=255), nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('location', Geography(geometry_type='POLYGON', srid=4326, spatial_index=False), nullable=True),
-        sa.Column('excluded_species', postgresql.JSON(astext_type=sa.Text()), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_projects_id'), 'projects', ['id'], unique=False)
+    # Add location and excluded_species columns to existing projects table
+    # (projects table was created in add_camera_mgmt migration)
+    op.add_column('projects', sa.Column('location', Geography(geometry_type='POLYGON', srid=4326, spatial_index=False), nullable=True))
+    op.add_column('projects', sa.Column('excluded_species', postgresql.JSON(astext_type=sa.Text()), nullable=True))
 
     # Add raw_predictions and model_version columns to classifications table
     op.add_column('classifications', sa.Column('raw_predictions', postgresql.JSON(astext_type=sa.Text()), nullable=True))
@@ -47,7 +39,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Remove raw_predictions, model_version, and projects table"""
+    """Remove raw_predictions, model_version, and columns from projects table"""
 
     # Drop foreign keys
     op.drop_constraint('fk_cameras_project_id', 'cameras', type_='foreignkey')
@@ -58,6 +50,6 @@ def downgrade() -> None:
     op.drop_column('classifications', 'model_version')
     op.drop_column('classifications', 'raw_predictions')
 
-    # Drop projects table
-    op.drop_index(op.f('ix_projects_id'), table_name='projects')
-    op.drop_table('projects')
+    # Remove columns from projects table (don't drop the table itself)
+    op.drop_column('projects', 'excluded_species')
+    op.drop_column('projects', 'location')
