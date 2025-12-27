@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
                 default_project = Project(
                     name=settings.default_project_name,
                     description=f"Default project created automatically",
-                    excluded_species=[],
+                    included_species=None,  # None = all species included
                 )
                 session.add(default_project)
                 await session.commit()

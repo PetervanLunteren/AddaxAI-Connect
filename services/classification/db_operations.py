@@ -14,7 +14,7 @@ from classifier import Classification, DetectionInfo
 logger = get_logger("classification.db_operations")
 
 
-def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], List[str]]:
+def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], List[str] | None]:
     """
     Fetch detection records and project configuration for an image.
 
@@ -22,7 +22,8 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
         image_uuid: UUID of image
 
     Returns:
-        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, excluded_species)
+        Tuple of (image_id, image_width, image_height, list of DetectionInfo objects, included_species)
+        included_species is None if all species are allowed, or a list of species names to include
 
     Raises:
         Exception: If query fails
