@@ -31,19 +31,14 @@ def upgrade() -> None:
     op.add_column('classifications', sa.Column('model_version', sa.String(length=100), nullable=True))
     op.create_index(op.f('ix_classifications_model_version'), 'classifications', ['model_version'], unique=False)
 
-    # Add foreign key constraint to users.project_id (was TODO in original schema)
-    op.create_foreign_key('fk_users_project_id', 'users', 'projects', ['project_id'], ['id'])
-
-    # Add foreign key constraint to cameras.project_id
-    op.create_foreign_key('fk_cameras_project_id', 'cameras', 'projects', ['project_id'], ['id'])
+    # Note: Foreign keys fk_users_project_id and fk_cameras_project_id were already created
+    # in add_camera_mgmt migration, so we don't create them again here
 
 
 def downgrade() -> None:
     """Remove raw_predictions, model_version, and columns from projects table"""
 
-    # Drop foreign keys
-    op.drop_constraint('fk_cameras_project_id', 'cameras', type_='foreignkey')
-    op.drop_constraint('fk_users_project_id', 'users', type_='foreignkey')
+    # Note: We don't drop foreign keys here because they were created in add_camera_mgmt migration
 
     # Remove columns from classifications
     op.drop_index(op.f('ix_classifications_model_version'), table_name='classifications')
