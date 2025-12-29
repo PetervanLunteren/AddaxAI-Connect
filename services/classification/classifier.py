@@ -41,15 +41,11 @@ class Classification:
         self,
         detection_id: int,
         species: str,
-        confidence: float,
-        raw_predictions: dict[str, float] = None,
-        model_version: str = None
+        confidence: float
     ):
         self.detection_id = detection_id
         self.species = species
         self.confidence = confidence
-        self.raw_predictions = raw_predictions or {}  # All predictions >0.05
-        self.model_version = model_version
 
 
 # DeepFaune preprocessing transform (182x182, custom normalization)
@@ -211,13 +207,11 @@ def run_classification(
                 species_name = DEEPFAUNE_CLASSES[species_idx]
                 confidence_score = float(probs_array[species_idx])
 
-            # Create classification result (without raw predictions)
+            # Create classification result
             classification = Classification(
                 detection_id=detection.detection_id,
                 species=species_name,
-                confidence=confidence_score,
-                raw_predictions=None,  # No longer storing raw predictions
-                model_version=None  # No longer tracking model version
+                confidence=confidence_score
             )
 
             classifications.append(classification)
