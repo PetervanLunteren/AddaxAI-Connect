@@ -126,9 +126,7 @@ def insert_classifications(classifications: List[Classification]) -> List[int]:
                 classification_record = ClassificationModel(
                     detection_id=classification.detection_id,
                     species=classification.species,
-                    confidence=classification.confidence,
-                    raw_predictions=classification.raw_predictions,
-                    model_version=classification.model_version
+                    confidence=classification.confidence
                 )
 
                 db.add(classification_record)
