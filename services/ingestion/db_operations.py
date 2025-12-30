@@ -16,82 +16,35 @@ from camera_profiles import CameraProfile
 logger = get_logger("ingestion")
 
 
-def get_or_create_camera(
-    camera_id: str,
-    profile: CameraProfile
-) -> int:
+def get_camera_by_imei(imei: str) -> Optional[int]:
     """
-    Get camera by ID, or create if doesn't exist.
+    Get camera by IMEI.
 
     Args:
-        camera_id: Camera serial number (from EXIF SerialNumber field)
-        profile: Camera profile (for logging camera model)
+        imei: Camera IMEI (from EXIF SerialNumber or daily report IMEI field)
 
     Returns:
-        Database ID of camera (integer)
+        Database ID of camera (integer) if found, None otherwise
     """
-    # All cameras now use serial number as identifier
-    friendly_name = camera_id
-    serial_number = camera_id
-    lookup_field = 'serial_number'
-    lookup_value = serial_number
-
     with get_db_session() as session:
-        # Check if camera exists by serial_number
-        camera = session.query(Camera).filter_by(serial_number=lookup_value).first()
+        # Look up camera by IMEI
+        camera = session.query(Camera).filter_by(imei=imei).first()
 
         if camera:
             db_id = camera.id  # Access ID before session closes
             logger.debug(
                 "Found existing camera",
-                camera_id=friendly_name,
-                serial_number=serial_number,
+                imei=imei,
+                camera_name=camera.name,
                 db_id=db_id
             )
             return db_id
 
-        # Get default project (create if doesn't exist)
-        default_project_name = os.getenv("DEFAULT_PROJECT_NAME", "Wildlife Monitoring")
-        project = session.query(Project).filter_by(name=default_project_name).first()
-
-        if not project:
-            logger.info(
-                "Creating default project",
-                project_name=default_project_name
-            )
-            project = Project(
-                name=default_project_name,
-                description="Auto-created default project for camera assignments"
-            )
-            session.add(project)
-            session.flush()
-
-        # Create new camera with project assignment
-        camera = Camera(
-            name=friendly_name,
-            serial_number=serial_number,
-            manufacturer=profile.make_pattern if profile.make_pattern else None,
-            model=profile.model_pattern if profile.model_pattern else None,
-            location=None,  # Will be updated from GPS data
-            config={'profile': profile.name},
-            project_id=project.id  # Auto-assign to default project
+        logger.debug(
+            "Camera not found",
+            imei=imei
         )
-        session.add(camera)
-        session.flush()  # Get camera.id before commit
-
-        db_id = camera.id  # Access ID before session closes
-
-        logger.info(
-            "Auto-created camera",
-            camera_id=friendly_name,
-            serial_number=serial_number,
-            profile=profile.name,
-            project_id=project.id,
-            project_name=project.name,
-            db_id=db_id
-        )
-
-        return db_id
+        return None
 
 
 def check_duplicate_image(
@@ -207,49 +160,29 @@ def create_image_record(
         return image_uuid
 
 
-def update_camera_health(camera_id: str, health_data: dict) -> None:
+def update_camera_health(imei: str, health_data: dict) -> bool:
     """
     Update camera record with health data from daily report.
 
     Stores health data in camera.config JSON field.
 
     Args:
-        camera_id: Camera identifier (name field)
+        imei: Camera IMEI
         health_data: Parsed daily report data
+
+    Returns:
+        True if camera found and updated, False if camera not found
     """
     with get_db_session() as session:
-        # Get or create camera
-        camera = session.query(Camera).filter_by(name=camera_id).first()
+        # Look up camera by IMEI
+        camera = session.query(Camera).filter_by(imei=imei).first()
 
         if not camera:
             logger.warning(
-                "Daily report for unknown camera - creating camera",
-                camera_id=camera_id
+                "Daily report for unknown camera",
+                imei=imei
             )
-
-            # Get default project (create if doesn't exist)
-            default_project_name = os.getenv("DEFAULT_PROJECT_NAME", "Wildlife Monitoring")
-            project = session.query(Project).filter_by(name=default_project_name).first()
-
-            if not project:
-                logger.info(
-                    "Creating default project",
-                    project_name=default_project_name
-                )
-                project = Project(
-                    name=default_project_name,
-                    description="Auto-created default project for camera assignments"
-                )
-                session.add(project)
-                session.flush()
-
-            camera = Camera(
-                name=camera_id,
-                location=None,
-                config={},
-                project_id=project.id  # Auto-assign to default project
-            )
-            session.add(camera)
+            return False
 
         # Update config JSON with health data
         camera.config = camera.config or {}
@@ -278,8 +211,11 @@ def update_camera_health(camera_id: str, health_data: dict) -> None:
 
         logger.info(
             "Updated camera health",
-            camera_id=camera_id,
+            imei=imei,
+            camera_name=camera.name,
             battery=health_data.get('battery_percentage'),
             temperature=health_data.get('temperature'),
             signal_quality=health_data.get('signal_quality')
         )
+
+        return True
