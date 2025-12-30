@@ -20,7 +20,7 @@ import { CamerasPage } from './pages/CamerasPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AboutPage } from './pages/AboutPage';
-import { DebugPage } from './pages/DebugPage';
+import { DevToolsPage } from './pages/DevToolsPage';
 
 function App() {
   return (
@@ -92,7 +92,7 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <DebugPage />
+                    <DevToolsPage />
                   </AppLayout>
                 </ProtectedRoute>
               }

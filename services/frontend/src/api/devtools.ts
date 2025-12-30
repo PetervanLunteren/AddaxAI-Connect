@@ -1,5 +1,5 @@
 /**
- * Debug API functions
+ * Dev tools API functions
  */
 import apiClient from './client';
 
@@ -32,7 +32,7 @@ export const uploadFile = async (file: File): Promise<UploadResponse> => {
   formData.append('file', file);
 
   const response = await apiClient.post<UploadResponse>(
-    '/api/debug/upload',
+    '/api/devtools/upload',
     formData,
     {
       headers: {
@@ -48,6 +48,6 @@ export const uploadFile = async (file: File): Promise<UploadResponse> => {
  * Clear all data from database, MinIO, and FTPS directory (superuser only)
  */
 export const clearAllData = async (): Promise<ClearDataResponse> => {
-  const response = await apiClient.post<ClearDataResponse>('/api/debug/clear-all-data');
+  const response = await apiClient.post<ClearDataResponse>('/api/devtools/clear-all-data');
   return response.data;
 };

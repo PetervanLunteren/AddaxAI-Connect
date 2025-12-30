@@ -30,9 +30,9 @@ import {
   DialogFooter,
 } from '../components/ui/Dialog';
 import { useAuth } from '../hooks/useAuth';
-import { uploadFile, clearAllData, type ClearDataResponse } from '../api/debug';
+import { uploadFile, clearAllData, type ClearDataResponse } from '../api/devtools';
 
-export const DebugPage: React.FC = () => {
+export const DevToolsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');

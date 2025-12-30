@@ -1,5 +1,5 @@
 """
-Debug endpoints for development and testing.
+Dev tools endpoints for development and testing.
 
 Provides tools for superusers to:
 - Upload files directly to FTPS directory
@@ -24,8 +24,8 @@ from shared.logger import get_logger
 from auth.users import current_superuser
 
 
-router = APIRouter(prefix="/api/debug", tags=["debug"])
-logger = get_logger("api.debug")
+router = APIRouter(prefix="/api/devtools", tags=["devtools"])
+logger = get_logger("api.devtools")
 settings = get_settings()
 
 
@@ -79,7 +79,7 @@ async def upload_file_to_ftps(
     upload_path = Path(ftps_dir) / filename
 
     logger.info(
-        "Debug upload started",
+        "Dev tools upload started",
         file_name=filename,
         user_id=current_user.id,
         user_email=current_user.email,
@@ -96,7 +96,7 @@ async def upload_file_to_ftps(
             f.write(content)
 
         logger.info(
-            "Debug upload successful",
+            "Dev tools upload successful",
             file_name=filename,
             size_bytes=len(content),
             user_email=current_user.email
@@ -110,7 +110,7 @@ async def upload_file_to_ftps(
 
     except Exception as e:
         logger.error(
-            "Debug upload failed",
+            "Dev tools upload failed",
             file_name=filename,
             error=str(e),
             exc_info=True
