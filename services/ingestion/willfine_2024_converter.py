@@ -126,7 +126,7 @@ def convert_willfine_2024_image(filepath: str) -> bool:
 
     logger.info(
         "Converting Willfine-2024 image to Willfine-2025",
-        filename=filename,
+        file_name=filename,
         camera_id=friendly_name,
         serial_number=serial_number
     )
@@ -150,7 +150,7 @@ def convert_willfine_2024_image(filepath: str) -> bool:
 
         logger.info(
             "Successfully converted Willfine-2024 image",
-            filename=filename,
+            file_name=filename,
             camera_id=friendly_name
         )
 
@@ -159,7 +159,7 @@ def convert_willfine_2024_image(filepath: str) -> bool:
     except subprocess.CalledProcessError as e:
         logger.error(
             "Failed to convert Willfine-2024 image",
-            filename=filename,
+            file_name=filename,
             error=str(e),
             stderr=e.stderr,
             exc_info=True
@@ -169,7 +169,7 @@ def convert_willfine_2024_image(filepath: str) -> bool:
     except subprocess.TimeoutExpired:
         logger.error(
             "exiftool timeout during conversion",
-            filename=filename
+            file_name=filename
         )
         return False
 
@@ -230,7 +230,7 @@ def convert_willfine_2024_daily_report(filepath: str) -> bool:
     """
     filename = os.path.basename(filepath)
 
-    logger.info("Converting Willfine-2024 daily report to Willfine-2025", filename=filename)
+    logger.info("Converting Willfine-2024 daily report to Willfine-2025", file_name=filename)
 
     try:
         # Read and parse original file
@@ -300,7 +300,7 @@ def convert_willfine_2024_daily_report(filepath: str) -> bool:
 
         logger.info(
             "Successfully converted Willfine-2024 daily report",
-            filename=filename
+            file_name=filename
         )
 
         return True
@@ -308,7 +308,7 @@ def convert_willfine_2024_daily_report(filepath: str) -> bool:
     except Exception as e:
         logger.error(
             "Failed to convert Willfine-2024 daily report",
-            filename=filename,
+            file_name=filename,
             error=str(e),
             exc_info=True
         )
