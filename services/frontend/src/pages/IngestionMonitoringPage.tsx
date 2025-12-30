@@ -4,19 +4,34 @@
  * Displays rejected files from the ingestion pipeline.
  * Functional and utilitarian - helps superusers understand what's happening with ingestion.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, Loader2, AlertTriangle, FileX } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../components/ui/Dialog';
 import { getRejectedFiles, type RejectedFile } from '../api/ingestion-monitoring';
 
 export const IngestionMonitoringPage: React.FC = () => {
+  const [selectedFile, setSelectedFile] = useState<RejectedFile | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['rejected-files'],
     queryFn: getRejectedFiles,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
+
+  const handleRowClick = (file: RejectedFile) => {
+    setSelectedFile(file);
+    setShowDetailsModal(true);
+  };
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
@@ -153,7 +168,11 @@ export const IngestionMonitoringPage: React.FC = () => {
                         </thead>
                         <tbody>
                           {files.map((file, index) => (
-                            <tr key={index} className="border-b last:border-0">
+                            <tr
+                              key={index}
+                              onClick={() => handleRowClick(file)}
+                              className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
+                            >
                               <td className="py-2 px-2 font-mono text-xs break-all">
                                 {file.filename}
                               </td>
@@ -177,6 +196,71 @@ export const IngestionMonitoringPage: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* File Details Modal */}
+      <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
+        <DialogContent onClose={() => setShowDetailsModal(false)}>
+          <DialogHeader>
+            <DialogTitle>Rejected File Details</DialogTitle>
+            <DialogDescription>
+              Information about why this file was rejected
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedFile && (
+            <div className="space-y-4 py-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Filename</label>
+                <p className="font-mono text-sm break-all mt-1">{selectedFile.filename}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Rejection Reason</label>
+                <p className="mt-1">
+                  <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                    {reasonLabels[selectedFile.reason] || selectedFile.reason}
+                  </span>
+                </p>
+              </div>
+
+              {selectedFile.imei && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">IMEI</label>
+                  <p className="font-mono text-sm mt-1">{selectedFile.imei}</p>
+                </div>
+              )}
+
+              {selectedFile.error_details && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Error Details</label>
+                  <p className="text-sm mt-1 p-3 bg-muted rounded-md">{selectedFile.error_details}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">File Size</label>
+                <p className="text-sm mt-1">{formatFileSize(selectedFile.size_bytes)}</p>
+              </div>
+
+              {selectedFile.rejected_at && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Rejected At</label>
+                  <p className="text-sm mt-1">
+                    {new Date(selectedFile.rejected_at).toLocaleString()}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">File Path</label>
+                <p className="font-mono text-xs text-muted-foreground mt-1 break-all">
+                  {selectedFile.filepath}
+                </p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
