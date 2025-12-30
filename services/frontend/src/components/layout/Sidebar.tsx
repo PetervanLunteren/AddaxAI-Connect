@@ -90,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
 
-          {/* Debug link (superuser only) */}
+          {/* Dev tools link (superuser only) */}
           {user?.is_superuser && (
             <NavLink
               to="/debug"
@@ -105,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               }
             >
               <Bug className="h-5 w-5" />
-              <span>Debug</span>
+              <span>Dev tools</span>
             </NavLink>
           )}
         </nav>
