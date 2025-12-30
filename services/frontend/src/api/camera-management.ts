@@ -6,6 +6,11 @@ import apiClient from './client';
 export interface Camera {
   id: number;
   name: string;
+  imei?: string;
+  serial_number?: string;
+  box?: string;
+  order?: string;
+  scanned_date?: string;  // ISO date string
   location?: { lat: number; lon: number };
   battery_percentage?: number;
   temperature?: number;
@@ -19,12 +24,20 @@ export interface Camera {
 
 export interface CreateCameraRequest {
   imei: string;
-  name?: string;
+  friendly_name?: string;
+  serial_number?: string;
+  box?: string;
+  order?: string;
+  scanned_date?: string;  // ISO date string (YYYY-MM-DD)
   project_id: number;
 }
 
 export interface UpdateCameraRequest {
-  name?: string;
+  friendly_name?: string;
+  serial_number?: string;
+  box?: string;
+  order?: string;
+  scanned_date?: string;  // ISO date string (YYYY-MM-DD)
   notes?: string;
 }
 
@@ -58,4 +71,39 @@ export const updateCamera = async (id: number, data: UpdateCameraRequest): Promi
  */
 export const deleteCamera = async (id: number): Promise<void> => {
   await apiClient.delete(`/api/cameras/${id}`);
+};
+
+export interface CameraImportRow {
+  row_number: number;
+  imei: string;
+  success: boolean;
+  error?: string;
+  camera_id?: number;
+}
+
+export interface BulkImportResponse {
+  success_count: number;
+  failed_count: number;
+  results: CameraImportRow[];
+}
+
+/**
+ * Import cameras from CSV file (superuser only)
+ */
+export const importCamerasCSV = async (
+  file: File,
+  projectId?: number
+): Promise<BulkImportResponse> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (projectId !== undefined) {
+    formData.append('project_id', projectId.toString());
+  }
+
+  const response = await apiClient.post<BulkImportResponse>('/api/cameras/import-csv', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
 };

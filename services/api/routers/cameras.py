@@ -2,8 +2,10 @@
 Camera endpoints for viewing camera trap devices and their health status.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, timedelta, date
+import csv
+import io
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -20,6 +22,11 @@ class CameraResponse(BaseModel):
     """Camera response with health status"""
     id: int
     name: str
+    imei: Optional[str] = None
+    serial_number: Optional[str] = None
+    box: Optional[str] = None
+    order: Optional[str] = None
+    scanned_date: Optional[date] = None
     location: Optional[dict] = None  # {lat, lon}
     battery_percentage: Optional[int] = None
     temperature: Optional[int] = None
@@ -37,14 +44,38 @@ class CameraResponse(BaseModel):
 class CreateCameraRequest(BaseModel):
     """Request model for creating a new camera"""
     imei: str
-    name: Optional[str] = None  # Display name (optional, defaults to IMEI)
+    friendly_name: Optional[str] = None  # Display name (optional, defaults to IMEI)
+    serial_number: Optional[str] = None
+    box: Optional[str] = None
+    order: Optional[str] = None
+    scanned_date: Optional[date] = None
     project_id: int
 
 
 class UpdateCameraRequest(BaseModel):
     """Request model for updating camera"""
-    name: Optional[str] = None
+    friendly_name: Optional[str] = None
+    serial_number: Optional[str] = None
+    box: Optional[str] = None
+    order: Optional[str] = None
+    scanned_date: Optional[date] = None
     notes: Optional[str] = None
+
+
+class CameraImportRow(BaseModel):
+    """Result for a single CSV import row"""
+    row_number: int
+    imei: str
+    success: bool
+    error: Optional[str] = None
+    camera_id: Optional[int] = None
+
+
+class BulkImportResponse(BaseModel):
+    """Response model for CSV bulk import"""
+    success_count: int
+    failed_count: int
+    results: List[CameraImportRow]
 
 
 def parse_camera_status(camera: Camera) -> str:
@@ -92,6 +123,11 @@ def camera_to_response(camera: Camera) -> CameraResponse:
     return CameraResponse(
         id=camera.id,
         name=camera.name,
+        imei=camera.imei,
+        serial_number=camera.serial_number,
+        box=camera.box,
+        order=camera.order,
+        scanned_date=camera.scanned_date,
         location=gps_data,
         battery_percentage=health_data.get('battery_percentage'),
         temperature=health_data.get('temperature'),
@@ -216,7 +252,11 @@ async def create_camera(
     # Create camera
     camera = Camera(
         imei=request.imei,
-        name=request.name if request.name else request.imei,  # Default name to IMEI
+        name=request.friendly_name if request.friendly_name else request.imei,  # Default name to IMEI
+        serial_number=request.serial_number,
+        box=request.box,
+        order=request.order,
+        scanned_date=request.scanned_date,
         project_id=request.project_id,
         status='inventory',
         config={}
@@ -266,8 +306,16 @@ async def update_camera(
         )
 
     # Update fields if provided
-    if request.name is not None:
-        camera.name = request.name
+    if request.friendly_name is not None:
+        camera.name = request.friendly_name
+    if request.serial_number is not None:
+        camera.serial_number = request.serial_number
+    if request.box is not None:
+        camera.box = request.box
+    if request.order is not None:
+        camera.order = request.order
+    if request.scanned_date is not None:
+        camera.scanned_date = request.scanned_date
     if request.notes is not None:
         camera.notes = request.notes
 
@@ -317,3 +365,207 @@ async def delete_camera(
 
     await db.delete(camera)
     await db.commit()
+
+
+@router.post(
+    "/import-csv",
+    response_model=BulkImportResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def import_cameras_csv(
+    file: UploadFile = File(...),
+    project_id: int = None,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Bulk import cameras from CSV file (superuser only).
+
+    Expected CSV format with headers:
+    IMEI,FriendlyName,SerialNumber,Box,Order,ScannedDate
+
+    Args:
+        file: CSV file upload
+        project_id: Project ID to assign all cameras to (optional, defaults to first project)
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Import results with success/failure counts and per-row details
+
+    Raises:
+        HTTPException: If CSV format is invalid or project not found
+    """
+    # Verify file is CSV
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a CSV file",
+        )
+
+    # Read CSV content
+    try:
+        content = await file.read()
+        csv_text = content.decode('utf-8')
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to read CSV file: {str(e)}",
+        )
+
+    # Parse CSV
+    try:
+        csv_reader = csv.DictReader(io.StringIO(csv_text))
+        rows = list(csv_reader)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to parse CSV: {str(e)}",
+        )
+
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSV file is empty",
+        )
+
+    # Validate required headers
+    required_headers = {'IMEI'}
+    optional_headers = {'FriendlyName', 'SerialNumber', 'Box', 'Order', 'ScannedDate'}
+    all_headers = required_headers | optional_headers
+
+    actual_headers = set(rows[0].keys())
+
+    if not required_headers.issubset(actual_headers):
+        missing = required_headers - actual_headers
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required CSV headers: {', '.join(missing)}",
+        )
+
+    # If no project_id provided, use the first project
+    if project_id is None:
+        result = await db.execute(select(Project).limit(1))
+        default_project = result.scalar_one_or_none()
+        if not default_project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No projects found. Please create a project first.",
+            )
+        project_id = default_project.id
+    else:
+        # Verify project exists
+        result = await db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with ID {project_id} not found",
+            )
+
+    # Process rows
+    results: List[CameraImportRow] = []
+    success_count = 0
+    failed_count = 0
+
+    for idx, row in enumerate(rows, start=2):  # Start at 2 (1 for header + 1-indexed)
+        imei = row.get('IMEI', '').strip()
+
+        # Validate IMEI is present
+        if not imei:
+            results.append(CameraImportRow(
+                row_number=idx,
+                imei='',
+                success=False,
+                error="IMEI is required"
+            ))
+            failed_count += 1
+            continue
+
+        # Check if IMEI already exists
+        result = await db.execute(
+            select(Camera).where(Camera.imei == imei)
+        )
+        existing_camera = result.scalar_one_or_none()
+
+        if existing_camera:
+            results.append(CameraImportRow(
+                row_number=idx,
+                imei=imei,
+                success=False,
+                error=f"Camera with IMEI {imei} already exists"
+            ))
+            failed_count += 1
+            continue
+
+        # Parse optional fields
+        friendly_name = row.get('FriendlyName', '').strip() or None
+        serial_number = row.get('SerialNumber', '').strip() or None
+        box = row.get('Box', '').strip() or None
+        order = row.get('Order', '').strip() or None
+
+        # Parse scanned_date if present
+        scanned_date = None
+        scanned_date_str = row.get('ScannedDate', '').strip()
+        if scanned_date_str:
+            try:
+                # Try parsing as YYYY-MM-DD
+                scanned_date = datetime.strptime(scanned_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                results.append(CameraImportRow(
+                    row_number=idx,
+                    imei=imei,
+                    success=False,
+                    error=f"Invalid date format '{scanned_date_str}'. Use YYYY-MM-DD"
+                ))
+                failed_count += 1
+                continue
+
+        # Create camera
+        try:
+            camera = Camera(
+                imei=imei,
+                name=friendly_name if friendly_name else imei,
+                serial_number=serial_number,
+                box=box,
+                order=order,
+                scanned_date=scanned_date,
+                project_id=project_id,
+                status='inventory',
+                config={}
+            )
+
+            db.add(camera)
+            await db.flush()  # Flush to get the ID
+
+            results.append(CameraImportRow(
+                row_number=idx,
+                imei=imei,
+                success=True,
+                camera_id=camera.id
+            ))
+            success_count += 1
+
+        except Exception as e:
+            results.append(CameraImportRow(
+                row_number=idx,
+                imei=imei,
+                success=False,
+                error=f"Database error: {str(e)}"
+            ))
+            failed_count += 1
+            continue
+
+    # Commit all successful creates
+    if success_count > 0:
+        await db.commit()
+    else:
+        await db.rollback()
+
+    return BulkImportResponse(
+        success_count=success_count,
+        failed_count=failed_count,
+        results=results
+    )
