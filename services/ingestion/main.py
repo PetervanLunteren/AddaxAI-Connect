@@ -7,8 +7,10 @@ processes them into the ML pipeline.
 import os
 import time
 from pathlib import Path
+from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileCreatedEvent
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger, set_image_id
 from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED
@@ -305,6 +307,74 @@ def process_daily_report(filepath: str) -> None:
         raise
 
 
+def cleanup_old_rejected_files() -> None:
+    """
+    Clean up rejected files older than 30 days.
+
+    Runs daily at midnight UTC to remove old rejected files and their
+    error logs to prevent disk space issues.
+    """
+    upload_dir = settings.ftps_upload_dir or "/uploads"
+    rejected_base = Path(upload_dir) / "rejected"
+
+    if not rejected_base.exists():
+        logger.debug("Rejected directory does not exist, skipping cleanup")
+        return
+
+    cutoff_time = datetime.now() - timedelta(days=30)
+    cutoff_timestamp = cutoff_time.timestamp()
+
+    deleted_count = 0
+
+    # Iterate through all rejection reason directories
+    for reason_dir in rejected_base.iterdir():
+        if not reason_dir.is_dir():
+            continue
+
+        # Check all files in this reason directory
+        for file_path in reason_dir.iterdir():
+            if not file_path.is_file():
+                continue
+
+            try:
+                # Get file modification time
+                file_mtime = file_path.stat().st_mtime
+
+                # Skip if file is newer than 30 days
+                if file_mtime >= cutoff_timestamp:
+                    continue
+
+                # Calculate age in days
+                age_days = (datetime.now().timestamp() - file_mtime) / 86400
+
+                # Delete the file
+                file_path.unlink()
+                deleted_count += 1
+
+                logger.info(
+                    "Deleted old rejected file",
+                    filename=file_path.name,
+                    reason=reason_dir.name,
+                    age_days=round(age_days, 1)
+                )
+
+            except Exception as e:
+                logger.error(
+                    "Failed to delete old rejected file",
+                    filepath=str(file_path),
+                    error=str(e)
+                )
+
+    if deleted_count > 0:
+        logger.info(
+            "Cleanup completed",
+            deleted_count=deleted_count,
+            retention_days=30
+        )
+    else:
+        logger.debug("Cleanup completed, no old files found")
+
+
 def main():
     """
     Main entry point for ingestion service.
@@ -343,7 +413,23 @@ def main():
     observer.schedule(event_handler, upload_dir, recursive=False)
     observer.start()
 
-    logger.info("Watching for new files", directory=upload_dir)
+    # Set up daily cleanup scheduler
+    scheduler = BackgroundScheduler(timezone='UTC')
+    scheduler.add_job(
+        cleanup_old_rejected_files,
+        'cron',
+        hour=0,
+        minute=0,
+        id='cleanup_rejected_files',
+        name='Clean up rejected files older than 30 days'
+    )
+    scheduler.start()
+
+    logger.info(
+        "Watching for new files",
+        directory=upload_dir,
+        cleanup_schedule="daily at 00:00 UTC"
+    )
 
     try:
         while True:
@@ -352,6 +438,8 @@ def main():
         logger.info("Shutting down ingestion service")
         observer.stop()
         observer.join()
+        scheduler.shutdown()
+        logger.info("Ingestion service stopped")
 
 
 if __name__ == "__main__":
