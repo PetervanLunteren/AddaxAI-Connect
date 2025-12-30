@@ -32,7 +32,7 @@ def get_file_mtime(filepath: str) -> datetime:
     return datetime.fromtimestamp(mtime)
 
 
-def reject_file(filepath: str, reason: str, details: Optional[str] = None) -> None:
+def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_metadata: Optional[dict] = None) -> None:
     """
     Move file to rejected directory with error log.
 
@@ -44,6 +44,7 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None) -> No
         filepath: Path to file to reject
         reason: Rejection reason (becomes subdirectory name)
         details: Additional error details
+        exif_metadata: EXIF metadata extracted from file (if any)
     """
     filename = os.path.basename(filepath)
     file_size = os.path.getsize(filepath)
@@ -56,13 +57,14 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None) -> No
     dest_path = rejected_dir / filename
     shutil.move(filepath, dest_path)
 
-    # Create error JSON
+    # Create error JSON with metadata
     error_data = {
         "filename": filename,
         "rejected_at": datetime.utcnow().isoformat() + "Z",
         "reason": reason,
         "details": details or "",
         "file_size_bytes": file_size,
+        "exif_metadata": exif_metadata or {},
     }
 
     error_json_path = rejected_dir / f"{filename}.error.json"

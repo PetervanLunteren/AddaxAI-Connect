@@ -33,6 +33,7 @@ class RejectedFileResponse(BaseModel):
     imei: str | None = None  # Extracted IMEI if available
     error_details: str | None = None  # Details from .error.json if available
     rejected_at: str | None = None  # ISO timestamp from .error.json
+    exif_metadata: dict | None = None  # EXIF metadata from .error.json if available
 
 
 class RejectedFilesResponse(BaseModel):
@@ -127,6 +128,7 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                     # Try to read error details from corresponding .error.json file
                     error_details = None
                     rejected_at = None
+                    exif_metadata = None
                     error_json_path = file_path.parent / f"{filename}.error.json"
                     if error_json_path.exists():
                         try:
@@ -134,6 +136,7 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                                 error_data = json.load(f)
                                 error_details = error_data.get('details')
                                 rejected_at = error_data.get('rejected_at')
+                                exif_metadata = error_data.get('exif_metadata')
                                 # If IMEI wasn't extracted from EXIF, try to get it from error details
                                 if not imei and error_details:
                                     # Extract IMEI from details like "Camera not registered. IMEI: 860946063337391..."
@@ -156,7 +159,8 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                         size_bytes=stat.st_size,
                         imei=imei,
                         error_details=error_details,
-                        rejected_at=rejected_at
+                        rejected_at=rejected_at,
+                        exif_metadata=exif_metadata
                     ))
                 except Exception as e:
                     logger.error(

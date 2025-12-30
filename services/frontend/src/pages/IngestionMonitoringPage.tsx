@@ -437,6 +437,22 @@ export const IngestionMonitoringPage: React.FC = () => {
                 </div>
               )}
 
+              {selectedFile.exif_metadata && Object.keys(selectedFile.exif_metadata).length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">EXIF Metadata Present</label>
+                  <div className="mt-2 p-3 bg-muted rounded-md space-y-1 max-h-60 overflow-y-auto">
+                    {Object.entries(selectedFile.exif_metadata).map(([key, value]) => (
+                      <div key={key} className="flex gap-2 text-xs">
+                        <span className="font-medium text-muted-foreground min-w-[140px]">{key}:</span>
+                        <span className="font-mono break-all">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium text-muted-foreground">File Size</label>
                 <p className="text-sm mt-1">{formatFileSize(selectedFile.size_bytes)}</p>
