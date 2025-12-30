@@ -4,6 +4,7 @@ Ingestion monitoring endpoints for superusers.
 Provides visibility into rejected files and ingestion issues.
 """
 import os
+import subprocess
 from typing import List
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -36,6 +37,37 @@ class RejectedFilesResponse(BaseModel):
     by_reason: dict[str, List[RejectedFileResponse]]
 
 
+def extract_imei_from_file(file_path: Path) -> str | None:
+    """
+    Extract IMEI from a file using exiftool.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        IMEI string if found, None otherwise
+    """
+    try:
+        # Use exiftool to extract SerialNumber (IMEI) from image files
+        result = subprocess.run(
+            ["exiftool", "-SerialNumber", "-s3", str(file_path)],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception as e:
+        logger.debug(
+            "Failed to extract IMEI from file",
+            file_path=str(file_path),
+            error=str(e)
+        )
+
+    return None
+
+
 def scan_rejected_files() -> List[RejectedFileResponse]:
     """
     Scan rejected/ directory and return file information.
@@ -64,11 +96,13 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
             if file_path.is_file():
                 try:
                     stat = file_path.stat()
-
-                    # Try to extract IMEI from filename if it matches pattern
-                    # E.g., "0000000WUH09-SYPR1125.JPG" or "19122025162142-0000000WUH04-dailyreport.txt"
-                    imei = None
                     filename = file_path.name
+
+                    # Extract IMEI from file EXIF data
+                    # Only attempt for image files to avoid processing daily reports unnecessarily
+                    imei = None
+                    if file_path.suffix.lower() in ['.jpg', '.jpeg']:
+                        imei = extract_imei_from_file(file_path)
 
                     rejected_files.append(RejectedFileResponse(
                         filename=filename,
