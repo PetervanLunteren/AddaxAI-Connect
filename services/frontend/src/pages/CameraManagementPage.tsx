@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '../components/ui/Dialog';
-import { useProjects } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/ProjectContext';
 import {
   getCameras,
   createCamera,
@@ -28,7 +28,7 @@ import {
 } from '../api/camera-management';
 
 export const CameraManagementPage: React.FC = () => {
-  const { currentProject } = useProjects();
+  const { selectedProject: currentProject } = useProject();
   const queryClient = useQueryClient();
 
   // Modal state
