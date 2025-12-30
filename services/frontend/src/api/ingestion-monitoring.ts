@@ -12,6 +12,7 @@ export interface RejectedFile {
   imei: string | null;
   error_details: string | null;
   rejected_at: string | null;
+  exif_metadata: Record<string, any> | null;
 }
 
 export interface RejectedFilesResponse {

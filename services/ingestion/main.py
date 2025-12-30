@@ -123,7 +123,8 @@ def process_image(filepath: str) -> None:
             reject_file(
                 filepath,
                 "exif_extraction_failed",
-                "Could not extract EXIF metadata"
+                "Could not extract EXIF metadata",
+                exif_metadata={}
             )
             return
 
@@ -131,7 +132,7 @@ def process_image(filepath: str) -> None:
         try:
             profile = identify_camera_profile(exif, filename)
         except ValueError as e:
-            reject_file(filepath, "unsupported_camera", str(e))
+            reject_file(filepath, "unsupported_camera", str(e), exif_metadata=exif)
             return
 
         logger.info("Camera profile identified", file_name=filename, profile=profile.name)
@@ -142,7 +143,8 @@ def process_image(filepath: str) -> None:
             reject_file(
                 filepath,
                 "missing_imei",
-                f"Could not extract IMEI (SerialNumber field) for profile {profile.name}"
+                f"Could not extract IMEI (SerialNumber field) for profile {profile.name}",
+                exif_metadata=exif
             )
             return
 
@@ -157,7 +159,7 @@ def process_image(filepath: str) -> None:
                 allow_fallback=not profile.requires_datetime
             )
         except ValueError as e:
-            reject_file(filepath, "missing_datetime", str(e))
+            reject_file(filepath, "missing_datetime", str(e), exif_metadata=exif)
             return
 
         # Step 6: Look up camera (returns database ID or None)
