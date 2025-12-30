@@ -471,7 +471,7 @@ async def import_cameras_csv(
     failed_count = 0
 
     for idx, row in enumerate(rows, start=2):  # Start at 2 (1 for header + 1-indexed)
-        imei = row.get('IMEI', '').strip()
+        imei = (row.get('IMEI') or '').strip()
 
         # Validate IMEI is present
         if not imei:
@@ -500,15 +500,15 @@ async def import_cameras_csv(
             failed_count += 1
             continue
 
-        # Parse optional fields
-        friendly_name = row.get('FriendlyName', '').strip() or None
-        serial_number = row.get('SerialNumber', '').strip() or None
-        box = row.get('Box', '').strip() or None
-        order = row.get('Order', '').strip() or None
+        # Parse optional fields (handle None values from CSV)
+        friendly_name = (row.get('FriendlyName') or '').strip() or None
+        serial_number = (row.get('SerialNumber') or '').strip() or None
+        box = (row.get('Box') or '').strip() or None
+        order = (row.get('Order') or '').strip() or None
 
         # Parse scanned_date if present
         scanned_date = None
-        scanned_date_str = row.get('ScannedDate', '').strip()
+        scanned_date_str = (row.get('ScannedDate') or '').strip()
         if scanned_date_str:
             try:
                 # Try parsing as YYYY-MM-DD
