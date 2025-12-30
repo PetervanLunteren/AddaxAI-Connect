@@ -60,8 +60,16 @@ class IngestionEventHandler(FileSystemEventHandler):
         filepath = event.src_path
         filename = os.path.basename(filepath)
 
+        # Ignore temporary files created by exiftool
+        if '_exiftool_tmp' in filename or filename.startswith('.'):
+            return
+
         # Small delay to ensure file is fully written
         time.sleep(0.5)
+
+        # Check if file still exists (might have been deleted by another process)
+        if not os.path.exists(filepath):
+            return
 
         # Route by file extension
         if filename.lower().endswith(('.jpg', '.jpeg')):
