@@ -4,6 +4,7 @@ Ingestion monitoring endpoints for superusers.
 Provides visibility into rejected files and ingestion issues.
 """
 import os
+import json
 import subprocess
 from typing import List
 from pathlib import Path
@@ -29,6 +30,8 @@ class RejectedFileResponse(BaseModel):
     timestamp: float  # File modification time (Unix timestamp)
     size_bytes: int
     imei: str | None = None  # Extracted IMEI if available
+    error_details: str | None = None  # Details from .error.json if available
+    rejected_at: str | None = None  # ISO timestamp from .error.json
 
 
 class RejectedFilesResponse(BaseModel):
@@ -95,6 +98,10 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
         for file_path in reason_dir.iterdir():
             if file_path.is_file():
                 try:
+                    # Skip .error.json files - we'll read them for the corresponding file
+                    if file_path.suffix == '.json' and file_path.stem.endswith('.error'):
+                        continue
+
                     stat = file_path.stat()
                     filename = file_path.name
 
@@ -104,13 +111,39 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                     if file_path.suffix.lower() in ['.jpg', '.jpeg']:
                         imei = extract_imei_from_file(file_path)
 
+                    # Try to read error details from corresponding .error.json file
+                    error_details = None
+                    rejected_at = None
+                    error_json_path = file_path.parent / f"{filename}.error.json"
+                    if error_json_path.exists():
+                        try:
+                            with open(error_json_path, 'r') as f:
+                                error_data = json.load(f)
+                                error_details = error_data.get('details')
+                                rejected_at = error_data.get('rejected_at')
+                                # If IMEI wasn't extracted from EXIF, try to get it from error details
+                                if not imei and error_details:
+                                    # Extract IMEI from details like "Camera not registered. IMEI: 860946063337391..."
+                                    import re
+                                    match = re.search(r'IMEI:\s*(\d+)', error_details)
+                                    if match:
+                                        imei = match.group(1)
+                        except Exception as e:
+                            logger.debug(
+                                "Failed to read error JSON",
+                                error_json=str(error_json_path),
+                                error=str(e)
+                            )
+
                     rejected_files.append(RejectedFileResponse(
                         filename=filename,
                         reason=reason,
                         filepath=str(file_path),
                         timestamp=stat.st_mtime,
                         size_bytes=stat.st_size,
-                        imei=imei
+                        imei=imei,
+                        error_details=error_details,
+                        rejected_at=rejected_at
                     ))
                 except Exception as e:
                     logger.error(

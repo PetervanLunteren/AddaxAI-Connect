@@ -10,6 +10,8 @@ export interface RejectedFile {
   timestamp: number;
   size_bytes: number;
   imei: string | null;
+  error_details: string | null;
+  rejected_at: string | null;
 }
 
 export interface RejectedFilesResponse {
