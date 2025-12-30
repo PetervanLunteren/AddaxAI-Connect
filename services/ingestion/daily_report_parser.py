@@ -18,16 +18,17 @@ def parse_daily_report(filepath: str) -> dict:
     """
     Parse daily report TXT file.
 
-    Routes to appropriate parser based on camera type detection.
+    Expects Willfine-2025 format (IMEI field, no CamID).
+    Willfine-2024 reports are converted to Willfine-2025 format before reaching this function.
 
     Args:
         filepath: Path to daily report file
 
     Returns:
-        Dictionary with parsed data (see specific parser functions)
+        Dictionary with parsed data
 
     Raises:
-        ValueError: If camera type cannot be determined
+        ValueError: If required fields are missing
     """
     filename = os.path.basename(filepath)
 
@@ -44,20 +45,15 @@ def parse_daily_report(filepath: str) -> dict:
 
     logger.debug("Parsed daily report raw data", file_name=filename, keys=list(raw_data.keys()))
 
-    # Determine camera type and route to appropriate parser
-    # Willfine-2024: Has both IMEI and CamID fields
-    if 'IMEI' in raw_data and 'CamID' in raw_data:
-        return parse_willfine_2024_report(filepath, raw_data)
-
-    # Willfine-2025: Has IMEI field but not CamID
-    elif 'IMEI' in raw_data:
-        return parse_willfine_2025_report(filepath, raw_data)
-
-    else:
+    # Verify required field
+    if 'IMEI' not in raw_data:
         raise ValueError(
-            f"Cannot determine camera type from daily report. "
+            f"Missing required IMEI field in daily report. "
             f"Filename: {filename}, Keys: {list(raw_data.keys())}"
         )
+
+    # Parse Willfine-2025 format
+    return parse_willfine_2025_report(filepath, raw_data)
 
 
 def parse_willfine_2025_report(filepath: str, raw_data: dict) -> dict:
@@ -84,61 +80,17 @@ def parse_willfine_2025_report(filepath: str, raw_data: dict) -> dict:
     parsed = {
         'camera_id': camera_id,
         'signal_quality': parse_signal_quality(raw_data.get('CSQ')),
-        'temperature': parse_temperature_2025(raw_data.get('Temp')),
+        'temperature': parse_temperature(raw_data.get('Temp')),
         'battery_percentage': parse_battery(raw_data.get('Battery')),
         'sd_utilization_percentage': parse_sd_card(raw_data.get('SD')),
         'gps_location': parse_gps_decimal(raw_data.get('GPS')),
         'total_images': int(raw_data.get('Total', 0)),
         'sent_images': int(raw_data.get('Send', 0)),
-        'report_datetime': parse_report_datetime_2025(raw_data.get('Date')),
+        'report_datetime': parse_report_datetime(raw_data.get('Date')),
     }
 
     logger.info(
-        "Willfine-2025 daily report parsed",
-        camera_id=camera_id,
-        battery=parsed['battery_percentage'],
-        temperature=parsed['temperature'],
-        signal_quality=parsed['signal_quality']
-    )
-
-    return parsed
-
-
-def parse_willfine_2024_report(filepath: str, raw_data: dict) -> dict:
-    """
-    Parse Willfine-2024 daily report.
-
-    Format:
-    - IMEI and CamID in file content
-    - Temperature: "26 Celsius Degree" format
-    - GPS: DMS format with asterisks "N52*05'55\" E005*07'31\""
-    - Date: "DD/MM/YYYY  HH:MM:SS" (double space)
-    - Keys: "Total Pics", "Send times" (with spaces)
-
-    Args:
-        filepath: Path to daily report file
-        raw_data: Parsed key:value pairs
-
-    Returns:
-        Dictionary with parsed data
-    """
-    filename = os.path.basename(filepath)
-    camera_id = raw_data['IMEI']
-
-    parsed = {
-        'camera_id': camera_id,
-        'signal_quality': parse_signal_quality(raw_data.get('CSQ')),
-        'temperature': parse_temperature_2024(raw_data.get('Temp')),
-        'battery_percentage': parse_battery(raw_data.get('Battery')),
-        'sd_utilization_percentage': parse_sd_card(raw_data.get('SD')),
-        'gps_location': parse_gps_dms(raw_data.get('GPS')),
-        'total_images': int(raw_data.get('Total Pics', 0)),
-        'sent_images': int(raw_data.get('Send times', 0)),
-        'report_datetime': parse_report_datetime_2024(raw_data.get('Date')),
-    }
-
-    logger.info(
-        "Willfine-2024 daily report parsed",
+        "Daily report parsed",
         camera_id=camera_id,
         battery=parsed['battery_percentage'],
         temperature=parsed['temperature'],
@@ -169,9 +121,9 @@ def parse_signal_quality(csq_str: Optional[str]) -> Optional[int]:
         return None
 
 
-def parse_temperature_2025(temp_str: Optional[str]) -> Optional[int]:
+def parse_temperature(temp_str: Optional[str]) -> Optional[int]:
     """
-    Parse temperature field for Willfine-2025 cameras.
+    Parse temperature field.
 
     Args:
         temp_str: Temperature with °C suffix (e.g., "24℃ " or "24℃")
@@ -187,29 +139,7 @@ def parse_temperature_2025(temp_str: Optional[str]) -> Optional[int]:
         temp_clean = temp_str.rstrip('℃ ')
         return int(temp_clean)
     except ValueError:
-        logger.warning("Failed to parse temperature (Willfine-2025)", temp_str=temp_str)
-        return None
-
-
-def parse_temperature_2024(temp_str: Optional[str]) -> Optional[int]:
-    """
-    Parse temperature field for Willfine-2024 cameras.
-
-    Args:
-        temp_str: Temperature in format "26 Celsius Degree"
-
-    Returns:
-        Temperature in Celsius, or None if not parseable
-    """
-    if not temp_str:
-        return None
-
-    try:
-        # Extract first number before "Celsius"
-        temp_clean = temp_str.split()[0]
-        return int(temp_clean)
-    except (ValueError, IndexError):
-        logger.warning("Failed to parse temperature (Willfine-2024)", temp_str=temp_str)
+        logger.warning("Failed to parse temperature", temp_str=temp_str)
         return None
 
 
@@ -290,9 +220,9 @@ def parse_gps_decimal(gps_str: Optional[str]) -> Optional[Tuple[float, float]]:
         return None
 
 
-def parse_report_datetime_2025(date_str: Optional[str]) -> Optional[datetime]:
+def parse_report_datetime(date_str: Optional[str]) -> Optional[datetime]:
     """
-    Parse report generation datetime for Willfine-2025 cameras.
+    Parse report generation datetime.
 
     Args:
         date_str: Date in format "DD/MM/YYYY HH:MM:SS" (e.g., "05/12/2025 15:46:47")
@@ -306,71 +236,5 @@ def parse_report_datetime_2025(date_str: Optional[str]) -> Optional[datetime]:
     try:
         return datetime.strptime(date_str, '%d/%m/%Y %H:%M:%S')
     except ValueError as e:
-        logger.warning("Failed to parse report datetime (Willfine-2025)", date_str=date_str, error=str(e))
-        return None
-
-
-def parse_report_datetime_2024(date_str: Optional[str]) -> Optional[datetime]:
-    """
-    Parse report generation datetime for Willfine-2024 cameras.
-
-    Args:
-        date_str: Date in format "DD/MM/YYYY  HH:MM:SS" (double space before time)
-                  (e.g., "19/12/2025  16:21:42")
-
-    Returns:
-        Datetime object, or None if not parseable
-    """
-    if not date_str:
-        return None
-
-    try:
-        # Normalize double spaces to single space
-        date_normalized = ' '.join(date_str.split())
-        return datetime.strptime(date_normalized, '%d/%m/%Y %H:%M:%S')
-    except ValueError as e:
-        logger.warning("Failed to parse report datetime (Willfine-2024)", date_str=date_str, error=str(e))
-        return None
-
-
-def parse_gps_dms(gps_str: Optional[str]) -> Optional[Tuple[float, float]]:
-    """
-    Parse GPS coordinates in DMS format with asterisks (Willfine-2024).
-
-    Args:
-        gps_str: GPS in format "N52*05'55\" E005*07'31\""
-                 (degrees with asterisks instead of degree symbol)
-
-    Returns:
-        Tuple of (latitude, longitude) in decimal degrees, or None if not parseable
-    """
-    if not gps_str:
-        return None
-
-    try:
-        # Pattern: N52*05'55" E005*07'31"
-        # Match: (N/S)(deg)*(min)'(sec)" (E/W)(deg)*(min)'(sec)"
-        pattern = r"([NS])(\d+)\*(\d+)'(\d+)\"?\s*([EW])(\d+)\*(\d+)'(\d+)\"?"
-        match = re.match(pattern, gps_str)
-
-        if not match:
-            logger.warning("Failed to parse GPS DMS (Willfine-2024)", gps_str=gps_str)
-            return None
-
-        lat_dir, lat_deg, lat_min, lat_sec, lon_dir, lon_deg, lon_min, lon_sec = match.groups()
-
-        # Convert to decimal
-        lat_decimal = int(lat_deg) + int(lat_min) / 60 + int(lat_sec) / 3600
-        lon_decimal = int(lon_deg) + int(lon_min) / 60 + int(lon_sec) / 3600
-
-        # Apply direction (S and W are negative)
-        if lat_dir == 'S':
-            lat_decimal = -lat_decimal
-        if lon_dir == 'W':
-            lon_decimal = -lon_decimal
-
-        return (lat_decimal, lon_decimal)
-
-    except (ValueError, AttributeError) as e:
-        logger.warning("Failed to parse GPS DMS (Willfine-2024)", gps_str=gps_str, error=str(e))
+        logger.warning("Failed to parse report datetime", date_str=date_str, error=str(e))
         return None

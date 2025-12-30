@@ -27,6 +27,15 @@ from storage_operations import upload_image_to_minio, generate_and_upload_thumbn
 from daily_report_parser import parse_daily_report
 from utils import ValidationError, reject_file, delete_file
 
+# TEMPORARY: Willfine-2024 → Willfine-2025 format converter for testing
+# To remove: delete willfine_2024_converter.py and remove this import
+from willfine_2024_converter import (
+    is_willfine_2024_image,
+    convert_willfine_2024_image,
+    is_willfine_2024_daily_report,
+    convert_willfine_2024_daily_report
+)
+
 logger = get_logger("ingestion")
 settings = get_settings()
 
@@ -84,6 +93,17 @@ def process_image(filepath: str) -> None:
     logger.info("Processing image", file_name=filename, filepath=filepath)
 
     try:
+        # TEMPORARY: Convert Willfine-2024 to Willfine-2025 format if needed
+        # To remove: delete this block when removing willfine_2024_converter.py
+        if is_willfine_2024_image(filepath):
+            if not convert_willfine_2024_image(filepath):
+                reject_file(
+                    filepath,
+                    "conversion_failed",
+                    "Failed to convert Willfine-2024 image to Willfine-2025 format"
+                )
+                return
+
         # Step 1: Validate file
         validate_image(filepath)
 
@@ -107,8 +127,8 @@ def process_image(filepath: str) -> None:
         logger.info("Camera profile identified", file_name=filename, profile=profile.name)
 
         # Step 4: Extract camera ID
-        camera_id_result = profile.get_camera_id(exif, filename)
-        if not camera_id_result:
+        camera_id = profile.get_camera_id(exif, filename)
+        if not camera_id:
             reject_file(
                 filepath,
                 "missing_camera_id",
@@ -116,15 +136,7 @@ def process_image(filepath: str) -> None:
             )
             return
 
-        # Handle tuple return (friendly_name, serial_number) from SY cameras
-        if isinstance(camera_id_result, tuple):
-            friendly_name, serial_number = camera_id_result
-            camera_id_for_storage = friendly_name  # Use friendly name for MinIO paths
-        else:
-            camera_id_for_storage = camera_id_result
-            friendly_name = camera_id_result
-
-        # Step 5: Get datetime (with fallback for SY cameras)
+        # Step 5: Get datetime
         try:
             datetime_original = get_datetime_original(
                 exif,
@@ -136,14 +148,14 @@ def process_image(filepath: str) -> None:
             return
 
         # Step 6: Get or create camera (returns database ID)
-        camera_db_id = get_or_create_camera(camera_id_result, profile)
+        camera_db_id = get_or_create_camera(camera_id, profile)
 
         # Step 7: Check for duplicates
         if check_duplicate_image(camera_db_id, filename, datetime_original):
             reject_file(
                 filepath,
                 "duplicate",
-                f"Image already exists: camera={friendly_name}, file={filename}, datetime={datetime_original}"
+                f"Image already exists: camera={camera_id}, file={filename}, datetime={datetime_original}"
             )
             return
 
@@ -151,10 +163,10 @@ def process_image(filepath: str) -> None:
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
         # Step 9: Upload to MinIO
-        storage_path = upload_image_to_minio(filepath, camera_id_for_storage)
+        storage_path = upload_image_to_minio(filepath, camera_id)
 
         # Step 10: Generate and upload thumbnail
-        thumbnail_path = generate_and_upload_thumbnail(filepath, camera_id_for_storage)
+        thumbnail_path = generate_and_upload_thumbnail(filepath, camera_id)
 
         # Step 11: Create database record (returns image UUID)
         image_uuid = create_image_record(
@@ -181,7 +193,7 @@ def process_image(filepath: str) -> None:
         logger.info(
             "Image ingestion complete",
             image_uuid=image_uuid,
-            camera_id=friendly_name,
+            camera_id=camera_id,
             file_name=filename,
             queued=True
         )
@@ -223,6 +235,17 @@ def process_daily_report(filepath: str) -> None:
     logger.info("Processing daily report", file_name=filename)
 
     try:
+        # TEMPORARY: Convert Willfine-2024 to Willfine-2025 format if needed
+        # To remove: delete this block when removing willfine_2024_converter.py
+        if is_willfine_2024_daily_report(filepath):
+            if not convert_willfine_2024_daily_report(filepath):
+                reject_file(
+                    filepath,
+                    "conversion_failed",
+                    "Failed to convert Willfine-2024 daily report to Willfine-2025 format"
+                )
+                return
+
         # Step 1: Validate file
         validate_daily_report(filepath)
 
@@ -284,7 +307,8 @@ def main():
         "validation_failed",
         "parse_failed",
         "exif_extraction_failed",
-        "unsupported_file_type"
+        "unsupported_file_type",
+        "conversion_failed"  # TEMPORARY: for Willfine-2024 conversion failures
     ]:
         (rejected_base / reason).mkdir(parents=True, exist_ok=True)
 
