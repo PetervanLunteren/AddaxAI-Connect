@@ -73,7 +73,8 @@ def is_willfine_2024_image(filepath: str) -> bool:
         make = data.get('Make', '')
         model = data.get('Model', '')
 
-        is_2024 = make == 'SY' and model == '4.0PCG'
+        # Match both "4.0PCG" and variants like "4.0PCG-R"
+        is_2024 = make == 'SY' and model.startswith('4.0PCG')
 
         if is_2024:
             logger.debug("Detected Willfine-2024 image", filepath=filepath)
