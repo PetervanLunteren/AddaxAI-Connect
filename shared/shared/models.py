@@ -4,7 +4,7 @@ SQLAlchemy database models
 Defines the database schema for all tables.
 All services import models from this file to ensure consistency.
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, JSON, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from geoalchemy2 import Geography
@@ -48,6 +48,11 @@ class Camera(Base):
     manufacturer = Column(String(100), nullable=True, index=True)
     model = Column(String(100), nullable=True, index=True)
     hardware_revision = Column(String(50), nullable=True)
+
+    # Inventory tracking
+    box = Column(String(100), nullable=True)
+    order = Column(String(50), nullable=True)
+    scanned_date = Column(Date, nullable=True)
 
     # Project assignment
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
