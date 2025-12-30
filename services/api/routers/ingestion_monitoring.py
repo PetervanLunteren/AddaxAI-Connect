@@ -5,6 +5,7 @@ Provides visibility into rejected files and ingestion issues.
 """
 import os
 import json
+import shutil
 import subprocess
 from typing import List
 from pathlib import Path
@@ -38,6 +39,18 @@ class RejectedFilesResponse(BaseModel):
     """Response model for rejected files grouped by reason"""
     total_count: int
     by_reason: dict[str, List[RejectedFileResponse]]
+
+
+class BulkActionRequest(BaseModel):
+    """Request model for bulk actions on rejected files"""
+    filepaths: List[str]
+
+
+class BulkActionResponse(BaseModel):
+    """Response model for bulk action results"""
+    success_count: int
+    failed_count: int
+    errors: List[str] = []
 
 
 def extract_imei_from_file(file_path: Path) -> str | None:
@@ -187,4 +200,136 @@ async def get_rejected_files(
     return RejectedFilesResponse(
         total_count=len(rejected_files),
         by_reason=by_reason
+    )
+
+
+@router.post(
+    "/rejected-files/delete",
+    response_model=BulkActionResponse,
+)
+async def delete_rejected_files(
+    request: BulkActionRequest,
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Delete rejected files and their error logs (superuser only).
+
+    Args:
+        request: List of file paths to delete
+        current_user: Current authenticated superuser
+
+    Returns:
+        Count of successfully deleted files and any errors
+    """
+    success_count = 0
+    failed_count = 0
+    errors = []
+
+    for filepath_str in request.filepaths:
+        try:
+            filepath = Path(filepath_str)
+
+            # Verify file is in rejected directory (security check)
+            if "rejected" not in filepath.parts:
+                errors.append(f"File not in rejected directory: {filepath.name}")
+                failed_count += 1
+                continue
+
+            # Delete the main file
+            if filepath.exists():
+                filepath.unlink()
+                logger.info("Deleted rejected file", filepath=str(filepath))
+
+            # Delete corresponding .error.json file
+            error_json_path = filepath.parent / f"{filepath.name}.error.json"
+            if error_json_path.exists():
+                error_json_path.unlink()
+
+            success_count += 1
+
+        except Exception as e:
+            logger.error(
+                "Failed to delete rejected file",
+                filepath=filepath_str,
+                error=str(e)
+            )
+            errors.append(f"{Path(filepath_str).name}: {str(e)}")
+            failed_count += 1
+
+    return BulkActionResponse(
+        success_count=success_count,
+        failed_count=failed_count,
+        errors=errors
+    )
+
+
+@router.post(
+    "/rejected-files/reprocess",
+    response_model=BulkActionResponse,
+)
+async def reprocess_rejected_files(
+    request: BulkActionRequest,
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Move rejected files back to uploads directory for reprocessing (superuser only).
+
+    Args:
+        request: List of file paths to reprocess
+        current_user: Current authenticated superuser
+
+    Returns:
+        Count of successfully moved files and any errors
+    """
+    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
+    uploads_dir = Path(ftps_dir)
+
+    success_count = 0
+    failed_count = 0
+    errors = []
+
+    for filepath_str in request.filepaths:
+        try:
+            filepath = Path(filepath_str)
+
+            # Verify file is in rejected directory (security check)
+            if "rejected" not in filepath.parts:
+                errors.append(f"File not in rejected directory: {filepath.name}")
+                failed_count += 1
+                continue
+
+            if not filepath.exists():
+                errors.append(f"File not found: {filepath.name}")
+                failed_count += 1
+                continue
+
+            # Move file to uploads directory
+            destination = uploads_dir / filepath.name
+            shutil.move(str(filepath), str(destination))
+            logger.info(
+                "Moved file for reprocessing",
+                from_path=str(filepath),
+                to_path=str(destination)
+            )
+
+            # Delete corresponding .error.json file
+            error_json_path = filepath.parent / f"{filepath.name}.error.json"
+            if error_json_path.exists():
+                error_json_path.unlink()
+
+            success_count += 1
+
+        except Exception as e:
+            logger.error(
+                "Failed to reprocess rejected file",
+                filepath=filepath_str,
+                error=str(e)
+            )
+            errors.append(f"{Path(filepath_str).name}: {str(e)}")
+            failed_count += 1
+
+    return BulkActionResponse(
+        success_count=success_count,
+        failed_count=failed_count,
+        errors=errors
     )

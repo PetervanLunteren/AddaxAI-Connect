@@ -4,9 +4,9 @@
  * Displays rejected files from the ingestion pipeline.
  * Functional and utilitarian - helps superusers understand what's happening with ingestion.
  */
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertTriangle, FileX } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -15,12 +15,35 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '../components/ui/Dialog';
-import { getRejectedFiles, type RejectedFile } from '../api/ingestion-monitoring';
+import {
+  getRejectedFiles,
+  deleteRejectedFiles,
+  reprocessRejectedFiles,
+  type RejectedFile,
+} from '../api/ingestion-monitoring';
+
+type SortField = 'filename' | 'reason' | 'imei' | 'size_bytes' | 'timestamp';
+type SortDirection = 'asc' | 'desc';
 
 export const IngestionMonitoringPage: React.FC = () => {
+  const queryClient = useQueryClient();
+
+  // Modal state
   const [selectedFile, setSelectedFile] = useState<RejectedFile | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+
+  // Selection state
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>('timestamp');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Confirmation dialog state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['rejected-files'],
@@ -28,9 +51,106 @@ export const IngestionMonitoringPage: React.FC = () => {
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 
-  const handleRowClick = (file: RejectedFile) => {
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: deleteRejectedFiles,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['rejected-files'] });
+      setSelectedFiles(new Set());
+      setShowDeleteConfirm(false);
+      if (result.errors.length > 0) {
+        alert(`Deleted ${result.success_count} files. Errors: ${result.errors.join(', ')}`);
+      }
+    },
+    onError: (error: any) => {
+      alert(`Failed to delete files: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  // Reprocess mutation
+  const reprocessMutation = useMutation({
+    mutationFn: reprocessRejectedFiles,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['rejected-files'] });
+      setSelectedFiles(new Set());
+      setShowReprocessConfirm(false);
+      if (result.errors.length > 0) {
+        alert(`Reprocessed ${result.success_count} files. Errors: ${result.errors.join(', ')}`);
+      }
+    },
+    onError: (error: any) => {
+      alert(`Failed to reprocess files: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  // Flatten data from grouped structure to single array
+  const allFiles = useMemo(() => {
+    if (!data) return [];
+    return Object.values(data.by_reason).flat();
+  }, [data]);
+
+  // Sort files
+  const sortedFiles = useMemo(() => {
+    const sorted = [...allFiles];
+    sorted.sort((a, b) => {
+      let aVal: any = a[sortField];
+      let bVal: any = b[sortField];
+
+      // Handle null values
+      if (aVal === null || aVal === undefined) aVal = '';
+      if (bVal === null || bVal === undefined) bVal = '';
+
+      if (sortDirection === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+    return sorted;
+  }, [allFiles, sortField, sortDirection]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const handleRowClick = (file: RejectedFile, event: React.MouseEvent) => {
+    // Don't open modal if clicking checkbox
+    if ((event.target as HTMLElement).closest('input[type="checkbox"]')) {
+      return;
+    }
     setSelectedFile(file);
     setShowDetailsModal(true);
+  };
+
+  const handleSelectFile = (filepath: string) => {
+    const newSelection = new Set(selectedFiles);
+    if (newSelection.has(filepath)) {
+      newSelection.delete(filepath);
+    } else {
+      newSelection.add(filepath);
+    }
+    setSelectedFiles(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedFiles.size === sortedFiles.length) {
+      setSelectedFiles(new Set());
+    } else {
+      setSelectedFiles(new Set(sortedFiles.map((f) => f.filepath)));
+    }
+  };
+
+  const handleDelete = () => {
+    deleteMutation.mutate(Array.from(selectedFiles));
+  };
+
+  const handleReprocess = () => {
+    reprocessMutation.mutate(Array.from(selectedFiles));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -127,73 +247,138 @@ export const IngestionMonitoringPage: React.FC = () => {
             <Card>
               <CardContent className="py-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Most Common</p>
-                  <p className="text-lg font-bold">
-                    {Object.entries(data.by_reason).sort((a, b) => b[1].length - a[1].length)[0]?.[0] || 'N/A'}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Selected</p>
+                  <p className="text-2xl font-bold">{selectedFiles.size}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Rejected Files by Reason */}
-          <div className="space-y-4">
-            {Object.entries(data.by_reason)
-              .sort((a, b) => b[1].length - a[1].length)
-              .map(([reason, files]) => (
-                <Card key={reason}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">
-                          {reasonLabels[reason] || reason}
-                        </CardTitle>
-                        <CardDescription>{reasonDescriptions[reason] || 'Unknown reason'}</CardDescription>
-                      </div>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
-                        {files.length} file{files.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-2">Filename</th>
-                            <th className="text-left py-2 px-2">IMEI</th>
-                            <th className="text-left py-2 px-2">Size</th>
-                            <th className="text-left py-2 px-2">Timestamp</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {files.map((file, index) => (
-                            <tr
-                              key={index}
-                              onClick={() => handleRowClick(file)}
-                              className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
-                            >
-                              <td className="py-2 px-2 font-mono text-xs break-all">
-                                {file.filename}
-                              </td>
-                              <td className="py-2 px-2 font-mono text-xs">
-                                {file.imei || <span className="text-muted-foreground">-</span>}
-                              </td>
-                              <td className="py-2 px-2 whitespace-nowrap">
-                                {formatFileSize(file.size_bytes)}
-                              </td>
-                              <td className="py-2 px-2 whitespace-nowrap text-muted-foreground">
-                                {formatTimestamp(file.timestamp)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-          </div>
+          {/* Bulk Actions Toolbar */}
+          {selectedFiles.size > 0 && (
+            <Card className="mb-4">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">
+                    {selectedFiles.size} file{selectedFiles.size !== 1 ? 's' : ''} selected
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowReprocessConfirm(true)}
+                      disabled={reprocessMutation.isPending}
+                    >
+                      <ArrowUpCircle className="h-4 w-4 mr-2" />
+                      Reprocess
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Unified Rejected Files Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Rejected Files</CardTitle>
+              <CardDescription>
+                All rejected files from the ingestion pipeline. Click a row for details.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2 w-8">
+                        <input
+                          type="checkbox"
+                          checked={sortedFiles.length > 0 && selectedFiles.size === sortedFiles.length}
+                          onChange={handleSelectAll}
+                          className="cursor-pointer"
+                        />
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('filename')}
+                      >
+                        Filename {sortField === 'filename' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('reason')}
+                      >
+                        Reason {sortField === 'reason' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('imei')}
+                      >
+                        IMEI {sortField === 'imei' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('size_bytes')}
+                      >
+                        Size {sortField === 'size_bytes' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('timestamp')}
+                      >
+                        Timestamp {sortField === 'timestamp' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedFiles.map((file) => (
+                      <tr
+                        key={file.filepath}
+                        onClick={(e) => handleRowClick(file, e)}
+                        className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
+                      >
+                        <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedFiles.has(file.filepath)}
+                            onChange={() => handleSelectFile(file.filepath)}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-2 px-2 font-mono text-xs break-all max-w-xs">
+                          {file.filename}
+                        </td>
+                        <td className="py-2 px-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                            {reasonLabels[file.reason] || file.reason}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-mono text-xs">
+                          {file.imei || <span className="text-muted-foreground">-</span>}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap">
+                          {formatFileSize(file.size_bytes)}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap text-muted-foreground">
+                          {formatTimestamp(file.timestamp)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
 
@@ -259,6 +444,75 @@ export const IngestionMonitoringPage: React.FC = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent onClose={() => setShowDeleteConfirm(false)}>
+          <DialogHeader>
+            <DialogTitle>Delete Rejected Files</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete {selectedFiles.size} file
+              {selectedFiles.size !== 1 ? 's' : ''}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reprocess Confirmation Dialog */}
+      <Dialog open={showReprocessConfirm} onOpenChange={setShowReprocessConfirm}>
+        <DialogContent onClose={() => setShowReprocessConfirm(false)}>
+          <DialogHeader>
+            <DialogTitle>Reprocess Rejected Files</DialogTitle>
+            <DialogDescription>
+              Move {selectedFiles.size} file{selectedFiles.size !== 1 ? 's' : ''} back to the uploads
+              directory for reprocessing? Files will be automatically picked up by the ingestion
+              pipeline.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReprocessConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleReprocess} disabled={reprocessMutation.isPending}>
+              {reprocessMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Reprocessing...
+                </>
+              ) : (
+                <>
+                  <ArrowUpCircle className="h-4 w-4 mr-2" />
+                  Reprocess
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
