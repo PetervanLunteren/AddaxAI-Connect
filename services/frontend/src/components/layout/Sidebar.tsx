@@ -1,9 +1,24 @@
 /**
  * Sidebar navigation component
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Camera, LayoutDashboard, Images, Settings, Info, LogOut, X, Menu, Bug } from 'lucide-react';
+import {
+  Camera,
+  LayoutDashboard,
+  Images,
+  Settings,
+  Info,
+  LogOut,
+  X,
+  Menu,
+  Wrench,
+  VideoIcon,
+  Activity,
+  Bug,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -23,9 +38,16 @@ const navItems = [
   { to: '/about', icon: Info, label: 'About' },
 ];
 
+const superuserTools = [
+  { to: '/camera-management', icon: VideoIcon, label: 'Camera Management' },
+  { to: '/ingestion-monitoring', icon: Activity, label: 'Ingestion Monitoring' },
+  { to: '/debug', icon: Bug, label: 'Dev Tools' },
+];
+
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [superuserToolsOpen, setSuperuserToolsOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -90,23 +112,51 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
 
-          {/* Dev tools link (superuser only) */}
+          {/* Superuser Tools dropdown (superuser only) */}
           {user?.is_superuser && (
-            <NavLink
-              to="/debug"
-              onClick={onClose}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center space-x-3 px-4 py-3 rounded-md text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )
-              }
-            >
-              <Bug className="h-5 w-5" />
-              <span>Dev tools</span>
-            </NavLink>
+            <div className="space-y-1">
+              <button
+                onClick={() => setSuperuserToolsOpen(!superuserToolsOpen)}
+                className={cn(
+                  'w-full flex items-center justify-between px-4 py-3 rounded-md text-sm font-medium transition-colors',
+                  'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                )}
+              >
+                <div className="flex items-center space-x-3">
+                  <Wrench className="h-5 w-5" />
+                  <span>Superuser Tools</span>
+                </div>
+                {superuserToolsOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+
+              {/* Submenu */}
+              {superuserToolsOpen && (
+                <div className="ml-4 space-y-1">
+                  {superuserTools.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex items-center space-x-3 px-4 py-2 rounded-md text-sm transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        )
+                      }
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </nav>
 

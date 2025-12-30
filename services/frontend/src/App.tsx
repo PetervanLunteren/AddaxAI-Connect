@@ -21,6 +21,8 @@ import { ImagesPage } from './pages/ImagesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AboutPage } from './pages/AboutPage';
 import { DevToolsPage } from './pages/DevToolsPage';
+import { CameraManagementPage } from './pages/CameraManagementPage';
+import { IngestionMonitoringPage } from './pages/IngestionMonitoringPage';
 
 function App() {
   return (
@@ -93,6 +95,26 @@ function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <DevToolsPage />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/camera-management"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <CameraManagementPage />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ingestion-monitoring"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <IngestionMonitoringPage />
                   </AppLayout>
                 </ProtectedRoute>
               }

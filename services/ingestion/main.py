@@ -18,7 +18,7 @@ from validators import validate_image, validate_daily_report
 from exif_parser import extract_exif, get_datetime_original
 from camera_profiles import identify_camera_profile
 from db_operations import (
-    get_or_create_camera,
+    get_camera_by_imei,
     check_duplicate_image,
     create_image_record,
     update_camera_health
@@ -126,15 +126,18 @@ def process_image(filepath: str) -> None:
 
         logger.info("Camera profile identified", file_name=filename, profile=profile.name)
 
-        # Step 4: Extract camera ID
-        camera_id = profile.get_camera_id(exif, filename)
-        if not camera_id:
+        # Step 4: Extract IMEI (from SerialNumber EXIF field)
+        imei = exif.get('SerialNumber')
+        if not imei:
             reject_file(
                 filepath,
-                "missing_camera_id",
-                f"Could not extract camera ID for profile {profile.name}"
+                "missing_imei",
+                f"Could not extract IMEI (SerialNumber field) for profile {profile.name}"
             )
             return
+
+        # Convert to string to ensure consistent type
+        imei = str(imei)
 
         # Step 5: Get datetime
         try:
@@ -147,26 +150,33 @@ def process_image(filepath: str) -> None:
             reject_file(filepath, "missing_datetime", str(e))
             return
 
-        # Step 6: Get or create camera (returns database ID)
-        camera_db_id = get_or_create_camera(camera_id, profile)
+        # Step 6: Look up camera (returns database ID or None)
+        camera_db_id = get_camera_by_imei(imei)
+        if camera_db_id is None:
+            reject_file(
+                filepath,
+                "unknown_camera",
+                f"Camera not registered. IMEI: {imei}. Please create camera in Camera Management before uploading files."
+            )
+            return
 
         # Step 7: Check for duplicates
         if check_duplicate_image(camera_db_id, filename, datetime_original):
             reject_file(
                 filepath,
                 "duplicate",
-                f"Image already exists: camera={camera_id}, file={filename}, datetime={datetime_original}"
+                f"Image already exists: IMEI={imei}, file={filename}, datetime={datetime_original}"
             )
             return
 
         # Step 8: Extract GPS if present
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
-        # Step 9: Upload to MinIO
-        storage_path = upload_image_to_minio(filepath, camera_id)
+        # Step 9: Upload to MinIO (using IMEI as folder name)
+        storage_path = upload_image_to_minio(filepath, imei)
 
         # Step 10: Generate and upload thumbnail
-        thumbnail_path = generate_and_upload_thumbnail(filepath, camera_id)
+        thumbnail_path = generate_and_upload_thumbnail(filepath, imei)
 
         # Step 11: Create database record (returns image UUID)
         image_uuid = create_image_record(
@@ -193,7 +203,7 @@ def process_image(filepath: str) -> None:
         logger.info(
             "Image ingestion complete",
             image_uuid=image_uuid,
-            camera_id=camera_id,
+            imei=imei,
             file_name=filename,
             queued=True
         )
@@ -256,14 +266,23 @@ def process_daily_report(filepath: str) -> None:
             reject_file(filepath, "parse_failed", str(e))
             return
 
-        camera_id = health_data['camera_id']
+        # Step 3: Extract IMEI (camera_id field from daily report is the IMEI)
+        imei = health_data['camera_id']
 
-        # Step 3: Update camera health
-        update_camera_health(camera_id, health_data)
+        # Step 4: Update camera health (only if camera exists)
+        camera_updated = update_camera_health(imei, health_data)
+
+        if not camera_updated:
+            reject_file(
+                filepath,
+                "unknown_camera",
+                f"Camera not registered. IMEI: {imei}. Please create camera in Camera Management before uploading files."
+            )
+            return
 
         logger.info(
             "Daily report processed",
-            camera_id=camera_id,
+            imei=imei,
             battery=health_data.get('battery_percentage'),
             temperature=health_data.get('temperature')
         )
