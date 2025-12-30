@@ -415,6 +415,41 @@ def main():
         log_level=settings.log_level
     )
 
+    # Process any existing files in upload directory (from before service start)
+    upload_path = Path(upload_dir)
+    existing_files = list(upload_path.glob('*.*'))
+    existing_images = [f for f in existing_files if f.suffix.lower() in ['.jpg', '.jpeg']]
+    existing_reports = [f for f in existing_files if f.suffix.lower() == '.txt']
+
+    if existing_images or existing_reports:
+        logger.info(
+            "Processing existing files from upload directory",
+            num_images=len(existing_images),
+            num_reports=len(existing_reports)
+        )
+
+        for image_file in existing_images:
+            try:
+                process_image(str(image_file))
+            except Exception as e:
+                logger.error(
+                    "Failed to process existing image",
+                    file_name=image_file.name,
+                    error=str(e),
+                    exc_info=True
+                )
+
+        for report_file in existing_reports:
+            try:
+                process_daily_report(str(report_file))
+            except Exception as e:
+                logger.error(
+                    "Failed to process existing report",
+                    file_name=report_file.name,
+                    error=str(e),
+                    exc_info=True
+                )
+
     # Set up file system observer
     event_handler = IngestionEventHandler()
     observer = Observer()
