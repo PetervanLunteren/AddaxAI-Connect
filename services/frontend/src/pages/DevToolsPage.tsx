@@ -32,11 +32,16 @@ import {
 import { useAuth } from '../hooks/useAuth';
 import { uploadFile, clearAllData, type ClearDataResponse } from '../api/devtools';
 
+interface FileUploadStatus {
+  filename: string;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  message?: string;
+}
+
 export const DevToolsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
-  const [uploadMessage, setUploadMessage] = useState<string>('');
+  const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([]);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [clearResults, setClearResults] = useState<ClearDataResponse | null>(null);
@@ -48,30 +53,52 @@ export const DevToolsPage: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Upload file mutation
-  const uploadMutation = useMutation({
-    mutationFn: uploadFile,
-    onMutate: () => {
-      setUploadStatus('uploading');
-      setUploadMessage('');
-    },
-    onSuccess: (data) => {
-      setUploadStatus('success');
-      setUploadMessage(data.message);
-      setTimeout(() => {
-        setUploadStatus('idle');
-        setUploadMessage('');
-      }, 5000);
-    },
-    onError: (error: any) => {
-      setUploadStatus('error');
-      setUploadMessage(error.response?.data?.detail || 'Upload failed');
-      setTimeout(() => {
-        setUploadStatus('idle');
-        setUploadMessage('');
-      }, 5000);
-    },
-  });
+  // Upload files sequentially
+  const uploadFiles = async (files: File[]) => {
+    // Initialize file statuses
+    const initialStatuses: FileUploadStatus[] = files.map(file => ({
+      filename: file.name,
+      status: 'pending' as const,
+    }));
+    setFileStatuses(initialStatuses);
+
+    // Upload each file sequentially
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      // Update status to uploading
+      setFileStatuses(prev =>
+        prev.map((status, idx) =>
+          idx === i ? { ...status, status: 'uploading' as const } : status
+        )
+      );
+
+      try {
+        const result = await uploadFile(file);
+
+        // Update status to success
+        setFileStatuses(prev =>
+          prev.map((status, idx) =>
+            idx === i ? { ...status, status: 'success' as const, message: result.message } : status
+          )
+        );
+      } catch (error: any) {
+        // Update status to error
+        setFileStatuses(prev =>
+          prev.map((status, idx) =>
+            idx === i
+              ? { ...status, status: 'error' as const, message: error.response?.data?.detail || 'Upload failed' }
+              : status
+          )
+        );
+      }
+    }
+
+    // Clear statuses after 10 seconds
+    setTimeout(() => {
+      setFileStatuses([]);
+    }, 10000);
+  };
 
   // Clear data mutation
   const clearMutation = useMutation({
@@ -92,10 +119,10 @@ export const DevToolsPage: React.FC = () => {
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
-        uploadMutation.mutate(acceptedFiles[0]);
+        uploadFiles(acceptedFiles);
       }
     },
-    [uploadMutation]
+    []
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -104,8 +131,7 @@ export const DevToolsPage: React.FC = () => {
       'image/jpeg': ['.jpg', '.jpeg'],
       'text/plain': ['.txt'],
     },
-    maxFiles: 1,
-    multiple: false,
+    multiple: true,
   });
 
   const handleClearData = () => {
@@ -130,7 +156,8 @@ export const DevToolsPage: React.FC = () => {
             <CardTitle>Upload Files to FTPS Directory</CardTitle>
             <CardDescription>
               Drag and drop camera trap images (.jpg, .jpeg) or daily reports (.txt) to upload them
-              directly to the FTPS directory for testing the ingestion pipeline.
+              directly to the FTPS directory for testing the ingestion pipeline. Multiple files can be
+              uploaded at once.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -150,36 +177,62 @@ export const DevToolsPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-medium">
-                    {isDragActive ? 'Drop file here...' : 'Drag and drop a file here, or click to select'}
+                    {isDragActive ? 'Drop files here...' : 'Drag and drop files here, or click to select'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Accepts: .jpg, .jpeg (images), .txt (daily reports)
+                    Accepts: .jpg, .jpeg (images), .txt (daily reports). Multiple files supported.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Upload Status */}
-            {uploadStatus !== 'idle' && (
+            {/* Upload Status Table */}
+            {fileStatuses.length > 0 && (
               <div className="mt-4">
-                {uploadStatus === 'uploading' && (
-                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Uploading...</span>
-                  </div>
-                )}
-                {uploadStatus === 'success' && (
-                  <div className="flex items-center space-x-2 text-sm text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>{uploadMessage}</span>
-                  </div>
-                )}
-                {uploadStatus === 'error' && (
-                  <div className="flex items-center space-x-2 text-sm text-red-600">
-                    <XCircle className="h-4 w-4" />
-                    <span>{uploadMessage}</span>
-                  </div>
-                )}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left px-4 py-2">File</th>
+                        <th className="text-left px-4 py-2">Status</th>
+                        <th className="text-left px-4 py-2">Message</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fileStatuses.map((fileStatus, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="px-4 py-2 font-medium">{fileStatus.filename}</td>
+                          <td className="px-4 py-2">
+                            {fileStatus.status === 'pending' && (
+                              <span className="text-muted-foreground">Pending...</span>
+                            )}
+                            {fileStatus.status === 'uploading' && (
+                              <div className="flex items-center space-x-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Uploading...</span>
+                              </div>
+                            )}
+                            {fileStatus.status === 'success' && (
+                              <div className="flex items-center space-x-2 text-green-600">
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span>Success</span>
+                              </div>
+                            )}
+                            {fileStatus.status === 'error' && (
+                              <div className="flex items-center space-x-2 text-red-600">
+                                <XCircle className="h-4 w-4" />
+                                <span>Failed</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-muted-foreground">
+                            {fileStatus.message || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </CardContent>
