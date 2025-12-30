@@ -13,7 +13,7 @@ from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from shared.models import User, EmailAllowlist
+from shared.models import User, EmailAllowlist, Project
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -192,13 +192,14 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         request: Optional[Request] = None,
     ) -> User:
         """
-        Create a new user with allowlist validation and role assignment.
+        Create a new user with allowlist validation and auto-assignment to default project.
 
         The user's is_superuser flag is set based on the allowlist entry:
         - If allowlist entry has is_superuser=True, user becomes server admin
         - If allowlist entry has is_superuser=False, user is a regular user
 
-        Regular users will get project-specific roles assigned later.
+        Regular users are automatically assigned to the default project.
+        Superusers are not assigned to any project (they have access to all).
 
         Args:
             user_create: User creation data
@@ -232,6 +233,33 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         # Call parent create method with safe=False to allow is_superuser
         created_user = await super().create(user_create, safe=False, request=request)
+
+        # Auto-assign non-superuser users to default project
+        if not created_user.is_superuser:
+            result = await db.execute(
+                select(Project).where(Project.name == settings.default_project_name)
+            )
+            default_project = result.scalar_one_or_none()
+
+            if default_project:
+                created_user.project_id = default_project.id
+                await db.commit()
+                await db.refresh(created_user)
+
+                logger.info(
+                    "Auto-assigned user to default project",
+                    email=created_user.email,
+                    user_id=created_user.id,
+                    project_id=default_project.id,
+                    project_name=default_project.name,
+                )
+            else:
+                logger.warning(
+                    "Default project not found, user created without project assignment",
+                    email=created_user.email,
+                    user_id=created_user.id,
+                    default_project_name=settings.default_project_name,
+                )
 
         return created_user
 
