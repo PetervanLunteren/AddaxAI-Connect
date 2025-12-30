@@ -6,7 +6,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle } from 'lucide-react';
+import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -200,6 +200,21 @@ export const IngestionMonitoringPage: React.FC = () => {
           Refresh
         </Button>
       </div>
+
+      {/* Automatic Cleanup Info */}
+      <Card className="mb-6 border-blue-200 bg-blue-50">
+        <CardContent className="py-3">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-blue-900">Automatic Cleanup</p>
+              <p className="text-blue-700 mt-0.5">
+                Rejected files older than 30 days are automatically deleted daily at midnight UTC.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
