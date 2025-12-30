@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_camera_inventory'
-down_revision = 'add_raw_predictions_and_projects'
+down_revision = 'rename_species_filter'
 branch_labels = None
 depends_on = None
 
