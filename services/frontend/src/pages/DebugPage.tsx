@@ -1,5 +1,5 @@
 /**
- * Debug page for superusers
+ * Dev tools page for superusers
  *
  * Provides tools for:
  * - Uploading files directly to FTPS directory
@@ -121,7 +121,7 @@ export const DebugPage: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Debug Tools</h1>
+      <h1 className="text-2xl font-bold mb-6">Dev tools</h1>
 
       <div className="grid gap-6">
         {/* File Upload Card */}
