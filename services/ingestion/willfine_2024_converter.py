@@ -133,21 +133,34 @@ def convert_willfine_2024_image(filepath: str) -> bool:
     )
 
     try:
-        # Use exiftool to modify EXIF fields in-place
-        subprocess.run(
-            [
-                'exiftool',
-                '-overwrite_original',  # Don't create backup file
-                f'-Make=Willfine',
-                f'-Model=4.0T CG',
-                f'-SerialNumber={serial_number}',
-                filepath
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10
-        )
+        # Work in a temporary directory to avoid triggering watchdog with temp files
+        import tempfile
+        import shutil
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_file = os.path.join(temp_dir, filename)
+
+            # Copy file to temp directory
+            shutil.copy2(filepath, temp_file)
+
+            # Modify EXIF in temp directory (temp files won't trigger watchdog)
+            subprocess.run(
+                [
+                    'exiftool',
+                    '-overwrite_original',  # Don't create backup file
+                    f'-Make=Willfine',
+                    f'-Model=4.0T CG',
+                    f'-SerialNumber={serial_number}',
+                    temp_file
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10
+            )
+
+            # Copy modified file back, overwriting original
+            shutil.copy2(temp_file, filepath)
 
         logger.info(
             "Successfully converted Willfine-2024 image",

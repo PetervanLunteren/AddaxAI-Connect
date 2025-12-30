@@ -60,8 +60,8 @@ class IngestionEventHandler(FileSystemEventHandler):
         filepath = event.src_path
         filename = os.path.basename(filepath)
 
-        # Ignore temporary files created by exiftool
-        if '_exiftool_tmp' in filename or filename.startswith('.'):
+        # Ignore hidden files
+        if filename.startswith('.'):
             return
 
         # Small delay to ensure file is fully written
