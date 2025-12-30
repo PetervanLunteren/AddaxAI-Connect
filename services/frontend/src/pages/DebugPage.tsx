@@ -205,6 +205,13 @@ export const DebugPage: React.FC = () => {
                 <li>All files from MinIO buckets (raw-images, crops, thumbnails)</li>
                 <li>All files from FTPS upload directory</li>
               </ul>
+
+              <p className="text-sm font-medium mb-2 mt-4">This will NOT delete:</p>
+              <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+                <li>Projects - Your projects remain intact</li>
+                <li>Users - All user accounts remain</li>
+                <li>Email allowlist - Email permissions remain</li>
+              </ul>
             </div>
 
             <Button
@@ -271,6 +278,8 @@ export const DebugPage: React.FC = () => {
             <DialogDescription>
               This action cannot be undone. All data will be permanently deleted from the database, MinIO
               storage, and FTPS upload directory.
+              <br /><br />
+              <strong>Note:</strong> Projects, users, and email allowlist will NOT be deleted.
             </DialogDescription>
           </DialogHeader>
 
