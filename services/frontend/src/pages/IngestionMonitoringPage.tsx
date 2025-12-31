@@ -180,7 +180,7 @@ export const IngestionMonitoringPage: React.FC = () => {
 
   const reasonDescriptions: Record<string, string> = {
     unknown_camera: 'Camera not registered in database. Create camera first.',
-    no_camera_exif: 'Image has no camera EXIF data (Make/Model missing). File may have been edited or stripped.',
+    no_camera_exif: 'Image has no camera EXIF data (Make/Model missing).',
     unsupported_camera: 'Camera model not supported by any profile.',
     missing_imei: 'Could not extract IMEI from file.',
     missing_datetime: 'Could not extract DateTime from EXIF metadata.',
