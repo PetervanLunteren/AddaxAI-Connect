@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Loader2 } from 'lucide-react';
 import { projectsApi } from '../api/projects';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
@@ -16,7 +16,7 @@ import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import type { Project } from '../api/types';
 
 export const ProjectsPage: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const { data: projects, isLoading } = useQuery({
@@ -26,23 +26,23 @@ export const ProjectsPage: React.FC = () => {
 
   // Filter projects based on user role
   const visibleProjects = React.useMemo(() => {
-    if (!projects || !currentUser) return [];
+    if (!projects || !user) return [];
 
     // Superusers see all projects
-    if (currentUser.is_superuser) {
+    if (user.is_superuser) {
       return projects;
     }
 
     // Regular users see only their assigned project
-    if (currentUser.project_id) {
-      return projects.filter(p => p.id === currentUser.project_id);
+    if (user.project_id) {
+      return projects.filter(p => p.id === user.project_id);
     }
 
     // No project assigned = no access
     return [];
-  }, [projects, currentUser]);
+  }, [projects, user]);
 
-  const canManageProjects = currentUser?.is_superuser || false;
+  const canManageProjects = user?.is_superuser || false;
 
   return (
     <div>
