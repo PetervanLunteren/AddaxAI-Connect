@@ -125,9 +125,10 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
 
     Workflow:
     1. Validate image file (format, size)
-    2. Upload original image to MinIO
-    3. Generate and upload thumbnail
-    4. Return storage paths
+    2. Read file into memory to avoid file handle issues
+    3. Upload original image to MinIO
+    4. Generate and upload thumbnail
+    5. Return storage paths
 
     Args:
         file: Uploaded image file
@@ -149,7 +150,12 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
     # Step 1: Validate
     validate_image_file(file)
 
-    # Step 2: Prepare paths
+    # Step 2: Read entire file into memory to avoid file handle issues with PIL
+    file.file.seek(0)
+    file_content = file.file.read()
+    file_buffer = BytesIO(file_content)
+
+    # Step 3: Prepare paths
     # Use safe filename (just extension, not original name for security)
     file_ext = os.path.splitext(file.filename or "image.jpg")[1].lower()
     if not file_ext:
@@ -164,10 +170,10 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
     storage = StorageClient()
 
     try:
-        # Step 3: Upload original image
-        file.file.seek(0)
+        # Step 4: Upload original image from buffer
+        file_buffer.seek(0)
         storage.upload_fileobj(
-            file_obj=file.file,
+            file_obj=file_buffer,
             bucket=BUCKET_PROJECT_IMAGES,
             object_name=image_path
         )
@@ -178,9 +184,9 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
             storage_path=image_path
         )
 
-        # Step 4: Generate and upload thumbnail
-        file.file.seek(0)
-        thumbnail_data = generate_thumbnail(file.file)
+        # Step 5: Generate and upload thumbnail
+        file_buffer.seek(0)
+        thumbnail_data = generate_thumbnail(file_buffer)
 
         storage.upload_fileobj(
             file_obj=thumbnail_data,
