@@ -8,6 +8,7 @@ import { ProjectProvider } from './contexts/ProjectContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
+import { ServerLayout } from './components/layout/ServerLayout';
 
 // Pages
 import { Login } from './pages/Login';
@@ -50,12 +51,14 @@ function App() {
                 }
               />
 
-              {/* Server-wide admin routes (no sidebar, superuser only) */}
+              {/* Server-wide admin routes (with server sidebar, superuser only) */}
               <Route
                 path="/server-settings"
                 element={
                   <ProtectedRoute>
-                    <ServerSettingsPage />
+                    <ServerLayout>
+                      <ServerSettingsPage />
+                    </ServerLayout>
                   </ProtectedRoute>
                 }
               />
@@ -63,7 +66,9 @@ function App() {
                 path="/debug"
                 element={
                   <ProtectedRoute>
-                    <DevToolsPage />
+                    <ServerLayout>
+                      <DevToolsPage />
+                    </ServerLayout>
                   </ProtectedRoute>
                 }
               />
