@@ -4,7 +4,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
 ## WHEREWASI?
-- Fixed Ansible error handling (removed failed_when: false) and API startup bug (excluded_species → included_species). Ready to test full deployment on VM.
+- I was busy with the server settings modal. I need to add some extra tools there, and split them into Test Ingestion, Delete data, etc. 
 
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
