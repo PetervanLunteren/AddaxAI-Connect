@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Loader2, Settings, Bug, Camera, LogOut } from 'lucide-react';
+import { Plus, Loader2, Camera, LogOut, Settings } from 'lucide-react';
 import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import { Card, CardContent } from '../components/ui/Card';
@@ -64,29 +64,19 @@ export const ProjectsPage: React.FC = () => {
                 <p className="text-xs text-muted-foreground">Wildlife Monitoring Projects</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {canManageProjects && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/server-settings')}
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Server Settings
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/debug')}
-                  >
-                    <Bug className="h-4 w-4 mr-2" />
-                    Dev Tools
-                  </Button>
-                </>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/server-settings')}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Server Settings
+                </Button>
               )}
-              <div className="border-l pl-4 ml-2">
-                <p className="text-sm font-medium mb-1">{user?.email}</p>
+              <div className="border-l pl-4 ml-2 flex items-center gap-3">
+                <p className="text-sm font-medium">{user?.email}</p>
                 <Button
                   variant="outline"
                   size="sm"
