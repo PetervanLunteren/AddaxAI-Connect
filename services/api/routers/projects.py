@@ -12,7 +12,7 @@ from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from auth.users import current_superuser
+from auth.users import current_superuser, current_active_user
 from utils.image_processing import delete_project_images
 
 
