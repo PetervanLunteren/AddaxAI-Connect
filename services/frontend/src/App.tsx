@@ -22,6 +22,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AboutPage } from './pages/AboutPage';
 import { DevToolsPage } from './pages/DevToolsPage';
 import { CameraManagementPage } from './pages/CameraManagementPage';
+import { SpeciesManagementPage } from './pages/SpeciesManagementPage';
 import { ServerSettingsPage } from './pages/ServerSettingsPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 
@@ -86,6 +87,7 @@ function App() {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="about" element={<AboutPage />} />
                 <Route path="camera-management" element={<CameraManagementPage />} />
+                <Route path="species-management" element={<SpeciesManagementPage />} />
               </Route>
 
               {/* Redirect root to projects */}

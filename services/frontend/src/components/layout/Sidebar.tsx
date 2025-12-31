@@ -15,7 +15,8 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Filter
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   // Admin tools for superusers
   const adminTools = [
+    { to: `/projects/${projectId}/species-management`, icon: Filter, label: 'Species Management' },
     { to: `/projects/${projectId}/camera-management`, icon: VideoIcon, label: 'Camera Management' },
   ];
 
