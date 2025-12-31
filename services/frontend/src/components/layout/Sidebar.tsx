@@ -1,7 +1,7 @@
 /**
  * Sidebar navigation component
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
 import {
   Camera,
@@ -12,7 +12,10 @@ import {
   X,
   Menu,
   VideoIcon,
-  ArrowLeft
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -28,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { selectedProject } = useProject();
   const { projectId } = useParams<{ projectId: string }>();
+  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
 
   // Navigation items (all project-specific)
   const navItems = [
@@ -38,14 +42,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/about`, icon: Info, label: 'About' },
   ];
 
-  // Camera management for superusers (project-specific)
-  if (user?.is_superuser) {
-    navItems.push({
-      to: `/projects/${projectId}/camera-management`,
-      icon: VideoIcon,
-      label: 'Camera Management'
-    });
-  }
+  // Admin tools for superusers
+  const adminTools = [
+    { to: `/projects/${projectId}/camera-management`, icon: VideoIcon, label: 'Camera Management' },
+  ];
 
   return (
     <>
@@ -99,6 +99,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <span>{item.label}</span>
             </NavLink>
           ))}
+
+          {/* Admin Tools Section (superuser only) */}
+          {user?.is_superuser && (
+            <div className="mt-2">
+              <button
+                onClick={() => setAdminToolsOpen(!adminToolsOpen)}
+                className="flex items-center justify-between w-full px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <ShieldAlert className="h-5 w-5" />
+                  <span>Admin Tools</span>
+                </div>
+                {adminToolsOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+
+              {/* Admin Tools Submenu */}
+              {adminToolsOpen && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {adminTools.map((tool) => (
+                    <NavLink
+                      key={tool.to}
+                      to={tool.to}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        )
+                      }
+                    >
+                      <tool.icon className="h-4 w-4" />
+                      <span>{tool.label}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* Bottom section with project info, Last Update, and User info */}
