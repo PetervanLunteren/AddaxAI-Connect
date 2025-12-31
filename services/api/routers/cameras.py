@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from shared.models import User, Camera, Project
 from shared.database import get_async_session
 from auth.users import current_active_user, current_superuser
+from auth.project_access import get_accessible_project_ids
 
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
@@ -145,20 +146,28 @@ def camera_to_response(camera: Camera) -> CameraResponse:
     response_model=List[CameraResponse],
 )
 async def list_cameras(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
     List all cameras with health status
 
+    Returns cameras filtered by user's accessible projects:
+    - Superusers: all cameras
+    - Regular users: only cameras from their assigned project
+
     Args:
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
     Returns:
         List of cameras with health data
     """
-    result = await db.execute(select(Camera))
+    # Filter cameras by accessible projects
+    query = select(Camera).where(Camera.project_id.in_(accessible_project_ids))
+    result = await db.execute(query)
     cameras = result.scalars().all()
 
     return [camera_to_response(camera) for camera in cameras]
@@ -170,6 +179,7 @@ async def list_cameras(
 )
 async def get_camera(
     camera_id: int,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
@@ -178,6 +188,7 @@ async def get_camera(
 
     Args:
         camera_id: Camera ID
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
@@ -185,7 +196,7 @@ async def get_camera(
         Camera with health data
 
     Raises:
-        HTTPException: If camera not found
+        HTTPException: If camera not found or not accessible
     """
     result = await db.execute(
         select(Camera).where(Camera.id == camera_id)
@@ -196,6 +207,13 @@ async def get_camera(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Camera not found",
+        )
+
+    # Check if user has access to this camera's project
+    if camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this camera"
         )
 
     return camera_to_response(camera)

@@ -17,7 +17,9 @@ import {
   Activity,
   Bug,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  FolderOpen,
+  ServerCog
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { cn } from '../../lib/utils';
@@ -31,6 +33,7 @@ interface SidebarProps {
 }
 
 const navItems = [
+  { to: '/projects', icon: FolderOpen, label: 'Projects' },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/cameras', icon: Camera, label: 'Cameras' },
   { to: '/images', icon: Images, label: 'Images' },
@@ -40,7 +43,7 @@ const navItems = [
 
 const superuserTools = [
   { to: '/camera-management', icon: VideoIcon, label: 'Camera Management' },
-  { to: '/ingestion-monitoring', icon: Activity, label: 'Ingestion Monitoring' },
+  { to: '/server-settings', icon: ServerCog, label: 'Server Settings' },
   { to: '/debug', icon: Bug, label: 'Dev Tools' },
 ];
 

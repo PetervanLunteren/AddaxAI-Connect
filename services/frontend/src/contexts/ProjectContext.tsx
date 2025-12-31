@@ -1,16 +1,22 @@
 /**
  * Project context provider
  *
- * Manages selected project state and provides project selection functions
+ * Manages selected project state and provides project selection functions.
+ * Filters projects based on user access:
+ * - Superusers see all projects
+ * - Regular users see only their assigned project
  */
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { projectsApi } from '../api/projects';
+import { useAuth } from '../hooks/useAuth';
 import type { Project } from '../api/types';
 
 interface ProjectContextType {
   selectedProject: Project | null;
   projects: Project[] | undefined;
+  visibleProjects: Project[];
+  canManageProjects: boolean;
   loading: boolean;
   selectProject: (project: Project) => void;
   refreshProjects: () => void;
@@ -19,6 +25,8 @@ interface ProjectContextType {
 export const ProjectContext = createContext<ProjectContextType>({
   selectedProject: null,
   projects: undefined,
+  visibleProjects: [],
+  canManageProjects: false,
   loading: true,
   selectProject: () => {},
   refreshProjects: () => {},
@@ -30,6 +38,7 @@ interface ProjectProviderProps {
 
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const { user } = useAuth();
 
   // Check if user is authenticated
   const isAuthenticated = !!localStorage.getItem('access_token');
@@ -42,32 +51,56 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     enabled: isAuthenticated, // Only fetch if user is authenticated
   });
 
+  // Filter projects based on user access
+  const visibleProjects = useMemo(() => {
+    if (!projects || !user) return [];
+
+    // Superusers see all projects
+    if (user.is_superuser) {
+      return projects;
+    }
+
+    // Regular users see only their assigned project
+    if (user.project_id) {
+      return projects.filter(p => p.id === user.project_id);
+    }
+
+    // No project assigned = no access
+    return [];
+  }, [projects, user]);
+
+  // Check if user can manage projects (superuser only)
+  const canManageProjects = user?.is_superuser || false;
+
   // Load selected project from localStorage on mount
   useEffect(() => {
     const storedProjectId = localStorage.getItem('selected_project_id');
 
-    if (storedProjectId && projects) {
-      const project = projects.find(p => p.id === parseInt(storedProjectId));
+    if (storedProjectId && visibleProjects.length > 0) {
+      const project = visibleProjects.find(p => p.id === parseInt(storedProjectId));
       if (project) {
         setSelectedProject(project);
       } else {
-        // Stored project not found, clear it and select first available
+        // Stored project not found or not accessible, clear it and select first visible
         localStorage.removeItem('selected_project_id');
-        if (projects.length > 0) {
-          setSelectedProject(projects[0]);
-          localStorage.setItem('selected_project_id', projects[0].id.toString());
+        if (visibleProjects.length > 0) {
+          setSelectedProject(visibleProjects[0]);
+          localStorage.setItem('selected_project_id', visibleProjects[0].id.toString());
         }
       }
-    } else if (projects && projects.length > 0 && !selectedProject) {
-      // No stored project, select first available
-      setSelectedProject(projects[0]);
-      localStorage.setItem('selected_project_id', projects[0].id.toString());
+    } else if (visibleProjects.length > 0 && !selectedProject) {
+      // No stored project, select first visible
+      setSelectedProject(visibleProjects[0]);
+      localStorage.setItem('selected_project_id', visibleProjects[0].id.toString());
     }
-  }, [projects]);
+  }, [visibleProjects]);
 
   const selectProject = (project: Project) => {
-    setSelectedProject(project);
-    localStorage.setItem('selected_project_id', project.id.toString());
+    // Only allow selecting visible projects
+    if (visibleProjects.find(p => p.id === project.id)) {
+      setSelectedProject(project);
+      localStorage.setItem('selected_project_id', project.id.toString());
+    }
   };
 
   const refreshProjects = () => {
@@ -79,6 +112,8 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
       value={{
         selectedProject,
         projects,
+        visibleProjects,
+        canManageProjects,
         loading: isLoading,
         selectProject,
         refreshProjects,

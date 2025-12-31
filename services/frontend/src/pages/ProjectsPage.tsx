@@ -1,0 +1,103 @@
+/**
+ * Projects Page
+ *
+ * Shows all projects as cards (superusers see all, regular users see only their assigned project).
+ * Superusers can create, edit, and delete projects.
+ */
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Plus, Loader2 } from 'lucide-react';
+import { projectsApi } from '../api/projects';
+import { useAuth } from '../contexts/AuthContext';
+import { Card, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { ProjectCard } from '../components/projects/ProjectCard';
+import { CreateProjectModal } from '../components/projects/CreateProjectModal';
+import type { Project } from '../api/types';
+
+export const ProjectsPage: React.FC = () => {
+  const { currentUser } = useAuth();
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const { data: projects, isLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectsApi.getAll,
+  });
+
+  // Filter projects based on user role
+  const visibleProjects = React.useMemo(() => {
+    if (!projects || !currentUser) return [];
+
+    // Superusers see all projects
+    if (currentUser.is_superuser) {
+      return projects;
+    }
+
+    // Regular users see only their assigned project
+    if (currentUser.project_id) {
+      return projects.filter(p => p.id === currentUser.project_id);
+    }
+
+    // No project assigned = no access
+    return [];
+  }, [projects, currentUser]);
+
+  const canManageProjects = currentUser?.is_superuser || false;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Projects</h1>
+          <p className="text-muted-foreground mt-1">
+            {canManageProjects
+              ? 'Manage wildlife monitoring projects'
+              : 'Your assigned project'
+            }
+          </p>
+        </div>
+        {canManageProjects && (
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Project
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : visibleProjects.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-muted-foreground">
+              {canManageProjects
+                ? 'No projects yet. Create your first project to get started.'
+                : 'No project assigned. Contact an administrator.'
+              }
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {visibleProjects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              canManage={canManageProjects}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Create Project Modal */}
+      {canManageProjects && (
+        <CreateProjectModal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+        />
+      )}
+    </div>
+  );
+};

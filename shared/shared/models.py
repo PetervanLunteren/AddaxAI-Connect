@@ -118,6 +118,8 @@ class Project(Base):
     description = Column(Text, nullable=True)
     location = Column(Geography(geometry_type='POLYGON', srid=4326), nullable=True)
     included_species = Column(JSON, nullable=True)  # List of species names that ARE present in project area (null = all species)
+    image_path = Column(String(512), nullable=True)  # MinIO path to original project image
+    thumbnail_path = Column(String(512), nullable=True)  # MinIO path to thumbnail (256x256)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

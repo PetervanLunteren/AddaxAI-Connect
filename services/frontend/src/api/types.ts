@@ -111,6 +111,8 @@ export interface Project {
   included_species: string[] | null;
   created_at: string;
   updated_at: string | null;
+  image_url: string | null;
+  thumbnail_url: string | null;
 }
 
 export interface ProjectCreate {
@@ -123,4 +125,20 @@ export interface ProjectUpdate {
   name?: string;
   description?: string;
   included_species?: string[];
+}
+
+export interface ProjectDeleteResponse {
+  deleted_cameras: number;
+  deleted_images: number;
+  deleted_detections: number;
+  deleted_classifications: number;
+  deleted_minio_files: number;
+}
+
+export interface UserWithProject {
+  id: number;
+  email: string;
+  is_superuser: boolean;
+  project_id: number | null;
+  project_name: string | null;
 }

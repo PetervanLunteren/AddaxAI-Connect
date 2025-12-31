@@ -11,7 +11,7 @@ from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
 from auth.routes import get_auth_router
-from routers import admin, logs, cameras, images, statistics, projects, devtools, ingestion_monitoring
+from routers import admin, logs, cameras, images, statistics, projects, devtools, ingestion_monitoring, project_images
 from middleware.logging import RequestLoggingMiddleware
 
 
@@ -36,13 +36,13 @@ async def lifespan(app: FastAPI):
 
             if not projects:
                 default_project = Project(
-                    name=settings.default_project_name,
-                    description=f"Default project created automatically",
+                    name="Wildlife Monitoring",
+                    description="Default project created automatically",
                     included_species=None,  # None = all species included
                 )
                 session.add(default_project)
                 await session.commit()
-                logger.info("Created default project", project_name=settings.default_project_name)
+                logger.info("Created default project", project_name="Wildlife Monitoring")
             else:
                 logger.info("Projects already exist, skipping default project creation", count=len(projects))
         except Exception as e:
@@ -109,5 +109,6 @@ app.include_router(cameras.router)
 app.include_router(images.router)
 app.include_router(statistics.router)
 app.include_router(projects.router)
+app.include_router(project_images.router)
 app.include_router(devtools.router)
 app.include_router(ingestion_monitoring.router)

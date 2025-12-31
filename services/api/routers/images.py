@@ -16,6 +16,7 @@ from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_active_user
+from auth.project_access import get_accessible_project_ids
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -110,21 +111,28 @@ class SpeciesOption(BaseModel):
     response_model=List[SpeciesOption],
 )
 async def get_species(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
     Get list of unique species found in classified images.
 
-    Returns list of species for use in filter dropdown.
+    Returns list of species for use in filter dropdown (filtered by accessible projects).
     """
-    # Query for unique species from classifications
+    # Query for unique species from classifications, filtered by accessible projects
     query = (
         select(Classification.species)
         .distinct()
         .join(Detection)
         .join(Image)
-        .where(Image.status == "classified")
+        .join(Camera)
+        .where(
+            and_(
+                Image.status == "classified",
+                Camera.project_id.in_(accessible_project_ids)
+            )
+        )
         .order_by(Classification.species)
     )
 
@@ -151,6 +159,7 @@ async def list_images(
     end_date: Optional[str] = None,
     species: Optional[str] = None,
     show_empty: bool = Query(False),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
@@ -165,17 +174,21 @@ async def list_images(
         end_date: Filter by end date (ISO format)
         species: Filter by species name(s) - comma-separated for multiple
         show_empty: If False (default), hide images without detections
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
     Returns:
-        Paginated list of images with detection summaries
+        Paginated list of images with detection summaries (filtered by accessible projects)
     """
     # Build query filters
     filters = [
         # Only show images that have completed ML processing
         Image.status == "classified"
     ]
+
+    # Filter by accessible projects (via camera.project_id)
+    filters.append(Camera.project_id.in_(accessible_project_ids))
 
     # Handle camera_id filter (supports comma-separated values)
     if camera_id:
@@ -220,8 +233,8 @@ async def list_images(
             )
         )
 
-    # Count total
-    count_query = select(func.count(Image.id))
+    # Count total (join with Camera for project filtering)
+    count_query = select(func.count(Image.id)).join(Camera)
     if filters:
         count_query = count_query.where(and_(*filters))
 
@@ -502,6 +515,7 @@ async def _stream_image_from_storage(
 @router.get("/{uuid}/thumbnail")
 async def get_image_thumbnail(
     uuid: str,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
@@ -511,8 +525,8 @@ async def get_image_thumbnail(
     Returns the pre-generated 300px thumbnail if available, otherwise falls back
     to the full-size image. Includes 1-hour cache for faster grid loading.
     """
-    # Fetch image record
-    query = select(Image).where(Image.uuid == uuid)
+    # Fetch image record with camera for project check
+    query = select(Image).join(Camera).where(Image.uuid == uuid)
     result = await db.execute(query)
     image = result.scalar_one_or_none()
 
@@ -522,12 +536,22 @@ async def get_image_thumbnail(
             detail="Image not found",
         )
 
+    # Check project access
+    camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
+    camera = camera_result.scalar_one_or_none()
+    if camera and camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image"
+        )
+
     return await _stream_image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
 
 
 @router.get("/{uuid}/full")
 async def get_image_full(
     uuid: str,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
@@ -538,8 +562,8 @@ async def get_image_full(
     to the client with JWT authentication. Includes 24-hour cache to reduce
     server load while maintaining security.
     """
-    # Fetch image record
-    query = select(Image).where(Image.uuid == uuid)
+    # Fetch image record with camera for project check
+    query = select(Image).join(Camera).where(Image.uuid == uuid)
     result = await db.execute(query)
     image = result.scalar_one_or_none()
 
@@ -547,6 +571,15 @@ async def get_image_full(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Image not found",
+        )
+
+    # Check project access
+    camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
+    camera = camera_result.scalar_one_or_none()
+    if camera and camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image"
         )
 
     return await _stream_image_from_storage(image, cache_max_age=86400)
