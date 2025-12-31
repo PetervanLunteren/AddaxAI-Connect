@@ -87,19 +87,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Back to Projects Link */}
-        <div className="px-4 pt-4 pb-2">
-          <NavLink
-            to="/projects"
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Projects
-          </NavLink>
-        </div>
-
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-4 space-y-1">
+        <nav className="flex-1 px-4 py-4 space-y-1 mt-4">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -122,11 +111,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Bottom section with project info, Last Update, and User info */}
         <div className="absolute bottom-0 left-0 right-0 bg-card">
-          {/* Current Project Display */}
+          {/* Current Project Display with Back to Projects */}
           {selectedProject && (
             <div className="px-4 py-3 border-t border-border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground">Current Project</p>
-              <p className="truncate text-sm font-semibold mt-1">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">Current Project</p>
+                <NavLink
+                  to="/projects"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Back
+                </NavLink>
+              </div>
+              <p className="truncate text-sm font-semibold">
                 {selectedProject.name}
               </p>
             </div>
