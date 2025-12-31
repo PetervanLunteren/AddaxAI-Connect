@@ -53,9 +53,9 @@ def validate_image_file(file: UploadFile) -> None:
 
     # Validate it's actually an image by trying to open with Pillow
     try:
+        # Open and check format (don't use verify() as it closes the file)
         img = Image.open(file.file)
-        img_format = img.format  # Store format before verify() closes the file
-        img.verify()  # Verify it's a valid image (this closes the file)
+        img_format = img.format
 
         # Check format
         if img_format not in ALLOWED_FORMATS:
@@ -64,10 +64,12 @@ def validate_image_file(file: UploadFile) -> None:
                 f"Only JPEG and PNG are allowed."
             )
 
-        # Reopen the file since verify() closed it
+        # Load the image to ensure it's valid (without verify())
+        # This will raise an exception if the image is corrupted
+        img.load()
+
+        # Reset file pointer for subsequent operations
         file.file.seek(0)
-        img = Image.open(file.file)
-        file.file.seek(0)  # Reset to beginning for subsequent operations
     except Exception as e:
         raise ValueError(f"Invalid or corrupted image file: {str(e)}")
 
