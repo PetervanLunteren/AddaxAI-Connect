@@ -128,6 +128,20 @@ def process_image(filepath: str) -> None:
             )
             return
 
+        # Step 2b: Check if camera EXIF data is present
+        make = exif.get('Make')
+        model = exif.get('Model')
+
+        if not make and not model:
+            # Image has basic metadata (dimensions) but no camera EXIF data
+            reject_file(
+                filepath,
+                "no_camera_exif",
+                f"Image file has no camera EXIF data (Make/Model missing). File may have been edited or EXIF stripped. Basic metadata present: {list(exif.keys())}",
+                exif_metadata=exif
+            )
+            return
+
         # Step 3: Identify camera profile
         try:
             profile = identify_camera_profile(exif, filename)
@@ -399,6 +413,7 @@ def main():
     for reason in [
         "mime_type",
         "file_size",
+        "no_camera_exif",
         "unsupported_camera",
         "missing_camera_id",
         "missing_datetime",

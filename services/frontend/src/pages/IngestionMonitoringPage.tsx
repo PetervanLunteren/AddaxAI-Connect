@@ -166,24 +166,30 @@ export const IngestionMonitoringPage: React.FC = () => {
 
   const reasonLabels: Record<string, string> = {
     unknown_camera: 'Unknown Camera',
+    no_camera_exif: 'No Camera EXIF Data',
     unsupported_camera: 'Unsupported Camera',
     missing_imei: 'Missing IMEI',
+    missing_datetime: 'Missing DateTime',
     validation_failed: 'Validation Failed',
     duplicate: 'Duplicate',
     conversion_failed: 'Conversion Failed',
     parse_failed: 'Parse Failed',
     unsupported_file_type: 'Unsupported File Type',
+    exif_extraction_failed: 'EXIF Extraction Failed',
   };
 
   const reasonDescriptions: Record<string, string> = {
     unknown_camera: 'Camera not registered in database. Create camera first.',
+    no_camera_exif: 'Image has no camera EXIF data (Make/Model missing). File may have been edited or stripped.',
     unsupported_camera: 'Camera model not supported by any profile.',
     missing_imei: 'Could not extract IMEI from file.',
+    missing_datetime: 'Could not extract DateTime from EXIF metadata.',
     validation_failed: 'File failed basic validation checks.',
     duplicate: 'File already exists in database.',
     conversion_failed: 'Failed to convert file format.',
     parse_failed: 'Failed to parse file content.',
     unsupported_file_type: 'File extension not recognized.',
+    exif_extraction_failed: 'Could not extract any EXIF metadata from file.',
   };
 
   return (
