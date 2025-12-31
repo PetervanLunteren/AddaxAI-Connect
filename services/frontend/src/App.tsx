@@ -8,7 +8,6 @@ import { ProjectProvider } from './contexts/ProjectContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
-import { ServerLayout } from './components/layout/ServerLayout';
 
 // Pages
 import { Login } from './pages/Login';
@@ -25,7 +24,7 @@ import { DevToolsPage } from './pages/DevToolsPage';
 import { CameraManagementPage } from './pages/CameraManagementPage';
 import { SpeciesManagementPage } from './pages/SpeciesManagementPage';
 import { ServerSettingsPage } from './pages/ServerSettingsPage';
-import { ProjectsPage } from './pages/ProjectsPage';
+import { ProjectsPageWithServerModal } from './pages/ProjectsPageWithServerModal';
 
 function App() {
   return (
@@ -41,37 +40,37 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
 
-              {/* Projects overview (no sidebar) */}
+              {/* Projects overview with server modal overlay */}
               <Route
                 path="/projects"
                 element={
                   <ProtectedRoute>
-                    <ProjectsPage />
+                    <ProjectsPageWithServerModal />
                   </ProtectedRoute>
                 }
               />
 
-              {/* Server-wide admin routes (with server sidebar, superuser only) */}
+              {/* Server-wide admin routes (shown in modal over projects page) */}
               <Route
                 path="/server-settings"
                 element={
                   <ProtectedRoute>
-                    <ServerLayout>
-                      <ServerSettingsPage />
-                    </ServerLayout>
+                    <ProjectsPageWithServerModal />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<ServerSettingsPage />} />
+              </Route>
               <Route
                 path="/debug"
                 element={
                   <ProtectedRoute>
-                    <ServerLayout>
-                      <DevToolsPage />
-                    </ServerLayout>
+                    <ProjectsPageWithServerModal />
                   </ProtectedRoute>
                 }
-              />
+              >
+                <Route index element={<DevToolsPage />} />
+              </Route>
 
               {/* Project-specific routes with sidebar */}
               <Route
