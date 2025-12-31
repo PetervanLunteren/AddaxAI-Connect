@@ -185,8 +185,9 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
         )
 
         # Step 5: Generate and upload thumbnail
-        file_buffer.seek(0)
-        thumbnail_data = generate_thumbnail(file_buffer)
+        # Create fresh buffer from original content since boto3 closes the file object
+        thumbnail_buffer = BytesIO(file_content)
+        thumbnail_data = generate_thumbnail(thumbnail_buffer)
 
         storage.upload_fileobj(
             file_obj=thumbnail_data,
