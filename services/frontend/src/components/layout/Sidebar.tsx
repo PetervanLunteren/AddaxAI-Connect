@@ -2,14 +2,13 @@
  * Sidebar navigation component
  */
 import React from 'react';
-import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { NavLink, useParams } from 'react-router-dom';
 import {
   Camera,
   LayoutDashboard,
   Images,
   Settings,
   Info,
-  LogOut,
   X,
   Menu,
   VideoIcon,
@@ -18,7 +17,6 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
-import { Button } from '../ui/Button';
 import { LastUpdate } from '../LastUpdate';
 
 interface SidebarProps {
@@ -27,9 +25,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { selectedProject } = useProject();
-  const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
 
   // Navigation items (all project-specific)
@@ -49,11 +46,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       label: 'Camera Management'
     });
   }
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   return (
     <>
@@ -132,29 +124,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           {/* Last Update Widget */}
           <LastUpdate />
-
-          {/* User info and logout */}
-          <div className="p-4 border-t border-border">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.email}</p>
-                {user?.is_superuser && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">
-                    Admin
-                  </span>
-                )}
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="w-full"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
-          </div>
         </div>
       </aside>
     </>
