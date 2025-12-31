@@ -22,7 +22,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { AboutPage } from './pages/AboutPage';
 import { DevToolsPage } from './pages/DevToolsPage';
 import { CameraManagementPage } from './pages/CameraManagementPage';
-import { IngestionMonitoringPage } from './pages/IngestionMonitoringPage';
+import { ServerSettingsPage } from './pages/ServerSettingsPage';
+import { ProjectsPage } from './pages/ProjectsPage';
 
 function App() {
   return (
@@ -110,18 +111,28 @@ function App() {
               }
             />
             <Route
-              path="/ingestion-monitoring"
+              path="/server-settings"
               element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <IngestionMonitoringPage />
+                    <ServerSettingsPage />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ProjectsPage />
                   </AppLayout>
                 </ProtectedRoute>
               }
             />
 
-            {/* Redirect root to dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Redirect root to projects */}
+            <Route path="/" element={<Navigate to="/projects" replace />} />
 
             {/* 404 - redirect to dashboard */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

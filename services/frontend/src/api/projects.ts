@@ -2,7 +2,7 @@
  * Projects API client
  */
 import apiClient from './client';
-import type { Project, ProjectCreate, ProjectUpdate } from './types';
+import type { Project, ProjectCreate, ProjectUpdate, ProjectDeleteResponse } from './types';
 
 export const projectsApi = {
   /**
@@ -38,9 +38,34 @@ export const projectsApi = {
   },
 
   /**
-   * Delete project
+   * Upload project image
    */
-  delete: async (id: number): Promise<void> => {
-    await apiClient.delete(`/api/projects/${id}`);
+  uploadImage: async (id: number, file: File): Promise<Project> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<Project>(`/api/projects/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Delete project image
+   */
+  deleteImage: async (id: number): Promise<Project> => {
+    const response = await apiClient.delete<Project>(`/api/projects/${id}/image`);
+    return response.data;
+  },
+
+  /**
+   * Delete project with cascade deletion
+   */
+  delete: async (id: number, confirmName: string): Promise<ProjectDeleteResponse> => {
+    const response = await apiClient.delete<ProjectDeleteResponse>(
+      `/api/projects/${id}?confirm=${encodeURIComponent(confirmName)}`
+    );
+    return response.data;
   },
 };

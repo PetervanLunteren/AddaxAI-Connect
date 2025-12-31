@@ -1,12 +1,13 @@
 /**
- * Ingestion Monitoring Page (Superuser Only)
+ * Server Settings Page (Superuser Only)
  *
- * Displays rejected files from the ingestion pipeline.
- * Functional and utilitarian - helps superusers understand what's happening with ingestion.
+ * Combines:
+ * - Rejected files from ingestion pipeline
+ * - User-to-project assignment management
  */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info } from 'lucide-react';
+import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info, Users } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -23,11 +24,14 @@ import {
   reprocessRejectedFiles,
   type RejectedFile,
 } from '../api/ingestion-monitoring';
+import { adminApi } from '../api/admin';
+import { projectsApi } from '../api/projects';
+import type { UserWithProject, Project } from '../api/types';
 
 type SortField = 'filename' | 'reason' | 'imei' | 'size_bytes' | 'timestamp';
 type SortDirection = 'asc' | 'desc';
 
-export const IngestionMonitoringPage: React.FC = () => {
+export const ServerSettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Modal state
@@ -45,10 +49,24 @@ export const IngestionMonitoringPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  // User assignment state
+  const [assigningUserId, setAssigningUserId] = useState<number | null>(null);
+
+  // Queries
+  const { data: rejectedFilesData, isLoading: isLoadingFiles, refetch: refetchFiles } = useQuery({
     queryKey: ['rejected-files'],
     queryFn: getRejectedFiles,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
+  });
+
+  const { data: users, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: adminApi.listUsers,
+  });
+
+  const { data: projects, isLoading: isLoadingProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectsApi.getAll,
   });
 
   // Delete mutation
@@ -83,11 +101,24 @@ export const IngestionMonitoringPage: React.FC = () => {
     },
   });
 
+  // User assignment mutation
+  const assignMutation = useMutation({
+    mutationFn: ({ userId, projectId }: { userId: number; projectId: number | null }) =>
+      adminApi.assignUserToProject(userId, projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setAssigningUserId(null);
+    },
+    onError: (error: any) => {
+      alert(`Failed to assign user: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
   // Flatten data from grouped structure to single array
   const allFiles = useMemo(() => {
-    if (!data) return [];
-    return Object.values(data.by_reason).flat();
-  }, [data]);
+    if (!rejectedFilesData) return [];
+    return Object.values(rejectedFilesData.by_reason).flat();
+  }, [rejectedFilesData]);
 
   // Sort files
   const sortedFiles = useMemo(() => {
@@ -153,6 +184,10 @@ export const IngestionMonitoringPage: React.FC = () => {
     reprocessMutation.mutate(Array.from(selectedFiles));
   };
 
+  const handleAssignUser = (userId: number, projectId: number | null) => {
+    assignMutation.mutate({ userId, projectId });
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -178,36 +213,102 @@ export const IngestionMonitoringPage: React.FC = () => {
     exif_extraction_failed: 'EXIF Extraction Failed',
   };
 
-  const reasonDescriptions: Record<string, string> = {
-    unknown_camera: 'Camera not registered in database. Create camera first.',
-    no_camera_exif: 'Image has no camera EXIF data (Make/Model missing).',
-    unsupported_camera: 'Camera model not supported by any profile.',
-    missing_imei: 'Could not extract IMEI from file.',
-    missing_datetime: 'Could not extract DateTime from EXIF metadata.',
-    validation_failed: 'File failed basic validation checks.',
-    duplicate: 'File already exists in database.',
-    conversion_failed: 'Failed to convert file format.',
-    parse_failed: 'Failed to parse file content.',
-    unsupported_file_type: 'File extension not recognized.',
-    exif_extraction_failed: 'Could not extract any EXIF metadata from file.',
-  };
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Ingestion Monitoring</h1>
+          <h1 className="text-2xl font-bold">Server Settings</h1>
           <p className="text-muted-foreground mt-1">
-            Monitor rejected files from the ingestion pipeline
+            Manage rejected files and user project assignments
           </p>
         </div>
-        <Button onClick={() => refetch()} variant="outline">
+        <Button onClick={() => refetchFiles()} variant="outline">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
 
-      {/* Automatic Cleanup Info */}
+      {/* User Project Assignment Section */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            <CardTitle>User project assignment</CardTitle>
+          </div>
+          <CardDescription>
+            Assign users to projects. Regular users can only access their assigned project.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingUsers || isLoadingProjects ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2">Email</th>
+                    <th className="text-left py-2 px-2">Role</th>
+                    <th className="text-left py-2 px-2">Assigned Project</th>
+                    <th className="text-left py-2 px-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users?.map((user) => (
+                    <tr key={user.id} className="border-b last:border-0">
+                      <td className="py-3 px-2">{user.email}</td>
+                      <td className="py-3 px-2">
+                        {user.is_superuser ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            Superuser
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            User
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        {user.is_superuser ? (
+                          <span className="text-muted-foreground text-sm">All projects</span>
+                        ) : user.project_name ? (
+                          <span className="font-medium">{user.project_name}</span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No project assigned</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        {!user.is_superuser && (
+                          <select
+                            value={user.project_id || ''}
+                            onChange={(e) => {
+                              const projectId = e.target.value ? parseInt(e.target.value) : null;
+                              handleAssignUser(user.id, projectId);
+                            }}
+                            disabled={assignMutation.isPending && assigningUserId === user.id}
+                            className="text-sm border rounded px-2 py-1 min-w-[180px]"
+                          >
+                            <option value="">No project</option>
+                            {projects?.map((project) => (
+                              <option key={project.id} value={project.id}>
+                                {project.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Rejected Files Section */}
       <Card className="mb-6 border-blue-200 bg-blue-50">
         <CardContent className="py-3">
           <div className="flex items-start gap-3">
@@ -222,17 +323,17 @@ export const IngestionMonitoringPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {isLoading ? (
+      {isLoadingFiles ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : !data ? (
+      ) : !rejectedFilesData ? (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">Failed to load rejected files</p>
           </CardContent>
         </Card>
-      ) : data.total_count === 0 ? (
+      ) : rejectedFilesData.total_count === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <FileX className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -251,7 +352,7 @@ export const IngestionMonitoringPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Rejected</p>
-                    <p className="text-2xl font-bold">{data.total_count}</p>
+                    <p className="text-2xl font-bold">{rejectedFilesData.total_count}</p>
                   </div>
                   <AlertTriangle className="h-8 w-8 text-orange-500" />
                 </div>
@@ -261,7 +362,7 @@ export const IngestionMonitoringPage: React.FC = () => {
               <CardContent className="py-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Rejection Reasons</p>
-                  <p className="text-2xl font-bold">{Object.keys(data.by_reason).length}</p>
+                  <p className="text-2xl font-bold">{Object.keys(rejectedFilesData.by_reason).length}</p>
                 </div>
               </CardContent>
             </Card>

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from shared.models import User, Image, Camera, Detection, Classification
 from shared.database import get_async_session
 from auth.users import current_active_user
+from auth.project_access import get_accessible_project_ids
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
@@ -53,37 +54,57 @@ class LastUpdateResponse(BaseModel):
     response_model=StatisticsOverview,
 )
 async def get_overview(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Get dashboard overview statistics
+    Get dashboard overview statistics (filtered by accessible projects)
 
     Args:
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
     Returns:
         Overview statistics for dashboard
     """
-    # Total images
-    total_images_result = await db.execute(select(func.count(Image.id)))
+    # Total images (filtered by project via camera)
+    total_images_result = await db.execute(
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
+    )
     total_images = total_images_result.scalar_one()
 
-    # Total cameras
-    total_cameras_result = await db.execute(select(func.count(Camera.id)))
+    # Total cameras (filtered by project)
+    total_cameras_result = await db.execute(
+        select(func.count(Camera.id))
+        .where(Camera.project_id.in_(accessible_project_ids))
+    )
     total_cameras = total_cameras_result.scalar_one()
 
-    # Total unique species
+    # Total unique species (filtered by project via camera → image → detection)
     total_species_result = await db.execute(
         select(func.count(func.distinct(Classification.species)))
+        .join(Detection)
+        .join(Image)
+        .join(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
     )
     total_species = total_species_result.scalar_one()
 
-    # Images today
+    # Images today (filtered by project)
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     images_today_result = await db.execute(
-        select(func.count(Image.id)).where(Image.uploaded_at >= today_start)
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(
+            and_(
+                Image.uploaded_at >= today_start,
+                Camera.project_id.in_(accessible_project_ids)
+            )
+        )
     )
     images_today = images_today_result.scalar_one()
 
@@ -100,13 +121,15 @@ async def get_overview(
     response_model=List[TimelineDataPoint],
 )
 async def get_images_timeline(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Get images uploaded over time (last 30 days)
+    Get images uploaded over time (last 30 days, filtered by accessible projects)
 
     Args:
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
@@ -117,13 +140,19 @@ async def get_images_timeline(
     end_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     start_date = end_date - timedelta(days=30)
 
-    # Query images grouped by date
+    # Query images grouped by date (filtered by project via camera)
     query = (
         select(
             func.date(Image.uploaded_at).label('date'),
             func.count(Image.id).label('count')
         )
-        .where(Image.uploaded_at >= start_date)
+        .join(Camera)
+        .where(
+            and_(
+                Image.uploaded_at >= start_date,
+                Camera.project_id.in_(accessible_project_ids)
+            )
+        )
         .group_by(func.date(Image.uploaded_at))
         .order_by(func.date(Image.uploaded_at))
     )
@@ -147,13 +176,15 @@ async def get_images_timeline(
     response_model=List[SpeciesCount],
 )
 async def get_species_distribution(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Get species distribution (top 10)
+    Get species distribution (top 10, filtered by accessible projects)
 
     Args:
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
@@ -165,6 +196,10 @@ async def get_species_distribution(
             Classification.species,
             func.count(Classification.id).label('count')
         )
+        .join(Detection)
+        .join(Image)
+        .join(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
         .group_by(Classification.species)
         .order_by(desc('count'))
         .limit(10)
@@ -188,11 +223,12 @@ async def get_species_distribution(
     response_model=CameraActivitySummary,
 )
 async def get_camera_activity(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Get camera activity status summary
+    Get camera activity status summary (filtered by accessible projects)
 
     Categorizes cameras as:
     - Active: Last report within 7 days
@@ -200,14 +236,17 @@ async def get_camera_activity(
     - Never Reported: No health report received
 
     Args:
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
     Returns:
         Camera activity counts by status
     """
-    # Fetch all cameras
-    result = await db.execute(select(Camera))
+    # Fetch cameras filtered by accessible projects
+    result = await db.execute(
+        select(Camera).where(Camera.project_id.in_(accessible_project_ids))
+    )
     cameras = result.scalars().all()
 
     active_count = 0
@@ -248,23 +287,31 @@ async def get_camera_activity(
     response_model=LastUpdateResponse,
 )
 async def get_last_update(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Get timestamp of most recently classified image
+    Get timestamp of most recently classified image (filtered by accessible projects)
 
     Args:
+        accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
     Returns:
         Last update timestamp or null if no images exist
     """
-    # Query most recent classified image
+    # Query most recent classified image (filtered by project via camera)
     query = (
         select(Image.uploaded_at)
-        .where(Image.status == "classified")
+        .join(Camera)
+        .where(
+            and_(
+                Image.status == "classified",
+                Camera.project_id.in_(accessible_project_ids)
+            )
+        )
         .order_by(desc(Image.uploaded_at))
         .limit(1)
     )
