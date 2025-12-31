@@ -135,7 +135,7 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
     logger.info(
         "Processing project image",
         project_id=project_id,
-        filename=file.filename,
+        file_name=file.filename,
         content_type=file.content_type
     )
 
