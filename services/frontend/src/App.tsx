@@ -2,7 +2,7 @@
  * Main App component with routing
  */
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -32,110 +32,67 @@ function App() {
         <AuthProvider>
           <ProjectProvider>
             <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Public routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* Protected routes with AppLayout */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cameras"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <CamerasPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/images"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ImagesPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <SettingsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/about"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <AboutPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/debug"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <DevToolsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/camera-management"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <CameraManagementPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/server-settings"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ServerSettingsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/projects"
-              element={
-                <ProtectedRoute>
-                  <AppLayout>
+              {/* Projects overview (no sidebar) */}
+              <Route
+                path="/projects"
+                element={
+                  <ProtectedRoute>
                     <ProjectsPage />
-                  </AppLayout>
-                </ProtectedRoute>
-              }
-            />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Redirect root to projects */}
-            <Route path="/" element={<Navigate to="/projects" replace />} />
+              {/* Server-wide admin routes (no sidebar, superuser only) */}
+              <Route
+                path="/server-settings"
+                element={
+                  <ProtectedRoute>
+                    <ServerSettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/debug"
+                element={
+                  <ProtectedRoute>
+                    <DevToolsPage />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* 404 - redirect to dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* Project-specific routes with sidebar */}
+              <Route
+                path="/projects/:projectId"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout>
+                      <Outlet />
+                    </AppLayout>
+                  </ProtectedRoute>
+                }
+              >
+                {/* Default redirect to dashboard */}
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="cameras" element={<CamerasPage />} />
+                <Route path="images" element={<ImagesPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="about" element={<AboutPage />} />
+                <Route path="camera-management" element={<CameraManagementPage />} />
+              </Route>
+
+              {/* Redirect root to projects */}
+              <Route path="/" element={<Navigate to="/projects" replace />} />
+
+              {/* 404 - redirect to projects */}
+              <Route path="*" element={<Navigate to="/projects" replace />} />
             </Routes>
           </ProjectProvider>
         </AuthProvider>

@@ -5,9 +5,11 @@
  * Filters projects based on user access:
  * - Superusers see all projects
  * - Regular users see only their assigned project
+ * - Auto-selects project from URL when on project-specific pages
  */
 import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useParams, useLocation } from 'react-router-dom';
 import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import type { Project } from '../api/types';
@@ -39,6 +41,8 @@ interface ProjectProviderProps {
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const { user } = useAuth();
+  const { projectId } = useParams<{ projectId: string }>();
+  const location = useLocation();
 
   // Check if user is authenticated
   const isAuthenticated = !!localStorage.getItem('access_token');
@@ -72,28 +76,36 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   // Check if user can manage projects (superuser only)
   const canManageProjects = user?.is_superuser || false;
 
-  // Load selected project from localStorage on mount
+  // Auto-select project from URL or localStorage
   useEffect(() => {
-    const storedProjectId = localStorage.getItem('selected_project_id');
+    if (visibleProjects.length === 0) return;
 
-    if (storedProjectId && visibleProjects.length > 0) {
+    // If we're on a project-specific route, select that project
+    if (projectId) {
+      const project = visibleProjects.find(p => p.id === parseInt(projectId));
+      if (project) {
+        setSelectedProject(project);
+        localStorage.setItem('selected_project_id', project.id.toString());
+        return;
+      }
+    }
+
+    // Otherwise, try to load from localStorage
+    const storedProjectId = localStorage.getItem('selected_project_id');
+    if (storedProjectId) {
       const project = visibleProjects.find(p => p.id === parseInt(storedProjectId));
       if (project) {
         setSelectedProject(project);
-      } else {
-        // Stored project not found or not accessible, clear it and select first visible
-        localStorage.removeItem('selected_project_id');
-        if (visibleProjects.length > 0) {
-          setSelectedProject(visibleProjects[0]);
-          localStorage.setItem('selected_project_id', visibleProjects[0].id.toString());
-        }
+        return;
       }
-    } else if (visibleProjects.length > 0 && !selectedProject) {
-      // No stored project, select first visible
+    }
+
+    // Fallback: select first visible project
+    if (visibleProjects.length > 0 && !selectedProject) {
       setSelectedProject(visibleProjects[0]);
       localStorage.setItem('selected_project_id', visibleProjects[0].id.toString());
     }
-  }, [visibleProjects]);
+  }, [visibleProjects, projectId, location.pathname]);
 
   const selectProject = (project: Project) => {
     // Only allow selecting visible projects

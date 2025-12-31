@@ -1,8 +1,8 @@
 /**
  * Sidebar navigation component
  */
-import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Camera,
   LayoutDashboard,
@@ -12,45 +12,43 @@ import {
   LogOut,
   X,
   Menu,
-  Wrench,
   VideoIcon,
-  Activity,
-  Bug,
-  ChevronDown,
-  ChevronRight,
-  FolderOpen,
-  ServerCog
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { LastUpdate } from '../LastUpdate';
-import { ProjectSelector } from '../ProjectSelector';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const navItems = [
-  { to: '/projects', icon: FolderOpen, label: 'Projects' },
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/cameras', icon: Camera, label: 'Cameras' },
-  { to: '/images', icon: Images, label: 'Images' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
-  { to: '/about', icon: Info, label: 'About' },
-];
-
-const superuserTools = [
-  { to: '/camera-management', icon: VideoIcon, label: 'Camera Management' },
-  { to: '/server-settings', icon: ServerCog, label: 'Server Settings' },
-  { to: '/debug', icon: Bug, label: 'Dev Tools' },
-];
-
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
+  const { selectedProject } = useProject();
   const navigate = useNavigate();
-  const [superuserToolsOpen, setSuperuserToolsOpen] = useState(false);
+  const { projectId } = useParams<{ projectId: string }>();
+
+  // Navigation items (all project-specific)
+  const navItems = [
+    { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
+    { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
+    { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
+    { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
+    { to: `/projects/${projectId}/about`, icon: Info, label: 'About' },
+  ];
+
+  // Camera management for superusers (project-specific)
+  if (user?.is_superuser) {
+    navItems.push({
+      to: `/projects/${projectId}/camera-management`,
+      icon: VideoIcon,
+      label: 'Camera Management'
+    });
+  }
 
   const handleLogout = async () => {
     await logout();
@@ -89,9 +87,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Project Selector */}
+        {/* Back to Projects Link */}
         <div className="px-4 pt-4 pb-2">
-          <ProjectSelector />
+          <NavLink
+            to="/projects"
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Projects
+          </NavLink>
         </div>
 
         {/* Navigation */}
@@ -114,57 +118,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <span>{item.label}</span>
             </NavLink>
           ))}
-
-          {/* Superuser Tools dropdown (superuser only) */}
-          {user?.is_superuser && (
-            <div className="space-y-1">
-              <button
-                onClick={() => setSuperuserToolsOpen(!superuserToolsOpen)}
-                className={cn(
-                  'w-full flex items-center justify-between px-4 py-3 rounded-md text-sm font-medium transition-colors',
-                  'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )}
-              >
-                <div className="flex items-center space-x-3">
-                  <Wrench className="h-5 w-5" />
-                  <span>Superuser Tools</span>
-                </div>
-                {superuserToolsOpen ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </button>
-
-              {/* Submenu */}
-              {superuserToolsOpen && (
-                <div className="ml-4 space-y-1">
-                  {superuserTools.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={onClose}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex items-center space-x-3 px-4 py-2 rounded-md text-sm transition-colors',
-                          isActive
-                            ? 'bg-primary text-primary-foreground'
-                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                        )
-                      }
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </NavLink>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </nav>
 
-        {/* Bottom section with Last Update and User info */}
+        {/* Bottom section with project info, Last Update, and User info */}
         <div className="absolute bottom-0 left-0 right-0 bg-card">
+          {/* Current Project Display */}
+          {selectedProject && (
+            <div className="px-4 py-3 border-t border-border bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground">Current Project</p>
+              <p className="truncate text-sm font-semibold mt-1">
+                {selectedProject.name}
+              </p>
+            </div>
+          )}
+
           {/* Last Update Widget */}
           <LastUpdate />
 

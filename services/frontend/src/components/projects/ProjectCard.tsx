@@ -31,9 +31,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleCardClick = () => {
-    // Navigate to dashboard and set this project as selected
-    // The dashboard will handle loading data for this project
-    navigate('/dashboard', { state: { selectedProjectId: project.id } });
+    // Navigate to project dashboard
+    navigate(`/projects/${project.id}/dashboard`);
   };
 
   const handleMenuClick = (e: React.MouseEvent) => {
