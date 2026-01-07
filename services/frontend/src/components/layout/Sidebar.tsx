@@ -7,7 +7,7 @@ import {
   Camera,
   LayoutDashboard,
   Images,
-  Settings,
+  Bell,
   Info,
   X,
   Menu,
@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
-    { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
+    { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
     { to: `/projects/${projectId}/about`, icon: Info, label: 'About' },
   ];
 
