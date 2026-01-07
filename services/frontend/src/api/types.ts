@@ -142,3 +142,39 @@ export interface UserWithProject {
   project_id: number | null;
   project_name: string | null;
 }
+
+// Signal Notifications
+export interface SignalConfig {
+  phone_number: string | null;
+  device_name: string;
+  is_registered: boolean;
+  last_health_check: string | null;
+  health_status: string | null;
+}
+
+export interface SignalRegisterRequest {
+  phone_number: string;
+  device_name?: string;
+}
+
+export interface SignalUpdateConfigRequest {
+  device_name?: string;
+}
+
+export interface NotificationPreference {
+  enabled: boolean;
+  signal_phone: string | null;
+  notify_species: string[] | null;
+  notify_low_battery: boolean;
+  battery_threshold: number;
+  notify_system_health: boolean;
+}
+
+export interface NotificationPreferenceUpdate {
+  enabled?: boolean;
+  signal_phone?: string;
+  notify_species?: string[] | null;
+  notify_low_battery?: boolean;
+  battery_threshold?: number;
+  notify_system_health?: boolean;
+}
