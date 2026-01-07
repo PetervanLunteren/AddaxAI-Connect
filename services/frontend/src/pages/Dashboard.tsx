@@ -15,6 +15,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
   ChartOptions,
 } from 'chart.js';
 import { Camera, Images, Layers, TrendingUp } from 'lucide-react';
@@ -31,7 +32,8 @@ ChartJS.register(
   ArcElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
 export const Dashboard: React.FC = () => {
