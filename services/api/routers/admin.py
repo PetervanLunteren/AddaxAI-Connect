@@ -5,6 +5,7 @@ Only accessible by superusers.
 """
 from typing import List, Optional
 from datetime import datetime
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,7 +13,10 @@ from pydantic import BaseModel, EmailStr
 
 from shared.models import User, EmailAllowlist, Project, SignalConfig
 from shared.database import get_async_session
+from shared.config import get_settings
 from auth.users import current_superuser
+
+settings = get_settings()
 
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -328,6 +332,16 @@ class SignalUpdateConfigRequest(BaseModel):
     device_name: Optional[str] = None
 
 
+class SignalSubmitCaptchaRequest(BaseModel):
+    """Request to submit CAPTCHA token"""
+    captcha: str  # The signalcaptcha:// token
+
+
+class SignalVerifyCodeRequest(BaseModel):
+    """Request to submit SMS verification code"""
+    code: str  # 6-digit SMS code
+
+
 @router.get(
     "/signal/config",
     response_model=SignalConfigResponse,
@@ -501,3 +515,155 @@ async def unregister_signal(
 
     await db.delete(config)
     await db.commit()
+
+
+@router.post(
+    "/signal/submit-captcha",
+    response_model=SignalConfigResponse,
+)
+async def submit_signal_captcha(
+    data: SignalSubmitCaptchaRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Submit CAPTCHA token to signal-cli-rest-api (superuser only).
+
+    After initiating registration, solve the CAPTCHA at signalcaptchas.org
+    and submit the token here. This will trigger Signal to send an SMS
+    verification code to the registered phone number.
+
+    Args:
+        data: CAPTCHA token from signalcaptchas.org
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Updated Signal configuration
+
+    Raises:
+        HTTPException 404: If Signal not configured
+        HTTPException 400: If CAPTCHA submission fails
+    """
+    # Get Signal config
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal not configured. Use POST /api/admin/signal/register first."
+        )
+
+    if config.is_registered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signal is already registered"
+        )
+
+    # Submit CAPTCHA to signal-cli-rest-api
+    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    register_url = f"{signal_api_url}/v1/register/{config.phone_number}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                register_url,
+                json={
+                    "use_voice": False,
+                    "captcha": data.captcha
+                }
+            )
+
+            if response.status_code != 201:
+                error_text = response.text
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to submit CAPTCHA: {error_text}"
+                )
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to signal-cli-rest-api: {str(e)}"
+        )
+
+    # Update config to reflect pending verification
+    await db.commit()
+    await db.refresh(config)
+
+    return config
+
+
+@router.post(
+    "/signal/verify-code",
+    response_model=SignalConfigResponse,
+)
+async def verify_signal_code(
+    data: SignalVerifyCodeRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Submit SMS verification code to complete Signal registration (superuser only).
+
+    After receiving the SMS code, submit it here to complete registration.
+
+    Args:
+        data: 6-digit SMS verification code
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Updated Signal configuration
+
+    Raises:
+        HTTPException 404: If Signal not configured
+        HTTPException 400: If verification fails
+    """
+    # Get Signal config
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal not configured. Use POST /api/admin/signal/register first."
+        )
+
+    if config.is_registered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signal is already registered"
+        )
+
+    # Submit verification code to signal-cli-rest-api
+    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    verify_url = f"{signal_api_url}/v1/register/{config.phone_number}/verify"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                verify_url,
+                json={"token": data.code}
+            )
+
+            if response.status_code != 201:
+                error_text = response.text
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to verify code: {error_text}"
+                )
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to signal-cli-rest-api: {str(e)}"
+        )
+
+    # Mark as registered
+    config.is_registered = True
+    await db.commit()
+    await db.refresh(config)
+
+    return config

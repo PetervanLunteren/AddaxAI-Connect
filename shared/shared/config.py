@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     mail_from: Optional[str] = None
     domain_name: Optional[str] = None  # For constructing verification links
 
+    # Signal (notifications only)
+    signal_api_url: Optional[str] = "http://signal-cli-rest-api:8080"  # signal-cli-rest-api endpoint
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # "json" or "text" (text for human-readable dev logs)
