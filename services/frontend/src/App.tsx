@@ -20,11 +20,13 @@ import { CamerasPage } from './pages/CamerasPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AboutPage } from './pages/AboutPage';
-import { DevToolsPage } from './pages/DevToolsPage';
 import { CameraManagementPage } from './pages/CameraManagementPage';
 import { SpeciesManagementPage } from './pages/SpeciesManagementPage';
-import { ServerSettingsPage } from './pages/ServerSettingsPage';
-import { ProjectsPageWithServerModal } from './pages/ProjectsPageWithServerModal';
+import { ProjectsPage } from './pages/ProjectsPage';
+import { UserAssignmentPage } from './pages/server/UserAssignmentPage';
+import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
+import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
+import { DeleteDataPage } from './pages/server/DeleteDataPage';
 
 function App() {
   return (
@@ -40,37 +42,49 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
 
-              {/* Projects overview with server modal overlay */}
+              {/* Projects overview */}
               <Route
                 path="/projects"
                 element={
                   <ProtectedRoute>
-                    <ProjectsPageWithServerModal />
+                    <ProjectsPage />
                   </ProtectedRoute>
                 }
               />
 
-              {/* Server-wide admin routes (shown in modal over projects page) */}
+              {/* Server administration pages (superuser only) */}
               <Route
-                path="/server-settings"
+                path="/server/user-assignment"
                 element={
                   <ProtectedRoute>
-                    <ProjectsPageWithServerModal />
+                    <UserAssignmentPage />
                   </ProtectedRoute>
                 }
-              >
-                <Route index element={<ServerSettingsPage />} />
-              </Route>
+              />
               <Route
-                path="/debug"
+                path="/server/rejected-files"
                 element={
                   <ProtectedRoute>
-                    <ProjectsPageWithServerModal />
+                    <RejectedFilesPage />
                   </ProtectedRoute>
                 }
-              >
-                <Route index element={<DevToolsPage />} />
-              </Route>
+              />
+              <Route
+                path="/server/ftps-upload"
+                element={
+                  <ProtectedRoute>
+                    <FTPSUploadPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/server/delete-data"
+                element={
+                  <ProtectedRoute>
+                    <DeleteDataPage />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Project-specific routes with sidebar */}
               <Route
