@@ -1,10 +1,8 @@
 """
 Image handler for downloading attachments from MinIO
 """
-from io import BytesIO
-
 from shared.logger import get_logger
-from shared.storage import get_minio_client
+from shared.storage import StorageClient
 
 logger = get_logger("notifications-signal.images")
 
@@ -34,13 +32,8 @@ def download_image_from_minio(storage_path: str) -> bytes:
     logger.debug("Downloading image from MinIO", bucket=bucket_name, key=object_key)
 
     try:
-        client = get_minio_client()
-
-        # Download image
-        response = client.get_object(bucket_name, object_key)
-        image_bytes = response.read()
-        response.close()
-        response.release_conn()
+        storage = StorageClient()
+        image_bytes = storage.download_fileobj(bucket_name, object_key)
 
         logger.debug(
             "Downloaded image",
