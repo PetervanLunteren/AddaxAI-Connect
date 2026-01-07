@@ -34,7 +34,7 @@ def get_matching_users(event: Dict[str, Any]) -> List[NotificationPreference]:
     - User has Signal phone number configured
     - User is active and verified
     """
-    event_type = event.get('type')
+    event_type = event.get('event_type')
 
     if not event_type:
         logger.error("Missing event type in get_matching_users")
