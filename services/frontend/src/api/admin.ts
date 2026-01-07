@@ -2,7 +2,12 @@
  * Admin API client
  */
 import apiClient from './client';
-import type { UserWithProject } from './types';
+import type {
+  UserWithProject,
+  SignalConfig,
+  SignalRegisterRequest,
+  SignalUpdateConfigRequest
+} from './types';
 
 export const adminApi = {
   /**
@@ -22,5 +27,37 @@ export const adminApi = {
       { project_id: projectId }
     );
     return response.data;
+  },
+
+  // Signal Configuration
+  /**
+   * Get Signal configuration
+   */
+  getSignalConfig: async (): Promise<SignalConfig> => {
+    const response = await apiClient.get<SignalConfig>('/api/admin/signal/config');
+    return response.data;
+  },
+
+  /**
+   * Register Signal phone number
+   */
+  registerSignal: async (data: SignalRegisterRequest): Promise<SignalConfig> => {
+    const response = await apiClient.post<SignalConfig>('/api/admin/signal/register', data);
+    return response.data;
+  },
+
+  /**
+   * Update Signal configuration
+   */
+  updateSignalConfig: async (data: SignalUpdateConfigRequest): Promise<SignalConfig> => {
+    const response = await apiClient.put<SignalConfig>('/api/admin/signal/config', data);
+    return response.data;
+  },
+
+  /**
+   * Unregister Signal
+   */
+  unregisterSignal: async (): Promise<void> => {
+    await apiClient.delete('/api/admin/signal/config');
   },
 };
