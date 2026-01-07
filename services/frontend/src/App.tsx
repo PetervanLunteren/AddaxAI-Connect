@@ -18,7 +18,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { Dashboard } from './pages/Dashboard';
 import { CamerasPage } from './pages/CamerasPage';
 import { ImagesPage } from './pages/ImagesPage';
-import { SettingsPage } from './pages/SettingsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { AboutPage } from './pages/AboutPage';
 import { CameraManagementPage } from './pages/CameraManagementPage';
 import { SpeciesManagementPage } from './pages/SpeciesManagementPage';
@@ -102,7 +102,7 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="images" element={<ImagesPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="about" element={<AboutPage />} />
                 <Route path="camera-management" element={<CameraManagementPage />} />
                 <Route path="species-management" element={<SpeciesManagementPage />} />
