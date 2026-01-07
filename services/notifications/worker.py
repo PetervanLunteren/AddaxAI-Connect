@@ -26,11 +26,11 @@ def process_notification_event(event: Dict[str, Any]) -> None:
 
     Expected event structure:
     {
-        'type': 'species_detection' | 'low_battery' | 'system_health',
+        'event_type': 'species_detection' | 'low_battery' | 'system_health',
         ... (type-specific fields)
     }
     """
-    event_type = event.get('type')
+    event_type = event.get('event_type')
 
     if not event_type:
         logger.error("Missing event type", event=event)
