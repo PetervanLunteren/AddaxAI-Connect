@@ -28,6 +28,7 @@ import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
 import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { SignalConfigPage } from './pages/server/SignalConfigPage';
+import { UserNotificationPreferencesPage } from './pages/UserNotificationPreferencesPage';
 
 function App() {
   return (
@@ -91,6 +92,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <SignalConfigPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/user/notification-preferences"
+                element={
+                  <ProtectedRoute>
+                    <UserNotificationPreferencesPage />
                   </ProtectedRoute>
                 }
               />
