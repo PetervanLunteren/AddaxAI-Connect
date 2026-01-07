@@ -180,3 +180,49 @@ class AlertLog(Base):
     triggered_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     details = Column(JSON)
     status = Column(String(50), nullable=False)  # sent, failed
+
+
+class NotificationPreference(Base):
+    """Per-user notification preferences"""
+    __tablename__ = "notification_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    enabled = Column(Boolean, nullable=False, server_default="false")
+    signal_phone = Column(String(20), nullable=True)  # E.164 format: +1234567890
+    notify_species = Column(JSON, nullable=True)  # null = all species, or list like ["wolf", "bear"]
+    notify_low_battery = Column(Boolean, nullable=False, server_default="true")
+    battery_threshold = Column(Integer, nullable=False, server_default="30")  # Percentage
+    notify_system_health = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class NotificationLog(Base):
+    """Audit trail for all sent notifications"""
+    __tablename__ = "notification_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    notification_type = Column(String(50), nullable=False, index=True)  # species_detection, low_battery, system_health
+    channel = Column(String(50), nullable=False, index=True)  # signal, email, sms, earthranger
+    status = Column(String(50), nullable=False, index=True)  # pending, sent, failed
+    trigger_data = Column(JSON, nullable=False)  # Event that triggered notification
+    message_content = Column(Text, nullable=False)
+    error_message = Column(Text, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class SignalConfig(Base):
+    """System-wide Signal configuration (admin only, single row)"""
+    __tablename__ = "signal_config"
+
+    id = Column(Integer, primary_key=True)
+    phone_number = Column(String(20), nullable=True)  # E.164 format
+    device_name = Column(String(100), nullable=False, server_default="AddaxAI-Connect")
+    is_registered = Column(Boolean, nullable=False, server_default="false")
+    last_health_check = Column(DateTime(timezone=True), nullable=True)
+    health_status = Column(String(50), nullable=True)  # healthy, error, not_configured
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

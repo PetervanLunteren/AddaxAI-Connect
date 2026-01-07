@@ -254,23 +254,72 @@ services:
     networks:
       - addaxai-network
 
-  # Alert Worker (placeholder - not yet implemented)
-  # alerts:
-  #   build:
-  #     context: .
-  #     dockerfile: services/alerts/Dockerfile
-  #   container_name: addaxai-alerts
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL}
-  #     REDIS_URL: ${REDIS_URL}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   networks:
-  #     - addaxai-network
+  # Notifications Service - core notification coordinator
+  notifications:
+    build:
+      context: .
+      dockerfile: services/notifications/Dockerfile
+    container_name: addaxai-notifications
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      DOMAIN_NAME: ${DOMAIN_NAME}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - addaxai-network
+
+  # Signal CLI REST API - for Signal message sending
+  signal-api:
+    image: bbernhard/signal-cli-rest-api:latest
+    container_name: addaxai-signal-api
+    restart: unless-stopped
+    environment:
+      MODE: native  # Can be 'native' or 'json-rpc'
+    volumes:
+      - ./data/signal-cli:/home/.local/share/signal-cli
+    ports:
+      - "127.0.0.1:8090:8080"  # Localhost only, accessed via internal network
+    networks:
+      - addaxai-network
+
+  # Signal Notifications Worker
+  notifications-signal:
+    build:
+      context: .
+      dockerfile: services/notifications-signal/Dockerfile
+    container_name: addaxai-notifications-signal
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SIGNAL_API_URL: http://signal-api:8080
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      signal-api:
+        condition: service_started
+      notifications:
+        condition: service_started
+    networks:
+      - addaxai-network
 
   # Frontend
   frontend:
