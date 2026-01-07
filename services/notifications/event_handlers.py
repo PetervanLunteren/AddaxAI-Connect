@@ -29,13 +29,13 @@ def handle_species_detection(
 
     Event schema:
     {
-        'type': 'species_detection',
-        'image_id': str (UUID),
+        'event_type': 'species_detection',
+        'image_uuid': str (UUID),
         'species': str,
         'confidence': float,
         'camera_id': int,
         'camera_name': str,
-        'location': {'lat': float, 'lon': float} or None,
+        'camera_location': {'lat': float, 'lon': float} or None,
         'thumbnail_path': str,  # MinIO path to image thumbnail with bbox
         'timestamp': str (ISO 8601)
     }
@@ -43,19 +43,19 @@ def handle_species_detection(
     Message format:
     "Wolf (94%) detected at Camera-GK123
     Location: 51.5074, -0.1278
-    View: https://yourdomain.com/images/{image_id}"
+    View: https://yourdomain.com/images/{image_uuid}"
 
     Attaches thumbnail image with bounding box.
     """
-    image_id = event.get('image_id')
+    image_uuid = event.get('image_uuid')
     species = event.get('species')
     confidence = event.get('confidence')
     camera_name = event.get('camera_name')
-    location = event.get('location')
+    location = event.get('camera_location')
     thumbnail_path = event.get('thumbnail_path')
 
     # Validate required fields
-    if not all([image_id, species, confidence, camera_name]):
+    if not all([image_uuid, species, confidence, camera_name]):
         logger.error("Missing required fields in species_detection event", event=event)
         return
 
@@ -75,7 +75,7 @@ def handle_species_detection(
 
     # Add link to web dashboard
     domain = settings.domain_name or "localhost:3000"
-    dashboard_url = f"https://{domain}/images/{image_id}"
+    dashboard_url = f"https://{domain}/images/{image_uuid}"
     message_lines.append(f"View: {dashboard_url}")
 
     message_content = "\n".join(message_lines)
