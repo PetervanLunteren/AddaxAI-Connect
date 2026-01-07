@@ -4,7 +4,8 @@ Notification rule engine
 Evaluates which users should be notified for a given event.
 """
 from typing import Dict, Any, List
-from sqlalchemy import select
+from sqlalchemy import select, cast
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from shared.logger import get_logger
@@ -63,10 +64,10 @@ def get_matching_users(event: Dict[str, Any]) -> List[NotificationPreference]:
                 return []
 
             # User wants this species: notify_species is null (all) OR species in list
-            # Note: In SQL, we need to handle null separately and use JSON contains
+            # Use PostgreSQL @> operator to check if JSONB array contains species
             query = query.where(
                 (NotificationPreference.notify_species.is_(None)) |
-                (NotificationPreference.notify_species.contains([species]))
+                (NotificationPreference.notify_species.op('@>')(cast([species], JSONB)))
             )
 
         elif event_type == 'low_battery':
