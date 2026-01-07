@@ -169,24 +169,24 @@ export const SignalConfigPage: React.FC = () => {
                   </div>
                 </div>
 
-                {isRegistered && (
-                  <div className="pt-4">
-                    <button
-                      onClick={handleUnregister}
-                      disabled={unregisterMutation.isPending}
-                      className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50"
-                    >
-                      {unregisterMutation.isPending ? (
-                        <>
-                          <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
-                          Unregistering...
-                        </>
-                      ) : (
-                        'Unregister Signal'
-                      )}
-                    </button>
-                  </div>
-                )}
+                <div className="pt-4">
+                  <button
+                    onClick={handleUnregister}
+                    disabled={unregisterMutation.isPending}
+                    className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50"
+                  >
+                    {unregisterMutation.isPending ? (
+                      <>
+                        <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                        Removing...
+                      </>
+                    ) : isPending ? (
+                      'Start Over with New Number'
+                    ) : (
+                      'Unregister Signal'
+                    )}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 text-muted-foreground">
