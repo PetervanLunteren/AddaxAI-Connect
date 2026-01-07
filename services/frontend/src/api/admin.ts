@@ -60,4 +60,20 @@ export const adminApi = {
   unregisterSignal: async (): Promise<void> => {
     await apiClient.delete('/api/admin/signal/config');
   },
+
+  /**
+   * Submit CAPTCHA token
+   */
+  submitSignalCaptcha: async (captcha: string): Promise<SignalConfig> => {
+    const response = await apiClient.post<SignalConfig>('/api/admin/signal/submit-captcha', { captcha });
+    return response.data;
+  },
+
+  /**
+   * Submit SMS verification code
+   */
+  verifySignalCode: async (code: string): Promise<SignalConfig> => {
+    const response = await apiClient.post<SignalConfig>('/api/admin/signal/verify-code', { code });
+    return response.data;
+  },
 };
