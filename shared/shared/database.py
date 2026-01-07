@@ -95,3 +95,7 @@ def get_db_session():
         raise
     finally:
         db.close()
+
+
+# Alias for consistency across services
+get_sync_session = get_db_session
