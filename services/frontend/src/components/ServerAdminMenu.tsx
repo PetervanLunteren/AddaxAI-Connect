@@ -5,11 +5,15 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, LogOut } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, LogOut, Plus } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 
-export const ServerAdminMenu: React.FC = () => {
+interface ServerAdminMenuProps {
+  onCreateProject?: () => void;
+}
+
+export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProject }) => {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -43,7 +47,20 @@ export const ServerAdminMenu: React.FC = () => {
     navigate('/login');
   };
 
+  const handleCreateProject = () => {
+    setIsOpen(false);
+    if (onCreateProject) {
+      onCreateProject();
+    }
+  };
+
   const menuItems = [
+    ...(onCreateProject ? [{
+      icon: Plus,
+      label: 'Create Project',
+      onClick: handleCreateProject,
+      variant: 'default' as const,
+    }] : []),
     {
       icon: Users,
       label: 'Manage Users',

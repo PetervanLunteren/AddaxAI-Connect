@@ -6,7 +6,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Loader2, Camera } from 'lucide-react';
+import { Loader2, Camera } from 'lucide-react';
 import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import { Card, CardContent } from '../components/ui/Card';
@@ -60,7 +60,9 @@ export const ProjectsPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-4">
               <p className="text-sm font-medium hidden sm:block">{user?.email}</p>
-              {canManageProjects && <ServerAdminMenu />}
+              {canManageProjects && (
+                <ServerAdminMenu onCreateProject={() => setShowCreateModal(true)} />
+              )}
             </div>
           </div>
         </div>
@@ -68,22 +70,14 @@ export const ProjectsPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold">Projects</h2>
-            <p className="text-muted-foreground mt-1">
-              {canManageProjects
-                ? 'Manage wildlife monitoring projects'
-                : 'Your assigned project'
-              }
-            </p>
-          </div>
-          {canManageProjects && (
-            <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Project
-            </Button>
-          )}
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold">Projects</h2>
+          <p className="text-muted-foreground mt-1">
+            {canManageProjects
+              ? 'Manage wildlife monitoring projects'
+              : 'Your assigned project'
+            }
+          </p>
         </div>
 
       {isLoading ? (
@@ -95,7 +89,7 @@ export const ProjectsPage: React.FC = () => {
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">
               {canManageProjects
-                ? 'No projects yet. Create your first project to get started.'
+                ? 'No projects yet. Use the menu above to create your first project.'
                 : 'No project assigned. Contact an administrator.'
               }
             </p>
