@@ -5,7 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, LogOut, Plus, Bell } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, LogOut, Plus, Bell, User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { cn } from '../lib/utils';
 
@@ -90,6 +90,12 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
       label: 'Delete All Data',
       onClick: () => handleNavigate('/server/delete-data'),
       variant: 'destructive' as const,
+    },
+    {
+      icon: User,
+      label: 'My Notifications',
+      onClick: () => handleNavigate('/user/notification-preferences'),
+      variant: 'default' as const,
     },
     {
       icon: LogOut,
