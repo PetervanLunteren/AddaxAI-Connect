@@ -10,7 +10,6 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 from shared.logger import get_logger
-from shared.models import NotificationPreference
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_SIGNAL
 from shared.config import get_settings
 
@@ -22,7 +21,7 @@ settings = get_settings()
 
 def handle_species_detection(
     event: Dict[str, Any],
-    matching_users: List[NotificationPreference]
+    matching_users: List[Dict[str, Any]]
 ) -> None:
     """
     Handle species detection notification.
@@ -90,10 +89,10 @@ def handle_species_detection(
     # Create notification log and publish to Signal queue for each user
     signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
 
-    for pref in matching_users:
+    for user in matching_users:
         # Create notification log entry (status='pending')
         log_id = create_notification_log(
-            user_id=pref.user_id,
+            user_id=user['user_id'],
             notification_type='species_detection',
             channel='signal',
             trigger_data=event,
@@ -103,14 +102,14 @@ def handle_species_detection(
         # Publish to Signal queue
         signal_queue.publish({
             'notification_log_id': log_id,
-            'recipient_phone': pref.signal_phone,
+            'recipient_phone': user['signal_phone'],
             'message_text': message_content,
             'attachment_path': thumbnail_path,  # MinIO path
         })
 
         logger.info(
             "Queued species detection notification",
-            user_id=pref.user_id,
+            user_id=user['user_id'],
             species=species,
             log_id=log_id
         )
@@ -118,7 +117,7 @@ def handle_species_detection(
 
 def handle_low_battery(
     event: Dict[str, Any],
-    matching_users: List[NotificationPreference]
+    matching_users: List[Dict[str, Any]]
 ) -> None:
     """
     Handle low battery notification.
@@ -173,10 +172,10 @@ def handle_low_battery(
     # Create notification log and publish to Signal queue for each user
     signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
 
-    for pref in matching_users:
+    for user in matching_users:
         # Create notification log entry (status='pending')
         log_id = create_notification_log(
-            user_id=pref.user_id,
+            user_id=user['user_id'],
             notification_type='low_battery',
             channel='signal',
             trigger_data=event,
@@ -186,14 +185,14 @@ def handle_low_battery(
         # Publish to Signal queue (no attachment for battery notifications)
         signal_queue.publish({
             'notification_log_id': log_id,
-            'recipient_phone': pref.signal_phone,
+            'recipient_phone': user['signal_phone'],
             'message_text': message_content,
             'attachment_path': None,
         })
 
         logger.info(
             "Queued low battery notification",
-            user_id=pref.user_id,
+            user_id=user['user_id'],
             camera=camera_name,
             log_id=log_id
         )
@@ -201,7 +200,7 @@ def handle_low_battery(
 
 def handle_system_health(
     event: Dict[str, Any],
-    matching_users: List[NotificationPreference]
+    matching_users: List[Dict[str, Any]]
 ) -> None:
     """
     Handle system health notification.
@@ -249,10 +248,10 @@ def handle_system_health(
     # Create notification log and publish to Signal queue for each user
     signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
 
-    for pref in matching_users:
+    for user in matching_users:
         # Create notification log entry (status='pending')
         log_id = create_notification_log(
-            user_id=pref.user_id,
+            user_id=user['user_id'],
             notification_type='system_health',
             channel='signal',
             trigger_data=event,
@@ -262,14 +261,14 @@ def handle_system_health(
         # Publish to Signal queue (no attachment for system health)
         signal_queue.publish({
             'notification_log_id': log_id,
-            'recipient_phone': pref.signal_phone,
+            'recipient_phone': user['signal_phone'],
             'message_text': message_content,
             'attachment_path': None,
         })
 
         logger.info(
             "Queued system health notification",
-            user_id=pref.user_id,
+            user_id=user['user_id'],
             alert_type=alert_type,
             log_id=log_id
         )

@@ -15,7 +15,7 @@ from shared.database import get_sync_session
 logger = get_logger("notifications.rules")
 
 
-def get_matching_users(event: Dict[str, Any]) -> List[NotificationPreference]:
+def get_matching_users(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Get list of users who should be notified for this event.
 
@@ -23,7 +23,7 @@ def get_matching_users(event: Dict[str, Any]) -> List[NotificationPreference]:
         event: Notification event
 
     Returns:
-        List of NotificationPreference objects for users who match criteria
+        List of dictionaries with user_id and signal_phone for users who match criteria
 
     Rules (MVP - simple toggles):
     - Species detection: user.notify_species is None (all) or contains species
@@ -92,8 +92,15 @@ def get_matching_users(event: Dict[str, Any]) -> List[NotificationPreference]:
             logger.error("Unknown event type", event_type=event_type)
             return []
 
-        # Execute query
-        matching_users = list(session.execute(query).scalars().all())
+        # Execute query and convert to dictionaries
+        preferences = list(session.execute(query).scalars().all())
+        matching_users = [
+            {
+                'user_id': pref.user_id,
+                'signal_phone': pref.signal_phone
+            }
+            for pref in preferences
+        ]
 
     logger.info(
         "Evaluated notification rules",
