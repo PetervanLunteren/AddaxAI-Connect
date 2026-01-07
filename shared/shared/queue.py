@@ -81,3 +81,11 @@ QUEUE_IMAGE_INGESTED = "image-ingested"
 QUEUE_DETECTION_COMPLETE = "detection-complete"
 QUEUE_CLASSIFICATION_COMPLETE = "classification-complete"
 QUEUE_FAILED_JOBS = "failed-jobs"
+
+# Notification queues
+QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here
+QUEUE_NOTIFICATION_SIGNAL = "notification-signal"  # Signal worker listens here
+# Future channels:
+# QUEUE_NOTIFICATION_EMAIL = "notification-email"
+# QUEUE_NOTIFICATION_SMS = "notification-sms"
+# QUEUE_NOTIFICATION_EARTHRANGER = "notification-earthranger"
