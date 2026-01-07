@@ -1,15 +1,13 @@
 /**
- * Server Settings Page (Superuser Only)
+ * Rejected Files Management Page
  *
- * Combines:
- * - Rejected files from ingestion pipeline
- * - User-to-project assignment management
+ * Monitor and manage files rejected by the ingestion pipeline
  */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info, Users } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
+import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import {
   Dialog,
   DialogContent,
@@ -17,21 +15,19 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '../components/ui/Dialog';
+} from '../../components/ui/Dialog';
+import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import {
   getRejectedFiles,
   deleteRejectedFiles,
   reprocessRejectedFiles,
   type RejectedFile,
-} from '../api/ingestion-monitoring';
-import { adminApi } from '../api/admin';
-import { projectsApi } from '../api/projects';
-import type { UserWithProject, Project } from '../api/types';
+} from '../../api/ingestion-monitoring';
 
 type SortField = 'filename' | 'reason' | 'imei' | 'size_bytes' | 'timestamp';
 type SortDirection = 'asc' | 'desc';
 
-export const ServerSettingsPage: React.FC = () => {
+export const RejectedFilesPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Modal state
@@ -49,24 +45,11 @@ export const ServerSettingsPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
 
-  // User assignment state
-  const [assigningUserId, setAssigningUserId] = useState<number | null>(null);
-
-  // Queries
-  const { data: rejectedFilesData, isLoading: isLoadingFiles, refetch: refetchFiles } = useQuery({
+  // Query
+  const { data: rejectedFilesData, isLoading, refetch: refetchFiles } = useQuery({
     queryKey: ['rejected-files'],
     queryFn: getRejectedFiles,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
-  });
-
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
-    queryKey: ['admin-users'],
-    queryFn: adminApi.listUsers,
-  });
-
-  const { data: projects, isLoading: isLoadingProjects } = useQuery({
-    queryKey: ['projects'],
-    queryFn: projectsApi.getAll,
   });
 
   // Delete mutation
@@ -101,19 +84,6 @@ export const ServerSettingsPage: React.FC = () => {
     },
   });
 
-  // User assignment mutation
-  const assignMutation = useMutation({
-    mutationFn: ({ userId, projectId }: { userId: number; projectId: number | null }) =>
-      adminApi.assignUserToProject(userId, projectId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      setAssigningUserId(null);
-    },
-    onError: (error: any) => {
-      alert(`Failed to assign user: ${error.response?.data?.detail || error.message}`);
-    },
-  });
-
   // Flatten data from grouped structure to single array
   const allFiles = useMemo(() => {
     if (!rejectedFilesData) return [];
@@ -127,7 +97,6 @@ export const ServerSettingsPage: React.FC = () => {
       let aVal: any = a[sortField];
       let bVal: any = b[sortField];
 
-      // Handle null values
       if (aVal === null || aVal === undefined) aVal = '';
       if (bVal === null || bVal === undefined) bVal = '';
 
@@ -150,7 +119,6 @@ export const ServerSettingsPage: React.FC = () => {
   };
 
   const handleRowClick = (file: RejectedFile, event: React.MouseEvent) => {
-    // Don't open modal if clicking checkbox
     if ((event.target as HTMLElement).closest('input[type="checkbox"]')) {
       return;
     }
@@ -184,10 +152,6 @@ export const ServerSettingsPage: React.FC = () => {
     reprocessMutation.mutate(Array.from(selectedFiles));
   };
 
-  const handleAssignUser = (userId: number, projectId: number | null) => {
-    assignMutation.mutate({ userId, projectId });
-  };
-
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -214,101 +178,11 @@ export const ServerSettingsPage: React.FC = () => {
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Server Settings</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage rejected files and user project assignments
-          </p>
-        </div>
-        <Button onClick={() => refetchFiles()} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
-
-      {/* User Project Assignment Section */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            <CardTitle>User project assignment</CardTitle>
-          </div>
-          <CardDescription>
-            Assign users to projects. Regular users can only access their assigned project.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingUsers || isLoadingProjects ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-2">Email</th>
-                    <th className="text-left py-2 px-2">Role</th>
-                    <th className="text-left py-2 px-2">Assigned Project</th>
-                    <th className="text-left py-2 px-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users?.map((user) => (
-                    <tr key={user.id} className="border-b last:border-0">
-                      <td className="py-3 px-2">{user.email}</td>
-                      <td className="py-3 px-2">
-                        {user.is_superuser ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                            Superuser
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                            User
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2">
-                        {user.is_superuser ? (
-                          <span className="text-muted-foreground text-sm">All projects</span>
-                        ) : user.project_name ? (
-                          <span className="font-medium">{user.project_name}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">No project assigned</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-2">
-                        {!user.is_superuser && (
-                          <select
-                            value={user.project_id || ''}
-                            onChange={(e) => {
-                              const projectId = e.target.value ? parseInt(e.target.value) : null;
-                              handleAssignUser(user.id, projectId);
-                            }}
-                            disabled={assignMutation.isPending && assigningUserId === user.id}
-                            className="text-sm border rounded px-2 py-1 min-w-[180px]"
-                          >
-                            <option value="">No project</option>
-                            {projects?.map((project) => (
-                              <option key={project.id} value={project.id}>
-                                {project.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Rejected Files Section */}
+    <ServerPageLayout
+      title="Rejected Files"
+      description="Monitor and manage files rejected by the ingestion pipeline"
+    >
+      {/* Info Card */}
       <Card className="mb-6 border-blue-200 bg-blue-50">
         <CardContent className="py-3">
           <div className="flex items-start gap-3">
@@ -323,7 +197,7 @@ export const ServerSettingsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {isLoadingFiles ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -380,7 +254,7 @@ export const ServerSettingsPage: React.FC = () => {
           {selectedFiles.size > 0 && (
             <Card className="mb-4">
               <CardContent className="py-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <p className="text-sm font-medium">
                     {selectedFiles.size} file{selectedFiles.size !== 1 ? 's' : ''} selected
                   </p>
@@ -409,12 +283,18 @@ export const ServerSettingsPage: React.FC = () => {
             </Card>
           )}
 
-          {/* Unified Rejected Files Table */}
+          {/* Rejected Files Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Rejected Files</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>All Rejected Files</CardTitle>
+                <Button onClick={() => refetchFiles()} variant="outline" size="sm">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
               <CardDescription>
-                All rejected files from the ingestion pipeline. Click a row for details.
+                Click a row for details. Files can be reprocessed or permanently deleted.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -443,19 +323,19 @@ export const ServerSettingsPage: React.FC = () => {
                         Reason {sortField === 'reason' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th
-                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden sm:table-cell"
                         onClick={() => handleSort('imei')}
                       >
                         IMEI {sortField === 'imei' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th
-                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden md:table-cell"
                         onClick={() => handleSort('size_bytes')}
                       >
                         Size {sortField === 'size_bytes' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th
-                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden lg:table-cell"
                         onClick={() => handleSort('timestamp')}
                       >
                         Timestamp {sortField === 'timestamp' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -485,13 +365,13 @@ export const ServerSettingsPage: React.FC = () => {
                             {reasonLabels[file.reason] || file.reason}
                           </span>
                         </td>
-                        <td className="py-2 px-2 font-mono text-xs">
+                        <td className="py-2 px-2 font-mono text-xs hidden sm:table-cell">
                           {file.imei || <span className="text-muted-foreground">-</span>}
                         </td>
-                        <td className="py-2 px-2 whitespace-nowrap">
+                        <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
                           {formatFileSize(file.size_bytes)}
                         </td>
-                        <td className="py-2 px-2 whitespace-nowrap text-muted-foreground">
+                        <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden lg:table-cell">
                           {formatTimestamp(file.timestamp)}
                         </td>
                       </tr>
@@ -653,6 +533,6 @@ export const ServerSettingsPage: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ServerPageLayout>
   );
 };
