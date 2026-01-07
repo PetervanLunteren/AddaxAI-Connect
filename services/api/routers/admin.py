@@ -1,15 +1,16 @@
 """
-Admin endpoints for managing email allowlist.
+Admin endpoints for managing email allowlist and Signal configuration.
 
 Only accessible by superusers.
 """
 from typing import List, Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, EmailAllowlist, Project
+from shared.models import User, EmailAllowlist, Project, SignalConfig
 from shared.database import get_async_session
 from auth.users import current_superuser
 
@@ -300,3 +301,203 @@ async def assign_user_to_project(
         project_id=user.project_id,
         project_name=project_name
     )
+
+
+# Signal Configuration Endpoints
+
+class SignalConfigResponse(BaseModel):
+    """Response for Signal configuration"""
+    phone_number: Optional[str]
+    device_name: str
+    is_registered: bool
+    last_health_check: Optional[datetime]
+    health_status: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class SignalRegisterRequest(BaseModel):
+    """Request to register Signal phone number"""
+    phone_number: str  # E.164 format (e.g., +12345678900)
+    device_name: Optional[str] = "AddaxAI-Connect"
+
+
+class SignalUpdateConfigRequest(BaseModel):
+    """Request to update Signal configuration"""
+    device_name: Optional[str] = None
+
+
+@router.get(
+    "/signal/config",
+    response_model=SignalConfigResponse,
+)
+async def get_signal_config(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Get current Signal configuration (superuser only).
+
+    Returns the Signal configuration including registration status
+    and health check information.
+
+    Args:
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Signal configuration
+
+    Raises:
+        HTTPException 404: If Signal config not initialized
+    """
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal configuration not initialized. Use POST /api/admin/signal/register to set up Signal."
+        )
+
+    return config
+
+
+@router.post(
+    "/signal/register",
+    response_model=SignalConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_signal(
+    data: SignalRegisterRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Register Signal phone number (superuser only).
+
+    Initiates Signal registration process. The phone number will receive
+    an SMS verification code that must be submitted via the Signal API.
+
+    Note: This endpoint only saves the configuration. The actual Signal
+    registration (SMS verification) must be completed via the signal-cli-rest-api
+    web interface or API.
+
+    Args:
+        data: Phone number and device name
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Created Signal configuration
+
+    Raises:
+        HTTPException 409: If Signal already registered
+    """
+    # Check if config already exists
+    result = await db.execute(select(SignalConfig))
+    existing = result.scalar_one_or_none()
+
+    if existing and existing.is_registered:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Signal is already registered. Use DELETE to unregister first."
+        )
+
+    # Create or update config
+    if existing:
+        existing.phone_number = data.phone_number
+        existing.device_name = data.device_name
+        existing.is_registered = False
+        config = existing
+    else:
+        config = SignalConfig(
+            phone_number=data.phone_number,
+            device_name=data.device_name,
+            is_registered=False,
+        )
+        db.add(config)
+
+    await db.commit()
+    await db.refresh(config)
+
+    return config
+
+
+@router.put(
+    "/signal/config",
+    response_model=SignalConfigResponse,
+)
+async def update_signal_config(
+    data: SignalUpdateConfigRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Update Signal configuration (superuser only).
+
+    Updates Signal device name or other configuration options.
+
+    Args:
+        data: Configuration updates
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Updated Signal configuration
+
+    Raises:
+        HTTPException 404: If Signal not configured
+    """
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal not configured. Use POST /api/admin/signal/register first."
+        )
+
+    # Update fields
+    if data.device_name is not None:
+        config.device_name = data.device_name
+
+    await db.commit()
+    await db.refresh(config)
+
+    return config
+
+
+@router.delete(
+    "/signal/config",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def unregister_signal(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Unregister Signal (superuser only).
+
+    Removes Signal configuration. This does NOT unregister the phone number
+    from Signal - you must do that via the signal-cli-rest-api interface.
+
+    Args:
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Raises:
+        HTTPException 404: If Signal not configured
+    """
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal not configured"
+        )
+
+    await db.delete(config)
+    await db.commit()
