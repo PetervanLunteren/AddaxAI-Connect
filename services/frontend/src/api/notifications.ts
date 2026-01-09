@@ -6,18 +6,18 @@ import type { NotificationPreference, NotificationPreferenceUpdate } from './typ
 
 export const notificationsApi = {
   /**
-   * Get current user's notification preferences
+   * Get current user's notification preferences for a project
    */
-  getPreferences: async (): Promise<NotificationPreference> => {
-    const response = await apiClient.get<NotificationPreference>('/api/users/me/notification-preferences');
+  getPreferences: async (projectId: number): Promise<NotificationPreference> => {
+    const response = await apiClient.get<NotificationPreference>(`/api/projects/${projectId}/notification-preferences`);
     return response.data;
   },
 
   /**
-   * Update current user's notification preferences
+   * Update current user's notification preferences for a project
    */
-  updatePreferences: async (data: NotificationPreferenceUpdate): Promise<NotificationPreference> => {
-    const response = await apiClient.put<NotificationPreference>('/api/users/me/notification-preferences', data);
+  updatePreferences: async (projectId: number, data: NotificationPreferenceUpdate): Promise<NotificationPreference> => {
+    const response = await apiClient.put<NotificationPreference>(`/api/projects/${projectId}/notification-preferences`, data);
     return response.data;
   },
 };

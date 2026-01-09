@@ -19,11 +19,12 @@ export const SignalConfigPage: React.FC = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const [showTestModal, setShowTestModal] = useState(false);
   const [testRecipient, setTestRecipient] = useState('');
-  const [testMessage, setTestMessage] = useState('This is a test message from AddaxAI Connect!');
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
   const [challengeToken, setChallengeToken] = useState('');
   const [rateLimitCaptcha, setRateLimitCaptcha] = useState('');
   const [triggerDummyMessage, setTriggerDummyMessage] = useState(false);
+  const [step4Recipient, setStep4Recipient] = useState('');
+  const [hasSentDummy, setHasSentDummy] = useState(false);
 
   // Query Signal configuration
   const { data: config, isLoading, error } = useQuery({
@@ -64,8 +65,6 @@ export const SignalConfigPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['signal-config'] });
       setVerificationCode('');
       setWizardStep(4);
-      // Trigger dummy message send after a short delay
-      setTimeout(() => setTriggerDummyMessage(true), 500);
     },
     onError: (error: any) => {
       alert(`Failed to verify code: ${error.response?.data?.detail || error.message}`);
@@ -91,19 +90,21 @@ export const SignalConfigPage: React.FC = () => {
     mutationFn: ({ recipient, message }: { recipient: string; message: string }) =>
       adminApi.sendTestSignalMessage(recipient, message),
     onSuccess: () => {
-      if (wizardStep === 5) {
-        // Wizard mode - complete and close
+      if (wizardStep === 4) {
+        // Wizard mode step 4 - complete and close after test message sent
+        // Reset all wizard state
         setShowWizard(false);
         setWizardStep(1);
-        setTestRecipient('');
-        setTestMessage('This is a test message from AddaxAI Connect!');
+        setStep4Recipient('');
+        setHasSentDummy(false);
+        setChallengeToken('');
+        setRateLimitCaptcha('');
         alert('Signal setup completed successfully! Test message sent.');
-      } else {
+      } else if (wizardStep === 0 || !wizardStep) {
         // Standalone mode
         alert('Test message sent successfully!');
         setShowTestModal(false);
         setTestRecipient('');
-        setTestMessage('This is a test message from AddaxAI Connect!');
       }
     },
     onError: (error: any) => {
@@ -129,17 +130,18 @@ export const SignalConfigPage: React.FC = () => {
     mutationFn: ({ challengeToken, captcha }: { challengeToken: string; captcha: string }) =>
       adminApi.submitRateLimitChallenge(challengeToken, captcha),
     onSuccess: () => {
+      // Clear challenge state
+      setChallengeToken('');
+      setRateLimitCaptcha('');
+
       if (wizardStep === 4) {
-        // Wizard mode - go to next step
-        setWizardStep(5);
-        setChallengeToken('');
-        setRateLimitCaptcha('');
+        // Wizard mode - auto-send test message after CAPTCHA solved
+        const message = 'This is a test message from AddaxAI Connect!';
+        sendTestMutation.mutate({ recipient: step4Recipient, message });
       } else {
         // Standalone mode
         alert('Rate limit challenge completed! You can now send messages.');
         setShowRateLimitModal(false);
-        setChallengeToken('');
-        setRateLimitCaptcha('');
       }
     },
     onError: (error: any) => {
@@ -147,17 +149,18 @@ export const SignalConfigPage: React.FC = () => {
     },
   });
 
-  // Auto-send dummy message when reaching step 4
-  React.useEffect(() => {
-    if (wizardStep === 4 && triggerDummyMessage) {
-      setTriggerDummyMessage(false);
-      // Send to a fake number to trigger rate limit
-      sendTestMutation.mutate({
-        recipient: '+1234567890',
-        message: 'Test message to trigger rate limit verification'
-      });
+  // Handle sending dummy message to trigger rate limit
+  const handleSendDummy = () => {
+    if (!step4Recipient) {
+      alert('Please enter a recipient phone number');
+      return;
     }
-  }, [wizardStep, triggerDummyMessage]);
+    setHasSentDummy(true);
+    sendTestMutation.mutate({
+      recipient: step4Recipient,
+      message: 'Test message to trigger rate limit verification'
+    });
+  };
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,11 +201,9 @@ export const SignalConfigPage: React.FC = () => {
       alert('Please enter a recipient phone number');
       return;
     }
-    if (!testMessage) {
-      alert('Please enter a message');
-      return;
-    }
-    sendTestMutation.mutate({ recipient: testRecipient, message: testMessage });
+    // Use hardcoded test message
+    const message = 'This is a test message from AddaxAI Connect!';
+    sendTestMutation.mutate({ recipient: testRecipient, message });
   };
 
   const handleSubmitRateLimit = (e: React.FormEvent) => {
@@ -235,10 +236,7 @@ export const SignalConfigPage: React.FC = () => {
         {/* Status Card */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bell className="h-5 w-5" />
-              <CardTitle>Signal Status</CardTitle>
-            </div>
+            <CardTitle>Signal status</CardTitle>
             <CardDescription>
               Current Signal configuration and registration status
             </CardDescription>
@@ -279,15 +277,15 @@ export const SignalConfigPage: React.FC = () => {
                     <>
                       <button
                         onClick={() => setShowTestModal(true)}
-                        className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                        className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                       >
-                        Send Test Message
+                        Send test message
                       </button>
                       <button
                         onClick={() => setShowRateLimitModal(true)}
-                        className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
+                        className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                       >
-                        Solve Rate Limit Challenge
+                        Solve rate limit challenge
                       </button>
                     </>
                   )}
@@ -297,15 +295,15 @@ export const SignalConfigPage: React.FC = () => {
                         setShowWizard(true);
                         setWizardStep(2);
                       }}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                      className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
-                      Continue Registration
+                      Continue registration
                     </button>
                   )}
                   <button
                     onClick={handleUnregister}
                     disabled={unregisterMutation.isPending}
-                    className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50"
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground disabled:opacity-50 transition-colors"
                   >
                     {unregisterMutation.isPending ? (
                       <>
@@ -313,7 +311,7 @@ export const SignalConfigPage: React.FC = () => {
                         Removing...
                       </>
                     ) : isPending ? (
-                      'Start Over with New Number'
+                      'Start over with new number'
                     ) : (
                       'Unregister Signal'
                     )}
@@ -328,32 +326,12 @@ export const SignalConfigPage: React.FC = () => {
                 </div>
                 <button
                   onClick={handleStartRegistration}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                  className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
-                  Register Signal Number
+                  Register Signal number
                 </button>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Information Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>About Signal Notifications</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Signal notifications allow users to receive real-time alerts about:
-            </p>
-            <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>Species detections (user-configurable)</li>
-              <li>Low battery warnings from cameras</li>
-              <li>System health issues</li>
-            </ul>
-            <p className="pt-2">
-              Users can configure their individual notification preferences in their profile settings.
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -385,23 +363,22 @@ export const SignalConfigPage: React.FC = () => {
                   { num: 1, label: 'Phone' },
                   { num: 2, label: 'CAPTCHA' },
                   { num: 3, label: 'SMS' },
-                  { num: 4, label: 'Verify' },
-                  { num: 5, label: 'Test' }
+                  { num: 4, label: 'Test' }
                 ].map((step, index) => (
                   <React.Fragment key={step.num}>
                     <div className="flex flex-col items-center">
                       <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
-                        step.num < wizardStep ? 'bg-green-500 text-white' :
-                        step.num === wizardStep ? 'bg-blue-500 text-white' :
-                        'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                        step.num < wizardStep ? 'bg-primary text-primary-foreground' :
+                        step.num === wizardStep ? 'bg-primary text-primary-foreground' :
+                        'bg-muted text-muted-foreground'
                       }`}>
                         {step.num < wizardStep ? '✓' : step.num}
                       </div>
                       <span className="text-xs text-muted-foreground mt-2 whitespace-nowrap">{step.label}</span>
                     </div>
-                    {index < 4 && (
+                    {index < 3 && (
                       <div className={`flex-1 h-1 mx-2 ${
-                        step.num < wizardStep ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
+                        step.num < wizardStep ? 'bg-primary' : 'bg-muted'
                       }`} />
                     )}
                   </React.Fragment>
@@ -415,7 +392,7 @@ export const SignalConfigPage: React.FC = () => {
               {wizardStep === 1 && (
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Enter Phone Number</h3>
+                    <h3 className="text-lg font-semibold mb-4">Enter phone number</h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       Enter the phone number you want to use for Signal notifications
                     </p>
@@ -423,7 +400,7 @@ export const SignalConfigPage: React.FC = () => {
 
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Phone Number (E.164 format)
+                      Phone number (E.164 format)
                     </label>
                     <input
                       type="text"
@@ -439,24 +416,27 @@ export const SignalConfigPage: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-md">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      ⚠️ <strong>Important:</strong> This number must NOT already be registered with Signal on another device
-                    </p>
+                  <div className="bg-muted border border-border p-3 rounded-md">
+                    <div className="flex gap-2">
+                      <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-muted-foreground">
+                        <strong>Important:</strong> This number must NOT already be registered with Signal on another device
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-3 pt-4">
                     <button
                       type="button"
                       onClick={() => setShowWizard(false)}
-                      className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={registerMutation.isPending}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
                     >
                       {registerMutation.isPending ? (
                         <>
@@ -465,7 +445,7 @@ export const SignalConfigPage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          Next: Get CAPTCHA
+                          Next: get CAPTCHA
                           <ArrowRight className="h-4 w-4" />
                         </>
                       )}
@@ -478,67 +458,38 @@ export const SignalConfigPage: React.FC = () => {
               {wizardStep === 2 && (
                 <form onSubmit={handleSubmitCaptcha} className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Solve CAPTCHA Challenge</h3>
+                    <h3 className="text-lg font-semibold mb-4">Solve CAPTCHA challenge</h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       Complete the CAPTCHA to verify you're human
                     </p>
                   </div>
 
-                  {/* Important Warning */}
-                  <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-md">
-                    <div className="flex gap-2">
-                      <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
-                      <div className="text-sm">
-                        <p className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">Important:</p>
-                        <p className="text-yellow-700 dark:text-yellow-300">
-                          You must solve the CAPTCHA from a device on the <strong>same IP address</strong> as this server.
-                          CAPTCHA tokens expire within minutes - submit immediately after solving!
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3">
+                  <div className="bg-accent/50 border border-border p-4 rounded-md space-y-3">
                     <div className="flex items-start gap-2">
-                      <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                      <div className="font-bold text-foreground mt-0.5">1.</div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm mb-2">Open one of these CAPTCHA pages:</p>
-                        <div className="space-y-2">
-                          <div>
-                            <a
-                              href="https://signalcaptchas.org/registration/generate.html"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                            >
-                              signalcaptchas.org/registration/generate.html
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                            <p className="text-xs text-muted-foreground ml-4">(Try this first)</p>
-                          </div>
-                          <div>
-                            <a
-                              href="https://signalcaptchas.org/challenge/generate.html"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                            >
-                              signalcaptchas.org/challenge/generate.html
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                            <p className="text-xs text-muted-foreground ml-4">(Alternative if registration fails)</p>
-                          </div>
-                        </div>
+                        <p className="font-medium text-sm mb-2">Open the CAPTCHA page:</p>
+                        <a
+                          href="https://signalcaptchas.org/registration/generate.html"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
+                        >
+                          signalcaptchas.org/registration/generate.html
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-2">
-                      <div className="font-bold text-blue-700 dark:text-blue-300">2.</div>
-                      <p className="text-sm">Solve the CAPTCHA puzzle</p>
+                      <div className="font-bold text-foreground">2.</div>
+                      <div className="text-sm">
+                        <p>Solve the CAPTCHA puzzle</p>
+                      </div>
                     </div>
 
                     <div className="flex items-start gap-2">
-                      <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                      <div className="font-bold text-foreground">3.</div>
                       <div className="text-sm">
                         <p className="font-medium mb-1">Copy the token:</p>
                         <p className="text-muted-foreground">
@@ -561,8 +512,8 @@ export const SignalConfigPage: React.FC = () => {
                       required
                       autoFocus
                     />
-                    <p className="text-xs text-yellow-600 dark:text-yellow-500 mt-1">
-                      ⏱️ CAPTCHA tokens expire quickly - submit immediately after copying!
+                    <p className="text-xs text-muted-foreground mt-1">
+                      CAPTCHA tokens expire quickly - submit immediately after copying!
                     </p>
                   </div>
 
@@ -570,14 +521,14 @@ export const SignalConfigPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setWizardStep(1)}
-                      className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
                       disabled={submitCaptchaMutation.isPending}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
                     >
                       {submitCaptchaMutation.isPending ? (
                         <>
@@ -586,7 +537,7 @@ export const SignalConfigPage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          Next: Enter SMS Code
+                          Next: enter SMS code
                           <ArrowRight className="h-4 w-4" />
                         </>
                       )}
@@ -599,21 +550,21 @@ export const SignalConfigPage: React.FC = () => {
               {wizardStep === 3 && (
                 <form onSubmit={handleVerifyCode} className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Enter SMS Verification Code</h3>
+                    <h3 className="text-lg font-semibold mb-4">Enter SMS verification code</h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       You should have received a text message with a 6-digit code
                     </p>
                   </div>
 
-                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md">
-                    <p className="text-sm text-green-800 dark:text-green-200">
-                      📱 Check your phone for an SMS from Signal with a 6-digit verification code
+                  <div className="bg-accent/50 border border-border p-4 rounded-md">
+                    <p className="text-sm">
+                      Check your phone for an SMS from Signal with a 6-digit verification code
                     </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      6-Digit Verification Code
+                      6-digit verification code
                     </label>
                     <input
                       type="text"
@@ -632,14 +583,14 @@ export const SignalConfigPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setWizardStep(2)}
-                      className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
                       disabled={verifyCodeMutation.isPending}
-                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 flex items-center gap-2"
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
                     >
                       {verifyCodeMutation.isPending ? (
                         <>
@@ -648,7 +599,7 @@ export const SignalConfigPage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          Next: Rate Limit Challenge
+                          Next: rate limit challenge
                           <ArrowRight className="h-4 w-4" />
                         </>
                       )}
@@ -657,21 +608,73 @@ export const SignalConfigPage: React.FC = () => {
                 </form>
               )}
 
-              {/* Step 4: Rate Limit Challenge */}
+              {/* Step 4: Test Message */}
               {wizardStep === 4 && (
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Rate Limit Verification</h3>
+                    <h3 className="text-lg font-semibold mb-4">Send test message</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      New Signal numbers require verification before sending messages
+                      Enter a recipient to send a test message
                     </p>
                   </div>
 
-                  {!challengeToken && sendTestMutation.isPending && (
-                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                  <div className="bg-muted border border-border p-4 rounded-md">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Note:</strong> The recipient must have Signal installed on their phone.
+                    </p>
+                  </div>
+
+                  {!hasSentDummy && !challengeToken && (
+                    <form onSubmit={(e) => { e.preventDefault(); handleSendDummy(); }} className="space-y-4">
                       <div>
-                        <p className="font-medium text-sm">Sending verification message...</p>
+                        <label className="block text-sm font-medium mb-2">
+                          Recipient phone number
+                        </label>
+                        <input
+                          type="text"
+                          value={step4Recipient}
+                          onChange={(e) => setStep4Recipient(e.target.value)}
+                          placeholder="+31657459823"
+                          className="w-full px-3 py-2 border rounded-md"
+                          required
+                          autoFocus
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter phone number in E.164 format (e.g., +31657459823)
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4">
+                        <button
+                          type="button"
+                          onClick={() => setWizardStep(3)}
+                          className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={sendTestMutation.isPending}
+                          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                        >
+                          {sendTestMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            'Continue'
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {sendTestMutation.isPending && !challengeToken && (
+                    <div className="bg-accent/50 border border-border p-4 rounded-md flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Sending test message...</p>
                         <p className="text-xs text-muted-foreground">This will trigger the rate limit challenge</p>
                       </div>
                     </div>
@@ -679,28 +682,28 @@ export const SignalConfigPage: React.FC = () => {
 
                   {challengeToken && (
                     <form onSubmit={handleSubmitRateLimit} className="space-y-4">
-                      <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md">
+                      <div className="bg-accent/50 border border-border p-4 rounded-md">
                         <div className="flex items-start gap-2">
-                          <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                          <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
                           <div className="flex-1">
                             <p className="font-medium text-sm mb-1">Challenge Token (Auto-detected):</p>
-                            <code className="block px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono break-all">
+                            <code className="block px-3 py-2 bg-muted rounded text-xs font-mono break-all">
                               {challengeToken}
                             </code>
                           </div>
                         </div>
                       </div>
 
-                      <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3">
+                      <div className="bg-accent/50 border border-border p-4 rounded-md space-y-3">
                         <div className="flex items-start gap-2">
-                          <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                          <div className="font-bold text-foreground mt-0.5">1.</div>
                           <div className="flex-1">
                             <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
                             <a
                               href="https://signalcaptchas.org/challenge/generate.html"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                              className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
                             >
                               signalcaptchas.org/challenge/generate.html
                               <ExternalLink className="h-3 w-3" />
@@ -709,7 +712,7 @@ export const SignalConfigPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-start gap-2">
-                          <div className="font-bold text-blue-700 dark:text-blue-300">2.</div>
+                          <div className="font-bold text-foreground">2.</div>
                           <div className="text-sm">
                             <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
                             <p className="text-muted-foreground">
@@ -719,7 +722,7 @@ export const SignalConfigPage: React.FC = () => {
                         </div>
 
                         <div className="flex items-start gap-2">
-                          <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                          <div className="font-bold text-foreground">3.</div>
                           <p className="text-sm">Paste the token below</p>
                         </div>
                       </div>
@@ -743,7 +746,7 @@ export const SignalConfigPage: React.FC = () => {
                         <button
                           type="submit"
                           disabled={submitRateLimitMutation.isPending}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
                         >
                           {submitRateLimitMutation.isPending ? (
                             <>
@@ -752,92 +755,25 @@ export const SignalConfigPage: React.FC = () => {
                             </>
                           ) : (
                             <>
-                              Next: Send Test Message
-                              <ArrowRight className="h-4 w-4" />
+                              Complete setup
+                              <CheckCircle2 className="h-4 w-4" />
                             </>
                           )}
                         </button>
                       </div>
                     </form>
                   )}
+
+                  {submitRateLimitMutation.isSuccess && sendTestMutation.isPending && (
+                    <div className="bg-accent/50 border border-border p-4 rounded-md flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <div>
+                        <p className="font-medium text-sm">Sending test message to {step4Recipient}...</p>
+                        <p className="text-xs text-muted-foreground">Almost done!</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {/* Step 5: Test Message */}
-              {wizardStep === 5 && (
-                <form onSubmit={handleSendTest} className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Send Test Message</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Send a test message to verify everything is working
-                    </p>
-                  </div>
-
-                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md">
-                    <p className="text-sm text-green-800 dark:text-green-200">
-                      ✅ Rate limit verification complete! You can now send messages.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Recipient Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      value={testRecipient}
-                      onChange={(e) => setTestRecipient(e.target.value)}
-                      placeholder="+31657459823"
-                      className="w-full px-3 py-2 border rounded-md"
-                      required
-                      autoFocus
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Enter phone number in E.164 format (e.g., +31657459823)
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Message
-                    </label>
-                    <textarea
-                      value={testMessage}
-                      onChange={(e) => setTestMessage(e.target.value)}
-                      placeholder="Test message..."
-                      rows={4}
-                      className="w-full px-3 py-2 border rounded-md"
-                      required
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setWizardStep(4)}
-                      className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={sendTestMutation.isPending}
-                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {sendTestMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          Complete Setup
-                          <CheckCircle2 className="h-4 w-4" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
               )}
             </div>
           </div>
@@ -850,7 +786,7 @@ export const SignalConfigPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Send Test Message</h2>
+                <h2 className="text-xl font-bold">Send test message</h2>
                 <button
                   onClick={() => setShowTestModal(false)}
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
@@ -860,9 +796,15 @@ export const SignalConfigPage: React.FC = () => {
               </div>
 
               <form onSubmit={handleSendTest} className="space-y-4">
+                <div className="bg-muted border border-border p-4 rounded-md mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Note:</strong> The recipient must have Signal installed on their phone.
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Recipient Phone Number
+                    Recipient phone number
                   </label>
                   <input
                     type="text"
@@ -878,32 +820,18 @@ export const SignalConfigPage: React.FC = () => {
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Message
-                  </label>
-                  <textarea
-                    value={testMessage}
-                    onChange={(e) => setTestMessage(e.target.value)}
-                    placeholder="Test message..."
-                    rows={4}
-                    className="w-full px-3 py-2 border rounded-md"
-                    required
-                  />
-                </div>
-
                 <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setShowTestModal(false)}
-                    className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={sendTestMutation.isPending}
-                    className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 flex items-center gap-2"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
                   >
                     {sendTestMutation.isPending ? (
                       <>
@@ -911,7 +839,7 @@ export const SignalConfigPage: React.FC = () => {
                         Sending...
                       </>
                     ) : (
-                      'Send Test Message'
+                      'Send test message'
                     )}
                   </button>
                 </div>
@@ -927,7 +855,7 @@ export const SignalConfigPage: React.FC = () => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Rate Limit Challenge Required</h2>
+                <h2 className="text-xl font-bold">Rate limit challenge required</h2>
                 <button
                   onClick={() => setShowRateLimitModal(false)}
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
@@ -937,14 +865,14 @@ export const SignalConfigPage: React.FC = () => {
               </div>
 
               <div className="mb-4">
-                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-md mb-4">
+                <div className="bg-muted border border-border p-4 rounded-md mb-4">
                   <div className="flex gap-2">
-                    <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <AlertCircle className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                     <div className="text-sm">
-                      <p className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+                      <p className="font-semibold mb-1">
                         Signal has rate-limited your number
                       </p>
-                      <p className="text-yellow-700 dark:text-yellow-300">
+                      <p className="text-muted-foreground">
                         New Signal numbers need to complete a CAPTCHA challenge before sending messages.
                         This is a one-time verification to prevent spam.
                       </p>
@@ -952,28 +880,28 @@ export const SignalConfigPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3 mb-4">
+                <div className="bg-accent/50 border border-border p-4 rounded-md space-y-3 mb-4">
                   {challengeToken ? (
                     <>
                       <div className="flex items-start gap-2">
-                        <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                        <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
                         <div className="flex-1">
                           <p className="font-medium text-sm mb-1">Challenge Token (Auto-detected):</p>
-                          <code className="block px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono break-all">
+                          <code className="block px-3 py-2 bg-muted rounded text-xs font-mono break-all">
                             {challengeToken}
                           </code>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                        <div className="font-bold text-foreground mt-0.5">1.</div>
                         <div className="flex-1">
                           <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
                           <a
                             href="https://signalcaptchas.org/challenge/generate.html"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                            className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
                           >
                             signalcaptchas.org/challenge/generate.html
                             <ExternalLink className="h-3 w-3" />
@@ -982,7 +910,7 @@ export const SignalConfigPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300">2.</div>
+                        <div className="font-bold text-foreground">2.</div>
                         <div className="text-sm">
                           <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
                           <p className="text-muted-foreground">
@@ -992,7 +920,7 @@ export const SignalConfigPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                        <div className="font-bold text-foreground">3.</div>
                         <div className="text-sm">
                           <p className="font-medium mb-1">Paste CAPTCHA token below and submit</p>
                         </div>
@@ -1001,7 +929,7 @@ export const SignalConfigPage: React.FC = () => {
                   ) : (
                     <>
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                        <div className="font-bold text-foreground mt-0.5">1.</div>
                         <div className="flex-1">
                           <p className="font-medium text-sm mb-2">Enter the Challenge Token:</p>
                           <p className="text-sm text-muted-foreground">
@@ -1011,14 +939,14 @@ export const SignalConfigPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">2.</div>
+                        <div className="font-bold text-foreground mt-0.5">2.</div>
                         <div className="flex-1">
                           <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
                           <a
                             href="https://signalcaptchas.org/challenge/generate.html"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                            className="inline-flex items-center gap-1 text-primary hover:underline text-sm"
                           >
                             signalcaptchas.org/challenge/generate.html
                             <ExternalLink className="h-3 w-3" />
@@ -1027,7 +955,7 @@ export const SignalConfigPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                        <div className="font-bold text-foreground">3.</div>
                         <div className="text-sm">
                           <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
                           <p className="text-muted-foreground">
@@ -1037,7 +965,7 @@ export const SignalConfigPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-start gap-2">
-                        <div className="font-bold text-blue-700 dark:text-blue-300">4.</div>
+                        <div className="font-bold text-foreground">4.</div>
                         <div className="text-sm">
                           <p className="font-medium mb-1">Paste both tokens below and submit</p>
                         </div>
@@ -1089,14 +1017,14 @@ export const SignalConfigPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowRateLimitModal(false)}
-                    className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitRateLimitMutation.isPending}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
                   >
                     {submitRateLimitMutation.isPending ? (
                       <>

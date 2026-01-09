@@ -4,7 +4,7 @@ SQLAlchemy database models
 Defines the database schema for all tables.
 All services import models from this file to ensure consistency.
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean, JSON, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from geoalchemy2 import Geography
@@ -182,12 +182,13 @@ class AlertLog(Base):
     status = Column(String(50), nullable=False)  # sent, failed
 
 
-class NotificationPreference(Base):
-    """Per-user notification preferences"""
-    __tablename__ = "notification_preferences"
+class ProjectNotificationPreference(Base):
+    """Per-user per-project notification preferences"""
+    __tablename__ = "project_notification_preferences"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, nullable=False, server_default="false")
     signal_phone = Column(String(20), nullable=True)  # E.164 format: +1234567890
     notify_species = Column(JSON, nullable=True)  # null = all species, or list like ["wolf", "bear"]
@@ -196,6 +197,11 @@ class NotificationPreference(Base):
     notify_system_health = Column(Boolean, nullable=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Unique constraint: one preference per user per project
+    __table_args__ = (
+        UniqueConstraint('user_id', 'project_id', name='uq_user_project_notification'),
+    )
 
 
 class NotificationLog(Base):
