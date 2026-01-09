@@ -794,14 +794,14 @@ async def submit_rate_limit_challenge(
 
     # Submit rate limit challenge to signal-cli-rest-api
     signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
-    challenge_url = f"{signal_api_url}/v1/submitRateLimitChallenge/{config.phone_number}"
+    challenge_url = f"{signal_api_url}/v1/accounts/{config.phone_number}/rate-limit-challenge"
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 challenge_url,
                 json={
-                    "challenge": data.challenge_token,
+                    "challenge_token": data.challenge_token,
                     "captcha": data.captcha
                 }
             )
