@@ -676,6 +676,12 @@ class SignalSendTestMessageRequest(BaseModel):
     message: str  # Test message text
 
 
+class SignalSubmitRateLimitChallengeRequest(BaseModel):
+    """Request to submit rate limit challenge CAPTCHA"""
+    challenge_token: str  # Challenge token from error message
+    captcha: str  # CAPTCHA token from signalcaptchas.org
+
+
 @router.post(
     "/signal/send-test",
     status_code=status.HTTP_200_OK,
@@ -747,3 +753,70 @@ async def send_test_signal_message(
         )
 
     return {"message": "Test message sent successfully"}
+
+
+@router.post(
+    "/signal/submit-rate-limit-challenge",
+    status_code=status.HTTP_200_OK,
+)
+async def submit_rate_limit_challenge(
+    data: SignalSubmitRateLimitChallengeRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Submit rate limit challenge CAPTCHA (superuser only).
+
+    When Signal rate limits a newly registered number, you need to solve
+    a CAPTCHA challenge to prove you're not a bot.
+
+    Args:
+        data: Challenge token and CAPTCHA token
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException 404: If Signal not configured
+        HTTPException 400: If challenge submission fails
+    """
+    # Get Signal config
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal not configured."
+        )
+
+    # Submit rate limit challenge to signal-cli-rest-api
+    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    challenge_url = f"{signal_api_url}/v1/submitRateLimitChallenge/{config.phone_number}"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                challenge_url,
+                json={
+                    "challenge": data.challenge_token,
+                    "captcha": data.captcha
+                }
+            )
+
+            if response.status_code not in [200, 201, 204]:
+                error_text = response.text
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to submit rate limit challenge: {error_text}"
+                )
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to signal-cli-rest-api: {str(e)}"
+        )
+
+    return {"message": "Rate limit challenge submitted successfully. You can now send messages."}

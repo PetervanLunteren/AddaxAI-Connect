@@ -87,4 +87,15 @@ export const adminApi = {
     });
     return response.data;
   },
+
+  /**
+   * Submit rate limit challenge CAPTCHA
+   */
+  submitRateLimitChallenge: async (challengeToken: string, captcha: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>('/api/admin/signal/submit-rate-limit-challenge', {
+      challenge_token: challengeToken,
+      captcha
+    });
+    return response.data;
+  },
 };
