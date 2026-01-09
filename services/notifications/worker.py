@@ -3,8 +3,12 @@ Core Notifications Service
 
 Listens to notification events from classification/ingestion workers,
 evaluates rules, and routes to appropriate channel queues.
+
+Also runs scheduled jobs:
+- Daily battery digest at 12:00 UTC
 """
 from typing import Dict, Any
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EVENTS, QUEUE_NOTIFICATION_SIGNAL
@@ -12,6 +16,7 @@ from shared.config import get_settings
 
 from rule_engine import get_matching_users
 from event_handlers import handle_species_detection, handle_low_battery, handle_system_health
+from battery_digest import send_daily_battery_digest
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -80,6 +85,20 @@ def main() -> None:
     """Main entry point for notifications service"""
     logger.info("Starting notifications service")
 
+    # Set up daily battery digest scheduler
+    scheduler = BackgroundScheduler(timezone='UTC')
+    scheduler.add_job(
+        send_daily_battery_digest,
+        'cron',
+        hour=12,
+        minute=0,
+        id='daily_battery_digest',
+        name='Send daily battery digest at noon UTC'
+    )
+    scheduler.start()
+
+    logger.info("Scheduled daily battery digest at 12:00 UTC")
+
     # Listen to notification events queue
     queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
 
@@ -89,6 +108,7 @@ def main() -> None:
         queue.consume_forever(process_notification_event)
     except KeyboardInterrupt:
         logger.info("Shutting down notifications service")
+        scheduler.shutdown()
 
 
 if __name__ == "__main__":
