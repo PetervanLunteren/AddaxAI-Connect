@@ -639,13 +639,14 @@ async def verify_signal_code(
 
     # Submit verification code to signal-cli-rest-api
     signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
-    verify_url = f"{signal_api_url}/v1/register/{config.phone_number}/verify"
+    # Verification code must be part of the URL path, not JSON body
+    verify_url = f"{signal_api_url}/v1/register/{config.phone_number}/verify/{data.code}"
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 verify_url,
-                json={"token": data.code}
+                headers={"Content-Type": "application/json"}
             )
 
             if response.status_code != 201:
