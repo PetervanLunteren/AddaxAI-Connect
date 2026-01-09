@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     domain_name: Optional[str] = None  # For constructing verification links
 
     # Signal (notifications only)
-    signal_api_url: Optional[str] = "http://signal-cli-rest-api:8080"  # signal-cli-rest-api endpoint
+    signal_api_url: Optional[str] = "http://addaxai-signal-api:8080"  # signal-cli-rest-api endpoint
 
     # Logging
     log_level: str = "INFO"
