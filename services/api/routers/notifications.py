@@ -1,20 +1,20 @@
 """
-User notification preferences endpoints.
+Project notification preferences endpoints.
 
-Authenticated users can manage their own notification settings.
+Authenticated users can manage their notification settings per project.
 """
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from pydantic import BaseModel
 
-from shared.models import User, NotificationPreference
+from shared.models import User, ProjectNotificationPreference, Project
 from shared.database import get_async_session
 from auth.users import current_active_user
 
 
-router = APIRouter(prefix="/api/users/me", tags=["notifications"])
+router = APIRouter(prefix="/api/projects", tags=["notifications"])
 
 
 class NotificationPreferenceResponse(BaseModel):
@@ -41,29 +41,58 @@ class NotificationPreferenceUpdateRequest(BaseModel):
 
 
 @router.get(
-    "/notification-preferences",
+    "/{project_id}/notification-preferences",
     response_model=NotificationPreferenceResponse,
 )
 async def get_notification_preferences(
+    project_id: int,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Get current user's notification preferences.
+    Get current user's notification preferences for a specific project.
 
-    Returns the authenticated user's notification settings.
+    Returns the authenticated user's notification settings for the given project.
     If preferences don't exist yet, returns defaults.
 
     Args:
+        project_id: ID of the project
         db: Database session
         current_user: Current authenticated user
 
     Returns:
-        User's notification preferences
+        User's notification preferences for this project
+
+    Raises:
+        HTTPException 403: If user doesn't have access to this project
+        HTTPException 404: If project doesn't exist
     """
+    # Verify project exists
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found"
+        )
+
+    # Verify user has access (either assigned to project or is superuser)
+    if not current_user.is_superuser and current_user.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this project"
+        )
+
+    # Get preferences
     result = await db.execute(
-        select(NotificationPreference).where(
-            NotificationPreference.user_id == current_user.id
+        select(ProjectNotificationPreference).where(
+            and_(
+                ProjectNotificationPreference.user_id == current_user.id,
+                ProjectNotificationPreference.project_id == project_id
+            )
         )
     )
     prefs = result.scalar_one_or_none()
@@ -83,21 +112,23 @@ async def get_notification_preferences(
 
 
 @router.put(
-    "/notification-preferences",
+    "/{project_id}/notification-preferences",
     response_model=NotificationPreferenceResponse,
 )
 async def update_notification_preferences(
+    project_id: int,
     data: NotificationPreferenceUpdateRequest,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
     """
-    Update current user's notification preferences.
+    Update current user's notification preferences for a specific project.
 
-    Creates or updates the authenticated user's notification settings.
+    Creates or updates the authenticated user's notification settings for the given project.
     Only provided fields will be updated.
 
     Args:
+        project_id: ID of the project
         data: Notification preference updates
         db: Database session
         current_user: Current authenticated user
@@ -107,7 +138,28 @@ async def update_notification_preferences(
 
     Raises:
         HTTPException 400: If validation fails (e.g., invalid battery threshold)
+        HTTPException 403: If user doesn't have access to this project
+        HTTPException 404: If project doesn't exist
     """
+    # Verify project exists
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found"
+        )
+
+    # Verify user has access (either assigned to project or is superuser)
+    if not current_user.is_superuser and current_user.project_id != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this project"
+        )
+
     # Validate battery threshold if provided
     if data.battery_threshold is not None:
         if not 0 <= data.battery_threshold <= 100:
@@ -118,16 +170,20 @@ async def update_notification_preferences(
 
     # Get or create preferences
     result = await db.execute(
-        select(NotificationPreference).where(
-            NotificationPreference.user_id == current_user.id
+        select(ProjectNotificationPreference).where(
+            and_(
+                ProjectNotificationPreference.user_id == current_user.id,
+                ProjectNotificationPreference.project_id == project_id
+            )
         )
     )
     prefs = result.scalar_one_or_none()
 
     if not prefs:
         # Create new preferences with defaults
-        prefs = NotificationPreference(
+        prefs = ProjectNotificationPreference(
             user_id=current_user.id,
+            project_id=project_id,
             enabled=False,
             signal_phone=None,
             notify_species=None,

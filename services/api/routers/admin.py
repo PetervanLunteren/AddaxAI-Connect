@@ -6,6 +6,8 @@ Only accessible by superusers.
 from typing import List, Optional
 from datetime import datetime
 import httpx
+import base64
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -562,7 +564,7 @@ async def submit_signal_captcha(
         )
 
     # Submit CAPTCHA to signal-cli-rest-api
-    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    signal_api_url = settings.signal_api_url or "http://signal-api:8080"
     register_url = f"{signal_api_url}/v1/register/{config.phone_number}"
 
     try:
@@ -593,6 +595,45 @@ async def submit_signal_captcha(
     await db.refresh(config)
 
     return config
+
+
+async def update_signal_profile_internal(phone_number: str):
+    """
+    Internal function to update Signal profile with hardcoded name and avatar.
+
+    This sets the profile name to "AddaxAI-Connect" and uploads the avatar
+    from the static folder.
+
+    Args:
+        phone_number: Phone number to update profile for
+
+    Raises:
+        Exception: If profile update fails
+    """
+    signal_api_url = settings.signal_api_url or "http://signal-api:8080"
+    profile_url = f"{signal_api_url}/v1/profiles/{phone_number}"
+
+    # Read and encode avatar as base64
+    avatar_path = Path("/app/static/signal-avatar.png")
+    base64_avatar = None
+
+    if avatar_path.exists():
+        with open(avatar_path, "rb") as avatar_file:
+            avatar_bytes = avatar_file.read()
+            base64_avatar = base64.b64encode(avatar_bytes).decode("utf-8")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Update profile name and avatar
+        response = await client.put(
+            profile_url,
+            json={
+                "name": "AddaxAI-Connect",
+                "base64_avatar": base64_avatar
+            }
+        )
+
+        if response.status_code not in [200, 201, 204]:
+            raise Exception(f"Failed to update profile: {response.text}")
 
 
 @router.post(
@@ -638,7 +679,7 @@ async def verify_signal_code(
         )
 
     # Submit verification code to signal-cli-rest-api
-    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    signal_api_url = settings.signal_api_url or "http://signal-api:8080"
     # Verification code must be part of the URL path, not JSON body
     verify_url = f"{signal_api_url}/v1/register/{config.phone_number}/verify/{data.code}"
 
@@ -666,6 +707,13 @@ async def verify_signal_code(
     config.is_registered = True
     await db.commit()
     await db.refresh(config)
+
+    # Auto-update profile with hardcoded name and avatar
+    try:
+        await update_signal_profile_internal(config.phone_number)
+    except Exception as e:
+        # Log but don't fail registration if profile update fails
+        print(f"Warning: Failed to update Signal profile: {str(e)}")
 
     return config
 
@@ -725,7 +773,7 @@ async def send_test_signal_message(
         )
 
     # Send test message via signal-cli-rest-api
-    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    signal_api_url = settings.signal_api_url or "http://signal-api:8080"
     send_url = f"{signal_api_url}/v2/send"
 
     try:
@@ -793,7 +841,7 @@ async def submit_rate_limit_challenge(
         )
 
     # Submit rate limit challenge to signal-cli-rest-api
-    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    signal_api_url = settings.signal_api_url or "http://signal-api:8080"
     challenge_url = f"{signal_api_url}/v1/accounts/{config.phone_number}/rate-limit-challenge"
 
     try:

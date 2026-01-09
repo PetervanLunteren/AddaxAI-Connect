@@ -92,12 +92,6 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
       variant: 'destructive' as const,
     },
     {
-      icon: User,
-      label: 'My Notifications',
-      onClick: () => handleNavigate('/user/notification-preferences'),
-      variant: 'default' as const,
-    },
-    {
       icon: LogOut,
       label: 'Logout',
       onClick: handleLogout,
