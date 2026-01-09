@@ -191,10 +191,12 @@ class ProjectNotificationPreference(Base):
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, nullable=False, server_default="false")
     signal_phone = Column(String(20), nullable=True)  # E.164 format: +1234567890
-    notify_species = Column(JSON, nullable=True)  # null = all species, or list like ["wolf", "bear"]
-    notify_low_battery = Column(Boolean, nullable=False, server_default="true")
-    battery_threshold = Column(Integer, nullable=False, server_default="30")  # Percentage
-    notify_system_health = Column(Boolean, nullable=False, server_default="false")
+    telegram_chat_id = Column(String(50), nullable=True)  # Telegram chat ID
+    notify_species = Column(JSON, nullable=True)  # DEPRECATED: Use notification_channels instead
+    notify_low_battery = Column(Boolean, nullable=False, server_default="true")  # DEPRECATED: Use notification_channels instead
+    battery_threshold = Column(Integer, nullable=False, server_default="30")  # DEPRECATED: Use notification_channels instead
+    notify_system_health = Column(Boolean, nullable=False, server_default="false")  # DEPRECATED: Use notification_channels instead
+    notification_channels = Column(JSON, nullable=True)  # Per-notification-type channel configuration
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
@@ -228,6 +230,20 @@ class SignalConfig(Base):
     phone_number = Column(String(20), nullable=True)  # E.164 format
     device_name = Column(String(100), nullable=False, server_default="AddaxAI-Connect")
     is_registered = Column(Boolean, nullable=False, server_default="false")
+    last_health_check = Column(DateTime(timezone=True), nullable=True)
+    health_status = Column(String(50), nullable=True)  # healthy, error, not_configured
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class TelegramConfig(Base):
+    """System-wide Telegram bot configuration (admin only, single row)"""
+    __tablename__ = "telegram_config"
+
+    id = Column(Integer, primary_key=True)
+    bot_token = Column(String(100), nullable=True)  # From @BotFather
+    bot_username = Column(String(100), nullable=True)  # e.g., "AddaxAI_bot"
+    is_configured = Column(Boolean, nullable=False, server_default="false")
     last_health_check = Column(DateTime(timezone=True), nullable=True)
     health_status = Column(String(50), nullable=True)  # healthy, error, not_configured
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
