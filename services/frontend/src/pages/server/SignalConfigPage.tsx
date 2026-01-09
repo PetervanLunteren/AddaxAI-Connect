@@ -15,7 +15,6 @@ export const SignalConfigPage: React.FC = () => {
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [deviceName, setDeviceName] = useState('AddaxAI-Connect');
   const [captchaToken, setCaptchaToken] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [showTestModal, setShowTestModal] = useState(false);
@@ -166,7 +165,7 @@ export const SignalConfigPage: React.FC = () => {
       alert('Please enter a phone number');
       return;
     }
-    registerMutation.mutate({ phone_number: phoneNumber, device_name: deviceName });
+    registerMutation.mutate({ phone_number: phoneNumber, device_name: 'AddaxAI-Connect' });
   };
 
   const handleSubmitCaptcha = (e: React.FormEvent) => {
@@ -219,7 +218,6 @@ export const SignalConfigPage: React.FC = () => {
     setShowWizard(true);
     setWizardStep(1);
     setPhoneNumber('');
-    setDeviceName('AddaxAI-Connect');
     setCaptchaToken('');
     setVerificationCode('');
   };
@@ -274,17 +272,6 @@ export const SignalConfigPage: React.FC = () => {
                       </div>
                     </>
                   )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Device Name</p>
-                    <p className="font-medium">{config.device_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Health Status</p>
-                    <p className="font-medium">{config.health_status || 'Unknown'}</p>
-                  </div>
                 </div>
 
                 <div className="pt-4 flex gap-3">
@@ -448,19 +435,6 @@ export const SignalConfigPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mt-1">
                       Include country code (e.g., +31 for Netherlands, +1 for USA)
                     </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Device Name
-                    </label>
-                    <input
-                      type="text"
-                      value={deviceName}
-                      onChange={(e) => setDeviceName(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md"
-                      required
-                    />
                   </div>
 
                   <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded-md">
