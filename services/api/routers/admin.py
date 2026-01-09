@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, EmailAllowlist, Project, SignalConfig
+from shared.models import User, EmailAllowlist, Project, SignalConfig, TelegramConfig
 from shared.database import get_async_session
 from shared.config import get_settings
 from auth.users import current_superuser
@@ -868,3 +868,306 @@ async def submit_rate_limit_challenge(
         )
 
     return {"message": "Rate limit challenge submitted successfully. You can now send messages."}
+
+
+# Telegram Bot Configuration Endpoints
+
+class TelegramConfigResponse(BaseModel):
+    """Response for Telegram bot configuration"""
+    bot_token: Optional[str]
+    bot_username: Optional[str]
+    is_configured: bool
+    last_health_check: Optional[datetime]
+    health_status: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class TelegramConfigureRequest(BaseModel):
+    """Request to configure Telegram bot"""
+    bot_token: str  # From @BotFather
+    bot_username: str  # e.g., "AddaxAI_bot"
+
+
+@router.get(
+    "/telegram/config",
+    response_model=TelegramConfigResponse,
+)
+async def get_telegram_config(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Get Telegram bot configuration (superuser only).
+
+    Returns the Telegram bot configuration including health check information.
+
+    Args:
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Telegram bot configuration
+
+    Raises:
+        HTTPException 404: If Telegram config not initialized
+    """
+    result = await db.execute(select(TelegramConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Telegram not configured. Use POST /api/admin/telegram/configure to set up Telegram bot."
+        )
+
+    return config
+
+
+@router.post(
+    "/telegram/configure",
+    response_model=TelegramConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def configure_telegram(
+    data: TelegramConfigureRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Configure Telegram bot (superuser only).
+
+    Steps to get bot token:
+    1. Open Telegram and search for @BotFather
+    2. Send /newbot command
+    3. Follow prompts to name your bot
+    4. Copy the bot token provided
+    5. Copy the bot username (e.g., "AddaxAI_bot")
+    6. Paste both here
+
+    Args:
+        data: Bot token and username
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Created/updated Telegram configuration
+
+    Raises:
+        HTTPException 400: If bot token is invalid
+    """
+    # Verify token works by calling getMe
+    test_url = f"https://api.telegram.org/bot{data.bot_token}/getMe"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(test_url, timeout=10)
+
+            if response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid bot token. Please check and try again."
+                )
+
+            # Verify username matches
+            bot_info = response.json()
+            if bot_info.get('ok'):
+                actual_username = bot_info.get('result', {}).get('username')
+                if actual_username and actual_username.lower() != data.bot_username.lower().replace('@', ''):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Bot username mismatch. Expected @{actual_username}, got @{data.bot_username}"
+                    )
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to Telegram API: {str(e)}"
+        )
+
+    # Create or update config
+    result = await db.execute(select(TelegramConfig))
+    config = result.scalar_one_or_none()
+
+    if config:
+        config.bot_token = data.bot_token
+        config.bot_username = data.bot_username
+        config.is_configured = True
+        config.health_status = "healthy"
+        config.last_health_check = datetime.utcnow()
+    else:
+        config = TelegramConfig(
+            bot_token=data.bot_token,
+            bot_username=data.bot_username,
+            is_configured=True,
+            health_status="healthy",
+            last_health_check=datetime.utcnow()
+        )
+        db.add(config)
+
+    await db.commit()
+    await db.refresh(config)
+
+    return config
+
+
+@router.delete(
+    "/telegram",
+    status_code=status.HTTP_200_OK,
+)
+async def unconfigure_telegram(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Remove Telegram bot configuration (superuser only).
+
+    Args:
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Success message
+    """
+    result = await db.execute(select(TelegramConfig))
+    config = result.scalar_one_or_none()
+
+    if config:
+        await db.delete(config)
+        await db.commit()
+
+    return {"message": "Telegram bot configuration removed"}
+
+
+@router.get(
+    "/telegram/health",
+    status_code=status.HTTP_200_OK,
+)
+async def check_telegram_health(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Check if Telegram bot is healthy (superuser only).
+
+    Calls Telegram Bot API /getMe endpoint to verify bot is accessible.
+
+    Args:
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Health status
+
+    Raises:
+        HTTPException 404: If Telegram not configured
+        HTTPException 500: If health check fails
+    """
+    result = await db.execute(select(TelegramConfig))
+    config = result.scalar_one_or_none()
+
+    if not config or not config.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Telegram not configured"
+        )
+
+    # Test API call
+    test_url = f"https://api.telegram.org/bot{config.bot_token}/getMe"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(test_url, timeout=5)
+            response.raise_for_status()
+
+            # Update health status
+            config.last_health_check = datetime.utcnow()
+            config.health_status = "healthy"
+            await db.commit()
+
+            bot_info = response.json()
+            return {
+                "status": "healthy",
+                "message": "Telegram bot is working",
+                "bot_info": bot_info.get('result', {})
+            }
+
+    except Exception as e:
+        config.health_status = "error"
+        config.last_health_check = datetime.utcnow()
+        await db.commit()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Health check failed: {str(e)}"
+        )
+
+
+class TelegramSendTestMessageRequest(BaseModel):
+    """Request to send test Telegram message"""
+    chat_id: str  # Telegram chat ID
+    message: Optional[str] = "Test message from AddaxAI Connect! Your Telegram notifications are working."
+
+
+@router.post(
+    "/telegram/test-message",
+    status_code=status.HTTP_200_OK,
+)
+async def send_telegram_test_message(
+    data: TelegramSendTestMessageRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Send test message to verify Telegram bot works (superuser only).
+
+    Args:
+        data: Chat ID and optional message text
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException 404: If Telegram not configured
+        HTTPException 400: If sending fails
+    """
+    result = await db.execute(select(TelegramConfig))
+    config = result.scalar_one_or_none()
+
+    if not config or not config.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Telegram not configured"
+        )
+
+    # Send test message
+    send_url = f"https://api.telegram.org/bot{config.bot_token}/sendMessage"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                send_url,
+                json={
+                    'chat_id': data.chat_id,
+                    'text': data.message
+                },
+                timeout=10
+            )
+
+            if response.status_code != 200:
+                error_data = response.json()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to send message: {error_data.get('description', 'Unknown error')}"
+                )
+
+        return {"message": "Test message sent successfully"}
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to Telegram API: {str(e)}"
+        )
