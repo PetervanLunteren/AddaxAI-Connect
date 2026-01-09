@@ -21,6 +21,9 @@ export const SignalConfigPage: React.FC = () => {
   const [showTestModal, setShowTestModal] = useState(false);
   const [testRecipient, setTestRecipient] = useState('');
   const [testMessage, setTestMessage] = useState('This is a test message from AddaxAI Connect!');
+  const [showRateLimitModal, setShowRateLimitModal] = useState(false);
+  const [challengeToken, setChallengeToken] = useState('');
+  const [rateLimitCaptcha, setRateLimitCaptcha] = useState('');
 
   // Query Signal configuration
   const { data: config, isLoading, error } = useQuery({
@@ -94,7 +97,33 @@ export const SignalConfigPage: React.FC = () => {
       setTestMessage('This is a test message from AddaxAI Connect!');
     },
     onError: (error: any) => {
-      alert(`Failed to send test message: ${error.response?.data?.detail || error.message}`);
+      const errorDetail = error.response?.data?.detail || error.message;
+
+      // Check if this is a rate limit error with challenge token
+      const challengeMatch = errorDetail.match(/challenge token "([^"]+)"/);
+      if (challengeMatch) {
+        const token = challengeMatch[1];
+        setChallengeToken(token);
+        setShowTestModal(false);
+        setShowRateLimitModal(true);
+      } else {
+        alert(`Failed to send test message: ${errorDetail}`);
+      }
+    },
+  });
+
+  // Submit rate limit challenge mutation
+  const submitRateLimitMutation = useMutation({
+    mutationFn: ({ challengeToken, captcha }: { challengeToken: string; captcha: string }) =>
+      adminApi.submitRateLimitChallenge(challengeToken, captcha),
+    onSuccess: () => {
+      alert('Rate limit challenge completed! You can now send messages.');
+      setShowRateLimitModal(false);
+      setChallengeToken('');
+      setRateLimitCaptcha('');
+    },
+    onError: (error: any) => {
+      alert(`Failed to submit challenge: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -142,6 +171,15 @@ export const SignalConfigPage: React.FC = () => {
       return;
     }
     sendTestMutation.mutate({ recipient: testRecipient, message: testMessage });
+  };
+
+  const handleSubmitRateLimit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rateLimitCaptcha) {
+      alert('Please enter the CAPTCHA token');
+      return;
+    }
+    submitRateLimitMutation.mutate({ challengeToken, captcha: rateLimitCaptcha });
   };
 
   const handleStartRegistration = () => {
@@ -672,6 +710,121 @@ export const SignalConfigPage: React.FC = () => {
                       </>
                     ) : (
                       'Send Test Message'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rate Limit Challenge Modal */}
+      {showRateLimitModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Rate Limit Challenge Required</h2>
+                <button
+                  onClick={() => setShowRateLimitModal(false)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-md mb-4">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
+                        Signal has rate-limited your number
+                      </p>
+                      <p className="text-yellow-700 dark:text-yellow-300">
+                        New Signal numbers need to complete a CAPTCHA challenge before sending messages.
+                        This is a one-time verification to prevent spam.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3 mb-4">
+                  <div className="flex items-start gap-2">
+                    <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm mb-2">Challenge Token (auto-filled):</p>
+                      <code className="block px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono break-all">
+                        {challengeToken}
+                      </code>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">2.</div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
+                      <a
+                        href="https://signalcaptchas.org/challenge/generate.html"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                      >
+                        signalcaptchas.org/challenge/generate.html
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2">
+                    <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                    <div className="text-sm">
+                      <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
+                      <p className="text-muted-foreground">
+                        Right-click the "Open Signal" button → "Copy link address"
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmitRateLimit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    CAPTCHA Token
+                  </label>
+                  <input
+                    type="text"
+                    value={rateLimitCaptcha}
+                    onChange={(e) => setRateLimitCaptcha(e.target.value)}
+                    placeholder="signalcaptcha://signal-hcaptcha..."
+                    className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowRateLimitModal(false)}
+                    className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitRateLimitMutation.isPending}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {submitRateLimitMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      'Complete Challenge'
                     )}
                   </button>
                 </div>
