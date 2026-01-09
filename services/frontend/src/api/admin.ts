@@ -76,4 +76,15 @@ export const adminApi = {
     const response = await apiClient.post<SignalConfig>('/api/admin/signal/verify-code', { code });
     return response.data;
   },
+
+  /**
+   * Send test Signal message
+   */
+  sendTestSignalMessage: async (recipient: string, message: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>('/api/admin/signal/send-test', {
+      recipient,
+      message
+    });
+    return response.data;
+  },
 };

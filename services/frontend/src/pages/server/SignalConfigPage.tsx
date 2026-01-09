@@ -18,6 +18,9 @@ export const SignalConfigPage: React.FC = () => {
   const [deviceName, setDeviceName] = useState('AddaxAI-Connect');
   const [captchaToken, setCaptchaToken] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testRecipient, setTestRecipient] = useState('');
+  const [testMessage, setTestMessage] = useState('This is a test message from AddaxAI Connect!');
 
   // Query Signal configuration
   const { data: config, isLoading, error } = useQuery({
@@ -80,6 +83,21 @@ export const SignalConfigPage: React.FC = () => {
     },
   });
 
+  // Send test message mutation
+  const sendTestMutation = useMutation({
+    mutationFn: ({ recipient, message }: { recipient: string; message: string }) =>
+      adminApi.sendTestSignalMessage(recipient, message),
+    onSuccess: () => {
+      alert('Test message sent successfully!');
+      setShowTestModal(false);
+      setTestRecipient('');
+      setTestMessage('This is a test message from AddaxAI Connect!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to send test message: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber) {
@@ -111,6 +129,19 @@ export const SignalConfigPage: React.FC = () => {
     if (confirm('Are you sure you want to unregister Signal? This will disable all Signal notifications.')) {
       unregisterMutation.mutate();
     }
+  };
+
+  const handleSendTest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testRecipient) {
+      alert('Please enter a recipient phone number');
+      return;
+    }
+    if (!testMessage) {
+      alert('Please enter a message');
+      return;
+    }
+    sendTestMutation.mutate({ recipient: testRecipient, message: testMessage });
   };
 
   const handleStartRegistration = () => {
@@ -186,6 +217,14 @@ export const SignalConfigPage: React.FC = () => {
                 </div>
 
                 <div className="pt-4 flex gap-3">
+                  {isRegistered && (
+                    <button
+                      onClick={() => setShowTestModal(true)}
+                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                    >
+                      Send Test Message
+                    </button>
+                  )}
                   {isPending && (
                     <button
                       onClick={() => {
@@ -560,6 +599,83 @@ export const SignalConfigPage: React.FC = () => {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Message Modal */}
+      {showTestModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Send Test Message</h2>
+                <button
+                  onClick={() => setShowTestModal(false)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSendTest} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Recipient Phone Number
+                  </label>
+                  <input
+                    type="text"
+                    value={testRecipient}
+                    onChange={(e) => setTestRecipient(e.target.value)}
+                    placeholder="+31657459823"
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter phone number in E.164 format (e.g., +31657459823)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Message
+                  </label>
+                  <textarea
+                    value={testMessage}
+                    onChange={(e) => setTestMessage(e.target.value)}
+                    placeholder="Test message..."
+                    rows={4}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowTestModal(false)}
+                    className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sendTestMutation.isPending}
+                    className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {sendTestMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Test Message'
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
