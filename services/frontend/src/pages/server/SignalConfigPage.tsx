@@ -100,7 +100,8 @@ export const SignalConfigPage: React.FC = () => {
       const errorDetail = error.response?.data?.detail || error.message;
 
       // Check if this is a rate limit error with challenge token
-      const challengeMatch = errorDetail.match(/challenge token "([^"]+)"/);
+      // Handle both regular and escaped quotes
+      const challengeMatch = errorDetail.match(/challenge token ["\\"]+([a-f0-9-]+)["\\"]+/i);
       if (challengeMatch) {
         const token = challengeMatch[1];
         setChallengeToken(token);
@@ -256,12 +257,20 @@ export const SignalConfigPage: React.FC = () => {
 
                 <div className="pt-4 flex gap-3">
                   {isRegistered && (
-                    <button
-                      onClick={() => setShowTestModal(true)}
-                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
-                    >
-                      Send Test Message
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setShowTestModal(true)}
+                        className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+                      >
+                        Send Test Message
+                      </button>
+                      <button
+                        onClick={() => setShowRateLimitModal(true)}
+                        className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
+                      >
+                        Solve Rate Limit Challenge
+                      </button>
+                    </>
                   )}
                   {isPending && (
                     <button
@@ -754,10 +763,10 @@ export const SignalConfigPage: React.FC = () => {
                   <div className="flex items-start gap-2">
                     <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
                     <div className="flex-1">
-                      <p className="font-medium text-sm mb-2">Challenge Token (auto-filled):</p>
-                      <code className="block px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono break-all">
-                        {challengeToken}
-                      </code>
+                      <p className="font-medium text-sm mb-2">Get the Challenge Token:</p>
+                      <p className="text-sm text-muted-foreground">
+                        Copy it from the error message (looks like: "challenge token 78467a1e-...")
+                      </p>
                     </div>
                   </div>
 
@@ -786,10 +795,34 @@ export const SignalConfigPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
+
+                  <div className="flex items-start gap-2">
+                    <div className="font-bold text-blue-700 dark:text-blue-300">4.</div>
+                    <div className="text-sm">
+                      <p className="font-medium mb-1">Paste both tokens below and submit</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <form onSubmit={handleSubmitRateLimit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Challenge Token
+                  </label>
+                  <input
+                    type="text"
+                    value={challengeToken}
+                    onChange={(e) => setChallengeToken(e.target.value)}
+                    placeholder="78467a1e-d225-4105-8026-de219bd250d9"
+                    className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Found in the error message "challenge token..."
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     CAPTCHA Token
@@ -803,6 +836,9 @@ export const SignalConfigPage: React.FC = () => {
                     required
                     autoFocus
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    From signalcaptchas.org after solving puzzle
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
