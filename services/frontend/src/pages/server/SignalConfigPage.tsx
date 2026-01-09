@@ -380,30 +380,32 @@ export const SignalConfigPage: React.FC = () => {
 
             {/* Progress Indicator */}
             <div className="px-6 py-4 border-b">
-              <div className="flex items-center justify-between">
-                {[1, 2, 3, 4, 5].map((step) => (
-                  <div key={step} className="flex items-center flex-1">
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
-                      step < wizardStep ? 'bg-green-500 text-white' :
-                      step === wizardStep ? 'bg-blue-500 text-white' :
-                      'bg-gray-200 dark:bg-gray-700 text-gray-500'
-                    }`}>
-                      {step < wizardStep ? '✓' : step}
+              <div className="flex items-center">
+                {[
+                  { num: 1, label: 'Phone' },
+                  { num: 2, label: 'CAPTCHA' },
+                  { num: 3, label: 'SMS' },
+                  { num: 4, label: 'Verify' },
+                  { num: 5, label: 'Test' }
+                ].map((step, index) => (
+                  <React.Fragment key={step.num}>
+                    <div className="flex flex-col items-center">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
+                        step.num < wizardStep ? 'bg-green-500 text-white' :
+                        step.num === wizardStep ? 'bg-blue-500 text-white' :
+                        'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                      }`}>
+                        {step.num < wizardStep ? '✓' : step.num}
+                      </div>
+                      <span className="text-xs text-muted-foreground mt-2 whitespace-nowrap">{step.label}</span>
                     </div>
-                    {step < 5 && (
+                    {index < 4 && (
                       <div className={`flex-1 h-1 mx-2 ${
-                        step < wizardStep ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
+                        step.num < wizardStep ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
                       }`} />
                     )}
-                  </div>
+                  </React.Fragment>
                 ))}
-              </div>
-              <div className="flex justify-between mt-2">
-                <span className="text-xs text-muted-foreground">Phone</span>
-                <span className="text-xs text-muted-foreground">CAPTCHA</span>
-                <span className="text-xs text-muted-foreground">SMS</span>
-                <span className="text-xs text-muted-foreground">Verify</span>
-                <span className="text-xs text-muted-foreground">Test</span>
               </div>
             </div>
 
