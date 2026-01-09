@@ -668,3 +668,82 @@ async def verify_signal_code(
     await db.refresh(config)
 
     return config
+
+
+class SignalSendTestMessageRequest(BaseModel):
+    """Request to send test Signal message"""
+    recipient: str  # Phone number in E.164 format
+    message: str  # Test message text
+
+
+@router.post(
+    "/signal/send-test",
+    status_code=status.HTTP_200_OK,
+)
+async def send_test_signal_message(
+    data: SignalSendTestMessageRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_superuser),
+):
+    """
+    Send a test Signal message (superuser only).
+
+    Sends a test message to verify Signal is working correctly.
+
+    Args:
+        data: Recipient phone number and message text
+        db: Database session
+        current_user: Current authenticated superuser
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException 404: If Signal not configured or not registered
+        HTTPException 400: If message sending fails
+    """
+    # Get Signal config
+    result = await db.execute(select(SignalConfig))
+    config = result.scalar_one_or_none()
+
+    if not config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal not configured. Use POST /api/admin/signal/register first."
+        )
+
+    if not config.is_registered:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signal is not registered. Complete registration first."
+        )
+
+    # Send test message via signal-cli-rest-api
+    signal_api_url = settings.signal_api_url or "http://signal-cli-rest-api:8080"
+    send_url = f"{signal_api_url}/v2/send"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                send_url,
+                json={
+                    "message": data.message,
+                    "number": config.phone_number,
+                    "recipients": [data.recipient]
+                }
+            )
+
+            if response.status_code not in [200, 201]:
+                error_text = response.text
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to send message: {error_text}"
+                )
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not connect to signal-cli-rest-api: {str(e)}"
+        )
+
+    return {"message": "Test message sent successfully"}
