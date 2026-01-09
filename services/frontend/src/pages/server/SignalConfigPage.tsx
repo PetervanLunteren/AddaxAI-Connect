@@ -100,10 +100,11 @@ export const SignalConfigPage: React.FC = () => {
       const errorDetail = error.response?.data?.detail || error.message;
 
       // Check if this is a rate limit error with challenge token
-      // Handle both regular and escaped quotes
-      const challengeMatch = errorDetail.match(/challenge token ["\\"]+([a-f0-9-]+)["\\"]+/i);
+      // Match UUID pattern after "challenge token"
+      const challengeMatch = errorDetail.match(/challenge token["\s\\]+([a-f0-9-]{36})["\s\\]/i);
       if (challengeMatch) {
         const token = challengeMatch[1];
+        console.log('Auto-detected challenge token:', token);
         setChallengeToken(token);
         setShowTestModal(false);
         setShowRateLimitModal(true);
@@ -760,68 +761,119 @@ export const SignalConfigPage: React.FC = () => {
                 </div>
 
                 <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3 mb-4">
-                  <div className="flex items-start gap-2">
-                    <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm mb-2">Get the Challenge Token:</p>
-                      <p className="text-sm text-muted-foreground">
-                        Copy it from the error message (looks like: "challenge token 78467a1e-...")
-                      </p>
-                    </div>
-                  </div>
+                  {challengeToken ? (
+                    <>
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="font-medium text-sm mb-1">Challenge Token (Auto-detected):</p>
+                          <code className="block px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono break-all">
+                            {challengeToken}
+                          </code>
+                        </div>
+                      </div>
 
-                  <div className="flex items-start gap-2">
-                    <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">2.</div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
-                      <a
-                        href="https://signalcaptchas.org/challenge/generate.html"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                      >
-                        signalcaptchas.org/challenge/generate.html
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
+                          <a
+                            href="https://signalcaptchas.org/challenge/generate.html"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                          >
+                            signalcaptchas.org/challenge/generate.html
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
 
-                  <div className="flex items-start gap-2">
-                    <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
-                    <div className="text-sm">
-                      <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
-                      <p className="text-muted-foreground">
-                        Right-click the "Open Signal" button → "Copy link address"
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300">2.</div>
+                        <div className="text-sm">
+                          <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
+                          <p className="text-muted-foreground">
+                            Right-click the "Open Signal" button → "Copy link address"
+                          </p>
+                        </div>
+                      </div>
 
-                  <div className="flex items-start gap-2">
-                    <div className="font-bold text-blue-700 dark:text-blue-300">4.</div>
-                    <div className="text-sm">
-                      <p className="font-medium mb-1">Paste both tokens below and submit</p>
-                    </div>
-                  </div>
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                        <div className="text-sm">
+                          <p className="font-medium mb-1">Paste CAPTCHA token below and submit</p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm mb-2">Enter the Challenge Token:</p>
+                          <p className="text-sm text-muted-foreground">
+                            Copy it from the error message (looks like: "78467a1e-d225-4105-8026-de219bd250d9")
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">2.</div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
+                          <a
+                            href="https://signalcaptchas.org/challenge/generate.html"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                          >
+                            signalcaptchas.org/challenge/generate.html
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                        <div className="text-sm">
+                          <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
+                          <p className="text-muted-foreground">
+                            Right-click the "Open Signal" button → "Copy link address"
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2">
+                        <div className="font-bold text-blue-700 dark:text-blue-300">4.</div>
+                        <div className="text-sm">
+                          <p className="font-medium mb-1">Paste both tokens below and submit</p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
               <form onSubmit={handleSubmitRateLimit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Challenge Token
-                  </label>
-                  <input
-                    type="text"
-                    value={challengeToken}
-                    onChange={(e) => setChallengeToken(e.target.value)}
-                    placeholder="78467a1e-d225-4105-8026-de219bd250d9"
-                    className="w-full px-3 py-2 border rounded-md font-mono text-sm"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Found in the error message "challenge token..."
-                  </p>
-                </div>
+                {!challengeToken && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Challenge Token
+                    </label>
+                    <input
+                      type="text"
+                      value={challengeToken}
+                      onChange={(e) => setChallengeToken(e.target.value)}
+                      placeholder="78467a1e-d225-4105-8026-de219bd250d9"
+                      className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Found in the error message "challenge token..."
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium mb-2">
