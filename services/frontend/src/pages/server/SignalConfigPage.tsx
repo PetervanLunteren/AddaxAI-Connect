@@ -13,7 +13,7 @@ import { adminApi } from '../../api/admin';
 export const SignalConfigPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [showWizard, setShowWizard] = useState(false);
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [deviceName, setDeviceName] = useState('AddaxAI-Connect');
   const [captchaToken, setCaptchaToken] = useState('');
@@ -24,6 +24,7 @@ export const SignalConfigPage: React.FC = () => {
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
   const [challengeToken, setChallengeToken] = useState('');
   const [rateLimitCaptcha, setRateLimitCaptcha] = useState('');
+  const [triggerDummyMessage, setTriggerDummyMessage] = useState(false);
 
   // Query Signal configuration
   const { data: config, isLoading, error } = useQuery({
@@ -63,9 +64,9 @@ export const SignalConfigPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['signal-config'] });
       setVerificationCode('');
-      setShowWizard(false);
-      setWizardStep(1);
-      alert('Signal registration completed successfully!');
+      setWizardStep(4);
+      // Trigger dummy message send after a short delay
+      setTimeout(() => setTriggerDummyMessage(true), 500);
     },
     onError: (error: any) => {
       alert(`Failed to verify code: ${error.response?.data?.detail || error.message}`);
@@ -91,10 +92,20 @@ export const SignalConfigPage: React.FC = () => {
     mutationFn: ({ recipient, message }: { recipient: string; message: string }) =>
       adminApi.sendTestSignalMessage(recipient, message),
     onSuccess: () => {
-      alert('Test message sent successfully!');
-      setShowTestModal(false);
-      setTestRecipient('');
-      setTestMessage('This is a test message from AddaxAI Connect!');
+      if (wizardStep === 5) {
+        // Wizard mode - complete and close
+        setShowWizard(false);
+        setWizardStep(1);
+        setTestRecipient('');
+        setTestMessage('This is a test message from AddaxAI Connect!');
+        alert('Signal setup completed successfully! Test message sent.');
+      } else {
+        // Standalone mode
+        alert('Test message sent successfully!');
+        setShowTestModal(false);
+        setTestRecipient('');
+        setTestMessage('This is a test message from AddaxAI Connect!');
+      }
     },
     onError: (error: any) => {
       const errorDetail = error.response?.data?.detail || error.message;
@@ -119,15 +130,35 @@ export const SignalConfigPage: React.FC = () => {
     mutationFn: ({ challengeToken, captcha }: { challengeToken: string; captcha: string }) =>
       adminApi.submitRateLimitChallenge(challengeToken, captcha),
     onSuccess: () => {
-      alert('Rate limit challenge completed! You can now send messages.');
-      setShowRateLimitModal(false);
-      setChallengeToken('');
-      setRateLimitCaptcha('');
+      if (wizardStep === 4) {
+        // Wizard mode - go to next step
+        setWizardStep(5);
+        setChallengeToken('');
+        setRateLimitCaptcha('');
+      } else {
+        // Standalone mode
+        alert('Rate limit challenge completed! You can now send messages.');
+        setShowRateLimitModal(false);
+        setChallengeToken('');
+        setRateLimitCaptcha('');
+      }
     },
     onError: (error: any) => {
       alert(`Failed to submit challenge: ${error.response?.data?.detail || error.message}`);
     },
   });
+
+  // Auto-send dummy message when reaching step 4
+  React.useEffect(() => {
+    if (wizardStep === 4 && triggerDummyMessage) {
+      setTriggerDummyMessage(false);
+      // Send to a fake number to trigger rate limit
+      sendTestMutation.mutate({
+        recipient: '+1234567890',
+        message: 'Test message to trigger rate limit verification'
+      });
+    }
+  }, [wizardStep, triggerDummyMessage]);
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,9 +378,9 @@ export const SignalConfigPage: React.FC = () => {
             {/* Modal Header */}
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b px-6 py-4 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Register Signal Number</h2>
+                <h2 className="text-xl font-semibold">Signal Setup Wizard</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Step {wizardStep} of 3
+                  Step {wizardStep} of 5
                 </p>
               </div>
               <button
@@ -363,7 +394,7 @@ export const SignalConfigPage: React.FC = () => {
             {/* Progress Indicator */}
             <div className="px-6 py-4 border-b">
               <div className="flex items-center justify-between">
-                {[1, 2, 3].map((step) => (
+                {[1, 2, 3, 4, 5].map((step) => (
                   <div key={step} className="flex items-center flex-1">
                     <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
                       step < wizardStep ? 'bg-green-500 text-white' :
@@ -372,7 +403,7 @@ export const SignalConfigPage: React.FC = () => {
                     }`}>
                       {step < wizardStep ? '✓' : step}
                     </div>
-                    {step < 3 && (
+                    {step < 5 && (
                       <div className={`flex-1 h-1 mx-2 ${
                         step < wizardStep ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
                       }`} />
@@ -381,9 +412,11 @@ export const SignalConfigPage: React.FC = () => {
                 ))}
               </div>
               <div className="flex justify-between mt-2">
-                <span className="text-xs text-muted-foreground">Phone Number</span>
+                <span className="text-xs text-muted-foreground">Phone</span>
                 <span className="text-xs text-muted-foreground">CAPTCHA</span>
-                <span className="text-xs text-muted-foreground">SMS Code</span>
+                <span className="text-xs text-muted-foreground">SMS</span>
+                <span className="text-xs text-muted-foreground">Verify</span>
+                <span className="text-xs text-muted-foreground">Test</span>
               </div>
             </div>
 
@@ -639,7 +672,190 @@ export const SignalConfigPage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          Complete Registration
+                          Next: Rate Limit Challenge
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Step 4: Rate Limit Challenge */}
+              {wizardStep === 4 && (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Rate Limit Verification</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      New Signal numbers require verification before sending messages
+                    </p>
+                  </div>
+
+                  {!challengeToken && sendTestMutation.isPending && (
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                      <div>
+                        <p className="font-medium text-sm">Sending verification message...</p>
+                        <p className="text-xs text-muted-foreground">This will trigger the rate limit challenge</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {challengeToken && (
+                    <form onSubmit={handleSubmitRateLimit} className="space-y-4">
+                      <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="font-medium text-sm mb-1">Challenge Token (Auto-detected):</p>
+                            <code className="block px-3 py-2 bg-gray-100 dark:bg-gray-900 rounded text-xs font-mono break-all">
+                              {challengeToken}
+                            </code>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3">
+                        <div className="flex items-start gap-2">
+                          <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm mb-2">Solve the CAPTCHA:</p>
+                            <a
+                              href="https://signalcaptchas.org/challenge/generate.html"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                            >
+                              signalcaptchas.org/challenge/generate.html
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2">
+                          <div className="font-bold text-blue-700 dark:text-blue-300">2.</div>
+                          <div className="text-sm">
+                            <p className="font-medium mb-1">Copy the CAPTCHA token:</p>
+                            <p className="text-muted-foreground">
+                              Right-click "Open Signal" → "Copy link address"
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2">
+                          <div className="font-bold text-blue-700 dark:text-blue-300">3.</div>
+                          <p className="text-sm">Paste the token below</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          CAPTCHA Token
+                        </label>
+                        <input
+                          type="text"
+                          value={rateLimitCaptcha}
+                          onChange={(e) => setRateLimitCaptcha(e.target.value)}
+                          placeholder="signalcaptcha://signal-hcaptcha..."
+                          className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+                          required
+                          autoFocus
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-4">
+                        <button
+                          type="submit"
+                          disabled={submitRateLimitMutation.isPending}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {submitRateLimitMutation.isPending ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Verifying...
+                            </>
+                          ) : (
+                            <>
+                              Next: Send Test Message
+                              <ArrowRight className="h-4 w-4" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* Step 5: Test Message */}
+              {wizardStep === 5 && (
+                <form onSubmit={handleSendTest} className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Send Test Message</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Send a test message to verify everything is working
+                    </p>
+                  </div>
+
+                  <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-md">
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      ✅ Rate limit verification complete! You can now send messages.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Recipient Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      value={testRecipient}
+                      onChange={(e) => setTestRecipient(e.target.value)}
+                      placeholder="+31657459823"
+                      className="w-full px-3 py-2 border rounded-md"
+                      required
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enter phone number in E.164 format (e.g., +31657459823)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Message
+                    </label>
+                    <textarea
+                      value={testMessage}
+                      onChange={(e) => setTestMessage(e.target.value)}
+                      placeholder="Test message..."
+                      rows={4}
+                      className="w-full px-3 py-2 border rounded-md"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setWizardStep(4)}
+                      className="px-4 py-2 border rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={sendTestMutation.isPending}
+                      className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {sendTestMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          Complete Setup
                           <CheckCircle2 className="h-4 w-4" />
                         </>
                       )}
