@@ -388,20 +388,51 @@ export const SignalConfigPage: React.FC = () => {
                     </p>
                   </div>
 
+                  {/* Important Warning */}
+                  <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-md">
+                    <div className="flex gap-2">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">Important:</p>
+                        <p className="text-yellow-700 dark:text-yellow-300">
+                          You must solve the CAPTCHA from a device on the <strong>same IP address</strong> as this server.
+                          CAPTCHA tokens expire within minutes - submit immediately after solving!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-md space-y-3">
                     <div className="flex items-start gap-2">
                       <div className="font-bold text-blue-700 dark:text-blue-300 mt-0.5">1.</div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm mb-2">Open the CAPTCHA page:</p>
-                        <a
-                          href="https://signalcaptchas.org/registration/generate.html"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
-                        >
-                          signalcaptchas.org/registration/generate.html
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                        <p className="font-medium text-sm mb-2">Open one of these CAPTCHA pages:</p>
+                        <div className="space-y-2">
+                          <div>
+                            <a
+                              href="https://signalcaptchas.org/registration/generate.html"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                            >
+                              signalcaptchas.org/registration/generate.html
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                            <p className="text-xs text-muted-foreground ml-4">(Try this first)</p>
+                          </div>
+                          <div>
+                            <a
+                              href="https://signalcaptchas.org/challenge/generate.html"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-sm"
+                            >
+                              signalcaptchas.org/challenge/generate.html
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                            <p className="text-xs text-muted-foreground ml-4">(Alternative if registration fails)</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
