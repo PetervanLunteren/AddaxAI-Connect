@@ -313,37 +313,7 @@ def process_daily_report(filepath: str) -> None:
             temperature=health_data.get('temperature')
         )
 
-        # Step 4.5: Publish battery warning notification if battery level is reported
-        battery_percentage = health_data.get('battery_percentage')
-        if battery_percentage is not None:
-            try:
-                # Get camera details for notification
-                from shared.database import get_db_session
-                from shared.models import Camera
-                with get_db_session() as db:
-                    camera = db.query(Camera).filter(Camera.imei == imei).first()
-
-                    if camera:
-                        notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
-                        notification_queue.publish({
-                            "event_type": "low_battery",
-                            "camera_id": camera.id,
-                            "camera_name": camera.name,
-                            "camera_location": {
-                                "lat": camera.location.coords[1] if camera.location else None,
-                                "lon": camera.location.coords[0] if camera.location else None
-                            } if camera.location else None,
-                            "battery_percentage": battery_percentage,
-                            "temperature": health_data.get('temperature'),
-                            "timestamp": datetime.utcnow().isoformat()
-                        })
-                        logger.info(
-                            "Published battery status notification",
-                            camera_name=camera.name,
-                            battery=battery_percentage
-                        )
-            except Exception as e:
-                logger.error("Failed to publish battery notification event", error=str(e))
+        # Battery notifications are handled by daily digest (see notifications service)
 
         # Step 4: Delete original file
         delete_file(filepath)

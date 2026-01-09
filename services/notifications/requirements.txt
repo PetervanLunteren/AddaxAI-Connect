@@ -5,3 +5,4 @@ psycopg2-binary==2.9.9
 asyncpg==0.29.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
+apscheduler==3.10.4
