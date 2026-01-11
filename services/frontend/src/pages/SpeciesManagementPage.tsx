@@ -33,7 +33,7 @@ export const SpeciesManagementPage: React.FC = () => {
       const included = selectedProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
-          label: species.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()), // Sentence case: "Red deer"
           value: species
         }))
       );
@@ -70,7 +70,7 @@ export const SpeciesManagementPage: React.FC = () => {
 
   // Convert species names to user-friendly format
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
-    label: species.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+    label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()), // Sentence case: "Red deer"
     value: species
   }));
 

@@ -12,7 +12,16 @@ import { Checkbox } from '../components/ui/Checkbox';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
-import { imagesApi } from '../api/images';
+
+// DeepFaune v1.4 species list (38 European wildlife species)
+const DEEPFAUNE_SPECIES = [
+  'badger', 'bear', 'beaver', 'bird', 'bison', 'cat', 'chamois', 'cow',
+  'dog', 'equid', 'fallow_deer', 'fox', 'genet', 'goat', 'golden_jackal',
+  'hedgehog', 'ibex', 'lagomorph', 'lynx', 'marmot', 'micromammal', 'moose',
+  'mouflon', 'muskrat', 'mustelid', 'nutria', 'otter', 'porcupine', 'raccoon',
+  'raccoon_dog', 'red_deer', 'reindeer', 'roe_deer', 'sheep', 'squirrel',
+  'wild_boar', 'wolf', 'wolverine'
+].sort();
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -46,12 +55,11 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0,
   });
 
-  // Query available species
-  const { data: availableSpecies = [] } = useQuery({
-    queryKey: ['species', projectIdNum],
-    queryFn: () => imagesApi.getSpecies(),
-    enabled: !!projectIdNum && projectIdNum > 0,
-  });
+  // Create species options from hardcoded list with sentence case formatting
+  const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
+    label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()), // Sentence case: "Red deer"
+    value: species
+  }));
 
   // Update form when preferences load
   useEffect(() => {
@@ -273,7 +281,7 @@ export const NotificationsPage: React.FC = () => {
                       Species Alerts
                     </label>
                     <MultiSelect
-                      options={availableSpecies}
+                      options={speciesOptions}
                       value={signalNotifySpecies}
                       onChange={setSignalNotifySpecies}
                       placeholder="Select species to notify about..."
@@ -406,7 +414,7 @@ export const NotificationsPage: React.FC = () => {
                       Species Alerts
                     </label>
                     <MultiSelect
-                      options={availableSpecies}
+                      options={speciesOptions}
                       value={telegramNotifySpecies}
                       onChange={setTelegramNotifySpecies}
                       placeholder="Select species to notify about..."
