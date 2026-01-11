@@ -1,12 +1,12 @@
 /**
  * Notifications page for project-level notification preferences
  *
- * Allows users to configure their personal notification settings for this specific project
+ * Multi-channel notification configuration with separate settings per channel
  */
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { Bell, Loader2, Save, Send, Check, X } from 'lucide-react';
+import { Bell, Loader2, Save, Send, Check, X, MessageCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
 import { notificationsApi } from '../api/notifications';
@@ -17,17 +17,25 @@ export const NotificationsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
 
-  // Form state
-  const [enabled, setEnabled] = useState(false);
+  // Signal channel state
+  const [signalEnabled, setSignalEnabled] = useState(false);
   const [signalPhone, setSignalPhone] = useState('');
+  const [signalNotifySpecies, setSignalNotifySpecies] = useState<string[]>([]);
+  const [signalNotifyLowBattery, setSignalNotifyLowBattery] = useState(true);
+  const [signalBatteryThreshold, setSignalBatteryThreshold] = useState(30);
+  const [signalNotifySystemHealth, setSignalNotifySystemHealth] = useState(false);
+  const [signalTestStatus, setSignalTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [signalTestMessage, setSignalTestMessage] = useState('');
+
+  // Telegram channel state
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [telegramChatId, setTelegramChatId] = useState('');
-  const [notifySpecies, setNotifySpecies] = useState<string[]>([]);
-  const [notifyLowBattery, setNotifyLowBattery] = useState(true);
-  const [batteryThreshold, setBatteryThreshold] = useState(30);
-  const [notifySystemHealth, setNotifySystemHealth] = useState(false);
-  const [phoneError, setPhoneError] = useState('');
-  const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [testMessage, setTestMessage] = useState('');
+  const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<string[]>([]);
+  const [telegramNotifyLowBattery, setTelegramNotifyLowBattery] = useState(true);
+  const [telegramBatteryThreshold, setTelegramBatteryThreshold] = useState(30);
+  const [telegramNotifySystemHealth, setTelegramNotifySystemHealth] = useState(false);
+  const [telegramTestStatus, setTelegramTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [telegramTestMessage, setTelegramTestMessage] = useState('');
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -39,13 +47,26 @@ export const NotificationsPage: React.FC = () => {
   // Update form when preferences load
   useEffect(() => {
     if (preferences) {
-      setEnabled(preferences.enabled);
+      // For now, use legacy fields as defaults for both channels
+      // TODO: Eventually migrate to JSON notification_channels structure
+      const hasSignal = !!preferences.signal_phone;
+      const hasTelegram = !!(preferences as any).telegram_chat_id;
+
+      // Signal
+      setSignalEnabled(preferences.enabled && hasSignal);
       setSignalPhone(preferences.signal_phone || '');
+      setSignalNotifySpecies(preferences.notify_species || []);
+      setSignalNotifyLowBattery(preferences.notify_low_battery);
+      setSignalBatteryThreshold(preferences.battery_threshold);
+      setSignalNotifySystemHealth(preferences.notify_system_health);
+
+      // Telegram (use same notification settings as Signal for now)
+      setTelegramEnabled(hasTelegram);
       setTelegramChatId((preferences as any).telegram_chat_id || '');
-      setNotifySpecies(preferences.notify_species || []);
-      setNotifyLowBattery(preferences.notify_low_battery);
-      setBatteryThreshold(preferences.battery_threshold);
-      setNotifySystemHealth(preferences.notify_system_health);
+      setTelegramNotifySpecies(preferences.notify_species || []);
+      setTelegramNotifyLowBattery(preferences.notify_low_battery);
+      setTelegramBatteryThreshold(preferences.battery_threshold);
+      setTelegramNotifySystemHealth(preferences.notify_system_health);
     }
   }, [preferences]);
 
@@ -61,64 +82,76 @@ export const NotificationsPage: React.FC = () => {
     },
   });
 
-  // Test message mutation
-  const testMessageMutation = useMutation({
-    mutationFn: () => adminApi.sendTestSignalMessage(signalPhone.trim().replace(/\s/g, ''), 'This is a test message from AddaxAI Connect!'),
+  // Test Signal message mutation
+  const testSignalMutation = useMutation({
+    mutationFn: () => adminApi.sendTestSignalMessage(signalPhone.trim().replace(/\s/g, ''), 'Test from AddaxAI Connect!'),
     onSuccess: () => {
-      setTestStatus('success');
-      setTestMessage('Test message sent successfully!');
-      setTimeout(() => {
-        setTestStatus('idle');
-        setTestMessage('');
-      }, 5000);
+      setSignalTestStatus('success');
+      setSignalTestMessage('Test message sent!');
+      setTimeout(() => { setSignalTestStatus('idle'); setSignalTestMessage(''); }, 5000);
     },
     onError: (error: any) => {
-      setTestStatus('error');
-      setTestMessage(error.response?.data?.detail || error.message || 'Failed to send test message');
-      setTimeout(() => {
-        setTestStatus('idle');
-        setTestMessage('');
-      }, 5000);
+      setSignalTestStatus('error');
+      setSignalTestMessage(error.response?.data?.detail || 'Failed to send');
+      setTimeout(() => { setSignalTestStatus('idle'); setSignalTestMessage(''); }, 5000);
     },
   });
 
-  const handleTestMessage = () => {
+  // Test Telegram message mutation
+  const testTelegramMutation = useMutation({
+    mutationFn: () => adminApi.sendTestTelegramMessage(telegramChatId.trim(), 'Test from AddaxAI Connect!'),
+    onSuccess: () => {
+      setTelegramTestStatus('success');
+      setTelegramTestMessage('Test message sent!');
+      setTimeout(() => { setTelegramTestStatus('idle'); setTelegramTestMessage(''); }, 5000);
+    },
+    onError: (error: any) => {
+      setTelegramTestStatus('error');
+      setTelegramTestMessage(error.response?.data?.detail || 'Failed to send');
+      setTimeout(() => { setTelegramTestStatus('idle'); setTelegramTestMessage(''); }, 5000);
+    },
+  });
+
+  const handleTestSignal = () => {
     if (!signalPhone.trim()) {
-      setTestStatus('error');
-      setTestMessage('Please enter a phone number first');
-      setTimeout(() => {
-        setTestStatus('idle');
-        setTestMessage('');
-      }, 3000);
+      setSignalTestStatus('error');
+      setSignalTestMessage('Enter phone number first');
+      setTimeout(() => { setSignalTestStatus('idle'); setSignalTestMessage(''); }, 3000);
       return;
     }
-    testMessageMutation.mutate();
+    testSignalMutation.mutate();
+  };
+
+  const handleTestTelegram = () => {
+    if (!telegramChatId.trim()) {
+      setTelegramTestStatus('error');
+      setTelegramTestMessage('Enter chat ID first');
+      setTimeout(() => { setTelegramTestStatus('idle'); setTelegramTestMessage(''); }, 3000);
+      return;
+    }
+    testTelegramMutation.mutate();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate phone number if notifications are enabled
-    if (enabled && !signalPhone.trim()) {
-      setPhoneError('Phone number is required when notifications are enabled');
-      return;
-    }
-
-    // Clear any previous errors
-    setPhoneError('');
-
-    // Clean phone number: trim and remove all spaces
+    // Clean inputs
     const cleanedPhone = signalPhone.trim().replace(/\s/g, '');
     const cleanedChatId = telegramChatId.trim();
 
+    // For now, we'll use the Signal settings as the "master" settings
+    // and save both phone and chat ID separately
+    // TODO: Eventually migrate to per-channel notification_channels JSON structure
+    const anyEnabled = signalEnabled || telegramEnabled;
+
     updateMutation.mutate({
-      enabled,
-      signal_phone: cleanedPhone || null,
-      telegram_chat_id: cleanedChatId || null,
-      notify_species: notifySpecies.length > 0 ? notifySpecies : null,
-      notify_low_battery: notifyLowBattery,
-      battery_threshold: batteryThreshold,
-      notify_system_health: notifySystemHealth,
+      enabled: anyEnabled,
+      signal_phone: signalEnabled ? cleanedPhone || null : null,
+      telegram_chat_id: telegramEnabled ? cleanedChatId || null : null,
+      notify_species: signalNotifySpecies.length > 0 ? signalNotifySpecies : null,
+      notify_low_battery: signalNotifyLowBattery,
+      battery_threshold: signalBatteryThreshold,
+      notify_system_health: signalNotifySystemHealth,
     });
   };
 
@@ -132,12 +165,12 @@ export const NotificationsPage: React.FC = () => {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Signal Notifications */}
+          {/* Signal Notifications Card */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Bell className="h-5 w-5" />
-                <CardTitle>Signal notifications</CardTitle>
+                <CardTitle>Signal Notifications</CardTitle>
               </div>
               <CardDescription>
                 Receive notifications via Signal messenger
@@ -145,41 +178,34 @@ export const NotificationsPage: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <Checkbox
-                id="enabled"
-                checked={enabled}
-                onChange={setEnabled}
+                id="signal-enabled"
+                checked={signalEnabled}
+                onChange={setSignalEnabled}
                 label="Enable Signal notifications"
               />
 
-              {enabled && (
-                <div className="bg-muted rounded-lg p-4 space-y-6">
-                  {/* Phone Number */}
+              {signalEnabled && (
+                <>
+                  {/* Signal Phone */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Your phone number <span className="text-destructive">*</span>
+                      Signal Phone Number
                     </label>
                     <div className="flex gap-2">
                       <input
-                        type="text"
+                        type="tel"
                         value={signalPhone}
-                        onChange={(e) => {
-                          setSignalPhone(e.target.value);
-                          setPhoneError('');
-                          setTestStatus('idle');
-                          setTestMessage('');
-                        }}
+                        onChange={(e) => setSignalPhone(e.target.value)}
                         placeholder="+31612345678"
-                        className={`flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
-                          phoneError ? 'border-destructive' : 'border-border'
-                        }`}
+                        className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
                       />
                       <button
                         type="button"
-                        onClick={handleTestMessage}
-                        disabled={!signalPhone.trim() || testMessageMutation.isPending}
+                        onClick={handleTestSignal}
+                        disabled={!signalPhone.trim() || testSignalMutation.isPending}
                         className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                       >
-                        {testMessageMutation.isPending ? (
+                        {testSignalMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span className="hidden sm:inline">Sending...</span>
@@ -192,52 +218,32 @@ export const NotificationsPage: React.FC = () => {
                         )}
                       </button>
                     </div>
-                    {phoneError && (
-                      <p className="text-sm text-destructive mt-1">{phoneError}</p>
-                    )}
-                    {testStatus === 'success' && (
+                    {signalTestStatus === 'success' && (
                       <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
                         <Check className="h-4 w-4" />
-                        {testMessage}
+                        {signalTestMessage}
                       </div>
                     )}
-                    {testStatus === 'error' && (
+                    {signalTestStatus === 'error' && (
                       <div className="flex items-center gap-2 text-sm text-destructive mt-1">
                         <X className="h-4 w-4" />
-                        {testMessage}
+                        {signalTestMessage}
                       </div>
                     )}
                     <p className="text-sm text-muted-foreground mt-1">
-                      Include country code, e.g., +1 for USA, +31 for Netherlands, +32 for Belgium. This phone number must have Signal installed and registered.
-                    </p>
-                  </div>
-
-                  {/* Telegram Chat ID */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Telegram Chat ID (optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={telegramChatId}
-                      onChange={(e) => setTelegramChatId(e.target.value)}
-                      placeholder="123456789"
-                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      To get your chat ID, start a conversation with the Telegram bot and send /start. The bot will reply with your chat ID.
+                      Include country code (e.g., +31 for Netherlands, +1 for USA). Must have Signal installed.
                     </p>
                   </div>
 
                   {/* Species Alerts */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Species alerts
+                      Species Alerts
                     </label>
                     <input
                       type="text"
-                      value={notifySpecies.join(', ')}
-                      onChange={(e) => setNotifySpecies(
+                      value={signalNotifySpecies.join(', ')}
+                      onChange={(e) => setSignalNotifySpecies(
                         e.target.value.split(',').map(s => s.trim()).filter(s => s)
                       )}
                       placeholder="e.g., Lion, Elephant, Leopard"
@@ -251,28 +257,28 @@ export const NotificationsPage: React.FC = () => {
                   {/* Battery Warnings */}
                   <div>
                     <Checkbox
-                      id="notifyLowBattery"
-                      checked={notifyLowBattery}
-                      onChange={setNotifyLowBattery}
-                      label="Battery warnings"
+                      id="signal-battery"
+                      checked={signalNotifyLowBattery}
+                      onChange={setSignalNotifyLowBattery}
+                      label="Battery Warnings"
                       className="mb-3"
                     />
 
-                    {notifyLowBattery && (
+                    {signalNotifyLowBattery && (
                       <div className="pl-8">
                         <label className="block text-sm font-medium mb-2">
-                          Battery threshold (%)
+                          Battery Threshold (%)
                         </label>
                         <div className="flex items-center gap-4">
                           <input
                             type="range"
                             min="0"
                             max="100"
-                            value={batteryThreshold}
-                            onChange={(e) => setBatteryThreshold(Number(e.target.value))}
+                            value={signalBatteryThreshold}
+                            onChange={(e) => setSignalBatteryThreshold(Number(e.target.value))}
                             className="flex-1 accent-primary"
                           />
-                          <span className="font-medium w-12 text-right">{batteryThreshold}%</span>
+                          <span className="font-medium w-12 text-right">{signalBatteryThreshold}%</span>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
                           Notify when battery drops below this level
@@ -283,40 +289,148 @@ export const NotificationsPage: React.FC = () => {
 
                   {/* System Health */}
                   <Checkbox
-                    id="notifySystemHealth"
-                    checked={notifySystemHealth}
-                    onChange={setNotifySystemHealth}
-                    label="System health alerts"
+                    id="signal-health"
+                    checked={signalNotifySystemHealth}
+                    onChange={setSignalNotifySystemHealth}
+                    label="System Health Alerts"
                   />
-                </div>
+                </>
               )}
             </CardContent>
           </Card>
 
-          {/* Email Notifications - Coming Soon */}
-          <Card className="opacity-60">
+          {/* Telegram Notifications Card */}
+          <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                <CardTitle>Email notifications</CardTitle>
+                <MessageCircle className="h-5 w-5" />
+                <CardTitle>Telegram Notifications</CardTitle>
               </div>
               <CardDescription>
-                Coming soon
+                Receive notifications via Telegram messenger
               </CardDescription>
             </CardHeader>
-          </Card>
+            <CardContent className="space-y-4">
+              <Checkbox
+                id="telegram-enabled"
+                checked={telegramEnabled}
+                onChange={setTelegramEnabled}
+                label="Enable Telegram notifications"
+              />
 
-          {/* EarthRanger Notifications - Coming Soon */}
-          <Card className="opacity-60">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                <CardTitle>EarthRanger notifications</CardTitle>
-              </div>
-              <CardDescription>
-                Coming soon
-              </CardDescription>
-            </CardHeader>
+              {telegramEnabled && (
+                <>
+                  {/* Telegram Chat ID */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Telegram Chat ID
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={telegramChatId}
+                        onChange={(e) => setTelegramChatId(e.target.value)}
+                        placeholder="123456789"
+                        className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleTestTelegram}
+                        disabled={!telegramChatId.trim() || testTelegramMutation.isPending}
+                        className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                      >
+                        {testTelegramMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="hidden sm:inline">Sending...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4" />
+                            <span className="hidden sm:inline">Test</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {telegramTestStatus === 'success' && (
+                      <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
+                        <Check className="h-4 w-4" />
+                        {telegramTestMessage}
+                      </div>
+                    )}
+                    {telegramTestStatus === 'error' && (
+                      <div className="flex items-center gap-2 text-sm text-destructive mt-1">
+                        <X className="h-4 w-4" />
+                        {telegramTestMessage}
+                      </div>
+                    )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      To get your chat ID: search for your bot on Telegram, send /start, and copy the chat ID from the bot's reply.
+                    </p>
+                  </div>
+
+                  {/* Species Alerts */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Species Alerts
+                    </label>
+                    <input
+                      type="text"
+                      value={telegramNotifySpecies.join(', ')}
+                      onChange={(e) => setTelegramNotifySpecies(
+                        e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                      )}
+                      placeholder="e.g., Lion, Elephant, Leopard"
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Leave empty to receive notifications for all species
+                    </p>
+                  </div>
+
+                  {/* Battery Warnings */}
+                  <div>
+                    <Checkbox
+                      id="telegram-battery"
+                      checked={telegramNotifyLowBattery}
+                      onChange={setTelegramNotifyLowBattery}
+                      label="Battery Warnings"
+                      className="mb-3"
+                    />
+
+                    {telegramNotifyLowBattery && (
+                      <div className="pl-8">
+                        <label className="block text-sm font-medium mb-2">
+                          Battery Threshold (%)
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={telegramBatteryThreshold}
+                            onChange={(e) => setTelegramBatteryThreshold(Number(e.target.value))}
+                            className="flex-1 accent-primary"
+                          />
+                          <span className="font-medium w-12 text-right">{telegramBatteryThreshold}%</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Notify when battery drops below this level
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* System Health */}
+                  <Checkbox
+                    id="telegram-health"
+                    checked={telegramNotifySystemHealth}
+                    onChange={setTelegramNotifySystemHealth}
+                    label="System Health Alerts"
+                  />
+                </>
+              )}
+            </CardContent>
           </Card>
 
           {/* Save Button */}
@@ -334,7 +448,7 @@ export const NotificationsPage: React.FC = () => {
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  Save preferences
+                  Save Preferences
                 </>
               )}
             </button>
