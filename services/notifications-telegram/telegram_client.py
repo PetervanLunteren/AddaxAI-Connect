@@ -28,21 +28,24 @@ class TelegramClient:
 
     def __init__(self):
         """Initialize Telegram client"""
-        self.config = self._get_config()
-        if not self.config or not self.config.is_configured:
+        bot_token, bot_username, is_configured = self._get_config()
+        if not is_configured:
             raise TelegramNotConfiguredError(
                 "Telegram bot not configured. Configure in admin settings."
             )
 
-        self.bot_token = self.config.bot_token
-        self.bot_username = self.config.bot_username
+        self.bot_token = bot_token
+        self.bot_username = bot_username
         self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
 
-    def _get_config(self) -> Optional[TelegramConfig]:
+    def _get_config(self) -> tuple[Optional[str], Optional[str], bool]:
         """Get bot configuration from database"""
         with get_sync_session() as session:
             config = session.query(TelegramConfig).first()
-            return config
+            if not config:
+                return None, None, False
+            # Eagerly access attributes while in session
+            return config.bot_token, config.bot_username, config.is_configured
 
     def send_message(
         self,
