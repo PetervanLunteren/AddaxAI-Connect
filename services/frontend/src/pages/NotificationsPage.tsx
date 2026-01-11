@@ -9,8 +9,10 @@ import { useParams } from 'react-router-dom';
 import { Bell, Loader2, Save, Send, Check, X, MessageCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
+import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
+import { imagesApi } from '../api/images';
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -20,7 +22,7 @@ export const NotificationsPage: React.FC = () => {
   // Signal channel state
   const [signalEnabled, setSignalEnabled] = useState(false);
   const [signalPhone, setSignalPhone] = useState('');
-  const [signalNotifySpecies, setSignalNotifySpecies] = useState<string[]>([]);
+  const [signalNotifySpecies, setSignalNotifySpecies] = useState<Option[]>([]);
   const [signalNotifyLowBattery, setSignalNotifyLowBattery] = useState(true);
   const [signalBatteryThreshold, setSignalBatteryThreshold] = useState(30);
   const [signalNotifySystemHealth, setSignalNotifySystemHealth] = useState(false);
@@ -30,7 +32,7 @@ export const NotificationsPage: React.FC = () => {
   // Telegram channel state
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [telegramChatId, setTelegramChatId] = useState('');
-  const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<string[]>([]);
+  const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
   const [telegramNotifyLowBattery, setTelegramNotifyLowBattery] = useState(true);
   const [telegramBatteryThreshold, setTelegramBatteryThreshold] = useState(30);
   const [telegramNotifySystemHealth, setTelegramNotifySystemHealth] = useState(false);
@@ -44,6 +46,13 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0,
   });
 
+  // Query available species
+  const { data: availableSpecies = [] } = useQuery({
+    queryKey: ['species', projectIdNum],
+    queryFn: () => imagesApi.getSpecies(),
+    enabled: !!projectIdNum && projectIdNum > 0,
+  });
+
   // Update form when preferences load
   useEffect(() => {
     if (preferences) {
@@ -52,10 +61,16 @@ export const NotificationsPage: React.FC = () => {
       const hasSignal = !!preferences.signal_phone;
       const hasTelegram = !!(preferences as any).telegram_chat_id;
 
+      // Convert species strings to Option objects
+      const speciesOptions = (preferences.notify_species || []).map(species => ({
+        label: species.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        value: species
+      }));
+
       // Signal
       setSignalEnabled(preferences.enabled && hasSignal);
       setSignalPhone(preferences.signal_phone || '');
-      setSignalNotifySpecies(preferences.notify_species || []);
+      setSignalNotifySpecies(speciesOptions);
       setSignalNotifyLowBattery(preferences.notify_low_battery);
       setSignalBatteryThreshold(preferences.battery_threshold);
       setSignalNotifySystemHealth(preferences.notify_system_health);
@@ -63,7 +78,7 @@ export const NotificationsPage: React.FC = () => {
       // Telegram (use same notification settings as Signal for now)
       setTelegramEnabled(hasTelegram);
       setTelegramChatId((preferences as any).telegram_chat_id || '');
-      setTelegramNotifySpecies(preferences.notify_species || []);
+      setTelegramNotifySpecies(speciesOptions);
       setTelegramNotifyLowBattery(preferences.notify_low_battery);
       setTelegramBatteryThreshold(preferences.battery_threshold);
       setTelegramNotifySystemHealth(preferences.notify_system_health);
@@ -139,6 +154,9 @@ export const NotificationsPage: React.FC = () => {
     const cleanedPhone = signalPhone.trim().replace(/\s/g, '');
     const cleanedChatId = telegramChatId.trim();
 
+    // Convert species Options to string array
+    const speciesValues = signalNotifySpecies.map(opt => opt.value);
+
     // For now, we'll use the Signal settings as the "master" settings
     // and save both phone and chat ID separately
     // TODO: Eventually migrate to per-channel notification_channels JSON structure
@@ -148,7 +166,7 @@ export const NotificationsPage: React.FC = () => {
       enabled: anyEnabled,
       signal_phone: signalEnabled ? cleanedPhone || null : null,
       telegram_chat_id: telegramEnabled ? cleanedChatId || null : null,
-      notify_species: signalNotifySpecies.length > 0 ? signalNotifySpecies : null,
+      notify_species: speciesValues.length > 0 ? speciesValues : null,
       notify_low_battery: signalNotifyLowBattery,
       battery_threshold: signalBatteryThreshold,
       notify_system_health: signalNotifySystemHealth,
@@ -240,17 +258,16 @@ export const NotificationsPage: React.FC = () => {
                     <label className="block text-sm font-medium mb-2">
                       Species Alerts
                     </label>
-                    <input
-                      type="text"
-                      value={signalNotifySpecies.join(', ')}
-                      onChange={(e) => setSignalNotifySpecies(
-                        e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      )}
-                      placeholder="e.g., Lion, Elephant, Leopard"
-                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                    <MultiSelect
+                      options={availableSpecies}
+                      value={signalNotifySpecies}
+                      onChange={setSignalNotifySpecies}
+                      placeholder="Select species to notify about..."
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      Leave empty to receive notifications for all species
+                      {signalNotifySpecies.length === 0
+                        ? 'Leave empty to receive notifications for all species'
+                        : `Notifications enabled for ${signalNotifySpecies.length} ${signalNotifySpecies.length === 1 ? 'species' : 'species'}`}
                     </p>
                   </div>
 
@@ -374,17 +391,16 @@ export const NotificationsPage: React.FC = () => {
                     <label className="block text-sm font-medium mb-2">
                       Species Alerts
                     </label>
-                    <input
-                      type="text"
-                      value={telegramNotifySpecies.join(', ')}
-                      onChange={(e) => setTelegramNotifySpecies(
-                        e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      )}
-                      placeholder="e.g., Lion, Elephant, Leopard"
-                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                    <MultiSelect
+                      options={availableSpecies}
+                      value={telegramNotifySpecies}
+                      onChange={setTelegramNotifySpecies}
+                      placeholder="Select species to notify about..."
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      Leave empty to receive notifications for all species
+                      {telegramNotifySpecies.length === 0
+                        ? 'Leave empty to receive notifications for all species'
+                        : `Notifications enabled for ${telegramNotifySpecies.length} ${telegramNotifySpecies.length === 1 ? 'species' : 'species'}`}
                     </p>
                   </div>
 
