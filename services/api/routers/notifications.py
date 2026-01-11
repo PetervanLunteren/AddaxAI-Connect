@@ -3,7 +3,7 @@ Project notification preferences endpoints.
 
 Authenticated users can manage their notification settings per project.
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api/projects", tags=["notifications"])
 
 class NotificationPreferenceResponse(BaseModel):
     """Response for notification preferences"""
+    # Legacy fields (deprecated but kept for backward compatibility)
     enabled: bool
     signal_phone: Optional[str]
     notify_species: Optional[List[str]]
@@ -26,18 +27,27 @@ class NotificationPreferenceResponse(BaseModel):
     battery_threshold: int
     notify_system_health: bool
 
+    # New multi-channel fields
+    telegram_chat_id: Optional[str] = None
+    notification_channels: Optional[Dict[str, Any]] = None
+
     class Config:
         from_attributes = True
 
 
 class NotificationPreferenceUpdateRequest(BaseModel):
     """Request to update notification preferences"""
+    # Legacy fields (deprecated but kept for backward compatibility)
     enabled: Optional[bool] = None
     signal_phone: Optional[str] = None  # E.164 format
     notify_species: Optional[List[str]] = None  # List of species IDs/names, None = all
     notify_low_battery: Optional[bool] = None
     battery_threshold: Optional[int] = None  # 0-100
     notify_system_health: Optional[bool] = None
+
+    # New multi-channel fields
+    telegram_chat_id: Optional[str] = None
+    notification_channels: Optional[Dict[str, Any]] = None
 
 
 @router.get(
@@ -206,6 +216,12 @@ async def update_notification_preferences(
         prefs.battery_threshold = data.battery_threshold
     if data.notify_system_health is not None:
         prefs.notify_system_health = data.notify_system_health
+
+    # Update new multi-channel fields
+    if data.telegram_chat_id is not None:
+        prefs.telegram_chat_id = data.telegram_chat_id
+    if data.notification_channels is not None:
+        prefs.notification_channels = data.notification_channels
 
     await db.commit()
     await db.refresh(prefs)

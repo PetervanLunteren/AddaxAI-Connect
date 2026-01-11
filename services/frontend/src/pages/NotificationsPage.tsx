@@ -20,6 +20,7 @@ export const NotificationsPage: React.FC = () => {
   // Form state
   const [enabled, setEnabled] = useState(false);
   const [signalPhone, setSignalPhone] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   const [notifySpecies, setNotifySpecies] = useState<string[]>([]);
   const [notifyLowBattery, setNotifyLowBattery] = useState(true);
   const [batteryThreshold, setBatteryThreshold] = useState(30);
@@ -40,6 +41,7 @@ export const NotificationsPage: React.FC = () => {
     if (preferences) {
       setEnabled(preferences.enabled);
       setSignalPhone(preferences.signal_phone || '');
+      setTelegramChatId((preferences as any).telegram_chat_id || '');
       setNotifySpecies(preferences.notify_species || []);
       setNotifyLowBattery(preferences.notify_low_battery);
       setBatteryThreshold(preferences.battery_threshold);
@@ -107,10 +109,12 @@ export const NotificationsPage: React.FC = () => {
 
     // Clean phone number: trim and remove all spaces
     const cleanedPhone = signalPhone.trim().replace(/\s/g, '');
+    const cleanedChatId = telegramChatId.trim();
 
     updateMutation.mutate({
       enabled,
       signal_phone: cleanedPhone || null,
+      telegram_chat_id: cleanedChatId || null,
       notify_species: notifySpecies.length > 0 ? notifySpecies : null,
       notify_low_battery: notifyLowBattery,
       battery_threshold: batteryThreshold,
@@ -205,6 +209,23 @@ export const NotificationsPage: React.FC = () => {
                     )}
                     <p className="text-sm text-muted-foreground mt-1">
                       Include country code, e.g., +1 for USA, +31 for Netherlands, +32 for Belgium. This phone number must have Signal installed and registered.
+                    </p>
+                  </div>
+
+                  {/* Telegram Chat ID */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Telegram Chat ID (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={telegramChatId}
+                      onChange={(e) => setTelegramChatId(e.target.value)}
+                      placeholder="123456789"
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      To get your chat ID, start a conversation with the Telegram bot and send /start. The bot will reply with your chat ID.
                     </p>
                   </div>
 
