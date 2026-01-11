@@ -6,7 +6,9 @@ import type {
   UserWithProject,
   SignalConfig,
   SignalRegisterRequest,
-  SignalUpdateConfigRequest
+  SignalUpdateConfigRequest,
+  TelegramConfig,
+  TelegramConfigureRequest
 } from './types';
 
 export const adminApi = {
@@ -95,6 +97,49 @@ export const adminApi = {
     const response = await apiClient.post<{ message: string }>('/api/admin/signal/submit-rate-limit-challenge', {
       challenge_token: challengeToken,
       captcha
+    });
+    return response.data;
+  },
+
+  // Telegram Configuration
+  /**
+   * Get Telegram configuration
+   */
+  getTelegramConfig: async (): Promise<TelegramConfig> => {
+    const response = await apiClient.get<TelegramConfig>('/api/admin/telegram/config');
+    return response.data;
+  },
+
+  /**
+   * Configure Telegram bot
+   */
+  configureTelegram: async (data: TelegramConfigureRequest): Promise<TelegramConfig> => {
+    const response = await apiClient.post<TelegramConfig>('/api/admin/telegram/configure', data);
+    return response.data;
+  },
+
+  /**
+   * Remove Telegram configuration
+   */
+  unconfigureTelegram: async (): Promise<void> => {
+    await apiClient.delete('/api/admin/telegram');
+  },
+
+  /**
+   * Check Telegram bot health
+   */
+  checkTelegramHealth: async (): Promise<{ health_status: string }> => {
+    const response = await apiClient.get<{ health_status: string }>('/api/admin/telegram/health');
+    return response.data;
+  },
+
+  /**
+   * Send test Telegram message
+   */
+  sendTestTelegramMessage: async (chatId: string, message: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>('/api/admin/telegram/test-message', {
+      chat_id: chatId,
+      message
     });
     return response.data;
   },

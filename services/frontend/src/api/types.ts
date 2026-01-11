@@ -161,6 +161,20 @@ export interface SignalUpdateConfigRequest {
   device_name?: string;
 }
 
+// Telegram Notifications
+export interface TelegramConfig {
+  bot_token: string | null;
+  bot_username: string | null;
+  is_configured: boolean;
+  last_health_check: string | null;
+  health_status: string | null;
+}
+
+export interface TelegramConfigureRequest {
+  bot_token: string;
+  bot_username: string;
+}
+
 export interface NotificationPreference {
   enabled: boolean;
   signal_phone: string | null;

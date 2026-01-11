@@ -1,0 +1,423 @@
+/**
+ * Telegram Configuration Page
+ *
+ * Allows superusers to configure Telegram bot for notifications
+ */
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { MessageCircle, Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
+import { adminApi } from '../../api/admin';
+
+export const TelegramConfigPage: React.FC = () => {
+  const queryClient = useQueryClient();
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [botToken, setBotToken] = useState('');
+  const [botUsername, setBotUsername] = useState('');
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [testChatId, setTestChatId] = useState('');
+
+  // Query Telegram configuration
+  const { data: config, isLoading, error } = useQuery({
+    queryKey: ['telegram-config'],
+    queryFn: adminApi.getTelegramConfig,
+    retry: false,
+  });
+
+  // Configure Telegram mutation
+  const configureMutation = useMutation({
+    mutationFn: adminApi.configureTelegram,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['telegram-config'] });
+      setShowConfigModal(false);
+      setBotToken('');
+      setBotUsername('');
+      alert('Telegram bot configured successfully!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to configure Telegram: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  // Unconfigure Telegram mutation
+  const unconfigureMutation = useMutation({
+    mutationFn: adminApi.unconfigureTelegram,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['telegram-config'] });
+      alert('Telegram bot removed successfully');
+    },
+    onError: (error: any) => {
+      alert(`Failed to remove Telegram: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  // Send test message mutation
+  const sendTestMutation = useMutation({
+    mutationFn: ({ chatId, message }: { chatId: string; message: string }) =>
+      adminApi.sendTestTelegramMessage(chatId, message),
+    onSuccess: () => {
+      alert('Test message sent successfully!');
+      setShowTestModal(false);
+      setTestChatId('');
+    },
+    onError: (error: any) => {
+      alert(`Failed to send test message: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const handleConfigure = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!botToken || !botUsername) {
+      alert('Please enter both bot token and username');
+      return;
+    }
+    configureMutation.mutate({ bot_token: botToken, bot_username: botUsername });
+  };
+
+  const handleUnconfigure = () => {
+    if (confirm('Are you sure you want to remove Telegram configuration? This will disable all Telegram notifications.')) {
+      unconfigureMutation.mutate();
+    }
+  };
+
+  const handleSendTest = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testChatId) {
+      alert('Please enter a chat ID');
+      return;
+    }
+    const message = 'This is a test message from AddaxAI Connect!';
+    sendTestMutation.mutate({ chatId: testChatId, message });
+  };
+
+  const isConfigured = !error && config?.is_configured;
+
+  return (
+    <ServerPageLayout
+      title="Telegram Notifications"
+      description="Configure Telegram bot for sending notifications to users"
+    >
+      <div className="space-y-6">
+        {/* Status Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Telegram Status</CardTitle>
+            <CardDescription>
+              Current Telegram bot configuration status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : isConfigured && config ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <div>
+                    <p className="font-medium">Telegram bot is configured and ready</p>
+                    <p className="text-sm text-muted-foreground">
+                      Bot: @{config.bot_username}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button
+                    onClick={() => setShowTestModal(true)}
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    Send test message
+                  </button>
+                  <button
+                    onClick={handleUnconfigure}
+                    disabled={unconfigureMutation.isPending}
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground disabled:opacity-50 transition-colors"
+                  >
+                    {unconfigureMutation.isPending ? (
+                      <>
+                        <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                        Removing...
+                      </>
+                    ) : (
+                      'Remove Telegram bot'
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-muted-foreground">
+                  <XCircle className="h-5 w-5" />
+                  <p>Telegram bot is not configured</p>
+                </div>
+                <button
+                  onClick={() => setShowConfigModal(true)}
+                  className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  Configure Telegram bot
+                </button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Setup Instructions Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>How to set up Telegram notifications</CardTitle>
+            <CardDescription>
+              Follow these steps to enable Telegram notifications
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {/* Admin Setup */}
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                    1
+                  </div>
+                  Admin: Create a Telegram bot
+                </h3>
+                <div className="ml-8 space-y-2 text-sm text-muted-foreground">
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      Open Telegram and search for{' '}
+                      <a
+                        href="https://t.me/BotFather"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline"
+                      >
+                        @BotFather
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </li>
+                    <li>Send the command <code className="px-1.5 py-0.5 bg-muted rounded text-xs">/newbot</code></li>
+                    <li>Follow the prompts to name your bot (e.g., "AddaxAI Connect")</li>
+                    <li>Copy the bot token (looks like: <code className="px-1.5 py-0.5 bg-muted rounded text-xs">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>)</li>
+                    <li>Configure the bot above using the token and username</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* User Setup */}
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                    2
+                  </div>
+                  User: Get your chat ID
+                </h3>
+                <div className="ml-8 space-y-2 text-sm text-muted-foreground">
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Search for your bot in Telegram (using the @username)</li>
+                    <li>Start a conversation by sending <code className="px-1.5 py-0.5 bg-muted rounded text-xs">/start</code></li>
+                    <li>The bot will reply with your chat ID</li>
+                    <li>Copy the chat ID and paste it in your notification preferences</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Configure Notifications */}
+              <div>
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+                    3
+                  </div>
+                  User: Enable Telegram notifications
+                </h3>
+                <div className="ml-8 space-y-2 text-sm text-muted-foreground">
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Go to Project Settings → Notifications</li>
+                    <li>Enter your Telegram chat ID</li>
+                    <li>Select which notification types you want to receive via Telegram</li>
+                    <li>Save your preferences</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Configuration Modal */}
+      {showConfigModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Configure Telegram Bot</h2>
+                <button
+                  onClick={() => setShowConfigModal(false)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfigure} className="space-y-4">
+                <div className="bg-muted border border-border p-4 rounded-md mb-4">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        <strong>Before configuring:</strong>
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>Open Telegram and message{' '}
+                          <a
+                            href="https://t.me/BotFather"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            @BotFather
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </li>
+                        <li>Send <code className="px-1.5 py-0.5 bg-background rounded">/newbot</code> and follow the prompts</li>
+                        <li>Copy the bot token BotFather provides</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Bot Token
+                  </label>
+                  <input
+                    type="text"
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                    className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+                    required
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The token provided by @BotFather
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Bot Username
+                  </label>
+                  <input
+                    type="text"
+                    value={botUsername}
+                    onChange={(e) => setBotUsername(e.target.value)}
+                    placeholder="AddaxAI_bot"
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The @username you chose for your bot (without the @)
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfigModal(false)}
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={configureMutation.isPending}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  >
+                    {configureMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Configuring...
+                      </>
+                    ) : (
+                      'Configure Bot'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Message Modal */}
+      {showTestModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Send Test Message</h2>
+                <button
+                  onClick={() => setShowTestModal(false)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSendTest} className="space-y-4">
+                <div className="bg-muted border border-border p-4 rounded-md mb-4">
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Note:</strong> The recipient must have started a conversation with the bot by sending /start
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Chat ID
+                  </label>
+                  <input
+                    type="text"
+                    value={testChatId}
+                    onChange={(e) => setTestChatId(e.target.value)}
+                    placeholder="123456789"
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The chat ID obtained from the bot's /start command response
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowTestModal(false)}
+                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sendTestMutation.isPending}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  >
+                    {sendTestMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Test Message'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </ServerPageLayout>
+  );
+};
