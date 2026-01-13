@@ -108,8 +108,8 @@ export const TelegramConfigPage: React.FC = () => {
 
   const handleConfigure = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!botToken || !botUsername) {
-      alert('Please enter both bot token and username');
+    if (!botToken) {
+      alert('Please enter the bot token');
       return;
     }
     configureMutation.mutate({ bot_token: botToken, bot_username: botUsername });
@@ -277,20 +277,18 @@ export const TelegramConfigPage: React.FC = () => {
                           </code>
                         </li>
                         <li>
-                          Follow the prompts to name your bot (e.g.,{' '}
+                          Name your bot:{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             AddaxAI Connect
                             <CopyButton text="AddaxAI Connect" id="copy-botname" />
                           </code>
-                          )
                         </li>
                         <li>
-                          Choose a username for your bot (e.g.,{' '}
+                          Choose username:{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             {botUsername}
                             <CopyButton text={botUsername} id="copy-username" />
                           </code>
-                          )
                         </li>
                         <li>Copy the bot token (looks like: <code className="px-1.5 py-0.5 bg-background rounded">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>)</li>
                       </ol>
@@ -312,24 +310,7 @@ export const TelegramConfigPage: React.FC = () => {
                     autoFocus
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    The token provided by @BotFather
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Bot Username
-                  </label>
-                  <input
-                    type="text"
-                    value={botUsername}
-                    onChange={(e) => setBotUsername(e.target.value)}
-                    placeholder="addaxai_connect_xxxxx_bot"
-                    className="w-full px-3 py-2 border rounded-md"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    The @username you chose for your bot (without the @). We've suggested a unique username above.
+                    The token provided by @BotFather. Use the bot name and username shown above.
                   </p>
                 </div>
 
