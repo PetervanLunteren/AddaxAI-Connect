@@ -13,6 +13,7 @@ def download_image_from_minio(storage_path: str) -> bytes:
 
     Args:
         storage_path: Full MinIO path (e.g., "thumbnails/12345/image.jpg")
+                     or object key only (e.g., "12345/image.jpg" - defaults to thumbnails bucket)
 
     Returns:
         Image bytes
@@ -21,13 +22,20 @@ def download_image_from_minio(storage_path: str) -> bytes:
         Exception: If download fails
     """
     # Parse bucket and object key from storage_path
-    # Format: "bucket/object/key"
+    # Format: "bucket/object/key" or just "object/key" (defaults to thumbnails)
     parts = storage_path.split('/', 1)
-    if len(parts) != 2:
-        raise ValueError(f"Invalid storage path format: {storage_path}")
 
-    bucket_name = parts[0]
-    object_key = parts[1]
+    # Check if first part is a valid bucket name
+    valid_buckets = ['raw-images', 'crops', 'thumbnails', 'models', 'project-images']
+
+    if len(parts) == 2 and parts[0] in valid_buckets:
+        # Path includes bucket name
+        bucket_name = parts[0]
+        object_key = parts[1]
+    else:
+        # Path is just the object key, use thumbnails bucket
+        bucket_name = 'thumbnails'
+        object_key = storage_path
 
     logger.debug("Downloading image from MinIO", bucket=bucket_name, key=object_key)
 

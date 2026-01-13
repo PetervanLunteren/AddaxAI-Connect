@@ -64,33 +64,84 @@ export const NotificationsPage: React.FC = () => {
   // Update form when preferences load
   useEffect(() => {
     if (preferences) {
+      const notificationChannels = (preferences as any).notification_channels;
+
       // Check which channels have contact info configured
-      const hasSignal = !!preferences.signal_phone;
-      const hasTelegram = !!(preferences as any).telegram_chat_id;
+      const hasSignalPhone = !!preferences.signal_phone;
+      const hasTelegramChatId = !!(preferences as any).telegram_chat_id;
 
-      // Convert species strings to Option objects
-      const speciesOptions = (preferences.notify_species || []).map(species => ({
-        label: species.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        value: species
-      }));
+      // If notification_channels JSON exists, use it (new multi-channel format)
+      if (notificationChannels) {
+        const speciesConfig = notificationChannels.species_detection || {};
+        const batteryConfig = notificationChannels.battery_digest || {};
+        const healthConfig = notificationChannels.system_health || {};
 
-      // Signal - only mark as enabled if both enabled flag is true AND phone exists
-      setSignalEnabled(preferences.enabled && hasSignal);
-      setSignalPhone(preferences.signal_phone || '');
-      setSignalNotifySpecies(speciesOptions);
-      setSignalNotifyLowBattery(preferences.notify_low_battery);
-      setSignalBatteryThreshold(preferences.battery_threshold);
-      setSignalNotifySystemHealth(preferences.notify_system_health);
+        const speciesChannels = speciesConfig.channels || [];
+        const batteryChannels = batteryConfig.channels || [];
+        const healthChannels = healthConfig.channels || [];
 
-      // Telegram - mark as enabled if chat ID exists and either:
-      // - enabled flag is true, OR
-      // - enabled flag is true but no signal phone (meaning only telegram is configured)
-      setTelegramEnabled(hasTelegram && (preferences.enabled || !hasSignal));
-      setTelegramChatId((preferences as any).telegram_chat_id || '');
-      setTelegramNotifySpecies(speciesOptions);
-      setTelegramNotifyLowBattery(preferences.notify_low_battery);
-      setTelegramBatteryThreshold(preferences.battery_threshold);
-      setTelegramNotifySystemHealth(preferences.notify_system_health);
+        // Signal configuration
+        const signalInSpecies = speciesChannels.includes('signal');
+        const signalInBattery = batteryChannels.includes('signal');
+        const signalInHealth = healthChannels.includes('signal');
+        const signalEnabledAny = signalInSpecies || signalInBattery || signalInHealth;
+
+        setSignalEnabled(signalEnabledAny && hasSignalPhone);
+        setSignalPhone(preferences.signal_phone || '');
+
+        // Convert species to options
+        const signalSpeciesValues = speciesConfig.notify_species || [];
+        setSignalNotifySpecies(signalSpeciesValues.map((species: string) => ({
+          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
+          value: species
+        })));
+
+        setSignalNotifyLowBattery(signalInBattery);
+        setSignalBatteryThreshold(batteryConfig.battery_threshold || 30);
+        setSignalNotifySystemHealth(signalInHealth);
+
+        // Telegram configuration
+        const telegramInSpecies = speciesChannels.includes('telegram');
+        const telegramInBattery = batteryChannels.includes('telegram');
+        const telegramInHealth = healthChannels.includes('telegram');
+        const telegramEnabledAny = telegramInSpecies || telegramInBattery || telegramInHealth;
+
+        setTelegramEnabled(telegramEnabledAny && hasTelegramChatId);
+        setTelegramChatId((preferences as any).telegram_chat_id || '');
+
+        // Use same species list for telegram (for now, until we support per-channel species)
+        setTelegramNotifySpecies(signalSpeciesValues.map((species: string) => ({
+          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
+          value: species
+        })));
+
+        setTelegramNotifyLowBattery(telegramInBattery);
+        setTelegramBatteryThreshold(batteryConfig.battery_threshold || 30);
+        setTelegramNotifySystemHealth(telegramInHealth);
+
+      } else {
+        // Fall back to legacy fields if notification_channels doesn't exist
+        const speciesOptions = (preferences.notify_species || []).map(species => ({
+          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
+          value: species
+        }));
+
+        // Signal - only mark as enabled if both enabled flag is true AND phone exists
+        setSignalEnabled(preferences.enabled && hasSignalPhone);
+        setSignalPhone(preferences.signal_phone || '');
+        setSignalNotifySpecies(speciesOptions);
+        setSignalNotifyLowBattery(preferences.notify_low_battery);
+        setSignalBatteryThreshold(preferences.battery_threshold);
+        setSignalNotifySystemHealth(preferences.notify_system_health);
+
+        // Telegram - mark as enabled if chat ID exists and enabled
+        setTelegramEnabled(hasTelegramChatId && preferences.enabled);
+        setTelegramChatId((preferences as any).telegram_chat_id || '');
+        setTelegramNotifySpecies(speciesOptions);
+        setTelegramNotifyLowBattery(preferences.notify_low_battery);
+        setTelegramBatteryThreshold(preferences.battery_threshold);
+        setTelegramNotifySystemHealth(preferences.notify_system_health);
+      }
     }
   }, [preferences]);
 
@@ -163,35 +214,69 @@ export const NotificationsPage: React.FC = () => {
     const cleanedPhone = signalPhone.trim().replace(/\s/g, '');
     const cleanedChatId = telegramChatId.trim();
 
-    // Determine which channel's settings to use as "master"
-    // Priority: Signal if enabled, otherwise Telegram, otherwise disabled
-    let speciesValues: string[] = [];
-    let lowBattery = false;
-    let batteryThreshold = 30;
-    let systemHealth = false;
+    // Build notification_channels JSON structure
+    const channels: string[] = [];
+    if (signalEnabled) channels.push('signal');
+    if (telegramEnabled) channels.push('telegram');
+
+    // Determine which channel's settings to use for legacy fields
+    // Priority: Signal if enabled, otherwise Telegram
+    let legacySpeciesValues: string[] = [];
+    let legacyLowBattery = false;
+    let legacyBatteryThreshold = 30;
+    let legacySystemHealth = false;
 
     if (signalEnabled) {
-      // Use Signal settings
-      speciesValues = signalNotifySpecies.map(opt => opt.value);
-      lowBattery = signalNotifyLowBattery;
-      batteryThreshold = signalBatteryThreshold;
-      systemHealth = signalNotifySystemHealth;
+      legacySpeciesValues = signalNotifySpecies.map(opt => opt.value);
+      legacyLowBattery = signalNotifyLowBattery;
+      legacyBatteryThreshold = signalBatteryThreshold;
+      legacySystemHealth = signalNotifySystemHealth;
     } else if (telegramEnabled) {
-      // Use Telegram settings
-      speciesValues = telegramNotifySpecies.map(opt => opt.value);
-      lowBattery = telegramNotifyLowBattery;
-      batteryThreshold = telegramBatteryThreshold;
-      systemHealth = telegramNotifySystemHealth;
+      legacySpeciesValues = telegramNotifySpecies.map(opt => opt.value);
+      legacyLowBattery = telegramNotifyLowBattery;
+      legacyBatteryThreshold = telegramBatteryThreshold;
+      legacySystemHealth = telegramNotifySystemHealth;
     }
 
+    // Build notification_channels JSON with per-channel configuration
+    const notificationChannels = {
+      species_detection: {
+        enabled: signalEnabled || telegramEnabled,
+        channels: channels,
+        notify_species: signalEnabled
+          ? (signalNotifySpecies.length > 0 ? signalNotifySpecies.map(opt => opt.value) : null)
+          : telegramEnabled
+          ? (telegramNotifySpecies.length > 0 ? telegramNotifySpecies.map(opt => opt.value) : null)
+          : null
+      },
+      battery_digest: {
+        enabled: (signalEnabled && signalNotifyLowBattery) || (telegramEnabled && telegramNotifyLowBattery),
+        channels: channels.filter(ch =>
+          (ch === 'signal' && signalNotifyLowBattery) ||
+          (ch === 'telegram' && telegramNotifyLowBattery)
+        ),
+        battery_threshold: signalEnabled ? signalBatteryThreshold : telegramBatteryThreshold
+      },
+      system_health: {
+        enabled: (signalEnabled && signalNotifySystemHealth) || (telegramEnabled && telegramNotifySystemHealth),
+        channels: channels.filter(ch =>
+          (ch === 'signal' && signalNotifySystemHealth) ||
+          (ch === 'telegram' && telegramNotifySystemHealth)
+        )
+      }
+    };
+
     updateMutation.mutate({
+      // Legacy fields (for backward compatibility)
       enabled: signalEnabled || telegramEnabled,
       signal_phone: signalEnabled ? (cleanedPhone || null) : null,
       telegram_chat_id: telegramEnabled ? (cleanedChatId || null) : null,
-      notify_species: speciesValues.length > 0 ? speciesValues : null,
-      notify_low_battery: lowBattery,
-      battery_threshold: batteryThreshold,
-      notify_system_health: systemHealth,
+      notify_species: legacySpeciesValues.length > 0 ? legacySpeciesValues : null,
+      notify_low_battery: legacyLowBattery,
+      battery_threshold: legacyBatteryThreshold,
+      notify_system_health: legacySystemHealth,
+      // New multi-channel configuration
+      notification_channels: notificationChannels,
     });
   };
 

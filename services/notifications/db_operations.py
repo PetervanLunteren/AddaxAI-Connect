@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from shared.logger import get_logger
-from shared.models import NotificationLog
+from shared.models import NotificationLog, Project
 from shared.database import get_sync_session
 
 logger = get_logger("notifications.db")
@@ -91,3 +91,23 @@ def update_notification_status(
             status=status,
             has_error=error_message is not None
         )
+
+
+def get_project_name(project_id: int) -> Optional[str]:
+    """
+    Get project name by ID.
+
+    Args:
+        project_id: Project ID
+
+    Returns:
+        Project name or None if not found
+    """
+    with get_sync_session() as session:
+        project = session.get(Project, project_id)
+
+        if not project:
+            logger.warning("Project not found", project_id=project_id)
+            return None
+
+        return project.name

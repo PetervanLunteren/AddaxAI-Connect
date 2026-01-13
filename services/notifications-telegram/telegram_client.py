@@ -51,15 +51,17 @@ class TelegramClient:
         self,
         chat_id: str,
         text: str,
-        photo_bytes: Optional[bytes] = None
+        photo_bytes: Optional[bytes] = None,
+        reply_markup: Optional[dict] = None
     ) -> None:
         """
-        Send message with optional photo attachment
+        Send message with optional photo attachment and inline keyboard
 
         Args:
             chat_id: Telegram chat ID (numeric string)
             text: Message text (supports Markdown)
             photo_bytes: Optional image bytes
+            reply_markup: Optional inline keyboard markup
 
         Raises:
             requests.HTTPError: If API call fails
@@ -73,6 +75,9 @@ class TelegramClient:
                 'caption': text,
                 'parse_mode': 'Markdown'
             }
+            if reply_markup:
+                import json
+                data['reply_markup'] = json.dumps(reply_markup)
             response = requests.post(url, data=data, files=files, timeout=30)
         else:
             # Send text only
@@ -82,6 +87,8 @@ class TelegramClient:
                 'text': text,
                 'parse_mode': 'Markdown'
             }
+            if reply_markup:
+                data['reply_markup'] = reply_markup
             response = requests.post(url, json=data, timeout=30)
 
         response.raise_for_status()
