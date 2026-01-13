@@ -259,15 +259,10 @@ export const TelegramConfigPage: React.FC = () => {
                         <li>Follow the steps to link Telegram to your phone</li>
                         <li>
                           Search for{' '}
-                          <a
-                            href="https://t.me/BotFather"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline inline-flex items-center gap-1"
-                          >
+                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             @BotFather
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
+                            <CopyButton text="@BotFather" id="copy-botfather" />
+                          </code>
                         </li>
                         <li>
                           Send the command{' '}
@@ -277,14 +272,14 @@ export const TelegramConfigPage: React.FC = () => {
                           </code>
                         </li>
                         <li>
-                          Name your bot:{' '}
+                          Name your bot{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             AddaxAI Connect
                             <CopyButton text="AddaxAI Connect" id="copy-botname" />
                           </code>
                         </li>
                         <li>
-                          Choose username:{' '}
+                          Choose username{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             {botUsername}
                             <CopyButton text={botUsername} id="copy-username" />
