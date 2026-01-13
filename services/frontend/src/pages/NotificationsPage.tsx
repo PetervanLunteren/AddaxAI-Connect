@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { Loader2, Save, Send, Check, X, MessageCircle } from 'lucide-react';
+import { Loader2, Save, Send, Check, X, MessageCircle, XCircle, Copy, AlertTriangle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -22,6 +22,36 @@ const DEEPFAUNE_SPECIES = [
   'raccoon_dog', 'red_deer', 'reindeer', 'roe_deer', 'sheep', 'squirrel',
   'wild_boar', 'wolf', 'wolverine'
 ].sort();
+
+// Copy button component for inline code examples
+const CopyButton: React.FC<{ text: string }> = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex items-center justify-center p-1 ml-1 hover:bg-accent rounded transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <Check className="h-3 w-3 text-green-500" />
+      ) : (
+        <Copy className="h-3 w-3 text-muted-foreground" />
+      )}
+    </button>
+  );
+};
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -44,6 +74,16 @@ export const NotificationsPage: React.FC = () => {
     queryFn: () => notificationsApi.getPreferences(projectIdNum),
     enabled: !!projectIdNum && projectIdNum > 0,
   });
+
+  // Query Telegram configuration (to check if bot is set up)
+  const { data: telegramConfig } = useQuery({
+    queryKey: ['telegram-config'],
+    queryFn: adminApi.getTelegramConfig,
+    retry: false,
+  });
+
+  const isTelegramConfigured = telegramConfig?.is_configured ?? false;
+  const botUsername = telegramConfig?.bot_username ?? null;
 
   // Create species options from hardcoded list with sentence case formatting
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
@@ -216,11 +256,37 @@ export const NotificationsPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Warning Banner - When Telegram Not Configured */}
+              {!isTelegramConfigured && (
+                <div className="mb-4 p-4 border-2 border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 rounded-md">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 mt-1">
+                      <XCircle className="h-8 w-8 text-red-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold mb-2 text-red-900 dark:text-red-100">Telegram not configured</h3>
+                      <p className="text-sm text-red-800 dark:text-red-200 mb-3">
+                        Telegram bot has not been set up by your administrator. Contact your admin to enable Telegram notifications.
+                      </p>
+                      <button
+                        type="button"
+                        disabled
+                        className="px-4 py-2 bg-gray-300 text-gray-500 rounded-md cursor-not-allowed opacity-60"
+                        title="Only administrators can configure Telegram"
+                      >
+                        Configure Telegram
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <Checkbox
                 id="telegram-enabled"
                 checked={telegramEnabled}
                 onChange={setTelegramEnabled}
                 label="Enable Telegram notifications"
+                disabled={!isTelegramConfigured}
               />
 
               {telegramEnabled && (
@@ -236,12 +302,13 @@ export const NotificationsPage: React.FC = () => {
                         value={telegramChatId}
                         onChange={(e) => setTelegramChatId(e.target.value)}
                         placeholder="123456789"
-                        className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                        disabled={!isTelegramConfigured}
+                        className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
                         onClick={handleTestTelegram}
-                        disabled={!telegramChatId.trim() || testTelegramMutation.isPending}
+                        disabled={!isTelegramConfigured || !telegramChatId.trim() || testTelegramMutation.isPending}
                         className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                       >
                         {testTelegramMutation.isPending ? (
@@ -270,7 +337,23 @@ export const NotificationsPage: React.FC = () => {
                       </div>
                     )}
                     <p className="text-sm text-muted-foreground mt-1">
-                      To get your chat ID: search for your bot on Telegram, send /start, and copy the chat ID from the bot's reply.
+                      {botUsername ? (
+                        <>
+                          To get your chat ID: search for{' '}
+                          <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
+                            @{botUsername}
+                            <CopyButton text={`@${botUsername}`} />
+                          </code>
+                          {' '}on Telegram, send{' '}
+                          <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
+                            /start
+                            <CopyButton text="/start" />
+                          </code>
+                          , and copy the chat ID from the bot's reply.
+                        </>
+                      ) : (
+                        'To get your chat ID: search for your bot on Telegram, send /start, and copy the chat ID from the bot\'s reply.'
+                      )}
                     </p>
                   </div>
 
