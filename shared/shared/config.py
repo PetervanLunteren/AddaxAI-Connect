@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # Signal (notifications only)
     signal_api_url: Optional[str] = "http://addaxai-signal-api:8080"  # signal-cli-rest-api endpoint
 
+    # API (for internal service-to-service communication)
+    api_host: Optional[str] = "api:8000"  # Internal API endpoint for workers
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # "json" or "text" (text for human-readable dev logs)

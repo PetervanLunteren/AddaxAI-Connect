@@ -13,7 +13,7 @@ from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_SIGNAL, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
-from db_operations import create_notification_log
+from db_operations import create_notification_log, get_project_name
 
 logger = get_logger("notifications.handlers")
 settings = get_settings()
@@ -35,49 +35,78 @@ def handle_species_detection(
         'camera_id': int,
         'camera_name': str,
         'camera_location': {'lat': float, 'lon': float} or None,
-        'thumbnail_path': str,  # MinIO path to image thumbnail with bbox
+        'annotated_image_url': str,  # API URL to annotated image
         'timestamp': str (ISO 8601)
     }
 
     Message format:
-    "Wolf (94%) detected at Camera-GK123
-    Location: 51.5074, -0.1278
+    "Wolf observed 70s ago!
+
+    Camera: WUH07
+    Time: 06:12:34
+    Date: 2026-01-12
+
     View: https://yourdomain.com/images/{image_uuid}"
 
-    Attaches thumbnail image with bounding box.
+    Attaches annotated image with bounding box.
     """
     image_uuid = event.get('image_uuid')
     species = event.get('species')
     confidence = event.get('confidence')
     camera_name = event.get('camera_name')
     location = event.get('camera_location')
-    thumbnail_path = event.get('thumbnail_path')
+    annotated_image_url = event.get('annotated_image_url')
+    project_id = event.get('project_id')
+    timestamp_str = event.get('timestamp')
 
     # Validate required fields
-    if not all([image_uuid, species, confidence, camera_name]):
+    if not all([image_uuid, species, confidence, camera_name, project_id]):
         logger.error("Missing required fields in species_detection event", event=event)
         return
 
-    # Format confidence as percentage
-    confidence_pct = int(confidence * 100)
+    # Get project name
+    project_name = get_project_name(project_id)
+    if not project_name:
+        project_name = f"Project {project_id}"  # Fallback
 
-    # Build message text
+    # Parse timestamp (just extract time and date from DateTimeOriginal)
+    try:
+        if timestamp_str:
+            # Try ISO 8601 format first
+            try:
+                event_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            except ValueError:
+                # Fall back to EXIF format: "2025:12:16 18:21:25"
+                # EXIF DateTimeOriginal is in camera's local time (timezone-agnostic)
+                event_time = datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S")
+        else:
+            event_time = datetime.now()
+
+        # Format time and date from camera's DateTimeOriginal
+        time_str = event_time.strftime('%H:%M:%S')
+        date_str = event_time.strftime('%a, %d %b %Y')  # e.g., "Wed, 23 Dec 2025"
+    except Exception as e:
+        logger.warning(f"Failed to parse timestamp: {e}")
+        time_str = "Unknown"
+        date_str = "Unknown"
+
+    # Format species name (replace underscores with spaces and capitalize first letter only)
+    species_display = species.replace('_', ' ').capitalize()
+
+    # Build message text with Markdown formatting (bold for headers)
     message_lines = [
-        f"{species.replace('_', ' ').title()} ({confidence_pct}%) detected at {camera_name}"
+        f"*{species_display} detected!*",
+        f"*Camera:* {camera_name}",
+        f"*Time:* {time_str}",
+        f"*Date:* {date_str}",
+        f"*Project:* {project_name}"
     ]
 
-    if location:
-        lat = location.get('lat')
-        lon = location.get('lon')
-        if lat and lon:
-            message_lines.append(f"Location: {lat:.6f}, {lon:.6f}")
-
-    # Add link to web dashboard
-    domain = settings.domain_name or "localhost:3000"
-    dashboard_url = f"https://{domain}/images/{image_uuid}"
-    message_lines.append(f"View: {dashboard_url}")
-
     message_content = "\n".join(message_lines)
+
+    # Build dashboard URL for buttons
+    domain = settings.domain_name or "localhost:3000"
+    dashboard_url = f"https://{domain}/projects/{project_id}/images"
 
     logger.info(
         "Processing species detection notification",
@@ -110,7 +139,7 @@ def handle_species_detection(
                     'notification_log_id': log_id,
                     'recipient_phone': user['signal_phone'],
                     'message_text': message_content,
-                    'attachment_path': thumbnail_path,
+                    'attachment_url': annotated_image_url,
                 })
 
                 logger.info(
@@ -131,12 +160,36 @@ def handle_species_detection(
                     message_content=message_content
                 )
 
+                # Create inline keyboard with Map and View buttons
+                buttons_row = []
+
+                # Add Map button if location is available
+                if location:
+                    lat = location.get('lat')
+                    lon = location.get('lon')
+                    if lat and lon:
+                        buttons_row.append({
+                            'text': 'Map',
+                            'url': f'https://maps.google.com/?q={lat},{lon}'
+                        })
+
+                # Add View button
+                buttons_row.append({
+                    'text': 'View',
+                    'url': dashboard_url
+                })
+
+                reply_markup = {
+                    'inline_keyboard': [buttons_row]
+                }
+
                 # Publish to Telegram queue
                 telegram_queue.publish({
                     'notification_log_id': log_id,
                     'chat_id': user['telegram_chat_id'],
                     'message_text': message_content,
-                    'attachment_path': thumbnail_path,
+                    'attachment_url': annotated_image_url,
+                    'reply_markup': reply_markup,
                 })
 
                 logger.info(

@@ -583,3 +583,126 @@ async def get_image_full(
         )
 
     return await _stream_image_from_storage(image, cache_max_age=86400)
+
+
+@router.get("/{uuid}/annotated")
+async def get_annotated_image(
+    uuid: str,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Generate and return annotated image with bounding boxes and labels.
+
+    Uses Playwright headless browser to render with exact same Canvas code as frontend,
+    ensuring pixel-perfect matching between downloads and notifications.
+
+    This endpoint:
+    1. Fetches the image and its detections from the database
+    2. Downloads the full image from MinIO
+    3. Generates an annotated version using Playwright with Canvas rendering
+    4. Returns the annotated JPEG with 1-hour cache
+
+    Used by:
+    - Frontend download functionality (ImageDetailModal)
+    - Notification attachments (Signal, Telegram)
+
+    Note: This endpoint does not require authentication since:
+    - Image UUIDs are cryptographically random and serve as access tokens
+    - Used for internal service-to-service calls (notifications workers)
+    - Images are not sensitive data (wildlife camera trap photos)
+    """
+    from utils.annotated_image_generator import generate_annotated_image
+
+    # Fetch image record
+    query = (
+        select(Image)
+        .where(Image.uuid == uuid)
+        .options(selectinload(Image.detections).selectinload(Detection.classifications))
+    )
+    result = await db.execute(query)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    # Download full image from MinIO
+    try:
+        storage_client = StorageClient()
+        image_bytes = storage_client.download_fileobj("raw-images", image.storage_path)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch image from storage: {str(e)}",
+        )
+
+    # Get image dimensions from metadata
+    if not image.image_metadata or 'width' not in image.image_metadata:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Image metadata (width/height) not available",
+        )
+
+    natural_width = image.image_metadata['width']
+    natural_height = image.image_metadata['height']
+
+    # Transform detections into format expected by annotated_image_generator
+    detections_data = []
+    for detection in image.detections:
+        # Bbox is stored with both pixel coordinates and normalized array
+        # Use pixel coordinates directly (x_min, y_min, width, height are already in pixels)
+        bbox = detection.bbox
+        bbox_pixels = {
+            'x': int(bbox['x_min']),
+            'y': int(bbox['y_min']),
+            'width': int(bbox['width']),
+            'height': int(bbox['height']),
+        }
+
+        # Get top classification if available
+        classifications_list = []
+        if detection.classifications:
+            # Sort by confidence descending
+            sorted_cls = sorted(detection.classifications, key=lambda c: c.confidence, reverse=True)
+            for cls in sorted_cls:
+                classifications_list.append({
+                    'species': cls.species,
+                    'confidence': cls.confidence
+                })
+
+        detections_data.append({
+            'bbox': bbox_pixels,
+            'category': detection.category,
+            'confidence': detection.confidence,
+            'classifications': classifications_list
+        })
+
+    # Log the detection data being sent to generator
+    import sys
+    print(f"DEBUG DETECTION DATA: {detections_data}", file=sys.stderr, flush=True)
+
+    # Generate annotated image using Playwright
+    try:
+        annotated_bytes = await generate_annotated_image(
+            image_bytes=image_bytes,
+            detections=detections_data,
+            natural_width=natural_width,
+            natural_height=natural_height
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate annotated image: {str(e)}",
+        )
+
+    # Return as streaming response with caching
+    return StreamingResponse(
+        io.BytesIO(annotated_bytes),
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": f"private, max-age=3600",
+            "ETag": f'"{uuid}-annotated"',
+        }
+    )

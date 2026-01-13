@@ -123,7 +123,7 @@ def process_detection_complete(message: dict, classifier) -> None:
         if classifications:
             try:
                 # Get top species with highest confidence
-                top_classification = max(classifications, key=lambda c: c['confidence'])
+                top_classification = max(classifications, key=lambda c: c.confidence)
 
                 # Get camera info from image record
                 from shared.database import get_db_session
@@ -133,26 +133,53 @@ def process_detection_complete(message: dict, classifier) -> None:
                     camera = db.query(Camera).filter(Camera.id == image.camera_id).first() if image else None
 
                     if image and camera:
+                        # Use API-generated annotated image URL instead of pre-generating
+                        # This ensures exact visual match with frontend downloads
+                        annotated_image_url = f"/api/images/{image_uuid}/annotated"
+
+                        # Use image EXIF timestamp (DateTimeOriginal) or GPS from image, not camera
+                        # Priority: Image GPS > Camera GPS
+                        location = None
+                        metadata = image.image_metadata or {}
+
+                        # GPS coordinates are stored as gps_decimal: [lat, lon] tuple in metadata
+                        gps_decimal = metadata.get('gps_decimal')
+                        if gps_decimal and len(gps_decimal) == 2:
+                            # Use GPS from image EXIF
+                            location = {
+                                "lat": gps_decimal[0],
+                                "lon": gps_decimal[1]
+                            }
+                        elif camera.location:
+                            # Fallback to camera location
+                            location = {
+                                "lat": camera.location.coords[1],
+                                "lon": camera.location.coords[0]
+                            }
+
+                        # DateTimeOriginal is stored as ISO string in metadata
+                        datetime_original = metadata.get('DateTimeOriginal')
+                        timestamp = datetime_original if datetime_original else message.get("timestamp")
+
                         notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
                         notification_queue.publish({
                             "event_type": "species_detection",
+                            "project_id": camera.project_id,
                             "image_uuid": image_uuid,
                             "camera_id": camera.id,
                             "camera_name": camera.name,
-                            "camera_location": {
-                                "lat": camera.location.coords[1] if camera.location else None,
-                                "lon": camera.location.coords[0] if camera.location else None
-                            } if camera.location else None,
-                            "species": top_classification['species'],
-                            "confidence": top_classification['confidence'],
+                            "camera_location": location,
+                            "species": top_classification.species,
+                            "confidence": top_classification.confidence,
                             "detection_count": len(classifications),
-                            "thumbnail_path": image.thumbnail_path,
-                            "timestamp": message.get("timestamp")
+                            "annotated_image_url": annotated_image_url,  # API endpoint URL
+                            "timestamp": timestamp
                         })
                         logger.info(
                             "Published species detection notification",
-                            species=top_classification['species'],
-                            confidence=top_classification['confidence']
+                            species=top_classification.species,
+                            confidence=top_classification.confidence,
+                            annotated_url=annotated_image_url
                         )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))

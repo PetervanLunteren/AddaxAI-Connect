@@ -18,14 +18,59 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
 from telegram_client import TelegramClient, TelegramNotConfiguredError
-from image_handler import download_image_from_minio
 from db_operations import update_notification_status
+import requests
 
 logger = get_logger("notifications-telegram")
 settings = get_settings()
 
 # Global variable to track last update ID for polling
 last_update_id = None
+
+
+def download_image_from_api(api_url: str) -> bytes:
+    """
+    Download annotated image from API endpoint.
+
+    Args:
+        api_url: API endpoint URL (e.g., "/api/images/{uuid}/annotated")
+
+    Returns:
+        Image bytes
+
+    Raises:
+        Exception: If download fails
+    """
+    # Get API base URL from settings
+    api_host = settings.api_host or "api:8000"
+    if not api_url.startswith('http'):
+        # Relative URL - construct full URL
+        full_url = f"http://{api_host}{api_url}"
+    else:
+        full_url = api_url
+
+    logger.debug("Fetching image from API", url=full_url)
+
+    try:
+        # Make internal API request (no auth needed for internal calls)
+        response = requests.get(full_url, timeout=30)
+        response.raise_for_status()
+
+        logger.debug(
+            "Downloaded image from API",
+            url=api_url,
+            size_bytes=len(response.content)
+        )
+
+        return response.content
+
+    except Exception as e:
+        logger.error(
+            "Failed to download image from API",
+            url=api_url,
+            error=str(e)
+        )
+        raise
 
 
 def process_telegram_message(message: Dict[str, Any]) -> None:
@@ -40,13 +85,15 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         'notification_log_id': int,
         'chat_id': str,  # Telegram chat ID
         'message_text': str,
-        'attachment_path': str or None  # MinIO path
+        'attachment_url': str or None,  # API URL to annotated image
+        'reply_markup': dict or None  # Optional inline keyboard
     }
     """
     log_id = message.get('notification_log_id')
     chat_id = message.get('chat_id')
     message_text = message.get('message_text')
-    attachment_path = message.get('attachment_path')
+    attachment_url = message.get('attachment_url')
+    reply_markup = message.get('reply_markup')
 
     # Validate required fields
     if not all([log_id, chat_id, message_text]):
@@ -57,7 +104,8 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         "Processing Telegram notification",
         log_id=log_id,
         chat_id=chat_id[:5] + "***" if len(chat_id) > 5 else chat_id,
-        has_attachment=attachment_path is not None
+        has_attachment=attachment_url is not None,
+        has_buttons=reply_markup is not None
     )
 
     try:
@@ -66,14 +114,14 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
 
         # Download image attachment if present
         photo_bytes: Optional[bytes] = None
-        if attachment_path:
+        if attachment_url:
             try:
-                photo_bytes = download_image_from_minio(attachment_path)
-                logger.debug("Downloaded attachment", path=attachment_path)
+                photo_bytes = download_image_from_api(attachment_url)
+                logger.debug("Downloaded attachment from API", url=attachment_url)
             except Exception as e:
                 logger.warning(
                     "Failed to download attachment, sending without image",
-                    path=attachment_path,
+                    url=attachment_url,
                     error=str(e)
                 )
                 # Continue without attachment
@@ -82,7 +130,8 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         client.send_message(
             chat_id=chat_id,
             text=message_text,
-            photo_bytes=photo_bytes
+            photo_bytes=photo_bytes,
+            reply_markup=reply_markup
         )
 
         # Update notification log status to 'sent'
