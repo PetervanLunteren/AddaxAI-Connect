@@ -27,7 +27,6 @@ import { UserAssignmentPage } from './pages/server/UserAssignmentPage';
 import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
 import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
-import { SignalConfigPage } from './pages/server/SignalConfigPage';
 import { TelegramConfigPage } from './pages/server/TelegramConfigPage';
 
 function App() {
@@ -84,14 +83,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <DeleteDataPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/server/signal-config"
-                element={
-                  <ProtectedRoute>
-                    <SignalConfigPage />
                   </ProtectedRoute>
                 }
               />

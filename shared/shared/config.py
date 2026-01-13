@@ -53,9 +53,6 @@ class Settings(BaseSettings):
     mail_from: Optional[str] = None
     domain_name: Optional[str] = None  # For constructing verification links
 
-    # Signal (notifications only)
-    signal_api_url: Optional[str] = "http://addaxai-signal-api:8080"  # signal-cli-rest-api endpoint
-
     # API (for internal service-to-service communication)
     api_host: Optional[str] = "api:8000"  # Internal API endpoint for workers
 

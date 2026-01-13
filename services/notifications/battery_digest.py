@@ -3,7 +3,7 @@ Daily battery digest notifications
 
 Sends consolidated daily battery alerts at noon UTC.
 Each user receives one message per project with count of cameras below threshold.
-Supports multi-channel delivery (Signal, Telegram, etc.)
+Supports Telegram delivery.
 """
 from typing import List, Dict, Any
 from datetime import datetime
@@ -18,7 +18,7 @@ from shared.models import (
     Project,
     Camera
 )
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_SIGNAL, QUEUE_NOTIFICATION_TELEGRAM
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
 from db_operations import create_notification_log
@@ -42,7 +42,7 @@ def send_daily_battery_digest() -> None:
     logger.info("Starting daily battery digest")
 
     with get_sync_session() as db:
-        # Get all users with any channel configured (Signal OR Telegram)
+        # Get all users with Telegram configured
         query = (
             select(ProjectNotificationPreference, User, Project)
             .join(User, ProjectNotificationPreference.user_id == User.id)
@@ -50,10 +50,7 @@ def send_daily_battery_digest() -> None:
             .where(
                 User.is_active == True,
                 User.is_verified == True,
-                or_(
-                    ProjectNotificationPreference.signal_phone.isnot(None),
-                    ProjectNotificationPreference.telegram_chat_id.isnot(None)
-                )
+                ProjectNotificationPreference.telegram_chat_id.isnot(None)
             )
         )
 
@@ -68,8 +65,7 @@ def send_daily_battery_digest() -> None:
             user_project_count=len(preferences)
         )
 
-        # Initialize queues
-        signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
+        # Initialize Telegram queue
         telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
         messages_sent = 0
 
@@ -132,44 +128,9 @@ def send_daily_battery_digest() -> None:
                     'digest_date': datetime.utcnow().isoformat()
                 }
 
-                # Send via all configured channels
+                # Send via Telegram
                 for channel in channels:
-                    if channel == 'signal' and pref.signal_phone:
-                        # Signal doesn't support buttons, include URL in message
-                        signal_message = message_content + f"\n\nView details: {project_url}"
-
-                        # Create notification log entry
-                        log_id = create_notification_log(
-                            user_id=user.id,
-                            notification_type='battery_digest',
-                            channel='signal',
-                            trigger_data=trigger_data,
-                            message_content=signal_message
-                        )
-
-                        # Publish to Signal queue
-                        signal_queue.publish({
-                            'notification_log_id': log_id,
-                            'recipient_phone': pref.signal_phone,
-                            'message_text': signal_message,
-                            'attachment_path': None,
-                        })
-
-                        messages_sent += 1
-
-                        logger.info(
-                            "Queued battery digest",
-                            user_id=user.id,
-                            user_email=user.email,
-                            project_id=project.id,
-                            project_name=project.name,
-                            camera_count=low_battery_count,
-                            threshold=battery_threshold,
-                            channel='signal',
-                            log_id=log_id
-                        )
-
-                    elif channel == 'telegram' and pref.telegram_chat_id:
+                    if channel == 'telegram' and pref.telegram_chat_id:
                         # Telegram supports inline buttons
                         inline_keyboard = {
                             'inline_keyboard': [[
@@ -237,7 +198,7 @@ def _get_battery_digest_channels(pref: ProjectNotificationPreference) -> List[st
     Uses notification_channels JSON if present, otherwise falls back to legacy fields.
 
     Returns:
-        List of channel names (e.g., ['signal', 'telegram'])
+        List of channel names (e.g., ['telegram'])
     """
     channels_config = pref.notification_channels
 
@@ -259,18 +220,12 @@ def _get_battery_digest_channels(pref: ProjectNotificationPreference) -> List[st
 
         # Validate channels against available contact info
         valid_channels = []
-        if 'signal' in channels and pref.signal_phone:
-            valid_channels.append('signal')
         if 'telegram' in channels and pref.telegram_chat_id:
             valid_channels.append('telegram')
 
         return valid_channels
 
-    # Fall back to legacy fields
-    if pref.enabled and pref.notify_low_battery:
-        if pref.signal_phone:
-            return ['signal']
-
+    # Legacy fields no longer supported - only Telegram
     return []
 
 

@@ -4,13 +4,13 @@ Event handlers for different notification types
 Each handler:
 1. Formats message content
 2. Creates notification_log entries
-3. Publishes to channel-specific queues (e.g., Signal)
+3. Publishes to channel-specific queues (e.g., Telegram)
 """
 from typing import Dict, Any, List
 from datetime import datetime
 
 from shared.logger import get_logger
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_SIGNAL, QUEUE_NOTIFICATION_TELEGRAM
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
 from db_operations import create_notification_log, get_project_name
@@ -115,8 +115,7 @@ def handle_species_detection(
         user_count=len(matching_users)
     )
 
-    # Initialize queues
-    signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
+    # Initialize Telegram queue
     telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
 
     for user in matching_users:
@@ -124,33 +123,7 @@ def handle_species_detection(
 
         # Publish to each requested channel
         for channel in channels:
-            if channel == 'signal' and user.get('signal_phone'):
-                # Create notification log entry (status='pending')
-                log_id = create_notification_log(
-                    user_id=user['user_id'],
-                    notification_type='species_detection',
-                    channel='signal',
-                    trigger_data=event,
-                    message_content=message_content
-                )
-
-                # Publish to Signal queue
-                signal_queue.publish({
-                    'notification_log_id': log_id,
-                    'recipient_phone': user['signal_phone'],
-                    'message_text': message_content,
-                    'attachment_url': annotated_image_url,
-                })
-
-                logger.info(
-                    "Queued species detection notification",
-                    user_id=user['user_id'],
-                    species=species,
-                    channel='signal',
-                    log_id=log_id
-                )
-
-            elif channel == 'telegram' and user.get('telegram_chat_id'):
+            if channel == 'telegram' and user.get('telegram_chat_id'):
                 # Create notification log entry (status='pending')
                 log_id = create_notification_log(
                     user_id=user['user_id'],
@@ -255,8 +228,7 @@ def handle_low_battery(
         user_count=len(matching_users)
     )
 
-    # Initialize queues
-    signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
+    # Initialize Telegram queue
     telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
 
     for user in matching_users:
@@ -264,33 +236,7 @@ def handle_low_battery(
 
         # Publish to each requested channel
         for channel in channels:
-            if channel == 'signal' and user.get('signal_phone'):
-                # Create notification log entry (status='pending')
-                log_id = create_notification_log(
-                    user_id=user['user_id'],
-                    notification_type='low_battery',
-                    channel='signal',
-                    trigger_data=event,
-                    message_content=message_content
-                )
-
-                # Publish to Signal queue (no attachment for battery notifications)
-                signal_queue.publish({
-                    'notification_log_id': log_id,
-                    'recipient_phone': user['signal_phone'],
-                    'message_text': message_content,
-                    'attachment_path': None,
-                })
-
-                logger.info(
-                    "Queued low battery notification",
-                    user_id=user['user_id'],
-                    camera=camera_name,
-                    channel='signal',
-                    log_id=log_id
-                )
-
-            elif channel == 'telegram' and user.get('telegram_chat_id'):
+            if channel == 'telegram' and user.get('telegram_chat_id'):
                 # Create notification log entry (status='pending')
                 log_id = create_notification_log(
                     user_id=user['user_id'],
@@ -364,8 +310,7 @@ def handle_system_health(
         user_count=len(matching_users)
     )
 
-    # Initialize queues
-    signal_queue = RedisQueue(QUEUE_NOTIFICATION_SIGNAL)
+    # Initialize Telegram queue
     telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
 
     for user in matching_users:
@@ -373,33 +318,7 @@ def handle_system_health(
 
         # Publish to each requested channel
         for channel in channels:
-            if channel == 'signal' and user.get('signal_phone'):
-                # Create notification log entry (status='pending')
-                log_id = create_notification_log(
-                    user_id=user['user_id'],
-                    notification_type='system_health',
-                    channel='signal',
-                    trigger_data=event,
-                    message_content=message_content
-                )
-
-                # Publish to Signal queue (no attachment for system health)
-                signal_queue.publish({
-                    'notification_log_id': log_id,
-                    'recipient_phone': user['signal_phone'],
-                    'message_text': message_content,
-                    'attachment_path': None,
-                })
-
-                logger.info(
-                    "Queued system health notification",
-                    user_id=user['user_id'],
-                    alert_type=alert_type,
-                    channel='signal',
-                    log_id=log_id
-                )
-
-            elif channel == 'telegram' and user.get('telegram_chat_id'):
+            if channel == 'telegram' and user.get('telegram_chat_id'):
                 # Create notification log entry (status='pending')
                 log_id = create_notification_log(
                     user_id=user['user_id'],
