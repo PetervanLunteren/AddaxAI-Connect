@@ -119,11 +119,15 @@ def process_detection_complete(message: dict, classifier) -> None:
         # Step 6: Update image status to classified
         update_image_status(image_uuid, "classified")
 
-        # Step 6.5: Publish notification event for species detections
+        # Step 6.5: Publish notification events for each unique species detected
         if classifications:
             try:
-                # Get top species with highest confidence
-                top_classification = max(classifications, key=lambda c: c.confidence)
+                # Group classifications by species and get highest confidence for each
+                species_map = {}
+                for classification in classifications:
+                    species = classification.species
+                    if species not in species_map or classification.confidence > species_map[species].confidence:
+                        species_map[species] = classification
 
                 # Get camera info from image record
                 from shared.database import get_db_session
@@ -162,25 +166,29 @@ def process_detection_complete(message: dict, classifier) -> None:
                         timestamp = datetime_original if datetime_original else message.get("timestamp")
 
                         notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
-                        notification_queue.publish({
-                            "event_type": "species_detection",
-                            "project_id": camera.project_id,
-                            "image_uuid": image_uuid,
-                            "camera_id": camera.id,
-                            "camera_name": camera.name,
-                            "camera_location": location,
-                            "species": top_classification.species,
-                            "confidence": top_classification.confidence,
-                            "detection_count": len(classifications),
-                            "annotated_image_url": annotated_image_url,  # API endpoint URL
-                            "timestamp": timestamp
-                        })
-                        logger.info(
-                            "Published species detection notification",
-                            species=top_classification.species,
-                            confidence=top_classification.confidence,
-                            annotated_url=annotated_image_url
-                        )
+
+                        # Publish one notification per unique species
+                        for species, classification in species_map.items():
+                            notification_queue.publish({
+                                "event_type": "species_detection",
+                                "project_id": camera.project_id,
+                                "image_uuid": image_uuid,
+                                "camera_id": camera.id,
+                                "camera_name": camera.name,
+                                "camera_location": location,
+                                "species": species,
+                                "confidence": classification.confidence,
+                                "detection_count": len(classifications),
+                                "annotated_image_url": annotated_image_url,  # API endpoint URL
+                                "timestamp": timestamp
+                            })
+                            logger.info(
+                                "Published species detection notification",
+                                species=species,
+                                confidence=classification.confidence,
+                                total_species_count=len(species_map),
+                                annotated_url=annotated_image_url
+                            )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))
 
