@@ -240,7 +240,7 @@ export const TelegramConfigPage: React.FC = () => {
                           </a>
                         </li>
                         <li>Send the command <code className="px-1.5 py-0.5 bg-background rounded">/newbot</code></li>
-                        <li>Follow the prompts to name your bot (e.g., "AddaxAI Connect")</li>
+                        <li>Follow the prompts to name your bot (e.g., <code className="px-1.5 py-0.5 bg-background rounded">AddaxAI Connect</code>)</li>
                         <li>Choose a username for your bot (e.g., <code className="px-1.5 py-0.5 bg-background rounded">{botUsername}</code>)</li>
                         <li>Copy the bot token (looks like: <code className="px-1.5 py-0.5 bg-background rounded">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>)</li>
                       </ol>
