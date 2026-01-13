@@ -290,7 +290,7 @@ export const TelegramConfigPage: React.FC = () => {
                             <CopyButton text={botUsername} id="copy-username" />
                           </code>
                         </li>
-                        <li>Copy the bot token (looks like: <code className="px-1.5 py-0.5 bg-background rounded">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>)</li>
+                        <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</em>)</li>
                       </ol>
                     </div>
                   </div>
