@@ -16,6 +16,9 @@ import time
 from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
+from shared.database import get_sync_session
+from shared.models import TelegramLinkingToken, ProjectNotificationPreference
+from datetime import datetime, timezone
 
 from telegram_client import TelegramClient, TelegramNotConfiguredError
 from db_operations import update_notification_status
@@ -26,6 +29,75 @@ settings = get_settings()
 
 # Global variable to track last update ID for polling
 last_update_id = None
+
+
+def handle_link_token(token: str, chat_id: str) -> bool:
+    """
+    Process a linking token from /start command
+
+    Args:
+        token: The token from /start <token>
+        chat_id: The Telegram chat ID
+
+    Returns:
+        True if linking was successful, False otherwise
+    """
+    try:
+        with get_sync_session() as session:
+            # Look up token in database
+            link_record = session.query(TelegramLinkingToken).filter(
+                TelegramLinkingToken.token == token,
+                TelegramLinkingToken.used == False,
+                TelegramLinkingToken.expires_at > datetime.now(timezone.utc)
+            ).first()
+
+            if not link_record:
+                logger.warning(
+                    "Invalid or expired linking token",
+                    token_prefix=token[:8] + "***" if len(token) > 8 else token
+                )
+                return False
+
+            # Get or create notification preferences
+            prefs = session.query(ProjectNotificationPreference).filter(
+                ProjectNotificationPreference.user_id == link_record.user_id,
+                ProjectNotificationPreference.project_id == link_record.project_id
+            ).first()
+
+            if not prefs:
+                # Create new preferences with telegram_chat_id
+                prefs = ProjectNotificationPreference(
+                    user_id=link_record.user_id,
+                    project_id=link_record.project_id,
+                    telegram_chat_id=str(chat_id),
+                    enabled=False  # User needs to enable explicitly
+                )
+                session.add(prefs)
+            else:
+                # Update existing preferences
+                prefs.telegram_chat_id = str(chat_id)
+
+            # Mark token as used
+            link_record.used = True
+
+            session.commit()
+
+            logger.info(
+                "Successfully linked Telegram account",
+                user_id=link_record.user_id,
+                project_id=link_record.project_id,
+                chat_id=chat_id[:5] + "***" if len(chat_id) > 5 else chat_id
+            )
+
+            return True
+
+    except Exception as e:
+        logger.error(
+            "Failed to process linking token",
+            error=str(e),
+            exc_info=True
+        )
+        return False
 
 
 def download_image_from_api(api_url: str) -> bytes:
@@ -200,28 +272,44 @@ def poll_for_start_commands():
                     continue
 
                 # Handle /start command
-                if text.strip().lower() == '/start':
-                    domain = settings.domain_name or "your-domain.com"
+                if text.strip().lower().startswith('/start'):
+                    # Extract payload from /start <token>
+                    parts = text.split()
+                    token = parts[1] if len(parts) > 1 else None
 
-                    reply_text = (
-                        f"🤖 *Welcome to AddaxAI Connect!*\n\n"
-                        f"Your chat ID is: `{chat_id}`\n\n"
-                        f"*How to enable notifications:*\n"
-                        f"1. Copy your chat ID above\n"
-                        f"2. Visit https://{domain}\n"
-                        f"3. Go to Project Settings → Notifications\n"
-                        f"4. Paste your chat ID in the Telegram field\n"
-                        f"5. Select notification types and save\n\n"
-                        f"You'll receive alerts about species detections, "
-                        f"camera battery status, and system health!"
-                    )
+                    if token:
+                        # Token-based linking flow
+                        success = handle_link_token(token, chat_id)
+
+                        if success:
+                            reply_text = (
+                                "✅ *Successfully linked!*\n\n"
+                                "You'll now receive notifications from AddaxAI Connect.\n\n"
+                                "Go back to the notification settings page to see your status update."
+                            )
+                        else:
+                            reply_text = (
+                                "❌ *Invalid or expired linking token*\n\n"
+                                "The link you used is either invalid or has already been used.\n\n"
+                                "Please generate a new link from the AddaxAI Connect notification settings."
+                            )
+                    else:
+                        # No token - show welcome message with chat ID
+                        domain = settings.domain_name or "your-domain.com"
+                        reply_text = (
+                            f"👋 *Welcome to AddaxAI Connect!*\n\n"
+                            f"Your chat ID is: `{chat_id}`\n\n"
+                            f"To link your account, please use the setup link provided "
+                            f"in your project's notification settings at https://{domain}"
+                        )
 
                     client.send_reply(chat_id, reply_text)
 
                     logger.info(
                         "Replied to /start command",
                         chat_id=chat_id[:5] + "***",
-                        username=message.get('from', {}).get('username')
+                        username=message.get('from', {}).get('username'),
+                        has_token=token is not None
                     )
 
         except Exception as e:

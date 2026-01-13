@@ -5,13 +5,15 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
-import { Loader2, Save, Send, Check, X, MessageCircle, XCircle, Copy, AlertTriangle } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Loader2, Save, Check, X, MessageCircle, XCircle, Copy, Settings } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
+import QRCode from 'react-qr-code';
+import { useAuth } from '../hooks/useAuth';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
 const DEEPFAUNE_SPECIES = [
@@ -57,6 +59,7 @@ export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
+  const { user } = useAuth();
 
   // Telegram channel state
   const [telegramEnabled, setTelegramEnabled] = useState(false);
@@ -67,6 +70,11 @@ export const NotificationsPage: React.FC = () => {
   const [telegramNotifySystemHealth, setTelegramNotifySystemHealth] = useState(false);
   const [telegramTestStatus, setTelegramTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [telegramTestMessage, setTelegramTestMessage] = useState('');
+
+  // Telegram linking state
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [deepLink, setDeepLink] = useState<string | null>(null);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -184,6 +192,54 @@ export const NotificationsPage: React.FC = () => {
     testTelegramMutation.mutate();
   };
 
+  // Query Telegram link status
+  const { data: linkStatus, refetch: refetchLinkStatus } = useQuery({
+    queryKey: ['telegram-link-status', projectIdNum],
+    queryFn: () => notificationsApi.checkTelegramLinkStatus(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0 && isTelegramConfigured,
+    refetchInterval: false,
+  });
+
+  // Generate Telegram link token mutation
+  const generateTokenMutation = useMutation({
+    mutationFn: () => notificationsApi.generateTelegramLinkToken(projectIdNum),
+    onSuccess: (data) => {
+      setLinkToken(data.token);
+      setDeepLink(data.deep_link);
+      setShowLinkModal(true);
+    },
+    onError: (error: any) => {
+      alert(`Failed to generate link: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const handleGenerateLink = () => {
+    generateTokenMutation.mutate();
+  };
+
+  const handleCheckStatus = () => {
+    refetchLinkStatus();
+  };
+
+  // Unlink Telegram mutation
+  const unlinkMutation = useMutation({
+    mutationFn: () => notificationsApi.unlinkTelegram(projectIdNum),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['telegram-link-status', projectIdNum] });
+      queryClient.invalidateQueries({ queryKey: ['notification-preferences', projectIdNum] });
+      alert('Telegram account unlinked successfully!');
+    },
+    onError: (error: any) => {
+      alert(`Failed to unlink Telegram: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const handleUnlink = () => {
+    if (confirm('Are you sure you want to unlink your Telegram account? You will need to link it again to receive notifications.')) {
+      unlinkMutation.mutate();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -264,91 +320,88 @@ export const NotificationsPage: React.FC = () => {
                 disabled={!isTelegramConfigured}
               />
 
+              {/* Link Status and Button - When Telegram Configured AND Enabled */}
+              {isTelegramConfigured && telegramEnabled && (
+                <div className="mt-3 mb-4">
+                  {linkStatus?.linked ? (
+                    // Linked - show simple caption with unlink
+                    <div className="mt-3">
+                      <p className="text-sm text-muted-foreground">
+                        Your Telegram account is connected and ready to receive notifications.{' '}
+                        {unlinkMutation.isPending ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin inline" />
+                            <span className="text-primary">Unlinking...</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleUnlink}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Click here to unlink
+                          </button>
+                        )}.
+                      </p>
+                    </div>
+                  ) : (
+                    // Not linked - show simple caption with link
+                    <div className="mt-3">
+                      <p className="text-sm text-muted-foreground">
+                        Telegram not linked to your account.{' '}
+                        {generateTokenMutation.isPending ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin inline" />
+                            <span className="text-primary">Generating link...</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleGenerateLink}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Click here to link
+                          </button>
+                        )}.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Warning Banner - When Telegram Not Configured and User Wants to Enable */}
               {telegramEnabled && !isTelegramConfigured && (
-                <div className="mb-4 p-4 border-2 border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 rounded-md">
+                <div className="mb-4 p-4 border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 rounded-md">
                   <div className="flex items-start gap-4">
                     <div className="flex-shrink-0 mt-1">
-                      <XCircle className="h-8 w-8 text-red-500" />
+                      <XCircle className="h-8 w-8 text-amber-600" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold mb-2 text-red-900 dark:text-red-100">Telegram not configured</h3>
-                      <p className="text-sm text-red-800 dark:text-red-200">
-                        Telegram bot has not been set up by your administrator. Contact your admin to enable Telegram notifications.
+                      <h3 className="text-lg font-semibold mb-2 text-amber-900 dark:text-amber-100">Telegram not configured</h3>
+                      <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                        Telegram notifications are not available because the bot has not been set up yet.
                       </p>
+                      {user?.is_superuser ? (
+                        <Link
+                          to="/server/telegram"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium text-sm"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Configure Telegram
+                        </Link>
+                      ) : (
+                        <p className="text-sm text-amber-800 dark:text-amber-200">
+                          Please contact your administrator to set up Telegram notifications.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {telegramEnabled && (
+              {/* Notification Options - Only show if enabled AND linked */}
+              {telegramEnabled && linkStatus?.linked && (
                 <>
-                  {/* Telegram Chat ID */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Telegram Chat ID
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={telegramChatId}
-                        onChange={(e) => setTelegramChatId(e.target.value)}
-                        placeholder="123456789"
-                        disabled={!isTelegramConfigured}
-                        className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleTestTelegram}
-                        disabled={!isTelegramConfigured || !telegramChatId.trim() || testTelegramMutation.isPending}
-                        className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                      >
-                        {testTelegramMutation.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="hidden sm:inline">Sending...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-4 w-4" />
-                            <span className="hidden sm:inline">Test</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    {telegramTestStatus === 'success' && (
-                      <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
-                        <Check className="h-4 w-4" />
-                        {telegramTestMessage}
-                      </div>
-                    )}
-                    {telegramTestStatus === 'error' && (
-                      <div className="flex items-center gap-2 text-sm text-destructive mt-1">
-                        <X className="h-4 w-4" />
-                        {telegramTestMessage}
-                      </div>
-                    )}
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {botUsername ? (
-                        <>
-                          To get your chat ID: search for{' '}
-                          <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
-                            @{botUsername}
-                            <CopyButton text={`@${botUsername}`} />
-                          </code>
-                          {' '}on Telegram, send{' '}
-                          <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
-                            /start
-                            <CopyButton text="/start" />
-                          </code>
-                          , and copy the chat ID from the bot's reply.
-                        </>
-                      ) : (
-                        'To get your chat ID: search for your bot on Telegram, send /start, and copy the chat ID from the bot\'s reply.'
-                      )}
-                    </p>
-                  </div>
-
                   {/* Species Alerts */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
@@ -433,6 +486,57 @@ export const NotificationsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Telegram Linking Modal */}
+      {showLinkModal && deepLink && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Link Your Telegram Account</h2>
+                <button
+                  onClick={() => setShowLinkModal(false)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* QR Code */}
+                <div className="flex justify-center bg-white p-4 rounded-lg">
+                  <QRCode value={deepLink} size={200} />
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-muted border border-border p-4 rounded-md">
+                  <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                    <li>Scan the QR code above with your phone, or tap the button below</li>
+                    <li>Press Start in Telegram when it opens</li>
+                    <li>Come back here and click "Check Status" to confirm</li>
+                  </ol>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const result = await refetchLinkStatus();
+                      if (result.data?.linked) {
+                        setShowLinkModal(false);
+                      }
+                    }}
+                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                  >
+                    Check Status
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
