@@ -10,11 +10,21 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 
+// Generate random 5-character hash for bot username
+const generateBotUsername = (): string => {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let hash = '';
+  for (let i = 0; i < 5; i++) {
+    hash += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `addaxai_connect_${hash}_bot`;
+};
+
 export const TelegramConfigPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [botToken, setBotToken] = useState('');
-  const [botUsername, setBotUsername] = useState('');
+  const [botUsername, setBotUsername] = useState(generateBotUsername());
   const [showTestModal, setShowTestModal] = useState(false);
   const [testChatId, setTestChatId] = useState('');
 
@@ -32,7 +42,7 @@ export const TelegramConfigPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['telegram-config'] });
       setShowConfigModal(false);
       setBotToken('');
-      setBotUsername('');
+      setBotUsername(generateBotUsername());
       alert('Telegram bot configured successfully!');
     },
     onError: (error: any) => {
@@ -200,10 +210,25 @@ export const TelegramConfigPage: React.FC = () => {
                     <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-muted-foreground space-y-2">
                       <p>
-                        <strong>Before configuring:</strong>
+                        <strong>Follow these steps to create your Telegram bot:</strong>
                       </p>
                       <ol className="list-decimal list-inside space-y-1">
-                        <li>Open Telegram and message{' '}
+                        <li>Make sure you have a Telegram account on your phone and the app installed</li>
+                        <li>
+                          Go to:{' '}
+                          <a
+                            href="https://web.telegram.org/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            https://web.telegram.org/
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </li>
+                        <li>Follow the steps to link Telegram to your phone</li>
+                        <li>
+                          Search for{' '}
                           <a
                             href="https://t.me/BotFather"
                             target="_blank"
@@ -214,8 +239,10 @@ export const TelegramConfigPage: React.FC = () => {
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </li>
-                        <li>Send <code className="px-1.5 py-0.5 bg-background rounded">/newbot</code> and follow the prompts</li>
-                        <li>Copy the bot token BotFather provides</li>
+                        <li>Send the command <code className="px-1.5 py-0.5 bg-background rounded">/newbot</code></li>
+                        <li>Follow the prompts to name your bot (e.g., "AddaxAI Connect")</li>
+                        <li>Choose a username for your bot (e.g., the auto-generated one below)</li>
+                        <li>Copy the bot token (looks like: <code className="px-1.5 py-0.5 bg-background rounded">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>)</li>
                       </ol>
                     </div>
                   </div>
@@ -247,12 +274,12 @@ export const TelegramConfigPage: React.FC = () => {
                     type="text"
                     value={botUsername}
                     onChange={(e) => setBotUsername(e.target.value)}
-                    placeholder="AddaxAI_bot"
+                    placeholder="addaxai_connect_xxxxx_bot"
                     className="w-full px-3 py-2 border rounded-md"
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    The @username you chose for your bot (without the @)
+                    The @username you chose for your bot (without the @). We've suggested a unique username above.
                   </p>
                 </div>
 
