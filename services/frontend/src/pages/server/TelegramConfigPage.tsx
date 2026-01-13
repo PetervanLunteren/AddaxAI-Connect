@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageCircle, Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
@@ -114,27 +114,33 @@ export const TelegramConfigPage: React.FC = () => {
               </div>
             ) : isConfigured && config ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="font-medium">Telegram bot is configured and ready</p>
+                {/* Configured State - Prominent */}
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-1">
+                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-2">Configured and ready</h3>
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Telegram bot: <span className="font-medium text-foreground">@{config.bot_username}</span>
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      Bot: @{config.bot_username}
+                      Users can now configure Telegram notifications in their project settings.
                     </p>
                   </div>
                 </div>
 
-                <div className="pt-4 flex gap-3">
+                <div className="pt-4 flex gap-3 flex-wrap">
                   <button
                     onClick={() => setShowTestModal(true)}
-                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
                   >
                     Send test message
                   </button>
                   <button
                     onClick={handleUnconfigure}
                     disabled={unconfigureMutation.isPending}
-                    className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
                   >
                     {unconfigureMutation.isPending ? (
                       <>
@@ -142,29 +148,39 @@ export const TelegramConfigPage: React.FC = () => {
                         Removing...
                       </>
                     ) : (
-                      'Remove Telegram bot'
+                      'Remove bot'
                     )}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center gap-3 text-muted-foreground">
-                  <XCircle className="h-5 w-5" />
-                  <p>Telegram bot is not configured</p>
+                {/* Not Configured State - Prominent */}
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-1">
+                    <XCircle className="h-8 w-8 text-red-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-2">Not configured</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Telegram bot is not set up. Configure a bot to enable Telegram notifications for all users.
+                      Users will be able to receive species detections, battery alerts, and system health notifications via Telegram.
+                    </p>
+                    <button
+                      onClick={() => setShowConfigModal(true)}
+                      className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium"
+                    >
+                      Configure Telegram bot
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowConfigModal(true)}
-                  className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  Configure Telegram bot
-                </button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Setup Instructions Card */}
+        {/* Setup Instructions Card - Only show when not configured */}
+        {!isConfigured && (
         <Card>
           <CardHeader>
             <CardTitle>How to set up Telegram notifications</CardTitle>
@@ -242,6 +258,7 @@ export const TelegramConfigPage: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* Configuration Modal */}
