@@ -117,11 +117,9 @@ def send_daily_battery_digest() -> None:
                 project_url = f"https://{domain}/projects/{project.id}/cameras"
 
                 message_lines = [
-                    f"Battery Alert for Project \"{project.name}\"",
+                    f"*Battery alert for project \"{project.name}\"*",
                     "",
-                    f"{low_battery_count} {'camera is' if low_battery_count == 1 else 'cameras are'} below your {battery_threshold}% battery threshold",
-                    "",
-                    f"View details: {project_url}"
+                    f"{low_battery_count} {'camera is' if low_battery_count == 1 else 'cameras are'} below your {battery_threshold}% battery threshold"
                 ]
 
                 message_content = "\n".join(message_lines)
@@ -137,20 +135,23 @@ def send_daily_battery_digest() -> None:
                 # Send via all configured channels
                 for channel in channels:
                     if channel == 'signal' and pref.signal_phone:
+                        # Signal doesn't support buttons, include URL in message
+                        signal_message = message_content + f"\n\nView details: {project_url}"
+
                         # Create notification log entry
                         log_id = create_notification_log(
                             user_id=user.id,
                             notification_type='battery_digest',
                             channel='signal',
                             trigger_data=trigger_data,
-                            message_content=message_content
+                            message_content=signal_message
                         )
 
                         # Publish to Signal queue
                         signal_queue.publish({
                             'notification_log_id': log_id,
                             'recipient_phone': pref.signal_phone,
-                            'message_text': message_content,
+                            'message_text': signal_message,
                             'attachment_path': None,
                         })
 
@@ -169,6 +170,16 @@ def send_daily_battery_digest() -> None:
                         )
 
                     elif channel == 'telegram' and pref.telegram_chat_id:
+                        # Telegram supports inline buttons
+                        inline_keyboard = {
+                            'inline_keyboard': [[
+                                {
+                                    'text': 'View details',
+                                    'url': project_url
+                                }
+                            ]]
+                        }
+
                         # Create notification log entry
                         log_id = create_notification_log(
                             user_id=user.id,
@@ -184,6 +195,7 @@ def send_daily_battery_digest() -> None:
                             'chat_id': pref.telegram_chat_id,
                             'message_text': message_content,
                             'attachment_path': None,
+                            'reply_markup': inline_keyboard
                         })
 
                         messages_sent += 1
