@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20250113_remove_signal_support'
-down_revision = '20250109_add_telegram_notifications'
+down_revision = 'add_telegram_notifications'
 branch_labels = None
 depends_on = None
 
