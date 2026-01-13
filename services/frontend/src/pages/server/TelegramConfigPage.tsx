@@ -285,7 +285,7 @@ export const TelegramConfigPage: React.FC = () => {
                             <CopyButton text={botUsername} id="copy-username" />
                           </code>
                         </li>
-                        <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrsTUVwxyz</em>)</li>
+                        <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrs-TUVwxyz_A1</em>)</li>
                       </ol>
                     </div>
                   </div>
@@ -299,7 +299,7 @@ export const TelegramConfigPage: React.FC = () => {
                     type="text"
                     value={botToken}
                     onChange={(e) => setBotToken(e.target.value)}
-                    placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                    placeholder="123456789:ABCdefGHIjklMNOpqrs-TUVwxyz_A1"
                     className="w-full px-3 py-2 border rounded-md font-mono text-sm"
                     required
                     autoFocus
