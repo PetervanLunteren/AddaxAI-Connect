@@ -256,8 +256,16 @@ export const NotificationsPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Warning Banner - When Telegram Not Configured */}
-              {!isTelegramConfigured && (
+              <Checkbox
+                id="telegram-enabled"
+                checked={telegramEnabled}
+                onChange={setTelegramEnabled}
+                label="Enable Telegram notifications"
+                disabled={!isTelegramConfigured}
+              />
+
+              {/* Warning Banner - When Telegram Not Configured and User Wants to Enable */}
+              {telegramEnabled && !isTelegramConfigured && (
                 <div className="mb-4 p-4 border-2 border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 rounded-md">
                   <div className="flex items-start gap-4">
                     <div className="flex-shrink-0 mt-1">
@@ -272,14 +280,6 @@ export const NotificationsPage: React.FC = () => {
                   </div>
                 </div>
               )}
-
-              <Checkbox
-                id="telegram-enabled"
-                checked={telegramEnabled}
-                onChange={setTelegramEnabled}
-                label="Enable Telegram notifications"
-                disabled={!isTelegramConfigured}
-              />
 
               {telegramEnabled && (
                 <>
