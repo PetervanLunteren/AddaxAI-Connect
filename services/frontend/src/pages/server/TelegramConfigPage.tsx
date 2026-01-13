@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2 } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
@@ -45,6 +45,37 @@ const CopyButton: React.FC<{ text: string; id: string }> = ({ text, id }) => {
         <Check className="h-3 w-3 text-green-500" />
       ) : (
         <Copy className="h-3 w-3 text-muted-foreground" />
+      )}
+    </button>
+  );
+};
+
+// Download button component for logo
+const DownloadButton: React.FC<{ fileName: string }> = ({ fileName }) => {
+  const [downloaded, setDownloaded] = useState(false);
+
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = '/logo-square-no-text.png';
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setDownloaded(true);
+    setTimeout(() => setDownloaded(false), 2000);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleDownload}
+      className="inline-flex items-center justify-center p-1 ml-1 hover:bg-accent rounded transition-colors"
+      title="Download logo"
+    >
+      {downloaded ? (
+        <Check className="h-3 w-3 text-green-500" />
+      ) : (
+        <Download className="h-3 w-3 text-muted-foreground" />
       )}
     </button>
   );
@@ -304,6 +335,43 @@ export const TelegramConfigPage: React.FC = () => {
                   <p className="text-xs text-muted-foreground mt-1">
                     The token provided by @BotFather. Use the bot name and username shown above.
                   </p>
+                </div>
+
+                {/* Profile Picture Instructions */}
+                <div className="bg-muted border border-border p-4 rounded-md">
+                  <div className="flex gap-2">
+                    <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        <strong>Optional: Add a profile picture</strong>
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>
+                          Download the{' '}
+                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
+                            logo
+                            <DownloadButton fileName="addaxai-logo.png" />
+                          </code>
+                        </li>
+                        <li>
+                          Open{' '}
+                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
+                            @BotFather
+                            <CopyButton text="@BotFather" id="copy-botfather-pic" />
+                          </code>
+                          {' '}in Telegram
+                        </li>
+                        <li>
+                          Click{' '}
+                          <code className="px-1.5 py-0.5 bg-background rounded">
+                            Open
+                          </code>
+                          {' '}next to the message input
+                        </li>
+                        <li>Select your bot → Edit info → Set New Photo</li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
