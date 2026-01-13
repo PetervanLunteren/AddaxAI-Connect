@@ -233,3 +233,16 @@ class TelegramConfig(Base):
     health_status = Column(String(50), nullable=True)  # healthy, error, not_configured
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class TelegramLinkingToken(Base):
+    """Temporary tokens for automated Telegram account linking via deep links"""
+    __tablename__ = "telegram_linking_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    used = Column(Boolean, nullable=False, server_default="false")

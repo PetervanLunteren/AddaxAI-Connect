@@ -25,6 +25,7 @@
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.68.0",
     "react-leaflet": "^4.2.1",
+    "react-qr-code": "^2.0.18",
     "react-router-dom": "^6.20.0",
     "react-select": "^5.10.2",
     "tailwind-merge": "^3.4.0",
