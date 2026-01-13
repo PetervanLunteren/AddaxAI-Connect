@@ -11,7 +11,7 @@ from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EVENTS, QUEUE_NOTIFICATION_SIGNAL
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EVENTS
 from shared.config import get_settings
 
 from rule_engine import get_matching_users
