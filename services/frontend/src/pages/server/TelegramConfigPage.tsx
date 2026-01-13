@@ -163,8 +163,7 @@ export const TelegramConfigPage: React.FC = () => {
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold mb-2">Not configured</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Telegram bot is not set up. Configure a bot to enable Telegram notifications for all users.
-                      Users will be able to receive species detections, battery alerts, and system health notifications via Telegram.
+                      Telegram bot is not set up. Configure a bot to enable Telegram notifications.
                     </p>
                     <button
                       onClick={() => setShowConfigModal(true)}
