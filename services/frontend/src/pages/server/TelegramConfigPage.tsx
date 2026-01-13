@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
@@ -18,6 +18,36 @@ const generateBotUsername = (): string => {
     hash += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return `addaxai_connect_${hash}_bot`;
+};
+
+// Copy button component for inline code examples
+const CopyButton: React.FC<{ text: string; id: string }> = ({ text, id }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex items-center justify-center p-1 ml-1 hover:bg-accent rounded transition-colors"
+      title="Copy to clipboard"
+    >
+      {copied ? (
+        <Check className="h-3 w-3 text-green-500" />
+      ) : (
+        <Copy className="h-3 w-3 text-muted-foreground" />
+      )}
+    </button>
+  );
 };
 
 export const TelegramConfigPage: React.FC = () => {
@@ -239,9 +269,29 @@ export const TelegramConfigPage: React.FC = () => {
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </li>
-                        <li>Send the command <code className="px-1.5 py-0.5 bg-background rounded">/newbot</code></li>
-                        <li>Follow the prompts to name your bot (e.g., <code className="px-1.5 py-0.5 bg-background rounded">AddaxAI Connect</code>)</li>
-                        <li>Choose a username for your bot (e.g., <code className="px-1.5 py-0.5 bg-background rounded">{botUsername}</code>)</li>
+                        <li>
+                          Send the command{' '}
+                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
+                            /newbot
+                            <CopyButton text="/newbot" id="copy-newbot" />
+                          </code>
+                        </li>
+                        <li>
+                          Follow the prompts to name your bot (e.g.,{' '}
+                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
+                            AddaxAI Connect
+                            <CopyButton text="AddaxAI Connect" id="copy-botname" />
+                          </code>
+                          )
+                        </li>
+                        <li>
+                          Choose a username for your bot (e.g.,{' '}
+                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
+                            {botUsername}
+                            <CopyButton text={botUsername} id="copy-username" />
+                          </code>
+                          )
+                        </li>
                         <li>Copy the bot token (looks like: <code className="px-1.5 py-0.5 bg-background rounded">123456789:ABCdefGHIjklMNOpqrsTUVwxyz</code>)</li>
                       </ol>
                     </div>
