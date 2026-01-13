@@ -190,7 +190,6 @@ class ProjectNotificationPreference(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, nullable=False, server_default="false")
-    signal_phone = Column(String(20), nullable=True)  # E.164 format: +1234567890
     telegram_chat_id = Column(String(50), nullable=True)  # Telegram chat ID
     notify_species = Column(JSON, nullable=True)  # DEPRECATED: Use notification_channels instead
     notify_low_battery = Column(Boolean, nullable=False, server_default="true")  # DEPRECATED: Use notification_channels instead
@@ -220,20 +219,6 @@ class NotificationLog(Base):
     error_message = Column(Text, nullable=True)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
-
-
-class SignalConfig(Base):
-    """System-wide Signal configuration (admin only, single row)"""
-    __tablename__ = "signal_config"
-
-    id = Column(Integer, primary_key=True)
-    phone_number = Column(String(20), nullable=True)  # E.164 format
-    device_name = Column(String(100), nullable=False, server_default="AddaxAI-Connect")
-    is_registered = Column(Boolean, nullable=False, server_default="false")
-    last_health_check = Column(DateTime(timezone=True), nullable=True)
-    health_status = Column(String(50), nullable=True)  # healthy, error, not_configured
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
 class TelegramConfig(Base):

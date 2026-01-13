@@ -21,13 +21,12 @@ class NotificationPreferenceResponse(BaseModel):
     """Response for notification preferences"""
     # Legacy fields (deprecated but kept for backward compatibility)
     enabled: bool
-    signal_phone: Optional[str]
     notify_species: Optional[List[str]]
     notify_low_battery: bool
     battery_threshold: int
     notify_system_health: bool
 
-    # New multi-channel fields
+    # Multi-channel fields
     telegram_chat_id: Optional[str] = None
     notification_channels: Optional[Dict[str, Any]] = None
 
@@ -39,13 +38,12 @@ class NotificationPreferenceUpdateRequest(BaseModel):
     """Request to update notification preferences"""
     # Legacy fields (deprecated but kept for backward compatibility)
     enabled: Optional[bool] = None
-    signal_phone: Optional[str] = None  # E.164 format
     notify_species: Optional[List[str]] = None  # List of species IDs/names, None = all
     notify_low_battery: Optional[bool] = None
     battery_threshold: Optional[int] = None  # 0-100
     notify_system_health: Optional[bool] = None
 
-    # New multi-channel fields
+    # Multi-channel fields
     telegram_chat_id: Optional[str] = None
     notification_channels: Optional[Dict[str, Any]] = None
 
@@ -111,7 +109,6 @@ async def get_notification_preferences(
         # Return default preferences if none exist
         return NotificationPreferenceResponse(
             enabled=False,
-            signal_phone=None,
             notify_species=None,
             notify_low_battery=True,
             battery_threshold=30,
@@ -195,7 +192,6 @@ async def update_notification_preferences(
             user_id=current_user.id,
             project_id=project_id,
             enabled=False,
-            signal_phone=None,
             notify_species=None,
             notify_low_battery=True,
             battery_threshold=30,
@@ -206,8 +202,6 @@ async def update_notification_preferences(
     # Update provided fields
     if data.enabled is not None:
         prefs.enabled = data.enabled
-    if data.signal_phone is not None:
-        prefs.signal_phone = data.signal_phone
     if data.notify_species is not None:
         prefs.notify_species = data.notify_species
     if data.notify_low_battery is not None:

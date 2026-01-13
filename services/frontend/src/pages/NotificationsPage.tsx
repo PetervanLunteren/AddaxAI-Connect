@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import { Bell, Loader2, Save, Send, Check, X, MessageCircle } from 'lucide-react';
+import { Loader2, Save, Send, Check, X, MessageCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -27,16 +27,6 @@ export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
-
-  // Signal channel state
-  const [signalEnabled, setSignalEnabled] = useState(false);
-  const [signalPhone, setSignalPhone] = useState('');
-  const [signalNotifySpecies, setSignalNotifySpecies] = useState<Option[]>([]);
-  const [signalNotifyLowBattery, setSignalNotifyLowBattery] = useState(true);
-  const [signalBatteryThreshold, setSignalBatteryThreshold] = useState(30);
-  const [signalNotifySystemHealth, setSignalNotifySystemHealth] = useState(false);
-  const [signalTestStatus, setSignalTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [signalTestMessage, setSignalTestMessage] = useState('');
 
   // Telegram channel state
   const [telegramEnabled, setTelegramEnabled] = useState(false);
@@ -67,7 +57,6 @@ export const NotificationsPage: React.FC = () => {
       const notificationChannels = (preferences as any).notification_channels;
 
       // Check which channels have contact info configured
-      const hasSignalPhone = !!preferences.signal_phone;
       const hasTelegramChatId = !!(preferences as any).telegram_chat_id;
 
       // If notification_channels JSON exists, use it (new multi-channel format)
@@ -80,26 +69,6 @@ export const NotificationsPage: React.FC = () => {
         const batteryChannels = batteryConfig.channels || [];
         const healthChannels = healthConfig.channels || [];
 
-        // Signal configuration
-        const signalInSpecies = speciesChannels.includes('signal');
-        const signalInBattery = batteryChannels.includes('signal');
-        const signalInHealth = healthChannels.includes('signal');
-        const signalEnabledAny = signalInSpecies || signalInBattery || signalInHealth;
-
-        setSignalEnabled(signalEnabledAny && hasSignalPhone);
-        setSignalPhone(preferences.signal_phone || '');
-
-        // Convert species to options
-        const signalSpeciesValues = speciesConfig.notify_species || [];
-        setSignalNotifySpecies(signalSpeciesValues.map((species: string) => ({
-          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
-          value: species
-        })));
-
-        setSignalNotifyLowBattery(signalInBattery);
-        setSignalBatteryThreshold(batteryConfig.battery_threshold || 30);
-        setSignalNotifySystemHealth(signalInHealth);
-
         // Telegram configuration
         const telegramInSpecies = speciesChannels.includes('telegram');
         const telegramInBattery = batteryChannels.includes('telegram');
@@ -109,8 +78,9 @@ export const NotificationsPage: React.FC = () => {
         setTelegramEnabled(telegramEnabledAny && hasTelegramChatId);
         setTelegramChatId((preferences as any).telegram_chat_id || '');
 
-        // Use same species list for telegram (for now, until we support per-channel species)
-        setTelegramNotifySpecies(signalSpeciesValues.map((species: string) => ({
+        // Convert species to options
+        const telegramSpeciesValues = speciesConfig.notify_species || [];
+        setTelegramNotifySpecies(telegramSpeciesValues.map((species: string) => ({
           label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
           value: species
         })));
@@ -125,14 +95,6 @@ export const NotificationsPage: React.FC = () => {
           label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
           value: species
         }));
-
-        // Signal - only mark as enabled if both enabled flag is true AND phone exists
-        setSignalEnabled(preferences.enabled && hasSignalPhone);
-        setSignalPhone(preferences.signal_phone || '');
-        setSignalNotifySpecies(speciesOptions);
-        setSignalNotifyLowBattery(preferences.notify_low_battery);
-        setSignalBatteryThreshold(preferences.battery_threshold);
-        setSignalNotifySystemHealth(preferences.notify_system_health);
 
         // Telegram - mark as enabled if chat ID exists and enabled
         setTelegramEnabled(hasTelegramChatId && preferences.enabled);
@@ -157,21 +119,6 @@ export const NotificationsPage: React.FC = () => {
     },
   });
 
-  // Test Signal message mutation
-  const testSignalMutation = useMutation({
-    mutationFn: () => adminApi.sendTestSignalMessage(signalPhone.trim().replace(/\s/g, ''), 'Test from AddaxAI Connect!'),
-    onSuccess: () => {
-      setSignalTestStatus('success');
-      setSignalTestMessage('Test message sent!');
-      setTimeout(() => { setSignalTestStatus('idle'); setSignalTestMessage(''); }, 5000);
-    },
-    onError: (error: any) => {
-      setSignalTestStatus('error');
-      setSignalTestMessage(error.response?.data?.detail || 'Failed to send');
-      setTimeout(() => { setSignalTestStatus('idle'); setSignalTestMessage(''); }, 5000);
-    },
-  });
-
   // Test Telegram message mutation
   const testTelegramMutation = useMutation({
     mutationFn: () => adminApi.sendTestTelegramMessage(telegramChatId.trim(), 'Test from AddaxAI Connect!'),
@@ -187,16 +134,6 @@ export const NotificationsPage: React.FC = () => {
     },
   });
 
-  const handleTestSignal = () => {
-    if (!signalPhone.trim()) {
-      setSignalTestStatus('error');
-      setSignalTestMessage('Enter phone number first');
-      setTimeout(() => { setSignalTestStatus('idle'); setSignalTestMessage(''); }, 3000);
-      return;
-    }
-    testSignalMutation.mutate();
-  };
-
   const handleTestTelegram = () => {
     if (!telegramChatId.trim()) {
       setTelegramTestStatus('error');
@@ -211,65 +148,42 @@ export const NotificationsPage: React.FC = () => {
     e.preventDefault();
 
     // Clean inputs
-    const cleanedPhone = signalPhone.trim().replace(/\s/g, '');
     const cleanedChatId = telegramChatId.trim();
 
     // Build notification_channels JSON structure
     const channels: string[] = [];
-    if (signalEnabled) channels.push('signal');
     if (telegramEnabled) channels.push('telegram');
 
-    // Determine which channel's settings to use for legacy fields
-    // Priority: Signal if enabled, otherwise Telegram
-    let legacySpeciesValues: string[] = [];
-    let legacyLowBattery = false;
-    let legacyBatteryThreshold = 30;
-    let legacySystemHealth = false;
-
-    if (signalEnabled) {
-      legacySpeciesValues = signalNotifySpecies.map(opt => opt.value);
-      legacyLowBattery = signalNotifyLowBattery;
-      legacyBatteryThreshold = signalBatteryThreshold;
-      legacySystemHealth = signalNotifySystemHealth;
-    } else if (telegramEnabled) {
-      legacySpeciesValues = telegramNotifySpecies.map(opt => opt.value);
-      legacyLowBattery = telegramNotifyLowBattery;
-      legacyBatteryThreshold = telegramBatteryThreshold;
-      legacySystemHealth = telegramNotifySystemHealth;
-    }
+    // Use Telegram settings for legacy fields
+    const legacySpeciesValues = telegramEnabled ? telegramNotifySpecies.map(opt => opt.value) : [];
+    const legacyLowBattery = telegramEnabled && telegramNotifyLowBattery;
+    const legacyBatteryThreshold = telegramBatteryThreshold;
+    const legacySystemHealth = telegramEnabled && telegramNotifySystemHealth;
 
     // Build notification_channels JSON with per-channel configuration
     const notificationChannels = {
       species_detection: {
-        enabled: signalEnabled || telegramEnabled,
+        enabled: telegramEnabled,
         channels: channels,
-        notify_species: signalEnabled
-          ? (signalNotifySpecies.length > 0 ? signalNotifySpecies.map(opt => opt.value) : null)
-          : telegramEnabled
+        notify_species: telegramEnabled
           ? (telegramNotifySpecies.length > 0 ? telegramNotifySpecies.map(opt => opt.value) : null)
           : null
       },
       battery_digest: {
-        enabled: (signalEnabled && signalNotifyLowBattery) || (telegramEnabled && telegramNotifyLowBattery),
-        channels: channels.filter(ch =>
-          (ch === 'signal' && signalNotifyLowBattery) ||
-          (ch === 'telegram' && telegramNotifyLowBattery)
-        ),
-        battery_threshold: signalEnabled ? signalBatteryThreshold : telegramBatteryThreshold
+        enabled: telegramEnabled && telegramNotifyLowBattery,
+        channels: telegramNotifyLowBattery ? channels : [],
+        battery_threshold: telegramBatteryThreshold
       },
       system_health: {
-        enabled: (signalEnabled && signalNotifySystemHealth) || (telegramEnabled && telegramNotifySystemHealth),
-        channels: channels.filter(ch =>
-          (ch === 'signal' && signalNotifySystemHealth) ||
-          (ch === 'telegram' && telegramNotifySystemHealth)
-        )
+        enabled: telegramEnabled && telegramNotifySystemHealth,
+        channels: telegramNotifySystemHealth ? channels : []
       }
     };
 
     updateMutation.mutate({
       // Legacy fields (for backward compatibility)
-      enabled: signalEnabled || telegramEnabled,
-      signal_phone: signalEnabled ? (cleanedPhone || null) : null,
+      enabled: telegramEnabled,
+      signal_phone: null,
       telegram_chat_id: telegramEnabled ? (cleanedChatId || null) : null,
       notify_species: legacySpeciesValues.length > 0 ? legacySpeciesValues : null,
       notify_low_battery: legacyLowBattery,
@@ -290,139 +204,6 @@ export const NotificationsPage: React.FC = () => {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Signal Notifications Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                <CardTitle>Signal Notifications</CardTitle>
-              </div>
-              <CardDescription>
-                Receive notifications via Signal messenger
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Checkbox
-                id="signal-enabled"
-                checked={signalEnabled}
-                onChange={setSignalEnabled}
-                label="Enable Signal notifications"
-              />
-
-              {signalEnabled && (
-                <>
-                  {/* Signal Phone */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Signal Phone Number
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="tel"
-                        value={signalPhone}
-                        onChange={(e) => setSignalPhone(e.target.value)}
-                        placeholder="+31612345678"
-                        className="flex-1 px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleTestSignal}
-                        disabled={!signalPhone.trim() || testSignalMutation.isPending}
-                        className="px-4 py-2 border border-border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                      >
-                        {testSignalMutation.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="hidden sm:inline">Sending...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-4 w-4" />
-                            <span className="hidden sm:inline">Test</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    {signalTestStatus === 'success' && (
-                      <div className="flex items-center gap-2 text-sm text-green-600 mt-1">
-                        <Check className="h-4 w-4" />
-                        {signalTestMessage}
-                      </div>
-                    )}
-                    {signalTestStatus === 'error' && (
-                      <div className="flex items-center gap-2 text-sm text-destructive mt-1">
-                        <X className="h-4 w-4" />
-                        {signalTestMessage}
-                      </div>
-                    )}
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Include country code (e.g., +31 for Netherlands, +1 for USA). Must have Signal installed.
-                    </p>
-                  </div>
-
-                  {/* Species Alerts */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Species Alerts
-                    </label>
-                    <MultiSelect
-                      options={speciesOptions}
-                      value={signalNotifySpecies}
-                      onChange={setSignalNotifySpecies}
-                      placeholder="Select species to notify about..."
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {signalNotifySpecies.length === 0
-                        ? 'Leave empty to receive notifications for all species'
-                        : `Notifications enabled for ${signalNotifySpecies.length} ${signalNotifySpecies.length === 1 ? 'species' : 'species'}`}
-                    </p>
-                  </div>
-
-                  {/* Battery Warnings */}
-                  <div>
-                    <Checkbox
-                      id="signal-battery"
-                      checked={signalNotifyLowBattery}
-                      onChange={setSignalNotifyLowBattery}
-                      label="Battery Warnings"
-                      className="mb-3"
-                    />
-
-                    {signalNotifyLowBattery && (
-                      <div className="pl-8">
-                        <label className="block text-sm font-medium mb-2">
-                          Battery Threshold (%)
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={signalBatteryThreshold}
-                            onChange={(e) => setSignalBatteryThreshold(Number(e.target.value))}
-                            className="flex-1 accent-primary"
-                          />
-                          <span className="font-medium w-12 text-right">{signalBatteryThreshold}%</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Notify when battery drops below this level
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* System Health */}
-                  <Checkbox
-                    id="signal-health"
-                    checked={signalNotifySystemHealth}
-                    onChange={setSignalNotifySystemHealth}
-                    label="System Health Alerts"
-                  />
-                </>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Telegram Notifications Card */}
           <Card>
             <CardHeader>

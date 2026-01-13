@@ -68,12 +68,6 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
       variant: 'default' as const,
     },
     {
-      icon: Bell,
-      label: 'Signal Notifications',
-      onClick: () => handleNavigate('/server/signal-config'),
-      variant: 'default' as const,
-    },
-    {
       icon: MessageCircle,
       label: 'Telegram Notifications',
       onClick: () => handleNavigate('/server/telegram-config'),
