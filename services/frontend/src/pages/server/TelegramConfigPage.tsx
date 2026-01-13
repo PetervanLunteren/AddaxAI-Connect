@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
@@ -170,25 +170,22 @@ export const TelegramConfigPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-4 flex gap-3 flex-wrap">
-                  <button
-                    onClick={() => setShowTestModal(true)}
-                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                  >
-                    Send test message
-                  </button>
+                <div className="pt-4">
                   <button
                     onClick={handleUnconfigure}
                     disabled={unconfigureMutation.isPending}
-                    className="px-4 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors flex items-center gap-2"
                   >
                     {unconfigureMutation.isPending ? (
                       <>
-                        <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                        <Loader2 className="h-4 w-4 animate-spin" />
                         Removing...
                       </>
                     ) : (
-                      'Remove bot'
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        Remove bot
+                      </>
                     )}
                   </button>
                 </div>
