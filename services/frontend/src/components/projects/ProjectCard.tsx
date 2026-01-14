@@ -1,13 +1,13 @@
 /**
  * Project Card Component
  *
- * Displays a project with image, name, and description.
- * Shows three-dot menu for superusers to edit/delete.
+ * Displays a project with image, name, description, and user's role.
+ * Shows three-dot menu for project admins/server admins to edit/delete.
  * Clicking the card navigates to the dashboard with the project selected.
  */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Edit, Trash2, FolderOpen } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, FolderOpen, Shield, Eye, Users } from 'lucide-react';
 import { Card, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import {
@@ -18,12 +18,54 @@ import {
 } from '../ui/DropdownMenu';
 import { EditProjectModal } from './EditProjectModal';
 import { DeleteProjectModal } from './DeleteProjectModal';
-import type { Project } from '../../api/types';
+import type { ProjectWithRole } from '../../api/types';
 
 interface ProjectCardProps {
-  project: Project;
+  project: ProjectWithRole;
   canManage: boolean;
 }
+
+// Role badge component
+const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
+  const getRoleConfig = (role: string) => {
+    switch (role) {
+      case 'server-admin':
+        return {
+          label: 'server admin',
+          icon: Shield,
+          className: 'bg-purple-100 text-purple-700 border-purple-200',
+        };
+      case 'project-admin':
+        return {
+          label: 'project admin',
+          icon: Users,
+          className: 'bg-blue-100 text-blue-700 border-blue-200',
+        };
+      case 'project-viewer':
+        return {
+          label: 'project viewer',
+          icon: Eye,
+          className: 'bg-gray-100 text-gray-700 border-gray-200',
+        };
+      default:
+        return {
+          label: role,
+          icon: Shield,
+          className: 'bg-gray-100 text-gray-700 border-gray-200',
+        };
+    }
+  };
+
+  const config = getRoleConfig(role);
+  const Icon = config.icon;
+
+  return (
+    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border ${config.className}`}>
+      <Icon className="h-3 w-3" />
+      <span>{config.label}</span>
+    </div>
+  );
+};
 
 export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) => {
   const navigate = useNavigate();
@@ -92,7 +134,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
 
         {/* Project Info */}
         <CardContent className="p-4">
-          <h3 className="font-semibold text-lg mb-1 line-clamp-1">{project.name}</h3>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h3 className="font-semibold text-lg line-clamp-1 flex-1">{project.name}</h3>
+          </div>
+          <div className="mb-2">
+            <RoleBadge role={project.role} />
+          </div>
           {project.description && (
             <p className="text-sm text-muted-foreground line-clamp-2">
               {project.description}

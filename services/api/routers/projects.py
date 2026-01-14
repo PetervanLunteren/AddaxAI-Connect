@@ -7,12 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel
 
-from shared.models import User, Project, Image, Detection, Classification, Camera
+from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from auth.users import current_superuser, current_active_user
+from auth.users import current_active_user
+from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
 from utils.image_processing import delete_project_images
 
 
@@ -81,6 +82,32 @@ class ProjectResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ProjectUserInfo(BaseModel):
+    """User information in project context"""
+    user_id: int
+    email: str
+    role: str
+    is_active: bool
+    is_verified: bool
+    added_at: str
+
+
+class ProjectUserListResponse(BaseModel):
+    """Response for listing users in a project"""
+    users: List[ProjectUserInfo]
+
+
+class AddUserToProjectRequest(BaseModel):
+    """Request to add user to project"""
+    user_id: int
+    role: str  # 'project-admin' or 'project-viewer'
+
+
+class UpdateProjectUserRoleRequest(BaseModel):
+    """Request to update user's role in project"""
+    role: str  # 'project-admin' or 'project-viewer'
 
 
 @router.get(
@@ -170,10 +197,10 @@ async def get_project(
 async def create_project(
     project_data: ProjectCreate,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Create a new project
+    Create a new project (server admin only)
 
     Args:
         project_data: Project creation data
@@ -216,7 +243,7 @@ async def update_project(
     current_user: User = Depends(current_active_user),
 ):
     """
-    Update an existing project
+    Update an existing project (project admin or server admin)
 
     Args:
         project_id: Project ID to update
@@ -226,8 +253,15 @@ async def update_project(
         Updated project
 
     Raises:
-        HTTPException: If project not found
+        HTTPException: If project not found or insufficient permissions
     """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
     # Fetch existing project
     query = select(Project).where(Project.id == project_id)
     result = await db.execute(query)
@@ -273,10 +307,10 @@ async def delete_project(
     project_id: int,
     confirm: str = Query(..., description="Project name to confirm deletion"),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Delete a project with cascade deletion (superuser only)
+    Delete a project with cascade deletion (server admin only)
 
     Deletes project and all associated data:
     - All cameras belonging to project
@@ -432,3 +466,339 @@ async def delete_project(
         deleted_classifications=deleted_classifications,
         deleted_minio_files=deleted_minio_files
     )
+
+
+@router.get(
+    "/{project_id}/users",
+    response_model=ProjectUserListResponse,
+)
+async def list_project_users(
+    project_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    List all users in a project (project admin or server admin)
+
+    Args:
+        project_id: Project ID
+
+    Returns:
+        List of users with their roles in the project
+
+    Raises:
+        HTTPException: If project not found or insufficient permissions
+    """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    # Verify project exists
+    project_query = select(Project).where(Project.id == project_id)
+    project_result = await db.execute(project_query)
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found",
+        )
+
+    # Get all project memberships with user details
+    query = (
+        select(ProjectMembership, User)
+        .join(User, ProjectMembership.user_id == User.id)
+        .where(ProjectMembership.project_id == project_id)
+    )
+    result = await db.execute(query)
+    memberships = result.all()
+
+    users = []
+    for membership, user in memberships:
+        users.append(
+            ProjectUserInfo(
+                user_id=user.id,
+                email=user.email,
+                role=membership.role,
+                is_active=user.is_active,
+                is_verified=user.is_verified,
+                added_at=membership.created_at.isoformat(),
+            )
+        )
+
+    return ProjectUserListResponse(users=users)
+
+
+@router.post(
+    "/{project_id}/users",
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_user_to_project(
+    project_id: int,
+    request: AddUserToProjectRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Add a user to a project with a specific role (project admin or server admin)
+
+    Args:
+        project_id: Project ID
+        request: User ID and role to assign
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If project/user not found, insufficient permissions, or user already in project
+    """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    # Validate role
+    valid_roles = ["project-admin", "project-viewer"]
+    if request.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+        )
+
+    # Verify project exists
+    project_query = select(Project).where(Project.id == project_id)
+    project_result = await db.execute(project_query)
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found",
+        )
+
+    # Verify user exists
+    user_query = select(User).where(User.id == request.user_id)
+    user_result = await db.execute(user_query)
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {request.user_id} not found",
+        )
+
+    # Check if user is already in project
+    existing_query = select(ProjectMembership).where(
+        ProjectMembership.user_id == request.user_id,
+        ProjectMembership.project_id == project_id,
+    )
+    existing_result = await db.execute(existing_query)
+    existing_membership = existing_result.scalar_one_or_none()
+
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"User {user.email} is already a member of project {project.name}",
+        )
+
+    # Create membership
+    membership = ProjectMembership(
+        user_id=request.user_id,
+        project_id=project_id,
+        role=request.role,
+        added_by_user_id=current_user.id,
+    )
+    db.add(membership)
+    await db.commit()
+
+    logger.info(
+        "User added to project",
+        user_id=request.user_id,
+        project_id=project_id,
+        role=request.role,
+        added_by=current_user.id,
+    )
+
+    return {
+        "message": f"User {user.email} added to project {project.name} as {request.role}",
+    }
+
+
+@router.patch(
+    "/{project_id}/users/{user_id}",
+)
+async def update_project_user_role(
+    project_id: int,
+    user_id: int,
+    request: UpdateProjectUserRoleRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Update a user's role in a project (project admin or server admin)
+
+    Args:
+        project_id: Project ID
+        user_id: User ID
+        request: New role to assign
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If project/user not found, insufficient permissions, or user not in project
+    """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    # Validate role
+    valid_roles = ["project-admin", "project-viewer"]
+    if request.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+        )
+
+    # Verify project exists
+    project_query = select(Project).where(Project.id == project_id)
+    project_result = await db.execute(project_query)
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found",
+        )
+
+    # Verify user exists
+    user_query = select(User).where(User.id == user_id)
+    user_result = await db.execute(user_query)
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found",
+        )
+
+    # Find membership
+    membership_query = select(ProjectMembership).where(
+        ProjectMembership.user_id == user_id,
+        ProjectMembership.project_id == project_id,
+    )
+    membership_result = await db.execute(membership_query)
+    membership = membership_result.scalar_one_or_none()
+
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user.email} is not a member of project {project.name}",
+        )
+
+    # Update role
+    old_role = membership.role
+    membership.role = request.role
+    await db.commit()
+
+    logger.info(
+        "Project user role updated",
+        user_id=user_id,
+        project_id=project_id,
+        old_role=old_role,
+        new_role=request.role,
+        updated_by=current_user.id,
+    )
+
+    return {
+        "message": f"User {user.email} role in project {project.name} updated from {old_role} to {request.role}",
+    }
+
+
+@router.delete(
+    "/{project_id}/users/{user_id}",
+    status_code=status.HTTP_200_OK,
+)
+async def remove_user_from_project(
+    project_id: int,
+    user_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Remove a user from a project (project admin or server admin)
+
+    Args:
+        project_id: Project ID
+        user_id: User ID to remove
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException: If project/user not found, insufficient permissions, or user not in project
+    """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    # Verify project exists
+    project_query = select(Project).where(Project.id == project_id)
+    project_result = await db.execute(project_query)
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found",
+        )
+
+    # Verify user exists
+    user_query = select(User).where(User.id == user_id)
+    user_result = await db.execute(user_query)
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found",
+        )
+
+    # Find and delete membership
+    membership_query = select(ProjectMembership).where(
+        ProjectMembership.user_id == user_id,
+        ProjectMembership.project_id == project_id,
+    )
+    membership_result = await db.execute(membership_query)
+    membership = membership_result.scalar_one_or_none()
+
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user.email} is not a member of project {project.name}",
+        )
+
+    await db.delete(membership)
+    await db.commit()
+
+    logger.info(
+        "User removed from project",
+        user_id=user_id,
+        project_id=project_id,
+        removed_by=current_user.id,
+    )
+
+    return {
+        "message": f"User {user.email} removed from project {project.name}",
+    }

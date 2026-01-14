@@ -135,12 +135,52 @@ export interface ProjectDeleteResponse {
   deleted_minio_files: number;
 }
 
-export interface UserWithProject {
+// User types
+export interface User {
   id: number;
   email: string;
-  is_superuser: boolean;
-  project_id: number | null;
-  project_name: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  is_server_admin: boolean;
+}
+
+export interface ProjectMembershipInfo {
+  project_id: number;
+  project_name: string;
+  role: string;
+}
+
+export interface UserWithMemberships extends User {
+  project_memberships: ProjectMembershipInfo[];
+}
+
+// Project with user's role
+export interface ProjectWithRole {
+  id: number;
+  name: string;
+  description: string | null;
+  role: string;
+  image_url: string | null;
+  thumbnail_url: string | null;
+}
+
+// Project user management
+export interface ProjectUserInfo {
+  user_id: number;
+  email: string;
+  role: string;
+  is_active: boolean;
+  is_verified: boolean;
+  added_at: string;
+}
+
+export interface AddUserToProjectRequest {
+  user_id: number;
+  role: string;
+}
+
+export interface UpdateProjectUserRoleRequest {
+  role: string;
 }
 
 // Signal Notifications

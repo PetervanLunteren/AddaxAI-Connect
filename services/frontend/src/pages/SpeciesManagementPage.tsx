@@ -1,7 +1,11 @@
 /**
  * Species Management page for configuring species filtering
+ *
+ * Allows project admins and server admins to configure which species are present
+ * in the study area to improve classification accuracy.
  */
 import React, { useState, useEffect } from 'react';
+import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
@@ -22,10 +26,16 @@ const DEEPFAUNE_SPECIES = [
 ].sort(); // Alphabetically sorted for UI
 
 export const SpeciesManagementPage: React.FC = () => {
+  const { projectId } = useParams<{ projectId: string }>();
   const queryClient = useQueryClient();
-  const { selectedProject, loading: projectsLoading, refreshProjects } = useProject();
+  const { selectedProject, loading: projectsLoading, refreshProjects, canAdminCurrentProject } = useProject();
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
+  // Redirect if user doesn't have admin access
+  if (!canAdminCurrentProject) {
+    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
+  }
 
   // Load included species when project changes
   useEffect(() => {

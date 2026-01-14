@@ -12,7 +12,8 @@ from pydantic import BaseModel
 
 from shared.models import User, Camera, Project
 from shared.database import get_async_session
-from auth.users import current_active_user, current_superuser
+from auth.users import current_active_user
+from auth.permissions import can_admin_project
 from auth.project_access import get_accessible_project_ids
 
 
@@ -154,8 +155,8 @@ async def list_cameras(
     List all cameras with health status
 
     Returns cameras filtered by user's accessible projects:
-    - Superusers: all cameras
-    - Regular users: only cameras from their assigned project
+    - Server admins: all cameras
+    - Regular users: only cameras from their assigned projects
 
     Args:
         accessible_project_ids: Project IDs accessible to user
@@ -227,22 +228,29 @@ async def get_camera(
 async def create_camera(
     request: CreateCameraRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(current_active_user),
 ):
     """
-    Create a new camera (superuser only).
+    Create a new camera (project admin or server admin)
 
     Args:
         request: Camera creation data (IMEI required, name optional)
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated user
 
     Returns:
         Created camera
 
     Raises:
-        HTTPException: If IMEI already exists or project not found
+        HTTPException: If IMEI already exists, project not found, or insufficient permissions
     """
+    # Check project admin access
+    if not await can_admin_project(current_user, request.project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {request.project_id}",
+        )
+
     # Check if IMEI already exists
     result = await db.execute(
         select(Camera).where(Camera.imei == request.imei)
@@ -295,22 +303,22 @@ async def update_camera(
     camera_id: int,
     request: UpdateCameraRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(current_active_user),
 ):
     """
-    Update camera metadata (superuser only).
+    Update camera metadata (project admin or server admin)
 
     Args:
         camera_id: Camera ID
         request: Update data
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated user
 
     Returns:
         Updated camera
 
     Raises:
-        HTTPException: If camera not found
+        HTTPException: If camera not found or insufficient permissions
     """
     result = await db.execute(
         select(Camera).where(Camera.id == camera_id)
@@ -321,6 +329,13 @@ async def update_camera(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Camera not found",
+        )
+
+    # Check project admin access
+    if not await can_admin_project(current_user, camera.project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {camera.project_id}",
         )
 
     # Update fields if provided
@@ -350,18 +365,18 @@ async def update_camera(
 async def delete_camera(
     camera_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(current_active_user),
 ):
     """
-    Delete camera (superuser only).
+    Delete camera (project admin or server admin)
 
     Args:
         camera_id: Camera ID
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated user
 
     Raises:
-        HTTPException: If camera not found or has associated images
+        HTTPException: If camera not found, has associated images, or insufficient permissions
     """
     result = await db.execute(
         select(Camera).where(Camera.id == camera_id)
@@ -372,6 +387,13 @@ async def delete_camera(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Camera not found",
+        )
+
+    # Check project admin access
+    if not await can_admin_project(current_user, camera.project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {camera.project_id}",
         )
 
     # Check if camera has associated images
@@ -394,26 +416,39 @@ async def import_cameras_csv(
     file: UploadFile = File(...),
     project_id: int = None,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(current_active_user),
 ):
     """
-    Bulk import cameras from CSV file (superuser only).
+    Bulk import cameras from CSV file (project admin or server admin)
 
     Expected CSV format with headers:
     IMEI,FriendlyName,SerialNumber,Box,Order,ScannedDate
 
     Args:
         file: CSV file upload
-        project_id: Project ID to assign all cameras to (optional, defaults to first project)
+        project_id: Project ID to assign all cameras to (required)
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated user
 
     Returns:
         Import results with success/failure counts and per-row details
 
     Raises:
-        HTTPException: If CSV format is invalid or project not found
+        HTTPException: If CSV format is invalid, project not found, or insufficient permissions
     """
+    # Project ID is required
+    if project_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id is required for bulk import",
+        )
+
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
     # Verify file is CSV
     if not file.filename.endswith('.csv'):
         raise HTTPException(
@@ -461,27 +496,16 @@ async def import_cameras_csv(
             detail=f"Missing required CSV headers: {', '.join(missing)}",
         )
 
-    # If no project_id provided, use the first project
-    if project_id is None:
-        result = await db.execute(select(Project).limit(1))
-        default_project = result.scalar_one_or_none()
-        if not default_project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No projects found. Please create a project first.",
-            )
-        project_id = default_project.id
-    else:
-        # Verify project exists
-        result = await db.execute(
-            select(Project).where(Project.id == project_id)
+    # Verify project exists
+    result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found",
         )
-        project = result.scalar_one_or_none()
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project with ID {project_id} not found",
-            )
 
     # Process rows
     results: List[CameraImportRow] = []

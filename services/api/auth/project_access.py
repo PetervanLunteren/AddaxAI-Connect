@@ -8,7 +8,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from shared.models import User, Project
+from shared.models import User, Project, ProjectMembership
 from shared.database import get_async_session
 from auth.users import current_active_user
 
@@ -20,8 +20,8 @@ async def get_accessible_project_ids(
     """
     Get list of project IDs accessible to the current user.
 
-    Superusers: all project IDs
-    Regular users: only their assigned project ID (if any)
+    Server admins: all project IDs
+    Regular users: projects from their project_memberships
 
     Args:
         current_user: Current authenticated user
@@ -30,15 +30,17 @@ async def get_accessible_project_ids(
     Returns:
         List of accessible project IDs
     """
-    if current_user.is_superuser:
-        # Superusers can access all projects
+    if current_user.is_server_admin:
+        # Server admins can access all projects
         result = await db.execute(select(Project.id))
         project_ids = [row[0] for row in result.all()]
         return project_ids
     else:
-        # Regular users can only access their assigned project
-        if current_user.project_id:
-            return [current_user.project_id]
-        else:
-            # User has no project assigned - return empty list
-            return []
+        # Regular users: get projects from memberships table
+        result = await db.execute(
+            select(ProjectMembership.project_id).where(
+                ProjectMembership.user_id == current_user.id
+            )
+        )
+        project_ids = [row[0] for row in result.all()]
+        return project_ids

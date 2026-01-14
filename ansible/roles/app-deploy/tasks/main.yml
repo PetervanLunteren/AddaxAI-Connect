@@ -122,7 +122,7 @@
     docker compose exec -T postgres
     psql -U {{ db_user | default('addaxai') }}
     -d {{ db_name | default('addaxai_connect') }}
-    -c "INSERT INTO email_allowlist (email, is_superuser) VALUES ('{{ item }}', true) ON CONFLICT (email) DO UPDATE SET is_superuser = true;"
+    -c "INSERT INTO email_allowlist (email, is_server_admin) VALUES ('{{ item }}', true) ON CONFLICT (email) DO UPDATE SET is_server_admin = true;"
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"

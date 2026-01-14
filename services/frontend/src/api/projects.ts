@@ -2,7 +2,15 @@
  * Projects API client
  */
 import apiClient from './client';
-import type { Project, ProjectCreate, ProjectUpdate, ProjectDeleteResponse } from './types';
+import type {
+  Project,
+  ProjectCreate,
+  ProjectUpdate,
+  ProjectDeleteResponse,
+  ProjectUserInfo,
+  AddUserToProjectRequest,
+  UpdateProjectUserRoleRequest
+} from './types';
 
 export const projectsApi = {
   /**
@@ -65,6 +73,48 @@ export const projectsApi = {
   delete: async (id: number, confirmName: string): Promise<ProjectDeleteResponse> => {
     const response = await apiClient.delete<ProjectDeleteResponse>(
       `/api/projects/${id}?confirm=${encodeURIComponent(confirmName)}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Get users in project (project admin or server admin)
+   */
+  getUsers: async (projectId: number): Promise<ProjectUserInfo[]> => {
+    const response = await apiClient.get<{ users: ProjectUserInfo[] }>(
+      `/api/projects/${projectId}/users`
+    );
+    return response.data.users;
+  },
+
+  /**
+   * Add user to project with role (project admin or server admin)
+   */
+  addUser: async (projectId: number, userId: number, role: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>(
+      `/api/projects/${projectId}/users`,
+      { user_id: userId, role }
+    );
+    return response.data;
+  },
+
+  /**
+   * Update user's role in project (project admin or server admin)
+   */
+  updateUserRole: async (projectId: number, userId: number, role: string): Promise<{ message: string }> => {
+    const response = await apiClient.patch<{ message: string }>(
+      `/api/projects/${projectId}/users/${userId}`,
+      { role }
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove user from project (project admin or server admin)
+   */
+  removeUser: async (projectId: number, userId: number): Promise<{ message: string }> => {
+    const response = await apiClient.delete<{ message: string }>(
+      `/api/projects/${projectId}/users/${userId}`
     );
     return response.data;
   },

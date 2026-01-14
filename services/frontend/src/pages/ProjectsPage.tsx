@@ -1,49 +1,23 @@
 /**
  * Projects Page
  *
- * Shows all projects as cards (superusers see all, regular users see only their assigned project).
- * Superusers can create, edit, and delete projects.
+ * Shows all projects as cards with user's role in each.
+ * Server admins see all projects, regular users see their assigned projects.
+ * Server admins and project admins can manage their projects.
  */
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Loader2, Camera } from 'lucide-react';
-import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import { ServerAdminMenu } from '../components/ServerAdminMenu';
-import type { Project } from '../api/types';
 
 export const ProjectsPage: React.FC = () => {
   const { user } = useAuth();
+  const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  const { data: projects, isLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: projectsApi.getAll,
-  });
-
-  // Filter projects based on user role
-  const visibleProjects = React.useMemo(() => {
-    if (!projects || !user) return [];
-
-    // Superusers see all projects
-    if (user.is_superuser) {
-      return projects;
-    }
-
-    // Regular users see only their assigned project
-    if (user.project_id) {
-      return projects.filter(p => p.id === user.project_id);
-    }
-
-    // No project assigned = no access
-    return [];
-  }, [projects, user]);
-
-  const canManageProjects = user?.is_superuser || false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -60,7 +34,7 @@ export const ProjectsPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-4">
               <p className="text-sm font-medium hidden sm:block">{user?.email}</p>
-              {canManageProjects && (
+              {isServerAdmin && (
                 <ServerAdminMenu onCreateProject={() => setShowCreateModal(true)} />
               )}
             </div>
@@ -73,42 +47,42 @@ export const ProjectsPage: React.FC = () => {
         <div className="mb-6">
           <h2 className="text-2xl font-bold">Projects</h2>
           <p className="text-muted-foreground mt-1">
-            {canManageProjects
+            {isServerAdmin
               ? 'Manage wildlife monitoring projects'
-              : 'Your assigned project'
+              : 'Your assigned projects'
             }
           </p>
         </div>
 
-      {isLoading ? (
+      {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : visibleProjects.length === 0 ? (
+      ) : !projects || projects.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">
-              {canManageProjects
+              {isServerAdmin
                 ? 'No projects yet. Use the menu above to create your first project.'
-                : 'No project assigned. Contact an administrator.'
+                : 'No projects assigned. Contact an administrator.'
               }
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {visibleProjects.map((project) => (
+          {projects.map((project) => (
             <ProjectCard
               key={project.id}
               project={project}
-              canManage={canManageProjects}
+              canManage={project.role === 'server-admin' || project.role === 'project-admin'}
             />
           ))}
         </div>
       )}
 
         {/* Create Project Modal */}
-        {canManageProjects && (
+        {isServerAdmin && (
           <CreateProjectModal
             open={showCreateModal}
             onClose={() => setShowCreateModal(false)}

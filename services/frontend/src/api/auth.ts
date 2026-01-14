@@ -2,6 +2,7 @@
  * Authentication API functions
  */
 import apiClient from './client';
+import { ProjectWithRole } from './types';
 
 export interface LoginRequest {
   username: string; // FastAPI-Users uses 'username' field for email
@@ -22,10 +23,12 @@ export interface User {
   id: number;
   email: string;
   is_active: boolean;
-  is_superuser: boolean;
+  is_server_admin: boolean;
   is_verified: boolean;
-  role?: string | null;
-  project_id?: number | null;
+}
+
+export interface UserProjectsResponse {
+  projects: ProjectWithRole[];
 }
 
 export interface ForgotPasswordRequest {
@@ -87,6 +90,14 @@ export const register = async (email: string, password: string): Promise<User> =
 export const getCurrentUser = async (): Promise<User> => {
   const response = await apiClient.get<User>('/users/me');
   return response.data;
+};
+
+/**
+ * Get current user's projects with roles
+ */
+export const getUserProjects = async (): Promise<ProjectWithRole[]> => {
+  const response = await apiClient.get<UserProjectsResponse>('/users/me/projects');
+  return response.data.projects;
 };
 
 /**

@@ -1,5 +1,5 @@
 """
-Ingestion monitoring endpoints for superusers.
+Ingestion monitoring endpoints for server admins.
 
 Provides visibility into rejected files and ingestion issues.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from shared.models import User
 from shared.config import get_settings
 from shared.logger import get_logger
-from auth.users import current_superuser
+from auth.permissions import require_server_admin
 
 
 router = APIRouter(prefix="/api/ingestion-monitoring", tags=["ingestion-monitoring"])
@@ -177,13 +177,13 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
     response_model=RejectedFilesResponse,
 )
 async def get_rejected_files(
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Get all rejected files grouped by rejection reason (superuser only).
+    Get all rejected files grouped by rejection reason (server admin only)
 
     Args:
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
         Rejected files grouped by reason with metadata
@@ -213,14 +213,14 @@ async def get_rejected_files(
 )
 async def delete_rejected_files(
     request: BulkActionRequest,
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Delete rejected files and their error logs (superuser only).
+    Delete rejected files and their error logs (server admin only)
 
     Args:
         request: List of file paths to delete
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
         Count of successfully deleted files and any errors
@@ -273,14 +273,14 @@ async def delete_rejected_files(
 )
 async def reprocess_rejected_files(
     request: BulkActionRequest,
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Move rejected files back to uploads directory for reprocessing (superuser only).
+    Move rejected files back to uploads directory for reprocessing (server admin only)
 
     Args:
         request: List of file paths to reprocess
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
         Count of successfully moved files and any errors

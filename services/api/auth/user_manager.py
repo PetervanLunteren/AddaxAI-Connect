@@ -13,7 +13,7 @@ from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from shared.models import User, EmailAllowlist, Project
+from shared.models import User, EmailAllowlist, ProjectMembership
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -192,14 +192,17 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         request: Optional[Request] = None,
     ) -> User:
         """
-        Create a new user with allowlist validation and auto-assignment to default project.
+        Create a new user with allowlist validation and project membership enforcement.
 
-        The user's is_superuser flag is set based on the allowlist entry:
-        - If allowlist entry has is_superuser=True, user becomes server admin
-        - If allowlist entry has is_superuser=False, user is a regular user
+        The user's is_server_admin flag is set based on the allowlist entry:
+        - If allowlist entry has is_server_admin=True, user becomes server admin
+        - If allowlist entry has is_server_admin=False, user is a regular user
 
-        Regular users are automatically assigned to the default project.
-        Superusers are not assigned to any project (they have access to all).
+        Regular users MUST have at least one project membership pre-created
+        by an admin before they can register. This enforces explicit access control.
+
+        Server admins have implicit access to all projects and do not need
+        project memberships.
 
         Args:
             user_create: User creation data
@@ -212,6 +215,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         Raises:
             exceptions.UserAlreadyExists: If email already registered
             exceptions.InvalidPasswordException: If email not in allowlist
+            ValueError: If non-admin user has no project memberships
         """
         # Get database session from request state
         db: AsyncSession = request.state.db
@@ -226,40 +230,56 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                        "Please contact an administrator to request access."
             )
 
-        # Apply is_superuser flag from allowlist entry
+        # Apply is_server_admin flag from allowlist entry
         # This determines if user becomes a server admin
-        # Must set safe=False to allow is_superuser to be set
-        user_create.is_superuser = allowlist_entry.is_superuser
+        # Must set safe=False to allow is_server_admin to be set
+        user_create.is_server_admin = allowlist_entry.is_server_admin
 
-        # Call parent create method with safe=False to allow is_superuser
+        # Call parent create method with safe=False to allow is_server_admin
+        # Note: 'is_superuser' parameter still used by FastAPI-Users internally
+        # but we're storing it as 'is_server_admin' in our database
         created_user = await super().create(user_create, safe=False, request=request)
 
-        # Auto-assign non-superuser users to default project
-        if not created_user.is_superuser:
+        # Validate non-admin users have project memberships
+        # This enforces "crash early and loudly" - if admin forgot to assign
+        # projects, registration fails immediately rather than creating an
+        # orphaned user with no access.
+        if not created_user.is_server_admin:
             result = await db.execute(
-                select(Project).where(Project.name == settings.default_project_name)
+                select(ProjectMembership).where(
+                    ProjectMembership.user_id == created_user.id
+                )
             )
-            default_project = result.scalar_one_or_none()
+            memberships = result.scalars().all()
 
-            if default_project:
-                created_user.project_id = default_project.id
+            if not memberships:
+                # CRASH - This is a configuration error by the admin
+                # User was added to allowlist but no project memberships were created
+                await db.delete(created_user)  # Rollback user creation
                 await db.commit()
-                await db.refresh(created_user)
 
-                logger.info(
-                    "Auto-assigned user to default project",
-                    email=created_user.email,
-                    user_id=created_user.id,
-                    project_id=default_project.id,
-                    project_name=default_project.name,
+                raise ValueError(
+                    f"User {email} has no project memberships. "
+                    "An administrator must assign at least one project (with role) "
+                    "before this user can register. "
+                    "Contact your administrator to request project access."
                 )
-            else:
-                logger.warning(
-                    "Default project not found, user created without project assignment",
-                    email=created_user.email,
-                    user_id=created_user.id,
-                    default_project_name=settings.default_project_name,
-                )
+
+            logger.info(
+                "User created with project memberships",
+                email=created_user.email,
+                user_id=created_user.id,
+                membership_count=len(memberships),
+                projects=[m.project_id for m in memberships],
+                roles=[m.role for m in memberships]
+            )
+        else:
+            logger.info(
+                "Server admin user created",
+                email=created_user.email,
+                user_id=created_user.id,
+                is_server_admin=True
+            )
 
         return created_user
 

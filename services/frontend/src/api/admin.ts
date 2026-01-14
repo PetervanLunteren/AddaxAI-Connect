@@ -3,7 +3,10 @@
  */
 import apiClient from './client';
 import type {
-  UserWithProject,
+  UserWithMemberships,
+  ProjectMembershipInfo,
+  AddUserToProjectRequest,
+  UpdateProjectUserRoleRequest,
   SignalConfig,
   SignalRegisterRequest,
   SignalUpdateConfigRequest,
@@ -13,20 +16,51 @@ import type {
 
 export const adminApi = {
   /**
-   * Get all users with their project assignments
+   * Get all users with their project memberships
    */
-  listUsers: async (): Promise<UserWithProject[]> => {
-    const response = await apiClient.get<UserWithProject[]>('/api/admin/users');
+  listUsers: async (): Promise<UserWithMemberships[]> => {
+    const response = await apiClient.get<UserWithMemberships[]>('/api/admin/users');
     return response.data;
   },
 
   /**
-   * Assign user to project
+   * Get user's project memberships
    */
-  assignUserToProject: async (userId: number, projectId: number | null): Promise<UserWithProject> => {
-    const response = await apiClient.patch<UserWithProject>(
-      `/api/admin/users/${userId}/project`,
-      { project_id: projectId }
+  getUserProjects: async (userId: number): Promise<ProjectMembershipInfo[]> => {
+    const response = await apiClient.get<{ memberships: ProjectMembershipInfo[] }>(
+      `/api/admin/users/${userId}/projects`
+    );
+    return response.data.memberships;
+  },
+
+  /**
+   * Add user to project with role
+   */
+  addUserToProject: async (userId: number, projectId: number, role: string): Promise<{ message: string }> => {
+    const response = await apiClient.post<{ message: string }>(
+      `/api/admin/users/${userId}/projects`,
+      { project_id: projectId, role }
+    );
+    return response.data;
+  },
+
+  /**
+   * Update user's role in project
+   */
+  updateUserProjectRole: async (userId: number, projectId: number, role: string): Promise<{ message: string }> => {
+    const response = await apiClient.patch<{ message: string }>(
+      `/api/admin/users/${userId}/projects/${projectId}`,
+      { role }
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove user from project
+   */
+  removeUserFromProject: async (userId: number, projectId: number): Promise<{ message: string }> => {
+    const response = await apiClient.delete<{ message: string }>(
+      `/api/admin/users/${userId}/projects/${projectId}`
     );
     return response.data;
   },

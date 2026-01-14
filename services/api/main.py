@@ -11,7 +11,7 @@ from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
 from auth.routes import get_auth_router
-from routers import admin, logs, cameras, images, statistics, projects, devtools, ingestion_monitoring, project_images, notifications
+from routers import admin, logs, cameras, images, statistics, projects, devtools, ingestion_monitoring, project_images, notifications, users
 from middleware.logging import RequestLoggingMiddleware
 
 
@@ -104,6 +104,7 @@ def health():
 # Include routers
 app.include_router(get_auth_router())
 app.include_router(admin.router)
+app.include_router(users.router)
 app.include_router(notifications.router)
 app.include_router(logs.router, prefix="/api", tags=["logs"])
 app.include_router(cameras.router)

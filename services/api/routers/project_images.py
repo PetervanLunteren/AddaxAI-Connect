@@ -10,7 +10,8 @@ from sqlalchemy import select
 from shared.models import User, Project
 from shared.database import get_async_session
 from shared.config import get_settings
-from auth.users import current_superuser
+from auth.users import current_active_user
+from auth.permissions import can_admin_project
 from utils.image_processing import process_and_upload_project_image, delete_project_images
 
 router = APIRouter(prefix="/api/projects", tags=["project-images"])
@@ -25,10 +26,10 @@ async def upload_project_image(
     project_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(current_active_user),
 ):
     """
-    Upload project image (superuser only)
+    Upload project image (project admin or server admin)
 
     Uploads both original image and generates thumbnail (256x256).
     Validates file format (JPEG/PNG) and size (max 5MB).
@@ -43,7 +44,15 @@ async def upload_project_image(
     Raises:
         HTTPException 404: Project not found
         HTTPException 400: Invalid file format or size
+        HTTPException 403: Insufficient permissions
     """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
     # Check if project exists
     query = select(Project).where(Project.id == project_id)
     result = await db.execute(query)
@@ -98,10 +107,10 @@ async def upload_project_image(
 async def delete_project_image(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(current_active_user),
 ):
     """
-    Delete project image (superuser only)
+    Delete project image (project admin or server admin)
 
     Removes both original image and thumbnail from MinIO and database.
 
@@ -113,7 +122,15 @@ async def delete_project_image(
 
     Raises:
         HTTPException 404: Project not found
+        HTTPException 403: Insufficient permissions
     """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
     # Check if project exists
     query = select(Project).where(Project.id == project_id)
     result = await db.execute(query)
