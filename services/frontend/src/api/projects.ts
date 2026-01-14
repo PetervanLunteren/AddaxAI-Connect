@@ -9,7 +9,8 @@ import type {
   ProjectDeleteResponse,
   ProjectUserInfo,
   AddUserToProjectRequest,
-  UpdateProjectUserRoleRequest
+  UpdateProjectUserRoleRequest,
+  InvitationResponse
 } from './types';
 
 export const projectsApi = {
@@ -115,6 +116,17 @@ export const projectsApi = {
   removeUser: async (projectId: number, userId: number): Promise<{ message: string }> => {
     const response = await apiClient.delete<{ message: string }>(
       `/api/projects/${projectId}/users/${userId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Invite a new user to project (project admin or server admin)
+   */
+  inviteUser: async (projectId: number, email: string, role: string): Promise<InvitationResponse> => {
+    const response = await apiClient.post<InvitationResponse>(
+      `/api/projects/${projectId}/users/invite`,
+      { email, role }
     );
     return response.data;
   },

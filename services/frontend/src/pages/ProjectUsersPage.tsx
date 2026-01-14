@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon, Mail } from 'lucide-react';
 import { projectsApi } from '../api/projects';
 import { adminApi } from '../api/admin';
 import { useProject } from '../contexts/ProjectContext';
@@ -47,9 +47,12 @@ export const ProjectUsersPage: React.FC = () => {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProjectUserInfo | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('project-viewer');
+  const [inviteEmail, setInviteEmail] = useState<string>('');
+  const [inviteRole, setInviteRole] = useState<string>('project-viewer');
 
   // Redirect if user doesn't have admin access
   if (!canAdminCurrentProject) {
@@ -113,6 +116,22 @@ export const ProjectUsersPage: React.FC = () => {
     },
   });
 
+  // Invite user mutation
+  const inviteUserMutation = useMutation({
+    mutationFn: ({ email, role }: { email: string; role: string }) =>
+      projectsApi.inviteUser(parseInt(projectId!), email, role),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
+      setShowInviteModal(false);
+      setInviteEmail('');
+      setInviteRole('project-viewer');
+      alert(response.message);
+    },
+    onError: (error: any) => {
+      alert(`Failed to invite user: ${error.response?.data?.detail || 'Unknown error'}`);
+    },
+  });
+
   const handleAddUser = () => {
     if (selectedUserId && selectedRole) {
       addUserMutation.mutate({ userId: selectedUserId, role: selectedRole });
@@ -128,6 +147,12 @@ export const ProjectUsersPage: React.FC = () => {
   const handleRemoveUser = () => {
     if (selectedUser) {
       removeUserMutation.mutate(selectedUser.user_id);
+    }
+  };
+
+  const handleInviteUser = () => {
+    if (inviteEmail && inviteRole) {
+      inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole });
     }
   };
 
@@ -164,10 +189,16 @@ export const ProjectUsersPage: React.FC = () => {
                 Manage user access to {selectedProject?.name}
               </p>
             </div>
-            <Button onClick={() => setShowAddUserModal(true)}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowInviteModal(true)}>
+                <Mail className="h-4 w-4 mr-2" />
+                Invite User
+              </Button>
+              <Button variant="outline" onClick={() => setShowAddUserModal(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Existing User
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -383,6 +414,68 @@ export const ProjectUsersPage: React.FC = () => {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Remove User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite User Modal */}
+      <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite New User to Project</DialogTitle>
+            <DialogDescription>
+              Send an invitation to a new user. They will be able to register and will be automatically added to this project.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="invite-email">Email Address</Label>
+              <input
+                id="invite-email"
+                type="email"
+                placeholder="user@example.com"
+                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="invite-role">Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger id="invite-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="project-viewer">project viewer</SelectItem>
+                  <SelectItem value="project-admin">project admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowInviteModal(false);
+                setInviteEmail('');
+                setInviteRole('project-viewer');
+              }}
+              disabled={inviteUserMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInviteUser}
+              disabled={!inviteEmail || inviteUserMutation.isPending}
+            >
+              {inviteUserMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Send Invitation
             </Button>
           </DialogFooter>
         </DialogContent>
