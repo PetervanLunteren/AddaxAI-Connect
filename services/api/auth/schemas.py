@@ -3,14 +3,17 @@ Pydantic schemas for FastAPI-Users.
 
 Defines request/response models for user authentication.
 """
-from typing import Optional
 from fastapi_users import schemas
 
 
 class UserRead(schemas.BaseUser[int]):
-    """Schema for reading user data (response)"""
-    role: Optional[str] = None
-    project_id: Optional[int] = None
+    """
+    Schema for reading user data (response).
+
+    Note: role and project_id removed - now handled via project_memberships table.
+    Use /users/me/projects endpoint to get user's project memberships.
+    """
+    is_server_admin: bool  # Renamed from is_superuser
 
 
 class UserCreate(schemas.BaseUserCreate):
@@ -19,6 +22,9 @@ class UserCreate(schemas.BaseUserCreate):
 
 
 class UserUpdate(schemas.BaseUserUpdate):
-    """Schema for updating user data (request)"""
-    role: Optional[str] = None
-    project_id: Optional[int] = None
+    """
+    Schema for updating user data (request).
+
+    Note: role and project_id removed - use project membership endpoints instead.
+    """
+    pass

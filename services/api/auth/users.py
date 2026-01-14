@@ -72,4 +72,7 @@ fastapi_users = FastAPIUsers[User, int](
 # Dependencies for protected routes
 current_active_user = fastapi_users.current_user(active=True)
 current_verified_user = fastapi_users.current_user(active=True, verified=True)
-current_superuser = fastapi_users.current_user(active=True, superuser=True)
+
+# Note: current_superuser removed - use require_server_admin from permissions.py instead
+# Old code used: current_superuser = fastapi_users.current_user(active=True, superuser=True)
+# New code uses: from auth.permissions import require_server_admin

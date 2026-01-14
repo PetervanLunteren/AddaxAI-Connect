@@ -1,9 +1,10 @@
 /**
- * Camera Management Page (Superuser Only)
+ * Camera Management Page
  *
- * Allows superusers to manually create and manage cameras for projects.
+ * Allows project admins and server admins to manually create and manage cameras for projects.
  */
 import React, { useState } from 'react';
+import { Navigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit, Trash2, Loader2, Upload, CheckCircle, XCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
@@ -30,8 +31,14 @@ import {
 } from '../api/camera-management';
 
 export const CameraManagementPage: React.FC = () => {
-  const { selectedProject: currentProject } = useProject();
+  const { projectId } = useParams<{ projectId: string }>();
+  const { selectedProject: currentProject, canAdminCurrentProject } = useProject();
   const queryClient = useQueryClient();
+
+  // Redirect if user doesn't have admin access
+  if (!canAdminCurrentProject) {
+    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
+  }
 
   // Modal state
   const [showAddDialog, setShowAddDialog] = useState(false);

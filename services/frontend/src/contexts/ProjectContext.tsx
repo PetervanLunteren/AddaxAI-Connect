@@ -2,33 +2,39 @@
  * Project context provider
  *
  * Manages selected project state and provides project selection functions.
- * Filters projects based on user access:
- * - Superusers see all projects
- * - Regular users see only their assigned project
+ * Projects are fetched with user roles:
+ * - Server admins see all projects with 'server-admin' role
+ * - Regular users see only their assigned projects with their specific roles
  * - Auto-selects project from URL when on project-specific pages
  */
 import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useLocation } from 'react-router-dom';
-import { projectsApi } from '../api/projects';
+import { getUserProjects } from '../api/auth';
 import { useAuth } from '../hooks/useAuth';
-import type { Project } from '../api/types';
+import type { ProjectWithRole } from '../api/types';
 
 interface ProjectContextType {
-  selectedProject: Project | null;
-  projects: Project[] | undefined;
-  visibleProjects: Project[];
-  canManageProjects: boolean;
+  selectedProject: ProjectWithRole | null;
+  projects: ProjectWithRole[] | undefined;
+  selectedProjectRole: string | null;
+  isServerAdmin: boolean;
+  isProjectAdmin: boolean;
+  isProjectViewer: boolean;
+  canAdminCurrentProject: boolean;
   loading: boolean;
-  selectProject: (project: Project) => void;
+  selectProject: (project: ProjectWithRole) => void;
   refreshProjects: () => void;
 }
 
 export const ProjectContext = createContext<ProjectContextType>({
   selectedProject: null,
   projects: undefined,
-  visibleProjects: [],
-  canManageProjects: false,
+  selectedProjectRole: null,
+  isServerAdmin: false,
+  isProjectAdmin: false,
+  isProjectViewer: false,
+  canAdminCurrentProject: false,
   loading: true,
   selectProject: () => {},
   refreshProjects: () => {},
@@ -39,7 +45,7 @@ interface ProjectProviderProps {
 }
 
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [selectedProject, setSelectedProject] = useState<ProjectWithRole | null>(null);
   const { user } = useAuth();
   const { projectId } = useParams<{ projectId: string }>();
   const location = useLocation();
@@ -47,42 +53,28 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   // Check if user is authenticated
   const isAuthenticated = !!localStorage.getItem('access_token');
 
-  // Fetch all projects (only if authenticated)
+  // Fetch user's projects with roles (only if authenticated)
   const { data: projects, isLoading, refetch } = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => projectsApi.getAll(),
+    queryKey: ['user-projects'],
+    queryFn: () => getUserProjects(),
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
     enabled: isAuthenticated, // Only fetch if user is authenticated
   });
 
-  // Filter projects based on user access
-  const visibleProjects = useMemo(() => {
-    if (!projects || !user) return [];
-
-    // Superusers see all projects
-    if (user.is_superuser) {
-      return projects;
-    }
-
-    // Regular users see only their assigned project
-    if (user.project_id) {
-      return projects.filter(p => p.id === user.project_id);
-    }
-
-    // No project assigned = no access
-    return [];
-  }, [projects, user]);
-
-  // Check if user can manage projects (superuser only)
-  const canManageProjects = user?.is_superuser || false;
+  // Role checking helpers
+  const selectedProjectRole = selectedProject?.role || null;
+  const isServerAdmin = user?.is_server_admin || false;
+  const isProjectAdmin = selectedProjectRole === 'project-admin' || isServerAdmin;
+  const isProjectViewer = selectedProjectRole === 'project-viewer';
+  const canAdminCurrentProject = isProjectAdmin;
 
   // Auto-select project from URL or localStorage
   useEffect(() => {
-    if (visibleProjects.length === 0) return;
+    if (!projects || projects.length === 0) return;
 
     // If we're on a project-specific route, select that project
     if (projectId) {
-      const project = visibleProjects.find(p => p.id === parseInt(projectId));
+      const project = projects.find(p => p.id === parseInt(projectId));
       if (project) {
         setSelectedProject(project);
         localStorage.setItem('selected_project_id', project.id.toString());
@@ -93,23 +85,23 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     // Otherwise, try to load from localStorage
     const storedProjectId = localStorage.getItem('selected_project_id');
     if (storedProjectId) {
-      const project = visibleProjects.find(p => p.id === parseInt(storedProjectId));
+      const project = projects.find(p => p.id === parseInt(storedProjectId));
       if (project) {
         setSelectedProject(project);
         return;
       }
     }
 
-    // Fallback: select first visible project
-    if (visibleProjects.length > 0 && !selectedProject) {
-      setSelectedProject(visibleProjects[0]);
-      localStorage.setItem('selected_project_id', visibleProjects[0].id.toString());
+    // Fallback: select first project
+    if (projects.length > 0 && !selectedProject) {
+      setSelectedProject(projects[0]);
+      localStorage.setItem('selected_project_id', projects[0].id.toString());
     }
-  }, [visibleProjects, projectId, location.pathname]);
+  }, [projects, projectId, location.pathname]);
 
-  const selectProject = (project: Project) => {
-    // Only allow selecting visible projects
-    if (visibleProjects.find(p => p.id === project.id)) {
+  const selectProject = (project: ProjectWithRole) => {
+    // Only allow selecting projects the user has access to
+    if (projects?.find(p => p.id === project.id)) {
       setSelectedProject(project);
       localStorage.setItem('selected_project_id', project.id.toString());
     }
@@ -124,8 +116,11 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
       value={{
         selectedProject,
         projects,
-        visibleProjects,
-        canManageProjects,
+        selectedProjectRole,
+        isServerAdmin,
+        isProjectAdmin,
+        isProjectViewer,
+        canAdminCurrentProject,
         loading: isLoading,
         selectProject,
         refreshProjects,

@@ -124,6 +124,33 @@ class Project(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
+class ProjectMembership(Base):
+    """
+    User membership in projects with role assignment.
+
+    Maps users to projects with specific roles (project-admin or project-viewer).
+    Server admins (is_server_admin=True) have implicit access to all projects
+    and do not need entries in this table.
+
+    A user can have different roles in different projects:
+    - Alice: project-admin in Project A, project-viewer in Project B
+    - Bob: project-admin in Project A, no access to Project B
+    """
+    __tablename__ = "project_memberships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(50), nullable=False, index=True)  # 'project-admin' or 'project-viewer'
+    added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Unique constraint: user can only have one role per project
+    __table_args__ = (
+        UniqueConstraint('user_id', 'project_id', name='uq_user_project'),
+    )
+
+
 class User(Base):
     """User account (FastAPI-Users compatible)"""
     __tablename__ = "users"
@@ -132,12 +159,10 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    is_superuser = Column(Boolean, default=False, nullable=False)
+    is_server_admin = Column(Boolean, default=False, nullable=False)  # Renamed from is_superuser
     is_verified = Column(Boolean, default=False, nullable=False)
 
-    # RBAC and multi-tenancy (schema ready, enforcement later)
-    role = Column(String(50), nullable=True)  # admin, analyst, viewer
-    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    # Note: role and project_id removed - now handled via ProjectMembership table
 
 
 class EmailAllowlist(Base):
@@ -145,15 +170,15 @@ class EmailAllowlist(Base):
     Allowed emails/domains for registration.
 
     Determines who can register and whether they become server admins.
-    - is_superuser=True: User becomes admin with full control over all projects
-    - is_superuser=False: Regular user (will get project-specific roles later)
+    - is_server_admin=True: User becomes server admin with full control over all projects
+    - is_server_admin=False: Regular user (gets project access via ProjectMembership table)
     """
     __tablename__ = "email_allowlist"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), nullable=True, unique=True)
     domain = Column(String(255), nullable=True)
-    is_superuser = Column(Boolean, default=False, nullable=False)  # Admin flag
+    is_server_admin = Column(Boolean, default=False, nullable=False)  # Renamed from is_superuser
     added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

@@ -113,7 +113,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `mail_username` | `"your.email@example.com"` | Username for authenticating with your mail provider. |
    | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
    | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
-   | `superadmin_email` | `"admin@example.com"` or `"admin1@example.com;admin2@example.com"` | Email address(es) for initial superadmin account(s). Multiple emails can be separated by semicolons. These users will be automatically created and added to the allowlist. Other user management will be done from within the UI. |
+   | `superadmin_email` | `"admin@example.com"` or `"admin1@example.com;admin2@example.com"` | Email address(es) for initial server admin account(s). Multiple emails can be separated by semicolons. These users will be automatically created with full system access. Other user management will be done from within the UI. |
    | `project_name` | `"Wildlife Monitoring"` | Name for the default project that will be automatically created on first startup. All cameras and images will belong to this project. |
 
 
@@ -134,8 +134,8 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
-11. **Log in to the frontend**  
-    When the deployment finishes, open `https://<domain_name>/register` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in. You're automatically assigned the 'superuser' role with full control. 
+11. **Log in to the frontend**
+    When the deployment finishes, open `https://<domain_name>/register` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in. You're automatically assigned the 'server admin' role with full control. 
 
 12. **Configure camera traps**  
     Set up your camera traps to upload via FTPS.
@@ -148,8 +148,19 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     | Password | `<ftps_password>` |
     | Protocol | FTPS (explicit TLS) |
 
-13. **Finish and manage your system**  
+13. **Finish and manage your system**
     After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
+
+
+## User roles
+
+The system has three role levels:
+- **Server admin** - Full access to all projects and system settings
+- **Project admin** - Can manage specific projects (cameras, species, users)
+- **Project viewer** - Read-only access to specific projects
+
+Server admins are configured during deployment via `superadmin_email`.
+Other users are invited by server admins or project admins through the web interface.
 
 
 ## Possible Hiccups

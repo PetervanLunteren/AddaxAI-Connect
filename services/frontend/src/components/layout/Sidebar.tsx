@@ -16,7 +16,9 @@ import {
   ChevronDown,
   ChevronRight,
   ShieldAlert,
-  Filter
+  Filter,
+  Users,
+  UserCog
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -30,7 +32,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
-  const { selectedProject } = useProject();
+  const { selectedProject, isServerAdmin, isProjectAdmin } = useProject();
   const { projectId } = useParams<{ projectId: string }>();
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
 
@@ -43,10 +45,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/about`, icon: Info, label: 'About' },
   ];
 
-  // Admin tools for superusers
+  // Admin tools - visible to project admins and server admins
   const adminTools = [
     { to: `/projects/${projectId}/species-management`, icon: Filter, label: 'Species Management' },
     { to: `/projects/${projectId}/camera-management`, icon: VideoIcon, label: 'Camera Management' },
+    { to: `/projects/${projectId}/users`, icon: Users, label: 'Project Users', requiresAdmin: true },
+  ];
+
+  // Server admin only tools
+  const serverAdminTools = [
+    { to: `/admin/users`, icon: UserCog, label: 'User Assignment' },
   ];
 
   return (
@@ -102,8 +110,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
 
-          {/* Admin Tools Section (superuser only) */}
-          {user?.is_superuser && (
+          {/* Admin Tools Section (project admin or server admin) */}
+          {isProjectAdmin && (
             <div className="mt-2">
               <button
                 onClick={() => setAdminToolsOpen(!adminToolsOpen)}
@@ -141,6 +149,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       <span>{tool.label}</span>
                     </NavLink>
                   ))}
+
+                  {/* Server Admin Only Tools */}
+                  {isServerAdmin && (
+                    <>
+                      <div className="border-t border-border my-2" />
+                      {serverAdminTools.map((tool) => (
+                        <NavLink
+                          key={tool.to}
+                          to={tool.to}
+                          onClick={onClose}
+                          className={({ isActive }) =>
+                            cn(
+                              'flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                              isActive
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            )
+                          }
+                        >
+                          <tool.icon className="h-4 w-4" />
+                          <span>{tool.label}</span>
+                        </NavLink>
+                      ))}
+                    </>
+                  )}
                 </div>
               )}
             </div>

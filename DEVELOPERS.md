@@ -30,6 +30,26 @@
 
 **Remember:** It's better to crash during development than to hide bugs that cause problems later. We'll add resilience (retries, fallbacks, graceful degradation) after the core functionality works.
 
+## Role-based access control
+
+Three-tier system:
+- **server-admin** - Full access to all projects, can create projects, manage all users
+- **project-admin** - Manages specific projects, can invite users to their projects
+- **project-viewer** - Read-only access to specific projects
+
+Users can have different roles in different projects (e.g., admin of Project A, viewer of Project B).
+
+### Permission model
+- `users.is_server_admin` boolean flag for server admins
+- `project_memberships` table maps users to projects with roles
+- No role = no access to that project
+
+### Inviting users
+**Server admin:** Can add users to any project with any role via the User Assignment page
+**Project admin:** Can add users to their own projects only via the Project Users page
+
+User must have at least one project membership to register (enforced at registration).
+
 ## Repository Structure
 
 Can change slightly, but should be something like this.

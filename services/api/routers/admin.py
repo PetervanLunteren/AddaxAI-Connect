@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, EmailAllowlist, Project, TelegramConfig
+from shared.models import User, EmailAllowlist, Project, TelegramConfig, ProjectMembership
 from shared.database import get_async_session
 from shared.config import get_settings
-from auth.users import current_superuser
+from auth.permissions import require_server_admin
 
 settings = get_settings()
 
@@ -43,6 +43,7 @@ class AllowlistResponse(BaseModel):
     id: int
     email: Optional[str]
     domain: Optional[str]
+    is_server_admin: bool
     added_by_user_id: Optional[int]
     created_at: str
 
@@ -50,24 +51,35 @@ class AllowlistResponse(BaseModel):
         from_attributes = True
 
 
+class ProjectMembershipInfo(BaseModel):
+    """Project membership info for user response"""
+    project_id: int
+    project_name: str
+    role: str
+
+
 class UserResponse(BaseModel):
-    """Response for user with project assignment"""
+    """Response for user with project memberships"""
     id: int
     email: str
     is_active: bool
-    is_superuser: bool
+    is_server_admin: bool  # Renamed from is_superuser
     is_verified: bool
-    role: Optional[str] = None
-    project_id: Optional[int] = None
-    project_name: Optional[str] = None
+    project_memberships: list[ProjectMembershipInfo] = []
 
     class Config:
         from_attributes = True
 
 
-class AssignUserToProjectRequest(BaseModel):
-    """Request to assign user to project"""
-    project_id: Optional[int] = None  # None = unassign
+class AddUserToProjectRequest(BaseModel):
+    """Request to add user to project"""
+    project_id: int
+    role: str  # 'project-admin' or 'project-viewer'
+
+
+class UpdateRoleRequest(BaseModel):
+    """Request to update user's role in project"""
+    role: str  # 'project-admin' or 'project-viewer'
 
 
 @router.post(
@@ -78,7 +90,7 @@ class AssignUserToProjectRequest(BaseModel):
 async def add_to_allowlist(
     data: AllowlistCreateRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Add email or domain to allowlist (superuser only).
@@ -135,7 +147,7 @@ async def add_to_allowlist(
 )
 async def list_allowlist(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     List all allowlist entries (superuser only).
@@ -160,7 +172,7 @@ async def list_allowlist(
 async def remove_from_allowlist(
     entry_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Remove entry from allowlist (superuser only).
@@ -194,79 +206,81 @@ async def remove_from_allowlist(
 )
 async def list_users(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    List all users with their project assignments (superuser only)
+    List all users with their project memberships (server admin only)
 
-    Returns list of all users including their assigned project information.
+    Returns list of all users including their project memberships with roles.
 
     Args:
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
-        List of users with project assignments
+        List of users with project memberships
     """
-    # Get all users with their projects (if assigned)
+    # Get all users
     result = await db.execute(select(User))
     users = result.scalars().all()
 
-    # Build responses with project names
+    # Build responses with project memberships
     responses = []
     for user in users:
-        project_name = None
-        if user.project_id:
-            # Get project name
-            project_result = await db.execute(
-                select(Project).where(Project.id == user.project_id)
+        # Get user's project memberships
+        memberships_result = await db.execute(
+            select(ProjectMembership, Project).join(
+                Project, ProjectMembership.project_id == Project.id
+            ).where(ProjectMembership.user_id == user.id)
+        )
+        memberships = memberships_result.all()
+
+        # Build membership info list
+        membership_info = [
+            ProjectMembershipInfo(
+                project_id=membership.ProjectMembership.project_id,
+                project_name=membership.Project.name,
+                role=membership.ProjectMembership.role
             )
-            project = project_result.scalar_one_or_none()
-            if project:
-                project_name = project.name
+            for membership in memberships
+        ]
 
         responses.append(UserResponse(
             id=user.id,
             email=user.email,
             is_active=user.is_active,
-            is_superuser=user.is_superuser,
+            is_server_admin=user.is_server_admin,
             is_verified=user.is_verified,
-            role=user.role,
-            project_id=user.project_id,
-            project_name=project_name
+            project_memberships=membership_info
         ))
 
     return responses
 
 
-@router.patch(
-    "/users/{user_id}/project",
-    response_model=UserResponse,
+@router.get(
+    "/users/{user_id}/projects",
+    response_model=list[ProjectMembershipInfo],
 )
-async def assign_user_to_project(
+async def get_user_projects(
     user_id: int,
-    data: AssignUserToProjectRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Assign user to project (superuser only)
-
-    Updates the user's project_id field. Set to None to unassign.
+    Get all project memberships for a user (server admin only)
 
     Args:
-        user_id: User ID to assign
-        data: Project assignment data (project_id or None to unassign)
+        user_id: User ID
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
-        Updated user with project assignment
+        List of project memberships
 
     Raises:
-        HTTPException 404: User or project not found
+        HTTPException 404: User not found
     """
-    # Get user
+    # Verify user exists
     user_result = await db.execute(select(User).where(User.id == user_id))
     user = user_result.scalar_one_or_none()
 
@@ -276,37 +290,219 @@ async def assign_user_to_project(
             detail=f"User with ID {user_id} not found"
         )
 
-    # If assigning to a project, verify it exists
-    project_name = None
-    if data.project_id is not None:
-        project_result = await db.execute(
-            select(Project).where(Project.id == data.project_id)
-        )
-        project = project_result.scalar_one_or_none()
-
-        if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Project with ID {data.project_id} not found"
-            )
-
-        project_name = project.name
-
-    # Update user's project assignment
-    user.project_id = data.project_id
-    await db.commit()
-    await db.refresh(user)
-
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        is_active=user.is_active,
-        is_superuser=user.is_superuser,
-        is_verified=user.is_verified,
-        role=user.role,
-        project_id=user.project_id,
-        project_name=project_name
+    # Get user's project memberships
+    memberships_result = await db.execute(
+        select(ProjectMembership, Project).join(
+            Project, ProjectMembership.project_id == Project.id
+        ).where(ProjectMembership.user_id == user_id)
     )
+    memberships = memberships_result.all()
+
+    return [
+        ProjectMembershipInfo(
+            project_id=membership.ProjectMembership.project_id,
+            project_name=membership.Project.name,
+            role=membership.ProjectMembership.role
+        )
+        for membership in memberships
+    ]
+
+
+@router.post(
+    "/users/{user_id}/projects",
+    response_model=ProjectMembershipInfo,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_user_to_project(
+    user_id: int,
+    data: AddUserToProjectRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Add user to project with role (server admin only)
+
+    Args:
+        user_id: User ID
+        data: Project ID and role
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Returns:
+        Created project membership
+
+    Raises:
+        HTTPException 404: User or project not found
+        HTTPException 409: User already in project
+        HTTPException 400: Invalid role
+    """
+    # Validate role
+    valid_roles = ['project-admin', 'project-viewer']
+    if data.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        )
+
+    # Verify user exists
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+
+    # Verify project exists
+    project_result = await db.execute(select(Project).where(Project.id == data.project_id))
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {data.project_id} not found"
+        )
+
+    # Check if membership already exists
+    existing = await db.execute(
+        select(ProjectMembership).where(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.project_id == data.project_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"User already assigned to project {data.project_id}"
+        )
+
+    # Create membership
+    membership = ProjectMembership(
+        user_id=user_id,
+        project_id=data.project_id,
+        role=data.role,
+        added_by_user_id=current_user.id
+    )
+    db.add(membership)
+    await db.commit()
+
+    return ProjectMembershipInfo(
+        project_id=project.id,
+        project_name=project.name,
+        role=data.role
+    )
+
+
+@router.patch(
+    "/users/{user_id}/projects/{project_id}",
+    response_model=ProjectMembershipInfo,
+)
+async def update_user_project_role(
+    user_id: int,
+    project_id: int,
+    data: UpdateRoleRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Change user's role in specific project (server admin only)
+
+    Args:
+        user_id: User ID
+        project_id: Project ID
+        data: New role
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Returns:
+        Updated project membership
+
+    Raises:
+        HTTPException 404: Membership not found
+        HTTPException 400: Invalid role
+    """
+    # Validate role
+    valid_roles = ['project-admin', 'project-viewer']
+    if data.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        )
+
+    # Get membership
+    membership_result = await db.execute(
+        select(ProjectMembership, Project).join(
+            Project, ProjectMembership.project_id == Project.id
+        ).where(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.project_id == project_id
+        )
+    )
+    membership_data = membership_result.first()
+
+    if not membership_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found in project {project_id}"
+        )
+
+    membership, project = membership_data
+
+    # Update role
+    membership.role = data.role
+    await db.commit()
+
+    return ProjectMembershipInfo(
+        project_id=project.id,
+        project_name=project.name,
+        role=data.role
+    )
+
+
+@router.delete(
+    "/users/{user_id}/projects/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_user_from_project(
+    user_id: int,
+    project_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Remove user from project (server admin only)
+
+    If user has no other project memberships and is not a server admin,
+    this will effectively remove all their access.
+
+    Args:
+        user_id: User ID
+        project_id: Project ID
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Raises:
+        HTTPException 404: Membership not found
+    """
+    # Get membership
+    membership_result = await db.execute(
+        select(ProjectMembership).where(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.project_id == project_id
+        )
+    )
+    membership = membership_result.scalar_one_or_none()
+
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_id} not found in project {project_id}"
+        )
+
+    # Delete membership
+    await db.delete(membership)
+    await db.commit()
 
 
 # Telegram Bot Configuration Endpoints
@@ -335,7 +531,7 @@ class TelegramConfigureRequest(BaseModel):
 )
 async def get_telegram_config(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Get Telegram bot configuration (superuser only).
@@ -372,7 +568,7 @@ async def get_telegram_config(
 async def configure_telegram(
     data: TelegramConfigureRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Configure Telegram bot (superuser only).
@@ -457,7 +653,7 @@ async def configure_telegram(
 )
 async def unconfigure_telegram(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Remove Telegram bot configuration (superuser only).
@@ -485,7 +681,7 @@ async def unconfigure_telegram(
 )
 async def check_telegram_health(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Check if Telegram bot is healthy (superuser only).
@@ -556,7 +752,7 @@ class TelegramSendTestMessageRequest(BaseModel):
 async def send_telegram_test_message(
     data: TelegramSendTestMessageRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
     Send test message to verify Telegram bot works (superuser only).

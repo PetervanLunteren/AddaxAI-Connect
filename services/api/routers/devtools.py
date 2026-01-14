@@ -1,11 +1,11 @@
 """
 Dev tools endpoints for development and testing.
 
-Provides tools for superusers to:
+Provides tools for server admins to:
 - Upload files directly to FTPS directory
 - Clear all data from database and storage
 
-Only accessible by superusers.
+Only accessible by server admins.
 """
 import os
 import shutil
@@ -21,7 +21,7 @@ from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
 from shared.logger import get_logger
-from auth.users import current_superuser
+from auth.permissions import require_server_admin
 
 
 router = APIRouter(prefix="/api/devtools", tags=["devtools"])
@@ -46,16 +46,16 @@ class ClearDataResponse(BaseModel):
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file_to_ftps(
     file: UploadFile = File(...),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Upload file directly to FTPS upload directory (superuser only).
+    Upload file directly to FTPS upload directory (server admin only)
 
     Bypasses normal FTPS upload workflow for debugging purposes.
 
     Args:
         file: File to upload (.jpg, .jpeg, .txt)
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
         Upload result
@@ -124,10 +124,10 @@ async def upload_file_to_ftps(
 @router.post("/clear-all-data", response_model=ClearDataResponse)
 async def clear_all_data(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_superuser),
+    current_user: User = Depends(require_server_admin),
 ):
     """
-    Clear all data from database, MinIO, and FTPS directory (superuser only).
+    Clear all data from database, MinIO, and FTPS directory (server admin only)
 
     WARNING: This is a destructive operation that cannot be undone.
     Deletes:
@@ -137,7 +137,7 @@ async def clear_all_data(
 
     Args:
         db: Database session
-        current_user: Current authenticated superuser
+        current_user: Current authenticated server admin
 
     Returns:
         Deletion results with counts
