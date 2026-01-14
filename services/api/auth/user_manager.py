@@ -13,7 +13,7 @@ from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from shared.models import User, EmailAllowlist, ProjectMembership
+from shared.models import User, EmailAllowlist, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -242,11 +242,15 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         # Call parent create method with safe=False to allow is_superuser
         created_user = await super().create(user_create_with_admin, safe=False, request=request)
 
-        # Validate non-admin users have project memberships
-        # This enforces "crash early and loudly" - if admin forgot to assign
-        # projects, registration fails immediately rather than creating an
-        # orphaned user with no access.
+        # Process pending invitations and validate project access for non-admin users
         if not created_user.is_superuser:
+            # Check for pending invitation
+            result = await db.execute(
+                select(UserInvitation).where(UserInvitation.email == email)
+            )
+            invitation = result.scalar_one_or_none()
+
+            # Check for existing project memberships
             result = await db.execute(
                 select(ProjectMembership).where(
                     ProjectMembership.user_id == created_user.id
@@ -254,27 +258,73 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             )
             memberships = result.scalars().all()
 
-            if not memberships:
-                # CRASH - This is a configuration error by the admin
-                # User was added to allowlist but no project memberships were created
+            # User must have either a pending invitation OR existing memberships
+            if not invitation and not memberships:
+                # CRASH - User has no way to access any projects
                 await db.delete(created_user)  # Rollback user creation
                 await db.commit()
 
                 raise ValueError(
-                    f"User {email} has no project memberships. "
-                    "An administrator must assign at least one project (with role) "
-                    "before this user can register. "
-                    "Contact your administrator to request project access."
+                    f"User {email} has not been invited to any projects. "
+                    "An administrator must invite you before you can register. "
+                    "Contact your administrator to request access."
                 )
 
-            logger.info(
-                "User created with project memberships",
-                email=created_user.email,
-                user_id=created_user.id,
-                membership_count=len(memberships),
-                projects=[m.project_id for m in memberships],
-                roles=[m.role for m in memberships]
-            )
+            # Create project membership from invitation if applicable
+            if invitation and invitation.project_id and invitation.role != 'server-admin':
+                # Create membership for project-admin or project-viewer
+                membership = ProjectMembership(
+                    user_id=created_user.id,
+                    project_id=invitation.project_id,
+                    role=invitation.role,
+                    added_by_user_id=invitation.invited_by_user_id
+                )
+                db.add(membership)
+                await db.commit()
+
+                logger.info(
+                    "User registered with invitation - project membership created",
+                    email=created_user.email,
+                    user_id=created_user.id,
+                    project_id=invitation.project_id,
+                    role=invitation.role,
+                    invited_by=invitation.invited_by_user_id
+                )
+
+                # Refresh memberships list for logging below
+                result = await db.execute(
+                    select(ProjectMembership).where(
+                        ProjectMembership.user_id == created_user.id
+                    )
+                )
+                memberships = result.scalars().all()
+
+            # Delete invitation record after successful registration
+            if invitation:
+                await db.delete(invitation)
+                await db.commit()
+
+                logger.info(
+                    "Invitation processed and deleted",
+                    email=created_user.email,
+                    user_id=created_user.id
+                )
+
+            if memberships:
+                logger.info(
+                    "User created with project memberships",
+                    email=created_user.email,
+                    user_id=created_user.id,
+                    membership_count=len(memberships),
+                    projects=[m.project_id for m in memberships],
+                    roles=[m.role for m in memberships]
+                )
+            else:
+                logger.info(
+                    "User created with pending invitation (memberships to be assigned)",
+                    email=created_user.email,
+                    user_id=created_user.id
+                )
         else:
             logger.info(
                 "Server admin user created",

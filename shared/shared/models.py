@@ -271,3 +271,27 @@ class TelegramLinkingToken(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
     used = Column(Boolean, nullable=False, server_default="false")
+
+
+class UserInvitation(Base):
+    """
+    Pending user invitations.
+
+    Tracks emails that have been invited but haven't registered yet.
+    When user registers, their pre-assigned project memberships are automatically applied.
+
+    For project-level invitations (project-admin, project-viewer):
+    - project_id and role are set
+
+    For server-admin invitations:
+    - project_id is NULL (server admins have access to all projects)
+    - role is 'server-admin'
+    """
+    __tablename__ = "user_invitations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    invited_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL for server-admin
+    role = Column(String(50), nullable=False, index=True)  # 'server-admin', 'project-admin', or 'project-viewer'
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

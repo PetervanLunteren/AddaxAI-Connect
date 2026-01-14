@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, EmailAllowlist, Project, TelegramConfig, ProjectMembership
+from shared.models import User, EmailAllowlist, Project, TelegramConfig, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
 from auth.permissions import require_server_admin
@@ -503,6 +503,131 @@ async def remove_user_from_project(
     # Delete membership
     await db.delete(membership)
     await db.commit()
+
+
+# User Invitation Endpoints
+
+class InviteUserRequest(BaseModel):
+    """Request to invite a new user (server admin only)"""
+    email: EmailStr
+    role: str  # 'server-admin' or 'project-admin'
+    project_id: Optional[int] = None  # Required for project-admin, ignored for server-admin
+
+
+class InvitationResponse(BaseModel):
+    """Response for invitation"""
+    email: str
+    role: str
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+    message: str
+
+
+@router.post(
+    "/users/invite",
+    response_model=InvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def invite_user(
+    data: InviteUserRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Invite a new user (server admin only)
+
+    This creates an allowlist entry and pending invitation. When the user registers,
+    they will automatically be assigned to the specified project with the specified role.
+
+    For server-admin role: project_id is ignored, user becomes server admin
+    For project-admin role: project_id is required, user becomes project admin in that project
+
+    Args:
+        data: Email, role, and optional project_id
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Returns:
+        Invitation details
+
+    Raises:
+        HTTPException 400: Invalid role or missing project_id for project-admin
+        HTTPException 404: Project not found
+        HTTPException 409: User already exists or invitation already sent
+    """
+    # Validate role
+    valid_roles = ['server-admin', 'project-admin']
+    if data.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        )
+
+    # Validate project_id for project-admin
+    if data.role == 'project-admin' and not data.project_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="project_id is required for project-admin role"
+        )
+
+    # Check if user already exists
+    existing_user = await db.execute(select(User).where(User.email == data.email))
+    if existing_user.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"User with email {data.email} already exists"
+        )
+
+    # Check if invitation already exists
+    existing_invitation = await db.execute(
+        select(UserInvitation).where(UserInvitation.email == data.email)
+    )
+    if existing_invitation.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Invitation already sent to {data.email}"
+        )
+
+    # Verify project exists for project-admin
+    project = None
+    if data.role == 'project-admin':
+        project_result = await db.execute(
+            select(Project).where(Project.id == data.project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with ID {data.project_id} not found"
+            )
+
+    # Add to allowlist
+    is_superuser = data.role == 'server-admin'
+    allowlist_entry = EmailAllowlist(
+        email=data.email,
+        is_superuser=is_superuser,
+        added_by_user_id=current_user.id
+    )
+    db.add(allowlist_entry)
+
+    # Create invitation with role and project_id
+    invitation = UserInvitation(
+        email=data.email,
+        invited_by_user_id=current_user.id,
+        project_id=data.project_id if data.role == 'project-admin' else None,
+        role=data.role
+    )
+    db.add(invitation)
+
+    await db.commit()
+
+    return InvitationResponse(
+        email=data.email,
+        role=data.role,
+        project_id=data.project_id if project else None,
+        project_name=project.name if project else None,
+        message=f"Invitation sent to {data.email}. They can now register and will be assigned as {data.role}."
+    )
 
 
 # Telegram Bot Configuration Endpoints
