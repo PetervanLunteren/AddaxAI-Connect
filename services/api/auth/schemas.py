@@ -17,8 +17,13 @@ class UserRead(schemas.BaseUser[int]):
 
 
 class UserCreate(schemas.BaseUserCreate):
-    """Schema for creating a new user (request)"""
-    pass
+    """
+    Schema for creating a new user (request).
+
+    is_server_admin is set internally by UserManager based on email allowlist,
+    not provided by the user during registration.
+    """
+    is_server_admin: bool = False  # Default to False, will be overridden by allowlist
 
 
 class UserUpdate(schemas.BaseUserUpdate):
