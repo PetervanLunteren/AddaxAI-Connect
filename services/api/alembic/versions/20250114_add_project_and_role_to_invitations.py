@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '20250114_add_project_and_role_to_invitations'
-down_revision = '20250114_add_user_invitations'
+revision = 'e257ff9406199'
+down_revision = 'c40ddac257ff'
 branch_labels = None
 depends_on = None
 
