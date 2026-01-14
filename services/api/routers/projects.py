@@ -5,9 +5,9 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership
+from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation, EmailAllowlist
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
@@ -802,3 +802,151 @@ async def remove_user_from_project(
     return {
         "message": f"User {user.email} removed from project {project.name}",
     }
+
+
+# Project User Invitation
+
+class InviteProjectUserRequest(BaseModel):
+    """Request to invite a new user to a project (project admin)"""
+    email: EmailStr
+    role: str  # 'project-admin' or 'project-viewer'
+
+
+class ProjectInvitationResponse(BaseModel):
+    """Response for project invitation"""
+    email: str
+    role: str
+    project_id: int
+    project_name: str
+    message: str
+
+
+@router.post(
+    "/{project_id}/users/invite",
+    response_model=ProjectInvitationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def invite_project_user(
+    project_id: int,
+    data: InviteProjectUserRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Invite a new user to a project (project admin or server admin)
+
+    This creates an allowlist entry and pending invitation. When the user registers,
+    they will automatically be assigned to this project with the specified role.
+
+    Args:
+        project_id: Project ID to invite user to
+        data: Email and role (project-admin or project-viewer)
+        db: Database session
+        current_user: Current authenticated user (must be project admin or server admin)
+
+    Returns:
+        Invitation details
+
+    Raises:
+        HTTPException 403: Insufficient permissions
+        HTTPException 404: Project not found
+        HTTPException 400: Invalid role
+        HTTPException 409: User already exists or invitation already sent
+    """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    # Validate role
+    valid_roles = ['project-admin', 'project-viewer']
+    if data.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        )
+
+    # Verify project exists
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found"
+        )
+
+    # Check if user already exists
+    existing_user = await db.execute(select(User).where(User.email == data.email))
+    if existing_user.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"User with email {data.email} already exists. Use the add user endpoint instead."
+        )
+
+    # Check if invitation already exists for this project
+    existing_invitation = await db.execute(
+        select(UserInvitation).where(
+            UserInvitation.email == data.email,
+            UserInvitation.project_id == project_id
+        )
+    )
+    if existing_invitation.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Invitation already sent to {data.email} for this project"
+        )
+
+    # Check if user has invitation for a different project
+    existing_other_invitation = await db.execute(
+        select(UserInvitation).where(UserInvitation.email == data.email)
+    )
+    if existing_other_invitation.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"User {data.email} already has a pending invitation for another project. Users can only have one pending invitation at a time."
+        )
+
+    # Add to allowlist if not already there
+    existing_allowlist = await db.execute(
+        select(EmailAllowlist).where(EmailAllowlist.email == data.email)
+    )
+    allowlist_entry = existing_allowlist.scalar_one_or_none()
+
+    if not allowlist_entry:
+        allowlist_entry = EmailAllowlist(
+            email=data.email,
+            is_superuser=False,  # Project invites never create server admins
+            added_by_user_id=current_user.id
+        )
+        db.add(allowlist_entry)
+
+    # Create invitation with role and project_id
+    invitation = UserInvitation(
+        email=data.email,
+        invited_by_user_id=current_user.id,
+        project_id=project_id,
+        role=data.role
+    )
+    db.add(invitation)
+
+    await db.commit()
+
+    logger.info(
+        "User invited to project",
+        email=data.email,
+        project_id=project_id,
+        role=data.role,
+        invited_by=current_user.id
+    )
+
+    return ProjectInvitationResponse(
+        email=data.email,
+        role=data.role,
+        project_id=project_id,
+        project_name=project.name,
+        message=f"Invitation sent to {data.email}. They can now register and will be assigned as {data.role} in {project.name}."
+    )
