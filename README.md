@@ -103,7 +103,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `letsencrypt_email` | `"you@example.com"` | Email address used for Letsencrypt SSL certificate registration. |
 
 
-7. **Configure email and superadmin**  
+7. **Configure email and server admin**  
    Still in `group_vars/dev.yml`.
 
    | Variable | Example | Description |
