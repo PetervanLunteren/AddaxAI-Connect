@@ -37,14 +37,12 @@ import {
   SelectValue,
 } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
-import { useToast } from '../hooks/useToast';
 import type { ProjectUserInfo, UserWithMemberships } from '../api/types';
 
 export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { canAdminCurrentProject, selectedProject } = useProject();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
@@ -78,20 +76,12 @@ export const ProjectUsersPage: React.FC = () => {
       projectsApi.addUser(parseInt(projectId!), userId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
-      toast({
-        title: 'Success',
-        description: 'User added to project',
-      });
       setShowAddUserModal(false);
       setSelectedUserId(null);
       setSelectedRole('project-viewer');
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to add user',
-        variant: 'destructive',
-      });
+      alert(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -101,19 +91,11 @@ export const ProjectUsersPage: React.FC = () => {
       projectsApi.updateUserRole(parseInt(projectId!), userId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
-      toast({
-        title: 'Success',
-        description: 'User role updated',
-      });
       setShowEditRoleModal(false);
       setSelectedUser(null);
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to update role',
-        variant: 'destructive',
-      });
+      alert(`Failed to update role: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -123,19 +105,11 @@ export const ProjectUsersPage: React.FC = () => {
       projectsApi.removeUser(parseInt(projectId!), userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
-      toast({
-        title: 'Success',
-        description: 'User removed from project',
-      });
       setShowRemoveUserModal(false);
       setSelectedUser(null);
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to remove user',
-        variant: 'destructive',
-      });
+      alert(`Failed to remove user: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
