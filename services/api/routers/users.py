@@ -15,7 +15,7 @@ from shared.database import get_async_session
 from auth.users import current_active_user
 
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 class ProjectWithRole(BaseModel):
