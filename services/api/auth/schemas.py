@@ -20,10 +20,11 @@ class UserCreate(schemas.BaseUserCreate):
     """
     Schema for creating a new user (request).
 
-    is_server_admin is set internally by UserManager based on email allowlist,
-    not provided by the user during registration.
+    is_superuser is set internally by UserManager based on email allowlist,
+    not provided by the user during registration. This field maps to
+    is_server_admin in the database via the User model property.
     """
-    is_server_admin: bool = False  # Default to False, will be overridden by allowlist
+    is_superuser: bool = False  # Default to False, will be overridden by allowlist
 
 
 class UserUpdate(schemas.BaseUserUpdate):
