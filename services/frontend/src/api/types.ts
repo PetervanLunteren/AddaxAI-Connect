@@ -183,6 +183,20 @@ export interface UpdateProjectUserRoleRequest {
   role: string;
 }
 
+export interface InviteUserRequest {
+  email: string;
+  role: string;  // 'server-admin' or 'project-admin'
+  project_id?: number;  // Required for project-admin, ignored for server-admin
+}
+
+export interface InvitationResponse {
+  email: string;
+  role: string;
+  project_id?: number;
+  project_name?: string;
+  message: string;
+}
+
 // Signal Notifications
 export interface SignalConfig {
   phone_number: string | null;

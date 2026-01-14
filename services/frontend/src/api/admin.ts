@@ -7,6 +7,8 @@ import type {
   ProjectMembershipInfo,
   AddUserToProjectRequest,
   UpdateProjectUserRoleRequest,
+  InviteUserRequest,
+  InvitationResponse,
   SignalConfig,
   SignalRegisterRequest,
   SignalUpdateConfigRequest,
@@ -62,6 +64,14 @@ export const adminApi = {
     const response = await apiClient.delete<{ message: string }>(
       `/api/admin/users/${userId}/projects/${projectId}`
     );
+    return response.data;
+  },
+
+  /**
+   * Invite a new user (server admin only)
+   */
+  inviteUser: async (data: InviteUserRequest): Promise<InvitationResponse> => {
+    const response = await apiClient.post<InvitationResponse>('/api/admin/users/invite', data);
     return response.data;
   },
 
