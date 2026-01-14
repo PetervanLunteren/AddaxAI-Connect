@@ -28,6 +28,7 @@ import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
 import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { TelegramConfigPage } from './pages/server/TelegramConfigPage';
+import { ProjectUsersPage } from './pages/ProjectUsersPage';
 
 function App() {
   return (
@@ -61,6 +62,11 @@ function App() {
                     <UserAssignmentPage />
                   </ProtectedRoute>
                 }
+              />
+              {/* Alias for admin users page */}
+              <Route
+                path="/admin/users"
+                element={<Navigate to="/server/user-assignment" replace />}
               />
               <Route
                 path="/server/rejected-files"
@@ -114,6 +120,7 @@ function App() {
                 <Route path="about" element={<AboutPage />} />
                 <Route path="camera-management" element={<CameraManagementPage />} />
                 <Route path="species-management" element={<SpeciesManagementPage />} />
+                <Route path="users" element={<ProjectUsersPage />} />
               </Route>
 
               {/* Redirect root to projects */}
