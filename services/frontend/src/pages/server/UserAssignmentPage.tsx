@@ -27,12 +27,10 @@ import { Label } from '../../components/ui/Label';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
-import { useToast } from '../../hooks/useToast';
 import type { UserWithMemberships, ProjectMembershipInfo } from '../../api/types';
 
 export const UserAssignmentPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const [selectedUser, setSelectedUser] = useState<UserWithMemberships | null>(null);
   const [showAddMembershipModal, setShowAddMembershipModal] = useState(false);
@@ -59,21 +57,13 @@ export const UserAssignmentPage: React.FC = () => {
       adminApi.addUserToProject(userId, projectId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast({
-        title: 'Success',
-        description: 'User added to project',
-      });
       setShowAddMembershipModal(false);
       setSelectedUser(null);
       setSelectedProjectId(null);
       setSelectedRole('project-viewer');
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to add user to project',
-        variant: 'destructive',
-      });
+      alert(`Failed to add user to project: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -83,19 +73,11 @@ export const UserAssignmentPage: React.FC = () => {
       adminApi.updateUserProjectRole(userId, projectId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast({
-        title: 'Success',
-        description: 'User role updated',
-      });
       setShowEditRoleModal(false);
       setSelectedMembership(null);
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to update role',
-        variant: 'destructive',
-      });
+      alert(`Failed to update role: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -105,19 +87,11 @@ export const UserAssignmentPage: React.FC = () => {
       adminApi.removeUserFromProject(userId, projectId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast({
-        title: 'Success',
-        description: 'User removed from project',
-      });
       setShowRemoveMembershipModal(false);
       setSelectedMembership(null);
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.detail || 'Failed to remove user from project',
-        variant: 'destructive',
-      });
+      alert(`Failed to remove user from project: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
