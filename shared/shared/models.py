@@ -164,6 +164,17 @@ class User(Base):
 
     # Note: role and project_id removed - now handled via ProjectMembership table
 
+    # FastAPI-Users compatibility: provide is_superuser as alias for is_server_admin
+    @property
+    def is_superuser(self):
+        """Alias for is_server_admin to maintain FastAPI-Users compatibility"""
+        return self.is_server_admin
+
+    @is_superuser.setter
+    def is_superuser(self, value):
+        """Alias for is_server_admin to maintain FastAPI-Users compatibility"""
+        self.is_server_admin = value
+
 
 class EmailAllowlist(Base):
     """

@@ -230,20 +230,19 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                        "Please contact an administrator to request access."
             )
 
-        # Apply is_server_admin flag from allowlist entry
+        # Apply is_superuser flag from allowlist entry
         # This determines if user becomes a server admin
-        # Create a new UserCreate instance with is_server_admin field
-        # We use model_copy() to properly handle Pydantic immutability
+        # Create a new UserCreate instance with is_superuser field
+        # (maps to is_server_admin in database via User model property)
         user_dict = user_create.model_dump()
-        user_dict['is_server_admin'] = allowlist_entry.is_server_admin
+        user_dict['is_superuser'] = allowlist_entry.is_server_admin
 
-        # Create new instance with is_server_admin
+        # Create new instance with is_superuser
         from auth.schemas import UserCreate
         user_create_with_admin = UserCreate(**user_dict)
 
-        # Call parent create method with safe=False to allow is_server_admin
-        # Note: 'is_superuser' parameter still used by FastAPI-Users internally
-        # but we're storing it as 'is_server_admin' in our database
+        # Call parent create method with safe=False to allow is_superuser
+        # The is_superuser field maps to is_server_admin in the database
         created_user = await super().create(user_create_with_admin, safe=False, request=request)
 
         # Validate non-admin users have project memberships
