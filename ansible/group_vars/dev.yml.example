@@ -75,5 +75,5 @@ mail_username: ""                         # SMTP username (REQUIRED)
 mail_password: ""                         # SMTP password or app password (REQUIRED)
 mail_from: ""                             # From email address (REQUIRED)
 
-# Superadmin Settings
-superadmin_email: ""                      # Initial superadmin email(s) (REQUIRED). Use semicolons to separate multiple emails: "admin1@example.com;admin2@example.com"
+# Server admin settings
+superadmin_email: ""                      # Initial server admin email(s) (REQUIRED). Use semicolons to separate multiple emails: "admin1@example.com;admin2@example.com"
