@@ -176,20 +176,20 @@ export const UserAssignmentPage: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold">{user.email}</h3>
-                        {user.is_server_admin && (
+                        {user.is_superuser && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
                             <Shield className="h-3 w-3" />
                             server admin
                           </span>
                         )}
                       </div>
-                      {user.is_server_admin && (
+                      {user.is_superuser && (
                         <p className="text-sm text-muted-foreground mt-1">
                           Has access to all projects
                         </p>
                       )}
                     </div>
-                    {!user.is_server_admin && (
+                    {!user.is_superuser && (
                       <Button
                         size="sm"
                         onClick={() => {
@@ -204,7 +204,7 @@ export const UserAssignmentPage: React.FC = () => {
                   </div>
 
                   {/* Project Memberships */}
-                  {!user.is_server_admin && (
+                  {!user.is_superuser && (
                     <div className="space-y-2">
                       {user.project_memberships.length === 0 ? (
                         <p className="text-sm text-muted-foreground italic">

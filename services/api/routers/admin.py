@@ -43,7 +43,7 @@ class AllowlistResponse(BaseModel):
     id: int
     email: Optional[str]
     domain: Optional[str]
-    is_server_admin: bool
+    is_superuser: bool
     added_by_user_id: Optional[int]
     created_at: str
 
@@ -63,7 +63,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     is_active: bool
-    is_server_admin: bool  # Renamed from is_superuser
+    is_superuser: bool
     is_verified: bool
     project_memberships: list[ProjectMembershipInfo] = []
 
@@ -249,7 +249,7 @@ async def list_users(
             id=user.id,
             email=user.email,
             is_active=user.is_active,
-            is_server_admin=user.is_server_admin,
+            is_superuser=user.is_superuser,
             is_verified=user.is_verified,
             project_memberships=membership_info
         ))

@@ -30,7 +30,7 @@ async def get_accessible_project_ids(
     Returns:
         List of accessible project IDs
     """
-    if current_user.is_server_admin:
+    if current_user.is_superuser:
         # Server admins can access all projects
         result = await db.execute(select(Project.id))
         project_ids = [row[0] for row in result.all()]

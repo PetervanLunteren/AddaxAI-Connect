@@ -232,24 +232,21 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         # Apply is_superuser flag from allowlist entry
         # This determines if user becomes a server admin
-        # Create a new UserCreate instance with is_superuser field
-        # (maps to is_server_admin in database via User model property)
         user_dict = user_create.model_dump()
-        user_dict['is_superuser'] = allowlist_entry.is_server_admin
+        user_dict['is_superuser'] = allowlist_entry.is_superuser
 
         # Create new instance with is_superuser
         from auth.schemas import UserCreate
         user_create_with_admin = UserCreate(**user_dict)
 
         # Call parent create method with safe=False to allow is_superuser
-        # The is_superuser field maps to is_server_admin in the database
         created_user = await super().create(user_create_with_admin, safe=False, request=request)
 
         # Validate non-admin users have project memberships
         # This enforces "crash early and loudly" - if admin forgot to assign
         # projects, registration fails immediately rather than creating an
         # orphaned user with no access.
-        if not created_user.is_server_admin:
+        if not created_user.is_superuser:
             result = await db.execute(
                 select(ProjectMembership).where(
                     ProjectMembership.user_id == created_user.id
@@ -283,7 +280,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
                 "Server admin user created",
                 email=created_user.email,
                 user_id=created_user.id,
-                is_server_admin=True
+                is_superuser=True
             )
 
         return created_user

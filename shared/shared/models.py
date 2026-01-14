@@ -159,21 +159,10 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    is_server_admin = Column(Boolean, default=False, nullable=False)  # Renamed from is_superuser
+    is_superuser = Column(Boolean, default=False, nullable=False)  # Server admin flag (FastAPI-Users compatible)
     is_verified = Column(Boolean, default=False, nullable=False)
 
     # Note: role and project_id removed - now handled via ProjectMembership table
-
-    # FastAPI-Users compatibility: provide is_superuser as alias for is_server_admin
-    @property
-    def is_superuser(self):
-        """Alias for is_server_admin to maintain FastAPI-Users compatibility"""
-        return self.is_server_admin
-
-    @is_superuser.setter
-    def is_superuser(self, value):
-        """Alias for is_server_admin to maintain FastAPI-Users compatibility"""
-        self.is_server_admin = value
 
 
 class EmailAllowlist(Base):
@@ -181,15 +170,15 @@ class EmailAllowlist(Base):
     Allowed emails/domains for registration.
 
     Determines who can register and whether they become server admins.
-    - is_server_admin=True: User becomes server admin with full control over all projects
-    - is_server_admin=False: Regular user (gets project access via ProjectMembership table)
+    - is_superuser=True: User becomes server admin with full control over all projects
+    - is_superuser=False: Regular user (gets project access via ProjectMembership table)
     """
     __tablename__ = "email_allowlist"
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), nullable=True, unique=True)
     domain = Column(String(255), nullable=True)
-    is_server_admin = Column(Boolean, default=False, nullable=False)  # Renamed from is_superuser
+    is_superuser = Column(Boolean, default=False, nullable=False)  # Server admin flag
     added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

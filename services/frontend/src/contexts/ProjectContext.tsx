@@ -63,7 +63,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
 
   // Role checking helpers
   const selectedProjectRole = selectedProject?.role || null;
-  const isServerAdmin = user?.is_server_admin || false;
+  const isServerAdmin = user?.is_superuser || false;
   const isProjectAdmin = selectedProjectRole === 'project-admin' || isServerAdmin;
   const isProjectViewer = selectedProjectRole === 'project-viewer';
   const canAdminCurrentProject = isProjectAdmin;
