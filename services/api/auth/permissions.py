@@ -48,7 +48,7 @@ def is_server_admin(user: User) -> bool:
     Returns:
         True if user is server admin, False otherwise
     """
-    return user.is_server_admin
+    return user.is_superuser
 
 
 async def get_user_project_role(
@@ -72,7 +72,7 @@ async def get_user_project_role(
         or None if user has no access to project
     """
     # Server admins have implicit access to all projects
-    if user.is_server_admin:
+    if user.is_superuser:
         return Role.SERVER_ADMIN
 
     # Query project_memberships table
@@ -103,7 +103,7 @@ async def get_user_projects_with_roles(
     Returns:
         List of dicts: [{"project_id": 1, "role": "project-admin"}, ...]
     """
-    if user.is_server_admin:
+    if user.is_superuser:
         # Server admins have access to all projects
         result = await db.execute(select(Project.id))
         project_ids = [row[0] for row in result.all()]

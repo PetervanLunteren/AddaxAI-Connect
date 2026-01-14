@@ -56,7 +56,7 @@ async def get_my_projects(
     """
     projects_with_roles = []
 
-    if current_user.is_server_admin:
+    if current_user.is_superuser:
         # Server admins get all projects with server-admin role
         result = await db.execute(select(Project))
         projects = result.scalars().all()

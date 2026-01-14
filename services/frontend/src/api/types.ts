@@ -141,7 +141,7 @@ export interface User {
   email: string;
   is_active: boolean;
   is_verified: boolean;
-  is_server_admin: boolean;
+  is_superuser: boolean;
 }
 
 export interface ProjectMembershipInfo {
