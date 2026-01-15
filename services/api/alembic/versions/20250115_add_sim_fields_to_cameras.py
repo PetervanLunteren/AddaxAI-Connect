@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic
 revision = '20250115_add_sim_fields'
-down_revision = '20250114_add_project_and_role_to_invitations'
+down_revision = 'e257ff9406199'
 branch_labels = None
 depends_on = None
 
