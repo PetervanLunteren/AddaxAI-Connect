@@ -28,13 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/Dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/Select';
+import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
 import type { ProjectUserInfo, UserWithMemberships } from '../api/types';
 
@@ -282,14 +276,9 @@ export const ProjectUsersPage: React.FC = () => {
 
             <div>
               <Label htmlFor="role">Role</Label>
-              <Select value={addUserRole} onValueChange={setAddUserRole}>
-                <SelectTrigger id="role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="project-viewer">project viewer</SelectItem>
-                  <SelectItem value="project-admin">project admin</SelectItem>
-                </SelectContent>
+              <Select id="role" value={addUserRole} onValueChange={setAddUserRole}>
+                <SelectItem value="project-viewer">project viewer</SelectItem>
+                <SelectItem value="project-admin">project admin</SelectItem>
               </Select>
             </div>
           </div>
@@ -338,29 +327,15 @@ export const ProjectUsersPage: React.FC = () => {
           <div>
             <Label htmlFor="edit-role">Role</Label>
             <Select
+              id="edit-role"
               value={selectedRole}
               onValueChange={(value) => {
                 console.log('[DEBUG] Edit Role Select onChange:', { from: selectedRole, to: value });
                 setSelectedRole(value);
               }}
             >
-              <SelectTrigger id="edit-role" onClick={() => console.log('[DEBUG] SelectTrigger clicked')}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent onPointerDownOutside={(e) => console.log('[DEBUG] Pointer down outside SelectContent')}>
-                <SelectItem
-                  value="project-viewer"
-                  onSelect={() => console.log('[DEBUG] project-viewer SelectItem onSelect')}
-                >
-                  project viewer
-                </SelectItem>
-                <SelectItem
-                  value="project-admin"
-                  onSelect={() => console.log('[DEBUG] project-admin SelectItem onSelect')}
-                >
-                  project admin
-                </SelectItem>
-              </SelectContent>
+              <SelectItem value="project-viewer">project viewer</SelectItem>
+              <SelectItem value="project-admin">project admin</SelectItem>
             </Select>
             <p className="text-xs text-gray-500 mt-1">Current value: {selectedRole}</p>
           </div>

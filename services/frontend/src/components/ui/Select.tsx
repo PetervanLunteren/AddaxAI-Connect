@@ -4,12 +4,20 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
 
-export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
   children?: React.ReactNode;
+  onValueChange?: (value: string) => void;
+  onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void;
 }
 
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, children, ...props }, ref) => {
+  ({ className, children, onValueChange, onChange, ...props }, ref) => {
+    const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+      // Call both handlers if provided
+      onChange?.(event);
+      onValueChange?.(event.target.value);
+    };
+
     return (
       <select
         className={cn(
@@ -19,6 +27,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           className
         )}
         ref={ref}
+        onChange={handleChange}
         {...props}
       >
         {children}
