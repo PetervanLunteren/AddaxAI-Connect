@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, date
 import csv
 import io
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -449,7 +449,7 @@ async def delete_camera(
 )
 async def import_cameras_csv(
     file: UploadFile = File(...),
-    project_id: int = None,
+    project_id: int = Form(...),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
 ):
@@ -477,13 +477,6 @@ async def import_cameras_csv(
     Raises:
         HTTPException: If CSV format is invalid, project not found, or insufficient permissions
     """
-    # Project ID is required
-    if project_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="project_id is required for bulk import",
-        )
-
     # Check project admin access
     if not await can_admin_project(current_user, project_id, db):
         raise HTTPException(
