@@ -263,7 +263,7 @@ export const ProjectUsersPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Add User to Project</DialogTitle>
             <DialogDescription>
-              Enter a user's email and assign them a role. If they're already registered, they'll be added immediately. Otherwise, they'll receive an invitation.
+              Enter a user's email and assign them a role.
             </DialogDescription>
           </DialogHeader>
 
