@@ -817,7 +817,7 @@ export const CameraManagementPage: React.FC = () => {
 
       {/* CSV Import Dialog */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent onClose={() => setShowImportDialog(false)} className="max-w-3xl">
+        <DialogContent onClose={() => setShowImportDialog(false)} className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Import Cameras from CSV</DialogTitle>
             <DialogDescription>
@@ -850,10 +850,10 @@ export const CameraManagementPage: React.FC = () => {
 
                 <div className="bg-accent/50 p-4 rounded-md">
                   <p className="text-sm font-medium mb-2">CSV Format Example:</p>
-                  <div className="text-xs bg-background p-3 rounded overflow-x-auto">
-                    <pre className="whitespace-pre">IMEI;Serial;Order;Scanned;Firmware;Remark;SIM;IMSI;ICCID</pre>
-                    <pre className="whitespace-pre text-muted-foreground mt-1">860946063660255;SY2511012122;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567890;893108512...</pre>
-                    <pre className="whitespace-pre text-muted-foreground">860946063660256;SY2511012127;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567891;893108512...</pre>
+                  <div className="text-xs bg-background p-3 rounded overflow-x-auto max-h-32">
+                    <pre className="whitespace-nowrap">IMEI;Serial;Order;Scanned;Firmware;Remark;SIM;IMSI;ICCID</pre>
+                    <pre className="whitespace-nowrap text-muted-foreground mt-1">860946063660255;SY2511012122;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567890;893108512...</pre>
+                    <pre className="whitespace-nowrap text-muted-foreground">860946063660256;SY2511012127;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567891;893108512...</pre>
                   </div>
                   <div className="mt-3 space-y-1">
                     <p className="text-xs text-muted-foreground">
