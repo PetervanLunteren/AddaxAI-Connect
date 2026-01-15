@@ -111,7 +111,6 @@ export const UserAssignmentPage: React.FC = () => {
       setInviteRole('project-admin');
       setSelectedProjectId(null);
       setInviteSendEmail(true);
-      alert(response.message);
     },
     onError: (error: any) => {
       alert(`Failed to invite user: ${error.response?.data?.detail || 'Unknown error'}`);

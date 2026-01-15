@@ -69,7 +69,6 @@ export const ProjectUsersPage: React.FC = () => {
       setAddUserEmail('');
       setAddUserRole('project-viewer');
       setSendEmail(true);
-      alert(response.message);
     },
     onError: (error: any) => {
       alert(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
