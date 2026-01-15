@@ -57,6 +57,47 @@
     group: "999"
     mode: '0700'
 
+- name: Create models directory structure
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/models/{{ item }}"
+    state: directory
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0755'
+  loop:
+    - detection
+    - classification
+
+- name: Download MegaDetector model (900MB - may take 10-15 minutes)
+  get_url:
+    url: "https://github.com/agentmorris/MegaDetector/releases/download/v1000.0/md_v1000.0.0-redwood.pt"
+    dest: "{{ app_directory | default('/opt/addaxai-connect') }}/models/detection/md_v1000.0.0-redwood.pt"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0644'
+    timeout: 1800  # 30 minutes for download
+  retries: 3
+  delay: 10
+  register: detection_model_download
+
+- name: Download DeepFaune classification model (1.2GB - may take 10-15 minutes)
+  get_url:
+    url: "https://huggingface.co/Addax-Data-Science/Deepfaune_v1.4/resolve/main/deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt?download=true"
+    dest: "{{ app_directory | default('/opt/addaxai-connect') }}/models/classification/deepfaune-vit_large_patch14_dinov2.lvd142m.v4.pt"
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0644'
+    timeout: 1800  # 30 minutes for download
+  retries: 3
+  delay: 10
+  register: classification_model_download
+
+- name: Display model download results
+  debug:
+    msg: |
+      MegaDetector: {{ 'Downloaded' if detection_model_download.changed else 'Already cached' }}
+      DeepFaune: {{ 'Downloaded' if classification_model_download.changed else 'Already cached' }}
+
 - name: Pull Docker images
   command: docker compose pull
   args:
@@ -73,7 +114,7 @@
   become_user: "{{ app_user | default('ubuntu') }}"
   register: docker_up
   changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
-  async: 1200  # 20 minutes for initial build with model download
+  async: 600  # 10 minutes - models are now pre-cached
   poll: 10
 
 - name: Wait for services to be healthy
