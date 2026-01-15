@@ -10,7 +10,9 @@ import type {
   ProjectUserInfo,
   AddUserToProjectRequest,
   UpdateProjectUserRoleRequest,
-  InvitationResponse
+  InvitationResponse,
+  AddProjectUserByEmailRequest,
+  AddProjectUserByEmailResponse
 } from './types';
 
 export const projectsApi = {
@@ -127,6 +129,17 @@ export const projectsApi = {
     const response = await apiClient.post<InvitationResponse>(
       `/api/projects/${projectId}/users/invite`,
       { email, role }
+    );
+    return response.data;
+  },
+
+  /**
+   * Add user by email (unified add/invite) - automatically handles existing users and new invitations
+   */
+  addUserByEmail: async (projectId: number, data: AddProjectUserByEmailRequest): Promise<AddProjectUserByEmailResponse> => {
+    const response = await apiClient.post<AddProjectUserByEmailResponse>(
+      `/api/projects/${projectId}/users/add`,
+      data
     );
     return response.data;
   },

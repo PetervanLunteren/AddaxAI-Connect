@@ -7,9 +7,8 @@
 import React, { useState } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon, Mail } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon } from 'lucide-react';
 import { projectsApi } from '../api/projects';
-import { adminApi } from '../api/admin';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -47,12 +46,10 @@ export const ProjectUsersPage: React.FC = () => {
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(false);
-  const [showInviteModal, setShowInviteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProjectUserInfo | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('project-viewer');
-  const [inviteEmail, setInviteEmail] = useState<string>('');
-  const [inviteRole, setInviteRole] = useState<string>('project-viewer');
+  const [addUserEmail, setAddUserEmail] = useState<string>('');
+  const [addUserRole, setAddUserRole] = useState<string>('project-viewer');
 
   // Redirect if user doesn't have admin access
   if (!canAdminCurrentProject) {
@@ -66,22 +63,16 @@ export const ProjectUsersPage: React.FC = () => {
     enabled: !!projectId,
   });
 
-  // Fetch all users (for add user dropdown) - server admin only
-  const { data: allUsers } = useQuery({
-    queryKey: ['all-users'],
-    queryFn: () => adminApi.listUsers(),
-    enabled: showAddUserModal,
-  });
-
-  // Add user mutation
-  const addUserMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: number; role: string }) =>
-      projectsApi.addUser(parseInt(projectId!), userId, role),
-    onSuccess: () => {
+  // Unified add user mutation (handles both existing users and new invitations)
+  const addUserByEmailMutation = useMutation({
+    mutationFn: ({ email, role }: { email: string; role: string }) =>
+      projectsApi.addUserByEmail(parseInt(projectId!), { email, role }),
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
       setShowAddUserModal(false);
-      setSelectedUserId(null);
-      setSelectedRole('project-viewer');
+      setAddUserEmail('');
+      setAddUserRole('project-viewer');
+      alert(response.message);
     },
     onError: (error: any) => {
       alert(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
@@ -116,43 +107,21 @@ export const ProjectUsersPage: React.FC = () => {
     },
   });
 
-  // Invite user mutation
-  const inviteUserMutation = useMutation({
-    mutationFn: ({ email, role }: { email: string; role: string }) =>
-      projectsApi.inviteUser(parseInt(projectId!), email, role),
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
-      setShowInviteModal(false);
-      setInviteEmail('');
-      setInviteRole('project-viewer');
-      alert(response.message);
-    },
-    onError: (error: any) => {
-      alert(`Failed to invite user: ${error.response?.data?.detail || 'Unknown error'}`);
-    },
-  });
-
   const handleAddUser = () => {
-    if (selectedUserId && selectedRole) {
-      addUserMutation.mutate({ userId: selectedUserId, role: selectedRole });
+    if (addUserEmail && addUserRole) {
+      addUserByEmailMutation.mutate({ email: addUserEmail, role: addUserRole });
     }
   };
 
   const handleUpdateRole = () => {
-    if (selectedUser && selectedRole) {
+    if (selectedUser && selectedUser.user_id && selectedRole) {
       updateRoleMutation.mutate({ userId: selectedUser.user_id, role: selectedRole });
     }
   };
 
   const handleRemoveUser = () => {
-    if (selectedUser) {
+    if (selectedUser && selectedUser.user_id) {
       removeUserMutation.mutate(selectedUser.user_id);
-    }
-  };
-
-  const handleInviteUser = () => {
-    if (inviteEmail && inviteRole) {
-      inviteUserMutation.mutate({ email: inviteEmail, role: inviteRole });
     }
   };
 
@@ -189,16 +158,10 @@ export const ProjectUsersPage: React.FC = () => {
                 Manage user access to {selectedProject?.name}
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => setShowInviteModal(true)}>
-                <Mail className="h-4 w-4 mr-2" />
-                Invite User
-              </Button>
-              <Button variant="outline" onClick={() => setShowAddUserModal(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add Existing User
-              </Button>
-            </div>
+            <Button onClick={() => setShowAddUserModal(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
           </div>
         </CardHeader>
 
@@ -217,24 +180,36 @@ export const ProjectUsersPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Registered</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Added</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {projectUsers.map((user) => (
-                  <TableRow key={user.user_id}>
+                {projectUsers.map((user, index) => (
+                  <TableRow key={user.user_id || `pending-${index}`}>
                     <TableCell className="font-medium">{user.email}</TableCell>
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>
+                      {user.is_registered ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
+                          Yes
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-700">
+                          No
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <div className="flex gap-2">
-                        {user.is_active && (
+                        {user.is_registered && user.is_active && (
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
                             Active
                           </span>
                         )}
-                        {user.is_verified && (
+                        {user.is_registered && user.is_verified && (
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
                             Verified
                           </span>
@@ -283,33 +258,26 @@ export const ProjectUsersPage: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Add User to Project</DialogTitle>
             <DialogDescription>
-              Select a user and assign them a role in this project
+              Enter a user's email and assign them a role. If they're already registered, they'll be added immediately. Otherwise, they'll receive an invitation.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="user">User</Label>
-              <Select
-                value={selectedUserId?.toString()}
-                onValueChange={(value) => setSelectedUserId(parseInt(value))}
-              >
-                <SelectTrigger id="user">
-                  <SelectValue placeholder="Select user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id.toString()}>
-                      {user.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="email">Email Address</Label>
+              <input
+                id="email"
+                type="email"
+                placeholder="user@example.com"
+                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={addUserEmail}
+                onChange={(e) => setAddUserEmail(e.target.value)}
+              />
             </div>
 
             <div>
               <Label htmlFor="role">Role</Label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
+              <Select value={addUserRole} onValueChange={setAddUserRole}>
                 <SelectTrigger id="role">
                   <SelectValue />
                 </SelectTrigger>
@@ -324,19 +292,23 @@ export const ProjectUsersPage: React.FC = () => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowAddUserModal(false)}
-              disabled={addUserMutation.isPending}
+              onClick={() => {
+                setShowAddUserModal(false);
+                setAddUserEmail('');
+                setAddUserRole('project-viewer');
+              }}
+              disabled={addUserByEmailMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               onClick={handleAddUser}
-              disabled={!selectedUserId || addUserMutation.isPending}
+              disabled={!addUserEmail || addUserByEmailMutation.isPending}
             >
-              {addUserMutation.isPending && (
+              {addUserByEmailMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Add User
+              Add
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -419,67 +391,6 @@ export const ProjectUsersPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Invite User Modal */}
-      <Dialog open={showInviteModal} onOpenChange={setShowInviteModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Invite New User to Project</DialogTitle>
-            <DialogDescription>
-              Send an invitation to a new user. They will be able to register and will be automatically added to this project.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="invite-email">Email Address</Label>
-              <input
-                id="invite-email"
-                type="email"
-                placeholder="user@example.com"
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="invite-role">Role</Label>
-              <Select value={inviteRole} onValueChange={setInviteRole}>
-                <SelectTrigger id="invite-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="project-viewer">project viewer</SelectItem>
-                  <SelectItem value="project-admin">project admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowInviteModal(false);
-                setInviteEmail('');
-                setInviteRole('project-viewer');
-              }}
-              disabled={inviteUserMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleInviteUser}
-              disabled={!inviteEmail || inviteUserMutation.isPending}
-            >
-              {inviteUserMutation.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Send Invitation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

@@ -86,9 +86,10 @@ class ProjectResponse(BaseModel):
 
 class ProjectUserInfo(BaseModel):
     """User information in project context"""
-    user_id: int
+    user_id: Optional[int] = None  # None for pending invitations
     email: str
     role: str
+    is_registered: bool  # True for registered users, False for pending invitations
     is_active: bool
     is_verified: bool
     added_at: str
@@ -507,7 +508,7 @@ async def list_project_users(
             detail=f"Project with ID {project_id} not found",
         )
 
-    # Get all project memberships with user details
+    # Get all project memberships with user details (registered users)
     query = (
         select(ProjectMembership, User)
         .join(User, ProjectMembership.user_id == User.id)
@@ -523,9 +524,30 @@ async def list_project_users(
                 user_id=user.id,
                 email=user.email,
                 role=membership.role,
+                is_registered=True,
                 is_active=user.is_active,
                 is_verified=user.is_verified,
                 added_at=membership.created_at.isoformat(),
+            )
+        )
+
+    # Get pending invitations for this project
+    invitation_query = select(UserInvitation).where(
+        UserInvitation.project_id == project_id
+    )
+    invitation_result = await db.execute(invitation_query)
+    invitations = invitation_result.scalars().all()
+
+    for invitation in invitations:
+        users.append(
+            ProjectUserInfo(
+                user_id=None,  # No user_id yet - not registered
+                email=invitation.email,
+                role=invitation.role,
+                is_registered=False,
+                is_active=False,
+                is_verified=False,
+                added_at=invitation.created_at.isoformat(),
             )
         )
 
@@ -812,6 +834,20 @@ class InviteProjectUserRequest(BaseModel):
     role: str  # 'project-admin' or 'project-viewer'
 
 
+class AddProjectUserByEmailRequest(BaseModel):
+    """Request to add a user to project by email (unified add/invite)"""
+    email: EmailStr
+    role: str  # 'project-admin' or 'project-viewer'
+
+
+class AddProjectUserByEmailResponse(BaseModel):
+    """Response for unified add/invite"""
+    email: str
+    role: str
+    was_invited: bool  # True if invitation created, False if existing user added
+    message: str
+
+
 class ProjectInvitationResponse(BaseModel):
     """Response for project invitation"""
     email: str
@@ -950,3 +986,171 @@ async def invite_project_user(
         project_name=project.name,
         message=f"Invitation sent to {data.email}. They can now register and will be assigned as {data.role} in {project.name}."
     )
+
+
+@router.post(
+    "/{project_id}/users/add",
+    response_model=AddProjectUserByEmailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_project_user_by_email(
+    project_id: int,
+    data: AddProjectUserByEmailRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
+):
+    """
+    Unified endpoint to add user by email (project admin or server admin)
+
+    Automatically handles both cases:
+    - If user exists: Adds them to project immediately
+    - If user doesn't exist: Creates invitation for registration
+
+    Args:
+        project_id: Project ID
+        data: Email and role
+
+    Returns:
+        Success with indication of whether user was added or invited
+
+    Raises:
+        HTTPException: If insufficient permissions, invalid role, or conflicts
+    """
+    # Check project admin access
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    # Validate role
+    valid_roles = ['project-admin', 'project-viewer']
+    if data.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}"
+        )
+
+    # Verify project exists
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID {project_id} not found"
+        )
+
+    # Check if user exists
+    existing_user_result = await db.execute(
+        select(User).where(User.email == data.email)
+    )
+    existing_user = existing_user_result.scalar_one_or_none()
+
+    if existing_user:
+        # User exists - add them to project
+
+        # Check if user is already in project
+        existing_membership = await db.execute(
+            select(ProjectMembership).where(
+                ProjectMembership.user_id == existing_user.id,
+                ProjectMembership.project_id == project_id,
+            )
+        )
+        if existing_membership.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"User {data.email} is already a member of this project"
+            )
+
+        # Create membership
+        membership = ProjectMembership(
+            user_id=existing_user.id,
+            project_id=project_id,
+            role=data.role,
+            added_by_user_id=current_user.id,
+        )
+        db.add(membership)
+        await db.commit()
+
+        logger.info(
+            "Existing user added to project",
+            user_id=existing_user.id,
+            email=data.email,
+            project_id=project_id,
+            role=data.role,
+            added_by=current_user.id,
+        )
+
+        return AddProjectUserByEmailResponse(
+            email=data.email,
+            role=data.role,
+            was_invited=False,
+            message=f"User {data.email} added to project {project.name} as {data.role}"
+        )
+
+    else:
+        # User doesn't exist - create invitation
+
+        # Check if invitation already exists for this project
+        existing_invitation = await db.execute(
+            select(UserInvitation).where(
+                UserInvitation.email == data.email,
+                UserInvitation.project_id == project_id
+            )
+        )
+        if existing_invitation.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Invitation already sent to {data.email} for this project"
+            )
+
+        # Check if user has invitation for a different project
+        existing_other_invitation = await db.execute(
+            select(UserInvitation).where(UserInvitation.email == data.email)
+        )
+        if existing_other_invitation.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"User {data.email} already has a pending invitation for another project"
+            )
+
+        # Add to allowlist if not already there
+        existing_allowlist = await db.execute(
+            select(EmailAllowlist).where(EmailAllowlist.email == data.email)
+        )
+        allowlist_entry = existing_allowlist.scalar_one_or_none()
+
+        if not allowlist_entry:
+            allowlist_entry = EmailAllowlist(
+                email=data.email,
+                is_superuser=False,
+                added_by_user_id=current_user.id
+            )
+            db.add(allowlist_entry)
+
+        # Create invitation
+        invitation = UserInvitation(
+            email=data.email,
+            invited_by_user_id=current_user.id,
+            project_id=project_id,
+            role=data.role
+        )
+        db.add(invitation)
+        await db.commit()
+
+        logger.info(
+            "User invited to project",
+            email=data.email,
+            project_id=project_id,
+            role=data.role,
+            invited_by=current_user.id
+        )
+
+        return AddProjectUserByEmailResponse(
+            email=data.email,
+            role=data.role,
+            was_invited=True,
+            message=f"Invitation sent to {data.email}. They can register and will be assigned as {data.role} in {project.name}"
+        )
