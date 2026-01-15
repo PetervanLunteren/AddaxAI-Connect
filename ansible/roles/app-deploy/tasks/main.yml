@@ -107,15 +107,25 @@
   changed_when: "'Pulling' in docker_pull.stdout"
   when: deploy_pull_images | default(true)
 
-- name: Start Docker Compose services (force recreate to fix mount issues)
-  command: docker compose up -d --force-recreate
+- name: Build Docker Compose images (separate from startup)
+  command: docker compose build
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  register: docker_build
+  changed_when: "'Building' in docker_build.stderr or 'Built' in docker_build.stderr"
+  async: 1800  # 30 minutes for building all service images on first deploy
+  poll: 10
+
+- name: Start Docker Compose services
+  command: docker compose up -d
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
   register: docker_up
   changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
-  async: 600  # 10 minutes - models are now pre-cached
-  poll: 10
+  async: 300  # 5 minutes - just starting pre-built containers
+  poll: 5
 
 - name: Wait for services to be healthy
   command: docker compose ps --format json
