@@ -114,8 +114,16 @@ export const ProjectUsersPage: React.FC = () => {
   };
 
   const handleUpdateRole = () => {
+    console.log('[DEBUG] handleUpdateRole called', {
+      selectedUser,
+      selectedRole,
+      userId: selectedUser?.user_id
+    });
     if (selectedUser && selectedUser.user_id && selectedRole) {
+      console.log('[DEBUG] Calling updateRoleMutation with:', { userId: selectedUser.user_id, role: selectedRole });
       updateRoleMutation.mutate({ userId: selectedUser.user_id, role: selectedRole });
+    } else {
+      console.log('[DEBUG] Skipping mutation - missing data');
     }
   };
 
@@ -220,8 +228,10 @@ export const ProjectUsersPage: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
+                            console.log('[DEBUG] Edit button clicked for user:', { email: user.email, role: user.role, user_id: user.user_id });
                             setSelectedUser(user);
                             setSelectedRole(user.role);
+                            console.log('[DEBUG] Set selectedRole to:', user.role);
                             setShowEditRoleModal(true);
                           }}
                         >
@@ -325,7 +335,13 @@ export const ProjectUsersPage: React.FC = () => {
 
           <div>
             <Label htmlFor="edit-role">Role</Label>
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
+            <Select
+              value={selectedRole}
+              onValueChange={(value) => {
+                console.log('[DEBUG] Edit Role Select onChange:', { from: selectedRole, to: value });
+                setSelectedRole(value);
+              }}
+            >
               <SelectTrigger id="edit-role">
                 <SelectValue />
               </SelectTrigger>
@@ -334,6 +350,7 @@ export const ProjectUsersPage: React.FC = () => {
                 <SelectItem value="project-admin">project admin</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-gray-500 mt-1">Current value: {selectedRole}</p>
           </div>
 
           <DialogFooter>
