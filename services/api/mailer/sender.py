@@ -253,7 +253,7 @@ Realtime camera trap image processing platform
         body = f"""
 Hello!
 
-{inviter_name} ({inviter_email}) has invited you to join the "{project_name}" project on AddaxAI Connect.
+{inviter_email} has invited you to join the "{project_name}" project on AddaxAI Connect.
 
 Your assigned role: {role_display}
 
@@ -263,7 +263,7 @@ To accept this invitation and get started, please register your account:
 
 Once registered, you'll have immediate access to the project and can start working with camera trap images.
 
-If you have any questions, feel free to reach out to {inviter_name} at {inviter_email}.
+If you have any questions, feel free to reach out to {inviter_email}.
 
 ---
 AddaxAI Connect
@@ -316,7 +316,7 @@ Realtime camera trap image processing platform
         body = f"""
 Hello!
 
-{inviter_name} ({inviter_email}) has added you to the "{project_name}" project on AddaxAI Connect.
+{inviter_email} has added you to the "{project_name}" project on AddaxAI Connect.
 
 Your assigned role: {role_display}
 
@@ -326,7 +326,7 @@ You can now access this project by logging in:
 
 The project will appear in your projects list once you log in.
 
-If you have any questions, feel free to reach out to {inviter_name} at {inviter_email}.
+If you have any questions, feel free to reach out to {inviter_email}.
 
 ---
 AddaxAI Connect
