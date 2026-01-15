@@ -850,14 +850,25 @@ export const CameraManagementPage: React.FC = () => {
 
                 <div className="bg-accent/50 p-4 rounded-md">
                   <p className="text-sm font-medium mb-2">CSV Format Example:</p>
-                  <pre className="text-xs bg-background p-2 rounded overflow-x-auto">
-                    IMEI;Serial;Order;Scanned;Firmware;Remark;SIM;IMSI;ICCID{'\n'}
-                    860946063660255;SY2511012122;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567890;8931085125056164008{'\n'}
-                    860946063660256;SY2511012127;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567891;8931085125056164016
-                  </pre>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Note: Can also use comma as delimiter. FriendlyName column optional (defaults to IMEI).
-                  </p>
+                  <div className="text-xs bg-background p-3 rounded overflow-x-auto">
+                    <pre className="whitespace-pre">IMEI;Serial;Order;Scanned;Firmware;Remark;SIM;IMSI;ICCID</pre>
+                    <pre className="whitespace-pre text-muted-foreground mt-1">860946063660255;SY2511012122;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567890;893108512...</pre>
+                    <pre className="whitespace-pre text-muted-foreground">860946063660256;SY2511012127;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567891;893108512...</pre>
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      • Delimiter: Comma or semicolon (auto-detected)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      • Date format: DD-MM-YYYY, YYYY-MM-DD, or Excel serial number
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      • FriendlyName column optional (defaults to IMEI)
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      • Only IMEI is required, all other fields are optional
+                    </p>
+                  </div>
                 </div>
               </>
             ) : (
