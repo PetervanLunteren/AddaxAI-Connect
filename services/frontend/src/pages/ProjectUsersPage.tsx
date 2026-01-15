@@ -310,7 +310,11 @@ export const ProjectUsersPage: React.FC = () => {
       </Dialog>
 
       {/* Edit Role Modal */}
-      <Dialog open={showEditRoleModal} onOpenChange={setShowEditRoleModal}>
+      <Dialog
+        key={selectedUser?.user_id || 'edit-role'}
+        open={showEditRoleModal}
+        onOpenChange={setShowEditRoleModal}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update User Role</DialogTitle>
