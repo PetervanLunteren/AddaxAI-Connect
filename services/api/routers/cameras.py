@@ -617,14 +617,24 @@ async def import_cameras_csv(
                 try:
                     scanned_date = datetime.strptime(scanned_date_str, '%Y-%m-%d').date()
                 except ValueError:
-                    results.append(CameraImportRow(
-                        row_number=idx,
-                        imei=imei,
-                        success=False,
-                        error=f"Invalid date format '{scanned_date_str}'. Use DD-MM-YYYY or YYYY-MM-DD"
-                    ))
-                    failed_count += 1
-                    continue
+                    # Try Excel serial date format (number of days since 1900-01-01)
+                    try:
+                        excel_date = int(scanned_date_str)
+                        # Excel incorrectly treats 1900 as a leap year, so we adjust
+                        # Excel day 1 = 1900-01-01, but Python needs adjustment
+                        if excel_date > 59:  # After Feb 28, 1900 (Excel's leap year bug)
+                            excel_date -= 1
+                        scanned_date = datetime(1899, 12, 31) + timedelta(days=excel_date)
+                        scanned_date = scanned_date.date()
+                    except (ValueError, OverflowError):
+                        results.append(CameraImportRow(
+                            row_number=idx,
+                            imei=imei,
+                            success=False,
+                            error=f"Invalid date format '{scanned_date_str}'. Use DD-MM-YYYY, YYYY-MM-DD, or Excel date number"
+                        ))
+                        failed_count += 1
+                        continue
 
         # Create camera
         try:
