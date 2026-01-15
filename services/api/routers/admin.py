@@ -669,6 +669,165 @@ async def invite_user(
     )
 
 
+class AddServerAdminRequest(BaseModel):
+    """Request to add a server admin (unified invite/promote)"""
+    email: EmailStr
+    send_email: bool = False  # Whether to send notification email
+
+
+class AddServerAdminResponse(BaseModel):
+    """Response for adding server admin"""
+    email: str
+    was_promoted: bool  # True if existing user promoted, False if new invitation created
+    email_sent: bool  # Whether notification email was sent
+    message: str
+
+
+@router.post(
+    "/server-admins/add",
+    response_model=AddServerAdminResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_server_admin(
+    data: AddServerAdminRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Add a server admin - unified endpoint that handles both new invitations and promoting existing users.
+
+    If the email already exists in the database, the user is promoted to server admin.
+    If the email is new, an invitation is created.
+
+    Args:
+        data: Email and send_email flag
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Returns:
+        Details about whether user was promoted or invited
+
+    Raises:
+        HTTPException 409: If user is already a server admin or invitation already exists
+    """
+    # Check if user already exists
+    existing_user_result = await db.execute(select(User).where(User.email == data.email))
+    existing_user = existing_user_result.scalar_one_or_none()
+
+    email_sent = False
+
+    if existing_user:
+        # User exists - promote to server admin
+        if existing_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"{data.email} is already a server admin"
+            )
+
+        # Promote user to server admin
+        existing_user.is_superuser = True
+        await db.commit()
+
+        # Send promotion email if requested
+        if data.send_email:
+            try:
+                email_sender = get_email_sender()
+                await email_sender.send_server_admin_promotion_email(
+                    email=data.email,
+                    promoter_email=current_user.email,
+                )
+                email_sent = True
+                logger.info(
+                    "Server admin promotion email sent",
+                    email=data.email,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to send server admin promotion email",
+                    email=data.email,
+                    error=str(e),
+                    exc_info=True,
+                )
+                # Don't fail the promotion if email fails
+
+        message = f"{data.email} has been promoted to server admin."
+        if email_sent:
+            message += " (notification email sent)"
+
+        return AddServerAdminResponse(
+            email=data.email,
+            was_promoted=True,
+            email_sent=email_sent,
+            message=message
+        )
+    else:
+        # User doesn't exist - create invitation
+        # Check if invitation already exists
+        existing_invitation = await db.execute(
+            select(UserInvitation).where(UserInvitation.email == data.email)
+        )
+        if existing_invitation.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Invitation already sent to {data.email}"
+            )
+
+        # Add to allowlist
+        allowlist_entry = EmailAllowlist(
+            email=data.email,
+            is_superuser=True,
+            added_by_user_id=current_user.id
+        )
+        db.add(allowlist_entry)
+
+        # Create invitation
+        invitation = UserInvitation(
+            email=data.email,
+            invited_by_user_id=current_user.id,
+            project_id=None,
+            role='server-admin'
+        )
+        db.add(invitation)
+
+        await db.commit()
+
+        # Send invitation email if requested
+        if data.send_email:
+            try:
+                email_sender = get_email_sender()
+                await email_sender.send_invitation_email(
+                    email=data.email,
+                    project_name="AddaxAI Connect",
+                    role='server-admin',
+                    inviter_name=current_user.email,
+                    inviter_email=current_user.email,
+                )
+                email_sent = True
+                logger.info(
+                    "Server admin invitation email sent",
+                    email=data.email,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to send server admin invitation email",
+                    email=data.email,
+                    error=str(e),
+                    exc_info=True,
+                )
+                # Don't fail the invitation if email fails
+
+        message = f"Invitation sent to {data.email}. They can now register as a server admin."
+        if email_sent:
+            message += " (invitation email sent)"
+
+        return AddServerAdminResponse(
+            email=data.email,
+            was_promoted=False,
+            email_sent=email_sent,
+            message=message
+        )
+
+
 # Telegram Bot Configuration Endpoints
 
 class TelegramConfigResponse(BaseModel):

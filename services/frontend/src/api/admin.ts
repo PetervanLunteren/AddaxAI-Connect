@@ -9,6 +9,8 @@ import type {
   UpdateProjectUserRoleRequest,
   InviteUserRequest,
   InvitationResponse,
+  AddServerAdminRequest,
+  AddServerAdminResponse,
   SignalConfig,
   SignalRegisterRequest,
   SignalUpdateConfigRequest,
@@ -72,6 +74,14 @@ export const adminApi = {
    */
   inviteUser: async (data: InviteUserRequest): Promise<InvitationResponse> => {
     const response = await apiClient.post<InvitationResponse>('/api/admin/users/invite', data);
+    return response.data;
+  },
+
+  /**
+   * Add a server admin (unified invite/promote)
+   */
+  addServerAdmin: async (data: AddServerAdminRequest): Promise<AddServerAdminResponse> => {
+    const response = await apiClient.post<AddServerAdminResponse>('/api/admin/server-admins/add', data);
     return response.data;
   },
 
