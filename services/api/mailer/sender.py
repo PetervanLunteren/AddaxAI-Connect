@@ -341,6 +341,58 @@ Realtime camera trap image processing platform
             project_name=project_name,
         )
 
+    async def send_server_admin_promotion_email(
+        self,
+        email: str,
+        promoter_email: str,
+    ) -> None:
+        """
+        Send server admin promotion notification to existing user.
+
+        Args:
+            email: User's email address
+            promoter_email: Email of the admin who granted server admin status
+
+        Raises:
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        logger.info(
+            "Preparing server admin promotion email",
+            email=email,
+        )
+
+        # Login link
+        login_url = f"https://{self.settings.domain_name}/login"
+
+        subject = "You've been promoted to Server Admin on AddaxAI Connect"
+        body = f"""
+Hello!
+
+{promoter_email} has granted you Server Admin privileges on AddaxAI Connect.
+
+As a Server Admin, you now have:
+- Access to all projects on the platform
+- Ability to create and manage projects
+- Administrative tools for user and system management
+
+You can access the platform by logging in:
+
+{login_url}
+
+If you have any questions, feel free to reach out to {promoter_email}.
+
+---
+AddaxAI Connect
+Realtime camera trap image processing platform
+"""
+
+        await self.send_email(email, subject, body)
+
+        logger.info(
+            "Server admin promotion email sent",
+            email=email,
+        )
+
 
 # Singleton instance
 _email_sender: Optional[EmailSender] = None
