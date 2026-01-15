@@ -215,6 +215,69 @@ Realtime camera trap image processing platform
             email=email,
         )
 
+    async def send_invitation_email(
+        self,
+        email: str,
+        project_name: str,
+        role: str,
+        inviter_name: str,
+        inviter_email: str,
+    ) -> None:
+        """
+        Send project invitation email.
+
+        Args:
+            email: Invited user's email address
+            project_name: Name of the project they're invited to
+            role: Role they're assigned (e.g., 'project-admin', 'project-viewer')
+            inviter_name: Name of the person who sent the invitation
+            inviter_email: Email of the person who sent the invitation
+
+        Raises:
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        logger.info(
+            "Preparing invitation email",
+            email=email,
+            project_name=project_name,
+            role=role,
+        )
+
+        # Format role for display
+        role_display = role.replace('-', ' ').title()
+
+        # Registration link with pre-filled email
+        registration_url = f"https://{self.settings.domain_name}/register?email={email}"
+
+        subject = f"You've been invited to join {project_name} on AddaxAI Connect"
+        body = f"""
+Hello!
+
+{inviter_name} ({inviter_email}) has invited you to join the "{project_name}" project on AddaxAI Connect.
+
+Your assigned role: {role_display}
+
+To accept this invitation and get started, please register your account:
+
+{registration_url}
+
+Once registered, you'll have immediate access to the project and can start working with camera trap images.
+
+If you have any questions, feel free to reach out to {inviter_name} at {inviter_email}.
+
+---
+AddaxAI Connect
+Realtime camera trap image processing platform
+"""
+
+        await self.send_email(email, subject, body)
+
+        logger.info(
+            "Invitation email sent",
+            email=email,
+            project_name=project_name,
+        )
+
 
 # Singleton instance
 _email_sender: Optional[EmailSender] = None

@@ -188,6 +188,7 @@ export interface InviteUserRequest {
   email: string;
   role: string;  // 'server-admin' or 'project-admin'
   project_id?: number;  // Required for project-admin, ignored for server-admin
+  send_email?: boolean;  // Whether to send invitation email
 }
 
 export interface InvitationResponse {
@@ -195,18 +196,21 @@ export interface InvitationResponse {
   role: string;
   project_id?: number;
   project_name?: string;
+  email_sent: boolean;  // Whether invitation email was sent
   message: string;
 }
 
 export interface AddProjectUserByEmailRequest {
   email: string;
   role: string;  // 'project-admin' or 'project-viewer'
+  send_email?: boolean;  // Whether to send invitation email
 }
 
 export interface AddProjectUserByEmailResponse {
   email: string;
   role: string;
   was_invited: boolean;  // true if invitation created, false if existing user added
+  email_sent: boolean;  // Whether invitation email was sent
   message: string;
 }
 
