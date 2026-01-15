@@ -111,7 +111,7 @@
   become_user: "{{ app_user | default('ubuntu') }}"
   register: docker_up
   changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
-  async: 1200  # 20 minutes for initial build with model download
+  async: 2700  # 45 minutes for initial build (7 service images, ~14GB total)
   poll: 10
 
 - name: Wait for services to be healthy
