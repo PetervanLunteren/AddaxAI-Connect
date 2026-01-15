@@ -321,9 +321,11 @@ export const ProjectUsersPage: React.FC = () => {
 
       {/* Edit Role Modal */}
       <Dialog
-        key={selectedUser?.user_id || 'edit-role'}
         open={showEditRoleModal}
-        onOpenChange={setShowEditRoleModal}
+        onOpenChange={(open) => {
+          console.log('[DEBUG] Dialog onOpenChange:', { open, selectedRole });
+          setShowEditRoleModal(open);
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -342,12 +344,22 @@ export const ProjectUsersPage: React.FC = () => {
                 setSelectedRole(value);
               }}
             >
-              <SelectTrigger id="edit-role">
+              <SelectTrigger id="edit-role" onClick={() => console.log('[DEBUG] SelectTrigger clicked')}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="project-viewer">project viewer</SelectItem>
-                <SelectItem value="project-admin">project admin</SelectItem>
+              <SelectContent onPointerDownOutside={(e) => console.log('[DEBUG] Pointer down outside SelectContent')}>
+                <SelectItem
+                  value="project-viewer"
+                  onSelect={() => console.log('[DEBUG] project-viewer SelectItem onSelect')}
+                >
+                  project viewer
+                </SelectItem>
+                <SelectItem
+                  value="project-admin"
+                  onSelect={() => console.log('[DEBUG] project-admin SelectItem onSelect')}
+                >
+                  project admin
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-gray-500 mt-1">Current value: {selectedRole}</p>
