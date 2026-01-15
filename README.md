@@ -3,17 +3,14 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
-## WHEREWASI?
-- I was busy with the server settings modal. I need to add some extra tools there, and split them into Test Ingestion, Delete data, etc. 
-
 ## Roadmap
 *This repo is in development! It doesn't work yet...*
 
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 - [x] **Infrastructure** - Ansible automation, Docker configs, security hardening
 - [x] **Database setup** - SQLAlchemy models, Alembic migrations, PostGIS integration
-- [ ] **ML Pipeline** - Ingestion, detection, classification workers
-- [ ] **Web App** - FastAPI backend + React frontend
+- [x] **ML Pipeline** - Ingestion, detection, classification workers
+- [x] **Web App** - FastAPI backend + React frontend
 - [ ] **Production** - Testing, deployment, documentation
 
 ## Repository structure
@@ -55,7 +52,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 ## Setup
 1. **Deploy a VM**  
-   You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on `Ubuntu 24.04 (LTS) x64`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
+   You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
 
 2. **Clone this repo**  
    On your local machine
@@ -101,7 +98,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    |---------|---------|-------------|
    | `domain_name` | `"dev.example.com"` | The domain name your application will use. You must own the domain and have access to its DNS records. |
    | `letsencrypt_email` | `"you@example.com"` | Email address used for Letsencrypt SSL certificate registration. |
-
+   | `letsencrypt_staging` | `false` | When set to `true`, it uses Let’s Encrypt’s staging environment with test certificates. This helps avoid rate limits during testing. Set it to `false` to request real, trusted certificates. |
 
 7. **Configure email and server admin**  
    Still in `group_vars/dev.yml`.
@@ -113,12 +110,10 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `mail_username` | `"your.email@example.com"` | Username for authenticating with your mail provider. |
    | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
    | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
-   | `superadmin_email` | `"admin@example.com"` or `"admin1@example.com;admin2@example.com"` | Email address(es) for initial server admin account(s). Multiple emails can be separated by semicolons. These users will be automatically created with full system access. Other user management will be done from within the UI. |
-   | `project_name` | `"Wildlife Monitoring"` | Name for the default project that will be automatically created on first startup. All cameras and images will belong to this project. |
-
+   | `admin_emails` | `"admin@example.com"` | Email address(es) for initial server admin account(s). Multiple emails can be listed as items. These users will be automatically created with full system access. Other user management will be done from within the UI. |
 
 8. **Add VM to known_hosts**  
-   SSH to the VM to accept the host key. Type `yes` when prompted, then `exit` to disconnect.
+   Connect to the VM once to accept its SSH host key. When prompted, type `yes`. You'll see a `Permission denied` message, which is expected. This step only ensures the VM’s IP address is added to your `known_hosts` file.
     ```bash
     ssh -i <your_ssh_key> root@<your_vm_ipv4>
     ```
@@ -135,7 +130,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ansible-playbook -i inventory.yml playbook.yml
     ```
 11. **Log in to the frontend**
-    When the deployment finishes, open `https://<domain_name>/register` in a browser and register using your `superadmin_email`. You will receive a verification email. Click the link to verify your account, then sign in. You're automatically assigned the 'server admin' role with full control. 
+    When the deployment finishes, open `https://<domain_name>/register` in a browser and register using your `admin_email`. You will receive a verification email. Click the link to verify your account, then sign in. You're automatically assigned the 'server admin' role with full control. 
 
 12. **Configure camera traps**  
     Set up your camera traps to upload via FTPS.
