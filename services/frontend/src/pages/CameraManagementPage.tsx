@@ -58,6 +58,11 @@ export const CameraManagementPage: React.FC = () => {
   const [newCameraBox, setNewCameraBox] = useState('');
   const [newCameraOrder, setNewCameraOrder] = useState('');
   const [newCameraScannedDate, setNewCameraScannedDate] = useState('');
+  const [newCameraFirmware, setNewCameraFirmware] = useState('');
+  const [newCameraRemark, setNewCameraRemark] = useState('');
+  const [newCameraHasSim, setNewCameraHasSim] = useState(false);
+  const [newCameraImsi, setNewCameraImsi] = useState('');
+  const [newCameraIccid, setNewCameraIccid] = useState('');
 
   // Form state - Edit Camera
   const [editCameraName, setEditCameraName] = useState('');
@@ -65,6 +70,11 @@ export const CameraManagementPage: React.FC = () => {
   const [editCameraBox, setEditCameraBox] = useState('');
   const [editCameraOrder, setEditCameraOrder] = useState('');
   const [editCameraScannedDate, setEditCameraScannedDate] = useState('');
+  const [editCameraFirmware, setEditCameraFirmware] = useState('');
+  const [editCameraRemark, setEditCameraRemark] = useState('');
+  const [editCameraHasSim, setEditCameraHasSim] = useState(false);
+  const [editCameraImsi, setEditCameraImsi] = useState('');
+  const [editCameraIccid, setEditCameraIccid] = useState('');
 
   // Fetch cameras for current project
   const { data: cameras = [], isLoading } = useQuery({
@@ -85,6 +95,11 @@ export const CameraManagementPage: React.FC = () => {
       setNewCameraBox('');
       setNewCameraOrder('');
       setNewCameraScannedDate('');
+      setNewCameraFirmware('');
+      setNewCameraRemark('');
+      setNewCameraHasSim(false);
+      setNewCameraImsi('');
+      setNewCameraIccid('');
     },
     onError: (error: any) => {
       alert(`Failed to create camera: ${error.response?.data?.detail || error.message}`);
@@ -104,6 +119,11 @@ export const CameraManagementPage: React.FC = () => {
       setEditCameraBox('');
       setEditCameraOrder('');
       setEditCameraScannedDate('');
+      setEditCameraFirmware('');
+      setEditCameraRemark('');
+      setEditCameraHasSim(false);
+      setEditCameraImsi('');
+      setEditCameraIccid('');
     },
     onError: (error: any) => {
       alert(`Failed to update camera: ${error.response?.data?.detail || error.message}`);
@@ -155,6 +175,11 @@ export const CameraManagementPage: React.FC = () => {
       box: newCameraBox.trim() || undefined,
       order: newCameraOrder.trim() || undefined,
       scanned_date: newCameraScannedDate.trim() || undefined,
+      firmware: newCameraFirmware.trim() || undefined,
+      remark: newCameraRemark.trim() || undefined,
+      has_sim: newCameraHasSim || undefined,
+      imsi: newCameraImsi.trim() || undefined,
+      iccid: newCameraIccid.trim() || undefined,
       project_id: currentProject.id,
     };
 
@@ -170,6 +195,11 @@ export const CameraManagementPage: React.FC = () => {
       box: editCameraBox.trim() || undefined,
       order: editCameraOrder.trim() || undefined,
       scanned_date: editCameraScannedDate.trim() || undefined,
+      firmware: editCameraFirmware.trim() || undefined,
+      remark: editCameraRemark.trim() || undefined,
+      has_sim: editCameraHasSim || undefined,
+      imsi: editCameraImsi.trim() || undefined,
+      iccid: editCameraIccid.trim() || undefined,
     };
 
     updateMutation.mutate({ id: selectedCamera.id, data });
@@ -187,6 +217,11 @@ export const CameraManagementPage: React.FC = () => {
     setEditCameraBox(camera.box || '');
     setEditCameraOrder(camera.order || '');
     setEditCameraScannedDate(camera.scanned_date || '');
+    setEditCameraFirmware(camera.firmware || '');
+    setEditCameraRemark(camera.remark || '');
+    setEditCameraHasSim(camera.has_sim || false);
+    setEditCameraImsi(camera.imsi || '');
+    setEditCameraIccid(camera.iccid || '');
     setShowEditDialog(true);
   };
 
@@ -281,6 +316,11 @@ export const CameraManagementPage: React.FC = () => {
                     <th className="text-left py-3 px-4">Box</th>
                     <th className="text-left py-3 px-4">Order</th>
                     <th className="text-left py-3 px-4">Scanned Date</th>
+                    <th className="text-left py-3 px-4">Firmware</th>
+                    <th className="text-left py-3 px-4">Remark</th>
+                    <th className="text-left py-3 px-4">SIM</th>
+                    <th className="text-left py-3 px-4">IMSI</th>
+                    <th className="text-left py-3 px-4">ICCID</th>
                     <th className="text-left py-3 px-4">Status</th>
                     <th className="text-left py-3 px-4">Images</th>
                     <th className="text-left py-3 px-4">Last Report</th>
@@ -307,6 +347,21 @@ export const CameraManagementPage: React.FC = () => {
                         {camera.scanned_date
                           ? new Date(camera.scanned_date).toLocaleDateString()
                           : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        {camera.firmware || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-muted-foreground max-w-xs truncate" title={camera.remark || ''}>
+                        {camera.remark || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm">
+                        {camera.has_sim === true ? 'Yes' : camera.has_sim === false ? 'No' : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-mono text-xs">
+                        {camera.imsi || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-mono text-xs">
+                        {camera.iccid || '-'}
                       </td>
                       <td className="py-3 px-4">
                         <span
@@ -457,6 +512,77 @@ export const CameraManagementPage: React.FC = () => {
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+
+            <div>
+              <label htmlFor="firmware" className="block text-sm font-medium mb-2">
+                Firmware (optional)
+              </label>
+              <input
+                id="firmware"
+                type="text"
+                value={newCameraFirmware}
+                onChange={(e) => setNewCameraFirmware(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="e.g., 4TR1SPrFB06"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="remark" className="block text-sm font-medium mb-2">
+                Remark (optional)
+              </label>
+              <textarea
+                id="remark"
+                value={newCameraRemark}
+                onChange={(e) => setNewCameraRemark(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Any additional notes"
+                rows={2}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="has-sim"
+                type="checkbox"
+                checked={newCameraHasSim}
+                onChange={(e) => setNewCameraHasSim(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-ring"
+              />
+              <label htmlFor="has-sim" className="text-sm font-medium">
+                Has SIM card
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="imsi" className="block text-sm font-medium mb-2">
+                  IMSI (optional)
+                </label>
+                <input
+                  id="imsi"
+                  type="text"
+                  value={newCameraImsi}
+                  onChange={(e) => setNewCameraImsi(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g., 204081234567890"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="iccid" className="block text-sm font-medium mb-2">
+                  ICCID (optional)
+                </label>
+                <input
+                  id="iccid"
+                  type="text"
+                  value={newCameraIccid}
+                  onChange={(e) => setNewCameraIccid(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g., 8931085125056164008"
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -562,6 +688,77 @@ export const CameraManagementPage: React.FC = () => {
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+
+            <div>
+              <label htmlFor="edit-firmware" className="block text-sm font-medium mb-2">
+                Firmware
+              </label>
+              <input
+                id="edit-firmware"
+                type="text"
+                value={editCameraFirmware}
+                onChange={(e) => setEditCameraFirmware(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="e.g., 4TR1SPrFB06"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="edit-remark" className="block text-sm font-medium mb-2">
+                Remark
+              </label>
+              <textarea
+                id="edit-remark"
+                value={editCameraRemark}
+                onChange={(e) => setEditCameraRemark(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Any additional notes"
+                rows={2}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                id="edit-has-sim"
+                type="checkbox"
+                checked={editCameraHasSim}
+                onChange={(e) => setEditCameraHasSim(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-ring"
+              />
+              <label htmlFor="edit-has-sim" className="text-sm font-medium">
+                Has SIM card
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="edit-imsi" className="block text-sm font-medium mb-2">
+                  IMSI
+                </label>
+                <input
+                  id="edit-imsi"
+                  type="text"
+                  value={editCameraImsi}
+                  onChange={(e) => setEditCameraImsi(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g., 204081234567890"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="edit-iccid" className="block text-sm font-medium mb-2">
+                  ICCID
+                </label>
+                <input
+                  id="edit-iccid"
+                  type="text"
+                  value={editCameraIccid}
+                  onChange={(e) => setEditCameraIccid(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g., 8931085125056164008"
+                />
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -625,7 +822,8 @@ export const CameraManagementPage: React.FC = () => {
             <DialogTitle>Import Cameras from CSV</DialogTitle>
             <DialogDescription>
               Upload a CSV file with camera information. Required: IMEI. Optional: FriendlyName,
-              SerialNumber, Box, Order, ScannedDate (YYYY-MM-DD)
+              Serial, Box, Order, Scanned, Firmware, Remark, SIM, IMSI, ICCID. Date format: DD-MM-YYYY or YYYY-MM-DD.
+              Delimiter auto-detected (comma or semicolon).
             </DialogDescription>
           </DialogHeader>
 
@@ -653,10 +851,13 @@ export const CameraManagementPage: React.FC = () => {
                 <div className="bg-accent/50 p-4 rounded-md">
                   <p className="text-sm font-medium mb-2">CSV Format Example:</p>
                   <pre className="text-xs bg-background p-2 rounded overflow-x-auto">
-                    IMEI,FriendlyName,SerialNumber,Box,Order,ScannedDate{'\n'}
-                    860946063660255,Camera A,SN001,Box-1,Order-1,2025-01-15{'\n'}
-                    860946063660256,Camera B,SN002,Box-1,Order-2,2025-01-15
+                    IMEI;Serial;Order;Scanned;Firmware;Remark;SIM;IMSI;ICCID{'\n'}
+                    860946063660255;SY2511012122;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567890;8931085125056164008{'\n'}
+                    860946063660256;SY2511012127;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567891;8931085125056164016
                   </pre>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Note: Can also use comma as delimiter. FriendlyName column optional (defaults to IMEI).
+                  </p>
                 </div>
               </>
             ) : (

@@ -11,6 +11,11 @@ export interface Camera {
   box?: string;
   order?: string;
   scanned_date?: string;  // ISO date string
+  firmware?: string;
+  remark?: string;
+  has_sim?: boolean;
+  imsi?: string;
+  iccid?: string;
   location?: { lat: number; lon: number };
   battery_percentage?: number;
   temperature?: number;
@@ -29,6 +34,11 @@ export interface CreateCameraRequest {
   box?: string;
   order?: string;
   scanned_date?: string;  // ISO date string (YYYY-MM-DD)
+  firmware?: string;
+  remark?: string;
+  has_sim?: boolean;
+  imsi?: string;
+  iccid?: string;
   project_id: number;
 }
 
@@ -38,6 +48,11 @@ export interface UpdateCameraRequest {
   box?: string;
   order?: string;
   scanned_date?: string;  // ISO date string (YYYY-MM-DD)
+  firmware?: string;
+  remark?: string;
+  has_sim?: boolean;
+  imsi?: string;
+  iccid?: string;
   notes?: string;
 }
 
