@@ -493,7 +493,7 @@ async def import_cameras_csv(
     # Read CSV content
     try:
         content = await file.read()
-        csv_text = content.decode('utf-8')
+        csv_text = content.decode('utf-8-sig')  # utf-8-sig automatically removes BOM if present
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
