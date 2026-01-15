@@ -75,5 +75,8 @@ mail_username: ""                         # SMTP username (REQUIRED)
 mail_password: ""                         # SMTP password or app password (REQUIRED)
 mail_from: ""                             # From email address (REQUIRED)
 
-# Server admin settings
-superadmin_email: ""                      # Initial server admin email(s) (REQUIRED). Use semicolons to separate multiple emails: "admin1@example.com;admin2@example.com"
+# Admin email allowlist
+# These emails will be added to the allowlist with is_superuser=true
+# Users who register with these emails automatically become server admins
+admin_emails:
+  - ""                                    # Add admin email addresses here

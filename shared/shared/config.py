@@ -61,9 +61,6 @@ class Settings(BaseSettings):
     log_format: str = "json"  # "json" or "text" (text for human-readable dev logs)
     environment: str = "development"
 
-    # Project management
-    default_project_name: str = "Wildlife Monitoring"  # Name for auto-created default project
-
     class Config:
         env_file = ".env"
         case_sensitive = False

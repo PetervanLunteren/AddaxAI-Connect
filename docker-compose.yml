@@ -145,8 +145,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      # Default project configuration
-      DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Wildlife Monitoring}
       FTPS_UPLOAD_DIR: /uploads
     ports:
       - "8000:8000"
@@ -179,7 +177,6 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      DEFAULT_PROJECT_NAME: ${DEFAULT_PROJECT_NAME:-Wildlife Monitoring}
     volumes:
       - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
     depends_on:
