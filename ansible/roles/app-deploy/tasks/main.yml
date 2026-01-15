@@ -66,6 +66,44 @@
   changed_when: "'Pulling' in docker_pull.stdout"
   when: deploy_pull_images | default(true)
 
+- name: Check SMTP connectivity (for email verification)
+  shell: timeout 5 bash -c 'cat < /dev/null > /dev/tcp/{{ mail_server | default("smtp.gmail.com") }}/{{ mail_port | default(587) }}'
+  register: smtp_check
+  failed_when: false
+  changed_when: false
+
+- name: Display SMTP connectivity warning
+  debug:
+    msg: |
+      ========================================
+      SMTP Connectivity Check
+      ========================================
+      Testing connection to {{ mail_server | default("smtp.gmail.com") }}:{{ mail_port | default(587) }}...
+
+      {% if smtp_check.rc == 0 %}
+      ✓ SMTP connection successful
+      {% else %}
+      ✗ SMTP connection FAILED
+
+      ⚠️  WARNING: SMTP ports appear to be blocked!
+
+      This is common on new cloud provider accounts to prevent spam.
+      If container startup takes unusually long or times out, SMTP connection
+      timeouts are the likely cause.
+
+      Impact:
+      - User registration will fail (cannot send verification emails)
+      - Containers may take longer to start due to SMTP connection timeouts
+
+      Solutions:
+      1. Contact your cloud provider to unblock SMTP ports (25, 587, 465)
+      2. Use an alternative email service (SendGrid, Mailgun, AWS SES)
+      3. Manually verify users via database:
+         docker compose exec -T postgres psql -U addaxai -d addaxai_connect \
+           -c "UPDATE users SET is_verified = true WHERE email = 'user@example.com';"
+      {% endif %}
+      ========================================
+
 - name: Start Docker Compose services (force recreate to fix mount issues)
   command: docker compose up -d --force-recreate
   args:
