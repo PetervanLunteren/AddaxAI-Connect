@@ -166,9 +166,10 @@ export interface ProjectWithRole {
 
 // Project user management
 export interface ProjectUserInfo {
-  user_id: number;
+  user_id: number | null;  // null for pending invitations
   email: string;
   role: string;
+  is_registered: boolean;  // true for registered users, false for pending invitations
   is_active: boolean;
   is_verified: boolean;
   added_at: string;
@@ -194,6 +195,18 @@ export interface InvitationResponse {
   role: string;
   project_id?: number;
   project_name?: string;
+  message: string;
+}
+
+export interface AddProjectUserByEmailRequest {
+  email: string;
+  role: string;  // 'project-admin' or 'project-viewer'
+}
+
+export interface AddProjectUserByEmailResponse {
+  email: string;
+  role: string;
+  was_invited: boolean;  // true if invitation created, false if existing user added
   message: string;
 }
 
