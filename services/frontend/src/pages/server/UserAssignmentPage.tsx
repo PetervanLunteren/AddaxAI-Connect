@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '../../components/ui/Select';
 import { Label } from '../../components/ui/Label';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
@@ -42,6 +43,7 @@ export const UserAssignmentPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<string>('project-viewer');
   const [inviteEmail, setInviteEmail] = useState<string>('');
   const [inviteRole, setInviteRole] = useState<string>('project-admin');
+  const [inviteSendEmail, setInviteSendEmail] = useState<boolean>(true);
 
   // Queries
   const { data: users, isLoading: isLoadingUsers } = useQuery({
@@ -100,7 +102,7 @@ export const UserAssignmentPage: React.FC = () => {
 
   // Invite user mutation
   const inviteUserMutation = useMutation({
-    mutationFn: (data: { email: string; role: string; project_id?: number }) =>
+    mutationFn: (data: { email: string; role: string; project_id?: number; send_email?: boolean }) =>
       adminApi.inviteUser(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
@@ -108,6 +110,7 @@ export const UserAssignmentPage: React.FC = () => {
       setInviteEmail('');
       setInviteRole('project-admin');
       setSelectedProjectId(null);
+      setInviteSendEmail(true);
       alert(response.message);
     },
     onError: (error: any) => {
@@ -147,9 +150,10 @@ export const UserAssignmentPage: React.FC = () => {
   const handleInviteUser = () => {
     if (!inviteEmail) return;
 
-    const inviteData: { email: string; role: string; project_id?: number } = {
+    const inviteData: { email: string; role: string; project_id?: number; send_email?: boolean } = {
       email: inviteEmail,
       role: inviteRole,
+      send_email: inviteSendEmail,
     };
 
     // Add project_id if role is project-admin
@@ -513,6 +517,17 @@ export const UserAssignmentPage: React.FC = () => {
                 </p>
               </div>
             )}
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="invite-send-email"
+                checked={inviteSendEmail}
+                onCheckedChange={(checked) => setInviteSendEmail(checked as boolean)}
+              />
+              <Label htmlFor="invite-send-email" className="text-sm cursor-pointer">
+                Send invitation email
+              </Label>
+            </div>
           </div>
 
           <DialogFooter>
@@ -523,6 +538,7 @@ export const UserAssignmentPage: React.FC = () => {
                 setInviteEmail('');
                 setInviteRole('project-admin');
                 setSelectedProjectId(null);
+                setInviteSendEmail(true);
               }}
               disabled={inviteUserMutation.isPending}
             >

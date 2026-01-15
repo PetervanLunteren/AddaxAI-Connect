@@ -1,12 +1,13 @@
 /**
  * Registration page
  */
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { register } from '../api/auth';
 import { AuthLayout } from '../components/AuthLayout';
 
 export const Register: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -15,6 +16,14 @@ export const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Pre-fill email from URL parameter if present (from invitation)
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

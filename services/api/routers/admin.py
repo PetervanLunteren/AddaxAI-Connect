@@ -16,10 +16,12 @@ from pydantic import BaseModel, EmailStr
 from shared.models import User, EmailAllowlist, Project, TelegramConfig, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
+from shared.logger import get_logger
 from auth.permissions import require_server_admin
+from mailer.sender import get_email_sender
 
 settings = get_settings()
-
+logger = get_logger("api.admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -512,6 +514,7 @@ class InviteUserRequest(BaseModel):
     email: EmailStr
     role: str  # 'server-admin' or 'project-admin'
     project_id: Optional[int] = None  # Required for project-admin, ignored for server-admin
+    send_email: bool = False  # Whether to send invitation email
 
 
 class InvitationResponse(BaseModel):
@@ -520,6 +523,7 @@ class InvitationResponse(BaseModel):
     role: str
     project_id: Optional[int] = None
     project_name: Optional[str] = None
+    email_sent: bool  # Whether invitation email was sent
     message: str
 
 
@@ -621,12 +625,47 @@ async def invite_user(
 
     await db.commit()
 
+    # Send invitation email if requested
+    email_sent = False
+    if data.send_email:
+        try:
+            email_sender = get_email_sender()
+            # For server-admin invitations, use a generic project name
+            project_name = project.name if project else "AddaxAI Connect"
+            await email_sender.send_invitation_email(
+                email=data.email,
+                project_name=project_name,
+                role=data.role,
+                inviter_name=current_user.email,  # Using email as name for now
+                inviter_email=current_user.email,
+            )
+            email_sent = True
+            logger.info(
+                "Invitation email sent successfully",
+                email=data.email,
+                role=data.role,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send invitation email",
+                email=data.email,
+                role=data.role,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the invitation creation if email fails
+
+    message = f"Invitation sent to {data.email}. They can now register and will be assigned as {data.role}."
+    if email_sent:
+        message += " (invitation email sent)"
+
     return InvitationResponse(
         email=data.email,
         role=data.role,
         project_id=data.project_id if project else None,
         project_name=project.name if project else None,
-        message=f"Invitation sent to {data.email}. They can now register and will be assigned as {data.role}."
+        email_sent=email_sent,
+        message=message
     )
 
 
