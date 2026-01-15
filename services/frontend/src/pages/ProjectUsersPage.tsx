@@ -142,11 +142,6 @@ export const ProjectUsersPage: React.FC = () => {
     );
   };
 
-  // Filter users not already in project for add dropdown
-  const availableUsers = allUsers?.filter(
-    (user) => !projectUsers?.some((pu) => pu.user_id === user.id)
-  ) || [];
-
   return (
     <div className="container mx-auto px-6 py-8 max-w-6xl">
       <Card>
