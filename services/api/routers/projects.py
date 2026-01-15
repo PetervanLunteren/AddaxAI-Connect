@@ -1086,12 +1086,44 @@ async def add_project_user_by_email(
             added_by=current_user.id,
         )
 
+        # Send project assignment email if requested
+        email_sent = False
+        if data.send_email:
+            try:
+                email_sender = get_email_sender()
+                await email_sender.send_project_assignment_email(
+                    email=data.email,
+                    project_name=project.name,
+                    role=data.role,
+                    inviter_name=current_user.email,  # Using email as name for now
+                    inviter_email=current_user.email,
+                )
+                email_sent = True
+                logger.info(
+                    "Project assignment email sent successfully",
+                    email=data.email,
+                    project_id=project_id,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to send project assignment email",
+                    email=data.email,
+                    project_id=project_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                # Don't fail the assignment if email fails
+
+        message = f"User {data.email} added to project {project.name} as {data.role}"
+        if email_sent:
+            message += " (notification email sent)"
+
         return AddProjectUserByEmailResponse(
             email=data.email,
             role=data.role,
             was_invited=False,
-            email_sent=False,  # No email sent for existing users
-            message=f"User {data.email} added to project {project.name} as {data.role}"
+            email_sent=email_sent,
+            message=message
         )
 
     else:
