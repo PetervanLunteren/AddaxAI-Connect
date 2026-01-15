@@ -5,8 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, LogOut, Plus, Bell, User, MessageCircle } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { Menu, Users, FileX, Upload, Trash2, Plus, Bell, User, MessageCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ServerAdminMenuProps {
@@ -15,7 +14,6 @@ interface ServerAdminMenuProps {
 
 export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProject }) => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -39,12 +37,6 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
   const handleNavigate = (path: string) => {
     setIsOpen(false);
     navigate(path);
-  };
-
-  const handleLogout = async () => {
-    setIsOpen(false);
-    await logout();
-    navigate('/login');
   };
 
   const handleCreateProject = () => {
@@ -90,12 +82,6 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
       label: 'Delete All Data',
       onClick: () => handleNavigate('/server/delete-data'),
       variant: 'destructive' as const,
-    },
-    {
-      icon: LogOut,
-      label: 'Logout',
-      onClick: handleLogout,
-      variant: 'default' as const,
     },
   ];
 

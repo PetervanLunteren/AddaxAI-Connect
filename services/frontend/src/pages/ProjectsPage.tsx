@@ -6,18 +6,26 @@
  * Server admins and project admins can manage their projects.
  */
 import React, { useState } from 'react';
-import { Loader2, Camera } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Loader2, Camera, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import { ServerAdminMenu } from '../components/ServerAdminMenu';
 
 export const ProjectsPage: React.FC = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,6 +42,15 @@ export const ProjectsPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-4">
               <p className="text-sm font-medium hidden sm:block">{user?.email}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="p-2"
+                aria-label="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
               {isServerAdmin && (
                 <ServerAdminMenu onCreateProject={() => setShowCreateModal(true)} />
               )}
