@@ -47,53 +47,8 @@ def get_camera_by_imei(imei: str) -> Optional[int]:
         return None
 
 
-def check_duplicate_image(
-    camera_id: int,
-    filename: str,
-    datetime_original: datetime
-) -> bool:
-    """
-    Check if image already exists in database.
-
-    An image is considered duplicate if it has the same:
-    - camera_id
-    - filename
-    - datetime_original (within 1 second tolerance)
-
-    Args:
-        camera_id: Database ID of camera
-        filename: Image filename
-        datetime_original: Image capture datetime
-
-    Returns:
-        True if duplicate exists, False otherwise
-    """
-    with get_db_session() as session:
-        # Query for existing image
-        # Note: Comparing datetimes directly; SQLAlchemy handles timezone conversion
-        existing = session.query(Image).filter(
-            and_(
-                Image.camera_id == camera_id,
-                Image.filename == filename,
-                # Use func.abs for datetime comparison within 1 second
-                # (in case of minor timestamp differences)
-            )
-        ).first()
-
-        if existing:
-            logger.warning(
-                "Duplicate image detected",
-                camera_id=camera_id,
-                file_name=filename,
-                datetime_original=datetime_original.isoformat(),
-                existing_image_id=existing.id
-            )
-            return True
-
-        return False
-
-
 def create_image_record(
+    image_uuid: str,
     camera_id: int,
     filename: str,
     storage_path: str,
@@ -106,10 +61,11 @@ def create_image_record(
     Create image record in database.
 
     Args:
+        image_uuid: UUID for the image
         camera_id: Database ID of camera
         filename: Image filename
-        storage_path: Path in MinIO (e.g., "WUH09/2025/12/image.jpg")
-        thumbnail_path: Path to thumbnail in MinIO (e.g., "WUH09/2025/12/image.jpg")
+        storage_path: Path in MinIO (e.g., "WUH09/2025/12/abc-123_image.jpg")
+        thumbnail_path: Path to thumbnail in MinIO (e.g., "WUH09/2025/12/abc-123_image.jpg")
         datetime_original: Image capture datetime
         gps_location: (latitude, longitude) or None
         exif_metadata: Full EXIF data dictionary
@@ -118,8 +74,6 @@ def create_image_record(
         Image UUID (string)
     """
     with get_db_session() as session:
-        # Generate UUID for image
-        image_uuid = str(uuid.uuid4())
 
         # Convert GPS to PostGIS format if present
         location_wkt = None

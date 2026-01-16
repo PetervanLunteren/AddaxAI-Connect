@@ -6,6 +6,7 @@ processes them into the ML pipeline.
 """
 import os
 import time
+import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
 from watchdog.observers import Observer
@@ -21,7 +22,6 @@ from exif_parser import extract_exif, get_datetime_original
 from camera_profiles import identify_camera_profile
 from db_operations import (
     get_camera_by_imei,
-    check_duplicate_image,
     create_image_record,
     update_camera_health
 )
@@ -89,7 +89,7 @@ def process_image(filepath: str) -> None:
     2. Extract EXIF metadata
     3. Identify camera profile
     4. Extract camera ID
-    5. Check for duplicates
+    5. Generate UUID
     6. Upload to MinIO
     7. Create database record
     8. Publish to Redis queue
@@ -186,26 +186,21 @@ def process_image(filepath: str) -> None:
             )
             return
 
-        # Step 7: Check for duplicates
-        if check_duplicate_image(camera_db_id, filename, datetime_original):
-            reject_file(
-                filepath,
-                "duplicate",
-                f"Image already exists: IMEI={imei}, file={filename}, datetime={datetime_original}"
-            )
-            return
+        # Step 7: Generate UUID for image
+        image_uuid = str(uuid.uuid4())
 
         # Step 8: Extract GPS if present
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
-        # Step 9: Upload to MinIO (using IMEI as folder name)
-        storage_path = upload_image_to_minio(filepath, imei)
+        # Step 9: Upload to MinIO (using IMEI as folder name, UUID prefix for uniqueness)
+        storage_path = upload_image_to_minio(filepath, imei, image_uuid)
 
         # Step 10: Generate and upload thumbnail
-        thumbnail_path = generate_and_upload_thumbnail(filepath, imei)
+        thumbnail_path = generate_and_upload_thumbnail(filepath, imei, image_uuid)
 
-        # Step 11: Create database record (returns image UUID)
-        image_uuid = create_image_record(
+        # Step 11: Create database record
+        create_image_record(
+            image_uuid=image_uuid,
             camera_id=camera_db_id,
             filename=filename,
             storage_path=storage_path,
@@ -419,7 +414,6 @@ def main():
         "unsupported_camera",
         "missing_camera_id",
         "missing_datetime",
-        "duplicate",
         "validation_failed",
         "parse_failed",
         "exif_extraction_failed",
