@@ -294,17 +294,19 @@ async def get_last_update(
     """
     Get timestamp of most recently classified image (filtered by accessible projects)
 
+    Returns EXIF DateTimeOriginal (actual capture time) if available, falls back to uploaded_at
+
     Args:
         accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
 
     Returns:
-        Last update timestamp or null if no images exist
+        Last update timestamp (EXIF capture time preferred) or null if no images exist
     """
     # Query most recent classified image (filtered by project via camera)
     query = (
-        select(Image.uploaded_at)
+        select(Image)
         .join(Camera)
         .where(
             and_(
@@ -317,8 +319,16 @@ async def get_last_update(
     )
 
     result = await db.execute(query)
-    last_update = result.scalar_one_or_none()
+    image = result.scalar_one_or_none()
 
-    return LastUpdateResponse(
-        last_update=last_update.isoformat() if last_update else None
-    )
+    if not image:
+        return LastUpdateResponse(last_update=None)
+
+    # Prefer EXIF DateTimeOriginal (actual capture time) over uploaded_at
+    last_update_str = None
+    if image.image_metadata and 'DateTimeOriginal' in image.image_metadata:
+        last_update_str = image.image_metadata['DateTimeOriginal']
+    else:
+        last_update_str = image.uploaded_at.isoformat()
+
+    return LastUpdateResponse(last_update=last_update_str)
