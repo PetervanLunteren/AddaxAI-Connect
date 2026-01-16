@@ -9,6 +9,7 @@ import { Button } from './ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { imagesApi } from '../api/images';
 import { AuthenticatedImage } from './AuthenticatedImage';
+import { normalizeLabel } from '../utils/labels';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -160,13 +161,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ctx.stroke();
 
       // Build label text with detection and top classification
-      const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
+      const detectionLabel = `${normalizeLabel(detection.category)} ${Math.round(detection.confidence * 100)}%`;
 
       // Get top classification if available
       let classificationLabel = '';
       if (detection.classifications.length > 0) {
         const topClassification = detection.classifications[0];
-        classificationLabel = `${topClassification.species} ${Math.round(topClassification.confidence * 100)}%`;
+        classificationLabel = `${normalizeLabel(topClassification.species)} ${Math.round(topClassification.confidence * 100)}%`;
       }
 
       // Combine labels
@@ -323,11 +324,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           ctx.stroke();
 
           // Build label text
-          const detectionLabel = `${detection.category} ${Math.round(detection.confidence * 100)}%`;
+          const detectionLabel = `${normalizeLabel(detection.category)} ${Math.round(detection.confidence * 100)}%`;
           let classificationLabel = '';
           if (detection.classifications.length > 0) {
             const topClassification = detection.classifications[0];
-            classificationLabel = `${topClassification.species} ${Math.round(topClassification.confidence * 100)}%`;
+            classificationLabel = `${normalizeLabel(topClassification.species)} ${Math.round(topClassification.confidence * 100)}%`;
           }
 
           const labels = classificationLabel ? [detectionLabel, classificationLabel] : [detectionLabel];
@@ -404,11 +405,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     });
 
     const detections = Object.entries(categoryCount)
-      .map(([category, count]) => `${category} (${count})`)
+      .map(([category, count]) => `${normalizeLabel(category)} (${count})`)
       .join(', ');
 
     const classifications = Object.entries(speciesCount)
-      .map(([species, count]) => `${species} (${count})`)
+      .map(([species, count]) => `${normalizeLabel(species)} (${count})`)
       .join(', ');
 
     return { detections, classifications };

@@ -21,6 +21,7 @@ import {
 import { Camera, Images, Layers, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { statisticsApi } from '../api/statistics';
+import { normalizeLabel } from '../utils/labels';
 
 // Register ChartJS components
 ChartJS.register(
@@ -128,7 +129,7 @@ export const Dashboard: React.FC = () => {
 
   // Species distribution chart data
   const speciesData = {
-    labels: species?.map((s) => s.species) ?? [],
+    labels: species?.map((s) => normalizeLabel(s.species)) ?? [],
     datasets: [
       {
         label: 'Count',
