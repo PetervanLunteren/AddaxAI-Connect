@@ -5,4 +5,4 @@
 - [ ] There is a one hour difference between the time which is in the Images page thumbnail overview, and the time listed under "Captured" in the ImageDetailModal. Investigate.
 - [ ] The "last update" value in the bottom left in the project sidebar is off with one hour into the future. Investigate.
 - [ ] We should remove the link from the projects > project management > user assignment. No need for that link there. Redundant.
-- [ ] Fix the timeout issue on the Ansible scripts. 
+- [ ] With the delete all data button for server admins, we should not remove the camera registration. That should remain. 
