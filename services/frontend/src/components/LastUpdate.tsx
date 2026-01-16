@@ -7,12 +7,17 @@ import { statisticsApi } from '../api/statistics';
 
 /**
  * Format a date as relative time string
- * @param date - ISO date string or Date object
+ * @param date - ISO date string, EXIF format string (YYYY:MM:DD HH:MM:SS), or Date object
  * @returns Relative time string like "5s ago", "2m ago", "1h ago", etc.
  */
 const formatRelativeTime = (date: string | Date): string => {
   const now = new Date();
-  const then = typeof date === 'string' ? new Date(date) : date;
+
+  // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
+  let dateStr = typeof date === 'string' ? date : date.toISOString();
+  const exifFormatted = dateStr.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+
+  const then = new Date(exifFormatted);
   const diffMs = now.getTime() - then.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);
 
