@@ -1,7 +1,8 @@
 # Nginx configuration for AddaxAI Connect
 
 # Rate limiting zones
-limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/m;
+# Increased from 100r/m to 600r/m (10 requests per second) for better user experience with concurrent thumbnail loading
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=600r/m;
 limit_req_zone $binary_remote_addr zone=auth_limit:10m rate=10r/m;
 
 # Upstream for FastAPI backend
@@ -40,7 +41,7 @@ server {
 
     # User endpoints
     location /users/ {
-        limit_req zone=api_limit burst=20 nodelay;
+        limit_req zone=api_limit burst=50 nodelay;
 
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
@@ -72,9 +73,9 @@ server {
         proxy_pass http://localhost:3000;
     }
 
-    # API proxy
+    # API proxy - increased burst to 50 for concurrent thumbnail requests
     location /api/ {
-        limit_req zone=api_limit burst=20 nodelay;
+        limit_req zone=api_limit burst=50 nodelay;
 
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
@@ -248,7 +249,7 @@ server {
 
     # User endpoints
     location /users/ {
-        limit_req zone=api_limit burst=20 nodelay;
+        limit_req zone=api_limit burst=50 nodelay;
 
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
@@ -280,9 +281,9 @@ server {
         proxy_pass http://localhost:3000;
     }
 
-    # API proxy
+    # API proxy - increased burst to 50 for concurrent thumbnail requests
     location /api/ {
-        limit_req zone=api_limit burst=20 nodelay;
+        limit_req zone=api_limit burst=50 nodelay;
 
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
