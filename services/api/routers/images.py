@@ -140,9 +140,20 @@ async def get_species(
     result = await db.execute(query)
     species_list = result.scalars().all()
 
+    # Helper function to normalize labels (matches frontend normalizeLabel utility)
+    def normalize_label(label: str) -> str:
+        """Replace underscores with spaces and capitalize first letter"""
+        normalized = label.replace('_', ' ')
+        if normalized:
+            normalized = normalized[0].upper() + normalized[1:]
+        return normalized
+
     # Convert to label/value format for react-select
     return [
-        SpeciesOption(label=species, value=species)
+        SpeciesOption(
+            label=normalize_label(species),
+            value=species
+        )
         for species in species_list
         if species  # Filter out any null/empty values
     ]
