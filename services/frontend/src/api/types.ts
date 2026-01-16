@@ -23,6 +23,7 @@ export interface ImageListItem {
   camera_id: number;
   camera_name: string;
   uploaded_at: string;
+  datetime_captured: string | null;  // EXIF DateTimeOriginal if available
   status: string;
   detection_count: number;
   top_species: string | null;
