@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight, Scan } from 'lucide-react';
+import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -300,34 +300,6 @@ export const ImagesPage: React.FC = () => {
                       <Calendar className="h-3 w-3" />
                       <span>{formatTimestamp(image.datetime_captured || image.uploaded_at)}</span>
                     </div>
-
-                    {/* Combined Detections and Species */}
-                    {(() => {
-                      // Collect unique species from classifications
-                      const uniqueSpecies = Array.from(new Set(
-                        image.detections.flatMap(detection =>
-                          detection.classifications.map(cls => cls.species)
-                        )
-                      ));
-
-                      // Collect unique detection categories, excluding "animal"
-                      const uniqueDetections = Array.from(new Set(
-                        image.detections.map(detection => detection.category)
-                      )).filter(category => category !== 'animal');
-
-                      // Combine species and non-animal detections
-                      const combined = [...uniqueSpecies, ...uniqueDetections];
-                      const combinedList = combined.map(normalizeLabel).join(', ');
-
-                      return combinedList ? (
-                        <div className="flex items-start gap-1">
-                          <Scan className="h-3 w-3 text-muted-foreground mt-0.5 flex-shrink-0" />
-                          <span className="text-xs text-muted-foreground break-words">
-                            {combinedList}
-                          </span>
-                        </div>
-                      ) : null;
-                    })()}
                   </div>
                 </CardContent>
               </Card>
