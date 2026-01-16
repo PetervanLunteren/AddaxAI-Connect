@@ -29,7 +29,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
       />
       <label
         htmlFor={id}
-        className="font-medium cursor-pointer select-none"
+        className="text-sm font-medium cursor-pointer select-none"
       >
         {label}
       </label>
