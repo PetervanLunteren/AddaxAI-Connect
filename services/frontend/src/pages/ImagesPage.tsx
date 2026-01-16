@@ -241,11 +241,50 @@ export const ImagesPage: React.FC = () => {
                       <Grid3x3 className="h-12 w-12 text-muted-foreground" />
                     </div>
                   )}
-                  {image.detection_count > 0 && (
-                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs font-medium">
-                      {image.detection_count} detection{image.detection_count !== 1 ? 's' : ''}
-                    </div>
-                  )}
+                  {(() => {
+                    // Extract classification labels (species) from all detections
+                    const speciesLabels = Array.from(new Set(
+                      image.detections.flatMap(detection =>
+                        detection.classifications.map(cls => cls.species)
+                      )
+                    ));
+
+                    // If no species, fall back to detection categories
+                    const categoryLabels = speciesLabels.length === 0
+                      ? Array.from(new Set(
+                          image.detections.map(detection => detection.category)
+                        ))
+                      : [];
+
+                    // Combine labels: prefer species, fallback to categories, finally "empty"
+                    const allLabels = speciesLabels.length > 0
+                      ? speciesLabels
+                      : categoryLabels.length > 0
+                        ? categoryLabels
+                        : ['empty'];
+
+                    // Show first 2 labels + count of remaining
+                    const visibleLabels = allLabels.slice(0, 2);
+                    const remainingCount = allLabels.length - 2;
+
+                    return (
+                      <div className="absolute top-2 right-2 flex flex-wrap gap-1 justify-end max-w-[calc(100%-1rem)]">
+                        {visibleLabels.map((label, idx) => (
+                          <span
+                            key={`${label}-${idx}`}
+                            className="bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs font-medium"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                        {remainingCount > 0 && (
+                          <span className="bg-primary/80 text-primary-foreground px-2 py-1 rounded-md text-xs font-medium">
+                            +{remainingCount} more
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <CardContent className="p-4">
                   <div className="space-y-2">
