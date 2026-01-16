@@ -183,7 +183,7 @@ export const ImagesPage: React.FC = () => {
                   type="checkbox"
                   checked={filters.show_empty}
                   onChange={(e) => handleFilterChange('show_empty', e.target.checked)}
-                  className="w-4 h-4 rounded border-input bg-background cursor-pointer"
+                  className="w-4 h-4 rounded border-input bg-background cursor-pointer text-primary focus:ring-primary focus:ring-2"
                 />
                 <span>Show images without detections</span>
               </label>
