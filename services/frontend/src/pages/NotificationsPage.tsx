@@ -14,6 +14,7 @@ import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
+import { normalizeLabel } from '../utils/labels';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
 const DEEPFAUNE_SPECIES = [
@@ -95,7 +96,7 @@ export const NotificationsPage: React.FC = () => {
 
   // Create species options from hardcoded list with sentence case formatting
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
-    label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()), // Sentence case: "Red deer"
+    label: normalizeLabel(species),
     value: species
   }));
 
@@ -129,7 +130,7 @@ export const NotificationsPage: React.FC = () => {
         // Convert species to options
         const telegramSpeciesValues = speciesConfig.notify_species || [];
         setTelegramNotifySpecies(telegramSpeciesValues.map((species: string) => ({
-          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
+          label: normalizeLabel(species),
           value: species
         })));
 
@@ -140,7 +141,7 @@ export const NotificationsPage: React.FC = () => {
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
         const speciesOptions = (preferences.notify_species || []).map(species => ({
-          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()),
+          label: normalizeLabel(species),
           value: species
         }));
 

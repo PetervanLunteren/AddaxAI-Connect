@@ -13,6 +13,7 @@ import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { useProject } from '../contexts/ProjectContext';
 import { projectsApi } from '../api/projects';
+import { normalizeLabel } from '../utils/labels';
 import type { ProjectUpdate } from '../api/types';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
@@ -43,7 +44,7 @@ export const SpeciesManagementPage: React.FC = () => {
       const included = selectedProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
-          label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()), // Sentence case: "Red deer"
+          label: normalizeLabel(species),
           value: species
         }))
       );
@@ -80,7 +81,7 @@ export const SpeciesManagementPage: React.FC = () => {
 
   // Convert species names to user-friendly format
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
-    label: species.replace(/_/g, ' ').replace(/\b\w/, l => l.toUpperCase()), // Sentence case: "Red deer"
+    label: normalizeLabel(species),
     value: species
   }));
 

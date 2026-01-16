@@ -11,6 +11,7 @@ import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
 import { ImageDetailModal } from '../components/ImageDetailModal';
 import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
+import { normalizeLabel } from '../utils/labels';
 import type { ImageListItem } from '../api/types';
 
 export const ImagesPage: React.FC = () => {
@@ -274,7 +275,7 @@ export const ImagesPage: React.FC = () => {
                             key={`${label}-${idx}`}
                             className="bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs font-medium"
                           >
-                            {label}
+                            {normalizeLabel(label)}
                           </span>
                         ))}
                         {remainingCount > 0 && (
@@ -316,7 +317,7 @@ export const ImagesPage: React.FC = () => {
 
                       // Combine species and non-animal detections
                       const combined = [...uniqueSpecies, ...uniqueDetections];
-                      const combinedList = combined.join(', ');
+                      const combinedList = combined.map(normalizeLabel).join(', ');
 
                       return combinedList ? (
                         <div className="flex items-start gap-1">
