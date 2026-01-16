@@ -60,6 +60,7 @@ class ImageListItemResponse(BaseModel):
     camera_id: int
     camera_name: str
     uploaded_at: str
+    datetime_captured: Optional[str] = None  # EXIF DateTimeOriginal if available
     status: str
     detection_count: int
     top_species: Optional[str] = None
@@ -338,9 +339,12 @@ async def list_images(
         # Get image dimensions from metadata
         image_width = None
         image_height = None
+        datetime_captured = None
         if image.image_metadata:
             image_width = image.image_metadata.get('width')
             image_height = image.image_metadata.get('height')
+            # Extract EXIF capture time if available
+            datetime_captured = image.image_metadata.get('DateTimeOriginal')
 
         items.append(ImageListItemResponse(
             uuid=image.uuid,
@@ -348,6 +352,7 @@ async def list_images(
             camera_id=image.camera_id,
             camera_name=camera.name,
             uploaded_at=image.uploaded_at.isoformat(),
+            datetime_captured=datetime_captured,
             status=image.status,
             detection_count=detection_count,
             top_species=top_species,

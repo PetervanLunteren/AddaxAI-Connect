@@ -82,7 +82,14 @@ export const ImagesPage: React.FC = () => {
     filters.show_empty;
 
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
+    // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
+    const exifFormatted = timestamp.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
+    const date = new Date(exifFormatted);
+
+    if (isNaN(date.getTime())) {
+      return timestamp; // Return original if can't parse
+    }
+
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -251,7 +258,7 @@ export const ImagesPage: React.FC = () => {
                     {/* Timestamp */}
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3" />
-                      <span>{formatTimestamp(image.uploaded_at)}</span>
+                      <span>{formatTimestamp(image.datetime_captured || image.uploaded_at)}</span>
                     </div>
 
                     {/* Combined Detections and Species */}
