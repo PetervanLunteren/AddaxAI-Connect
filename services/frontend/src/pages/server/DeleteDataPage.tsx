@@ -70,13 +70,13 @@ export const DeleteDataPage: React.FC = () => {
             <p className="text-sm text-destructive font-medium mb-2">This will delete:</p>
             <ul className="text-sm text-destructive/80 space-y-1 ml-4 list-disc">
               <li>All images, detections, and classifications from database</li>
-              <li>All camera records and health metrics</li>
               <li>All files from MinIO buckets (raw-images, crops, thumbnails)</li>
               <li>All files from FTPS upload directory</li>
             </ul>
 
             <p className="text-sm font-medium mb-2 mt-4">This will NOT delete:</p>
             <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
+              <li>Camera registrations - Hardware inventory remains intact</li>
               <li>Projects - Your projects remain intact</li>
               <li>Users - All user accounts remain</li>
               <li>Email allowlist - Email permissions remain</li>
@@ -113,10 +113,6 @@ export const DeleteDataPage: React.FC = () => {
                   <span className="font-medium">{clearResults.deleted_counts.images}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Cameras:</span>{' '}
-                  <span className="font-medium">{clearResults.deleted_counts.cameras}</span>
-                </div>
-                <div>
                   <span className="text-muted-foreground">MinIO Raw:</span>{' '}
                   <span className="font-medium">{clearResults.deleted_counts.minio_raw_images}</span>
                 </div>
@@ -147,7 +143,7 @@ export const DeleteDataPage: React.FC = () => {
               This action cannot be undone. All data will be permanently deleted from the database, MinIO
               storage, and FTPS upload directory.
               <br /><br />
-              <strong>Note:</strong> Projects, users, and email allowlist will NOT be deleted.
+              <strong>Note:</strong> Camera registrations, projects, users, and email allowlist will NOT be deleted.
             </DialogDescription>
           </DialogHeader>
 

@@ -131,9 +131,13 @@ async def clear_all_data(
 
     WARNING: This is a destructive operation that cannot be undone.
     Deletes:
-    - All database records (images, detections, classifications, cameras)
+    - All database records (images, detections, classifications)
     - All MinIO objects (raw-images, crops, thumbnails buckets)
     - All files from FTPS upload directory
+
+    Preserves:
+    - Camera registrations (hardware inventory)
+    - Projects, users, and email allowlist
 
     Args:
         db: Database session
@@ -173,9 +177,9 @@ async def clear_all_data(
         result = await db.execute(delete(Image))
         deleted_counts["images"] = result.rowcount
 
-        # Cameras (no dependencies)
-        result = await db.execute(delete(Camera))
-        deleted_counts["cameras"] = result.rowcount
+        # NOTE: Cameras are NOT deleted - they represent hardware inventory
+        # and should persist even when clearing operational data
+        deleted_counts["cameras"] = 0
 
         await db.commit()
 
