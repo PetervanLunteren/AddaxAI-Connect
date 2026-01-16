@@ -7,6 +7,7 @@ import { Calendar, Camera, Filter, Grid3x3, ChevronLeft, ChevronRight } from 'lu
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
+import { Checkbox } from '../components/ui/Checkbox';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
 import { ImageDetailModal } from '../components/ImageDetailModal';
@@ -178,15 +179,12 @@ export const ImagesPage: React.FC = () => {
 
             {/* Show Empty Images Toggle */}
             <div className="mt-4">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.show_empty}
-                  onChange={(e) => handleFilterChange('show_empty', e.target.checked)}
-                  className="w-4 h-4 rounded border-input bg-background cursor-pointer text-primary focus:ring-primary focus:ring-2"
-                />
-                <span>Show images without detections</span>
-              </label>
+              <Checkbox
+                id="show-empty"
+                checked={filters.show_empty}
+                onChange={(checked) => handleFilterChange('show_empty', checked)}
+                label="Show images without detections"
+              />
             </div>
 
             {hasActiveFilters && (
