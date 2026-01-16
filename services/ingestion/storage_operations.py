@@ -12,28 +12,29 @@ from shared.logger import get_logger
 logger = get_logger("ingestion")
 
 
-def upload_image_to_minio(filepath: str, camera_id: str) -> str:
+def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str) -> str:
     """
     Upload image to MinIO raw-images bucket.
 
-    Path structure: {camera_id}/{year}/{month}/{filename}
+    Path structure: {camera_id}/{year}/{month}/{uuid}_{filename}
 
     Args:
         filepath: Local path to image file
         camera_id: Camera identifier (for organizing storage)
+        image_uuid: UUID for the image (prevents filename collisions)
 
     Returns:
         Storage path (object name in bucket)
 
     Example:
-        >>> upload_image_to_minio("/uploads/E1000159.JPG", "861943070068027")
-        "861943070068027/2025/12/E1000159.JPG"
+        >>> upload_image_to_minio("/uploads/E1000159.JPG", "861943070068027", "abc-123")
+        "861943070068027/2025/12/abc-123_E1000159.JPG"
     """
     filename = os.path.basename(filepath)
     now = datetime.utcnow()
 
-    # Organize by camera ID, year, month
-    object_path = f"{camera_id}/{now.year}/{now.month:02d}/{filename}"
+    # Organize by camera ID, year, month, with UUID prefix to prevent collisions
+    object_path = f"{camera_id}/{now.year}/{now.month:02d}/{image_uuid}_{filename}"
 
     # Upload to MinIO
     storage = StorageClient()
@@ -53,7 +54,7 @@ def upload_image_to_minio(filepath: str, camera_id: str) -> str:
     return object_path
 
 
-def generate_and_upload_thumbnail(filepath: str, camera_id: str) -> str:
+def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str) -> str:
     """
     Generate thumbnail and upload to MinIO thumbnails bucket.
 
@@ -63,19 +64,20 @@ def generate_and_upload_thumbnail(filepath: str, camera_id: str) -> str:
     Args:
         filepath: Local path to image file
         camera_id: Camera identifier (for organizing storage)
+        image_uuid: UUID for the image (prevents filename collisions)
 
     Returns:
         Thumbnail storage path (object name in bucket)
 
     Example:
-        >>> generate_and_upload_thumbnail("/uploads/E1000159.JPG", "861943070068027")
-        "861943070068027/2025/12/E1000159.JPG"
+        >>> generate_and_upload_thumbnail("/uploads/E1000159.JPG", "861943070068027", "abc-123")
+        "861943070068027/2025/12/abc-123_E1000159.JPG"
     """
     filename = os.path.basename(filepath)
     now = datetime.utcnow()
 
-    # Organize by camera ID, year, month (same structure as raw images)
-    object_path = f"{camera_id}/{now.year}/{now.month:02d}/{filename}"
+    # Organize by camera ID, year, month, with UUID prefix (same structure as raw images)
+    object_path = f"{camera_id}/{now.year}/{now.month:02d}/{image_uuid}_{filename}"
 
     try:
         # Load and resize image
