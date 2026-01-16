@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Images,
   Bell,
-  Info,
   X,
   Menu,
   VideoIcon,
@@ -41,7 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
-    { to: `/projects/${projectId}/about`, icon: Info, label: 'About' },
   ];
 
   // Admin tools - visible to project admins and server admins
