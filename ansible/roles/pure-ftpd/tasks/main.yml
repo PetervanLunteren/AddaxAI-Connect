@@ -1,9 +1,9 @@
 ---
-# vsftpd Role - FTPS Server for Camera Trap Image Uploads
+# Pure-FTPd Role - FTPS Server for Camera Trap Image Uploads
 
-- name: Install vsftpd
+- name: Install Pure-FTPd
   apt:
-    name: vsftpd
+    name: pure-ftpd
     state: present
     update_cache: yes
 
@@ -65,25 +65,25 @@
 
 - name: Use Let's Encrypt certificate for FTPS (if available)
   block:
-    - name: Remove old self-signed vsftpd certificate if exists
+    - name: Remove old self-signed Pure-FTPd certificate if exists
       file:
         path: "{{ item }}"
         state: absent
       loop:
-        - /etc/ssl/certs/vsftpd.crt
-        - /etc/ssl/private/vsftpd.key
+        - /etc/ssl/certs/pure-ftpd.crt
+        - /etc/ssl/private/pure-ftpd.key
 
-    - name: Create symlink for vsftpd cert to Let's Encrypt
+    - name: Create symlink for Pure-FTPd cert to Let's Encrypt
       file:
         src: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
-        dest: /etc/ssl/certs/vsftpd.crt
+        dest: /etc/ssl/certs/pure-ftpd.crt
         state: link
         force: yes
 
-    - name: Create symlink for vsftpd key to Let's Encrypt
+    - name: Create symlink for Pure-FTPd key to Let's Encrypt
       file:
         src: "/etc/letsencrypt/live/{{ domain_name }}/privkey.pem"
-        dest: /etc/ssl/private/vsftpd.key
+        dest: /etc/ssl/private/pure-ftpd.key
         state: link
         force: yes
   when:
@@ -94,42 +94,72 @@
 - name: Generate self-signed SSL certificate for FTPS (fallback only)
   command: >
     openssl req -x509 -nodes -days 365 -newkey rsa:2048
-    -keyout /etc/ssl/private/vsftpd.key
-    -out /etc/ssl/certs/vsftpd.crt
+    -keyout /etc/ssl/private/pure-ftpd.key
+    -out /etc/ssl/certs/pure-ftpd.crt
     -subj "/C=US/ST=State/L=City/O=AddaxAI/CN={{ ansible_host }}"
   args:
-    creates: /etc/ssl/certs/vsftpd.crt
+    creates: /etc/ssl/certs/pure-ftpd.crt
   when: not (enable_ssl | default(false) and domain_name is defined and letsencrypt_cert_exists.stat.exists | default(false))
 
 - name: Set permissions on SSL private key (self-signed fallback only)
   file:
-    path: /etc/ssl/private/vsftpd.key
+    path: /etc/ssl/private/pure-ftpd.key
     mode: '0600'
     owner: root
     group: root
   when: not (enable_ssl | default(false) and domain_name is defined and letsencrypt_cert_exists.stat.exists | default(false))
 
-- name: Deploy vsftpd configuration
+- name: Deploy Pure-FTPd configuration
   template:
-    src: vsftpd.conf.j2
-    dest: /etc/vsftpd.conf
+    src: pure-ftpd.conf.j2
+    dest: /etc/pure-ftpd/pure-ftpd.conf
     owner: root
     group: root
     mode: '0644'
-  notify: restart vsftpd
+  notify: restart pure-ftpd
 
-- name: Create vsftpd user list
+- name: Enable TLS for Pure-FTPd
   lineinfile:
-    path: /etc/vsftpd.userlist
-    line: "{{ ftps_username | default('camera') }}"
+    path: /etc/default/pure-ftpd-common
+    regexp: '^STANDALONE_OR_INETD='
+    line: 'STANDALONE_OR_INETD=standalone'
     create: yes
     owner: root
     group: root
-    mode: '0600'
+    mode: '0644'
+  notify: restart pure-ftpd
 
-- name: Ensure vsftpd service is enabled and started
+- name: Configure Pure-FTPd to use configuration file
+  lineinfile:
+    path: /etc/default/pure-ftpd-common
+    regexp: '^VIRTUALCHROOT='
+    line: 'VIRTUALCHROOT=true'
+    create: yes
+  notify: restart pure-ftpd
+
+- name: Ensure Pure-FTPd TLS is enabled
+  file:
+    path: /etc/pure-ftpd/conf/TLS
+    state: touch
+    mode: '0644'
+  notify: restart pure-ftpd
+
+- name: Configure Pure-FTPd TLS certificate path
+  copy:
+    content: "1"
+    dest: /etc/pure-ftpd/conf/TLS
+    mode: '0644'
+  notify: restart pure-ftpd
+
+- name: Create Pure-FTPd virtual users database directory
+  file:
+    path: /etc/pure-ftpd/pureftpd.pdb
+    state: directory
+    mode: '0755'
+
+- name: Ensure Pure-FTPd service is enabled and started
   systemd:
-    name: vsftpd
+    name: pure-ftpd
     state: started
     enabled: yes
 
@@ -137,12 +167,15 @@
   debug:
     msg: |
       ========================================
-      FTPS Server Configured
+      FTPS Server Configured (Pure-FTPd)
       ========================================
       Host: {{ ansible_host }}
       Port: 21 (FTP), 990 (FTPS)
       Username: {{ ftps_username | default('camera') }}
       Upload directory: {{ ftps_upload_dir | default('/opt/addaxai-connect/uploads') }}
+      Features:
+        - Atomic uploads: Files uploaded to temp, renamed when complete
+        - Auto-rename: Duplicate files get numeric suffix (.1, .2, etc)
 
       Connect with: ftp://{{ ftps_username | default('camera') }}@{{ ansible_host }}
       Use FTPS (explicit TLS) for secure connection.
