@@ -1,0 +1,7 @@
+---
+# Pure-FTPd handlers
+
+- name: restart pure-ftpd
+  systemd:
+    name: pure-ftpd
+    state: restarted

@@ -28,8 +28,8 @@
       tags: [docker, base]
 
     # Phase 2: Infrastructure Services
-    - role: vsftpd
-      tags: [vsftpd, ftps]
+    - role: pure-ftpd
+      tags: [pure-ftpd, ftps]
     - role: nginx
       tags: [nginx, web]
     - role: ssl
