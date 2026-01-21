@@ -181,6 +181,12 @@
     - { name: 'TLS', content: '1' }
   notify: restart pure-ftpd
 
+- name: Remove invalid CertFile configuration
+  file:
+    path: /etc/pure-ftpd/conf/CertFile
+    state: absent
+  notify: restart pure-ftpd
+
 - name: Create combined PEM file for Pure-FTPd TLS
   shell: |
     cat /etc/ssl/certs/pure-ftpd.crt /etc/ssl/private/pure-ftpd.key > /etc/ssl/private/pure-ftpd.pem
