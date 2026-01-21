@@ -189,15 +189,6 @@
     creates: /etc/ssl/private/pure-ftpd.pem
   notify: restart pure-ftpd
 
-- name: Configure Pure-FTPd TLS certificate path
-  copy:
-    content: "/etc/ssl/private/pure-ftpd.pem"
-    dest: /etc/pure-ftpd/conf/CertFile
-    mode: '0644'
-    owner: root
-    group: root
-  notify: restart pure-ftpd
-
 - name: Ensure Pure-FTPd service is enabled and started
   systemd:
     name: pure-ftpd
