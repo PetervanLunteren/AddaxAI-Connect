@@ -179,6 +179,7 @@
     - { name: 'CustomerProof', content: 'yes' }
     - { name: 'NoTruncate', content: 'yes' }
     - { name: 'TLS', content: '1' }
+    - { name: 'CallUploadScript', content: 'yes' }
   notify: restart pure-ftpd
 
 - name: Remove invalid CertFile configuration
