@@ -181,9 +181,9 @@
     - { name: 'TLS', content: '1' }
   notify: restart pure-ftpd
 
-- name: Enable CallUploadScript (empty file triggers -o flag)
+- name: Enable CallUploadScript
   copy:
-    content: ""
+    content: "yes"
     dest: /etc/pure-ftpd/conf/CallUploadScript
     mode: '0644'
     force: yes
