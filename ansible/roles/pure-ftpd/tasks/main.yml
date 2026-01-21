@@ -179,7 +179,14 @@
     - { name: 'CustomerProof', content: 'yes' }
     - { name: 'NoTruncate', content: 'yes' }
     - { name: 'TLS', content: '1' }
-    - { name: 'CallUploadScript', content: 'yes' }
+  notify: restart pure-ftpd
+
+- name: Enable CallUploadScript (empty file triggers -o flag)
+  copy:
+    content: ""
+    dest: /etc/pure-ftpd/conf/CallUploadScript
+    mode: '0644'
+    force: yes
   notify: restart pure-ftpd
 
 - name: Remove invalid CertFile configuration
