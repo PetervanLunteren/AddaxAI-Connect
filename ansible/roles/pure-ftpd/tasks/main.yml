@@ -167,7 +167,7 @@
     - { name: 'PassivePortRange', content: "{{ ftps_passive_port_min | default('40000') }} {{ ftps_passive_port_max | default('50000') }}" }
     - { name: 'ForcePassiveIP', content: "{{ ansible_host }}" }
     - { name: 'AntiWarez', content: 'yes' }
-    - { name: 'Umask', content: '133:022' }
+    - { name: 'Umask', content: '133 022' }
     - { name: 'MinUID', content: '1000' }
     - { name: 'AllowUserFXP', content: 'no' }
     - { name: 'AllowAnonymousFXP', content: 'no' }
