@@ -109,53 +109,94 @@
     group: root
   when: not (enable_ssl | default(false) and domain_name is defined and letsencrypt_cert_exists.stat.exists | default(false))
 
-- name: Deploy Pure-FTPd configuration
-  template:
-    src: pure-ftpd.conf.j2
-    dest: /etc/pure-ftpd/pure-ftpd.conf
-    owner: root
-    group: root
-    mode: '0644'
-  notify: restart pure-ftpd
-
-- name: Enable TLS for Pure-FTPd
+- name: Configure Pure-FTPd daemon settings
   lineinfile:
     path: /etc/default/pure-ftpd-common
-    regexp: '^STANDALONE_OR_INETD='
-    line: 'STANDALONE_OR_INETD=standalone'
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
     create: yes
     owner: root
     group: root
     mode: '0644'
+  loop:
+    - { key: 'STANDALONE_OR_INETD', value: 'standalone' }
+    - { key: 'VIRTUALCHROOT', value: 'true' }
   notify: restart pure-ftpd
 
-- name: Configure Pure-FTPd to use configuration file
-  lineinfile:
-    path: /etc/default/pure-ftpd-common
-    regexp: '^VIRTUALCHROOT='
-    line: 'VIRTUALCHROOT=true'
-    create: yes
-  notify: restart pure-ftpd
-
-- name: Ensure Pure-FTPd TLS is enabled
+- name: Create Pure-FTPd auth directory
   file:
-    path: /etc/pure-ftpd/conf/TLS
-    state: touch
+    path: /etc/pure-ftpd/auth
+    state: directory
+    mode: '0755'
+
+- name: Enable Unix authentication
+  file:
+    src: /etc/pure-ftpd/conf/UnixAuthentication
+    dest: /etc/pure-ftpd/auth/50unix
+    state: link
+    force: yes
+
+- name: Enable PAM authentication
+  file:
+    src: /etc/pure-ftpd/conf/PAMAuthentication
+    dest: /etc/pure-ftpd/auth/70pam
+    state: link
+    force: yes
+
+- name: Configure Pure-FTPd options via conf files
+  copy:
+    content: "{{ item.content }}"
+    dest: "/etc/pure-ftpd/conf/{{ item.name }}"
     mode: '0644'
+    owner: root
+    group: root
+  loop:
+    - { name: 'ChrootEveryone', content: 'yes' }
+    - { name: 'NoAnonymous', content: 'yes' }
+    - { name: 'MaxClientsNumber', content: '10' }
+    - { name: 'MaxClientsPerIP', content: '5' }
+    - { name: 'Daemonize', content: 'yes' }
+    - { name: 'DisplayDotFiles', content: 'yes' }
+    - { name: 'DontResolve', content: 'yes' }
+    - { name: 'MaxIdleTime', content: '15' }
+    - { name: 'PAMAuthentication', content: 'yes' }
+    - { name: 'UnixAuthentication', content: 'yes' }
+    - { name: 'LimitRecursion', content: '10000 8' }
+    - { name: 'AnonymousCanCreateDirs', content: 'no' }
+    - { name: 'MaxLoad', content: '4' }
+    - { name: 'PassivePortRange', content: "{{ ftps_passive_port_min | default('40000') }} {{ ftps_passive_port_max | default('50000') }}" }
+    - { name: 'ForcePassiveIP', content: "{{ ansible_host }}" }
+    - { name: 'AntiWarez', content: 'yes' }
+    - { name: 'Umask', content: '133:022' }
+    - { name: 'MinUID', content: '1000' }
+    - { name: 'AllowUserFXP', content: 'no' }
+    - { name: 'AllowAnonymousFXP', content: 'no' }
+    - { name: 'ProhibitDotFilesWrite', content: 'no' }
+    - { name: 'ProhibitDotFilesRead', content: 'no' }
+    - { name: 'AutoRename', content: 'yes' }
+    - { name: 'AnonymousCantUpload', content: 'yes' }
+    - { name: 'MaxDiskUsage', content: '95' }
+    - { name: 'CustomerProof', content: 'yes' }
+    - { name: 'NoTruncate', content: 'yes' }
+    - { name: 'TLS', content: '1' }
+  notify: restart pure-ftpd
+
+- name: Create combined PEM file for Pure-FTPd TLS
+  shell: |
+    cat /etc/ssl/certs/pure-ftpd.crt /etc/ssl/private/pure-ftpd.key > /etc/ssl/private/pure-ftpd.pem
+    chmod 600 /etc/ssl/private/pure-ftpd.pem
+  args:
+    creates: /etc/ssl/private/pure-ftpd.pem
   notify: restart pure-ftpd
 
 - name: Configure Pure-FTPd TLS certificate path
   copy:
-    content: "1"
-    dest: /etc/pure-ftpd/conf/TLS
+    content: "/etc/ssl/private/pure-ftpd.pem"
+    dest: /etc/pure-ftpd/conf/CertFile
     mode: '0644'
+    owner: root
+    group: root
   notify: restart pure-ftpd
-
-- name: Create Pure-FTPd virtual users database directory
-  file:
-    path: /etc/pure-ftpd/pureftpd.pdb
-    state: directory
-    mode: '0755'
 
 - name: Ensure Pure-FTPd service is enabled and started
   systemd:
