@@ -6,7 +6,7 @@ Requires=pure-ftpd.service
 
 [Service]
 Type=simple
-ExecStart=/usr/sbin/pure-uploadscript -u {{ ftps_username | default('camera') }} -g {{ ftps_username | default('camera') }} -B -r /usr/local/bin/ftps-rename-uploads.sh
+ExecStart=/usr/sbin/pure-uploadscript -u {{ ftps_username | default('camera') }} -g {{ ftps_username | default('camera') }} -r /usr/local/bin/ftps-rename-uploads.sh
 Restart=always
 RestartSec=5
 
