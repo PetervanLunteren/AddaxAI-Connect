@@ -211,11 +211,11 @@
     group: root
     mode: '0755'
 
-- name: Enable CallUploadScript in Pure-FTPd
+- name: Disable init script's UPLOADSCRIPT (we use our own systemd service)
   lineinfile:
     path: /etc/default/pure-ftpd-common
     regexp: '^UPLOADSCRIPT='
-    line: 'UPLOADSCRIPT=/usr/sbin/pure-uploadscript'
+    line: 'UPLOADSCRIPT='
     create: yes
   notify: restart pure-ftpd
 
