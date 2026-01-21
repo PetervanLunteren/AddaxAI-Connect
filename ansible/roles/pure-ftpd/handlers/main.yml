@@ -5,3 +5,8 @@
   systemd:
     name: pure-ftpd
     state: restarted
+
+- name: restart pure-uploadscript
+  systemd:
+    name: pure-uploadscript
+    state: restarted

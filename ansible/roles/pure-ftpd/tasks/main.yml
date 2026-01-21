@@ -195,9 +195,44 @@
     creates: /etc/ssl/private/pure-ftpd.pem
   notify: restart pure-ftpd
 
+- name: Deploy upload rename script
+  copy:
+    src: ftps-rename-uploads.sh
+    dest: /usr/local/bin/ftps-rename-uploads.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Enable CallUploadScript in Pure-FTPd
+  lineinfile:
+    path: /etc/default/pure-ftpd-common
+    regexp: '^UPLOADSCRIPT='
+    line: 'UPLOADSCRIPT=/usr/sbin/pure-uploadscript'
+    create: yes
+  notify: restart pure-ftpd
+
+- name: Deploy pure-uploadscript systemd service
+  template:
+    src: pure-uploadscript.service.j2
+    dest: /etc/systemd/system/pure-uploadscript.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart pure-uploadscript
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+
 - name: Ensure Pure-FTPd service is enabled and started
   systemd:
     name: pure-ftpd
+    state: started
+    enabled: yes
+
+- name: Ensure pure-uploadscript service is enabled and started
+  systemd:
+    name: pure-uploadscript
     state: started
     enabled: yes
 
