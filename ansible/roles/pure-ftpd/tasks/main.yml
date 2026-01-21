@@ -173,7 +173,7 @@
     - { name: 'AllowAnonymousFXP', content: 'no' }
     - { name: 'ProhibitDotFilesWrite', content: 'no' }
     - { name: 'ProhibitDotFilesRead', content: 'no' }
-    - { name: 'AutoRename', content: 'yes' }
+    - { name: 'AutoRename', content: 'no' }
     - { name: 'AnonymousCantUpload', content: 'yes' }
     - { name: 'MaxDiskUsage', content: '95' }
     - { name: 'CustomerProof', content: 'yes' }
