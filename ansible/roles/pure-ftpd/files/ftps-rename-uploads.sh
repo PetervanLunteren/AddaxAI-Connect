@@ -9,7 +9,7 @@
 # Receives the uploaded file path as the first argument.
 #
 # Filename format: ORIGINALNAME_RANDOMID.EXT
-# Example: IMG_0001.JPG -> IMG_0001_a3f7b2c1.JPG
+# Example: IMG_0001.JPG -> IMG_0001_a3f7.JPG
 
 set -euo pipefail
 
@@ -27,27 +27,34 @@ BASENAME=$(basename "$FILEPATH")
 FILENAME="${BASENAME%.*}"
 EXT="${BASENAME##*.}"
 
-# Generate 8-character random hex ID (4 bytes = 32 bits = ~4 billion combinations)
-RANDOM_ID=$(head -c 4 /dev/urandom | xxd -p)
+# Try up to 5 times to find a unique random ID
+# This prevents overwrites in the extremely rare case of ID collision
+for attempt in {1..5}; do
+    # Generate 4-character random hex ID (2 bytes = 16 bits = 65,536 combinations)
+    RANDOM_ID=$(head -c 2 /dev/urandom | xxd -p)
 
-# Build new filename preserving extension
-if [ "$FILENAME" = "$BASENAME" ]; then
-    # No extension (e.g., "README")
-    NEW_NAME="${FILENAME}_${RANDOM_ID}"
-else
-    # Has extension (e.g., "IMG_0001.JPG")
-    NEW_NAME="${FILENAME}_${RANDOM_ID}.${EXT}"
-fi
+    # Build new filename preserving extension
+    if [ "$FILENAME" = "$BASENAME" ]; then
+        # No extension (e.g., "README")
+        NEW_NAME="${FILENAME}_${RANDOM_ID}"
+    else
+        # Has extension (e.g., "IMG_0001.JPG")
+        NEW_NAME="${FILENAME}_${RANDOM_ID}.${EXT}"
+    fi
 
-NEW_PATH="${DIR}/${NEW_NAME}"
+    NEW_PATH="${DIR}/${NEW_NAME}"
 
-# Rename file
-if mv "$FILEPATH" "$NEW_PATH" 2>/dev/null; then
-    logger -t ftps-rename "SUCCESS: $BASENAME -> $NEW_NAME"
-    exit 0
-else
-    # If rename fails, leave original name (safe fallback)
-    # Ingestion service will handle it
-    logger -t ftps-rename "ERROR: Failed to rename $BASENAME, kept original name"
-    exit 0
-fi
+    # Try to rename (mv -n = no-clobber, won't overwrite existing files)
+    if mv -n "$FILEPATH" "$NEW_PATH" 2>/dev/null; then
+        logger -t ftps-rename "SUCCESS: $BASENAME -> $NEW_NAME (attempt $attempt)"
+        exit 0
+    fi
+
+    # If we get here, the random ID collided with an existing file
+    # Loop will retry with a new random ID
+done
+
+# If all 5 attempts failed (astronomically unlikely), leave original name
+# This is safer than risking data loss
+logger -t ftps-rename "ERROR: Failed to find unique name for $BASENAME after 5 attempts, kept original name"
+exit 0
