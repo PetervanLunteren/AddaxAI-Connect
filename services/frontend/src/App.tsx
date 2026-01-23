@@ -28,6 +28,7 @@ import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
 import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { TelegramConfigPage } from './pages/server/TelegramConfigPage';
+import { HealthPage } from './pages/server/HealthPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 
 function App() {
@@ -97,6 +98,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <TelegramConfigPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/server/health"
+                element={
+                  <ProtectedRoute>
+                    <HealthPage />
                   </ProtectedRoute>
                 }
               />
