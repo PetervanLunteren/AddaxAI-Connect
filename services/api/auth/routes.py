@@ -8,7 +8,7 @@ Provides endpoints for:
 - Password reset
 - Invitation token validation
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -135,7 +135,7 @@ def get_auth_router() -> APIRouter:
             )
 
         # Check if token has expired
-        if invitation.expires_at and invitation.expires_at < datetime.utcnow():
+        if invitation.expires_at and invitation.expires_at < datetime.now(timezone.utc):
             logger.warning(
                 "Invitation token expired",
                 email=invitation.email,
