@@ -155,25 +155,26 @@
     var: db_init.stdout_lines
   when: db_init is defined
 
-- name: Create initial server admin account
+- name: Create admin invitation with registration URL
   command: >
     docker compose exec -T
-    -e SUPERADMIN_EMAIL="{{ admin_email }}"
+    -e ADMIN_EMAIL="{{ admin_email }}"
     -e DATABASE_URL="postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
+    -e DOMAIN_NAME="{{ domain_name }}"
     api
-    python /app/scripts/create_superuser.py
+    python /app/scripts/create_admin_invitation.py
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
-  register: superuser_creation
+  register: admin_invitation
   when: admin_email is defined and admin_email | length > 0
   failed_when:
-    - superuser_creation.rc != 0
-    - "'already exists' not in superuser_creation.stdout"
+    - admin_invitation.rc != 0
+    - "'already exists' not in admin_invitation.stdout"
 
-- name: Display superuser creation result
+- name: Display admin invitation result
   debug:
-    var: superuser_creation.stdout_lines
+    var: admin_invitation.stdout_lines
   when: admin_email is defined and admin_email | length > 0
 
 - name: Check API container logs for errors
@@ -228,16 +229,18 @@
       - Prometheus (port 9090)
       - Loki (port 3100)
 
-      Initial Server Admin Account:
+      Initial Server Admin Setup:
       {% if admin_email is defined and admin_email | length > 0 %}
       - Email: {{ admin_email }}
-      - A temporary password has been generated (check output above)
+      - An invitation URL has been generated (check output above)
 
       Next Steps:
-      1. Go to https://{{ domain_name | default(ansible_host) }}/login
-      2. Log in with the admin email and temporary password
-      3. Go to your profile to change your password
-      4. You can now invite other users from the web interface!
+      1. Copy the registration URL from the output above
+      2. Open the URL in a browser to register with your chosen password
+      3. You'll be automatically assigned server admin privileges
+      4. After registration, you can invite other users from the web interface!
+
+      Note: The registration URL expires in 7 days and can only be used once.
       {% else %}
       - No admin email configured
       - Add email to admin_email in group_vars/dev.yml and redeploy

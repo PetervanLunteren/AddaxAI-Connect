@@ -130,8 +130,8 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ansible-playbook -i inventory.yml playbook.yml
     ```
 
-11. **Log in to the frontend**
-    When the deployment finishes, a temporary password will be displayed in the Ansible output. Open `https://<domain_name>/login` in a browser and log in using your `admin_email` and the temporary password. After logging in, change your password in your profile settings. You're automatically assigned the 'server admin' role with full control. 
+11. **Register your admin account**
+    When the deployment finishes, a registration URL will be displayed in the Ansible output. Copy this URL and open it in a browser. You'll be directed to a registration page where you can set your password for the `admin_email` you configured. After registration, you're automatically assigned the 'server admin' role with full control. The registration URL expires in 7 days and can only be used once. 
 
 12. **Configure camera traps**  
     Set up your camera traps to upload via FTPS.
