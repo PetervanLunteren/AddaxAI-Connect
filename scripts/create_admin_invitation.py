@@ -13,7 +13,7 @@ Environment variables required:
 import os
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Add shared module to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
@@ -87,7 +87,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
 
         if existing_invitation:
             # Check if it's expired or used
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             if existing_invitation.used:
                 print(f"ℹ️  Invitation for {email} was already used.")
                 return None
@@ -95,7 +95,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
                 # Regenerate token for expired invitation
                 import secrets
                 new_token = secrets.token_urlsafe(32)
-                new_expires_at = datetime.utcnow() + timedelta(days=7)
+                new_expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
                 existing_invitation.token = new_token
                 existing_invitation.expires_at = new_expires_at
@@ -118,7 +118,7 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
         # Create new invitation
         import secrets
         invite_token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(days=7)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
         # For admin invitation, we don't have an "invited_by" user yet
         # We'll use a dummy user_id of 1, or create a system user
