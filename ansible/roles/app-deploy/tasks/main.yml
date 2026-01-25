@@ -155,24 +155,26 @@
     var: db_init.stdout_lines
   when: db_init is defined
 
-- name: Seed email allowlist with admin entries
+- name: Create initial server admin account
   command: >
-    docker compose exec -T postgres
-    psql -U {{ db_user | default('addaxai') }}
-    -d {{ db_name | default('addaxai_connect') }}
-    -c "INSERT INTO email_allowlist (email, is_superuser) VALUES ('{{ item }}', true) ON CONFLICT (email) DO UPDATE SET is_superuser = true;"
+    docker compose exec -T
+    -e SUPERADMIN_EMAIL="{{ admin_email }}"
+    -e DATABASE_URL="postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
+    api
+    python /app/scripts/create_superuser.py
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
-  loop: "{{ admin_emails | default([]) }}"
-  register: allowlist_seed
-  changed_when: "'INSERT' in allowlist_seed.stdout"
-  when: admin_emails is defined and admin_emails | length > 0
+  register: superuser_creation
+  when: admin_email is defined and admin_email | length > 0
+  failed_when:
+    - superuser_creation.rc != 0
+    - "'already exists' not in superuser_creation.stdout"
 
-- name: Display allowlist seeding result
+- name: Display superuser creation result
   debug:
-    msg: "✅ Seeded {{ admin_emails | length }} admin email(s) to allowlist: {{ admin_emails | join(', ') }}"
-  when: admin_emails is defined and admin_emails | length > 0
+    var: superuser_creation.stdout_lines
+  when: admin_email is defined and admin_email | length > 0
 
 - name: Check API container logs for errors
   command: docker compose logs --tail=50 api
@@ -226,20 +228,19 @@
       - Prometheus (port 9090)
       - Loki (port 3100)
 
-      Admin Email Allowlist Seeded:
-      {% if admin_emails is defined and admin_emails | length > 0 %}
-      {% for email in admin_emails %}
-      - {{ email }} (server admin)
-      {% endfor %}
+      Initial Server Admin Account:
+      {% if admin_email is defined and admin_email | length > 0 %}
+      - Email: {{ admin_email }}
+      - A temporary password has been generated (check output above)
 
       Next Steps:
-      1. Go to https://{{ domain_name | default(ansible_host) }}/register
-      2. Register with one of the admin emails above
-      3. Check email for verification link
-      4. After verification, you'll have full admin access!
+      1. Go to https://{{ domain_name | default(ansible_host) }}/login
+      2. Log in with the admin email and temporary password
+      3. Go to your profile to change your password
+      4. You can now invite other users from the web interface!
       {% else %}
-      - No admin emails configured
-      - Add emails to admin_emails in group_vars/dev.yml
+      - No admin email configured
+      - Add email to admin_email in group_vars/dev.yml and redeploy
       {% endif %}
 
       Useful commands:
