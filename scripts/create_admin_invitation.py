@@ -14,6 +14,8 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+import smtplib
+from email.message import EmailMessage
 
 # Add shared module to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
@@ -24,6 +26,82 @@ from sqlalchemy.orm import Session
 
 from shared.models import User, UserInvitation
 from shared.database import Base
+
+
+def send_admin_invitation_email(
+    to_email: str,
+    registration_url: str,
+    domain_name: str,
+) -> bool:
+    """
+    Send admin invitation email via SMTP (synchronous).
+
+    Args:
+        to_email: Admin email address
+        registration_url: Registration URL with token
+        domain_name: Domain name
+
+    Returns:
+        True if email sent successfully, False otherwise
+    """
+    # Get email configuration from environment
+    mail_server = os.getenv("MAIL_SERVER")
+    mail_port = int(os.getenv("MAIL_PORT", "587"))
+    mail_username = os.getenv("MAIL_USERNAME")
+    mail_password = os.getenv("MAIL_PASSWORD")
+    mail_from = os.getenv("MAIL_FROM")
+
+    # Check if email is configured
+    if not all([mail_server, mail_username, mail_password, mail_from]):
+        print("ℹ️  Email not configured - skipping email send")
+        print("   (Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM to enable)")
+        return False
+
+    try:
+        # Create email message
+        msg = EmailMessage()
+        msg['Subject'] = f"Server Admin Invitation - AddaxAI Connect"
+        msg['From'] = mail_from
+        msg['To'] = to_email
+
+        # Email body
+        body = f"""
+Hello!
+
+You've been invited to become a Server Administrator on AddaxAI Connect.
+
+As a server admin, you will have full access to:
+- All projects and camera trap data
+- User management and invitations
+- System configuration and settings
+
+To accept this invitation and set up your account, click the link below:
+
+{registration_url}
+
+This invitation link is unique to you and will expire in 7 days.
+
+Once registered, you can login at: https://{domain_name}/login
+
+---
+AddaxAI Connect
+Camera Trap Image Processing Platform
+"""
+        msg.set_content(body)
+
+        # Send email via SMTP with STARTTLS
+        with smtplib.SMTP(mail_server, mail_port, timeout=10) as server:
+            server.starttls()
+            server.login(mail_username, mail_password)
+            server.send_message(msg)
+
+        print(f"✅ Invitation email sent to {to_email}")
+        return True
+
+    except Exception as e:
+        print(f"⚠️  Failed to send email to {to_email}: {e}")
+        print("   The registration URL is still valid - use the console output above")
+        return False
 
 
 def create_admin_invitation(email: str, database_url: str, domain_name: str) -> str:
@@ -106,6 +184,10 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
                 print(f"✅ Regenerated expired invitation for {email}")
                 print(f"   New registration URL: {registration_url}")
                 print(f"   Token expires: {new_expires_at.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+
+                # Try to send email
+                send_admin_invitation_email(email, registration_url, domain_name)
+
                 return registration_url
             else:
                 # Invitation exists and is still valid
@@ -113,6 +195,10 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
                 print(f"✅ Valid invitation already exists for {email}")
                 print(f"   Registration URL: {registration_url}")
                 print(f"   Token expires: {existing_invitation.expires_at.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+
+                # Try to send email (re-send existing invitation)
+                send_admin_invitation_email(email, registration_url, domain_name)
+
                 return registration_url
 
         # Create new invitation
@@ -169,6 +255,9 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
         print(f"   Role: server-admin")
         print(f"   Registration URL: {registration_url}")
         print(f"   Token expires: {expires_at.strftime('%Y-%m-%d %H:%M:%S')} UTC (7 days)")
+
+        # Try to send email
+        send_admin_invitation_email(email, registration_url, domain_name)
 
         return registration_url
 
