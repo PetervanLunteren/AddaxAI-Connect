@@ -100,17 +100,17 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `letsencrypt_email` | `"you@example.com"` | Email address used for Letsencrypt SSL certificate registration. |
    | `letsencrypt_staging` | `false` | When set to `true`, it uses Let’s Encrypt’s staging environment with test certificates. This helps avoid rate limits during testing. Set it to `false` to request real, trusted certificates. |
 
-7. **Configure email and server admin**  
+7. **Configure email and server admin**
    Still in `group_vars/dev.yml`.
 
    | Variable | Example | Description |
    |---------|---------|-------------|
-   | `mail_server` | `"smtp.gmail.com"` | SMTP server address for outgoing email for password resets, registration, and other notifications. |
+   | `mail_server` | `"smtp.gmail.com"` | SMTP server address for outgoing email for password resets, invitations, and other notifications. |
    | `mail_port` | `587` | SMTP port number. |
    | `mail_username` | `"your.email@example.com"` | Username for authenticating with your mail provider. |
    | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
    | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
-   | `admin_emails` | `"admin@example.com"` | Email address(es) for initial server admin account(s). Multiple emails can be listed as items. These users will be automatically created with full system access. Other user management will be done from within the UI. |
+   | `admin_email` | `"admin@example.com"` | Email address for initial server admin account. During deployment, a temporary password will be generated for this account. You can change it after first login. |
 
 8. **Add VM to known_hosts**  
    Connect to the VM once to accept its SSH host key. When prompted, type `yes`. You'll see a `Permission denied` message, which is expected. This step only ensures the VM’s IP address is added to your `known_hosts` file.
@@ -124,13 +124,14 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
     ansible -i inventory.yml dev -m ping
     ```
 
-10. **Run playbook**  
-   Deploys entire infrastructure automatically. It will prompt you to do some manual tasks, like DNS record creation. 
+10. **Run playbook**
+   Deploys entire infrastructure automatically. It will prompt you to do some manual tasks, like DNS record creation.
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
+
 11. **Log in to the frontend**
-    When the deployment finishes, open `https://<domain_name>/register` in a browser and register using your `admin_email`. You will receive a verification email. Click the link to verify your account, then sign in. You're automatically assigned the 'server admin' role with full control. 
+    When the deployment finishes, a temporary password will be displayed in the Ansible output. Open `https://<domain_name>/login` in a browser and log in using your `admin_email` and the temporary password. After logging in, change your password in your profile settings. You're automatically assigned the 'server admin' role with full control. 
 
 12. **Configure camera traps**  
     Set up your camera traps to upload via FTPS.
@@ -154,7 +155,7 @@ The system has three role levels:
 - **Project admin** - Can manage specific projects (cameras, species, users)
 - **Project viewer** - Read-only access to specific projects
 
-Server admins are configured during deployment via `superadmin_email`.
+The initial server admin is created during deployment via `admin_email`.
 Other users are invited by server admins or project admins through the web interface.
 
 

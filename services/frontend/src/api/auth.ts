@@ -17,6 +17,13 @@ export interface LoginResponse {
 export interface RegisterRequest {
   email: string;
   password: string;
+  token: string; // Required invitation token
+}
+
+export interface InviteTokenValidationResponse {
+  email: string;
+  role: string;
+  project_name: string | null;
 }
 
 export interface User {
@@ -73,12 +80,21 @@ export const logout = async (): Promise<void> => {
 };
 
 /**
- * Register new user
+ * Validate invitation token
  */
-export const register = async (email: string, password: string): Promise<User> => {
+export const validateInviteToken = async (token: string): Promise<InviteTokenValidationResponse> => {
+  const response = await apiClient.get<InviteTokenValidationResponse>(`/auth/invite/validate?token=${token}`);
+  return response.data;
+};
+
+/**
+ * Register new user with invitation token
+ */
+export const register = async (email: string, password: string, token: string): Promise<User> => {
   const response = await apiClient.post<User>('/auth/register', {
     email,
     password,
+    token,
   });
 
   return response.data;

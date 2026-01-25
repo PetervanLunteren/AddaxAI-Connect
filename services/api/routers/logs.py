@@ -10,7 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from shared.logger import get_logger
-from auth.users import current_active_user
+from auth.users import current_verified_user
 from shared.models import User
 
 
@@ -57,7 +57,7 @@ class LogEntry(BaseModel):
 async def submit_log(
     log_entry: LogEntry,
     request: Request,
-    user: Optional[User] = Depends(current_active_user),
+    user: Optional[User] = Depends(current_verified_user),
 ) -> Dict[str, str]:
     """
     Submit a log entry from the frontend.

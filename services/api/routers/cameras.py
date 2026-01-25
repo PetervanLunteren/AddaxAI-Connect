@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from shared.models import User, Camera, Project
 from shared.database import get_async_session
-from auth.users import current_active_user
+from auth.users import current_verified_user
 from auth.permissions import can_admin_project
 from auth.project_access import get_accessible_project_ids
 
@@ -169,7 +169,7 @@ def camera_to_response(camera: Camera) -> CameraResponse:
 async def list_cameras(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     List all cameras with health status
@@ -202,7 +202,7 @@ async def get_camera(
     camera_id: int,
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get single camera by ID
@@ -248,7 +248,7 @@ async def get_camera(
 async def create_camera(
     request: CreateCameraRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Create a new camera (project admin or server admin)
@@ -328,7 +328,7 @@ async def update_camera(
     camera_id: int,
     request: UpdateCameraRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Update camera metadata (project admin or server admin)
@@ -400,7 +400,7 @@ async def update_camera(
 async def delete_camera(
     camera_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Delete camera (project admin or server admin)
@@ -451,7 +451,7 @@ async def import_cameras_csv(
     file: UploadFile = File(...),
     project_id: int = Form(...),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Bulk import cameras from CSV file (project admin or server admin)

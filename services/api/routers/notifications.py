@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from shared.models import User, ProjectNotificationPreference, Project
 from shared.database import get_async_session
-from auth.users import current_active_user
+from auth.users import current_verified_user
 
 
 router = APIRouter(prefix="/api/projects", tags=["notifications"])
@@ -55,7 +55,7 @@ class NotificationPreferenceUpdateRequest(BaseModel):
 async def get_notification_preferences(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get current user's notification preferences for a specific project.
@@ -126,7 +126,7 @@ async def update_notification_preferences(
     project_id: int,
     data: NotificationPreferenceUpdateRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Update current user's notification preferences for a specific project.
@@ -245,7 +245,7 @@ class TelegramLinkStatusResponse(BaseModel):
 async def generate_telegram_link_token(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Generate a secure token for automated Telegram account linking.
@@ -338,7 +338,7 @@ async def generate_telegram_link_token(
 async def get_telegram_link_status(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Check if user has linked their Telegram account for this project.
@@ -406,7 +406,7 @@ async def get_telegram_link_status(
 async def unlink_telegram(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Unlink Telegram account by removing chat_id from notification preferences.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create superuser account(s) and add to email allowlist.
+Create superuser account(s).
 
 Usage:
     python create_superuser.py
@@ -22,7 +22,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-from shared.models import User, EmailAllowlist
+from shared.models import User
 from shared.database import Base
 
 
@@ -100,27 +100,7 @@ def create_superuser(email: str, database_url: str) -> None:
         print(f"✅ Superuser created: {email}")
         print(f"   Temporary password: {password}")
         print(f"   Please use 'Forgot Password' to set a permanent password.")
-
-        # Add superuser email to allowlist
-        result = db.execute(
-            select(EmailAllowlist).where(
-                (EmailAllowlist.email == email) |
-                (EmailAllowlist.domain == f"@{email.split('@')[1]}")
-            )
-        )
-        existing_allowlist = result.scalar_one_or_none()
-
-        if not existing_allowlist:
-            allowlist_entry = EmailAllowlist(
-                email=email,
-                domain=None,
-                added_by_user_id=superuser.id,
-            )
-            db.add(allowlist_entry)
-            db.commit()
-            print(f"✅ Added {email} to allowlist")
-        else:
-            print(f"   Email already in allowlist")
+        print(f"   Note: Superusers are auto-verified and have full system access.")
 
 
 def main():

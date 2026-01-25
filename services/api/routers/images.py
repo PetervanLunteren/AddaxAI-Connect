@@ -15,7 +15,7 @@ from shared.models import User, Image, Camera, Detection, Classification
 from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
-from auth.users import current_active_user
+from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids
 
 
@@ -114,7 +114,7 @@ class SpeciesOption(BaseModel):
 async def get_species(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get list of unique species found in classified images.
@@ -173,7 +173,7 @@ async def list_images(
     show_empty: bool = Query(False),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     List images with pagination and filters
@@ -390,7 +390,7 @@ async def list_images(
 async def get_image(
     uuid: str,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get single image detail by UUID
@@ -533,7 +533,7 @@ async def get_image_thumbnail(
     uuid: str,
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Stream image thumbnail directly from MinIO with authentication.
@@ -569,7 +569,7 @@ async def get_image_full(
     uuid: str,
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Stream full-size image directly from MinIO with authentication.

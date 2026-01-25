@@ -75,8 +75,7 @@ mail_username: ""                         # SMTP username (REQUIRED)
 mail_password: ""                         # SMTP password or app password (REQUIRED)
 mail_from: ""                             # From email address (REQUIRED)
 
-# Admin email allowlist
-# These emails will be added to the allowlist with is_superuser=true
-# Users who register with these emails automatically become server admins
-admin_emails:
-  - ""                                    # Add admin email addresses here
+# Initial server admin account
+# This email will be used to create the first superuser account during deployment
+# A temporary password will be generated - use "Forgot Password" to set your own
+admin_email: ""                           # Server admin email (REQUIRED)

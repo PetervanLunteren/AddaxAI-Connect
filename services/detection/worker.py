@@ -15,6 +15,10 @@ from detector import run_detection
 from storage_operations import download_image_from_minio
 from db_operations import update_image_status, insert_detections
 
+# Enable PIL to load truncated images from camera traps
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 logger = get_logger("detection")
 settings = get_settings()
 

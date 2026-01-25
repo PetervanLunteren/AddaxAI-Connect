@@ -2,18 +2,19 @@
 Custom UserManager for FastAPI-Users.
 
 Implements:
-- Email allowlist validation
+- Token-based invitation validation
 - Email verification
 - Password reset
 """
 from typing import Optional
+from datetime import datetime
 from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, IntegerIDMixin, exceptions
 from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from shared.models import User, EmailAllowlist, ProjectMembership, UserInvitation
+from shared.models import User, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -26,7 +27,7 @@ logger = get_logger("api.auth")
 
 class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
     """
-    Custom user manager with allowlist validation.
+    Custom user manager with token-based invitation validation.
 
     Crashes loudly on misconfiguration.
     """
@@ -52,42 +53,6 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             raise exceptions.InvalidPasswordException(
                 reason="Password must be at least 8 characters"
             )
-
-    async def _check_allowlist(
-        self,
-        email: str,
-        db: AsyncSession,
-    ) -> EmailAllowlist | None:
-        """
-        Check if email is in allowlist and return the entry.
-
-        Checks both specific emails and domain patterns.
-        Prioritizes exact email matches over domain matches.
-
-        Args:
-            email: Email address to check
-            db: Database session
-
-        Returns:
-            EmailAllowlist entry if allowed, None otherwise
-        """
-        # Extract domain from email
-        domain = "@" + email.split("@")[1]
-
-        # Check for exact email match first (higher priority)
-        result = await db.execute(
-            select(EmailAllowlist).where(EmailAllowlist.email == email)
-        )
-        allowlist_entry = result.scalar_one_or_none()
-
-        # If no exact match, check for domain match
-        if not allowlist_entry:
-            result = await db.execute(
-                select(EmailAllowlist).where(EmailAllowlist.domain == domain)
-            )
-            allowlist_entry = result.scalar_one_or_none()
-
-        return allowlist_entry
 
     async def on_after_register(
         self,
@@ -192,146 +157,137 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         request: Optional[Request] = None,
     ) -> User:
         """
-        Create a new user with allowlist validation and project membership enforcement.
+        Create a new user with token-based invitation validation.
 
-        The user's is_server_admin flag is set based on the allowlist entry:
-        - If allowlist entry has is_server_admin=True, user becomes server admin
-        - If allowlist entry has is_server_admin=False, user is a regular user
+        Registration requires a valid invitation token that proves:
+        - The user has access to the email (token sent to that email)
+        - The invitation hasn't expired (7 days)
+        - The invitation hasn't been used yet
 
-        Regular users MUST have at least one project membership pre-created
-        by an admin before they can register. This enforces explicit access control.
-
-        Server admins have implicit access to all projects and do not need
-        project memberships.
+        The token validation replaces email verification - clicking the invite link
+        is proof of email ownership.
 
         Args:
-            user_create: User creation data
+            user_create: User creation data (must include token)
             safe: If True, validates request came from auth endpoint
             request: Request object
 
         Returns:
-            Created user
+            Created user with is_verified=True
 
         Raises:
             exceptions.UserAlreadyExists: If email already registered
-            exceptions.InvalidPasswordException: If email not in allowlist
-            ValueError: If non-admin user has no project memberships
+            exceptions.InvalidPasswordException: If token is invalid, expired, or used
         """
         # Get database session from request state
         db: AsyncSession = request.state.db
 
-        # Check allowlist and get entry
-        email = user_create.email
-        allowlist_entry = await self._check_allowlist(email, db)
-
-        if not allowlist_entry:
-            raise exceptions.InvalidPasswordException(
-                reason=f"Email {email} is not in the allowlist. "
-                       "Please contact an administrator to request access."
-            )
-
-        # Apply is_superuser flag from allowlist entry
-        # This determines if user becomes a server admin
+        # Extract and validate token
         user_dict = user_create.model_dump()
-        user_dict['is_superuser'] = allowlist_entry.is_superuser
+        token = user_dict.get('token')
 
-        # Create new instance with is_superuser
+        if not token:
+            raise exceptions.InvalidPasswordException(
+                reason="Registration requires an invitation token. "
+                       "Please use the link from your invitation email."
+            )
+
+        # Look up invitation by token
+        result = await db.execute(
+            select(UserInvitation).where(UserInvitation.token == token)
+        )
+        invitation = result.scalar_one_or_none()
+
+        if not invitation:
+            logger.warning(
+                "Invalid invitation token during registration",
+                token_length=len(token)
+            )
+            raise exceptions.InvalidPasswordException(
+                reason="Invalid invitation token. Please request a new invitation."
+            )
+
+        # Check if token has already been used
+        if invitation.used:
+            logger.warning(
+                "Invitation token already used",
+                email=invitation.email
+            )
+            raise exceptions.InvalidPasswordException(
+                reason="This invitation has already been used."
+            )
+
+        # Check if token has expired
+        if invitation.expires_at and invitation.expires_at < datetime.utcnow():
+            logger.warning(
+                "Invitation token expired",
+                email=invitation.email,
+                expired_at=invitation.expires_at.isoformat()
+            )
+            raise exceptions.InvalidPasswordException(
+                reason="This invitation has expired. Please request a new invitation."
+            )
+
+        # Validate that email in request matches invitation email
+        if user_create.email != invitation.email:
+            logger.warning(
+                "Email mismatch during registration",
+                provided_email=user_create.email,
+                invitation_email=invitation.email
+            )
+            raise exceptions.InvalidPasswordException(
+                reason="Email does not match invitation. Please use the email from your invitation."
+            )
+
+        # Set is_superuser based on invitation role
+        user_dict['is_superuser'] = (invitation.role == 'server-admin')
+
+        # Auto-verify email (invitation token proves email ownership)
+        user_dict['is_verified'] = True
+
+        # Remove token from user dict (not part of User model)
+        user_dict.pop('token', None)
+
+        # Create new instance with updated fields
         from auth.schemas import UserCreate
-        user_create_with_admin = UserCreate(**user_dict)
+        user_create_verified = UserCreate(**user_dict)
 
-        # Call parent create method with safe=False to allow is_superuser
-        created_user = await super().create(user_create_with_admin, safe=False, request=request)
+        # Call parent create method with safe=False to allow is_superuser and is_verified
+        created_user = await super().create(user_create_verified, safe=False, request=request)
 
-        # Process pending invitations and validate project access for non-admin users
-        if not created_user.is_superuser:
-            # Check for pending invitation
-            result = await db.execute(
-                select(UserInvitation).where(UserInvitation.email == email)
+        # Create project membership from invitation if applicable
+        if invitation.project_id and invitation.role in ['project-admin', 'project-viewer']:
+            membership = ProjectMembership(
+                user_id=created_user.id,
+                project_id=invitation.project_id,
+                role=invitation.role,
+                added_by_user_id=invitation.invited_by_user_id
             )
-            invitation = result.scalar_one_or_none()
+            db.add(membership)
 
-            # Check for existing project memberships
-            result = await db.execute(
-                select(ProjectMembership).where(
-                    ProjectMembership.user_id == created_user.id
-                )
-            )
-            memberships = result.scalars().all()
-
-            # User must have either a pending invitation OR existing memberships
-            if not invitation and not memberships:
-                # CRASH - User has no way to access any projects
-                await db.delete(created_user)  # Rollback user creation
-                await db.commit()
-
-                raise ValueError(
-                    f"User {email} has not been invited to any projects. "
-                    "An administrator must invite you before you can register. "
-                    "Contact your administrator to request access."
-                )
-
-            # Create project membership from invitation if applicable
-            if invitation and invitation.project_id and invitation.role != 'server-admin':
-                # Create membership for project-admin or project-viewer
-                membership = ProjectMembership(
-                    user_id=created_user.id,
-                    project_id=invitation.project_id,
-                    role=invitation.role,
-                    added_by_user_id=invitation.invited_by_user_id
-                )
-                db.add(membership)
-                await db.commit()
-
-                logger.info(
-                    "User registered with invitation - project membership created",
-                    email=created_user.email,
-                    user_id=created_user.id,
-                    project_id=invitation.project_id,
-                    role=invitation.role,
-                    invited_by=invitation.invited_by_user_id
-                )
-
-                # Refresh memberships list for logging below
-                result = await db.execute(
-                    select(ProjectMembership).where(
-                        ProjectMembership.user_id == created_user.id
-                    )
-                )
-                memberships = result.scalars().all()
-
-            # Delete invitation record after successful registration
-            if invitation:
-                await db.delete(invitation)
-                await db.commit()
-
-                logger.info(
-                    "Invitation processed and deleted",
-                    email=created_user.email,
-                    user_id=created_user.id
-                )
-
-            if memberships:
-                logger.info(
-                    "User created with project memberships",
-                    email=created_user.email,
-                    user_id=created_user.id,
-                    membership_count=len(memberships),
-                    projects=[m.project_id for m in memberships],
-                    roles=[m.role for m in memberships]
-                )
-            else:
-                logger.info(
-                    "User created with pending invitation (memberships to be assigned)",
-                    email=created_user.email,
-                    user_id=created_user.id
-                )
-        else:
             logger.info(
-                "Server admin user created",
+                "User registered with project invitation - membership created",
                 email=created_user.email,
                 user_id=created_user.id,
-                is_superuser=True
+                project_id=invitation.project_id,
+                role=invitation.role,
+                invited_by=invitation.invited_by_user_id,
+                is_verified=True
             )
+
+        # Mark invitation as used (keep for audit trail, don't delete)
+        invitation.used = True
+        await db.commit()
+
+        logger.info(
+            "User created successfully via invitation token",
+            email=created_user.email,
+            user_id=created_user.id,
+            role=invitation.role,
+            is_superuser=created_user.is_superuser,
+            is_verified=created_user.is_verified,
+            project_id=invitation.project_id
+        )
 
         return created_user
 

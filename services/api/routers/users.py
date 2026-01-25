@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from shared.models import User, Project, ProjectMembership
 from shared.database import get_async_session
-from auth.users import current_active_user
+from auth.users import current_verified_user
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -38,7 +38,7 @@ class UserProjectsResponse(BaseModel):
     response_model=UserProjectsResponse,
 )
 async def get_my_projects(
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
     db: AsyncSession = Depends(get_async_session),
 ):
     """

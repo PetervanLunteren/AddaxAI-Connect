@@ -172,24 +172,6 @@ class User(Base):
     # Note: role and project_id removed - now handled via ProjectMembership table
 
 
-class EmailAllowlist(Base):
-    """
-    Allowed emails/domains for registration.
-
-    Determines who can register and whether they become server admins.
-    - is_superuser=True: User becomes server admin with full control over all projects
-    - is_superuser=False: Regular user (gets project access via ProjectMembership table)
-    """
-    __tablename__ = "email_allowlist"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), nullable=True, unique=True)
-    domain = Column(String(255), nullable=True)
-    is_superuser = Column(Boolean, default=False, nullable=False)  # Server admin flag
-    added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
 class AlertRule(Base):
     """Alert notification rule"""
     __tablename__ = "alert_rules"
@@ -293,6 +275,8 @@ class UserInvitation(Base):
     For server-admin invitations:
     - project_id is NULL (server admins have access to all projects)
     - role is 'server-admin'
+
+    Security: Uses secure tokens for invitation links. Token proves email ownership.
     """
     __tablename__ = "user_invitations"
 
@@ -301,4 +285,7 @@ class UserInvitation(Base):
     invited_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL for server-admin
     role = Column(String(50), nullable=False, index=True)  # 'server-admin', 'project-admin', or 'project-viewer'
+    token = Column(String(64), unique=True, nullable=True, index=True)  # Secure URL-safe token for invite link
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Expiry date (default 7 days)
+    used = Column(Boolean, nullable=False, server_default="false", index=True)  # Whether invitation has been accepted
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
