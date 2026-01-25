@@ -161,6 +161,11 @@
     -e ADMIN_EMAIL="{{ admin_email }}"
     -e DATABASE_URL="postgresql://{{ db_user | default('addaxai') }}:{{ db_password }}@postgres:5432/{{ db_name | default('addaxai_connect') }}"
     -e DOMAIN_NAME="{{ domain_name }}"
+    -e MAIL_SERVER="{{ mail_server | default('') }}"
+    -e MAIL_PORT="{{ mail_port | default('587') }}"
+    -e MAIL_USERNAME="{{ mail_username | default('') }}"
+    -e MAIL_PASSWORD="{{ mail_password | default('') }}"
+    -e MAIL_FROM="{{ mail_from | default('') }}"
     api
     python /app/scripts/create_admin_invitation.py
   args:
