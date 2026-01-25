@@ -3,6 +3,7 @@ Pydantic schemas for FastAPI-Users.
 
 Defines request/response models for user authentication.
 """
+from typing import Optional
 from fastapi_users import schemas
 
 
@@ -20,10 +21,12 @@ class UserCreate(schemas.BaseUserCreate):
     """
     Schema for creating a new user (request).
 
-    is_superuser is set internally by UserManager based on email allowlist,
+    Requires invitation token for secure registration.
+    is_superuser is set internally by UserManager based on invitation,
     not provided by the user during registration.
     """
-    is_superuser: bool = False  # Default to False, will be overridden by allowlist
+    token: str  # Required invitation token (from email link)
+    is_superuser: bool = False  # Default to False, will be overridden by invitation
 
 
 class UserUpdate(schemas.BaseUserUpdate):

@@ -13,6 +13,10 @@ from classifier import run_classification
 from storage_operations import download_image_from_minio
 from db_operations import get_detections_for_image, insert_classifications, update_image_status
 
+# Enable PIL to load truncated images from camera traps
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 logger = get_logger("classification")
 settings = get_settings()
 

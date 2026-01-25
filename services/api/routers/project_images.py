@@ -10,7 +10,7 @@ from sqlalchemy import select
 from shared.models import User, Project
 from shared.database import get_async_session
 from shared.config import get_settings
-from auth.users import current_active_user
+from auth.users import current_verified_user
 from auth.permissions import can_admin_project
 from utils.image_processing import process_and_upload_project_image, delete_project_images
 
@@ -26,7 +26,7 @@ async def upload_project_image(
     project_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Upload project image (project admin or server admin)
@@ -107,7 +107,7 @@ async def upload_project_image(
 async def delete_project_image(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Delete project image (project admin or server admin)

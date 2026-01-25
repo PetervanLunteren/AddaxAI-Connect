@@ -4,7 +4,8 @@ Admin endpoints for managing email allowlist and Telegram configuration.
 Only accessible by superusers.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+import secrets
 import httpx
 import base64
 from pathlib import Path
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, EmailAllowlist, Project, TelegramConfig, ProjectMembership, UserInvitation
+from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -24,33 +25,6 @@ settings = get_settings()
 logger = get_logger("api.admin")
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-
-
-class AllowlistCreateRequest(BaseModel):
-    """Request to add email or domain to allowlist"""
-    email: Optional[EmailStr] = None
-    domain: Optional[str] = None
-
-    class Config:
-        # Ensure at least one is provided
-        @staticmethod
-        def validate_model(values):
-            if not values.get("email") and not values.get("domain"):
-                raise ValueError("Either email or domain must be provided")
-            return values
-
-
-class AllowlistResponse(BaseModel):
-    """Response for allowlist entry"""
-    id: int
-    email: Optional[str]
-    domain: Optional[str]
-    is_superuser: bool
-    added_by_user_id: Optional[int]
-    created_at: str
-
-    class Config:
-        from_attributes = True
 
 
 class ProjectMembershipInfo(BaseModel):
@@ -82,124 +56,6 @@ class AddUserToProjectRequest(BaseModel):
 class UpdateRoleRequest(BaseModel):
     """Request to update user's role in project"""
     role: str  # 'project-admin' or 'project-viewer'
-
-
-@router.post(
-    "/allowlist",
-    response_model=AllowlistResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_to_allowlist(
-    data: AllowlistCreateRequest,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """
-    Add email or domain to allowlist (superuser only).
-
-    Args:
-        data: Email or domain to add
-        db: Database session
-        current_user: Current authenticated superuser
-
-    Returns:
-        Created allowlist entry
-
-    Raises:
-        HTTPException: If email/domain already in allowlist
-    """
-    # Validate at least one is provided
-    if not data.email and not data.domain:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either email or domain must be provided",
-        )
-
-    # Check if already exists
-    result = await db.execute(
-        select(EmailAllowlist).where(
-            (EmailAllowlist.email == data.email) |
-            (EmailAllowlist.domain == data.domain)
-        )
-    )
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email or domain already in allowlist",
-        )
-
-    # Create new entry
-    entry = EmailAllowlist(
-        email=data.email,
-        domain=data.domain,
-        added_by_user_id=current_user.id,
-    )
-    db.add(entry)
-    await db.commit()
-    await db.refresh(entry)
-
-    return entry
-
-
-@router.get(
-    "/allowlist",
-    response_model=List[AllowlistResponse],
-)
-async def list_allowlist(
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """
-    List all allowlist entries (superuser only).
-
-    Args:
-        db: Database session
-        current_user: Current authenticated superuser
-
-    Returns:
-        List of allowlist entries
-    """
-    result = await db.execute(select(EmailAllowlist))
-    entries = result.scalars().all()
-
-    return entries
-
-
-@router.delete(
-    "/allowlist/{entry_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def remove_from_allowlist(
-    entry_id: int,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_server_admin),
-):
-    """
-    Remove entry from allowlist (superuser only).
-
-    Args:
-        entry_id: Allowlist entry ID
-        db: Database session
-        current_user: Current authenticated superuser
-
-    Raises:
-        HTTPException: If entry not found
-    """
-    result = await db.execute(
-        select(EmailAllowlist).where(EmailAllowlist.id == entry_id)
-    )
-    entry = result.scalar_one_or_none()
-
-    if not entry:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Allowlist entry not found",
-        )
-
-    await db.delete(entry)
-    await db.commit()
 
 
 @router.get(
@@ -605,25 +461,33 @@ async def invite_user(
                 detail=f"Project with ID {data.project_id} not found"
             )
 
-    # Add to allowlist
-    is_superuser = data.role == 'server-admin'
-    allowlist_entry = EmailAllowlist(
-        email=data.email,
-        is_superuser=is_superuser,
-        added_by_user_id=current_user.id
-    )
-    db.add(allowlist_entry)
+    # Generate secure token for invitation link (32 bytes = 43 URL-safe characters)
+    invite_token = secrets.token_urlsafe(32)
 
-    # Create invitation with role and project_id
+    # Set expiry to 7 days from now
+    expires_at = datetime.utcnow() + timedelta(days=7)
+
+    # Create invitation with role, project_id, token, and expiry
     invitation = UserInvitation(
         email=data.email,
         invited_by_user_id=current_user.id,
         project_id=data.project_id if data.role == 'project-admin' else None,
-        role=data.role
+        role=data.role,
+        token=invite_token,
+        expires_at=expires_at,
+        used=False
     )
     db.add(invitation)
 
     await db.commit()
+
+    logger.info(
+        "Invitation created with secure token",
+        email=data.email,
+        role=data.role,
+        expires_at=expires_at.isoformat(),
+        token_length=len(invite_token)
+    )
 
     # Send invitation email if requested
     email_sent = False
@@ -634,6 +498,7 @@ async def invite_user(
             project_name = project.name if project else "AddaxAI Connect"
             await email_sender.send_invitation_email(
                 email=data.email,
+                token=invite_token,
                 project_name=project_name,
                 role=data.role,
                 inviter_name=current_user.email,  # Using email as name for now
@@ -772,24 +637,32 @@ async def add_server_admin(
                 detail=f"Invitation already sent to {data.email}"
             )
 
-        # Add to allowlist
-        allowlist_entry = EmailAllowlist(
-            email=data.email,
-            is_superuser=True,
-            added_by_user_id=current_user.id
-        )
-        db.add(allowlist_entry)
+        # Generate secure token for invitation link
+        invite_token = secrets.token_urlsafe(32)
 
-        # Create invitation
+        # Set expiry to 7 days from now
+        expires_at = datetime.utcnow() + timedelta(days=7)
+
+        # Create invitation with token and expiry
         invitation = UserInvitation(
             email=data.email,
             invited_by_user_id=current_user.id,
             project_id=None,
-            role='server-admin'
+            role='server-admin',
+            token=invite_token,
+            expires_at=expires_at,
+            used=False
         )
         db.add(invitation)
 
         await db.commit()
+
+        logger.info(
+            "Server admin invitation created with secure token",
+            email=data.email,
+            expires_at=expires_at.isoformat(),
+            token_length=len(invite_token)
+        )
 
         # Send invitation email if requested
         if data.send_email:
@@ -797,6 +670,7 @@ async def add_server_admin(
                 email_sender = get_email_sender()
                 await email_sender.send_invitation_email(
                     email=data.email,
+                    token=invite_token,
                     project_name="AddaxAI Connect",
                     role='server-admin',
                     inviter_name=current_user.email,

@@ -15,6 +15,9 @@ from routers import admin, logs, cameras, images, statistics, projects, devtools
 from routers import health as health_router
 from middleware.logging import RequestLoggingMiddleware
 
+# Enable PIL to load truncated images from camera traps
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 settings = get_settings()
 logger = get_logger("api")

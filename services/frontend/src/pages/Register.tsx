@@ -1,28 +1,59 @@
 /**
- * Registration page
+ * Registration page - requires invitation token
  */
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { register } from '../api/auth';
+import { register, validateInviteToken } from '../api/auth';
 import { AuthLayout } from '../components/AuthLayout';
 
 export const Register: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState('');
+  const [projectName, setProjectName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [validatingToken, setValidatingToken] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Pre-fill email from URL parameter if present (from invitation)
+  // Validate token and pre-fill email on mount
   useEffect(() => {
-    const emailParam = searchParams.get('email');
-    if (emailParam) {
-      setEmail(emailParam);
+    const inviteToken = searchParams.get('token');
+
+    if (!inviteToken) {
+      setError('No invitation token provided. Registration requires an invitation.');
+      setValidatingToken(false);
+      return;
     }
+
+    setToken(inviteToken);
+
+    // Validate the token
+    const validateToken = async () => {
+      try {
+        const data = await validateInviteToken(inviteToken);
+        setEmail(data.email);
+        setRole(data.role);
+        setProjectName(data.project_name || 'AddaxAI Connect');
+        setValidatingToken(false);
+      } catch (err: any) {
+        setValidatingToken(false);
+        if (err.response?.status === 404) {
+          setError('Invalid invitation token. Please check your invitation email.');
+        } else if (err.response?.status === 410) {
+          setError(err.response?.data?.detail || 'This invitation has expired or been used.');
+        } else {
+          setError('Failed to validate invitation. Please try again or contact support.');
+        }
+      }
+    };
+
+    validateToken();
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,11 +75,15 @@ export const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      await register(email, password);
+      await register(email, password, token);
       setSuccess(true);
     } catch (err: any) {
-      if (err.response?.data?.detail?.includes('allowlist')) {
-        setError('Email not authorized. Please contact an administrator for access.');
+      if (err.response?.data?.detail?.includes('Invalid invitation token')) {
+        setError('Invalid invitation token. Please request a new invitation.');
+      } else if (err.response?.data?.detail?.includes('already been used')) {
+        setError('This invitation has already been used.');
+      } else if (err.response?.data?.detail?.includes('expired')) {
+        setError('This invitation has expired. Please request a new invitation.');
       } else if (err.response?.data?.detail === 'REGISTER_USER_ALREADY_EXISTS') {
         setError('An account with this email already exists');
       } else {
@@ -58,6 +93,39 @@ export const Register: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Show loading state while validating token
+  if (validatingToken) {
+    return (
+      <AuthLayout title="Validating invitation" subtitle="Please wait...">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Validating your invitation...</p>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  // Show error state if token validation failed
+  if (error && !email) {
+    return (
+      <AuthLayout title="Invalid invitation" subtitle={error}>
+        <div className="text-center py-8">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+            <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <Link
+            to="/login"
+            className="text-blue-600 hover:text-blue-500 font-medium"
+          >
+            Return to login
+          </Link>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   if (success) {
     return (
@@ -70,19 +138,15 @@ export const Register: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Account created!</h2>
               <p className="text-gray-600 mb-6">
-                We've sent a verification link to <strong>{email}</strong>
-              </p>
-              <p className="text-sm text-gray-500 mb-6">
-                Please check your email and click the verification link to activate your account.
-                You must verify your email before you can log in.
+                Your account has been successfully created. You can now log in with your credentials.
               </p>
               <Link
                 to="/login"
-                className="text-blue-600 hover:text-blue-500 font-medium"
+                className="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                Return to login
+                Go to login
               </Link>
             </div>
           </div>
@@ -92,13 +156,20 @@ export const Register: React.FC = () => {
   }
 
   return (
-    <AuthLayout title="Create your account" subtitle="Join AddaxAI Connect">
+    <AuthLayout title="Create your account" subtitle={`Join ${projectName}`}>
       <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
                 {error}
               </div>
             )}
+
+            <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded">
+              <p className="text-sm text-blue-800">
+                You've been invited as <strong>{role.replace('-', ' ')}</strong>
+                {projectName !== 'AddaxAI Connect' && <> for <strong>{projectName}</strong></>}
+              </p>
+            </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -112,10 +183,13 @@ export const Register: React.FC = () => {
                   autoComplete="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  disabled
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 text-gray-700 cursor-not-allowed"
                 />
               </div>
+              <p className="mt-1 text-xs text-gray-500">
+                This email is from your invitation and cannot be changed
+              </p>
             </div>
 
             <div>

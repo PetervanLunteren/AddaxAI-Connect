@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification
 from shared.database import get_async_session
-from auth.users import current_active_user
+from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids
 
 
@@ -56,7 +56,7 @@ class LastUpdateResponse(BaseModel):
 async def get_overview(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get dashboard overview statistics (filtered by accessible projects)
@@ -123,7 +123,7 @@ async def get_overview(
 async def get_images_timeline(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get images uploaded over time (last 30 days, filtered by accessible projects)
@@ -178,7 +178,7 @@ async def get_images_timeline(
 async def get_species_distribution(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get species distribution (top 10, filtered by accessible projects)
@@ -225,7 +225,7 @@ async def get_species_distribution(
 async def get_camera_activity(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get camera activity status summary (filtered by accessible projects)
@@ -289,7 +289,7 @@ async def get_camera_activity(
 async def get_last_update(
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get timestamp of most recently classified image (filtered by accessible projects)

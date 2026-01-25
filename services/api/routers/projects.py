@@ -2,17 +2,19 @@
 Project endpoints for managing study areas and species configurations.
 """
 from typing import List, Optional
+from datetime import datetime, timedelta
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation, EmailAllowlist
+from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from auth.users import current_active_user
+from auth.users import current_verified_user
 from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
 from utils.image_processing import delete_project_images
 from mailer.sender import get_email_sender
@@ -118,7 +120,7 @@ class UpdateProjectUserRoleRequest(BaseModel):
 )
 async def list_projects(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     List all projects
@@ -153,7 +155,7 @@ async def list_projects(
 async def get_project(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Get single project by ID
@@ -242,7 +244,7 @@ async def update_project(
     project_id: int,
     project_data: ProjectUpdate,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Update an existing project (project admin or server admin)
@@ -477,7 +479,7 @@ async def delete_project(
 async def list_project_users(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     List all users in a project (project admin or server admin)
@@ -563,7 +565,7 @@ async def add_user_to_project(
     project_id: int,
     request: AddUserToProjectRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Add a user to a project with a specific role (project admin or server admin)
@@ -660,7 +662,7 @@ async def update_project_user_role(
     user_id: int,
     request: UpdateProjectUserRoleRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Update a user's role in a project (project admin or server admin)
@@ -754,7 +756,7 @@ async def remove_user_from_project(
     project_id: int,
     user_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Remove a user from a project (project admin or server admin)
@@ -869,7 +871,7 @@ async def invite_project_user(
     project_id: int,
     data: InviteProjectUserRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Invite a new user to a project (project admin or server admin)
@@ -949,37 +951,34 @@ async def invite_project_user(
             detail=f"User {data.email} already has a pending invitation for another project. Users can only have one pending invitation at a time."
         )
 
-    # Add to allowlist if not already there
-    existing_allowlist = await db.execute(
-        select(EmailAllowlist).where(EmailAllowlist.email == data.email)
-    )
-    allowlist_entry = existing_allowlist.scalar_one_or_none()
+    # Generate secure token for invitation link
+    invite_token = secrets.token_urlsafe(32)
 
-    if not allowlist_entry:
-        allowlist_entry = EmailAllowlist(
-            email=data.email,
-            is_superuser=False,  # Project invites never create server admins
-            added_by_user_id=current_user.id
-        )
-        db.add(allowlist_entry)
+    # Set expiry to 7 days from now
+    expires_at = datetime.utcnow() + timedelta(days=7)
 
-    # Create invitation with role and project_id
+    # Create invitation with role, project_id, token, and expiry
     invitation = UserInvitation(
         email=data.email,
         invited_by_user_id=current_user.id,
         project_id=project_id,
-        role=data.role
+        role=data.role,
+        token=invite_token,
+        expires_at=expires_at,
+        used=False
     )
     db.add(invitation)
 
     await db.commit()
 
     logger.info(
-        "User invited to project",
+        "User invited to project with secure token",
         email=data.email,
         project_id=project_id,
         role=data.role,
-        invited_by=current_user.id
+        invited_by=current_user.id,
+        expires_at=expires_at.isoformat(),
+        token_length=len(invite_token)
     )
 
     return ProjectInvitationResponse(
@@ -1000,7 +999,7 @@ async def add_project_user_by_email(
     project_id: int,
     data: AddProjectUserByEmailRequest,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_active_user),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Unified endpoint to add user by email (project admin or server admin)
@@ -1152,36 +1151,33 @@ async def add_project_user_by_email(
                 detail=f"User {data.email} already has a pending invitation for another project"
             )
 
-        # Add to allowlist if not already there
-        existing_allowlist = await db.execute(
-            select(EmailAllowlist).where(EmailAllowlist.email == data.email)
-        )
-        allowlist_entry = existing_allowlist.scalar_one_or_none()
+        # Generate secure token for invitation link
+        invite_token = secrets.token_urlsafe(32)
 
-        if not allowlist_entry:
-            allowlist_entry = EmailAllowlist(
-                email=data.email,
-                is_superuser=False,
-                added_by_user_id=current_user.id
-            )
-            db.add(allowlist_entry)
+        # Set expiry to 7 days from now
+        expires_at = datetime.utcnow() + timedelta(days=7)
 
-        # Create invitation
+        # Create invitation with token and expiry
         invitation = UserInvitation(
             email=data.email,
             invited_by_user_id=current_user.id,
             project_id=project_id,
-            role=data.role
+            role=data.role,
+            token=invite_token,
+            expires_at=expires_at,
+            used=False
         )
         db.add(invitation)
         await db.commit()
 
         logger.info(
-            "User invited to project",
+            "User invited to project with secure token",
             email=data.email,
             project_id=project_id,
             role=data.role,
-            invited_by=current_user.id
+            invited_by=current_user.id,
+            expires_at=expires_at.isoformat(),
+            token_length=len(invite_token)
         )
 
         # Send invitation email if requested
@@ -1191,6 +1187,7 @@ async def add_project_user_by_email(
                 email_sender = get_email_sender()
                 await email_sender.send_invitation_email(
                     email=data.email,
+                    token=invite_token,
                     project_name=project.name,
                     role=data.role,
                     inviter_name=current_user.email,  # Using email as name for now

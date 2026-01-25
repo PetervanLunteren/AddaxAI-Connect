@@ -218,16 +218,18 @@ Realtime camera trap image processing platform
     async def send_invitation_email(
         self,
         email: str,
+        token: str,
         project_name: str,
         role: str,
         inviter_name: str,
         inviter_email: str,
     ) -> None:
         """
-        Send project invitation email.
+        Send project invitation email with secure token.
 
         Args:
             email: Invited user's email address
+            token: Secure invitation token (URL-safe)
             project_name: Name of the project they're invited to
             role: Role they're assigned (e.g., 'project-admin', 'project-viewer')
             inviter_name: Name of the person who sent the invitation
@@ -241,13 +243,14 @@ Realtime camera trap image processing platform
             email=email,
             project_name=project_name,
             role=role,
+            token_length=len(token)
         )
 
         # Format role for display
         role_display = role.replace('-', ' ').title()
 
-        # Registration link with pre-filled email
-        registration_url = f"https://{self.settings.domain_name}/register?email={email}"
+        # Registration link with secure token (proves email ownership)
+        registration_url = f"https://{self.settings.domain_name}/register?token={token}"
 
         subject = f"You've been invited to join {project_name} on AddaxAI Connect"
         body = f"""
@@ -257,9 +260,11 @@ Hello!
 
 Your assigned role: {role_display}
 
-To accept this invitation and get started, please register your account:
+To accept this invitation and get started, click the link below to register your account:
 
 {registration_url}
+
+This invitation link is unique to you and will expire in 7 days.
 
 Once registered, you'll have immediate access to the project and can start working with camera trap images.
 

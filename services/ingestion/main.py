@@ -38,6 +38,11 @@ from willfine_2024_converter import (
     convert_willfine_2024_daily_report
 )
 
+# Enable PIL to load truncated images from camera traps
+# Camera traps often send incomplete JPEGs over cellular connections
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 logger = get_logger("ingestion")
 settings = get_settings()
 
@@ -196,7 +201,18 @@ def process_image(filepath: str) -> None:
         storage_path = upload_image_to_minio(filepath, imei, image_uuid)
 
         # Step 10: Generate and upload thumbnail
-        thumbnail_path = generate_and_upload_thumbnail(filepath, imei, image_uuid)
+        # Note: thumbnail generation may fail for severely corrupted images, but we
+        # continue processing since the full image is already uploaded to MinIO
+        try:
+            thumbnail_path = generate_and_upload_thumbnail(filepath, imei, image_uuid)
+        except Exception as e:
+            logger.warning(
+                "Failed to generate thumbnail, continuing without it",
+                file_name=filename,
+                error=str(e),
+                exc_info=True
+            )
+            thumbnail_path = None
 
         # Step 11: Create database record
         create_image_record(
