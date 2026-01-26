@@ -62,22 +62,32 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         """
         Called after user registration.
 
-        Triggers verification email via on_after_request_verify callback.
+        Triggers verification email via on_after_request_verify callback,
+        unless user is already verified (e.g., via invitation token).
 
         Args:
             user: Newly registered user
             request: Request object
         """
-        # Request verification - this triggers on_after_request_verify callback
-        # which sends the email with the actual token
-        await self.request_verify(user, request)
+        # Skip verification email if user is already verified (invitation token registration)
+        if not user.is_verified:
+            # Request verification - this triggers on_after_request_verify callback
+            # which sends the email with the actual token
+            await self.request_verify(user, request)
 
-        logger.info(
-            "User registered, verification email requested",
-            email=user.email,
-            user_id=user.id,
-            event="user_registration",
-        )
+            logger.info(
+                "User registered, verification email requested",
+                email=user.email,
+                user_id=user.id,
+                event="user_registration",
+            )
+        else:
+            logger.info(
+                "User registered with invitation token (already verified)",
+                email=user.email,
+                user_id=user.id,
+                event="user_registration",
+            )
 
     async def on_after_forgot_password(
         self,
