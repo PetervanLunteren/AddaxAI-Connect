@@ -25,7 +25,6 @@ import {
   TableRow,
 } from '../../components/ui/Table';
 import { Label } from '../../components/ui/Label';
-import { Checkbox } from '../../components/ui/Checkbox';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 
@@ -34,7 +33,6 @@ export const UserAssignmentPage: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addEmail, setAddEmail] = useState<string>('');
-  const [sendEmail, setSendEmail] = useState<boolean>(true);
 
   // Fetch all users to filter server admins
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -47,13 +45,12 @@ export const UserAssignmentPage: React.FC = () => {
 
   // Add server admin mutation (unified invite/promote)
   const addServerAdminMutation = useMutation({
-    mutationFn: (data: { email: string; send_email: boolean }) =>
+    mutationFn: (data: { email: string }) =>
       adminApi.addServerAdmin(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setShowAddModal(false);
       setAddEmail('');
-      setSendEmail(true);
     },
     onError: (error: any) => {
       alert(`Failed to add server admin: ${error.response?.data?.detail || 'Unknown error'}`);
@@ -63,8 +60,7 @@ export const UserAssignmentPage: React.FC = () => {
   const handleAddServerAdmin = () => {
     if (addEmail) {
       addServerAdminMutation.mutate({
-        email: addEmail,
-        send_email: sendEmail
+        email: addEmail
       });
     }
   };
@@ -160,17 +156,6 @@ export const UserAssignmentPage: React.FC = () => {
                 onChange={(e) => setAddEmail(e.target.value)}
               />
             </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="send-email"
-                checked={sendEmail}
-                onCheckedChange={(checked) => setSendEmail(checked as boolean)}
-              />
-              <Label htmlFor="send-email" className="text-sm cursor-pointer">
-                Send notification email
-              </Label>
-            </div>
           </div>
 
           <DialogFooter>
@@ -179,7 +164,6 @@ export const UserAssignmentPage: React.FC = () => {
               onClick={() => {
                 setShowAddModal(false);
                 setAddEmail('');
-                setSendEmail(true);
               }}
               disabled={addServerAdminMutation.isPending}
             >
