@@ -76,7 +76,7 @@ def get_auth_router() -> APIRouter:
 
     # Custom invitation token validation endpoint
     @router.get(
-        "/api/auth/invite/validate",
+        "/auth/invite/validate",
         response_model=InviteTokenValidationResponse,
         tags=["auth"],
     )
