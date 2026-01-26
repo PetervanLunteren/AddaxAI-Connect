@@ -245,9 +245,13 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         # Auto-verify email (invitation token proves email ownership)
         user_dict['is_verified'] = True
 
-        # Create new instance with updated fields (keep token - required by UserCreate schema)
+        # Remove token before creating User (not part of User model)
+        user_dict.pop('token', None)
+
+        # Create new instance with updated fields
         from auth.schemas import UserCreate
-        user_create_verified = UserCreate(**user_dict)
+        # Use model_construct to bypass validation (token field not needed here)
+        user_create_verified = UserCreate.model_construct(**user_dict)
 
         # Call parent create method with safe=False to allow is_superuser and is_verified
         created_user = await super().create(user_create_verified, safe=False, request=request)
