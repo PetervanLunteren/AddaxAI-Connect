@@ -203,27 +203,23 @@ export interface InvitationResponse {
 
 export interface AddServerAdminRequest {
   email: string;
-  send_email?: boolean;  // Whether to send notification email
 }
 
 export interface AddServerAdminResponse {
   email: string;
   was_promoted: boolean;  // True if existing user promoted, False if new invitation created
-  email_sent: boolean;  // Whether notification email was sent
   message: string;
 }
 
 export interface AddProjectUserByEmailRequest {
   email: string;
   role: string;  // 'project-admin' or 'project-viewer'
-  send_email?: boolean;  // Whether to send invitation email
 }
 
 export interface AddProjectUserByEmailResponse {
   email: string;
   role: string;
   was_invited: boolean;  // true if invitation created, false if existing user added
-  email_sent: boolean;  // Whether invitation email was sent
   message: string;
 }
 

@@ -30,7 +30,6 @@ import {
 } from '../components/ui/Dialog';
 import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
-import { Checkbox } from '../components/ui/Checkbox';
 import type { ProjectUserInfo, UserWithMemberships } from '../api/types';
 
 export const ProjectUsersPage: React.FC = () => {
@@ -45,7 +44,6 @@ export const ProjectUsersPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<string>('project-viewer');
   const [addUserEmail, setAddUserEmail] = useState<string>('');
   const [addUserRole, setAddUserRole] = useState<string>('project-viewer');
-  const [sendEmail, setSendEmail] = useState<boolean>(true);
 
   // Redirect if user doesn't have admin access
   if (!canAdminCurrentProject) {
@@ -61,14 +59,13 @@ export const ProjectUsersPage: React.FC = () => {
 
   // Unified add user mutation (handles both existing users and new invitations)
   const addUserByEmailMutation = useMutation({
-    mutationFn: ({ email, role, send_email }: { email: string; role: string; send_email: boolean }) =>
-      projectsApi.addUserByEmail(parseInt(projectId!), { email, role, send_email }),
+    mutationFn: ({ email, role }: { email: string; role: string }) =>
+      projectsApi.addUserByEmail(parseInt(projectId!), { email, role }),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
       setShowAddUserModal(false);
       setAddUserEmail('');
       setAddUserRole('project-viewer');
-      setSendEmail(true);
     },
     onError: (error: any) => {
       alert(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
@@ -107,8 +104,7 @@ export const ProjectUsersPage: React.FC = () => {
     if (addUserEmail && addUserRole) {
       addUserByEmailMutation.mutate({
         email: addUserEmail,
-        role: addUserRole,
-        send_email: sendEmail
+        role: addUserRole
       });
     }
   };
@@ -287,17 +283,6 @@ export const ProjectUsersPage: React.FC = () => {
                 <SelectItem value="project-admin">project admin</SelectItem>
               </Select>
             </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="send-email"
-                checked={sendEmail}
-                onCheckedChange={(checked) => setSendEmail(checked as boolean)}
-              />
-              <Label htmlFor="send-email" className="text-sm cursor-pointer">
-                Send invitation email
-              </Label>
-            </div>
           </div>
 
           <DialogFooter>
@@ -307,7 +292,6 @@ export const ProjectUsersPage: React.FC = () => {
                 setShowAddUserModal(false);
                 setAddUserEmail('');
                 setAddUserRole('project-viewer');
-                setSendEmail(true);
               }}
               disabled={addUserByEmailMutation.isPending}
             >
