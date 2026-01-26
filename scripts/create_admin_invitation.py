@@ -32,17 +32,21 @@ def send_admin_invitation_email(
     to_email: str,
     registration_url: str,
     domain_name: str,
-) -> bool:
+) -> None:
     """
     Send admin invitation email via SMTP (synchronous).
+
+    Email configuration is required for production deployments.
+    This ensures the initial admin receives their invitation securely.
 
     Args:
         to_email: Admin email address
         registration_url: Registration URL with token
         domain_name: Domain name
 
-    Returns:
-        True if email sent successfully, False otherwise
+    Raises:
+        ValueError: If email configuration is missing
+        Exception: If email sending fails
     """
     # Get email configuration from environment
     mail_server = os.getenv("MAIL_SERVER")
@@ -51,21 +55,28 @@ def send_admin_invitation_email(
     mail_password = os.getenv("MAIL_PASSWORD")
     mail_from = os.getenv("MAIL_FROM")
 
-    # Check if email is configured
+    # Email configuration is required
     if not all([mail_server, mail_username, mail_password, mail_from]):
-        print("ℹ️  Email not configured - skipping email send")
-        print("   (Set MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM to enable)")
-        return False
+        raise ValueError(
+            "❌ Email configuration incomplete. Required environment variables:\n"
+            "   - MAIL_SERVER\n"
+            "   - MAIL_PORT (defaults to 587)\n"
+            "   - MAIL_USERNAME\n"
+            "   - MAIL_PASSWORD\n"
+            "   - MAIL_FROM\n"
+            "\n"
+            "Email is required to securely deliver the admin invitation token.\n"
+            "Ansible should have validated SMTP connectivity - check your mail settings."
+        )
 
-    try:
-        # Create email message
-        msg = EmailMessage()
-        msg['Subject'] = f"Server Admin Invitation - AddaxAI Connect"
-        msg['From'] = mail_from
-        msg['To'] = to_email
+    # Create email message
+    msg = EmailMessage()
+    msg['Subject'] = f"Server Admin Invitation - AddaxAI Connect"
+    msg['From'] = mail_from
+    msg['To'] = to_email
 
-        # Email body
-        body = f"""
+    # Email body
+    body = f"""
 Hello!
 
 You've been invited to become a Server Administrator on AddaxAI Connect.
@@ -87,21 +98,15 @@ Once registered, you can login at: https://{domain_name}/login
 AddaxAI Connect
 Camera Trap Image Processing Platform
 """
-        msg.set_content(body)
+    msg.set_content(body)
 
-        # Send email via SMTP with STARTTLS
-        with smtplib.SMTP(mail_server, mail_port, timeout=10) as server:
-            server.starttls()
-            server.login(mail_username, mail_password)
-            server.send_message(msg)
+    # Send email via SMTP with STARTTLS (raises on failure)
+    with smtplib.SMTP(mail_server, mail_port, timeout=10) as server:
+        server.starttls()
+        server.login(mail_username, mail_password)
+        server.send_message(msg)
 
-        print(f"✅ Invitation email sent to {to_email}")
-        return True
-
-    except Exception as e:
-        print(f"⚠️  Failed to send email to {to_email}: {e}")
-        print("   The registration URL is still valid - use the console output above")
-        return False
+    print(f"✅ Invitation email sent to {to_email}")
 
 
 def create_admin_invitation(email: str, database_url: str, domain_name: str) -> str:
