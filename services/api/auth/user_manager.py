@@ -7,7 +7,7 @@ Implements:
 - Password reset
 """
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, IntegerIDMixin, exceptions
 from fastapi_users.db import SQLAlchemyUserDatabase
@@ -218,7 +218,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             )
 
         # Check if token has expired
-        if invitation.expires_at and invitation.expires_at < datetime.utcnow():
+        if invitation.expires_at and invitation.expires_at < datetime.now(timezone.utc):
             logger.warning(
                 "Invitation token expired",
                 email=invitation.email,
