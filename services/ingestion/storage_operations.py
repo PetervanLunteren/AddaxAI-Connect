@@ -2,7 +2,7 @@
 MinIO storage operations
 """
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from PIL import Image
 from io import BytesIO
 
@@ -31,7 +31,7 @@ def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str) -> str
         "861943070068027/2025/12/abc-123_E1000159.JPG"
     """
     filename = os.path.basename(filepath)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Organize by camera ID, year, month, with UUID prefix to prevent collisions
     object_path = f"{camera_id}/{now.year}/{now.month:02d}/{image_uuid}_{filename}"
@@ -74,7 +74,7 @@ def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str
         "861943070068027/2025/12/abc-123_E1000159.JPG"
     """
     filename = os.path.basename(filepath)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Organize by camera ID, year, month, with UUID prefix (same structure as raw images)
     object_path = f"{camera_id}/{now.year}/{now.month:02d}/{image_uuid}_{filename}"

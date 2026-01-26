@@ -2,7 +2,7 @@
 Camera endpoints for viewing camera trap devices and their health status.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
@@ -114,7 +114,7 @@ def parse_camera_status(camera: Camera) -> str:
 
     try:
         last_report = datetime.fromisoformat(last_report_str)
-        days_since_report = (datetime.utcnow() - last_report).days
+        days_since_report = (datetime.now(timezone.utc) - last_report).days
 
         if days_since_report <= 7:
             return 'active'

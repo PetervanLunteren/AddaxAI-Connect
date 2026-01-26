@@ -2,7 +2,7 @@
 Statistics endpoints for dashboard metrics and charts.
 """
 from typing import List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc
@@ -95,7 +95,7 @@ async def get_overview(
     total_species = total_species_result.scalar_one()
 
     # Images today (filtered by project)
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     images_today_result = await db.execute(
         select(func.count(Image.id))
         .join(Camera)
@@ -137,7 +137,7 @@ async def get_images_timeline(
         List of data points with date and count
     """
     # Calculate date range
-    end_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     start_date = end_date - timedelta(days=30)
 
     # Query images grouped by date (filtered by project via camera)
@@ -253,7 +253,7 @@ async def get_camera_activity(
     inactive_count = 0
     never_reported_count = 0
 
-    cutoff_date = datetime.utcnow() - timedelta(days=7)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
 
     for camera in cameras:
         # Check if has health report

@@ -4,7 +4,7 @@ Utility functions for ingestion service
 import os
 import json
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -60,7 +60,7 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
     # Create error JSON with metadata
     error_data = {
         "filename": filename,
-        "rejected_at": datetime.utcnow().isoformat() + "Z",
+        "rejected_at": datetime.now(timezone.utc).isoformat() + "Z",
         "reason": reason,
         "details": details or "",
         "file_size_bytes": file_size,
