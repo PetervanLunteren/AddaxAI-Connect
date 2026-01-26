@@ -2,7 +2,7 @@
 Database operations for notifications service
 """
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from shared.logger import get_logger
 from shared.models import NotificationLog, Project
@@ -79,7 +79,7 @@ def update_notification_status(
         log.status = status
 
         if status == 'sent':
-            log.sent_at = datetime.utcnow()
+            log.sent_at = datetime.now(timezone.utc)
         elif status == 'failed':
             log.error_message = error_message
 

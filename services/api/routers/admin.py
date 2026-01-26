@@ -4,7 +4,7 @@ Admin endpoints for managing email allowlist and Telegram configuration.
 Only accessible by superusers.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import httpx
 import base64
@@ -465,7 +465,7 @@ async def invite_user(
     invite_token = secrets.token_urlsafe(32)
 
     # Set expiry to 7 days from now
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
     # Create invitation with role, project_id, token, and expiry
     invitation = UserInvitation(
@@ -641,7 +641,7 @@ async def add_server_admin(
         invite_token = secrets.token_urlsafe(32)
 
         # Set expiry to 7 days from now
-        expires_at = datetime.utcnow() + timedelta(days=7)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
         # Create invitation with token and expiry
         invitation = UserInvitation(
@@ -827,14 +827,14 @@ async def configure_telegram(
         config.bot_username = data.bot_username
         config.is_configured = True
         config.health_status = "healthy"
-        config.last_health_check = datetime.utcnow()
+        config.last_health_check = datetime.now(timezone.utc)
     else:
         config = TelegramConfig(
             bot_token=data.bot_token,
             bot_username=data.bot_username,
             is_configured=True,
             health_status="healthy",
-            last_health_check=datetime.utcnow()
+            last_health_check=datetime.now(timezone.utc)
         )
         db.add(config)
 
@@ -914,7 +914,7 @@ async def check_telegram_health(
             response.raise_for_status()
 
             # Update health status
-            config.last_health_check = datetime.utcnow()
+            config.last_health_check = datetime.now(timezone.utc)
             config.health_status = "healthy"
             await db.commit()
 
@@ -927,7 +927,7 @@ async def check_telegram_health(
 
     except Exception as e:
         config.health_status = "error"
-        config.last_health_check = datetime.utcnow()
+        config.last_health_check = datetime.now(timezone.utc)
         await db.commit()
 
         raise HTTPException(

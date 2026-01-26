@@ -2,7 +2,7 @@
 Project endpoints for managing study areas and species configurations.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -955,7 +955,7 @@ async def invite_project_user(
     invite_token = secrets.token_urlsafe(32)
 
     # Set expiry to 7 days from now
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
     # Create invitation with role, project_id, token, and expiry
     invitation = UserInvitation(
@@ -1155,7 +1155,7 @@ async def add_project_user_by_email(
         invite_token = secrets.token_urlsafe(32)
 
         # Set expiry to 7 days from now
-        expires_at = datetime.utcnow() + timedelta(days=7)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
         # Create invitation with token and expiry
         invitation = UserInvitation(

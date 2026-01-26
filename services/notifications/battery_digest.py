@@ -6,7 +6,7 @@ Each user receives one message per project with count of cameras below threshold
 Supports Telegram delivery.
 """
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select, and_, func, or_
 from sqlalchemy.orm import Session
 
@@ -125,7 +125,7 @@ def send_daily_battery_digest() -> None:
                     'project_name': project.name,
                     'camera_count': low_battery_count,
                     'threshold': battery_threshold,
-                    'digest_date': datetime.utcnow().isoformat()
+                    'digest_date': datetime.now(timezone.utc).isoformat()
                 }
 
                 # Send via Telegram

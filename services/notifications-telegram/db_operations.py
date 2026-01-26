@@ -2,7 +2,7 @@
 Database operations for Signal worker
 """
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from shared.logger import get_logger
 from shared.models import NotificationLog
@@ -34,7 +34,7 @@ def update_notification_status(
         log.status = status
 
         if status == 'sent':
-            log.sent_at = datetime.utcnow()
+            log.sent_at = datetime.now(timezone.utc)
         elif status == 'failed':
             log.error_message = error_message
 

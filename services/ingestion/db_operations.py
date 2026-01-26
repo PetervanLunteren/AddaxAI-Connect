@@ -3,7 +3,7 @@ Database operations for ingestion service
 """
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 
 from sqlalchemy import and_
@@ -148,7 +148,7 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
             'total_images': health_data.get('total_images'),
             'sent_images': health_data.get('sent_images'),
         }
-        camera.config['last_report_timestamp'] = datetime.utcnow().isoformat()
+        camera.config['last_report_timestamp'] = datetime.now(timezone.utc).isoformat()
 
         # Update GPS location if present in daily report
         if health_data.get('gps_location'):
