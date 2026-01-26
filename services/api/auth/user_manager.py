@@ -245,10 +245,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
         # Auto-verify email (invitation token proves email ownership)
         user_dict['is_verified'] = True
 
-        # Remove token from user dict (not part of User model)
-        user_dict.pop('token', None)
-
-        # Create new instance with updated fields
+        # Create new instance with updated fields (keep token - required by UserCreate schema)
         from auth.schemas import UserCreate
         user_create_verified = UserCreate(**user_dict)
 
