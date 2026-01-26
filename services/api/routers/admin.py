@@ -307,9 +307,42 @@ async def update_user_project_role(
 
     membership, project = membership_data
 
+    # Get user for email notification
+    user_result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = user_result.scalar_one_or_none()
+
     # Update role
+    old_role = membership.role
     membership.role = data.role
     await db.commit()
+
+    # Send role change email if role actually changed and user exists
+    if user and old_role != data.role:
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_project_role_change_email(
+                email=user.email,
+                project_name=project.name,
+                old_role=old_role,
+                new_role=data.role,
+                changer_email=current_user.email,
+            )
+            logger.info(
+                "Role change email sent successfully",
+                user_email=user.email,
+                project_id=project_id,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send role change email",
+                user_email=user.email if user else f"user_id={user_id}",
+                project_id=project_id,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the role update if email fails
 
     return ProjectMembershipInfo(
         project_id=project.id,
@@ -537,14 +570,12 @@ async def invite_user(
 class AddServerAdminRequest(BaseModel):
     """Request to add a server admin (unified invite/promote)"""
     email: EmailStr
-    send_email: bool = False  # Whether to send notification email
 
 
 class AddServerAdminResponse(BaseModel):
     """Response for adding server admin"""
     email: str
     was_promoted: bool  # True if existing user promoted, False if new invitation created
-    email_sent: bool  # Whether notification email was sent
     message: str
 
 
@@ -579,8 +610,6 @@ async def add_server_admin(
     existing_user_result = await db.execute(select(User).where(User.email == data.email))
     existing_user = existing_user_result.scalar_one_or_none()
 
-    email_sent = False
-
     if existing_user:
         # User exists - promote to server admin
         if existing_user.is_superuser:
@@ -593,37 +622,30 @@ async def add_server_admin(
         existing_user.is_superuser = True
         await db.commit()
 
-        # Send promotion email if requested
-        if data.send_email:
-            try:
-                email_sender = get_email_sender()
-                await email_sender.send_server_admin_promotion_email(
-                    email=data.email,
-                    promoter_email=current_user.email,
-                )
-                email_sent = True
-                logger.info(
-                    "Server admin promotion email sent",
-                    email=data.email,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to send server admin promotion email",
-                    email=data.email,
-                    error=str(e),
-                    exc_info=True,
-                )
-                # Don't fail the promotion if email fails
-
-        message = f"{data.email} has been promoted to server admin."
-        if email_sent:
-            message += " (notification email sent)"
+        # Send promotion email
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_server_admin_promotion_email(
+                email=data.email,
+                promoter_email=current_user.email,
+            )
+            logger.info(
+                "Server admin promotion email sent",
+                email=data.email,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send server admin promotion email",
+                email=data.email,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the promotion if email fails
 
         return AddServerAdminResponse(
             email=data.email,
             was_promoted=True,
-            email_sent=email_sent,
-            message=message
+            message=f"{data.email} has been promoted to server admin."
         )
     else:
         # User doesn't exist - create invitation
@@ -664,41 +686,31 @@ async def add_server_admin(
             token_length=len(invite_token)
         )
 
-        # Send invitation email if requested
-        if data.send_email:
-            try:
-                email_sender = get_email_sender()
-                await email_sender.send_invitation_email(
-                    email=data.email,
-                    token=invite_token,
-                    project_name="AddaxAI Connect",
-                    role='server-admin',
-                    inviter_name=current_user.email,
-                    inviter_email=current_user.email,
-                )
-                email_sent = True
-                logger.info(
-                    "Server admin invitation email sent",
-                    email=data.email,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to send server admin invitation email",
-                    email=data.email,
-                    error=str(e),
-                    exc_info=True,
-                )
-                # Don't fail the invitation if email fails
-
-        message = f"Invitation sent to {data.email}. They can now register as a server admin."
-        if email_sent:
-            message += " (invitation email sent)"
+        # Send server admin invitation email
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_server_admin_invitation_email(
+                email=data.email,
+                token=invite_token,
+                inviter_email=current_user.email,
+            )
+            logger.info(
+                "Server admin invitation email sent",
+                email=data.email,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send server admin invitation email",
+                email=data.email,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the invitation if email fails
 
         return AddServerAdminResponse(
             email=data.email,
             was_promoted=False,
-            email_sent=email_sent,
-            message=message
+            message=f"Invitation sent to {data.email}. They can now register as a server admin."
         )
 
 

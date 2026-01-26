@@ -398,6 +398,139 @@ Realtime camera trap image processing platform
             email=email,
         )
 
+    async def send_server_admin_invitation_email(
+        self,
+        email: str,
+        token: str,
+        inviter_email: str,
+    ) -> None:
+        """
+        Send server admin invitation email with secure token.
+
+        This is specifically for inviting new users as server admins,
+        distinct from project invitations. Server admins get platform-wide
+        administrative access.
+
+        Args:
+            email: Invited user's email address
+            token: Secure invitation token (URL-safe)
+            inviter_email: Email of the admin who sent the invitation
+
+        Raises:
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        logger.info(
+            "Preparing server admin invitation email",
+            email=email,
+            token_length=len(token)
+        )
+
+        # Registration link with secure token (proves email ownership)
+        registration_url = f"https://{self.settings.domain_name}/register?token={token}"
+
+        subject = "You've been invited as Server Admin on AddaxAI Connect"
+        body = f"""
+Hello!
+
+{inviter_email} has invited you to join AddaxAI Connect as a Server Administrator.
+
+As a Server Admin, you will have:
+- Full administrative access to the entire platform
+- Ability to create and manage all projects
+- User management and system configuration capabilities
+- Access to all camera trap data and analytics
+
+To accept this invitation and set up your account, click the link below:
+
+{registration_url}
+
+This invitation link is unique to you and will expire in 7 days.
+
+Once registered, you'll have immediate server admin access and can begin managing the platform.
+
+If you have any questions, feel free to reach out to {inviter_email}.
+
+---
+AddaxAI Connect
+Realtime camera trap image processing platform
+"""
+
+        await self.send_email(email, subject, body)
+
+        logger.info(
+            "Server admin invitation email sent",
+            email=email,
+        )
+
+    async def send_project_role_change_email(
+        self,
+        email: str,
+        project_name: str,
+        old_role: str,
+        new_role: str,
+        changer_email: str,
+    ) -> None:
+        """
+        Send project role change notification to user.
+
+        Notifies user when their project role has been changed by an admin.
+
+        Args:
+            email: User's email address
+            project_name: Name of the project
+            old_role: Previous role (e.g., 'project-viewer')
+            new_role: New role (e.g., 'project-admin')
+            changer_email: Email of the admin who changed the role
+
+        Raises:
+            aiosmtplib.SMTPException: If email sending fails
+        """
+        logger.info(
+            "Preparing role change email",
+            email=email,
+            project_name=project_name,
+            old_role=old_role,
+            new_role=new_role,
+        )
+
+        # Format roles for display
+        old_role_display = old_role.replace('-', ' ').title()
+        new_role_display = new_role.replace('-', ' ').title()
+
+        # Login link
+        login_url = f"https://{self.settings.domain_name}/login"
+
+        subject = f"Your role in {project_name} has been updated"
+        body = f"""
+Hello!
+
+{changer_email} has updated your role in the "{project_name}" project on AddaxAI Connect.
+
+Role change:
+- Previous role: {old_role_display}
+- New role: {new_role_display}
+
+You can access the project by logging in:
+
+{login_url}
+
+Your new permissions will be available immediately upon login.
+
+If you have any questions about this change, feel free to reach out to {changer_email}.
+
+---
+AddaxAI Connect
+Realtime camera trap image processing platform
+"""
+
+        await self.send_email(email, subject, body)
+
+        logger.info(
+            "Role change email sent",
+            email=email,
+            project_name=project_name,
+        )
+
 
 # Singleton instance
 _email_sender: Optional[EmailSender] = None

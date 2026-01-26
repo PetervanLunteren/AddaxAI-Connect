@@ -743,6 +743,32 @@ async def update_project_user_role(
         updated_by=current_user.id,
     )
 
+    # Send role change email if role actually changed
+    if old_role != request.role:
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_project_role_change_email(
+                email=user.email,
+                project_name=project.name,
+                old_role=old_role,
+                new_role=request.role,
+                changer_email=current_user.email,
+            )
+            logger.info(
+                "Role change email sent successfully",
+                user_email=user.email,
+                project_id=project_id,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send role change email",
+                user_email=user.email,
+                project_id=project_id,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the role update if email fails
+
     return {
         "message": f"User {user.email} role in project {project.name} updated from {old_role} to {request.role}",
     }
@@ -841,7 +867,6 @@ class AddProjectUserByEmailRequest(BaseModel):
     """Request to add a user to project by email (unified add/invite)"""
     email: EmailStr
     role: str  # 'project-admin' or 'project-viewer'
-    send_email: bool = False  # Whether to send invitation email
 
 
 class AddProjectUserByEmailResponse(BaseModel):
@@ -849,7 +874,6 @@ class AddProjectUserByEmailResponse(BaseModel):
     email: str
     role: str
     was_invited: bool  # True if invitation created, False if existing user added
-    email_sent: bool  # True if invitation email was sent
     message: str
 
 
@@ -1085,44 +1109,36 @@ async def add_project_user_by_email(
             added_by=current_user.id,
         )
 
-        # Send project assignment email if requested
-        email_sent = False
-        if data.send_email:
-            try:
-                email_sender = get_email_sender()
-                await email_sender.send_project_assignment_email(
-                    email=data.email,
-                    project_name=project.name,
-                    role=data.role,
-                    inviter_name=current_user.email,  # Using email as name for now
-                    inviter_email=current_user.email,
-                )
-                email_sent = True
-                logger.info(
-                    "Project assignment email sent successfully",
-                    email=data.email,
-                    project_id=project_id,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to send project assignment email",
-                    email=data.email,
-                    project_id=project_id,
-                    error=str(e),
-                    exc_info=True,
-                )
-                # Don't fail the assignment if email fails
-
-        message = f"User {data.email} added to project {project.name} as {data.role}"
-        if email_sent:
-            message += " (notification email sent)"
+        # Send project assignment email
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_project_assignment_email(
+                email=data.email,
+                project_name=project.name,
+                role=data.role,
+                inviter_name=current_user.email,  # Using email as name for now
+                inviter_email=current_user.email,
+            )
+            logger.info(
+                "Project assignment email sent successfully",
+                email=data.email,
+                project_id=project_id,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send project assignment email",
+                email=data.email,
+                project_id=project_id,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the assignment if email fails
 
         return AddProjectUserByEmailResponse(
             email=data.email,
             role=data.role,
             was_invited=False,
-            email_sent=email_sent,
-            message=message
+            message=f"User {data.email} added to project {project.name} as {data.role}"
         )
 
     else:
@@ -1180,43 +1196,35 @@ async def add_project_user_by_email(
             token_length=len(invite_token)
         )
 
-        # Send invitation email if requested
-        email_sent = False
-        if data.send_email:
-            try:
-                email_sender = get_email_sender()
-                await email_sender.send_invitation_email(
-                    email=data.email,
-                    token=invite_token,
-                    project_name=project.name,
-                    role=data.role,
-                    inviter_name=current_user.email,  # Using email as name for now
-                    inviter_email=current_user.email,
-                )
-                email_sent = True
-                logger.info(
-                    "Invitation email sent successfully",
-                    email=data.email,
-                    project_id=project_id,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to send invitation email",
-                    email=data.email,
-                    project_id=project_id,
-                    error=str(e),
-                    exc_info=True,
-                )
-                # Don't fail the invitation creation if email fails
-
-        message = f"Invitation sent to {data.email}. They can register and will be assigned as {data.role} in {project.name}"
-        if email_sent:
-            message += " (invitation email sent)"
+        # Send invitation email
+        try:
+            email_sender = get_email_sender()
+            await email_sender.send_invitation_email(
+                email=data.email,
+                token=invite_token,
+                project_name=project.name,
+                role=data.role,
+                inviter_name=current_user.email,  # Using email as name for now
+                inviter_email=current_user.email,
+            )
+            logger.info(
+                "Invitation email sent successfully",
+                email=data.email,
+                project_id=project_id,
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to send invitation email",
+                email=data.email,
+                project_id=project_id,
+                error=str(e),
+                exc_info=True,
+            )
+            # Don't fail the invitation creation if email fails
 
         return AddProjectUserByEmailResponse(
             email=data.email,
             role=data.role,
             was_invited=True,
-            email_sent=email_sent,
-            message=message
+            message=f"Invitation sent to {data.email}. They can register and will be assigned as {data.role} in {project.name}"
         )
