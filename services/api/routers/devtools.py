@@ -97,7 +97,7 @@ def _upload_via_ftps(
 
         logger.info(
             "FTPS upload successful",
-            filename=filename,
+            file_name=filename,
             host=host,
             size_bytes=len(file_content)
         )
@@ -156,7 +156,7 @@ async def upload_file_to_ftps(
 
     logger.info(
         "FTPS upload started",
-        filename=filename,
+        file_name=filename,
         user_id=current_user.id,
         user_email=current_user.email,
         ftps_host=ftps_host,
@@ -179,7 +179,7 @@ async def upload_file_to_ftps(
 
         logger.info(
             "FTPS upload completed successfully",
-            filename=filename,
+            file_name=filename,
             user_email=current_user.email,
             size_bytes=len(content)
         )
@@ -194,7 +194,7 @@ async def upload_file_to_ftps(
         error_msg = f"Cannot resolve FTPS host '{ftps_host}': {str(e)}"
         logger.error(
             "FTPS upload failed - hostname resolution error",
-            filename=filename,
+            file_name=filename,
             ftps_host=ftps_host,
             error=error_msg,
             exc_info=True
@@ -208,7 +208,7 @@ async def upload_file_to_ftps(
         error_msg = f"Connection timeout to FTPS server {ftps_host}:{ftps_port}"
         logger.error(
             "FTPS upload failed - timeout",
-            filename=filename,
+            file_name=filename,
             ftps_host=ftps_host,
             ftps_port=ftps_port,
             error=error_msg,
@@ -223,7 +223,7 @@ async def upload_file_to_ftps(
         error_msg = f"FTPS server not running or refusing connections at {ftps_host}:{ftps_port}"
         logger.error(
             "FTPS upload failed - connection refused",
-            filename=filename,
+            file_name=filename,
             ftps_host=ftps_host,
             ftps_port=ftps_port,
             error=error_msg,
@@ -245,7 +245,7 @@ async def upload_file_to_ftps(
 
         logger.error(
             "FTPS upload failed - permission error",
-            filename=filename,
+            file_name=filename,
             ftps_username=ftps_username,
             error=error_msg,
             error_code=error_code,
@@ -260,7 +260,7 @@ async def upload_file_to_ftps(
         error_msg = f"FTPS upload failed: {str(e)}"
         logger.error(
             "FTPS upload failed - unexpected error",
-            filename=filename,
+            file_name=filename,
             error=error_msg,
             exc_info=True
         )
