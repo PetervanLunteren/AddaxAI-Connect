@@ -56,6 +56,15 @@ def get_matching_users(event: Dict[str, Any]) -> List[Dict[str, Any]]:
         return []
 
     with get_sync_session() as session:
+        # Load project to get detection_threshold
+        project = session.execute(
+            select(Project).where(Project.id == project_id)
+        ).scalar_one_or_none()
+
+        if not project:
+            logger.error("Project not found", project_id=project_id)
+            return []
+
         # Base query: user is active and verified, has Telegram configured
         query = (
             select(ProjectNotificationPreference)
@@ -80,13 +89,13 @@ def get_matching_users(event: Dict[str, Any]) -> List[Dict[str, Any]]:
 
             # If notification_channels is None, fall back to legacy fields
             if channels_config is None:
-                result = _evaluate_legacy_preferences(pref, event_type, event)
+                result = _evaluate_legacy_preferences(pref, event_type, event, project)
                 if result:
                     matching_users.append(result)
                 continue
 
             # Use JSON configuration
-            result = _evaluate_json_preferences(pref, event_type, event, channels_config)
+            result = _evaluate_json_preferences(pref, event_type, event, channels_config, project)
             if result:
                 matching_users.append(result)
 
@@ -102,7 +111,8 @@ def get_matching_users(event: Dict[str, Any]) -> List[Dict[str, Any]]:
 def _evaluate_legacy_preferences(
     pref: ProjectNotificationPreference,
     event_type: str,
-    event: Dict[str, Any]
+    event: Dict[str, Any],
+    project: Project
 ) -> Dict[str, Any]:
     """
     Evaluate using legacy boolean fields (backward compatibility)
@@ -120,7 +130,8 @@ def _evaluate_json_preferences(
     pref: ProjectNotificationPreference,
     event_type: str,
     event: Dict[str, Any],
-    channels_config: Dict[str, Any]
+    channels_config: Dict[str, Any],
+    project: Project
 ) -> Dict[str, Any]:
     """
     Evaluate using notification_channels JSON configuration
@@ -159,6 +170,21 @@ def _evaluate_json_preferences(
         # Check notify_species: null = all, or list contains species
         notify_species = type_config.get('notify_species')
         if notify_species is not None and species not in notify_species:
+            return None
+
+        # Check detection confidence vs project threshold
+        confidence = event.get('confidence')
+        if confidence is None:
+            logger.warning("Missing confidence in species_detection event")
+            return None
+
+        if confidence < project.detection_threshold:
+            logger.debug(
+                "Detection below threshold, skipping notification",
+                confidence=confidence,
+                threshold=project.detection_threshold,
+                species=species
+            )
             return None
 
     elif event_type == 'battery_digest':
