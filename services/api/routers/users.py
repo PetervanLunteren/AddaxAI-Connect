@@ -24,6 +24,7 @@ class ProjectWithRole(BaseModel):
     name: str
     description: str | None = None
     role: str
+    detection_threshold: float
     image_url: str | None = None
     thumbnail_url: str | None = None
 
@@ -68,6 +69,7 @@ async def get_my_projects(
                     name=project.name,
                     description=project.description,
                     role="server-admin",
+                    detection_threshold=project.detection_threshold,
                     image_url=None,  # TODO: Add image URL building
                     thumbnail_url=None,
                 )
@@ -89,6 +91,7 @@ async def get_my_projects(
                     name=project.name,
                     description=project.description,
                     role=membership.role,
+                    detection_threshold=project.detection_threshold,
                     image_url=None,  # TODO: Add image URL building
                     thumbnail_url=None,
                 )
