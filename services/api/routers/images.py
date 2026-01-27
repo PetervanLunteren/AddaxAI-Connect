@@ -646,13 +646,13 @@ async def get_annotated_image(
     """
     from utils.annotated_image_generator import generate_annotated_image
 
-    # Fetch image record with camera and project to get detection_threshold
+    # Fetch image record with camera to get project_id
     query = (
         select(Image)
         .where(Image.uuid == uuid)
         .options(
             selectinload(Image.detections).selectinload(Detection.classifications),
-            selectinload(Image.camera).selectinload(Camera.project)
+            selectinload(Image.camera)
         )
     )
     result = await db.execute(query)
@@ -664,14 +664,26 @@ async def get_annotated_image(
             detail="Image not found",
         )
 
-    if not image.camera or not image.camera.project:
+    if not image.camera or not image.camera.project_id:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Image camera or project not found",
+            detail="Image camera or project not assigned",
+        )
+
+    # Load project to get detection threshold
+    project_result = await db.execute(
+        select(Project).where(Project.id == image.camera.project_id)
+    )
+    project = project_result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project not found",
         )
 
     # Get project detection threshold
-    detection_threshold = image.camera.project.detection_threshold
+    detection_threshold = project.detection_threshold
 
     # Download full image from MinIO
     try:
