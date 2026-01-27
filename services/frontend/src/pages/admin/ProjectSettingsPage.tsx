@@ -118,25 +118,10 @@ export const ProjectSettingsPage: React.FC = () => {
                   step="0.05"
                   value={threshold}
                   onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                  className="flex-1"
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
                   disabled={updateMutation.isPending}
                 />
-                <input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={threshold}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    if (!isNaN(val) && val >= 0 && val <= 1) {
-                      setThreshold(val);
-                    }
-                  }}
-                  className="w-20 px-2 py-1 border rounded-md text-center"
-                  disabled={updateMutation.isPending}
-                />
-                <span className="text-sm text-muted-foreground w-20 text-right">
+                <span className="text-sm font-medium w-16 text-right">
                   {(threshold * 100).toFixed(0)}%
                 </span>
               </div>
