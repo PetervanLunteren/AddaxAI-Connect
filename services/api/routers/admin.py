@@ -19,6 +19,7 @@ from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
 from auth.permissions import require_server_admin
+from auth.users import current_verified_user
 from mailer.sender import get_email_sender
 
 settings = get_settings()
@@ -1035,12 +1036,12 @@ class UpdateDetectionThresholdResponse(BaseModel):
 @router.patch(
     "/projects/{project_id}/detection-threshold",
     response_model=UpdateDetectionThresholdResponse,
-    dependencies=[Depends(require_server_admin)],
 )
 async def update_project_detection_threshold(
     project_id: int,
     request: UpdateDetectionThresholdRequest,
     db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Update detection confidence threshold for a project.
@@ -1048,17 +1049,27 @@ async def update_project_detection_threshold(
     Only detections with confidence >= threshold will be visible in UI,
     statistics, and charts. Historic data is filtered immediately.
 
+    Accessible to project admins and server admins.
+
     Args:
         project_id: Project ID to update
         request: New detection threshold (0.0 - 1.0)
         db: Database session
+        current_user: Current authenticated user
 
     Returns:
         Updated project information
 
     Raises:
-        HTTPException: If project not found or threshold invalid
+        HTTPException: If project not found, threshold invalid, or insufficient permissions
     """
+    # Check if user can admin this project (project admin or server admin)
+    from auth.permissions import can_admin_project
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}"
+        )
     # Validate threshold range
     if not (0.0 <= request.detection_threshold <= 1.0):
         raise HTTPException(

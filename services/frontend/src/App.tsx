@@ -30,6 +30,7 @@ import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { TelegramConfigPage } from './pages/server/TelegramConfigPage';
 import { HealthPage } from './pages/server/HealthPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
+import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 
 function App() {
   return (
@@ -68,6 +69,14 @@ function App() {
               <Route
                 path="/admin/users"
                 element={<Navigate to="/server/user-assignment" replace />}
+              />
+              <Route
+                path="/admin/project-settings"
+                element={
+                  <ProtectedRoute>
+                    <ProjectSettingsPage />
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/server/rejected-files"

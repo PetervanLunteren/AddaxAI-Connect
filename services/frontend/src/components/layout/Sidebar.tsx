@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Filter,
-  Users
+  Users,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   // Admin tools - visible to project admins and server admins
   const adminTools = [
+    { to: `/admin/project-settings`, icon: Settings, label: 'Project Settings' },
     { to: `/projects/${projectId}/species-management`, icon: Filter, label: 'Species Management' },
     { to: `/projects/${projectId}/camera-management`, icon: VideoIcon, label: 'Camera Management' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Project Users', requiresAdmin: true },
