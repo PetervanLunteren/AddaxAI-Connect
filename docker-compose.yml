@@ -146,6 +146,14 @@ services:
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       FTPS_UPLOAD_DIR: /uploads
+      # FTPS connection for upload testing
+      FTPS_HOST: ${FTPS_HOST:-host.docker.internal}
+      FTPS_PORT: ${FTPS_PORT:-21}
+      FTPS_USERNAME: ${FTPS_USERNAME:-camera}
+      FTPS_PASSWORD: ${FTPS_PASSWORD}
+      FTPS_USE_TLS: ${FTPS_USE_TLS:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
