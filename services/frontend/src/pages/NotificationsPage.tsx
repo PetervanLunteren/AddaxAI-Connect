@@ -510,17 +510,8 @@ export const NotificationsPage: React.FC = () => {
                   <QRCode value={deepLink} size={200} />
                 </div>
 
-                {/* Instructions */}
-                <div className="bg-muted border border-border p-4 rounded-md">
-                  <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                    <li>Scan the QR code above with your phone, or click the button below to open Telegram</li>
-                    <li>Press Start in Telegram when it opens</li>
-                    <li>Come back here and click "Check status" to confirm</li>
-                  </ol>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-3">
+                {/* Open Telegram Button */}
+                <div className="flex justify-center">
                   <a
                     href={deepLink}
                     target="_blank"
@@ -530,6 +521,19 @@ export const NotificationsPage: React.FC = () => {
                     <MessageCircle className="h-4 w-4" />
                     Open in Telegram
                   </a>
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-muted border border-border p-4 rounded-md">
+                  <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                    <li>Scan the QR code above with your phone, or click the button above to open Telegram</li>
+                    <li>Press Start in Telegram when it opens</li>
+                    <li>Come back here and click "Check status" to confirm</li>
+                  </ol>
+                </div>
+
+                {/* Check Status Button */}
+                <div className="flex justify-center">
                   <button
                     type="button"
                     onClick={async () => {
