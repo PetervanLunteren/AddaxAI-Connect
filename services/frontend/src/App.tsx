@@ -71,14 +71,6 @@ function App() {
                 element={<Navigate to="/server/user-assignment" replace />}
               />
               <Route
-                path="/admin/project-settings"
-                element={
-                  <ProtectedRoute>
-                    <ProjectSettingsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/server/rejected-files"
                 element={
                   <ProtectedRoute>
@@ -136,6 +128,7 @@ function App() {
                 <Route path="images" element={<ImagesPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="about" element={<AboutPage />} />
+                <Route path="settings" element={<ProjectSettingsPage />} />
                 <Route path="camera-management" element={<CameraManagementPage />} />
                 <Route path="species-management" element={<SpeciesManagementPage />} />
                 <Route path="users" element={<ProjectUsersPage />} />

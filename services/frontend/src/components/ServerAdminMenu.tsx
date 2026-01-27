@@ -54,12 +54,6 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
       variant: 'default' as const,
     }] : []),
     {
-      icon: Settings,
-      label: 'Project Settings',
-      onClick: () => handleNavigate('/admin/project-settings'),
-      variant: 'default' as const,
-    },
-    {
       icon: Activity,
       label: 'Service health',
       onClick: () => handleNavigate('/server/health'),
