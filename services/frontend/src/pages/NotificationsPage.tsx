@@ -513,14 +513,23 @@ export const NotificationsPage: React.FC = () => {
                 {/* Instructions */}
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                    <li>Scan the QR code above with your phone, or tap the button below</li>
+                    <li>Scan the QR code above with your phone, or click the button below to open Telegram</li>
                     <li>Press Start in Telegram when it opens</li>
-                    <li>Come back here and click "Check Status" to confirm</li>
+                    <li>Come back here and click "Check status" to confirm</li>
                   </ol>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex justify-center">
+                <div className="flex flex-col gap-3">
+                  <a
+                    href={deepLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center font-medium flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Open in Telegram
+                  </a>
                   <button
                     type="button"
                     onClick={async () => {
@@ -529,9 +538,9 @@ export const NotificationsPage: React.FC = () => {
                         setShowLinkModal(false);
                       }
                     }}
-                    className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                    className="px-6 py-2 border border-border bg-background rounded-md hover:bg-accent transition-colors"
                   >
-                    Check Status
+                    Check status
                   </button>
                 </div>
               </div>
