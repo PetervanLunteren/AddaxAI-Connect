@@ -525,10 +525,10 @@ export const NotificationsPage: React.FC = () => {
 
                 {/* Instructions */}
                 <div className="bg-muted border border-border p-4 rounded-md">
-                  <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                    <li>Scan the QR code above with your phone, or click the button above to open Telegram</li>
-                    <li>Press Start in Telegram when it opens</li>
-                    <li>Come back here and click "Check status" to confirm</li>
+                  <ol className="list-decimal list-outside ml-4 space-y-2 text-sm text-muted-foreground">
+                    <li className="pl-2">Scan the QR code above with your phone, or click the button above to open Telegram</li>
+                    <li className="pl-2">Press Start in Telegram when it opens</li>
+                    <li className="pl-2">Come back here and click "Check status" to confirm</li>
                   </ol>
                 </div>
 
