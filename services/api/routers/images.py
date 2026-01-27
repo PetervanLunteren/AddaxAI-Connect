@@ -646,11 +646,14 @@ async def get_annotated_image(
     """
     from utils.annotated_image_generator import generate_annotated_image
 
-    # Fetch image record
+    # Fetch image record with camera and project to get detection_threshold
     query = (
         select(Image)
         .where(Image.uuid == uuid)
-        .options(selectinload(Image.detections).selectinload(Detection.classifications))
+        .options(
+            selectinload(Image.detections).selectinload(Detection.classifications),
+            selectinload(Image.camera).selectinload(Camera.project)
+        )
     )
     result = await db.execute(query)
     image = result.scalar_one_or_none()
@@ -660,6 +663,15 @@ async def get_annotated_image(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Image not found",
         )
+
+    if not image.camera or not image.camera.project:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Image camera or project not found",
+        )
+
+    # Get project detection threshold
+    detection_threshold = image.camera.project.detection_threshold
 
     # Download full image from MinIO
     try:
@@ -682,8 +694,13 @@ async def get_annotated_image(
     natural_height = image.image_metadata['height']
 
     # Transform detections into format expected by annotated_image_generator
+    # Filter by project detection threshold
     detections_data = []
     for detection in image.detections:
+        # Skip detections below project threshold
+        if detection.confidence < detection_threshold:
+            continue
+
         # Bbox is stored with both pixel coordinates and normalized array
         # Use pixel coordinates directly (x_min, y_min, width, height are already in pixels)
         bbox = detection.bbox
