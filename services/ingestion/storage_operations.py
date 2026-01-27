@@ -12,7 +12,7 @@ from shared.logger import get_logger
 logger = get_logger("ingestion")
 
 
-def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str) -> str:
+def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str, filename: str = None) -> str:
     """
     Upload image to MinIO raw-images bucket.
 
@@ -22,6 +22,7 @@ def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str) -> str
         filepath: Local path to image file
         camera_id: Camera identifier (for organizing storage)
         image_uuid: UUID for the image (prevents filename collisions)
+        filename: Optional custom filename (defaults to basename of filepath)
 
     Returns:
         Storage path (object name in bucket)
@@ -30,7 +31,8 @@ def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str) -> str
         >>> upload_image_to_minio("/uploads/E1000159.JPG", "861943070068027", "abc-123")
         "861943070068027/2025/12/abc-123_E1000159.JPG"
     """
-    filename = os.path.basename(filepath)
+    if filename is None:
+        filename = os.path.basename(filepath)
     now = datetime.now(timezone.utc)
 
     # Organize by camera ID, year, month, with UUID prefix to prevent collisions
@@ -54,7 +56,7 @@ def upload_image_to_minio(filepath: str, camera_id: str, image_uuid: str) -> str
     return object_path
 
 
-def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str) -> str:
+def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str, filename: str = None) -> str:
     """
     Generate thumbnail and upload to MinIO thumbnails bucket.
 
@@ -65,6 +67,7 @@ def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str
         filepath: Local path to image file
         camera_id: Camera identifier (for organizing storage)
         image_uuid: UUID for the image (prevents filename collisions)
+        filename: Optional custom filename (defaults to basename of filepath)
 
     Returns:
         Thumbnail storage path (object name in bucket)
@@ -73,7 +76,8 @@ def generate_and_upload_thumbnail(filepath: str, camera_id: str, image_uuid: str
         >>> generate_and_upload_thumbnail("/uploads/E1000159.JPG", "861943070068027", "abc-123")
         "861943070068027/2025/12/abc-123_E1000159.JPG"
     """
-    filename = os.path.basename(filepath)
+    if filename is None:
+        filename = os.path.basename(filepath)
     now = datetime.now(timezone.utc)
 
     # Organize by camera ID, year, month, with UUID prefix (same structure as raw images)
