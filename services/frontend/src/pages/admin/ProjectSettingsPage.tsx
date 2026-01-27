@@ -26,7 +26,7 @@ export const ProjectSettingsPage: React.FC = () => {
   // Update local threshold when project loads
   React.useEffect(() => {
     if (currentProject) {
-      setThreshold(currentProject.detection_threshold);
+      setThreshold(currentProject.detection_threshold ?? 0.5);
     }
   }, [currentProject]);
 
