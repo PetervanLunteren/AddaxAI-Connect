@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Settings, Save, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { projectsApi } from '../../api/projects';
+import { getUserProjects } from '../../api/auth';
 import { adminApi } from '../../api/admin';
 import type { ProjectWithRole } from '../../api/types';
 
@@ -21,10 +21,10 @@ export const ProjectSettingsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Fetch projects user can admin
+  // Fetch projects user has access to
   const { data: projects, isLoading } = useQuery({
-    queryKey: ['projects-with-roles'],
-    queryFn: () => projectsApi.getProjectsWithRoles(),
+    queryKey: ['user-projects'],
+    queryFn: () => getUserProjects(),
   });
 
   // Filter to only show projects where user is admin (project-admin or server-admin)
@@ -48,8 +48,7 @@ export const ProjectSettingsPage: React.FC = () => {
       return await adminApi.updateDetectionThreshold(projectId, threshold);
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['projects-with-roles'] });
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       setEditingProjectId(null);
       setSuccessMessage(`Updated threshold for ${data.project_name} to ${data.detection_threshold}`);
       setError(null);
