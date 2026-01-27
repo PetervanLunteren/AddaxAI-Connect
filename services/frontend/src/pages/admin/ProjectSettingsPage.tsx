@@ -19,14 +19,17 @@ export const ProjectSettingsPage: React.FC = () => {
   const { selectedProject: currentProject, canAdminCurrentProject } = useProject();
   const queryClient = useQueryClient();
 
-  const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.5);
+  const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold!);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Update local threshold when project loads
   React.useEffect(() => {
     if (currentProject) {
-      setThreshold(currentProject.detection_threshold ?? 0.5);
+      if (currentProject.detection_threshold === undefined) {
+        throw new Error('Project detection_threshold is undefined - database schema violation');
+      }
+      setThreshold(currentProject.detection_threshold);
     }
   }, [currentProject]);
 
@@ -76,7 +79,7 @@ export const ProjectSettingsPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="h-6 w-6" />
-          Project Settings
+          Project settings
         </h1>
         <p className="text-muted-foreground mt-1">
           Managing settings for: <span className="font-medium">{currentProject.name}</span>
@@ -99,7 +102,7 @@ export const ProjectSettingsPage: React.FC = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Detection Confidence Threshold</CardTitle>
+          <CardTitle>Detection confidence threshold</CardTitle>
           <CardDescription>
             Control which detections are visible based on their confidence score
           </CardDescription>
