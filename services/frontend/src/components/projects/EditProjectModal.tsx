@@ -18,8 +18,6 @@ import {
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { projectsApi } from '../../api/projects';
-import { adminApi } from '../../api/admin';
-import { useAuth } from '../../hooks/useAuth';
 import type { Project } from '../../api/types';
 
 interface EditProjectModalProps {
@@ -30,11 +28,8 @@ interface EditProjectModalProps {
 
 export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, open, onClose }) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const isServerAdmin = user?.is_server_admin || false;
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
-  const [detectionThreshold, setDetectionThreshold] = useState(project.detection_threshold);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [removeCurrentImage, setRemoveCurrentImage] = useState(false);
@@ -44,7 +39,6 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
   useEffect(() => {
     setName(project.name);
     setDescription(project.description || '');
-    setDetectionThreshold(project.detection_threshold);
     setImageFile(null);
     setImagePreview(null);
     setRemoveCurrentImage(false);
@@ -58,11 +52,6 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
         name,
         description: description || undefined,
       });
-
-      // Update detection threshold (server admin only)
-      if (isServerAdmin && detectionThreshold !== project.detection_threshold) {
-        await adminApi.updateDetectionThreshold(project.id, detectionThreshold);
-      }
 
       // Handle image changes
       if (removeCurrentImage && project.image_path) {
@@ -123,7 +112,6 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
   const handleClose = () => {
     setName(project.name);
     setDescription(project.description || '');
-    setDetectionThreshold(project.detection_threshold);
     setImageFile(null);
     setImagePreview(null);
     setRemoveCurrentImage(false);
@@ -198,44 +186,6 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
                 className="w-full px-3 py-2 border rounded-md resize-none"
               />
             </div>
-
-            {/* Detection Threshold (Server Admin Only) */}
-            {isServerAdmin && (
-              <div>
-                <label htmlFor="detection-threshold" className="text-sm font-medium block mb-1">
-                  Detection confidence threshold
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="detection-threshold"
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={detectionThreshold}
-                    onChange={(e) => setDetectionThreshold(parseFloat(e.target.value))}
-                    className="flex-1"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={detectionThreshold}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 0 && val <= 1) {
-                        setDetectionThreshold(val);
-                      }
-                    }}
-                    className="w-20 px-2 py-1 border rounded-md text-center"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Only show detections with confidence above this value. Affects statistics, charts, and image display.
-                </p>
-              </div>
-            )}
 
             {/* Image Upload/Replace */}
             <div>

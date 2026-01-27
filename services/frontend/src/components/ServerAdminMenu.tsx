@@ -5,7 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Plus, Bell, User, MessageCircle, Activity } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, Plus, Bell, User, MessageCircle, Activity, Settings } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface ServerAdminMenuProps {
@@ -53,6 +53,12 @@ export const ServerAdminMenu: React.FC<ServerAdminMenuProps> = ({ onCreateProjec
       onClick: handleCreateProject,
       variant: 'default' as const,
     }] : []),
+    {
+      icon: Settings,
+      label: 'Project Settings',
+      onClick: () => handleNavigate('/admin/project-settings'),
+      variant: 'default' as const,
+    },
     {
       icon: Activity,
       label: 'Service health',
