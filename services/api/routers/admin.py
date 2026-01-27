@@ -1015,3 +1015,86 @@ async def send_telegram_test_message(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Could not connect to Telegram API: {str(e)}"
         )
+
+
+# ==================== Detection Threshold Management ====================
+
+class UpdateDetectionThresholdRequest(BaseModel):
+    """Request body for updating project detection threshold"""
+    detection_threshold: float
+
+
+class UpdateDetectionThresholdResponse(BaseModel):
+    """Response for detection threshold update"""
+    project_id: int
+    project_name: str
+    detection_threshold: float
+    message: str
+
+
+@router.patch(
+    "/projects/{project_id}/detection-threshold",
+    response_model=UpdateDetectionThresholdResponse,
+    dependencies=[Depends(require_server_admin)],
+)
+async def update_project_detection_threshold(
+    project_id: int,
+    request: UpdateDetectionThresholdRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Update detection confidence threshold for a project.
+
+    Only detections with confidence >= threshold will be visible in UI,
+    statistics, and charts. Historic data is filtered immediately.
+
+    Args:
+        project_id: Project ID to update
+        request: New detection threshold (0.0 - 1.0)
+        db: Database session
+
+    Returns:
+        Updated project information
+
+    Raises:
+        HTTPException: If project not found or threshold invalid
+    """
+    # Validate threshold range
+    if not (0.0 <= request.detection_threshold <= 1.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Detection threshold must be between 0.0 and 1.0"
+        )
+
+    # Fetch project
+    query = select(Project).where(Project.id == project_id)
+    result = await db.execute(query)
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found"
+        )
+
+    # Update threshold
+    old_threshold = project.detection_threshold
+    project.detection_threshold = request.detection_threshold
+
+    await db.commit()
+    await db.refresh(project)
+
+    logger.info(
+        "Detection threshold updated",
+        project_id=project_id,
+        project_name=project.name,
+        old_threshold=old_threshold,
+        new_threshold=request.detection_threshold
+    )
+
+    return UpdateDetectionThresholdResponse(
+        project_id=project.id,
+        project_name=project.name,
+        detection_threshold=project.detection_threshold,
+        message=f"Detection threshold updated from {old_threshold} to {request.detection_threshold}"
+    )
