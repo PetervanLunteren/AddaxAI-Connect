@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 import io
 
-from shared.models import User, Image, Camera, Detection, Classification
+from shared.models import User, Image, Camera, Detection, Classification, Project
 from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
@@ -120,18 +120,21 @@ async def get_species(
     Get list of unique species found in classified images.
 
     Returns list of species for use in filter dropdown (filtered by accessible projects).
+    Only includes species from detections that meet the project's confidence threshold.
     """
-    # Query for unique species from classifications, filtered by accessible projects
+    # Query for unique species from classifications, filtered by accessible projects and threshold
     query = (
         select(Classification.species)
         .distinct()
         .join(Detection)
         .join(Image)
         .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Image.status == "classified",
-                Camera.project_id.in_(accessible_project_ids)
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
             )
         )
         .order_by(Classification.species)
@@ -268,10 +271,11 @@ async def list_images(
     pages = (total + limit - 1) // limit  # Ceiling division
     offset = (page - 1) * limit
 
-    # Fetch images with joins
+    # Fetch images with joins (include Project for detection threshold)
     query = (
-        select(Image, Camera)
+        select(Image, Camera, Project)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .options(selectinload(Image.detections).selectinload(Detection.classifications))
         .order_by(desc(Image.uploaded_at))
         .offset(offset)
@@ -299,16 +303,22 @@ async def list_images(
     storage_client = StorageClient()
     items = []
 
-    for image, camera in rows:
-        # Count detections
-        detection_count = len(image.detections)
+    for image, camera, project in rows:
+        # Filter detections by project threshold
+        visible_detections = [
+            d for d in image.detections
+            if d.confidence >= project.detection_threshold
+        ]
 
-        # Find top species and max confidence
+        # Count only visible detections
+        detection_count = len(visible_detections)
+
+        # Find top species and max confidence from visible detections only
         top_species = None
         max_confidence = None
 
-        if image.detections:
-            for detection in image.detections:
+        if visible_detections:
+            for detection in visible_detections:
                 if detection.classifications:
                     for classification in detection.classifications:
                         if max_confidence is None or classification.confidence > max_confidence:
@@ -318,9 +328,9 @@ async def list_images(
         # Generate thumbnail URL using the streaming endpoint
         thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
 
-        # Build detections response
+        # Build detections response (only visible detections)
         detections_response = []
-        for detection in image.detections:
+        for detection in visible_detections:
             classifications_response = [
                 ClassificationResponse(
                     id=cls.id,
@@ -406,10 +416,11 @@ async def get_image(
     Raises:
         HTTPException: If image not found
     """
-    # Fetch image with all relations
+    # Fetch image with all relations (include Project for detection threshold)
     query = (
-        select(Image, Camera)
+        select(Image, Camera, Project)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(Image.uuid == uuid)
         .options(selectinload(Image.detections).selectinload(Detection.classifications))
     )
@@ -423,14 +434,20 @@ async def get_image(
             detail="Image not found",
         )
 
-    image, camera = row
+    image, camera, project = row
+
+    # Filter detections by project threshold
+    visible_detections = [
+        d for d in image.detections
+        if d.confidence >= project.detection_threshold
+    ]
 
     # Generate full image URL using the streaming endpoint
     full_image_url = f"/api/images/{image.uuid}/full"
 
-    # Build detections response
+    # Build detections response (only visible detections)
     detections_response = []
-    for detection in image.detections:
+    for detection in visible_detections:
         classifications_response = [
             ClassificationResponse(
                 id=cls.id,

@@ -61,6 +61,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
+    detection_threshold: Optional[float] = None
 
 
 class ProjectDeleteResponse(BaseModel):
@@ -78,6 +79,7 @@ class ProjectResponse(BaseModel):
     name: str
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
+    detection_threshold: float
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     created_at: str

@@ -197,4 +197,28 @@ export const adminApi = {
     });
     return response.data;
   },
+
+  // Detection Threshold Management
+  /**
+   * Update detection confidence threshold for a project
+   */
+  updateDetectionThreshold: async (
+    projectId: number,
+    threshold: number
+  ): Promise<{
+    project_id: number;
+    project_name: string;
+    detection_threshold: number;
+    message: string;
+  }> => {
+    const response = await apiClient.patch<{
+      project_id: number;
+      project_name: string;
+      detection_threshold: number;
+      message: string;
+    }>(`/api/admin/projects/${projectId}/detection-threshold`, {
+      detection_threshold: threshold,
+    });
+    return response.data;
+  },
 };

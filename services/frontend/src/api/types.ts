@@ -110,6 +110,7 @@ export interface Project {
   name: string;
   description: string | null;
   included_species: string[] | null;
+  detection_threshold: number;
   created_at: string;
   updated_at: string | null;
   image_url: string | null;

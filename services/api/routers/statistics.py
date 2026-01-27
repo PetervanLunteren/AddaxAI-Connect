@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification
+from shared.models import User, Image, Camera, Detection, Classification, Project
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids
@@ -84,13 +84,19 @@ async def get_overview(
     )
     total_cameras = total_cameras_result.scalar_one()
 
-    # Total unique species (filtered by project via camera → image → detection)
+    # Total unique species (filtered by project and detection threshold)
     total_species_result = await db.execute(
         select(func.count(func.distinct(Classification.species)))
         .join(Detection)
         .join(Image)
         .join(Camera)
-        .where(Camera.project_id.in_(accessible_project_ids))
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
     )
     total_species = total_species_result.scalar_one()
 
@@ -181,7 +187,7 @@ async def get_species_distribution(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Get species distribution (top 10, filtered by accessible projects)
+    Get species distribution (top 10, filtered by accessible projects and detection threshold)
 
     Args:
         accessible_project_ids: Project IDs accessible to user
@@ -189,7 +195,7 @@ async def get_species_distribution(
         current_user: Current authenticated user
 
     Returns:
-        List of species with counts (top 10 by count)
+        List of species with counts (top 10 by count, only from detections above threshold)
     """
     query = (
         select(
@@ -199,7 +205,13 @@ async def get_species_distribution(
         .join(Detection)
         .join(Image)
         .join(Camera)
-        .where(Camera.project_id.in_(accessible_project_ids))
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
         .group_by(Classification.species)
         .order_by(desc('count'))
         .limit(10)
