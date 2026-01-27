@@ -2,12 +2,15 @@
 Dev tools endpoints for development and testing.
 
 Provides tools for server admins to:
-- Upload files directly to FTPS directory
+- Upload files to FTPS server via actual FTPS protocol
 - Clear all data from database and storage
 
 Only accessible by server admins.
 """
 import os
+import io
+import socket
+import ftplib
 import shutil
 from pathlib import Path
 from typing import List
@@ -43,25 +46,92 @@ class ClearDataResponse(BaseModel):
     deleted_counts: dict
 
 
+def _upload_via_ftps(
+    file_content: bytes,
+    filename: str,
+    host: str,
+    port: int,
+    username: str,
+    password: str,
+    use_tls: bool
+) -> None:
+    """
+    Upload file via FTPS protocol.
+
+    Args:
+        file_content: File content as bytes
+        filename: Target filename on server
+        host: FTPS server hostname or IP
+        port: FTPS server port (typically 21)
+        username: FTP username
+        password: FTP password
+        use_tls: Whether to use TLS encryption
+
+    Raises:
+        socket.gaierror: Cannot resolve hostname
+        socket.timeout: Connection timeout
+        ConnectionRefusedError: FTPS server not running
+        ftplib.error_perm: Authentication or permission failure
+        Exception: Other FTP errors
+    """
+    ftp = None
+    try:
+        # Create FTP_TLS connection
+        ftp = ftplib.FTP_TLS()
+
+        # Set timeout to 30 seconds
+        ftp.connect(host, port, timeout=30)
+
+        # Login with credentials
+        ftp.login(username, password)
+
+        # Enable data channel encryption if TLS is enabled
+        if use_tls:
+            ftp.prot_p()
+
+        # Switch to passive mode (required for firewalled servers)
+        ftp.set_pasv(True)
+
+        # Upload file using binary mode
+        ftp.storbinary(f'STOR {filename}', io.BytesIO(file_content))
+
+        logger.info(
+            "FTPS upload successful",
+            filename=filename,
+            host=host,
+            size_bytes=len(file_content)
+        )
+
+    finally:
+        # Clean up connection
+        if ftp:
+            try:
+                ftp.quit()
+            except Exception:
+                # Ignore errors during cleanup
+                pass
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file_to_ftps(
     file: UploadFile = File(...),
     current_user: User = Depends(require_server_admin),
 ):
     """
-    Upload file directly to FTPS upload directory (server admin only)
+    Upload file to FTPS server via actual FTPS protocol (server admin only)
 
-    Bypasses normal FTPS upload workflow for debugging purposes.
+    Tests the complete FTPS upload path that camera traps use.
+    Connects to Pure-FTPd server on host machine and uploads via FTP over TLS.
 
     Args:
         file: File to upload (.jpg, .jpeg, .txt)
         current_user: Current authenticated server admin
 
     Returns:
-        Upload result
+        Upload result with detailed error messages
 
     Raises:
-        HTTPException: If file type not allowed or upload fails
+        HTTPException: If file type not allowed, FTPS connection fails, or upload fails
     """
     # Validate file extension
     filename = file.filename or "unknown"
@@ -74,50 +144,129 @@ async def upload_file_to_ftps(
             detail=f"File type {ext} not allowed. Allowed: {', '.join(allowed_extensions)}"
         )
 
-    # Get FTPS upload directory from environment
-    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
-    upload_path = Path(ftps_dir) / filename
+    # Read FTPS connection configuration from environment
+    ftps_host = os.getenv("FTPS_HOST", "host.docker.internal")
+    ftps_port = int(os.getenv("FTPS_PORT", "21"))
+    ftps_username = os.getenv("FTPS_USERNAME", "camera")
+    ftps_password = os.getenv("FTPS_PASSWORD", "")
+    ftps_use_tls = os.getenv("FTPS_USE_TLS", "true").lower() == "true"
+
+    # Read file content
+    content = await file.read()
 
     logger.info(
-        "Dev tools upload started",
-        file_name=filename,
+        "FTPS upload started",
+        filename=filename,
         user_id=current_user.id,
         user_email=current_user.email,
-        upload_path=str(upload_path)
+        ftps_host=ftps_host,
+        ftps_port=ftps_port,
+        ftps_username=ftps_username,
+        size_bytes=len(content)
     )
 
     try:
-        # Ensure directory exists
-        upload_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write file
-        with open(upload_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
+        # Upload via FTPS protocol
+        _upload_via_ftps(
+            file_content=content,
+            filename=filename,
+            host=ftps_host,
+            port=ftps_port,
+            username=ftps_username,
+            password=ftps_password,
+            use_tls=ftps_use_tls
+        )
 
         logger.info(
-            "Dev tools upload successful",
-            file_name=filename,
-            size_bytes=len(content),
-            user_email=current_user.email
+            "FTPS upload completed successfully",
+            filename=filename,
+            user_email=current_user.email,
+            size_bytes=len(content)
         )
 
         return UploadResponse(
             success=True,
             filename=filename,
-            message=f"File uploaded successfully to {ftps_dir}"
+            message=f"File uploaded successfully via FTPS to {ftps_host}:{ftps_port}"
         )
 
-    except Exception as e:
+    except socket.gaierror as e:
+        error_msg = f"Cannot resolve FTPS host '{ftps_host}': {str(e)}"
         logger.error(
-            "Dev tools upload failed",
-            file_name=filename,
-            error=str(e),
+            "FTPS upload failed - hostname resolution error",
+            filename=filename,
+            ftps_host=ftps_host,
+            error=error_msg,
             exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Upload failed: {str(e)}"
+            detail=error_msg
+        )
+
+    except socket.timeout as e:
+        error_msg = f"Connection timeout to FTPS server {ftps_host}:{ftps_port}"
+        logger.error(
+            "FTPS upload failed - timeout",
+            filename=filename,
+            ftps_host=ftps_host,
+            ftps_port=ftps_port,
+            error=error_msg,
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=error_msg
+        )
+
+    except ConnectionRefusedError as e:
+        error_msg = f"FTPS server not running or refusing connections at {ftps_host}:{ftps_port}"
+        logger.error(
+            "FTPS upload failed - connection refused",
+            filename=filename,
+            ftps_host=ftps_host,
+            ftps_port=ftps_port,
+            error=error_msg,
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=error_msg
+        )
+
+    except ftplib.error_perm as e:
+        error_code = str(e).split()[0] if str(e) else "unknown"
+        if error_code == "530":
+            error_msg = f"Authentication failed - check FTPS username/password (user: {ftps_username})"
+        elif error_code == "550":
+            error_msg = f"Permission denied - cannot write to upload directory"
+        else:
+            error_msg = f"FTPS permission error: {str(e)}"
+
+        logger.error(
+            "FTPS upload failed - permission error",
+            filename=filename,
+            ftps_username=ftps_username,
+            error=error_msg,
+            error_code=error_code,
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error_msg
+        )
+
+    except Exception as e:
+        error_msg = f"FTPS upload failed: {str(e)}"
+        logger.error(
+            "FTPS upload failed - unexpected error",
+            filename=filename,
+            error=error_msg,
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
         )
 
 

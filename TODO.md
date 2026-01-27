@@ -1,7 +1,7 @@
 # TODO list
 - [ ] Make a page for project admins where we can include/exclude images from the view and statistics. That way we can exclude test images for example.
 - [ ] Can we expand the rejected page for server admins to also see the contents of the uploads folder directly?
-- [ ] Make the FTPS upload do actual FTPS calls, instead of just uploading to the uploads folder. 
+- [x] Make the FTPS upload do actual FTPS calls, instead of just uploading to the uploads folder. 
 - [ ] Put the logout feature of the server page in the hamburger menu, and make the list items role based, not the hamburger menu itself. Also put the email address inside the hamburger menu. 
 - [ ] blur people and vehicles disable only by server admin
 - [ ] make the about page in the hamburger menu, and implement versioning. We'll use the guthub release methods for versioning. How dio we fetch the versioning of the current code? 
