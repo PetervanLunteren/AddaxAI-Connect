@@ -173,7 +173,7 @@
     - { name: 'AllowAnonymousFXP', content: 'no' }
     - { name: 'ProhibitDotFilesWrite', content: 'no' }
     - { name: 'ProhibitDotFilesRead', content: 'no' }
-    - { name: 'AutoRename', content: 'no' }
+    - { name: 'AutoRename', content: 'yes' }
     - { name: 'AnonymousCantUpload', content: 'yes' }
     - { name: 'MaxDiskUsage', content: '95' }
     - { name: 'CustomerProof', content: 'yes' }
@@ -181,12 +181,10 @@
     - { name: 'TLS', content: '1' }
   notify: restart pure-ftpd
 
-- name: Enable CallUploadScript
-  copy:
-    content: "yes"
-    dest: /etc/pure-ftpd/conf/CallUploadScript
-    mode: '0644'
-    force: yes
+- name: Disable CallUploadScript (using AutoRename instead)
+  file:
+    path: /etc/pure-ftpd/conf/CallUploadScript
+    state: absent
   notify: restart pure-ftpd
 
 - name: Remove invalid CertFile configuration
@@ -238,11 +236,12 @@
     state: started
     enabled: yes
 
-- name: Ensure pure-uploadscript service is enabled and started
+- name: Ensure pure-uploadscript service is disabled and stopped
   systemd:
     name: pure-uploadscript
-    state: started
-    enabled: yes
+    state: stopped
+    enabled: no
+  ignore_errors: yes  # Service might not exist on first deployment
 
 - name: Display FTPS connection information
   debug:

@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timedelta
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler, FileCreatedEvent
+from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileMovedEvent
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger, set_image_id
@@ -84,6 +84,78 @@ class IngestionEventHandler(FileSystemEventHandler):
         else:
             reject_file(filepath, "unsupported_file_type", f"Extension not recognized")
 
+    def on_moved(self, event: FileMovedEvent):
+        """
+        Handle file rename/move events from Pure-FTPd.
+
+        Pure-FTPd's CustomerProof feature uses atomic uploads:
+        1. Upload to hidden temp file: .pureftpd-upload.FILENAME
+        2. Atomic rename to visible: FILENAME or FILENAME.1 (if collision)
+
+        This handler catches the atomic rename and processes the file immediately.
+
+        Args:
+            event: File system move/rename event
+        """
+        if event.is_directory:
+            return
+
+        src_filename = os.path.basename(event.src_path)
+        dest_filename = os.path.basename(event.dest_path)
+
+        # Only process CustomerProof atomic uploads (hidden → visible)
+        if not src_filename.startswith('.pureftpd-upload.'):
+            return
+
+        filepath = event.dest_path
+
+        # Ignore hidden files (shouldn't happen, but defensive)
+        if dest_filename.startswith('.'):
+            return
+
+        # No sleep needed - file was fully written before atomic rename
+
+        # Route by file extension (checking base extension, not AutoRename suffix)
+        # Extract last extension component (e.g., IMG.JPG.1 → jpg)
+        parts = dest_filename.lower().split('.')
+        base_ext = parts[-1] if len(parts) > 1 else ''
+
+        # If extension is numeric (AutoRename suffix), use second-to-last part
+        if base_ext.isdigit() and len(parts) > 2:
+            base_ext = parts[-2]
+
+        if base_ext in ['jpg', 'jpeg']:
+            process_image(filepath)
+        elif base_ext == 'txt':
+            process_daily_report(filepath)
+        else:
+            reject_file(filepath, "unsupported_file_type", f"Extension not recognized")
+
+
+def strip_autorename_suffix(filename: str) -> str:
+    """
+    Strip Pure-FTPd AutoRename suffix from filename.
+
+    Pure-FTPd adds .1, .2, .10, etc. on collision. We strip these
+    to preserve the original camera filename in storage and database.
+
+    Examples:
+        IMG_0001.JPG → IMG_0001.JPG
+        IMG_0001.JPG.1 → IMG_0001.JPG
+        IMG_0001.JPG.12 → IMG_0001.JPG
+        DailyReport.txt.3 → DailyReport.txt
+
+    Args:
+        filename: Filename potentially with AutoRename suffix
+
+    Returns:
+        Cleaned filename without numeric suffix
+    """
+    import re
+    # Match: .{one or more digits} at end of filename
+    # This preserves extensions like .jpg while removing .1, .2, etc.
+    return re.sub(r'\.\d+$', '', filename)
+
 
 def process_image(filepath: str) -> None:
     """
@@ -105,7 +177,11 @@ def process_image(filepath: str) -> None:
     """
     filename = os.path.basename(filepath)
 
-    logger.info("Processing image", file_name=filename, filepath=filepath)
+    # Strip AutoRename suffix (.1, .2, etc.) to preserve original camera filename
+    # This must be done BEFORE any filename-based processing
+    clean_filename = strip_autorename_suffix(filename)
+
+    logger.info("Processing image", file_name=clean_filename, filepath=filepath)
 
     try:
         # TEMPORARY: Convert Willfine-2024 to Willfine-2025 format if needed
@@ -197,14 +273,14 @@ def process_image(filepath: str) -> None:
         # Step 8: Extract GPS if present
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
-        # Step 9: Upload to MinIO (using IMEI as folder name, UUID prefix for uniqueness)
-        storage_path = upload_image_to_minio(filepath, imei, image_uuid)
+        # Step 9: Upload to MinIO (using cleaned filename, IMEI as folder, UUID for uniqueness)
+        storage_path = upload_image_to_minio(filepath, imei, image_uuid, clean_filename)
 
         # Step 10: Generate and upload thumbnail
         # Note: thumbnail generation may fail for severely corrupted images, but we
         # continue processing since the full image is already uploaded to MinIO
         try:
-            thumbnail_path = generate_and_upload_thumbnail(filepath, imei, image_uuid)
+            thumbnail_path = generate_and_upload_thumbnail(filepath, imei, image_uuid, clean_filename)
         except Exception as e:
             logger.warning(
                 "Failed to generate thumbnail, continuing without it",
@@ -214,11 +290,11 @@ def process_image(filepath: str) -> None:
             )
             thumbnail_path = None
 
-        # Step 11: Create database record
+        # Step 11: Create database record (with cleaned filename)
         create_image_record(
             image_uuid=image_uuid,
             camera_id=camera_db_id,
-            filename=filename,
+            filename=clean_filename,
             storage_path=storage_path,
             thumbnail_path=thumbnail_path,
             datetime_original=datetime_original,
@@ -241,7 +317,7 @@ def process_image(filepath: str) -> None:
             "Image ingestion complete",
             image_uuid=image_uuid,
             imei=imei,
-            file_name=filename,
+            file_name=clean_filename,
             queued=True
         )
 
@@ -279,7 +355,10 @@ def process_daily_report(filepath: str) -> None:
     """
     filename = os.path.basename(filepath)
 
-    logger.info("Processing daily report", file_name=filename)
+    # Strip AutoRename suffix (.1, .2, etc.) to preserve original camera filename
+    clean_filename = strip_autorename_suffix(filename)
+
+    logger.info("Processing daily report", file_name=clean_filename)
 
     try:
         # TEMPORARY: Convert Willfine-2024 to Willfine-2025 format if needed
