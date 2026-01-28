@@ -6,7 +6,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Camera, ExternalLink } from 'lucide-react';
+import { Camera, ExternalLink, Tag } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 import { versionApi } from '../api/version';
 
@@ -35,7 +35,8 @@ export const AboutPage: React.FC = () => {
         <CardContent className="space-y-4">
           <div>
             <h3 className="font-semibold mb-2">Version</h3>
-            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-mono bg-gray-100 text-gray-700 border border-gray-200">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-mono bg-gray-100 text-gray-700 border border-gray-200">
+              <Tag className="h-3.5 w-3.5" />
               {isLoading ? '...' : version || 'v0.1.0'}
             </div>
           </div>
