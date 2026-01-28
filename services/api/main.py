@@ -83,6 +83,14 @@ def root():
     }
 
 
+@app.get("/api/version")
+def version():
+    """Get API version"""
+    return {
+        "version": __version__
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}
