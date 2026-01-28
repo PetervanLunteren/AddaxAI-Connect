@@ -29,22 +29,22 @@ def build_project_image_urls(project: Project) -> tuple[str | None, str | None]:
     """
     Build image URLs for project.
 
+    Project images are served as static files by Nginx from /project-images/
+
     Args:
         project: Project model instance
 
     Returns:
         Tuple of (image_url, thumbnail_url)
     """
-    minio_public_endpoint = settings.minio_public_endpoint or f"http://{settings.minio_endpoint}"
-
     image_url = None
     thumbnail_url = None
 
     if project.image_path:
-        image_url = f"{minio_public_endpoint}/project-images/{project.image_path}"
+        image_url = f"/project-images/{project.image_path}"
 
     if project.thumbnail_path:
-        thumbnail_url = f"{minio_public_endpoint}/project-images/{project.thumbnail_path}"
+        thumbnail_url = f"/project-images/{project.thumbnail_path}"
 
     return (image_url, thumbnail_url)
 

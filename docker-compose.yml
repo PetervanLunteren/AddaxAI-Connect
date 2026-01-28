@@ -158,6 +158,7 @@ services:
       - "8000:8000"
     volumes:
       - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
+      - ./data/project-images:/app/project-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -291,6 +292,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:80"
+    volumes:
+      - ./data/project-images:/usr/share/nginx/html/project-images
     depends_on:
       - api
     networks:

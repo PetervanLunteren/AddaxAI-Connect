@@ -83,10 +83,9 @@ async def upload_project_image(
     await db.commit()
     await db.refresh(project)
 
-    # Build URLs for response
-    minio_public_endpoint = settings.minio_public_endpoint or f"http://{settings.minio_endpoint}"
-    image_url = f"{minio_public_endpoint}/project-images/{image_path}" if image_path else None
-    thumbnail_url = f"{minio_public_endpoint}/project-images/{thumbnail_path}" if thumbnail_path else None
+    # Build URLs for response (static files served by Nginx)
+    image_url = f"/project-images/{image_path}" if image_path else None
+    thumbnail_url = f"/project-images/{thumbnail_path}" if thumbnail_path else None
 
     return {
         "id": project.id,
