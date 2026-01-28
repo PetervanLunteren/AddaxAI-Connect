@@ -1,17 +1,14 @@
 """
 Image processing utilities for project images
 
-Handles validation, thumbnail generation, and MinIO upload for project images.
+Handles validation, thumbnail generation, and local file storage for project images.
 """
 import os
-import tempfile
-import time
 from io import BytesIO
 from typing import BinaryIO
 from PIL import Image
 from fastapi import UploadFile
 
-from shared.storage import StorageClient, BUCKET_PROJECT_IMAGES
 from shared.logger import get_logger
 
 logger = get_logger("api.image_processing")
@@ -22,6 +19,7 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 THUMBNAIL_SIZE = (256, 256)
 ALLOWED_FORMATS = {"JPEG", "PNG"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png"}
+PROJECT_IMAGES_DIR = "/app/project-images"
 
 
 def validate_image_file(file: UploadFile) -> None:
@@ -122,21 +120,21 @@ def generate_thumbnail(image_file: BinaryIO, size: tuple[int, int] = THUMBNAIL_S
 
 def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple[str, str]:
     """
-    Process and upload project image with thumbnail.
+    Process and save project image with thumbnail to local filesystem.
 
     Workflow:
     1. Validate image file (format, size)
     2. Read file into memory to avoid file handle issues
-    3. Upload original image to MinIO
-    4. Generate and upload thumbnail
-    5. Return storage paths
+    3. Save original image to local filesystem
+    4. Generate and save thumbnail
+    5. Return filenames
 
     Args:
         file: Uploaded image file
-        project_id: Project ID for organizing storage
+        project_id: Project ID for naming files
 
     Returns:
-        Tuple of (image_path, thumbnail_path) in MinIO
+        Tuple of (image_filename, thumbnail_filename)
 
     Raises:
         ValueError: If validation or processing fails
@@ -157,92 +155,87 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
     file_buffer = BytesIO(file_content)
 
     # Step 3: Prepare paths
-    # Use safe filename with timestamp to avoid browser caching issues
+    # Simple filenames without timestamp
     file_ext = os.path.splitext(file.filename or "image.jpg")[1].lower()
     if not file_ext:
         file_ext = ".jpg"
 
-    timestamp = int(time.time())
-    image_filename = f"project_{project_id}_{timestamp}{file_ext}"
-    thumbnail_filename = f"project_{project_id}_{timestamp}_thumb.jpg"
+    image_filename = f"project_{project_id}{file_ext}"
+    thumbnail_filename = f"project_{project_id}_thumb.jpg"
 
-    image_path = f"{project_id}/{image_filename}"
-    thumbnail_path = f"{project_id}/{thumbnail_filename}"
+    # Ensure directory exists
+    os.makedirs(PROJECT_IMAGES_DIR, exist_ok=True)
 
-    storage = StorageClient()
+    image_path = os.path.join(PROJECT_IMAGES_DIR, image_filename)
+    thumbnail_path = os.path.join(PROJECT_IMAGES_DIR, thumbnail_filename)
 
     try:
-        # Step 4: Upload original image from buffer
+        # Step 4: Save original image to filesystem
         file_buffer.seek(0)
-        storage.upload_fileobj(
-            file_obj=file_buffer,
-            bucket=BUCKET_PROJECT_IMAGES,
-            object_name=image_path
-        )
+        with open(image_path, 'wb') as f:
+            f.write(file_buffer.read())
 
         logger.info(
-            "Uploaded original image",
+            "Saved original image",
             project_id=project_id,
-            storage_path=image_path
+            file_path=image_path
         )
 
-        # Step 5: Generate and upload thumbnail
-        # Create fresh buffer from original content since boto3 closes the file object
+        # Step 5: Generate and save thumbnail
         thumbnail_buffer = BytesIO(file_content)
         thumbnail_data = generate_thumbnail(thumbnail_buffer)
 
-        storage.upload_fileobj(
-            file_obj=thumbnail_data,
-            bucket=BUCKET_PROJECT_IMAGES,
-            object_name=thumbnail_path
-        )
+        with open(thumbnail_path, 'wb') as f:
+            f.write(thumbnail_data.read())
 
         logger.info(
-            "Uploaded thumbnail",
+            "Saved thumbnail",
             project_id=project_id,
-            storage_path=thumbnail_path
+            file_path=thumbnail_path
         )
 
-        return (image_path, thumbnail_path)
+        return (image_filename, thumbnail_filename)
 
     except Exception as e:
         logger.error(
-            "Failed to upload project image",
+            "Failed to save project image",
             project_id=project_id,
             error=str(e),
             exc_info=True
         )
-        raise ValueError(f"Failed to upload image: {str(e)}")
+        raise ValueError(f"Failed to save image: {str(e)}")
 
 
-def delete_project_images(image_path: str | None, thumbnail_path: str | None) -> None:
+def delete_project_images(image_filename: str | None, thumbnail_filename: str | None) -> None:
     """
-    Delete project images from MinIO.
+    Delete project images from local filesystem.
 
     Args:
-        image_path: Path to original image in MinIO (None if not set)
-        thumbnail_path: Path to thumbnail in MinIO (None if not set)
+        image_filename: Filename of original image (None if not set)
+        thumbnail_filename: Filename of thumbnail (None if not set)
     """
-    if not image_path and not thumbnail_path:
+    if not image_filename and not thumbnail_filename:
         logger.debug("No project images to delete")
         return
 
-    storage = StorageClient()
-
     try:
-        if image_path:
-            storage.delete_object(BUCKET_PROJECT_IMAGES, image_path)
-            logger.info("Deleted project image", path=image_path)
+        if image_filename:
+            image_path = os.path.join(PROJECT_IMAGES_DIR, image_filename)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                logger.info("Deleted project image", path=image_path)
 
-        if thumbnail_path:
-            storage.delete_object(BUCKET_PROJECT_IMAGES, thumbnail_path)
-            logger.info("Deleted project thumbnail", path=thumbnail_path)
+        if thumbnail_filename:
+            thumbnail_path = os.path.join(PROJECT_IMAGES_DIR, thumbnail_filename)
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+                logger.info("Deleted project thumbnail", path=thumbnail_path)
 
     except Exception as e:
         logger.error(
             "Failed to delete project images",
-            image_path=image_path,
-            thumbnail_path=thumbnail_path,
+            image_filename=image_filename,
+            thumbnail_filename=thumbnail_filename,
             error=str(e),
             exc_info=True
         )
