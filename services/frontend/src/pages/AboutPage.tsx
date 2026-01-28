@@ -36,10 +36,7 @@ export const AboutPage: React.FC = () => {
           <div>
             <h3 className="font-semibold mb-2">Project Description</h3>
             <p className="text-sm text-muted-foreground">
-              AddaxAI Connect is a containerized microservices platform for processing camera trap images
-              through machine learning models. The system automatically ingests images from remote camera traps
-              via FTPS, runs object detection and species classification, and provides real-time updates via
-              a web interface.
+              AddaxAI Connect is an open-source platform that helps wildlife conservationists monitor and protect endangered species. By automatically analyzing camera trap images with AI, it enables conservation teams to track wildlife populations and respond quickly to threats in protected areas.
             </p>
           </div>
 
