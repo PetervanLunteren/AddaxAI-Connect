@@ -41,14 +41,14 @@ export const AboutPage: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2">Project Description</h3>
+            <h3 className="font-semibold mb-2">Project description</h3>
             <p className="text-sm text-muted-foreground">
-              AddaxAI Connect is an open-source platform that helps wildlife conservationists monitor and protect endangered species. By automatically analyzing camera trap images with AI, it enables conservation teams to track wildlife populations and respond quickly to threats in protected areas.
+              AddaxAI Connect is an open-source platform that helps wildlife conservationists monitor and protect biodiversity. By automatically analyzing camera trap images with AI, it enables conservation teams to track wildlife populations and respond quickly to threats in protected areas.
             </p>
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2">A Collaboration</h3>
+            <h3 className="font-semibold mb-2">A collaboration</h3>
             <p className="text-sm text-muted-foreground">
               Between <strong>Addax Data Science</strong> and <strong>Smart Parks</strong>
             </p>
@@ -86,7 +86,7 @@ export const AboutPage: React.FC = () => {
                   rel="noopener noreferrer"
                   className="text-primary hover:underline inline-flex items-center gap-1"
                 >
-                  AddaxAI Connect GitHub Repository
+                  AddaxAI Connect GitHub repository
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </p>
@@ -97,7 +97,7 @@ export const AboutPage: React.FC = () => {
                   rel="noopener noreferrer"
                   className="text-primary hover:underline inline-flex items-center gap-1"
                 >
-                  AddaxAI GitHub Repository
+                  AddaxAI GitHub repository
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </p>
