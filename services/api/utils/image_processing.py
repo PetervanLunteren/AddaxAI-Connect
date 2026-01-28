@@ -16,7 +16,7 @@ logger = get_logger("api.image_processing")
 # Constants
 MAX_FILE_SIZE_MB = 5
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
-THUMBNAIL_SIZE = (256, 256)
+THUMBNAIL_MAX_WIDTH = 512  # Max width, maintains aspect ratio
 ALLOWED_FORMATS = {"JPEG", "PNG"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png"}
 PROJECT_IMAGES_DIR = "/app/project-images"
@@ -73,15 +73,16 @@ def validate_image_file(file: UploadFile) -> None:
         raise ValueError(f"Invalid or corrupted image file: {str(e)}")
 
 
-def generate_thumbnail(image_file: BinaryIO, size: tuple[int, int] = THUMBNAIL_SIZE) -> BytesIO:
+def generate_thumbnail(image_file: BinaryIO, max_width: int = THUMBNAIL_MAX_WIDTH) -> BytesIO:
     """
     Generate thumbnail from image file.
 
-    Maintains aspect ratio and adds padding if needed to ensure square output.
+    Maintains original aspect ratio (camera trap dimensions).
+    Resizes to max_width while preserving aspect ratio.
 
     Args:
         image_file: File-like object containing image data
-        size: Thumbnail dimensions (width, height)
+        max_width: Maximum width in pixels (height scales proportionally)
 
     Returns:
         BytesIO object containing thumbnail JPEG data
@@ -97,19 +98,17 @@ def generate_thumbnail(image_file: BinaryIO, size: tuple[int, int] = THUMBNAIL_S
         if img.mode not in ('RGB', 'L'):
             img = img.convert('RGB')
 
-        # Calculate aspect-ratio-preserving size
-        img.thumbnail(size, Image.Resampling.LANCZOS)
+        # Calculate new dimensions maintaining aspect ratio
+        aspect_ratio = img.height / img.width
+        new_width = min(max_width, img.width)  # Don't upscale
+        new_height = int(new_width * aspect_ratio)
 
-        # Create square canvas with padding (black background)
-        thumb = Image.new('RGB', size, (0, 0, 0))
+        # Resize with high-quality resampling
+        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-        # Paste image centered
-        offset = ((size[0] - img.width) // 2, (size[1] - img.height) // 2)
-        thumb.paste(img, offset)
-
-        # Save to BytesIO
+        # Save to BytesIO with high quality
         output = BytesIO()
-        thumb.save(output, format='JPEG', quality=85, optimize=True)
+        img.save(output, format='JPEG', quality=95, optimize=True)
         output.seek(0)
 
         return output
