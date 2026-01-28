@@ -5,9 +5,7 @@
  */
 import apiClient from './client';
 
-export interface VersionInfo {
-  message: string;
-  status: string;
+export interface VersionResponse {
   version: string;
 }
 
@@ -16,7 +14,7 @@ export const versionApi = {
    * Get application version from API
    */
   getVersion: async (): Promise<string> => {
-    const response = await apiClient.get<VersionInfo>('/');
+    const response = await apiClient.get<VersionResponse>('/version');
     return response.data.version;
   },
 };
