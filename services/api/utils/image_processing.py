@@ -5,6 +5,7 @@ Handles validation, thumbnail generation, and MinIO upload for project images.
 """
 import os
 import tempfile
+import time
 from io import BytesIO
 from typing import BinaryIO
 from PIL import Image
@@ -156,13 +157,14 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
     file_buffer = BytesIO(file_content)
 
     # Step 3: Prepare paths
-    # Use safe filename (just extension, not original name for security)
+    # Use safe filename with timestamp to avoid browser caching issues
     file_ext = os.path.splitext(file.filename or "image.jpg")[1].lower()
     if not file_ext:
         file_ext = ".jpg"
 
-    image_filename = f"project_{project_id}{file_ext}"
-    thumbnail_filename = f"project_{project_id}_thumb.jpg"
+    timestamp = int(time.time())
+    image_filename = f"project_{project_id}_{timestamp}{file_ext}"
+    thumbnail_filename = f"project_{project_id}_{timestamp}_thumb.jpg"
 
     image_path = f"{project_id}/{image_filename}"
     thumbnail_path = f"{project_id}/{thumbnail_filename}"
