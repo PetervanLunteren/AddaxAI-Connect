@@ -5,7 +5,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Loader2, UserPlus } from 'lucide-react';
+import { Shield, Loader2, UserPlus, Trash2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import {
@@ -27,12 +27,16 @@ import {
 import { Label } from '../../components/ui/Label';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
+import { useAuth } from '../../hooks/useAuth';
 
 export const UserAssignmentPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [addEmail, setAddEmail] = useState<string>('');
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [userToRemove, setUserToRemove] = useState<{ id: number; email: string } | null>(null);
 
   // Fetch all users to filter server admins
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -54,6 +58,19 @@ export const UserAssignmentPage: React.FC = () => {
     },
     onError: (error: any) => {
       alert(`Failed to add server admin: ${error.response?.data?.detail || 'Unknown error'}`);
+    },
+  });
+
+  // Remove server admin mutation
+  const removeServerAdminMutation = useMutation({
+    mutationFn: (userId: number) => adminApi.removeServerAdmin(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setShowRemoveModal(false);
+      setUserToRemove(null);
+    },
+    onError: (error: any) => {
+      alert(`Failed to remove server admin: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -102,29 +119,45 @@ export const UserAssignmentPage: React.FC = () => {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {serverAdmins.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.email}</TableCell>
+                {serverAdmins.map((serverAdmin) => (
+                  <TableRow key={serverAdmin.id}>
+                    <TableCell className="font-medium">{serverAdmin.email}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
                           <Shield className="h-3 w-3" />
                           Server Admin
                         </span>
-                        {user.is_active && (
+                        {serverAdmin.is_active && (
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
                             Active
                           </span>
                         )}
-                        {user.is_verified && (
+                        {serverAdmin.is_verified && (
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
                             Verified
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setUserToRemove({ id: serverAdmin.id, email: serverAdmin.email });
+                          setShowRemoveModal(true);
+                        }}
+                        disabled={serverAdmin.id === user?.id}
+                        className="h-8 w-8 p-0"
+                        title={serverAdmin.id === user?.id ? "Cannot remove yourself" : "Remove server admin"}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -177,6 +210,45 @@ export const UserAssignmentPage: React.FC = () => {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Server Admin Confirmation Modal */}
+      <Dialog open={showRemoveModal} onOpenChange={setShowRemoveModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove server admin?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove <strong>{userToRemove?.email}</strong> as a server admin? They will be demoted to a regular user but will keep their existing project memberships.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRemoveModal(false);
+                setUserToRemove(null);
+              }}
+              disabled={removeServerAdminMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (userToRemove) {
+                  removeServerAdminMutation.mutate(userToRemove.id);
+                }
+              }}
+              disabled={removeServerAdminMutation.isPending}
+            >
+              {removeServerAdminMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Remove
             </Button>
           </DialogFooter>
         </DialogContent>
