@@ -35,7 +35,7 @@ export const AboutPage: React.FC = () => {
         <CardContent className="space-y-4">
           <div>
             <h3 className="font-semibold mb-2">Version</h3>
-            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-700 border border-blue-200">
+            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-mono bg-gray-100 text-gray-700 border border-gray-200">
               {isLoading ? '...' : version || 'v0.1.0'}
             </div>
           </div>
@@ -50,35 +50,32 @@ export const AboutPage: React.FC = () => {
           <div>
             <h3 className="font-semibold mb-2">A collaboration</h3>
             <p className="text-sm text-muted-foreground">
-              Between <strong>Addax Data Science</strong> and <strong>Smart Parks</strong>
+              Between{' '}
+              <a
+                href="https://addaxdatascience.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                Addax Data Science
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              {' '}and{' '}
+              <a
+                href="https://www.smartparks.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                Smart Parks
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </p>
           </div>
 
           <div>
             <h3 className="font-semibold mb-2">Links</h3>
             <div className="space-y-2">
-              <p className="text-sm">
-                <a
-                  href="https://www.smartparks.org/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Smart Parks
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
-              <p className="text-sm">
-                <a
-                  href="https://addaxdatascience.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Addax Data Science
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
               <p className="text-sm">
                 <a
                   href="https://github.com/PetervanLunteren/AddaxAI-Connect"
