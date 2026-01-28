@@ -88,12 +88,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
         onClick={handleCardClick}
       >
         {/* Project Image */}
-        <div className="relative w-full h-48 bg-gray-200 overflow-hidden">
+        <div className="relative w-full bg-gray-200 overflow-hidden" style={{ aspectRatio: '4/3' }}>
           {project.thumbnail_url ? (
             <img
               src={project.thumbnail_url}
               alt={project.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-blue-500">
