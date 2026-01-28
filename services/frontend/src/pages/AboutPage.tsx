@@ -4,11 +4,20 @@
  * Server-level page showing system information and version
  */
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Camera } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
+import { versionApi } from '../api/version';
 
 export const AboutPage: React.FC = () => {
+  // Fetch version from API
+  const { data: version, isLoading } = useQuery({
+    queryKey: ['version'],
+    queryFn: versionApi.getVersion,
+    staleTime: Infinity, // Version doesn't change during runtime
+  });
+
   return (
     <ServerPageLayout
       title="About"
@@ -18,7 +27,9 @@ export const AboutPage: React.FC = () => {
         <CardHeader>
           <div className="flex items-center space-x-3">
             <Camera className="h-8 w-8 text-primary" />
-            <CardTitle>AddaxAI Connect v0.1.0</CardTitle>
+            <CardTitle>
+              AddaxAI Connect {isLoading ? '...' : version || 'v0.1.0'}
+            </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

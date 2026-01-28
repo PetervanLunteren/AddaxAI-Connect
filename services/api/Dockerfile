@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Install system dependencies (including Chromium dependencies for Playwright)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     exiftool \
     # Chromium/Playwright dependencies
     libglib2.0-0 \
@@ -53,5 +54,18 @@ COPY services/api .
 
 # Copy scripts directory (for superuser creation, etc.)
 COPY scripts /app/scripts
+
+# Copy .git directory temporarily to extract version
+COPY .git /tmp/.git
+
+# Extract version from git tags at build time
+# Output formats:
+#   - Clean release: v0.2.1
+#   - Unreleased code: v0.2.1-5-g3a2b1c4 (5 commits after v0.2.1, commit hash 3a2b1c4)
+#   - No tags: v0.0.0-dev (fallback)
+RUN cd /tmp && git --git-dir=/tmp/.git describe --tags --always --dirty 2>/dev/null > /app/VERSION || echo "v0.0.0-dev" > /app/VERSION
+
+# Clean up .git directory (not needed in final image)
+RUN rm -rf /tmp/.git
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
