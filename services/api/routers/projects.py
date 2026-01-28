@@ -536,9 +536,10 @@ async def list_project_users(
             )
         )
 
-    # Get pending invitations for this project
+    # Get pending invitations for this project (only unused ones to avoid duplicates)
     invitation_query = select(UserInvitation).where(
-        UserInvitation.project_id == project_id
+        UserInvitation.project_id == project_id,
+        UserInvitation.used == False
     )
     invitation_result = await db.execute(invitation_query)
     invitations = invitation_result.scalars().all()
