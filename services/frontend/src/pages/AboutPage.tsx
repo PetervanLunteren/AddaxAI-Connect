@@ -1,15 +1,19 @@
 /**
- * About page - placeholder
+ * About page
+ *
+ * Server-level page showing system information and version
  */
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Camera } from 'lucide-react';
+import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 
 export const AboutPage: React.FC = () => {
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">About AddaxAI Connect</h1>
-
+    <ServerPageLayout
+      title="About"
+      description="System information and version"
+    >
       <Card>
         <CardHeader>
           <div className="flex items-center space-x-3">
@@ -82,6 +86,6 @@ export const AboutPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </ServerPageLayout>
   );
 };

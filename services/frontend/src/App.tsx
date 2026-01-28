@@ -110,6 +110,14 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/about"
+                element={
+                  <ProtectedRoute>
+                    <AboutPage />
+                  </ProtectedRoute>
+                }
+              />
               {/* Project-specific routes with sidebar */}
               <Route
                 path="/projects/:projectId"
@@ -127,7 +135,6 @@ function App() {
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="images" element={<ImagesPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
-                <Route path="about" element={<AboutPage />} />
                 <Route path="settings" element={<ProjectSettingsPage />} />
                 <Route path="camera-management" element={<CameraManagementPage />} />
                 <Route path="species-management" element={<SpeciesManagementPage />} />
