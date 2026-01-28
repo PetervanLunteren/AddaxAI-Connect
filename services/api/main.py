@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from shared import __version__
 from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
@@ -27,7 +28,7 @@ logger = get_logger("api")
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
-    logger.info("Starting AddaxAI Connect API", version="0.1.0", environment=settings.environment)
+    logger.info("Starting AddaxAI Connect API", version=__version__, environment=settings.environment)
 
     yield
 
@@ -38,7 +39,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AddaxAI Connect API",
     description="Camera trap image processing platform",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -74,7 +75,12 @@ app.add_middleware(
 # Health check endpoints
 @app.get("/")
 def root():
-    return {"message": "AddaxAI Connect API", "status": "running"}
+    """Root endpoint with version info"""
+    return {
+        "message": "AddaxAI Connect API",
+        "status": "running",
+        "version": __version__
+    }
 
 
 @app.get("/health")
