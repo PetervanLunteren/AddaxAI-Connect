@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from shared.models import User, Project, ProjectMembership
 from shared.database import get_async_session
 from auth.users import current_verified_user
+from routers.projects import build_project_image_urls
 
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -63,6 +64,7 @@ async def get_my_projects(
         projects = result.scalars().all()
 
         for project in projects:
+            image_url, thumbnail_url = build_project_image_urls(project)
             projects_with_roles.append(
                 ProjectWithRole(
                     id=project.id,
@@ -70,8 +72,8 @@ async def get_my_projects(
                     description=project.description,
                     role="server-admin",
                     detection_threshold=project.detection_threshold,
-                    image_url=None,  # TODO: Add image URL building
-                    thumbnail_url=None,
+                    image_url=image_url,
+                    thumbnail_url=thumbnail_url,
                 )
             )
     else:
@@ -85,6 +87,7 @@ async def get_my_projects(
         memberships = result.all()
 
         for membership, project in memberships:
+            image_url, thumbnail_url = build_project_image_urls(project)
             projects_with_roles.append(
                 ProjectWithRole(
                     id=project.id,
@@ -92,8 +95,8 @@ async def get_my_projects(
                     description=project.description,
                     role=membership.role,
                     detection_threshold=project.detection_threshold,
-                    image_url=None,  # TODO: Add image URL building
-                    thumbnail_url=None,
+                    image_url=image_url,
+                    thumbnail_url=thumbnail_url,
                 )
             )
 
