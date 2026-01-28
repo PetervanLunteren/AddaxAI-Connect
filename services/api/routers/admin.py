@@ -715,6 +715,85 @@ async def add_server_admin(
         )
 
 
+class RemoveServerAdminResponse(BaseModel):
+    """Response for removing server admin"""
+    message: str
+    user_id: int
+    email: str
+
+
+@router.delete(
+    "/server-admins/{user_id}",
+    response_model=RemoveServerAdminResponse,
+)
+async def remove_server_admin(
+    user_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Demote a server admin to regular user (keeps project memberships).
+
+    Validates that:
+    - User cannot demote themselves
+    - Target user exists and is currently a server admin
+
+    Sets is_superuser=False, preserving all project memberships.
+
+    Args:
+        user_id: ID of the user to demote
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Returns:
+        Details about the demoted user
+
+    Raises:
+        HTTPException 400: If trying to remove self or user is not a server admin
+        HTTPException 404: If user not found
+    """
+    # Prevent self-removal
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove yourself as server admin"
+        )
+
+    # Get target user
+    result = await db.execute(select(User).where(User.id == user_id))
+    target_user = result.scalar_one_or_none()
+
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found"
+        )
+
+    # Check if user is actually a server admin
+    if not target_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"{target_user.email} is not a server admin"
+        )
+
+    # Demote user to regular user (keep project memberships)
+    target_user.is_superuser = False
+    await db.commit()
+
+    logger.info(
+        "Server admin demoted to regular user",
+        user_id=user_id,
+        email=target_user.email,
+        demoted_by=current_user.email
+    )
+
+    return RemoveServerAdminResponse(
+        message=f"{target_user.email} has been demoted from server admin to regular user.",
+        user_id=user_id,
+        email=target_user.email
+    )
+
+
 # Telegram Bot Configuration Endpoints
 
 class TelegramConfigResponse(BaseModel):

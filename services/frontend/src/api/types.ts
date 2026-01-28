@@ -213,6 +213,12 @@ export interface AddServerAdminResponse {
   message: string;
 }
 
+export interface RemoveServerAdminResponse {
+  message: string;
+  user_id: number;
+  email: string;
+}
+
 export interface AddProjectUserByEmailRequest {
   email: string;
   role: string;  // 'project-admin' or 'project-viewer'

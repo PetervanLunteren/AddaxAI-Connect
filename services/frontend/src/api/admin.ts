@@ -11,6 +11,7 @@ import type {
   InvitationResponse,
   AddServerAdminRequest,
   AddServerAdminResponse,
+  RemoveServerAdminResponse,
   SignalConfig,
   SignalRegisterRequest,
   SignalUpdateConfigRequest,
@@ -82,6 +83,16 @@ export const adminApi = {
    */
   addServerAdmin: async (data: AddServerAdminRequest): Promise<AddServerAdminResponse> => {
     const response = await apiClient.post<AddServerAdminResponse>('/api/admin/server-admins/add', data);
+    return response.data;
+  },
+
+  /**
+   * Remove a server admin (demote to regular user)
+   */
+  removeServerAdmin: async (userId: number): Promise<RemoveServerAdminResponse> => {
+    const response = await apiClient.delete<RemoveServerAdminResponse>(
+      `/api/admin/server-admins/${userId}`
+    );
     return response.data;
   },
 
