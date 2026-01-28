@@ -241,10 +241,15 @@ async def list_images(
 
     # Filter out empty images if show_empty is False (default)
     if not show_empty:
-        # Only show images that have at least one detection
+        # Only show images that have at least one detection above project threshold
         filters.append(
             Image.id.in_(
-                select(Detection.image_id).distinct()
+                select(Detection.image_id)
+                .join(Image, Detection.image_id == Image.id)
+                .join(Camera, Image.camera_id == Camera.id)
+                .join(Project, Camera.project_id == Project.id)
+                .where(Detection.confidence >= Project.detection_threshold)
+                .distinct()
             )
         )
 
