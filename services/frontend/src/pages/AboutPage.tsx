@@ -48,16 +48,6 @@ export const AboutPage: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2">Technology Stack</h3>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Backend: Python, FastAPI, PostgreSQL with PostGIS</li>
-              <li>• ML Pipeline: MegaDetector v1000, DeepFaune v1.4</li>
-              <li>• Frontend: React, TypeScript, Tailwind CSS</li>
-              <li>• Infrastructure: Docker Compose, MinIO, Redis, Prometheus</li>
-            </ul>
-          </div>
-
-          <div>
             <h3 className="font-semibold mb-2">Links</h3>
             <div className="space-y-2">
               <p className="text-sm">
