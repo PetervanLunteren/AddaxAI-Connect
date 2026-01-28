@@ -35,9 +35,9 @@ export const AboutPage: React.FC = () => {
         <CardContent className="space-y-4">
           <div>
             <h3 className="font-semibold mb-2">Version</h3>
-            <p className="text-sm text-muted-foreground">
+            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-700 border border-blue-200">
               {isLoading ? '...' : version || 'v0.1.0'}
-            </p>
+            </div>
           </div>
 
           <div>
