@@ -6,7 +6,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Camera } from 'lucide-react';
+import { Camera, ExternalLink } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 import { versionApi } from '../api/version';
 
@@ -28,11 +28,18 @@ export const AboutPage: React.FC = () => {
           <div className="flex items-center space-x-3">
             <Camera className="h-8 w-8 text-primary" />
             <CardTitle>
-              AddaxAI Connect {isLoading ? '...' : version || 'v0.1.0'}
+              AddaxAI Connect
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <h3 className="font-semibold mb-2">Version</h3>
+            <p className="text-sm text-muted-foreground">
+              {isLoading ? '...' : version || 'v0.1.0'}
+            </p>
+          </div>
+
           <div>
             <h3 className="font-semibold mb-2">Project Description</h3>
             <p className="text-sm text-muted-foreground">
@@ -52,32 +59,46 @@ export const AboutPage: React.FC = () => {
             <div className="space-y-2">
               <p className="text-sm">
                 <a
-                  href="https://github.com/PetervanLunteren/addaxai"
+                  href="https://www.smartparks.org/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  AddaxAI GitHub Repository
-                </a>
-              </p>
-              <p className="text-sm">
-                <a
-                  href="https://addaxdatascience.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Addax Data Science
-                </a>
-              </p>
-              <p className="text-sm">
-                <a
-                  href="https://www.smartparks.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
                 >
                   Smart Parks
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+              <p className="text-sm">
+                <a
+                  href="https://addaxdatascience.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Addax Data Science
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+              <p className="text-sm">
+                <a
+                  href="https://github.com/PetervanLunteren/AddaxAI-Connect"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  AddaxAI Connect GitHub Repository
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+              <p className="text-sm">
+                <a
+                  href="https://github.com/PetervanLunteren/AddaxAI"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  AddaxAI GitHub Repository
+                  <ExternalLink className="h-3 w-3" />
                 </a>
               </p>
             </div>
