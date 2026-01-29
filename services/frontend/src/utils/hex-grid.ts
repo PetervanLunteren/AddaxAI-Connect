@@ -70,11 +70,7 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
   if (cellSizeDegrees > maxCellSizeDegrees) {
     cellSizeDegrees = maxCellSizeDegrees;
     cellSizeKm = cellSizeDegrees * 111;
-    console.log('[generateHexGrid] Cell size too large for bbox, adjusted to:', cellSizeKm.toFixed(1), 'km');
   }
-
-  console.log('[generateHexGrid] Bounds:', bounds, 'bbox:', bboxWidth.toFixed(3), 'x', bboxHeight.toFixed(3),
-    'cellSizeKm:', cellSizeKm.toFixed(1), 'cellSizeDegrees:', cellSizeDegrees.toFixed(4));
 
   try {
     // Pad bounds to ensure grid covers all deployments
@@ -90,7 +86,6 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
 
     // Use degrees to ensure grid aligns with bounding box
     const grid = hexGrid(paddedBounds, cellSizeDegrees, { units: 'degrees' });
-    console.log('[generateHexGrid] Generated', grid.features.length, 'hexagons');
 
     return grid;
   } catch (error) {
@@ -123,26 +118,11 @@ export function aggregateDeploymentsToHexes(
     })
   );
 
-  console.log('[aggregateDeploymentsToHexes] Deployments count:', deployments.length);
-  console.log('[aggregateDeploymentsToHexes] First 3 deployment coords:',
-    deployments.slice(0, 3).map(d => d.geometry.coordinates));
-  console.log('[aggregateDeploymentsToHexes] Hexagons count:', hexGridCollection.features.length);
-
-  // Log first hex geometry to see its coordinates
-  if (hexGridCollection.features.length > 0) {
-    const firstHex = hexGridCollection.features[0];
-    console.log('[aggregateDeploymentsToHexes] First hex geometry:',
-      JSON.stringify(firstHex.geometry).substring(0, 200));
-  }
-
   const hexCells: HexCell[] = [];
 
   // For each hex, find deployments within it and aggregate metrics
   for (const hex of hexGridCollection.features) {
     const deploymentsInHex = pointsWithinPolygon(deploymentPoints, hex);
-
-    console.log('[aggregateDeploymentsToHexes] Hex bbox check, deployments found:',
-      deploymentsInHex.features.length);
 
     // Extract original deployment features (with full properties)
     const deploymentFeaturesInHex: DeploymentFeature[] = deploymentsInHex.features.map((pt) => {
