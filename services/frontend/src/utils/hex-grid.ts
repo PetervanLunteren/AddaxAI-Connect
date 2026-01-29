@@ -70,8 +70,18 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
     'cellSizeKm:', cellSizeKm.toFixed(1), 'cellSizeDegrees:', cellSizeDegrees.toFixed(4));
 
   try {
+    // Pad bounds to ensure grid covers all deployments
+    // Turf anchors hex lattice at top/left, so pad by full cell size to guarantee coverage
+    const pad = cellSizeDegrees;
+    const paddedBounds: BBox = [
+      minLon - pad,
+      minLat - pad,
+      maxLon + pad,
+      maxLat + pad,
+    ];
+
     // Use degrees to ensure grid aligns with bounding box
-    const grid = hexGrid(bounds, cellSizeDegrees, { units: 'degrees' });
+    const grid = hexGrid(paddedBounds, cellSizeDegrees, { units: 'degrees' });
     console.log('[generateHexGrid] Generated', grid.features.length, 'hexagons');
 
     return grid;
