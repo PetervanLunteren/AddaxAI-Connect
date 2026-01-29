@@ -71,8 +71,9 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
 
   try {
     // Pad bounds to ensure grid covers all deployments
-    // Turf anchors hex lattice at top/left, so pad by full cell size to guarantee coverage
-    const pad = cellSizeDegrees;
+    // Turf anchors hex lattice at top/left, so pad generously to guarantee coverage
+    // Use 2x cell size to account for hex spacing and ensure full coverage
+    const pad = cellSizeDegrees * 2;
     const paddedBounds: BBox = [
       minLon - pad,
       minLat - pad,
