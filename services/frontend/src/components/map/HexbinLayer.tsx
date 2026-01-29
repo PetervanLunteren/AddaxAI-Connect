@@ -2,10 +2,10 @@
  * Hexbin layer for detection rate map
  * Aggregates camera deployments into hexagonal cells
  */
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { GeoJSON } from 'react-leaflet';
-import type { FeatureCollection, Polygon } from 'geojson';
-import type { Layer, PathOptions, LeafletMouseEvent } from 'leaflet';
+import type { FeatureCollection, Polygon, Feature } from 'geojson';
+import type { Layer, PathOptions } from 'leaflet';
 import { featureCollection } from '@turf/helpers';
 import type { DeploymentFeature } from '../../api/types';
 import {
@@ -69,6 +69,27 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
     return featureCollection(features) as FeatureCollection<Polygon, HexFeatureProperties>;
   }, [hexCells, maxRate]);
 
+  // Stable style function using useCallback
+  const styleFunction = useCallback((feature: Feature<Polygon, HexFeatureProperties> | undefined) => {
+    const props = feature?.properties as HexFeatureProperties | undefined;
+    if (!props) return {};
+
+    return {
+      fillColor: props.color,
+      fillOpacity: props.isZero ? 0.2 : 0.5,
+      color: props.color,
+      weight: props.isZero ? 2 : 1,
+      opacity: 0.8,
+    };
+  }, []); // No dependencies - uses data from feature properties
+
+  // Stable onEachFeature function using useCallback
+  const onEachFeatureHandler = useCallback((feature: Feature<Polygon, HexFeatureProperties>, layer: Layer) => {
+    const props = feature.properties as HexFeatureProperties;
+    const popupContent = renderToStaticMarkup(<HexPopup hexCell={props.hexCell} />);
+    layer.bindPopup(popupContent);
+  }, []); // No dependencies - uses data from feature properties
+
   if (hexCells.length === 0) {
     return null;
   }
@@ -76,25 +97,8 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
   return (
     <GeoJSON
       data={hexFeatureCollection}
-      style={(feature) => {
-        const props = feature?.properties as HexFeatureProperties | undefined;
-        if (!props) return {};
-
-        return {
-          fillColor: props.color,
-          fillOpacity: props.isZero ? 0.2 : 0.5,
-          color: props.color,
-          weight: props.isZero ? 2 : 1,
-          opacity: 0.8,
-        };
-      }}
-      onEachFeature={(feature, layer) => {
-        const props = feature.properties as HexFeatureProperties;
-
-        // Bind popup with hex cell data
-        const popupContent = renderToStaticMarkup(<HexPopup hexCell={props.hexCell} />);
-        layer.bindPopup(popupContent);
-      }}
+      style={styleFunction}
+      onEachFeature={onEachFeatureHandler}
     />
   );
 }
