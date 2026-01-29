@@ -258,14 +258,21 @@ async def list_images(
     if filters:
         count_query = count_query.where(and_(*filters))
 
-    # Add species filter if present (requires subquery)
+    # Add species filter if present (requires subquery with threshold check)
     if species_filter:
         count_query = count_query.where(
             Image.id.in_(
                 select(Image.id)
                 .join(Detection)
                 .join(Classification)
-                .where(Classification.species.in_(species_filter))
+                .join(Camera, Image.camera_id == Camera.id)
+                .join(Project, Camera.project_id == Project.id)
+                .where(
+                    and_(
+                        Classification.species.in_(species_filter),
+                        Detection.confidence >= Project.detection_threshold
+                    )
+                )
             )
         )
 
@@ -290,14 +297,21 @@ async def list_images(
     if filters:
         query = query.where(and_(*filters))
 
-    # Add species filter if present (requires subquery)
+    # Add species filter if present (requires subquery with threshold check)
     if species_filter:
         query = query.where(
             Image.id.in_(
                 select(Image.id)
                 .join(Detection)
                 .join(Classification)
-                .where(Classification.species.in_(species_filter))
+                .join(Camera, Image.camera_id == Camera.id)
+                .join(Project, Camera.project_id == Project.id)
+                .where(
+                    and_(
+                        Classification.species.in_(species_filter),
+                        Detection.confidence >= Project.detection_threshold
+                    )
+                )
             )
         )
 
