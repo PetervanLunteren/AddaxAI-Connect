@@ -3,7 +3,7 @@
  * Aggregates camera deployments into hexagonal cells
  */
 import { useMemo } from 'react';
-import { GeoJSON, Popup, useMap } from 'react-leaflet';
+import { GeoJSON, Popup } from 'react-leaflet';
 import type { PathOptions } from 'leaflet';
 import type { DeploymentFeature } from '../../api/types';
 import {
@@ -22,32 +22,17 @@ interface HexbinLayerProps {
 }
 
 export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: HexbinLayerProps) {
-  const map = useMap();
-
   // Generate hex grid and aggregate deployments
   const hexCells = useMemo(() => {
     if (deployments.length === 0) {
       return [];
     }
 
-    // Use map bounds if available, otherwise deployment bounds
-    let bounds;
-    try {
-      const mapBounds = map.getBounds();
-      bounds = [
-        mapBounds.getWest(),
-        mapBounds.getSouth(),
-        mapBounds.getEast(),
-        mapBounds.getNorth(),
-      ] as [number, number, number, number];
-    } catch {
-      // Fallback to deployment bounds if map not ready
-      bounds = getDeploymentsBounds(deployments) as [number, number, number, number];
-    }
-
+    // Use deployment bounds to generate hex grid covering all deployments
+    const bounds = getDeploymentsBounds(deployments) as [number, number, number, number];
     const hexGrid = generateHexGrid(bounds, zoomLevel);
     return aggregateDeploymentsToHexes(deployments, hexGrid);
-  }, [deployments, zoomLevel, map]);
+  }, [deployments, zoomLevel]);
 
   // Calculate max detection rate for color scale if not provided
   const maxRate = useMemo(() => {
