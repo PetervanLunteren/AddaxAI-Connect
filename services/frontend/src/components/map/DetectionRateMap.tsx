@@ -92,6 +92,10 @@ export function DetectionRateMap() {
     return [avgLat, avgLon];
   }, [data]);
 
+  // Get hex cell size for display (must be before early returns - Rules of Hooks!)
+  // No need for useMemo since getHexCellSize is a trivial function
+  const hexCellSize = getHexCellSize(zoomLevel);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
@@ -109,9 +113,6 @@ export function DetectionRateMap() {
       </div>
     );
   }
-
-  // Get hex cell size for display
-  const hexCellSize = useMemo(() => getHexCellSize(zoomLevel), [zoomLevel]);
 
   return (
     <div className="relative">
