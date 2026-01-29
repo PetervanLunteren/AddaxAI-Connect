@@ -7,24 +7,30 @@ import chroma from 'chroma-js';
 /**
  * Generate color from detection rate using YlGnBu ColorBrewer palette
  *
- * Color scheme (Yellow-Green-Blue sequential):
- * - Light yellow: Zero/lowest detection rates
- * - Yellow-green: Low detection rates
- * - Green: Medium detection rates
- * - Blue-green: Medium-high detection rates
- * - Dark blue: High detection rates
+ * Uses exact ColorBrewer YlGnBu 9-class sequential scheme:
+ * https://colorbrewer2.org/#type=sequential&scheme=YlGnBu&n=9
  *
  * @param rate - Detection rate per 100 trap-days
  * @param maxRate - Maximum rate for scaling (auto-calculated if not provided)
  * @returns Hex color string
  */
 export function getDetectionRateColor(rate: number, maxRate?: number): string {
-  // Create color scale using ColorBrewer YlGnBu palette
-  const colorScale = chroma.scale('YlGnBu').mode('lab');
+  // Exact ColorBrewer YlGnBu 9-class sequential palette
+  const colorScale = chroma.scale([
+    '#ffffd9',  // Lightest yellow (for zero/lowest)
+    '#edf8b1',
+    '#c7e9b4',
+    '#7fcdbb',
+    '#41b6c4',
+    '#1d91c0',
+    '#225ea8',
+    '#253494',
+    '#081d58',  // Darkest blue (for highest)
+  ]).mode('lab');
 
-  // For zero rates, return the lightest color from the scale
+  // For zero rates, return the lightest yellow
   if (rate <= 0) {
-    return colorScale(0).hex();  // Lightest yellow for zero detections
+    return '#ffffd9';
   }
 
   // Normalize rate to 0-1 range
@@ -84,30 +90,29 @@ export function generateLegendItems(domain: {
   p66: number;
 }): Array<{ color: string; label: string }> {
   const items = [];
-  const colorScale = chroma.scale('YlGnBu').mode('lab');
 
-  // Zero detections (lightest yellow)
+  // Zero detections (lightest yellow from ColorBrewer)
   items.push({
-    color: colorScale(0).hex(),
+    color: '#ffffd9',
     label: '0',
   });
 
   if (domain.max > 0) {
-    // Low (yellow-green)
+    // Low (light yellow-green)
     items.push({
-      color: colorScale(0.33).hex(),
+      color: '#c7e9b4',
       label: `${domain.min.toFixed(1)} - ${domain.p33.toFixed(1)}`,
     });
 
-    // Medium (green)
+    // Medium (cyan)
     items.push({
-      color: colorScale(0.66).hex(),
+      color: '#41b6c4',
       label: `${domain.p33.toFixed(1)} - ${domain.p66.toFixed(1)}`,
     });
 
     // High (dark blue)
     items.push({
-      color: colorScale(1.0).hex(),
+      color: '#081d58',
       label: `${domain.p66.toFixed(1)} - ${domain.max.toFixed(1)}`,
     });
   }
