@@ -2,7 +2,6 @@
  * Map controls component
  * Provides filters for species and date range
  */
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
@@ -14,9 +13,9 @@ interface MapControlsProps {
 }
 
 export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
-  const [species, setSpecies] = useState(filters.species || '');
-  const [startDate, setStartDate] = useState(filters.start_date || '');
-  const [endDate, setEndDate] = useState(filters.end_date || '');
+  const species = filters.species || '';
+  const startDate = filters.start_date || '';
+  const endDate = filters.end_date || '';
 
   // Fetch species for dropdown
   const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
@@ -24,18 +23,28 @@ export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
     queryFn: () => imagesApi.getSpecies(),
   });
 
-  const handleApply = () => {
+  const handleSpeciesChange = (value: string) => {
     onFiltersChange({
-      species: species || undefined,
-      start_date: startDate || undefined,
-      end_date: endDate || undefined,
+      ...filters,
+      species: value || undefined,
+    });
+  };
+
+  const handleStartDateChange = (value: string) => {
+    onFiltersChange({
+      ...filters,
+      start_date: value || undefined,
+    });
+  };
+
+  const handleEndDateChange = (value: string) => {
+    onFiltersChange({
+      ...filters,
+      end_date: value || undefined,
     });
   };
 
   const handleClear = () => {
-    setSpecies('');
-    setStartDate('');
-    setEndDate('');
     onFiltersChange({});
   };
 
@@ -51,7 +60,7 @@ export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
           <select
             id="species-filter"
             value={species}
-            onChange={(e) => setSpecies(e.target.value)}
+            onChange={(e) => handleSpeciesChange(e.target.value)}
             disabled={speciesLoading}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
           >
@@ -72,7 +81,7 @@ export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
             id="start-date-filter"
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => handleStartDateChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -85,30 +94,19 @@ export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
             id="end-date-filter"
             type="date"
             value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            onChange={(e) => handleEndDateChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
-        <div className="flex gap-2">
-          <Button onClick={handleApply} className="flex-1">
-            apply
-          </Button>
-          {hasFilters && (
-            <Button onClick={handleClear} variant="outline" className="flex-1">
+        {hasFilters && (
+          <div>
+            <Button onClick={handleClear} variant="outline" className="w-full">
               clear
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-
-      {hasFilters && (
-        <div className="mt-2 text-sm text-gray-600">
-          {species && <span className="mr-3">species: <strong>{species}</strong></span>}
-          {startDate && <span className="mr-3">from: <strong>{startDate}</strong></span>}
-          {endDate && <span>to: <strong>{endDate}</strong></span>}
-        </div>
-      )}
     </div>
   );
 }
