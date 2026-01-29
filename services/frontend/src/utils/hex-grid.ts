@@ -22,19 +22,21 @@ export interface HexCell {
 /**
  * Get appropriate hex cell size (radius in km) based on zoom level
  *
- * Zoom levels:
- * 1-7:   50km hexagons (continental view)
- * 8-10:  20km hexagons (regional view)
- * 11-13:  5km hexagons (local view)
- * 14-16:  2km hexagons (detailed view)
- * 17+:    1km hexagons (close-up)
+ * Uses exponential decay to smoothly adjust cell size on every zoom level.
+ * Each zoom level reduces the cell size, providing continuous refinement.
+ *
+ * @param zoomLevel - Current map zoom level (1-20)
+ * @returns Cell size in kilometers
  */
 export function getHexCellSize(zoomLevel: number): number {
-  if (zoomLevel <= 7) return 50;
-  if (zoomLevel <= 10) return 20;
-  if (zoomLevel <= 13) return 5;
-  if (zoomLevel <= 16) return 2;
-  return 1;
+  // Exponential decay: base size is 25km at zoom 1 (half of original)
+  // Size decreases smoothly as zoom increases
+  const baseSize = 25;
+  const decayFactor = 0.75; // Size multiplier per zoom level
+  const size = baseSize * Math.pow(decayFactor, zoomLevel - 1);
+
+  // Minimum cell size of 250m to avoid overly dense grids
+  return Math.max(0.25, size);
 }
 
 /**
