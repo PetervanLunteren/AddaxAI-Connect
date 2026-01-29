@@ -45,13 +45,29 @@ export function getHexCellSize(zoomLevel: number): number {
  * @returns FeatureCollection of hexagon polygons
  */
 export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollection<Polygon> {
-  const cellSizeKm = getHexCellSize(zoomLevel);
+  const [minLon, minLat, maxLon, maxLat] = bounds;
+  const bboxWidth = maxLon - minLon;
+  const bboxHeight = maxLat - minLat;
+
+  let cellSizeKm = getHexCellSize(zoomLevel);
 
   // Convert km to degrees (approximation: 1 degree latitude ≈ 111 km)
   // For hexagons, the "radius" is the distance from center to vertex
-  const cellSizeDegrees = cellSizeKm / 111;
+  let cellSizeDegrees = cellSizeKm / 111;
 
-  console.log('[generateHexGrid] Bounds:', bounds, 'cellSizeKm:', cellSizeKm, 'cellSizeDegrees:', cellSizeDegrees);
+  // Ensure cell size is small enough to fit in the bounding box
+  // Hex grid needs at least 2x the cell size in each dimension to generate hexagons
+  const minBboxDimension = Math.min(bboxWidth, bboxHeight);
+  const maxCellSizeDegrees = minBboxDimension / 3;
+
+  if (cellSizeDegrees > maxCellSizeDegrees) {
+    cellSizeDegrees = maxCellSizeDegrees;
+    cellSizeKm = cellSizeDegrees * 111;
+    console.log('[generateHexGrid] Cell size too large for bbox, adjusted to:', cellSizeKm.toFixed(1), 'km');
+  }
+
+  console.log('[generateHexGrid] Bounds:', bounds, 'bbox:', bboxWidth.toFixed(3), 'x', bboxHeight.toFixed(3),
+    'cellSizeKm:', cellSizeKm.toFixed(1), 'cellSizeDegrees:', cellSizeDegrees.toFixed(4));
 
   try {
     // Use degrees to ensure grid aligns with bounding box
