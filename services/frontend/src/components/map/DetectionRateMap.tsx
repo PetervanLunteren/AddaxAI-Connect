@@ -1,10 +1,11 @@
 /**
  * Detection rate map component
- * Displays camera deployments with detection rates as colored markers
+ * Displays camera deployments with detection rates as colored markers or hexbins
  */
-import { useState, useMemo } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import { useQuery } from '@tanstack/react-query';
+import { MapPin, Hexagon } from 'lucide-react';
 import { statisticsApi } from '../../api/statistics';
 import type { DetectionRateMapFilters } from '../../api/types';
 import {
@@ -12,12 +13,55 @@ import {
   calculateColorScaleDomain,
 } from '../../utils/color-scale';
 import { DeploymentMarker } from './DeploymentMarker';
+import { HexbinLayer } from './HexbinLayer';
 import { MapLegend } from './MapLegend';
 import { MapControls } from './MapControls';
+import { getHexCellSize } from '../../utils/hex-grid';
+import { Button } from '../ui/Button';
 import 'leaflet/dist/leaflet.css';
+
+type ViewMode = 'points' | 'hexbins';
+
+/**
+ * Component to track zoom level changes
+ */
+function ZoomHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+  const debounceTimerRef = useRef<NodeJS.Timeout>();
+
+  useMapEvents({
+    zoomend: (e) => {
+      // Debounce zoom changes to avoid excessive hex regeneration
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        const zoom = e.target.getZoom();
+        onZoomChange(zoom);
+      }, 300);
+    },
+  });
+
+  return null;
+}
 
 export function DetectionRateMap() {
   const [filters, setFilters] = useState<DetectionRateMapFilters>({});
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Restore view preference from localStorage
+    const saved = localStorage.getItem('detection-map-view-mode');
+    return (saved === 'hexbins' ? 'hexbins' : 'points') as ViewMode;
+  });
+  const [zoomLevel, setZoomLevel] = useState(10);
+
+  // Save view mode preference
+  useEffect(() => {
+    localStorage.setItem('detection-map-view-mode', viewMode);
+  }, [viewMode]);
+
+  const handleZoomChange = useCallback((zoom: number) => {
+    setZoomLevel(zoom);
+  }, []);
 
   // Fetch detection rate map data
   const { data, isLoading, error } = useQuery({
@@ -66,9 +110,42 @@ export function DetectionRateMap() {
     );
   }
 
+  // Get hex cell size for display
+  const hexCellSize = useMemo(() => getHexCellSize(zoomLevel), [zoomLevel]);
+
   return (
     <div className="relative">
       <MapControls filters={filters} onFiltersChange={setFilters} />
+
+      {/* View mode toggle */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setViewMode('points')}
+            variant={viewMode === 'points' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <MapPin className="h-4 w-4" />
+            points
+          </Button>
+          <Button
+            onClick={() => setViewMode('hexbins')}
+            variant={viewMode === 'hexbins' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Hexagon className="h-4 w-4" />
+            hexbins
+          </Button>
+        </div>
+
+        {viewMode === 'hexbins' && (
+          <div className="text-sm text-gray-600">
+            cell size: {hexCellSize}km hexagons
+          </div>
+        )}
+      </div>
 
       <MapContainer
         center={mapCenter}
@@ -81,27 +158,48 @@ export function DetectionRateMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {data?.features.map((feature) => {
-          const color = getDetectionRateColor(
-            feature.properties.detection_rate_per_100,
-            colorDomain.max
-          );
+        <ZoomHandler onZoomChange={handleZoomChange} />
 
-          return (
-            <DeploymentMarker
-              key={feature.id}
-              feature={feature}
-              color={color}
+        {/* Render point markers or hexbin layer based on view mode */}
+        {viewMode === 'points' ? (
+          data?.features.map((feature) => {
+            const color = getDetectionRateColor(
+              feature.properties.detection_rate_per_100,
+              colorDomain.max
+            );
+
+            return (
+              <DeploymentMarker
+                key={feature.id}
+                feature={feature}
+                color={color}
+              />
+            );
+          })
+        ) : (
+          data?.features && (
+            <HexbinLayer
+              deployments={data.features}
+              zoomLevel={zoomLevel}
+              maxDetectionRate={colorDomain.max}
             />
-          );
-        })}
+          )
+        )}
 
         <MapLegend domain={colorDomain} />
       </MapContainer>
 
       {data?.features && (
         <div className="mt-2 text-sm text-gray-600">
-          showing {data.features.length} deployment{data.features.length !== 1 ? 's' : ''}
+          {viewMode === 'points' ? (
+            <>
+              showing {data.features.length} deployment{data.features.length !== 1 ? 's' : ''}
+            </>
+          ) : (
+            <>
+              aggregating {data.features.length} deployment{data.features.length !== 1 ? 's' : ''} into hexagonal cells
+            </>
+          )}
         </div>
       )}
     </div>

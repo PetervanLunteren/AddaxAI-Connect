@@ -12,6 +12,10 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.12.0",
+    "@turf/bbox": "^7.3.3",
+    "@turf/helpers": "^7.3.3",
+    "@turf/hex-grid": "^7.3.3",
+    "@turf/points-within-polygon": "^7.3.3",
     "@types/leaflet": "^1.9.21",
     "axios": "^1.6.2",
     "chart.js": "^4.4.0",

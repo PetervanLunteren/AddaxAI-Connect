@@ -28,15 +28,34 @@ export const DetectionRateMapPage: React.FC = () => {
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
               <p className="mb-2">
-                Each point represents a camera deployment period. Detection rates are effort-corrected
-                (detections per 100 trap-days) to account for varying deployment durations.
+                Detection rates are effort-corrected (detections per 100 trap-days) to account for
+                varying deployment durations. Choose between point markers or hexagonal aggregation views.
               </p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Click markers to view deployment details</li>
-                <li>Cameras with multiple deployments appear as separate points</li>
-                <li>Hollow circles indicate zero detections</li>
-                <li>Use filters to narrow results by species or date range</li>
-              </ul>
+
+              <div className="mb-3">
+                <p className="font-semibold text-gray-700 mb-1">point view:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Each marker represents a single camera deployment period</li>
+                  <li>Click markers to view individual deployment details</li>
+                  <li>Hollow circles indicate zero detections</li>
+                  <li>Best for viewing individual camera performance</li>
+                </ul>
+              </div>
+
+              <div className="mb-3">
+                <p className="font-semibold text-gray-700 mb-1">hexbin view:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Aggregates multiple deployments into hexagonal cells</li>
+                  <li>Cell size adapts automatically as you zoom in/out</li>
+                  <li>Click hexagons to see list of cameras and aggregated metrics</li>
+                  <li>Best for identifying regional patterns with many cameras</li>
+                  <li>Only cells containing cameras are shown (no interpolation)</li>
+                </ul>
+              </div>
+
+              <p className="text-xs italic">
+                Tip: Use filters to narrow results by species or date range in both views
+              </p>
             </div>
 
             <DetectionRateMap />
