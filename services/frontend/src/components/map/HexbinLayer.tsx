@@ -62,7 +62,8 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
   const hexFeatureCollection = useMemo<FeatureCollection<Polygon, HexFeatureProperties>>(() => {
     const features = hexCells.map((hexCell) => {
       const isZero = hexCell.detection_count === 0;
-      const color = getDetectionRateColor(hexCell.detection_rate_per_100, maxRate);
+      // Use grey for empty hexagons, color scale for hexagons with data
+      const color = isZero ? '#d1d5db' : getDetectionRateColor(hexCell.detection_rate_per_100, maxRate);
 
       return {
         ...hexCell.hex,
@@ -86,18 +87,21 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
 
     return {
       fillColor: props.color,
-      fillOpacity: props.isZero ? 0.2 : 0.5,
+      fillOpacity: props.isZero ? 0.1 : 0.5,
       color: props.color,
-      weight: props.isZero ? 2 : 1,
-      opacity: 0.8,
+      weight: props.isZero ? 1 : 1,
+      opacity: props.isZero ? 0.3 : 0.8,
     };
   }, []); // No dependencies - uses data from feature properties
 
   // Stable onEachFeature function using useCallback
   const onEachFeatureHandler = useCallback((feature: Feature<Polygon, HexFeatureProperties>, layer: Layer) => {
     const props = feature.properties as HexFeatureProperties;
-    const popupContent = renderToStaticMarkup(<HexPopup hexCell={props.hexCell} />);
-    layer.bindPopup(popupContent);
+    // Only show popup for hexagons with deployments
+    if (!props.isZero) {
+      const popupContent = renderToStaticMarkup(<HexPopup hexCell={props.hexCell} />);
+      layer.bindPopup(popupContent);
+    }
   }, []); // No dependencies - uses data from feature properties
 
   if (hexCells.length === 0) {

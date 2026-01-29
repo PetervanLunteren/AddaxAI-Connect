@@ -137,11 +137,6 @@ export function aggregateDeploymentsToHexes(
     console.log('[aggregateDeploymentsToHexes] Hex bbox check, deployments found:',
       deploymentsInHex.features.length);
 
-    // Skip hexes with no deployments
-    if (deploymentsInHex.features.length === 0) {
-      continue;
-    }
-
     // Extract original deployment features (with full properties)
     const deploymentFeaturesInHex: DeploymentFeature[] = deploymentsInHex.features.map((pt) => {
       const props = pt.properties as DeploymentFeatureProperties;
