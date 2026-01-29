@@ -113,6 +113,7 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
 
   return (
     <GeoJSON
+      key={`hexbin-${zoomLevel}-${hexCells.length}`}
       data={hexFeatureCollection}
       style={styleFunction}
       onEachFeature={onEachFeatureHandler}
