@@ -2,6 +2,7 @@
  * Hexbin grid utilities for aggregating camera deployments
  */
 import { hexGrid } from '@turf/hex-grid';
+import { squareGrid } from '@turf/square-grid';
 import { pointsWithinPolygon } from '@turf/points-within-polygon';
 import { bbox as turfBbox } from '@turf/bbox';
 import { point, featureCollection } from '@turf/helpers';
@@ -47,27 +48,29 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
   const cellSizeKm = getHexCellSize(zoomLevel);
 
   console.log('[generateHexGrid] Bounds:', bounds, 'cellSizeKm:', cellSizeKm);
-  console.log('[generateHexGrid] Calling hexGrid with units=kilometers');
 
   try {
-    // Try with kilometers first
-    let grid = hexGrid(bounds, cellSizeKm, { units: 'kilometers' });
-    console.log('[generateHexGrid] With kilometers:', grid.features.length, 'hexagons');
+    // Test with squareGrid first to verify basic Turf API works
+    console.log('[generateHexGrid] Testing squareGrid first...');
+    const testSquare = squareGrid(bounds, cellSizeKm, { units: 'kilometers' });
+    console.log('[generateHexGrid] squareGrid returned:', testSquare.features.length, 'squares');
 
-    // If that fails (0 features), try with miles
+    // Now try hexGrid with smaller cell size
+    console.log('[generateHexGrid] Trying hexGrid with smaller cell (10km)...');
+    let grid = hexGrid(bounds, 10, { units: 'kilometers' });
+    console.log('[generateHexGrid] hexGrid(10km):', grid.features.length, 'hexagons');
+
+    // Try with even smaller
     if (grid.features.length === 0) {
-      const cellSizeMiles = cellSizeKm * 0.621371;
-      console.log('[generateHexGrid] Trying miles instead:', cellSizeMiles);
-      grid = hexGrid(bounds, cellSizeMiles, { units: 'miles' });
-      console.log('[generateHexGrid] With miles:', grid.features.length, 'hexagons');
+      console.log('[generateHexGrid] Trying hexGrid with tiny cell (1km)...');
+      grid = hexGrid(bounds, 1, { units: 'kilometers' });
+      console.log('[generateHexGrid] hexGrid(1km):', grid.features.length, 'hexagons');
     }
 
-    // If still 0, try degrees with manual conversion
+    // If hexGrid doesn't work at all, fall back to squareGrid
     if (grid.features.length === 0) {
-      const cellSizeDegrees = cellSizeKm / 111;
-      console.log('[generateHexGrid] Trying degrees:', cellSizeDegrees);
-      grid = hexGrid(bounds, cellSizeDegrees, { units: 'degrees' });
-      console.log('[generateHexGrid] With degrees:', grid.features.length, 'hexagons');
+      console.warn('[generateHexGrid] hexGrid not working, using squareGrid as fallback');
+      grid = squareGrid(bounds, cellSizeKm, { units: 'kilometers' });
     }
 
     return grid;
