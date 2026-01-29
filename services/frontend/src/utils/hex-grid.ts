@@ -22,21 +22,26 @@ export interface HexCell {
 /**
  * Get appropriate hex cell size (radius in km) based on zoom level
  *
- * Uses exponential decay to smoothly adjust cell size on every zoom level.
- * Each zoom level reduces the cell size, providing continuous refinement.
+ * Maintains constant pixel size across all zoom levels by adjusting
+ * geographic size (km) proportionally to map scale. Since Leaflet
+ * doubles the scale with each zoom level, we halve the km size.
  *
  * @param zoomLevel - Current map zoom level (1-20)
  * @returns Cell size in kilometers
  */
 export function getHexCellSize(zoomLevel: number): number {
-  // Exponential decay: base size is 25km at zoom 1 (half of original)
-  // Size decreases smoothly as zoom increases
-  const baseSize = 25;
-  const decayFactor = 0.75; // Size multiplier per zoom level
-  const size = baseSize * Math.pow(decayFactor, zoomLevel - 1);
+  // Reference zoom level and desired size at that zoom
+  const referenceZoom = 10;
+  const referenceSizeKm = 1.5; // Desired size at zoom 10 (in km)
 
-  // Minimum cell size of 250m to avoid overly dense grids
-  return Math.max(0.25, size);
+  // Size doubles/halves with each zoom level to maintain constant pixel size
+  // Lower zoom (zoomed out) = larger km size
+  // Higher zoom (zoomed in) = smaller km size
+  const size = referenceSizeKm * Math.pow(2, referenceZoom - zoomLevel);
+
+  // Minimum cell size of 50m to avoid overly dense grids at high zoom
+  // Maximum cell size of 500km to avoid issues at very low zoom
+  return Math.min(500, Math.max(0.05, size));
 }
 
 /**
