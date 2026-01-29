@@ -76,9 +76,9 @@ export const AboutPage: React.FC = () => {
           </div>
 
           <div>
-            <h3 className="font-semibold mb-2">A collaboration</h3>
+            <h3 className="font-semibold mb-2">Collaboration</h3>
             <p className="text-sm text-muted-foreground">
-              Between{' '}
+              A joint project by{' '}
               <a
                 href="https://addaxdatascience.com/"
                 target="_blank"
