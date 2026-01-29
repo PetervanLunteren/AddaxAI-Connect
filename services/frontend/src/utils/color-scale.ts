@@ -5,12 +5,14 @@
 import chroma from 'chroma-js';
 
 /**
- * Generate color from detection rate using blue-yellow-red gradient
+ * Generate color from detection rate using peach-to-purple gradient
  *
- * Color scheme:
- * - Blue (#3b82f6): Low detection rates (0-33rd percentile)
- * - Yellow (#eab308): Medium detection rates (33rd-66th percentile)
- * - Red (#ef4444): High detection rates (66th-100th percentile)
+ * Color scheme (inspired by sequential hexbin maps):
+ * - Light peach (#f4d7b0): Low detection rates
+ * - Coral (#f29e7c): Low-medium detection rates
+ * - Pink/magenta (#d9537c): Medium detection rates
+ * - Purple (#9c4f8f): Medium-high detection rates
+ * - Dark purple (#6b3a7c): High detection rates
  *
  * @param rate - Detection rate per 100 trap-days
  * @param maxRate - Maximum rate for scaling (auto-calculated if not provided)
@@ -19,11 +21,17 @@ import chroma from 'chroma-js';
 export function getDetectionRateColor(rate: number, maxRate?: number): string {
   // Handle zero/negative rates
   if (rate <= 0) {
-    return '#94a3b8';  // Gray for zero detections
+    return '#d1d5db';  // Light gray for zero detections
   }
 
-  // Create color scale: blue -> yellow -> red
-  const colorScale = chroma.scale(['#3b82f6', '#eab308', '#ef4444']).mode('lab');
+  // Create color scale: light peach -> coral -> pink -> purple -> dark purple
+  const colorScale = chroma.scale([
+    '#f4d7b0',  // Light peach
+    '#f29e7c',  // Coral
+    '#d9537c',  // Pink/magenta
+    '#9c4f8f',  // Purple
+    '#6b3a7c',  // Dark purple
+  ]).mode('lab');
 
   // Normalize rate to 0-1 range
   const normalizedRate = maxRate && maxRate > 0
@@ -83,28 +91,28 @@ export function generateLegendItems(domain: {
 }): Array<{ color: string; label: string }> {
   const items = [];
 
-  // Zero detections (gray)
+  // Zero detections (light gray)
   items.push({
-    color: '#94a3b8',
+    color: '#d1d5db',
     label: '0',
   });
 
   if (domain.max > 0) {
-    // Low (blue)
+    // Low (light peach)
     items.push({
-      color: '#3b82f6',
+      color: '#f4d7b0',
       label: `${domain.min.toFixed(1)} - ${domain.p33.toFixed(1)}`,
     });
 
-    // Medium (yellow)
+    // Medium (pink/magenta)
     items.push({
-      color: '#eab308',
+      color: '#d9537c',
       label: `${domain.p33.toFixed(1)} - ${domain.p66.toFixed(1)}`,
     });
 
-    // High (red)
+    // High (dark purple)
     items.push({
-      color: '#ef4444',
+      color: '#6b3a7c',
       label: `${domain.p66.toFixed(1)} - ${domain.max.toFixed(1)}`,
     });
   }
