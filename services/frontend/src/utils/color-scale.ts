@@ -5,33 +5,27 @@
 import chroma from 'chroma-js';
 
 /**
- * Generate color from detection rate using peach-to-purple gradient
+ * Generate color from detection rate using YlGnBu ColorBrewer palette
  *
- * Color scheme (inspired by sequential hexbin maps):
- * - Light peach (#f4d7b0): Low detection rates
- * - Coral (#f29e7c): Low-medium detection rates
- * - Pink/magenta (#d9537c): Medium detection rates
- * - Purple (#9c4f8f): Medium-high detection rates
- * - Dark purple (#6b3a7c): High detection rates
+ * Color scheme (Yellow-Green-Blue sequential):
+ * - Light yellow: Zero/lowest detection rates
+ * - Yellow-green: Low detection rates
+ * - Green: Medium detection rates
+ * - Blue-green: Medium-high detection rates
+ * - Dark blue: High detection rates
  *
  * @param rate - Detection rate per 100 trap-days
  * @param maxRate - Maximum rate for scaling (auto-calculated if not provided)
  * @returns Hex color string
  */
 export function getDetectionRateColor(rate: number, maxRate?: number): string {
-  // Handle zero/negative rates - use lightest peach color
-  if (rate <= 0) {
-    return '#f4d7b0';  // Light peach for zero detections
-  }
+  // Create color scale using ColorBrewer YlGnBu palette
+  const colorScale = chroma.scale('YlGnBu').mode('lab');
 
-  // Create color scale: light peach -> coral -> pink -> purple -> dark purple
-  const colorScale = chroma.scale([
-    '#f4d7b0',  // Light peach
-    '#f29e7c',  // Coral
-    '#d9537c',  // Pink/magenta
-    '#9c4f8f',  // Purple
-    '#6b3a7c',  // Dark purple
-  ]).mode('lab');
+  // For zero rates, return the lightest color from the scale
+  if (rate <= 0) {
+    return colorScale(0).hex();  // Lightest yellow for zero detections
+  }
 
   // Normalize rate to 0-1 range
   const normalizedRate = maxRate && maxRate > 0
@@ -90,29 +84,30 @@ export function generateLegendItems(domain: {
   p66: number;
 }): Array<{ color: string; label: string }> {
   const items = [];
+  const colorScale = chroma.scale('YlGnBu').mode('lab');
 
-  // Zero detections (light peach)
+  // Zero detections (lightest yellow)
   items.push({
-    color: '#f4d7b0',
+    color: colorScale(0).hex(),
     label: '0',
   });
 
   if (domain.max > 0) {
-    // Low (light peach to coral)
+    // Low (yellow-green)
     items.push({
-      color: '#f4d7b0',
+      color: colorScale(0.33).hex(),
       label: `${domain.min.toFixed(1)} - ${domain.p33.toFixed(1)}`,
     });
 
-    // Medium (pink/magenta)
+    // Medium (green)
     items.push({
-      color: '#d9537c',
+      color: colorScale(0.66).hex(),
       label: `${domain.p33.toFixed(1)} - ${domain.p66.toFixed(1)}`,
     });
 
-    // High (dark purple)
+    // High (dark blue)
     items.push({
-      color: '#6b3a7c',
+      color: colorScale(1.0).hex(),
       label: `${domain.p66.toFixed(1)} - ${domain.max.toFixed(1)}`,
     });
   }
