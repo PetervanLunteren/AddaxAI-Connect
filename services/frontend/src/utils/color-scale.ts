@@ -19,9 +19,9 @@ import chroma from 'chroma-js';
  * @returns Hex color string
  */
 export function getDetectionRateColor(rate: number, maxRate?: number): string {
-  // Handle zero/negative rates
+  // Handle zero/negative rates - use lightest peach color
   if (rate <= 0) {
-    return '#d1d5db';  // Light gray for zero detections
+    return '#f4d7b0';  // Light peach for zero detections
   }
 
   // Create color scale: light peach -> coral -> pink -> purple -> dark purple
@@ -91,14 +91,14 @@ export function generateLegendItems(domain: {
 }): Array<{ color: string; label: string }> {
   const items = [];
 
-  // Zero detections (light gray)
+  // Zero detections (light peach)
   items.push({
-    color: '#d1d5db',
+    color: '#f4d7b0',
     label: '0',
   });
 
   if (domain.max > 0) {
-    // Low (light peach)
+    // Low (light peach to coral)
     items.push({
       color: '#f4d7b0',
       label: `${domain.min.toFixed(1)} - ${domain.p33.toFixed(1)}`,
