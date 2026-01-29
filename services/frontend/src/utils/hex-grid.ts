@@ -46,19 +46,35 @@ export function getHexCellSize(zoomLevel: number): number {
 export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollection<Polygon> {
   const cellSizeKm = getHexCellSize(zoomLevel);
 
-  // Turf hexGrid expects cell DIAMETER (distance across), not radius
-  // The cellSide parameter is the distance from center to vertex (radius)
-  // For our purposes, we want the hexagon "radius" to be cellSizeKm
-  // Use 'kilometers' units and let Turf handle the geographic projection
-  const cellRadius = cellSizeKm;
+  console.log('[generateHexGrid] Bounds:', bounds, 'cellSizeKm:', cellSizeKm);
+  console.log('[generateHexGrid] Calling hexGrid with units=kilometers');
 
-  console.log('[generateHexGrid] Bounds:', bounds, 'cellRadius:', cellRadius, 'km');
+  try {
+    // Try with kilometers first
+    let grid = hexGrid(bounds, cellSizeKm, { units: 'kilometers' });
+    console.log('[generateHexGrid] With kilometers:', grid.features.length, 'hexagons');
 
-  const grid = hexGrid(bounds, cellRadius, { units: 'kilometers' });
+    // If that fails (0 features), try with miles
+    if (grid.features.length === 0) {
+      const cellSizeMiles = cellSizeKm * 0.621371;
+      console.log('[generateHexGrid] Trying miles instead:', cellSizeMiles);
+      grid = hexGrid(bounds, cellSizeMiles, { units: 'miles' });
+      console.log('[generateHexGrid] With miles:', grid.features.length, 'hexagons');
+    }
 
-  console.log('[generateHexGrid] Generated grid with', grid.features.length, 'hexagons');
+    // If still 0, try degrees with manual conversion
+    if (grid.features.length === 0) {
+      const cellSizeDegrees = cellSizeKm / 111;
+      console.log('[generateHexGrid] Trying degrees:', cellSizeDegrees);
+      grid = hexGrid(bounds, cellSizeDegrees, { units: 'degrees' });
+      console.log('[generateHexGrid] With degrees:', grid.features.length, 'hexagons');
+    }
 
-  return grid;
+    return grid;
+  } catch (error) {
+    console.error('[generateHexGrid] Error:', error);
+    throw error;
+  }
 }
 
 /**
