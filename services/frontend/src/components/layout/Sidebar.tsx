@@ -17,7 +17,8 @@ import {
   ShieldAlert,
   Filter,
   Users,
-  Settings
+  Settings,
+  MapPin
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
+    { to: `/projects/${projectId}/map`, icon: MapPin, label: 'Detection Rate Map' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
   ];
 

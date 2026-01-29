@@ -31,6 +31,7 @@ import { TelegramConfigPage } from './pages/server/TelegramConfigPage';
 import { HealthPage } from './pages/server/HealthPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
+import { DetectionRateMapPage } from './pages/DetectionRateMapPage';
 
 function App() {
   return (
@@ -134,6 +135,7 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="images" element={<ImagesPage />} />
+                <Route path="map" element={<DetectionRateMapPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="settings" element={<ProjectSettingsPage />} />
                 <Route path="camera-management" element={<CameraManagementPage />} />

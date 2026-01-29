@@ -105,6 +105,42 @@ export interface LastUpdateResponse {
   last_update: string | null;
 }
 
+// Detection rate map types (GeoJSON)
+export interface DeploymentFeatureProperties {
+  camera_id: number;
+  camera_name: string;
+  deployment_id: number;
+  start_date: string;  // YYYY-MM-DD
+  end_date: string | null;  // YYYY-MM-DD or null for active
+  trap_days: number;
+  detection_count: number;
+  detection_rate: number;  // detections per trap-day
+  detection_rate_per_100: number;  // detections per 100 trap-days
+}
+
+export interface DeploymentFeatureGeometry {
+  type: 'Point';
+  coordinates: [number, number];  // [longitude, latitude]
+}
+
+export interface DeploymentFeature {
+  type: 'Feature';
+  id: string;  // camera_id-deployment_id
+  geometry: DeploymentFeatureGeometry;
+  properties: DeploymentFeatureProperties;
+}
+
+export interface DetectionRateMapResponse {
+  type: 'FeatureCollection';
+  features: DeploymentFeature[];
+}
+
+export interface DetectionRateMapFilters {
+  species?: string;
+  start_date?: string;  // YYYY-MM-DD
+  end_date?: string;  // YYYY-MM-DD
+}
+
 export interface Project {
   id: number;
   name: string;

@@ -88,6 +88,31 @@ class Camera(Base):
     images = relationship("Image", back_populates="camera")
 
 
+class CameraDeploymentPeriod(Base):
+    """
+    Camera deployment period - tracks when/where a camera was deployed.
+
+    A new deployment is created when:
+    - Camera GPS moves >100m from previous location
+    - First image/report received for a camera
+
+    Used for:
+    - Effort-corrected detection rate calculations (trap-days)
+    - CamtrapDP export (future)
+    - Camera relocation history
+    """
+    __tablename__ = "camera_deployment_periods"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    deployment_id = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)  # NULL = currently active deployment
+    location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
 class Detection(Base):
     """Object detection result"""
     __tablename__ = "detections"
