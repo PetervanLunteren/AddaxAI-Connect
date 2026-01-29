@@ -87,10 +87,10 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
 
     return {
       fillColor: props.color,
-      fillOpacity: props.isZero ? 0.25 : 0.5,
+      fillOpacity: 0.8,
       color: props.color,
-      weight: props.isZero ? 1 : 1,
-      opacity: props.isZero ? 0.5 : 0.8,
+      weight: 1,
+      opacity: 0.8,
     };
   }, []); // No dependencies - uses data from feature properties
 
