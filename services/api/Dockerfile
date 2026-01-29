@@ -63,7 +63,7 @@ COPY .git /tmp/.git
 #   - Clean release: v0.2.1
 #   - Unreleased code: v0.2.1-5-g3a2b1c4 (5 commits after v0.2.1, commit hash 3a2b1c4)
 #   - No tags: v0.0.0-dev (fallback)
-RUN cd /tmp && git --git-dir=/tmp/.git describe --tags --always --dirty 2>/dev/null > /app/VERSION || echo "v0.0.0-dev" > /app/VERSION
+RUN cd /tmp && git --git-dir=/tmp/.git describe --tags --always 2>/dev/null > /app/VERSION || echo "v0.0.0-dev" > /app/VERSION
 
 # Clean up .git directory (not needed in final image)
 RUN rm -rf /tmp/.git
