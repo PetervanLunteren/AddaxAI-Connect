@@ -49,6 +49,47 @@ export const AboutPage: React.FC = () => {
           </div>
 
           <div>
+            <h3 className="font-semibold mb-2">AI Models</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              AddaxAI Connect uses two state-of-the-art machine learning models for wildlife detection and species classification:
+            </p>
+            <div className="space-y-3 ml-4">
+              <div>
+                <p className="text-sm font-medium">
+                  <a
+                    href="https://github.com/agentmorris/MegaDetector"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    MegaDetector v1000.0.0
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Object detection model that identifies animals, people, and vehicles in camera trap images
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  <a
+                    href="https://huggingface.co/Addax-Data-Science/Deepfaune_v1.4"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    DeepFaune v1.4
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Species classification model for identifying specific wildlife species in detected animals
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
             <h3 className="font-semibold mb-2">A collaboration</h3>
             <p className="text-sm text-muted-foreground">
               Between{' '}
