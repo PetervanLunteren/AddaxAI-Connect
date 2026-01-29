@@ -35,12 +35,20 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
   // Generate hex grid and aggregate deployments
   const hexCells = useMemo(() => {
     if (deployments.length === 0) {
+      console.log('[HexbinLayer] No deployments');
       return [];
     }
 
     const bounds = getDeploymentsBounds(deployments) as [number, number, number, number];
+    console.log('[HexbinLayer] Deployments:', deployments.length, 'Bounds:', bounds, 'Zoom:', zoomLevel);
+
     const hexGrid = generateHexGrid(bounds, zoomLevel);
-    return aggregateDeploymentsToHexes(deployments, hexGrid);
+    console.log('[HexbinLayer] Hex grid features:', hexGrid.features.length);
+
+    const cells = aggregateDeploymentsToHexes(deployments, hexGrid);
+    console.log('[HexbinLayer] Aggregated hex cells:', cells.length);
+
+    return cells;
   }, [deployments, zoomLevel]);
 
   // Calculate max detection rate for color scale
@@ -66,7 +74,9 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
       };
     });
 
-    return featureCollection(features) as FeatureCollection<Polygon, HexFeatureProperties>;
+    const fc = featureCollection(features) as FeatureCollection<Polygon, HexFeatureProperties>;
+    console.log('[HexbinLayer] Created FeatureCollection with', fc.features.length, 'features');
+    return fc;
   }, [hexCells, maxRate]);
 
   // Stable style function using useCallback
@@ -91,8 +101,11 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
   }, []); // No dependencies - uses data from feature properties
 
   if (hexCells.length === 0) {
+    console.log('[HexbinLayer] No hex cells to render');
     return null;
   }
+
+  console.log('[HexbinLayer] Rendering GeoJSON with', hexFeatureCollection.features.length, 'features');
 
   return (
     <GeoJSON
