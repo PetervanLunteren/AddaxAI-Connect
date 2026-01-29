@@ -96,6 +96,16 @@ export const adminApi = {
     return response.data;
   },
 
+  /**
+   * Cancel a pending invitation
+   */
+  cancelInvitation: async (invitationId: number): Promise<{ message: string; email: string }> => {
+    const response = await apiClient.delete<{ message: string; email: string }>(
+      `/api/admin/invitations/${invitationId}`
+    );
+    return response.data;
+  },
+
   // Signal Configuration
   /**
    * Get Signal configuration

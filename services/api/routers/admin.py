@@ -42,6 +42,8 @@ class UserResponse(BaseModel):
     is_active: bool
     is_superuser: bool
     is_verified: bool
+    is_pending_invitation: bool = False  # True if this is a pending invitation, not a registered user
+    invitation_expires_at: Optional[str] = None  # ISO timestamp when invitation expires
     project_memberships: list[ProjectMembershipInfo] = []
 
     class Config:
@@ -70,14 +72,15 @@ async def list_users(
     """
     List all users with their project memberships (server admin only)
 
-    Returns list of all users including their project memberships with roles.
+    Returns list of all users including their project memberships with roles,
+    plus pending server-admin invitations.
 
     Args:
         db: Database session
         current_user: Current authenticated server admin
 
     Returns:
-        List of users with project memberships
+        List of users and pending invitations with project memberships
     """
     # Get all users
     result = await db.execute(select(User))
@@ -110,7 +113,30 @@ async def list_users(
             is_active=user.is_active,
             is_superuser=user.is_superuser,
             is_verified=user.is_verified,
+            is_pending_invitation=False,
             project_memberships=membership_info
+        ))
+
+    # Get pending server-admin invitations (not yet used)
+    invitations_result = await db.execute(
+        select(UserInvitation).where(
+            UserInvitation.role == 'server-admin',
+            UserInvitation.used == False
+        )
+    )
+    invitations = invitations_result.scalars().all()
+
+    # Add pending invitations to responses
+    for invitation in invitations:
+        responses.append(UserResponse(
+            id=invitation.id,  # Use invitation ID (will be negative to avoid conflicts with user IDs in frontend)
+            email=invitation.email,
+            is_active=False,  # Not active yet
+            is_superuser=True,  # Will be superuser when they register
+            is_verified=False,  # Not verified yet
+            is_pending_invitation=True,
+            invitation_expires_at=invitation.expires_at.isoformat() if invitation.expires_at else None,
+            project_memberships=[]  # No project memberships yet
         ))
 
     return responses
@@ -720,6 +746,66 @@ class RemoveServerAdminResponse(BaseModel):
     message: str
     user_id: int
     email: str
+
+
+@router.delete(
+    "/invitations/{invitation_id}",
+    status_code=status.HTTP_200_OK,
+)
+async def cancel_invitation(
+    invitation_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Cancel a pending invitation (server admin only).
+
+    Args:
+        invitation_id: Invitation ID to cancel
+        db: Database session
+        current_user: Current authenticated server admin
+
+    Returns:
+        Success message
+
+    Raises:
+        HTTPException 404: If invitation not found
+        HTTPException 400: If invitation already used
+    """
+    # Get invitation
+    result = await db.execute(
+        select(UserInvitation).where(UserInvitation.id == invitation_id)
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Invitation with ID {invitation_id} not found"
+        )
+
+    if invitation.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invitation for {invitation.email} has already been used and cannot be cancelled"
+        )
+
+    # Delete invitation
+    await db.delete(invitation)
+    await db.commit()
+
+    logger.info(
+        "Invitation cancelled",
+        invitation_id=invitation_id,
+        email=invitation.email,
+        role=invitation.role,
+        cancelled_by=current_user.email
+    )
+
+    return {
+        "message": f"Invitation for {invitation.email} has been cancelled",
+        "email": invitation.email
+    }
 
 
 @router.delete(

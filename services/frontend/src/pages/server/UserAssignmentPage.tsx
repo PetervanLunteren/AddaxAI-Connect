@@ -37,6 +37,8 @@ export const UserAssignmentPage: React.FC = () => {
   const [addEmail, setAddEmail] = useState<string>('');
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [userToRemove, setUserToRemove] = useState<{ id: number; email: string } | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [invitationToCancel, setInvitationToCancel] = useState<{ id: number; email: string } | null>(null);
 
   // Fetch all users to filter server admins
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -71,6 +73,19 @@ export const UserAssignmentPage: React.FC = () => {
     },
     onError: (error: any) => {
       alert(`Failed to remove server admin: ${error.response?.data?.detail || 'Unknown error'}`);
+    },
+  });
+
+  // Cancel invitation mutation
+  const cancelInvitationMutation = useMutation({
+    mutationFn: (invitationId: number) => adminApi.cancelInvitation(invitationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setShowCancelModal(false);
+      setInvitationToCancel(null);
+    },
+    onError: (error: any) => {
+      alert(`Failed to cancel invitation: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -127,20 +142,28 @@ export const UserAssignmentPage: React.FC = () => {
                   <TableRow key={serverAdmin.id}>
                     <TableCell className="font-medium">{serverAdmin.email}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700">
                           <Shield className="h-3 w-3" />
                           Server Admin
                         </span>
-                        {serverAdmin.is_active && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
-                            Active
+                        {serverAdmin.is_pending_invitation ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-700">
+                            Pending Invitation
                           </span>
-                        )}
-                        {serverAdmin.is_verified && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
-                            Verified
-                          </span>
+                        ) : (
+                          <>
+                            {serverAdmin.is_active && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
+                                Active
+                              </span>
+                            )}
+                            {serverAdmin.is_verified && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
+                                Verified
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -149,12 +172,23 @@ export const UserAssignmentPage: React.FC = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setUserToRemove({ id: serverAdmin.id, email: serverAdmin.email });
-                          setShowRemoveModal(true);
+                          if (serverAdmin.is_pending_invitation) {
+                            setInvitationToCancel({ id: serverAdmin.id, email: serverAdmin.email });
+                            setShowCancelModal(true);
+                          } else {
+                            setUserToRemove({ id: serverAdmin.id, email: serverAdmin.email });
+                            setShowRemoveModal(true);
+                          }
                         }}
-                        disabled={serverAdmin.id === user?.id}
+                        disabled={!serverAdmin.is_pending_invitation && serverAdmin.id === user?.id}
                         className="h-8 w-8 p-0"
-                        title={serverAdmin.id === user?.id ? "Cannot remove yourself" : "Remove server admin"}
+                        title={
+                          serverAdmin.is_pending_invitation
+                            ? "Cancel invitation"
+                            : serverAdmin.id === user?.id
+                            ? "Cannot remove yourself"
+                            : "Remove server admin"
+                        }
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -249,6 +283,45 @@ export const UserAssignmentPage: React.FC = () => {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Invitation Confirmation Modal */}
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel invitation?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel the invitation for <strong>{invitationToCancel?.email}</strong>? They will no longer be able to register as a server admin using this invitation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCancelModal(false);
+                setInvitationToCancel(null);
+              }}
+              disabled={cancelInvitationMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (invitationToCancel) {
+                  cancelInvitationMutation.mutate(invitationToCancel.id);
+                }
+              }}
+              disabled={cancelInvitationMutation.isPending}
+            >
+              {cancelInvitationMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Cancel Invitation
             </Button>
           </DialogFooter>
         </DialogContent>
