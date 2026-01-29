@@ -46,13 +46,19 @@ export function getHexCellSize(zoomLevel: number): number {
 export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollection<Polygon> {
   const cellSizeKm = getHexCellSize(zoomLevel);
 
-  // hexGrid expects cell side length in units matching the CRS (degrees for WGS84)
-  // Approximate conversion: 1 degree latitude ≈ 111 km
-  // For hexagons, cellSide relates to the radius by: radius = cellSide * sqrt(3)/2
-  // We want radius in km, so: cellSide ≈ (radius_km / 111) * (2 / sqrt(3))
-  const cellSideDegrees = (cellSizeKm / 111) * (2 / Math.sqrt(3));
+  // Turf hexGrid expects cell DIAMETER (distance across), not radius
+  // The cellSide parameter is the distance from center to vertex (radius)
+  // For our purposes, we want the hexagon "radius" to be cellSizeKm
+  // Use 'kilometers' units and let Turf handle the geographic projection
+  const cellRadius = cellSizeKm;
 
-  return hexGrid(bounds, cellSideDegrees, { units: 'degrees' });
+  console.log('[generateHexGrid] Bounds:', bounds, 'cellRadius:', cellRadius, 'km');
+
+  const grid = hexGrid(bounds, cellRadius, { units: 'kilometers' });
+
+  console.log('[generateHexGrid] Generated grid with', grid.features.length, 'hexagons');
+
+  return grid;
 }
 
 /**
