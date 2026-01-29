@@ -162,6 +162,7 @@ export interface ProjectWithRole {
   name: string;
   description: string | null;
   role: string;
+  included_species: string[] | null;
   detection_threshold: number;
   image_url: string | null;
   thumbnail_url: string | null;

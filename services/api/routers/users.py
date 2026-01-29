@@ -25,6 +25,7 @@ class ProjectWithRole(BaseModel):
     name: str
     description: str | None = None
     role: str
+    included_species: List[str] | None = None
     detection_threshold: float
     image_url: str | None = None
     thumbnail_url: str | None = None
@@ -71,6 +72,7 @@ async def get_my_projects(
                     name=project.name,
                     description=project.description,
                     role="server-admin",
+                    included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
@@ -94,6 +96,7 @@ async def get_my_projects(
                     name=project.name,
                     description=project.description,
                     role=membership.role,
+                    included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
