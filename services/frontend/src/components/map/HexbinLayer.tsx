@@ -67,22 +67,9 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
 
         return (
           <GeoJSON
-            key={`hex-${index}`}
+            key={`hex-${index}-${hexCell.camera_count}`}
             data={hexFeature}
             pathOptions={style}
-            eventHandlers={{
-              mouseover: (e) => {
-                const layer = e.target;
-                layer.setStyle({
-                  weight: 3,
-                  fillOpacity: hexCell.detection_count === 0 ? 0.4 : 0.7,
-                });
-              },
-              mouseout: (e) => {
-                const layer = e.target;
-                layer.setStyle(style);
-              },
-            }}
           >
             <Popup>
               <HexPopup hexCell={hexCell} />
