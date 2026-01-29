@@ -3,8 +3,10 @@
  * Provides filters for species and date range
  */
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
+import { imagesApi } from '../../api/images';
 
 interface MapControlsProps {
   filters: DetectionRateMapFilters;
@@ -15,6 +17,12 @@ export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
   const [species, setSpecies] = useState(filters.species || '');
   const [startDate, setStartDate] = useState(filters.start_date || '');
   const [endDate, setEndDate] = useState(filters.end_date || '');
+
+  // Fetch species for dropdown
+  const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
+    queryKey: ['species'],
+    queryFn: () => imagesApi.getSpecies(),
+  });
 
   const handleApply = () => {
     onFiltersChange({
@@ -40,14 +48,20 @@ export function MapControls({ filters, onFiltersChange }: MapControlsProps) {
           <label htmlFor="species-filter" className="block text-sm font-medium text-gray-700 mb-1">
             species
           </label>
-          <input
+          <select
             id="species-filter"
-            type="text"
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
-            placeholder="enter species name..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+            disabled={speciesLoading}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
+          >
+            <option value="">all species</option>
+            {speciesOptions?.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
