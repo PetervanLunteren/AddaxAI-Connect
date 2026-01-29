@@ -441,9 +441,9 @@ async def get_detection_rate_map(
                 COUNT(d.id) FILTER (WHERE
                     d.id IS NOT NULL
                     AND d.confidence >= p.detection_threshold
-                    AND (:species::text IS NULL OR LOWER(cl.species) = LOWER(:species))
-                    AND (:start_date::date IS NULL OR i.uploaded_at::date >= :start_date)
-                    AND (:end_date::date IS NULL OR i.uploaded_at::date <= :end_date)
+                    AND (CAST(:species AS text) IS NULL OR LOWER(cl.species) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
                 ) as detection_count,
                 c.name as camera_name
             FROM camera_deployment_periods cdp
