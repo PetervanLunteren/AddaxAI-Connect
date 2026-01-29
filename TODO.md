@@ -1,9 +1,9 @@
 # TODO list
 - [ ] Make a page for project admins where we can include/exclude images from the view and statistics. That way we can exclude test images for example.
 - [ ] Can we expand the rejected page for server admins to also see the contents of the uploads folder directly?
-- [ ] Put the logout feature of the server page in the hamburger menu, and make the list items role based, not the hamburger menu itself. Also put the email address inside the hamburger menu. 
 - [ ] blur people and vehicles disable only by server admin
-- [ ] make the about page in the hamburger menu, and implement versioning. We'll use the guthub release methods for versioning. How dio we fetch the versioning of the current code? 
+- [ ] Limit the notifcation species options to only the ones selected to be poresent in the project.
+- [ ] The filtering options in the IMages page do not take into account the detection threhsold. If there eg is a fox below the det thresh, and a dog above it, the image will still show up if you search for "fox". 
 
 **SPW points**
 - [ ] dashboarding, heatmap with distribution per camtrap nights, activity patterns, counts, etc

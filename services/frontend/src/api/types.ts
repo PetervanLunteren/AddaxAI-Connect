@@ -154,6 +154,8 @@ export interface ProjectMembershipInfo {
 
 export interface UserWithMemberships extends User {
   project_memberships: ProjectMembershipInfo[];
+  is_pending_invitation?: boolean;  // True if this is a pending invitation, not a registered user
+  invitation_expires_at?: string;  // ISO timestamp when invitation expires
 }
 
 // Project with user's role
