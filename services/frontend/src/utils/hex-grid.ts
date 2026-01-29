@@ -47,31 +47,16 @@ export function getHexCellSize(zoomLevel: number): number {
 export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollection<Polygon> {
   const cellSizeKm = getHexCellSize(zoomLevel);
 
-  console.log('[generateHexGrid] Bounds:', bounds, 'cellSizeKm:', cellSizeKm);
+  // Convert km to degrees (approximation: 1 degree latitude ≈ 111 km)
+  // For hexagons, the "radius" is the distance from center to vertex
+  const cellSizeDegrees = cellSizeKm / 111;
+
+  console.log('[generateHexGrid] Bounds:', bounds, 'cellSizeKm:', cellSizeKm, 'cellSizeDegrees:', cellSizeDegrees);
 
   try {
-    // Test with squareGrid first to verify basic Turf API works
-    console.log('[generateHexGrid] Testing squareGrid first...');
-    const testSquare = squareGrid(bounds, cellSizeKm, { units: 'kilometers' });
-    console.log('[generateHexGrid] squareGrid returned:', testSquare.features.length, 'squares');
-
-    // Now try hexGrid with smaller cell size
-    console.log('[generateHexGrid] Trying hexGrid with smaller cell (10km)...');
-    let grid = hexGrid(bounds, 10, { units: 'kilometers' });
-    console.log('[generateHexGrid] hexGrid(10km):', grid.features.length, 'hexagons');
-
-    // Try with even smaller
-    if (grid.features.length === 0) {
-      console.log('[generateHexGrid] Trying hexGrid with tiny cell (1km)...');
-      grid = hexGrid(bounds, 1, { units: 'kilometers' });
-      console.log('[generateHexGrid] hexGrid(1km):', grid.features.length, 'hexagons');
-    }
-
-    // If hexGrid doesn't work at all, fall back to squareGrid
-    if (grid.features.length === 0) {
-      console.warn('[generateHexGrid] hexGrid not working, using squareGrid as fallback');
-      grid = squareGrid(bounds, cellSizeKm, { units: 'kilometers' });
-    }
+    // Use degrees to ensure grid aligns with bounding box
+    const grid = hexGrid(bounds, cellSizeDegrees, { units: 'degrees' });
+    console.log('[generateHexGrid] Generated', grid.features.length, 'hexagons');
 
     return grid;
   } catch (error) {
@@ -104,11 +89,26 @@ export function aggregateDeploymentsToHexes(
     })
   );
 
+  console.log('[aggregateDeploymentsToHexes] Deployments count:', deployments.length);
+  console.log('[aggregateDeploymentsToHexes] First 3 deployment coords:',
+    deployments.slice(0, 3).map(d => d.geometry.coordinates));
+  console.log('[aggregateDeploymentsToHexes] Hexagons count:', hexGridCollection.features.length);
+
+  // Log first hex geometry to see its coordinates
+  if (hexGridCollection.features.length > 0) {
+    const firstHex = hexGridCollection.features[0];
+    console.log('[aggregateDeploymentsToHexes] First hex geometry:',
+      JSON.stringify(firstHex.geometry).substring(0, 200));
+  }
+
   const hexCells: HexCell[] = [];
 
   // For each hex, find deployments within it and aggregate metrics
   for (const hex of hexGridCollection.features) {
     const deploymentsInHex = pointsWithinPolygon(deploymentPoints, hex);
+
+    console.log('[aggregateDeploymentsToHexes] Hex bbox check, deployments found:',
+      deploymentsInHex.features.length);
 
     // Skip hexes with no deployments
     if (deploymentsInHex.features.length === 0) {
