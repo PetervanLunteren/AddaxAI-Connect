@@ -1,19 +1,23 @@
 """
 Database operations for ingestion service
 """
+import math
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, Tuple
 
-from sqlalchemy import and_
+from sqlalchemy import and_, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, Image, Project
+from shared.models import Camera, CameraDeploymentPeriod, Image, Project
 from shared.logger import get_logger
 from camera_profiles import CameraProfile
 
 logger = get_logger("ingestion")
+
+# Constants
+RELOCATION_THRESHOLD_METERS = 100.0  # GPS change >100m = new deployment
 
 
 def get_camera_by_imei(imei: str) -> Optional[int]:
@@ -45,6 +49,187 @@ def get_camera_by_imei(imei: str) -> Optional[int]:
             imei=imei
         )
         return None
+
+
+def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate distance between two GPS points using Haversine formula.
+
+    Args:
+        lat1: Latitude of point 1 (degrees)
+        lon1: Longitude of point 1 (degrees)
+        lat2: Latitude of point 2 (degrees)
+        lon2: Longitude of point 2 (degrees)
+
+    Returns:
+        Distance in meters
+
+    Raises:
+        ValueError: If coordinates are out of valid range
+    """
+    # Validate coordinates
+    if not (-90 <= lat1 <= 90) or not (-90 <= lat2 <= 90):
+        raise ValueError(f"Latitude must be in [-90, 90]: {lat1}, {lat2}")
+    if not (-180 <= lon1 <= 180) or not (-180 <= lon2 <= 180):
+        raise ValueError(f"Longitude must be in [-180, 180]: {lon1}, {lon2}")
+
+    # Haversine formula
+    R = 6371000  # Earth radius in meters
+
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+
+    a = math.sin(delta_lat / 2) ** 2 + \
+        math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return R * c
+
+
+def update_or_create_deployment(
+    camera_id: int,
+    new_gps: Tuple[float, float],
+    event_date: date
+) -> None:
+    """
+    Update or create camera deployment period based on GPS location.
+
+    Creates new deployment when:
+    - No active deployment exists (first image/report)
+    - GPS moved >100m from current deployment location
+
+    Args:
+        camera_id: Database ID of camera
+        new_gps: (latitude, longitude) from image or daily report
+        event_date: Date of image or daily report
+
+    Raises:
+        ValueError: If GPS coordinates are invalid
+    """
+    with get_db_session() as session:
+        new_lat, new_lon = new_gps
+
+        # Get current active deployment (end_date IS NULL)
+        current_deployment = session.query(CameraDeploymentPeriod).filter(
+            and_(
+                CameraDeploymentPeriod.camera_id == camera_id,
+                CameraDeploymentPeriod.end_date.is_(None)
+            )
+        ).first()
+
+        if current_deployment:
+            # Extract current deployment location
+            # PostGIS returns location as WKB - use ST_AsText to get "POINT(lon lat)"
+            location_query = text("""
+                SELECT ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon
+                FROM camera_deployment_periods
+                WHERE id = :deployment_id
+            """)
+            result = session.execute(
+                location_query,
+                {'deployment_id': current_deployment.id}
+            ).fetchone()
+
+            current_lat, current_lon = result.lat, result.lon
+
+            # Calculate distance from current deployment
+            distance = calculate_gps_distance(current_lat, current_lon, new_lat, new_lon)
+
+            if distance > RELOCATION_THRESHOLD_METERS:
+                # Camera relocated - close current deployment and start new one
+                yesterday = event_date - timedelta(days=1)
+                current_deployment.end_date = yesterday
+
+                # Get next deployment_id
+                next_deployment_id = current_deployment.deployment_id + 1
+
+                logger.info(
+                    "Camera relocated - creating new deployment",
+                    camera_id=camera_id,
+                    old_deployment_id=current_deployment.deployment_id,
+                    new_deployment_id=next_deployment_id,
+                    distance_meters=round(distance, 1),
+                    old_location=f"({current_lat:.6f}, {current_lon:.6f})",
+                    new_location=f"({new_lat:.6f}, {new_lon:.6f})"
+                )
+
+                # Create new deployment
+                location_wkt = f"POINT({new_lon} {new_lat})"
+                insert_query = text("""
+                    INSERT INTO camera_deployment_periods (
+                        camera_id,
+                        deployment_id,
+                        start_date,
+                        end_date,
+                        location
+                    ) VALUES (
+                        :camera_id,
+                        :deployment_id,
+                        :start_date,
+                        NULL,
+                        ST_GeogFromText(:location_wkt)
+                    )
+                """)
+                session.execute(
+                    insert_query,
+                    {
+                        'camera_id': camera_id,
+                        'deployment_id': next_deployment_id,
+                        'start_date': event_date,
+                        'location_wkt': location_wkt
+                    }
+                )
+
+                session.flush()
+            else:
+                # Same deployment - just update end_date if event is newer
+                if current_deployment.end_date is None or event_date > current_deployment.end_date:
+                    # Keep deployment open (end_date stays NULL for active deployments)
+                    pass
+
+                logger.debug(
+                    "GPS within threshold - same deployment",
+                    camera_id=camera_id,
+                    deployment_id=current_deployment.deployment_id,
+                    distance_meters=round(distance, 1)
+                )
+        else:
+            # No active deployment - create first one
+            location_wkt = f"POINT({new_lon} {new_lat})"
+            insert_query = text("""
+                INSERT INTO camera_deployment_periods (
+                    camera_id,
+                    deployment_id,
+                    start_date,
+                    end_date,
+                    location
+                ) VALUES (
+                    :camera_id,
+                    1,
+                    :start_date,
+                    NULL,
+                    ST_GeogFromText(:location_wkt)
+                )
+            """)
+            session.execute(
+                insert_query,
+                {
+                    'camera_id': camera_id,
+                    'start_date': event_date,
+                    'location_wkt': location_wkt
+                }
+            )
+
+            session.flush()
+
+            logger.info(
+                "Created first deployment for camera",
+                camera_id=camera_id,
+                deployment_id=1,
+                location=f"({new_lat:.6f}, {new_lon:.6f})"
+            )
 
 
 def create_image_record(
@@ -111,7 +296,16 @@ def create_image_record(
             has_thumbnail=bool(thumbnail_path)
         )
 
-        return image_uuid
+    # Update deployment period if image has GPS
+    # (done outside session context since update_or_create_deployment creates its own session)
+    if gps_location:
+        update_or_create_deployment(
+            camera_id=camera_id,
+            new_gps=gps_location,
+            event_date=datetime_original.date()
+        )
+
+    return image_uuid
 
 
 def update_camera_health(imei: str, health_data: dict) -> bool:
@@ -137,6 +331,9 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
                 imei=imei
             )
             return False
+
+        # Store camera_id before session closes
+        camera_id = camera.id
 
         # Update config JSON with health data
         camera.config = camera.config or {}
@@ -172,4 +369,13 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
             signal_quality=health_data.get('signal_quality')
         )
 
-        return True
+    # Update deployment period if daily report has GPS
+    # (done outside session context since update_or_create_deployment creates its own session)
+    if health_data.get('gps_location'):
+        update_or_create_deployment(
+            camera_id=camera_id,
+            new_gps=health_data['gps_location'],
+            event_date=datetime.now(timezone.utc).date()
+        )
+
+    return True

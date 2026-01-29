@@ -1,11 +1,11 @@
 """
 Statistics endpoints for dashboard metrics and charts.
 """
-from typing import List
-from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends
+from typing import List, Optional, Any, Dict
+from datetime import date, datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification, Project
@@ -344,3 +344,182 @@ async def get_last_update(
         last_update_str = image.uploaded_at.isoformat()
 
     return LastUpdateResponse(last_update=last_update_str)
+
+
+class DeploymentFeatureProperties(BaseModel):
+    """Properties for a single deployment feature in GeoJSON"""
+    camera_id: int
+    camera_name: str
+    deployment_id: int
+    start_date: str  # YYYY-MM-DD
+    end_date: Optional[str]  # YYYY-MM-DD or null for active deployments
+    trap_days: int
+    detection_count: int
+    detection_rate: float  # detections per trap-day
+    detection_rate_per_100: float  # detections per 100 trap-days (for display)
+
+
+class DeploymentFeatureGeometry(BaseModel):
+    """GeoJSON geometry for point feature"""
+    type: str = "Point"
+    coordinates: List[float]  # [longitude, latitude]
+
+
+class DeploymentFeature(BaseModel):
+    """Single deployment feature in GeoJSON format"""
+    type: str = "Feature"
+    id: str  # camera_id-deployment_id (e.g., "23-2")
+    geometry: DeploymentFeatureGeometry
+    properties: DeploymentFeatureProperties
+
+
+class DetectionRateMapResponse(BaseModel):
+    """GeoJSON FeatureCollection for detection rate map"""
+    type: str = "FeatureCollection"
+    features: List[DeploymentFeature]
+
+
+@router.get(
+    "/detection-rate-map",
+    response_model=DetectionRateMapResponse,
+)
+async def get_detection_rate_map(
+    species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
+    start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get detection rate map data as GeoJSON.
+
+    Returns camera deployment locations with detection rates (detections per trap-day).
+    Each deployment period appears as a separate point on the map.
+
+    Filtering:
+    - Automatically filtered by user's accessible projects
+    - Optional species filter (exact match, case-insensitive)
+    - Optional date range filter (applies to detection dates)
+    - Respects project detection thresholds
+
+    Detection rate calculation:
+    - detections = count of detections in deployment period (optionally filtered by species/dates)
+    - trap_days = end_date - start_date + 1 (or today - start_date + 1 for active deployments)
+    - detection_rate = detections / trap_days
+    - Shows 0.0 for deployments with no detections
+
+    Args:
+        species: Filter by species name (optional, case-insensitive)
+        start_date: Filter detections from date (optional, YYYY-MM-DD)
+        end_date: Filter detections to date (optional, YYYY-MM-DD)
+        accessible_project_ids: Project IDs accessible to user
+        db: Database session
+        current_user: Current authenticated user
+
+    Returns:
+        GeoJSON FeatureCollection with deployment features
+    """
+    # Build SQL query with conditional filters
+    # Use LEFT JOIN to include deployments with zero detections
+    query_sql = """
+        WITH deployment_detections AS (
+            SELECT
+                cdp.id as deployment_id,
+                cdp.camera_id,
+                cdp.deployment_id as deployment_number,
+                cdp.start_date,
+                cdp.end_date,
+                ST_X(cdp.location::geometry) as lon,
+                ST_Y(cdp.location::geometry) as lat,
+                -- Calculate trap days
+                COALESCE(
+                    (cdp.end_date - cdp.start_date + 1),
+                    (CURRENT_DATE - cdp.start_date + 1)
+                ) as trap_days,
+                -- Count detections (filtered by species/date if specified)
+                COUNT(d.id) FILTER (WHERE
+                    d.id IS NOT NULL
+                    AND d.confidence >= p.detection_threshold
+                    AND (:species IS NULL OR LOWER(cl.species) = LOWER(:species))
+                    AND (:start_date IS NULL OR i.uploaded_at::date >= :start_date)
+                    AND (:end_date IS NULL OR i.uploaded_at::date <= :end_date)
+                ) as detection_count,
+                c.name as camera_name
+            FROM camera_deployment_periods cdp
+            INNER JOIN cameras c ON cdp.camera_id = c.id
+            INNER JOIN projects p ON c.project_id = p.id
+            LEFT JOIN images i ON
+                i.camera_id = cdp.camera_id
+                AND i.uploaded_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+            LEFT JOIN detections d ON d.image_id = i.id
+            LEFT JOIN classifications cl ON cl.detection_id = d.id
+            WHERE c.project_id = ANY(:project_ids)
+            GROUP BY
+                cdp.id,
+                cdp.camera_id,
+                cdp.deployment_id,
+                cdp.start_date,
+                cdp.end_date,
+                cdp.location,
+                c.name,
+                p.detection_threshold
+        )
+        SELECT
+            camera_id,
+            camera_name,
+            deployment_number,
+            start_date,
+            end_date,
+            lon,
+            lat,
+            trap_days,
+            detection_count,
+            CASE
+                WHEN trap_days > 0 THEN detection_count::float / trap_days
+                ELSE 0.0
+            END as detection_rate,
+            CASE
+                WHEN trap_days > 0 THEN (detection_count::float / trap_days) * 100
+                ELSE 0.0
+            END as detection_rate_per_100
+        FROM deployment_detections
+        ORDER BY camera_id, deployment_number
+    """
+
+    # Execute query
+    result = await db.execute(
+        text(query_sql),
+        {
+            "species": species,
+            "start_date": start_date,
+            "end_date": end_date,
+            "project_ids": accessible_project_ids,
+        }
+    )
+    rows = result.fetchall()
+
+    # Convert to GeoJSON features
+    features = []
+    for row in rows:
+        feature = DeploymentFeature(
+            id=f"{row.camera_id}-{row.deployment_number}",
+            geometry=DeploymentFeatureGeometry(
+                coordinates=[row.lon, row.lat]
+            ),
+            properties=DeploymentFeatureProperties(
+                camera_id=row.camera_id,
+                camera_name=row.camera_name,
+                deployment_id=row.deployment_number,
+                start_date=row.start_date.isoformat(),
+                end_date=row.end_date.isoformat() if row.end_date else None,
+                trap_days=row.trap_days,
+                detection_count=row.detection_count,
+                detection_rate=round(row.detection_rate, 4),
+                detection_rate_per_100=round(row.detection_rate_per_100, 2),
+            )
+        )
+        features.append(feature)
+
+    return DetectionRateMapResponse(features=features)
