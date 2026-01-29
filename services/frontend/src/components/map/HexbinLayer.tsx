@@ -56,8 +56,8 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
   const hexFeatureCollection = useMemo<FeatureCollection<Polygon, HexFeatureProperties>>(() => {
     const features = hexCells.map((hexCell) => {
       const isZero = hexCell.detection_count === 0;
-      // Use grey for empty hexagons, color scale for hexagons with data
-      const color = isZero ? '#d1d5db' : getDetectionRateColor(hexCell.detection_rate_per_100, maxRate);
+      // Use color scale for all hexagons (including zeros)
+      const color = getDetectionRateColor(hexCell.detection_rate_per_100, maxRate);
 
       return {
         ...hexCell.hex,
