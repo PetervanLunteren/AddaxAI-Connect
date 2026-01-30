@@ -47,7 +47,7 @@ export function MapLegend({ domain }: MapLegendProps) {
 
       div.innerHTML = `
         <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">
-          detections per 100 trap-days
+          Detections per 100 trap-days
         </div>
         <div style="display: flex; align-items: center;">
           <div style="
