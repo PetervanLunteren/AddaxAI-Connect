@@ -13,9 +13,11 @@ interface MapControlsProps {
   onFiltersChange: (filters: DetectionRateMapFilters) => void;
   viewMode: 'points' | 'hexbins';
   onViewModeChange: (mode: 'points' | 'hexbins') => void;
+  baseLayer: string;
+  onBaseLayerChange: (layer: string) => void;
 }
 
-export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChange }: MapControlsProps) {
+export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChange, baseLayer, onBaseLayerChange }: MapControlsProps) {
   const species = filters.species || '';
   const startDate = filters.start_date || '';
   const endDate = filters.end_date || '';
@@ -47,15 +49,9 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
     });
   };
 
-  const handleClear = () => {
-    onFiltersChange({});
-  };
-
-  const hasFilters = species || startDate || endDate;
-
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
         {/* View mode selector */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -135,13 +131,21 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
           />
         </div>
 
-        {hasFilters && (
-          <div>
-            <Button onClick={handleClear} variant="outline" className="w-full">
-              Clear
-            </Button>
-          </div>
-        )}
+        <div>
+          <label htmlFor="baselayer-filter" className="block text-sm font-medium text-gray-700 mb-1">
+            Map style
+          </label>
+          <select
+            id="baselayer-filter"
+            value={baseLayer}
+            onChange={(e) => onBaseLayerChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="positron">Light</option>
+            <option value="satellite">Satellite</option>
+            <option value="osm">Street map</option>
+          </select>
+        </div>
       </div>
     </div>
   );
