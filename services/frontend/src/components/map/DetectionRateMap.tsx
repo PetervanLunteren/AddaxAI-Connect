@@ -67,7 +67,10 @@ export function DetectionRateMap() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     // Restore view preference from localStorage
     const saved = localStorage.getItem('detection-map-view-mode');
-    return (saved === 'hexbins' ? 'hexbins' : 'points') as ViewMode;
+    if (saved === 'points' || saved === 'clusters' || saved === 'hexbins') {
+      return saved as ViewMode;
+    }
+    return 'hexbins'; // Default to hexbins
   });
   const [zoomLevel, setZoomLevel] = useState(10);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
