@@ -1,9 +1,10 @@
 /**
  * Dashboard page with statistics and charts
  */
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import type { ChartData } from 'chart.js';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -20,6 +21,7 @@ import {
 } from 'chart.js';
 import { Camera, Images, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Select, SelectItem } from '../components/ui/Select';
 import { statisticsApi } from '../api/statistics';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColors } from '../utils/species-colors';
@@ -63,6 +65,10 @@ export const Dashboard: React.FC = () => {
   // Global date range filter
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDates());
 
+  // Timeline range selector
+  const [timelineDays, setTimelineDays] = useState<string>('30');
+  const chartRef = useRef<any>(null);
+
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['statistics', 'overview'],
@@ -70,8 +76,8 @@ export const Dashboard: React.FC = () => {
   });
 
   const { data: timeline, isLoading: timelineLoading } = useQuery({
-    queryKey: ['statistics', 'timeline'],
-    queryFn: () => statisticsApi.getImagesTimeline(),
+    queryKey: ['statistics', 'timeline', timelineDays],
+    queryFn: () => statisticsApi.getImagesTimeline(timelineDays === 'all' ? 0 : parseInt(timelineDays)),
   });
 
   const { data: species, isLoading: speciesLoading } = useQuery({
@@ -106,15 +112,29 @@ export const Dashboard: React.FC = () => {
     },
   ];
 
+  // Create gradient for timeline chart
+  const createGradient = (ctx: CanvasRenderingContext2D, chartArea: { top: number; bottom: number }) => {
+    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    gradient.addColorStop(0, 'rgba(15, 96, 100, 0.05)');
+    gradient.addColorStop(0.5, 'rgba(15, 96, 100, 0.3)');
+    gradient.addColorStop(1, 'rgba(15, 96, 100, 0.6)');
+    return gradient;
+  };
+
   // Timeline chart data
-  const timelineData = {
+  const timelineData: ChartData<'line'> = {
     labels: timeline?.map((d) => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) ?? [],
     datasets: [
       {
         label: 'Images Uploaded',
         data: timeline?.map((d) => d.count) ?? [],
         borderColor: '#0f6064',
-        backgroundColor: 'rgba(15, 96, 100, 0.2)',
+        backgroundColor: (context) => {
+          const chart = context.chart;
+          const { ctx, chartArea } = chart;
+          if (!chartArea) return 'rgba(15, 96, 100, 0.2)';
+          return createGradient(ctx, chartArea);
+        },
         tension: 0.3,
         fill: true,
       },
@@ -141,6 +161,12 @@ export const Dashboard: React.FC = () => {
       },
     },
   };
+
+  const timelineRangeLabel = timelineDays === 'all' ? 'All time' :
+    timelineDays === '7' ? 'Last 7 days' :
+    timelineDays === '30' ? 'Last 30 days' :
+    timelineDays === '90' ? 'Last 90 days' :
+    timelineDays === '365' ? 'Last year' : `Last ${timelineDays} days`;
 
   // Species distribution chart data - using consistent colors
   const speciesColors = species ? getSpeciesColors(species.map(s => s.species)) : [];
@@ -252,8 +278,21 @@ export const Dashboard: React.FC = () => {
         <ActivityPatternChart dateRange={dateRange} />
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Images over time</CardTitle>
-            <p className="text-sm text-muted-foreground">Last 30 days</p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-lg">Images over time</CardTitle>
+              <Select
+                value={timelineDays}
+                onValueChange={setTimelineDays}
+                className="w-32 h-8 text-sm"
+              >
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="365">Last year</SelectItem>
+                <SelectItem value="all">All time</SelectItem>
+              </Select>
+            </div>
+            <p className="text-sm text-muted-foreground">{timelineRangeLabel}</p>
           </CardHeader>
           <CardContent>
             <div className="h-72">
@@ -262,7 +301,7 @@ export const Dashboard: React.FC = () => {
                   <p className="text-muted-foreground">Loading...</p>
                 </div>
               ) : timeline && timeline.length > 0 ? (
-                <Line data={timelineData} options={timelineOptions} />
+                <Line ref={chartRef} data={timelineData} options={timelineOptions} />
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-muted-foreground">No data available</p>

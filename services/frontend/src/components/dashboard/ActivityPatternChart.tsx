@@ -153,7 +153,7 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
           </Select>
         </div>
         <p className="text-sm text-muted-foreground">
-          24-hour pattern{data ? ` · ${data.total_detections.toLocaleString()} total detections` : ''}
+          24-hour pattern{data ? `, ${data.total_detections.toLocaleString()} total detections` : ''}
         </p>
       </CardHeader>
       <CardContent>

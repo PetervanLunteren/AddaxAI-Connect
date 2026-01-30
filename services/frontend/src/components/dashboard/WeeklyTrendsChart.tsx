@@ -80,9 +80,9 @@ export const WeeklyTrendsChart: React.FC<WeeklyTrendsChartProps> = ({ dateRange 
       {
         label: 'Detections',
         data: groupedData.map((d) => d.count),
-        backgroundColor: '#0f6064',
+        backgroundColor: 'rgba(15, 96, 100, 0.2)',
         borderColor: '#0f6064',
-        borderWidth: 1,
+        borderWidth: 2,
       },
     ],
   };

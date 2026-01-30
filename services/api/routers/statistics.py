@@ -127,14 +127,16 @@ async def get_overview(
     response_model=List[TimelineDataPoint],
 )
 async def get_images_timeline(
+    days: Optional[int] = Query(None, description="Number of days to look back (default: 30, use 0 for all time)"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Get images uploaded over time (last 30 days, filtered by accessible projects)
+    Get images uploaded over time (filtered by accessible projects)
 
     Args:
+        days: Number of days to look back (None/30 = last 30 days, 0 = all time)
         accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
@@ -144,21 +146,21 @@ async def get_images_timeline(
     """
     # Calculate date range
     end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    start_date = end_date - timedelta(days=30)
+    num_days = days if days is not None else 30
+    start_date = end_date - timedelta(days=num_days) if num_days > 0 else None
 
     # Query images grouped by date (filtered by project via camera)
+    conditions = [Camera.project_id.in_(accessible_project_ids)]
+    if start_date is not None:
+        conditions.append(Image.uploaded_at >= start_date)
+
     query = (
         select(
             func.date(Image.uploaded_at).label('date'),
             func.count(Image.id).label('count')
         )
         .join(Camera)
-        .where(
-            and_(
-                Image.uploaded_at >= start_date,
-                Camera.project_id.in_(accessible_project_ids)
-            )
-        )
+        .where(and_(*conditions))
         .group_by(func.date(Image.uploaded_at))
         .order_by(func.date(Image.uploaded_at))
     )
