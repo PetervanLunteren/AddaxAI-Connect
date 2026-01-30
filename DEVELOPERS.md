@@ -26,7 +26,8 @@
 8. **Follow the established conventions** - Keep structure predictable so the codebase stays readable and easy to maintain. 
 9. **No quick fixes** - Fix issues in a way that holds for all future deployments, not only the current device.
 10. **Clean repo** - Value simplicity and cleanliness. No redundant MD files. 
-11. **No Title Case** - Use natural English capitalisation. That means only capitalising the first word of sentences and proper nouns (like "Peter van Lunteren", "Utrecht", "MegaDetector", "SpeciesNet", "Today, I was walking in the park.",  "Things I love about Amsterdam.", "Cities visited").
+11. **No Title Case** - Use natural English capitalisation. That means only capitalising the first word of sentences, headings, and proper nouns (like "Peter van Lunteren", "Utrecht", "MegaDetector", "SpeciesNet", "Today, I was walking in the park.",  "Things I love about Amsterdam.", "Cities visited"). Do capitalize the first letter of headers (e.g., "Detections per 100 trap-days", "Species selection"). 
+12. **Use git to move files** - Don't ever use rsync to put scripts on servers. Always use git commit, git push, and git pull on the server itself. That keeps the code up to date. 
 
 **Remember:** It's better to crash during development than to hide bugs that cause problems later. We'll add resilience (retries, fallbacks, graceful degradation) after the core functionality works.
 
