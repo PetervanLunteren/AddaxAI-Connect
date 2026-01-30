@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional, Tuple
 
-from sqlalchemy import and_, text
+from sqlalchemy import and_, func, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
 from shared.models import Camera, CameraDeploymentPeriod, Image, Project
@@ -196,7 +196,34 @@ def update_or_create_deployment(
                     distance_meters=round(distance, 1)
                 )
         else:
-            # No active deployment - create first one
+            # No active deployment - need to create one
+            # Check if this camera had deployments before (they may be closed)
+            max_deployment_id = session.query(
+                func.max(CameraDeploymentPeriod.deployment_id)
+            ).filter(
+                CameraDeploymentPeriod.camera_id == camera_id
+            ).scalar()
+
+            if max_deployment_id is None:
+                # Truly first deployment ever for this camera
+                next_deployment_id = 1
+                logger.info(
+                    "Creating first deployment for camera",
+                    camera_id=camera_id,
+                    deployment_id=next_deployment_id,
+                    location=f"({new_lat:.6f}, {new_lon:.6f})"
+                )
+            else:
+                # Had deployments before - create new one with incremented ID
+                next_deployment_id = max_deployment_id + 1
+                logger.info(
+                    "Resuming camera after closed deployment",
+                    camera_id=camera_id,
+                    previous_deployment_id=max_deployment_id,
+                    new_deployment_id=next_deployment_id,
+                    location=f"({new_lat:.6f}, {new_lon:.6f})"
+                )
+
             location_wkt = f"POINT({new_lon} {new_lat})"
             insert_query = text("""
                 INSERT INTO camera_deployment_periods (
@@ -207,7 +234,7 @@ def update_or_create_deployment(
                     location
                 ) VALUES (
                     :camera_id,
-                    1,
+                    :deployment_id,
                     :start_date,
                     NULL,
                     ST_GeogFromText(:location_wkt)
@@ -217,19 +244,13 @@ def update_or_create_deployment(
                 insert_query,
                 {
                     'camera_id': camera_id,
+                    'deployment_id': next_deployment_id,
                     'start_date': event_date,
                     'location_wkt': location_wkt
                 }
             )
 
             session.flush()
-
-            logger.info(
-                "Created first deployment for camera",
-                camera_id=camera_id,
-                deployment_id=1,
-                location=f"({new_lat:.6f}, {new_lon:.6f})"
-            )
 
 
 def create_image_record(
