@@ -49,15 +49,15 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
       }),
   });
 
-  // Use species color if selected, otherwise default blue
+  // Use species color if selected, otherwise teal
   const lineColor =
     selectedSpecies !== 'all'
       ? getSpeciesColor(selectedSpecies)
-      : 'rgb(59, 130, 246)';
+      : '#0f6064';
   const fillColor =
     selectedSpecies !== 'all'
-      ? getSpeciesColorWithAlpha(selectedSpecies, 0.1)
-      : 'rgba(59, 130, 246, 0.1)';
+      ? getSpeciesColorWithAlpha(selectedSpecies, 0.2)
+      : 'rgba(15, 96, 100, 0.2)';
 
   const chartData = {
     labels:
