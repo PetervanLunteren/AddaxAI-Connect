@@ -11,6 +11,10 @@ import {
   getDetectionRateColor,
   calculateColorScaleDomain,
 } from '../../utils/color-scale';
+import {
+  generateHexGrid,
+  aggregateDeploymentsToHexes,
+} from '../../utils/hex-grid';
 import { DeploymentMarker } from './DeploymentMarker';
 import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
@@ -162,8 +166,6 @@ export function DetectionRateMap() {
     if (viewMode !== 'hexbins' || !visibleDeployments || visibleDeployments.length === 0 || !bboxBounds) {
       return 0;
     }
-    // Import hex grid utilities locally to avoid adding to every render
-    const { generateHexGrid, aggregateDeploymentsToHexes } = require('../../utils/hex-grid');
     const hexGrid = generateHexGrid(bboxBounds, zoomLevel);
     const cells = aggregateDeploymentsToHexes(visibleDeployments, hexGrid);
     return cells.length;
