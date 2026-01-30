@@ -258,8 +258,9 @@ export const Dashboard: React.FC = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <ActivityPatternChart dateRange={dateRange} />
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Images Over Time (Last 30 Days)</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Images over time</CardTitle>
+            <p className="text-sm text-muted-foreground">Last 30 days</p>
           </CardHeader>
           <CardContent>
             <div className="h-72">
@@ -282,8 +283,9 @@ export const Dashboard: React.FC = () => {
       {/* Row 2: Species Distribution + Camera Activity */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Top 10 Species Detected</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Top 10 species detected</CardTitle>
+            <p className="text-sm text-muted-foreground">Most frequently observed species</p>
           </CardHeader>
           <CardContent>
             <div className="h-72">
@@ -302,8 +304,9 @@ export const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Camera Activity Status</CardTitle>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Camera activity status</CardTitle>
+            <p className="text-sm text-muted-foreground">Based on last 7 days</p>
           </CardHeader>
           <CardContent>
             <div className="h-72">

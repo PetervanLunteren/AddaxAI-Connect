@@ -130,7 +130,7 @@ export const WeeklyTrendsChart: React.FC<WeeklyTrendsChartProps> = ({ dateRange 
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">
-            {groupBy === 'week' ? 'Weekly' : 'Monthly'} Trends
+            {groupBy === 'week' ? 'Weekly' : 'Monthly'} trends
           </CardTitle>
           <Select
             value={groupBy}
