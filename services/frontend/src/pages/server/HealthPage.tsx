@@ -10,7 +10,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Button } from '../../components/ui/Button';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { getServicesHealth, type ServiceStatus } from '../../api/health';
-import { PipelineStatus } from '../../components/dashboard';
+import { statisticsApi } from '../../api/statistics';
 
 /**
  * Map service names to display names with proper capitalization
@@ -28,6 +28,7 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   classification: 'Classification worker',
   notifications: 'Notifications worker',
   'notifications-telegram': 'Telegram notifications worker',
+  'processing-pipeline': 'Processing Pipeline',
 };
 
 const ServiceStatusBadge: React.FC<{ status: ServiceStatus }> = ({ status }) => {
@@ -76,12 +77,33 @@ export const HealthPage: React.FC = () => {
     retry: false,
   });
 
+  // Fetch pipeline status
+  const { data: pipelineData, refetch: refetchPipeline } = useQuery({
+    queryKey: ['statistics', 'pipeline-status'],
+    queryFn: () => statisticsApi.getPipelineStatus(),
+  });
+
   const handleRefresh = () => {
     refetch();
+    refetchPipeline();
   };
 
-  const healthyCount = data?.services.filter((s) => s.status === 'healthy').length || 0;
-  const totalCount = data?.services.length || 0;
+  // Build pipeline status as a service
+  const pipelineService: ServiceStatus | null = pipelineData ? {
+    name: 'processing-pipeline',
+    status: pipelineData.pending === 0 ? 'healthy' : 'unhealthy',
+    message: pipelineData.pending === 0
+      ? 'No images pending classification'
+      : `${pipelineData.pending.toLocaleString()} image${pipelineData.pending === 1 ? '' : 's'} pending classification`,
+  } : null;
+
+  // Combine services with pipeline status
+  const allServices = data?.services
+    ? [...data.services, ...(pipelineService ? [pipelineService] : [])]
+    : [];
+
+  const healthyCount = allServices.filter((s) => s.status === 'healthy').length;
+  const totalCount = allServices.length;
   const allHealthy = healthyCount === totalCount && totalCount > 0;
 
   return (
@@ -89,8 +111,6 @@ export const HealthPage: React.FC = () => {
       title="Service health"
       description="Monitor the status of all system services"
     >
-      <PipelineStatus />
-
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -145,9 +165,9 @@ export const HealthPage: React.FC = () => {
           )}
 
           {/* Services List */}
-          {data && (
+          {allServices.length > 0 && (
             <div className="space-y-3">
-              {data.services.map((service) => (
+              {allServices.map((service) => (
                 <ServiceStatusBadge key={service.name} status={service} />
               ))}
             </div>
