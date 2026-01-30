@@ -108,7 +108,7 @@ export const HealthPage: React.FC = () => {
 
   return (
     <ServerPageLayout
-      title="Service health"
+      title="System health"
       description="Monitor the status of all system services"
     >
       <Card>
