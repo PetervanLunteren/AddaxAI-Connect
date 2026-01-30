@@ -3,7 +3,7 @@
  * Provides filters for species and date range, and view mode selection
  */
 import { useQuery } from '@tanstack/react-query';
-import { Circle, Hexagon, Users, Map, Satellite, Navigation } from 'lucide-react';
+import { Circle, Hexagon, Group, Map, Satellite, Navigation } from 'lucide-react';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
 import { imagesApi } from '../../api/images';
@@ -57,12 +57,13 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
           <label className="block text-sm font-medium text-gray-700 mb-1">
             View mode
           </label>
-          <div className="inline-flex rounded-md shadow-sm" role="group">
+          <div className="flex w-full rounded-md shadow-sm" role="group">
             <button
               type="button"
               onClick={() => onViewModeChange('hexbins')}
               title="Hexbins"
-              className={`px-3 py-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
+              aria-label="Hexbins"
+              className={`flex-1 px-3 py-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
                 viewMode === 'hexbins'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -74,7 +75,8 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               type="button"
               onClick={() => onViewModeChange('points')}
               title="Points"
-              className={`px-3 py-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
+              aria-label="Points"
+              className={`flex-1 px-3 py-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
                 viewMode === 'points'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -86,13 +88,14 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               type="button"
               onClick={() => onViewModeChange('clusters')}
               title="Clusters"
-              className={`px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
+              aria-label="Clusters"
+              className={`flex-1 px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
                 viewMode === 'clusters'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <Users className="h-4 w-4" />
+              <Group className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -147,12 +150,13 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Map style
           </label>
-          <div className="inline-flex rounded-md shadow-sm" role="group">
+          <div className="flex w-full rounded-md shadow-sm" role="group">
             <button
               type="button"
               onClick={() => onBaseLayerChange('positron')}
               title="Light"
-              className={`px-3 py-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
+              aria-label="Light"
+              className={`flex-1 px-3 py-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
                 baseLayer === 'positron'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -164,7 +168,8 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               type="button"
               onClick={() => onBaseLayerChange('satellite')}
               title="Satellite"
-              className={`px-3 py-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
+              aria-label="Satellite"
+              className={`flex-1 px-3 py-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
                 baseLayer === 'satellite'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -176,7 +181,8 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               type="button"
               onClick={() => onBaseLayerChange('osm')}
               title="Street map"
-              className={`px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
+              aria-label="Street map"
+              className={`flex-1 px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
                 baseLayer === 'osm'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
