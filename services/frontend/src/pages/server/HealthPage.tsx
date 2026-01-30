@@ -1,5 +1,5 @@
 /**
- * Service health monitoring page
+ * System health monitoring page
  *
  * Displays status of all system services for server admins
  */
