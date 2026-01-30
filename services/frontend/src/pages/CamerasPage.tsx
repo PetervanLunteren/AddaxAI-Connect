@@ -87,117 +87,17 @@ export const CamerasPage: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Cameras</h1>
-          <div className="text-sm text-muted-foreground">
-            {cameras ? `${cameras.length} camera${cameras.length !== 1 ? 's' : ''} registered` : ''}
-          </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Cameras</h1>
+        <div className="text-sm text-muted-foreground">
+          {cameras ? `${cameras.length} camera${cameras.length !== 1 ? 's' : ''} registered` : ''}
         </div>
-        <p className="text-sm text-gray-600 mt-1">Monitor camera health, battery levels, and connectivity status</p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Camera Health Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <p className="text-muted-foreground">Loading cameras...</p>
-            </div>
-          ) : cameras && cameras.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Battery</TableHead>
-                    <TableHead className="text-center">Signal</TableHead>
-                    <TableHead className="text-center">SD Card</TableHead>
-                    <TableHead className="text-center">Temperature</TableHead>
-                    <TableHead>Last Update</TableHead>
-                    <TableHead>Location</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cameras.map((camera: Camera) => (
-                    <TableRow key={camera.id}>
-                      <TableCell className="font-medium">{camera.name}</TableCell>
-                      <TableCell>{getStatusBadge(camera.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <Battery
-                            className={`h-4 w-4 ${getBatteryColor(camera.battery_percentage)}`}
-                          />
-                          <span className="text-sm">
-                            {camera.battery_percentage !== null
-                              ? `${camera.battery_percentage}%`
-                              : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <Signal
-                            className={`h-4 w-4 ${getSignalColor(camera.signal_quality)}`}
-                          />
-                          <span className="text-sm">
-                            {camera.signal_quality !== null ? `${camera.signal_quality}%` : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <HardDrive
-                            className={`h-4 w-4 ${getSDColor(camera.sd_utilization_percentage)}`}
-                          />
-                          <span className="text-sm">
-                            {camera.sd_utilization_percentage !== null
-                              ? `${camera.sd_utilization_percentage}%`
-                              : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <Thermometer className="h-4 w-4 text-gray-600" />
-                          <span className="text-sm">
-                            {camera.temperature !== null ? `${camera.temperature}°C` : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4 text-gray-600" />
-                          <span className="text-sm">
-                            {formatTimestamp(camera.last_report_timestamp)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4 text-gray-600" />
-                          <span className="text-sm">{formatLocation(camera.location)}</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-8">
-              <p className="text-muted-foreground">No cameras registered yet.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <p className="text-sm text-gray-600 mt-1 mb-6">Monitor camera health, battery levels, and connectivity status</p>
 
       {/* Summary Statistics */}
       {cameras && cameras.length > 0 && (
-        <div className="grid gap-6 md:grid-cols-3 mt-6">
+        <div className="grid gap-6 md:grid-cols-3 mb-6">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -251,6 +151,97 @@ export const CamerasPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <p className="text-muted-foreground">Loading cameras...</p>
+        </div>
+      ) : cameras && cameras.length > 0 ? (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Battery</TableHead>
+                <TableHead className="text-center">Signal</TableHead>
+                <TableHead className="text-center">SD Card</TableHead>
+                <TableHead className="text-center">Temperature</TableHead>
+                <TableHead>Last Update</TableHead>
+                <TableHead>Location</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cameras.map((camera: Camera) => (
+                <TableRow key={camera.id}>
+                  <TableCell className="font-medium">{camera.name}</TableCell>
+                  <TableCell>{getStatusBadge(camera.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      <Battery
+                        className={`h-4 w-4 ${getBatteryColor(camera.battery_percentage)}`}
+                      />
+                      <span className="text-sm">
+                        {camera.battery_percentage !== null
+                          ? `${camera.battery_percentage}%`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      <Signal
+                        className={`h-4 w-4 ${getSignalColor(camera.signal_quality)}`}
+                      />
+                      <span className="text-sm">
+                        {camera.signal_quality !== null ? `${camera.signal_quality}%` : 'N/A'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      <HardDrive
+                        className={`h-4 w-4 ${getSDColor(camera.sd_utilization_percentage)}`}
+                      />
+                      <span className="text-sm">
+                        {camera.sd_utilization_percentage !== null
+                          ? `${camera.sd_utilization_percentage}%`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      <Thermometer className="h-4 w-4 text-gray-600" />
+                      <span className="text-sm">
+                        {camera.temperature !== null ? `${camera.temperature}°C` : 'N/A'}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4 text-gray-600" />
+                      <span className="text-sm">
+                        {formatTimestamp(camera.last_report_timestamp)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-4 w-4 text-gray-600" />
+                      <span className="text-sm">{formatLocation(camera.location)}</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-8">
+          <p className="text-muted-foreground">No cameras registered yet.</p>
         </div>
       )}
     </div>
