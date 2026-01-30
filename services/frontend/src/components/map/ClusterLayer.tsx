@@ -15,6 +15,13 @@ interface ClusterLayerProps {
 }
 
 export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: ClusterLayerProps) {
+  // Create a map of coordinates to deployment features for quick lookup
+  const coordsToFeature = new Map<string, DeploymentFeature>();
+  deployments.forEach((feature) => {
+    const key = `${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}`;
+    coordsToFeature.set(key, feature);
+  });
+
   // Custom icon creation function for colored clusters
   const createClusterCustomIcon = (cluster: L.MarkerCluster) => {
     const markers = cluster.getAllChildMarkers();
@@ -24,7 +31,10 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
     let count = 0;
 
     markers.forEach((marker: any) => {
-      const feature = marker.feature as DeploymentFeature | undefined;
+      const latlng = marker.getLatLng();
+      const key = `${latlng.lat},${latlng.lng}`;
+      const feature = coordsToFeature.get(key);
+
       if (feature) {
         totalRate += feature.properties.detection_rate_per_100;
         count++;
