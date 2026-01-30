@@ -99,7 +99,7 @@ export function DetectionRateMap() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
-        <div className="text-gray-500">loading map data...</div>
+        <div className="text-gray-500">Loading map data...</div>
       </div>
     );
   }
@@ -108,7 +108,7 @@ export function DetectionRateMap() {
     return (
       <div className="flex items-center justify-center h-[600px]">
         <div className="text-red-500">
-          failed to load map: {error instanceof Error ? error.message : 'unknown error'}
+          Failed to load map: {error instanceof Error ? error.message : 'unknown error'}
         </div>
       </div>
     );
@@ -128,7 +128,7 @@ export function DetectionRateMap() {
             className="flex items-center gap-2"
           >
             <MapPin className="h-4 w-4" />
-            points
+            Points
           </Button>
           <Button
             onClick={() => setViewMode('hexbins')}
@@ -137,13 +137,13 @@ export function DetectionRateMap() {
             className="flex items-center gap-2"
           >
             <Hexagon className="h-4 w-4" />
-            hexbins
+            Hexbins
           </Button>
         </div>
 
         {viewMode === 'hexbins' && (
           <div className="text-sm text-gray-600">
-            cell size: {hexCellSize}km hexagons
+            Cell size: {hexCellSize}km hexagons
           </div>
         )}
       </div>
@@ -194,11 +194,11 @@ export function DetectionRateMap() {
         <div className="mt-2 text-sm text-gray-600">
           {viewMode === 'points' ? (
             <>
-              showing {data.features.length} deployment{data.features.length !== 1 ? 's' : ''}
+              Showing {data.features.length} deployment{data.features.length !== 1 ? 's' : ''}
             </>
           ) : (
             <>
-              aggregating {data.features.length} deployment{data.features.length !== 1 ? 's' : ''} into hexagonal cells
+              Aggregating {data.features.length} deployment{data.features.length !== 1 ? 's' : ''} into hexagonal cells
             </>
           )}
         </div>

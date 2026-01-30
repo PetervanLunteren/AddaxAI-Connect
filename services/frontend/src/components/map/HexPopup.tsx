@@ -21,22 +21,22 @@ export function HexPopup({ hexCell }: HexPopupProps) {
     <div className="p-2 min-w-[280px] max-w-[400px]">
       {/* Aggregated metrics */}
       <div className="mb-3 pb-2 border-b border-gray-200">
-        <div className="font-semibold text-gray-900 mb-1">aggregated metrics</div>
+        <div className="font-semibold text-gray-900 mb-1">Aggregated metrics</div>
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">cameras:</span>
+            <span className="text-gray-600">Cameras:</span>
             <span className="font-medium">{camera_count}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">total trap-days:</span>
+            <span className="text-gray-600">Total trap-days:</span>
             <span className="font-medium">{trap_days}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">total detections:</span>
+            <span className="text-gray-600">Total detections:</span>
             <span className="font-medium">{detection_count}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">detection rate:</span>
+            <span className="text-gray-600">Detection rate:</span>
             <span className="font-medium">{detection_rate_per_100.toFixed(2)} / 100 trap-days</span>
           </div>
         </div>
@@ -45,7 +45,7 @@ export function HexPopup({ hexCell }: HexPopupProps) {
       {/* List of deployments */}
       <div>
         <div className="font-semibold text-gray-900 mb-2">
-          {deployments.length === 1 ? 'deployment' : 'deployments'} ({deployments.length})
+          {deployments.length === 1 ? 'Deployment' : 'Deployments'} ({deployments.length})
         </div>
         <div className="max-h-[200px] overflow-y-auto space-y-2">
           {deployments.map((deployment) => {
@@ -59,17 +59,17 @@ export function HexPopup({ hexCell }: HexPopupProps) {
                 className="p-2 bg-gray-50 rounded text-xs space-y-1"
               >
                 <div className="font-medium text-gray-900">{camera_name}</div>
-                <div className="text-gray-600">deployment #{deployment_id}</div>
+                <div className="text-gray-600">Deployment #{deployment_id}</div>
                 <div className="flex justify-between text-gray-700">
-                  <span>trap-days: {trap_days}</span>
+                  <span>Trap-days: {trap_days}</span>
                   <span>
-                    detections: {detection_count}
-                    {isZeroDetections && <span className="text-gray-500 ml-1">(empty)</span>}
+                    Detections: {detection_count}
+                    {isZeroDetections && <span className="text-gray-500 ml-1">(Empty)</span>}
                   </span>
                 </div>
                 {!isZeroDetections && (
                   <div className="text-gray-700">
-                    rate: {detection_rate_per_100.toFixed(2)} / 100 trap-days
+                    Rate: {detection_rate_per_100.toFixed(2)} / 100 trap-days
                   </div>
                 )}
               </div>
