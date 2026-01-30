@@ -60,7 +60,7 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
         font-weight: bold;
         font-size: 14px;
         text-shadow: 0 0 2px rgba(0,0,0,0.5);
-      ">${count}</div>`,
+      ">${Math.round(avgRate)}</div>`,
       className: 'custom-cluster-icon',
       iconSize: L.point(40, 40, true),
     });
