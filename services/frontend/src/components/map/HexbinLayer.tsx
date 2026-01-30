@@ -90,11 +90,9 @@ export function HexbinLayer({ deployments, zoomLevel, mapBounds, maxDetectionRat
   // Stable onEachFeature function using useCallback
   const onEachFeatureHandler = useCallback((feature: Feature<Polygon, HexFeatureProperties>, layer: Layer) => {
     const props = feature.properties as HexFeatureProperties;
-    // Only show popup for hexagons with deployments
-    if (!props.isZero) {
-      const popupContent = renderToStaticMarkup(<HexPopup hexCell={props.hexCell} />);
-      layer.bindPopup(popupContent);
-    }
+    // Show popup for all hexagons (including zeros - they still have useful info)
+    const popupContent = renderToStaticMarkup(<HexPopup hexCell={props.hexCell} />);
+    layer.bindPopup(popupContent);
   }, []); // No dependencies - uses data from feature properties
 
   if (hexCells.length === 0) {
