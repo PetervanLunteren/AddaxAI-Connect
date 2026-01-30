@@ -123,8 +123,8 @@ export const Dashboard: React.FC = () => {
       {
         label: 'Images Uploaded',
         data: timeline?.map((d) => d.count) ?? [],
-        borderColor: 'rgb(59, 130, 246)',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: '#0f6064',
+        backgroundColor: 'rgba(15, 96, 100, 0.2)',
         tension: 0.3,
         fill: true,
       },
