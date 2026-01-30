@@ -32,7 +32,6 @@ import {
   ConfidenceHistogram,
   OccupancyMatrix,
   AlertCounters,
-  PipelineStatus,
   SpeciesComparisonChart,
   CameraHealthGrid,
   WeeklyTrendsChart,
@@ -343,11 +342,10 @@ export const Dashboard: React.FC = () => {
       {/* Row 5: Occupancy Matrix (full width) */}
       <OccupancyMatrix dateRange={dateRange} />
 
-      {/* Row 6: Confidence + Alerts + Pipeline */}
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Row 6: Confidence + Alerts */}
+      <div className="grid gap-6 md:grid-cols-2">
         <ConfidenceHistogram dateRange={dateRange} />
         <AlertCounters />
-        <PipelineStatus />
       </div>
 
       {/* Row 7: Camera Health (full width) */}
