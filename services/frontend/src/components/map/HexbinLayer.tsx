@@ -77,15 +77,13 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
     const props = feature?.properties as HexFeatureProperties | undefined;
     if (!props) return {};
 
-    // Use lower opacity for zero-detection hexagons
-    const opacity = props.isZero ? 0.2 : 0.8;
-
+    // Use full opacity for all hexagons (zeros are real data - cameras deployed but no detections)
     return {
       fillColor: props.color,
-      fillOpacity: opacity,
+      fillOpacity: 0.8,
       color: props.color,
       weight: 1,
-      opacity: opacity,
+      opacity: 0.8,
     };
   }, []); // No dependencies - uses data from feature properties
 
