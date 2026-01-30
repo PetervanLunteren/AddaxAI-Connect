@@ -24,7 +24,7 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
     let count = 0;
 
     markers.forEach((marker: any) => {
-      const feature = marker.options.feature as DeploymentFeature | undefined;
+      const feature = marker.feature as DeploymentFeature | undefined;
       if (feature) {
         totalRate += feature.properties.detection_rate_per_100;
         count++;
