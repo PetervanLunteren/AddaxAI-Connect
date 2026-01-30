@@ -70,12 +70,12 @@ function MapEventHandler({
       console.log(`[MapEventHandler] moveend fired`, {
         timestamp: now,
         timeSinceLastZoom: timeSinceZoom,
-        willIgnore: timeSinceZoom < 500,
+        willIgnore: timeSinceZoom < 5000,
       });
 
-      // Don't respond to moveend if it's within 500ms of a zoom event
-      // (zoom triggers moveend, we don't want double updates)
-      if (timeSinceZoom < 500) {
+      // Don't respond to moveend if it's within 5000ms of a zoom event
+      // Leaflet's zoom animation can take 3+ seconds and fires moveend when complete
+      if (timeSinceZoom < 5000) {
         console.log(`[MapEventHandler] Ignoring moveend (too soon after zoom)`);
         return;
       }
