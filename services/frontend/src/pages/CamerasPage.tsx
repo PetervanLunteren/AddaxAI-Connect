@@ -87,8 +87,8 @@ export const CamerasPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Cameras</h1>
+      <div className="flex items-center justify-between mb-0">
+        <h1 className="text-2xl font-bold mb-0">Cameras</h1>
         <div className="text-sm text-muted-foreground">
           {cameras ? `${cameras.length} camera${cameras.length !== 1 ? 's' : ''} registered` : ''}
         </div>

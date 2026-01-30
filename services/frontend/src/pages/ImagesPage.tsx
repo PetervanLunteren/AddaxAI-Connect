@@ -104,8 +104,8 @@ export const ImagesPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Images</h1>
+      <div className="flex items-center justify-between mb-0">
+        <h1 className="text-2xl font-bold mb-0">Images</h1>
         <Button
           variant="outline"
           size="sm"
