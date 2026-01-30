@@ -37,6 +37,21 @@ We use a HSL-based color system defined in `src/index.css`:
 - Destructive: Delete, danger actions
 - Muted: Disabled states, subtle backgrounds
 
+### Colors palette for good / bad / middle
+Use these colors for any fail/pass or otherwise good/bad situations. 
+Bad = #882000
+Middle = #71b7ba
+Good = #0f6064
+
+### color palette for just three distict values
+#0f6064
+#7e4369
+#485e12
+
+### Use this gradient if you need a gradient somewhere
+from #0f6064 (dark, many)
+to #f9f871 (light, few)
+
 ### Typography
 
 - Font: System font stack (default Tailwind)
