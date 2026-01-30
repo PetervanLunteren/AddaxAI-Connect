@@ -273,8 +273,8 @@ export const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Row 1: Species detected + Activity pattern + Camera activity (3 cols) */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
+      {/* Row 1: Species detected + Detection trend (2 cols) */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Species detected</CardTitle>
@@ -296,7 +296,13 @@ export const Dashboard: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+        <DetectionTrendChart dateRange={dateRange} />
+      </div>
+
+      {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
         <ActivityPatternChart dateRange={dateRange} />
+        <AlertCounters />
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Camera activity status</CardTitle>
@@ -320,53 +326,47 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Row 2: Images over time (full width) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="text-lg">Images over time</CardTitle>
-            <Select
-              value={timelineDays}
-              onValueChange={setTimelineDays}
-              className="w-40 h-9 text-sm"
-            >
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-              <SelectItem value="365">Last year</SelectItem>
-              <SelectItem value="all">All time</SelectItem>
-            </Select>
-          </div>
-          <p className="text-sm text-muted-foreground">{timelineRangeLabel}</p>
-        </CardHeader>
-        <CardContent>
-          <div className="h-72">
-            {timelineLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">Loading...</p>
-              </div>
-            ) : timeline && timeline.length > 0 ? (
-              <Line ref={chartRef} data={timelineData} options={timelineOptions} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">No data available</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Row 3: Detection Trend + Weekly Trends */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <DetectionTrendChart dateRange={dateRange} />
+      {/* Row 3: Images over time + Weekly trends (2 cols) */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="text-lg">Images over time</CardTitle>
+              <Select
+                value={timelineDays}
+                onValueChange={setTimelineDays}
+                className="w-40 h-9 text-sm"
+              >
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="365">Last year</SelectItem>
+                <SelectItem value="all">All time</SelectItem>
+              </Select>
+            </div>
+            <p className="text-sm text-muted-foreground">{timelineRangeLabel}</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72">
+              {timelineLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : timeline && timeline.length > 0 ? (
+                <Line ref={chartRef} data={timelineData} options={timelineOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
         <WeeklyTrendsChart dateRange={dateRange} />
       </div>
 
-      {/* Row 4: Species Comparison + Alerts */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <SpeciesComparisonChart dateRange={dateRange} />
-        <AlertCounters />
-      </div>
+      {/* Row 4: Species activity comparison (full width) */}
+      <SpeciesComparisonChart dateRange={dateRange} />
     </div>
   );
 };
