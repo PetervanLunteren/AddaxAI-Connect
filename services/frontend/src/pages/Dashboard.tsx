@@ -53,11 +53,20 @@ ChartJS.register(
 );
 
 export const Dashboard: React.FC = () => {
+  // Calculate default dates (last 30 days)
+  const getDefaultDates = (): DateRange => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    };
+  };
+
   // Global date range filter
-  const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: null,
-    endDate: null,
-  });
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDates());
 
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({

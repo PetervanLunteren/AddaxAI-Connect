@@ -18,10 +18,22 @@ import type { ImageListItem } from '../api/types';
 export const ImagesPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
+
+  // Calculate default dates (last 30 days)
+  const getDefaultDates = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+
+    return {
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0],
+    };
+  };
+
   const [filters, setFilters] = useState({
     camera_ids: [] as Option[],
-    start_date: '',
-    end_date: '',
+    ...getDefaultDates(),
     species: [] as Option[],
     show_empty: false, // Default: hide empty images
   });
@@ -68,8 +80,7 @@ export const ImagesPage: React.FC = () => {
   const clearFilters = () => {
     setFilters({
       camera_ids: [],
-      start_date: '',
-      end_date: '',
+      ...getDefaultDates(),
       species: [],
       show_empty: false,
     });
