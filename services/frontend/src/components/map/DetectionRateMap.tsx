@@ -22,9 +22,15 @@ import 'leaflet/dist/leaflet.css';
 type ViewMode = 'points' | 'hexbins' | 'clusters' | 'default-clusters';
 
 /**
- * Component to track zoom level changes
+ * Component to track zoom level and map bounds changes
  */
-function ZoomHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void }) {
+function MapEventHandler({
+  onZoomChange,
+  onBoundsChange
+}: {
+  onZoomChange: (zoom: number) => void;
+  onBoundsChange: (bounds: L.LatLngBounds) => void;
+}) {
   const debounceTimerRef = useRef<NodeJS.Timeout>();
 
   useMapEvents({
@@ -36,7 +42,20 @@ function ZoomHandler({ onZoomChange }: { onZoomChange: (zoom: number) => void })
 
       debounceTimerRef.current = setTimeout(() => {
         const zoom = e.target.getZoom();
+        const bounds = e.target.getBounds();
         onZoomChange(zoom);
+        onBoundsChange(bounds);
+      }, 300);
+    },
+    moveend: (e) => {
+      // Update bounds when map is panned
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        const bounds = e.target.getBounds();
+        onBoundsChange(bounds);
       }, 300);
     },
   });
@@ -52,6 +71,7 @@ export function DetectionRateMap() {
     return (saved === 'hexbins' ? 'hexbins' : 'points') as ViewMode;
   });
   const [zoomLevel, setZoomLevel] = useState(10);
+  const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
   const [baseLayer, setBaseLayer] = useState(() => {
     // Restore baselayer preference from localStorage
     const saved = localStorage.getItem('detection-map-baselayer');
@@ -72,19 +92,35 @@ export function DetectionRateMap() {
     setZoomLevel(zoom);
   }, []);
 
+  const handleBoundsChange = useCallback((bounds: L.LatLngBounds) => {
+    setMapBounds(bounds);
+  }, []);
+
   // Fetch detection rate map data
   const { data, isLoading, error } = useQuery({
     queryKey: ['detection-rate-map', filters],
     queryFn: () => statisticsApi.getDetectionRateMap(filters),
   });
 
-  // Calculate color scale domain from data
-  const colorDomain = useMemo(() => {
-    if (!data?.features) return { min: 0, max: 0, p33: 0, p66: 0 };
+  // Filter deployments to only those visible in current viewport
+  const visibleDeployments = useMemo(() => {
+    if (!data?.features || !mapBounds) return data?.features || [];
 
-    const rates = data.features.map((f) => f.properties.detection_rate_per_100);
+    return data.features.filter((feature) => {
+      const [lon, lat] = feature.geometry.coordinates;
+      return mapBounds.contains([lat, lon]);
+    });
+  }, [data, mapBounds]);
+
+  // Calculate color scale domain from visible data only
+  const colorDomain = useMemo(() => {
+    if (!visibleDeployments || visibleDeployments.length === 0) {
+      return { min: 0, max: 0, p33: 0, p66: 0 };
+    }
+
+    const rates = visibleDeployments.map((f) => f.properties.detection_rate_per_100);
     return calculateColorScaleDomain(rates);
-  }, [data]);
+  }, [visibleDeployments]);
 
   // Calculate map center (average of all deployment locations)
   const mapCenter = useMemo<[number, number]>(() => {
@@ -170,7 +206,7 @@ export function DetectionRateMap() {
           url={tileLayerConfig.url}
         />
 
-        <ZoomHandler onZoomChange={handleZoomChange} />
+        <MapEventHandler onZoomChange={handleZoomChange} onBoundsChange={handleBoundsChange} />
 
         {/* Render markers, clusters, or hexbin layer based on view mode */}
         {viewMode === 'points' ? (
