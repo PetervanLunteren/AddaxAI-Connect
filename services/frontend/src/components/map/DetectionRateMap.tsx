@@ -238,7 +238,7 @@ export function DetectionRateMap() {
 
     switch (viewMode) {
       case 'hexbins':
-        return `Deployments are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the combined detection rate across all deployments within it.`;
+        return `Deployments are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the overall detection rate across all deployments within it.`;
       case 'points':
         return `Each point represents one camera deployment. Color shows its detection rate per 100 trap-days.`;
       case 'clusters':
