@@ -49,20 +49,22 @@ export const AlertCounters: React.FC = () => {
             <p className="text-muted-foreground">Loading...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="flex flex-col gap-3">
             {counters.map((counter) => (
               <div
                 key={counter.label}
-                className="flex flex-col items-center p-4 rounded-lg bg-muted/50"
+                className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
               >
                 <div
-                  className="p-3 rounded-full mb-2"
+                  className="p-2 rounded-full"
                   style={{ backgroundColor: `${counter.color}20` }}
                 >
-                  <counter.icon className="h-6 w-6" style={{ color: counter.color }} />
+                  <counter.icon className="h-5 w-5" style={{ color: counter.color }} />
                 </div>
-                <p className="text-2xl font-bold">{counter.count.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">{counter.label}</p>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">{counter.label}</p>
+                </div>
+                <p className="text-xl font-bold">{counter.count.toLocaleString()}</p>
               </div>
             ))}
           </div>

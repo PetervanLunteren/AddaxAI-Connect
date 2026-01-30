@@ -15,7 +15,6 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
-import { getSpeciesColor, getSpeciesColorWithAlpha } from '../../utils/species-colors';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
 
@@ -78,26 +77,16 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
 
   const hourLabels = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
 
+  // Always use time-of-day colors for better insight
   const hourColors = getHourColors();
-
-  // Use species color if a specific species is selected, otherwise use time-of-day colors
-  const backgroundColor =
-    selectedSpecies !== 'all'
-      ? Array(24).fill(getSpeciesColorWithAlpha(selectedSpecies, 0.7))
-      : hourColors.background;
-
-  const borderColor =
-    selectedSpecies !== 'all'
-      ? Array(24).fill(getSpeciesColor(selectedSpecies))
-      : hourColors.border;
 
   const chartData = {
     labels: hourLabels,
     datasets: [
       {
         data: data?.hours.map((h) => h.count) ?? Array(24).fill(0),
-        backgroundColor,
-        borderColor,
+        backgroundColor: hourColors.background,
+        borderColor: hourColors.border,
         borderWidth: 1,
       },
     ],
@@ -142,7 +131,7 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
           <Select
             value={selectedSpecies}
             onValueChange={setSelectedSpecies}
-            className="w-48 h-9 text-sm"
+            className="w-36 h-9 text-sm"
           >
             <SelectItem value="all">All species</SelectItem>
             {speciesList?.map((s) => (
@@ -170,23 +159,21 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
             </div>
           )}
         </div>
-        {/* Legend for time-of-day colors when showing all species */}
-        {selectedSpecies === 'all' && (
-          <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#0f6064' }} />
-              <span>Night</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#7e4369' }} />
-              <span>Dawn/Dusk</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#485e12' }} />
-              <span>Day</span>
-            </div>
+        {/* Legend for time-of-day colors */}
+        <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#0f6064' }} />
+            <span>Night</span>
           </div>
-        )}
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#7e4369' }} />
+            <span>Dawn/Dusk</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#485e12' }} />
+            <span>Day</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
