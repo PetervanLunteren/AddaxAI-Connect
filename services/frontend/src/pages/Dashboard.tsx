@@ -18,7 +18,7 @@ import {
   Filler,
   ChartOptions,
 } from 'chart.js';
-import { Camera, Images, Layers, TrendingUp } from 'lucide-react';
+import { Camera, Images, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { statisticsApi } from '../api/statistics';
 import { normalizeLabel } from '../utils/labels';
@@ -99,13 +99,6 @@ export const Dashboard: React.FC = () => {
       icon: Camera,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
-    },
-    {
-      title: 'Species Detected',
-      value: overview?.total_species ?? 0,
-      icon: Layers,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100',
     },
     {
       title: 'Images Today',
@@ -234,7 +227,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-3">
         {summaryCards.map((card) => (
           <Card key={card.title}>
             <CardContent className="p-6">
