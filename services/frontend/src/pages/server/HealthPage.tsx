@@ -166,7 +166,7 @@ export const HealthPage: React.FC = () => {
 
           {/* Services List */}
           {allServices.length > 0 && (
-            <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {allServices.map((service) => (
                 <ServiceStatusBadge key={service.name} status={service} />
               ))}
