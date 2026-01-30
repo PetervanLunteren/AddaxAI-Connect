@@ -191,7 +191,7 @@ export const Dashboard: React.FC = () => {
 
   // Camera activity chart data
   const activityData = {
-    labels: ['Active', 'Inactive', 'Never Reported'],
+    labels: ['Active', 'Inactive', 'Never reported'],
     datasets: [
       {
         data: [
@@ -200,9 +200,9 @@ export const Dashboard: React.FC = () => {
           cameraActivity?.never_reported ?? 0,
         ],
         backgroundColor: [
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(251, 146, 60, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
+          '#0f6064',  // Active - teal
+          '#882000',  // Inactive - dark red
+          '#71b7ba',  // Never reported - light teal
         ],
         borderWidth: 0,
       },
@@ -284,8 +284,8 @@ export const Dashboard: React.FC = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Top 10 species detected</CardTitle>
-            <p className="text-sm text-muted-foreground">Most frequently observed species</p>
+            <CardTitle className="text-lg">Species detected</CardTitle>
+            <p className="text-sm text-muted-foreground">Top 10 most frequently observed</p>
           </CardHeader>
           <CardContent>
             <div className="h-72">

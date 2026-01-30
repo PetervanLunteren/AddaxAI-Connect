@@ -134,7 +134,7 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-lg">Activity pattern (24h)</CardTitle>
+          <CardTitle className="text-lg">Activity pattern</CardTitle>
           <Select
             value={selectedSpecies}
             onValueChange={setSelectedSpecies}
@@ -148,11 +148,9 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
             ))}
           </Select>
         </div>
-        {data && (
-          <p className="text-sm text-muted-foreground">
-            {data.total_detections.toLocaleString()} total detections
-          </p>
-        )}
+        <p className="text-sm text-muted-foreground">
+          24-hour pattern{data ? ` · ${data.total_detections.toLocaleString()} total detections` : ''}
+        </p>
       </CardHeader>
       <CardContent>
         <div className="h-72">

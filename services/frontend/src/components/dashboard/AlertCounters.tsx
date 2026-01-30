@@ -19,22 +19,19 @@ export const AlertCounters: React.FC = () => {
       label: 'People',
       count: data?.person_count ?? 0,
       icon: User,
-      bgColor: 'bg-orange-100',
-      iconColor: 'text-orange-600',
+      color: '#882000',
     },
     {
       label: 'Vehicles',
       count: data?.vehicle_count ?? 0,
       icon: Car,
-      bgColor: 'bg-red-100',
-      iconColor: 'text-red-600',
+      color: '#71b7ba',
     },
     {
       label: 'Animals',
       count: data?.animal_count ?? 0,
       icon: PawPrint,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
+      color: '#0f6064',
     },
   ];
 
@@ -58,8 +55,11 @@ export const AlertCounters: React.FC = () => {
                 key={counter.label}
                 className="flex flex-col items-center p-4 rounded-lg bg-muted/50"
               >
-                <div className={`${counter.bgColor} ${counter.iconColor} p-3 rounded-full mb-2`}>
-                  <counter.icon className="h-6 w-6" />
+                <div
+                  className="p-3 rounded-full mb-2"
+                  style={{ backgroundColor: `${counter.color}20` }}
+                >
+                  <counter.icon className="h-6 w-6" style={{ color: counter.color }} />
                 </div>
                 <p className="text-2xl font-bold">{counter.count.toLocaleString()}</p>
                 <p className="text-sm text-muted-foreground">{counter.label}</p>
