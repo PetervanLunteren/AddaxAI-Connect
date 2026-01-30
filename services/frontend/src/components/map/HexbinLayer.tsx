@@ -81,7 +81,7 @@ export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: Hexbin
     return {
       fillColor: props.color,
       fillOpacity: 0.8,
-      color: props.color,
+      color: '#555555', // Dark grey border
       weight: 1,
       opacity: 0.8,
     };
