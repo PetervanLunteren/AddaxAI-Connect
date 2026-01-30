@@ -46,8 +46,8 @@ export function MapLegend({ domain }: MapLegendProps) {
       ].join(', ');
 
       div.innerHTML = `
-        <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">
-          Detections per 100 trap-days
+        <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; line-height: 1.3;">
+          Detections per<br>100 trap-days
         </div>
         <div style="display: flex; align-items: center;">
           <div style="
@@ -65,8 +65,8 @@ export function MapLegend({ domain }: MapLegendProps) {
             height: 150px;
             font-size: 11px;
           ">
-            <div>${domain.max.toFixed(1)}</div>
-            <div>${middleValue.toFixed(1)}</div>
+            <div>${Math.round(domain.max)}</div>
+            <div>${Math.round(middleValue)}</div>
             <div>0</div>
           </div>
         </div>
