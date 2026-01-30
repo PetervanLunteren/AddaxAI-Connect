@@ -63,7 +63,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               onClick={() => onViewModeChange('hexbins')}
               title="Hexbins"
               aria-label="Hexbins"
-              className={`flex-1 px-3 py-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
+              className={`flex-1 h-10 px-3 text-sm font-medium rounded-l-md border flex items-center justify-center ${
                 viewMode === 'hexbins'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -76,7 +76,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               onClick={() => onViewModeChange('points')}
               title="Points"
               aria-label="Points"
-              className={`flex-1 px-3 py-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
+              className={`flex-1 h-10 px-3 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
                 viewMode === 'points'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -89,7 +89,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               onClick={() => onViewModeChange('clusters')}
               title="Clusters"
               aria-label="Clusters"
-              className={`flex-1 px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
+              className={`flex-1 h-10 px-3 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
                 viewMode === 'clusters'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -109,7 +109,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
             value={species}
             onChange={(e) => handleSpeciesChange(e.target.value)}
             disabled={speciesLoading}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
+            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
           >
             <option value="">All species</option>
             {speciesOptions?.map((option) => (
@@ -129,7 +129,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
             type="date"
             value={startDate}
             onChange={(e) => handleStartDateChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -142,7 +142,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
             type="date"
             value={endDate}
             onChange={(e) => handleEndDateChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
@@ -156,7 +156,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               onClick={() => onBaseLayerChange('positron')}
               title="Light"
               aria-label="Light"
-              className={`flex-1 px-3 py-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
+              className={`flex-1 h-10 px-3 text-sm font-medium rounded-l-md border flex items-center justify-center ${
                 baseLayer === 'positron'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -169,7 +169,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               onClick={() => onBaseLayerChange('satellite')}
               title="Satellite"
               aria-label="Satellite"
-              className={`flex-1 px-3 py-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
+              className={`flex-1 h-10 px-3 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
                 baseLayer === 'satellite'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -182,7 +182,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               onClick={() => onBaseLayerChange('osm')}
               title="Street map"
               aria-label="Street map"
-              className={`flex-1 px-3 py-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
+              className={`flex-1 h-10 px-3 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
                 baseLayer === 'osm'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
