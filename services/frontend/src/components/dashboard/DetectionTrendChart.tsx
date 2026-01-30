@@ -1,7 +1,7 @@
 /**
  * Detection Trend Chart - Line chart showing daily detection counts
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Line } from 'react-chartjs-2';
 import {
@@ -31,28 +31,36 @@ interface DetectionTrendChartProps {
 }
 
 export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRange }) => {
-  const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
+  const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
 
-  // Fetch species list for the selector
+  // Fetch species list for the selector (sorted by count, most observed first)
   const { data: speciesList } = useQuery({
     queryKey: ['statistics', 'species'],
     queryFn: () => statisticsApi.getSpeciesDistribution(),
   });
+
+  // Default to most observed species when data loads
+  useEffect(() => {
+    if (speciesList && speciesList.length > 0 && selectedSpecies === null) {
+      setSelectedSpecies(speciesList[0].species);
+    }
+  }, [speciesList, selectedSpecies]);
 
   // Fetch detection trend data
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'detection-trend', selectedSpecies, dateRange.startDate, dateRange.endDate],
     queryFn: () =>
       statisticsApi.getDetectionTrend({
-        species: selectedSpecies === 'all' ? undefined : selectedSpecies,
+        species: selectedSpecies === 'all' || !selectedSpecies ? undefined : selectedSpecies,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
       }),
+    enabled: selectedSpecies !== null,
   });
 
   // Use species color if selected, otherwise teal
   const lineColor =
-    selectedSpecies !== 'all'
+    selectedSpecies && selectedSpecies !== 'all'
       ? getSpeciesColor(selectedSpecies)
       : '#0f6064';
 
@@ -141,7 +149,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Detection trend</CardTitle>
           <Select
-            value={selectedSpecies}
+            value={selectedSpecies ?? ''}
             onValueChange={setSelectedSpecies}
             className="w-48 h-9 text-sm"
           >
