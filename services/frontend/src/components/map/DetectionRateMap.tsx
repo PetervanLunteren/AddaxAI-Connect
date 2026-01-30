@@ -198,20 +198,6 @@ export function DetectionRateMap() {
 
         <MapLegend domain={colorDomain} />
       </MapContainer>
-
-      {data?.features && (
-        <div className="mt-2 text-sm text-gray-600">
-          {viewMode === 'points' ? (
-            <>
-              Showing {data.features.length} deployment{data.features.length !== 1 ? 's' : ''}
-            </>
-          ) : (
-            <>
-              Aggregating {data.features.length} deployment{data.features.length !== 1 ? 's' : ''} into hexagonal cells
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 }
