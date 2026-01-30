@@ -41,7 +41,7 @@ export const AlertCounters: React.FC = () => {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Detection Categories</CardTitle>
+        <CardTitle className="text-lg">Detection categories</CardTitle>
         <p className="text-sm text-muted-foreground">
           Breakdown by detection type
         </p>

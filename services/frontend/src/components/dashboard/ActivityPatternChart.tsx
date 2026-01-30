@@ -134,7 +134,7 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-lg">Activity Pattern (24h)</CardTitle>
+          <CardTitle className="text-lg">Activity pattern (24h)</CardTitle>
           <Select
             value={selectedSpecies}
             onValueChange={setSelectedSpecies}

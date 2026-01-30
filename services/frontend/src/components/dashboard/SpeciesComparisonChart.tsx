@@ -131,7 +131,7 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Species Activity Comparison</CardTitle>
+        <CardTitle className="text-lg">Species activity comparison</CardTitle>
         <p className="text-sm text-muted-foreground">
           Compare diel activity patterns (select up to 5 species)
         </p>
