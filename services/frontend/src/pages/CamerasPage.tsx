@@ -87,11 +87,14 @@ export const CamerasPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Cameras</h1>
-        <div className="text-sm text-muted-foreground">
-          {cameras ? `${cameras.length} camera${cameras.length !== 1 ? 's' : ''} registered` : ''}
+      <div className="mb-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Cameras</h1>
+          <div className="text-sm text-muted-foreground">
+            {cameras ? `${cameras.length} camera${cameras.length !== 1 ? 's' : ''} registered` : ''}
+          </div>
         </div>
+        <p className="text-sm text-gray-600 mt-1">Monitor camera health, battery levels, and connectivity status</p>
       </div>
 
       <Card>

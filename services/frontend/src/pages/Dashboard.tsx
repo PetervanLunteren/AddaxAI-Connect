@@ -209,7 +209,8 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <p className="text-sm text-gray-600 mt-1 mb-6">Project overview with statistics and trends</p>
 
       {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
