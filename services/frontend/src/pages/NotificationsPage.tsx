@@ -293,7 +293,8 @@ export const NotificationsPage: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Notifications</h1>
+      <h1 className="text-2xl font-bold">Notifications</h1>
+      <p className="text-sm text-gray-600 mt-1 mb-6">Configure alerts for species detections and system events</p>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
