@@ -283,7 +283,7 @@ export const Dashboard: React.FC = () => {
               <Select
                 value={timelineDays}
                 onValueChange={setTimelineDays}
-                className="w-36 h-8 text-sm"
+                className="w-40 h-9 text-sm"
               >
                 <SelectItem value="7">Last 7 days</SelectItem>
                 <SelectItem value="30">Last 30 days</SelectItem>

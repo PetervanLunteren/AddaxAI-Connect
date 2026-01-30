@@ -143,7 +143,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
           <Select
             value={selectedSpecies}
             onValueChange={setSelectedSpecies}
-            className="w-44 h-8 text-sm"
+            className="w-48 h-9 text-sm"
           >
             <SelectItem value="all">All species</SelectItem>
             {speciesList?.map((s) => (
