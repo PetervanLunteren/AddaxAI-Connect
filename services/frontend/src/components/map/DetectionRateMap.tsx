@@ -30,16 +30,17 @@ function MapEventHandler({
   onZoomChange: (zoom: number) => void;
   onBoundsChange: (bounds: L.LatLngBounds) => void;
 }) {
-  const debounceTimerRef = useRef<NodeJS.Timeout>();
+  const zoomDebounceRef = useRef<NodeJS.Timeout>();
+  const moveDebounceRef = useRef<NodeJS.Timeout>();
 
-  useMapEvents({
+  const map = useMapEvents({
     zoomend: (e) => {
       // Debounce zoom changes to avoid excessive hex regeneration
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+      if (zoomDebounceRef.current) {
+        clearTimeout(zoomDebounceRef.current);
       }
 
-      debounceTimerRef.current = setTimeout(() => {
+      zoomDebounceRef.current = setTimeout(() => {
         const zoom = e.target.getZoom();
         const bounds = e.target.getBounds();
         onZoomChange(zoom);
@@ -47,17 +48,25 @@ function MapEventHandler({
       }, 300);
     },
     moveend: (e) => {
-      // Update bounds when map is panned
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+      // Update bounds when map is panned (but not zoomed)
+      if (moveDebounceRef.current) {
+        clearTimeout(moveDebounceRef.current);
       }
 
-      debounceTimerRef.current = setTimeout(() => {
+      moveDebounceRef.current = setTimeout(() => {
         const bounds = e.target.getBounds();
         onBoundsChange(bounds);
       }, 300);
     },
   });
+
+  // Initialize zoom and bounds on mount
+  useEffect(() => {
+    const zoom = map.getZoom();
+    const bounds = map.getBounds();
+    onZoomChange(zoom);
+    onBoundsChange(bounds);
+  }, [map, onZoomChange, onBoundsChange]);
 
   return null;
 }
