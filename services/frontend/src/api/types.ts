@@ -342,13 +342,6 @@ export interface ActivityPatternFilters {
   end_date?: string;  // YYYY-MM-DD
 }
 
-// Species accumulation curve
-export interface SpeciesAccumulationPoint {
-  date: string;  // YYYY-MM-DD
-  cumulative_species: number;
-  new_species: string[];
-}
-
 export interface DateRangeFilters {
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
@@ -364,21 +357,6 @@ export interface DetectionTrendFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
-}
-
-// Confidence distribution histogram
-export interface ConfidenceBin {
-  bin_label: string;  // e.g., "0.5-0.6"
-  bin_min: number;
-  bin_max: number;
-  count: number;
-}
-
-// Occupancy matrix (species x camera)
-export interface OccupancyMatrixResponse {
-  cameras: string[];  // Camera names
-  species: string[];  // Species names
-  matrix: number[][];  // matrix[species_idx][camera_idx] = detection count
 }
 
 // Pipeline status
