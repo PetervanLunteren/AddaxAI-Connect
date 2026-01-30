@@ -1,49 +1,56 @@
 /**
  * Species color mapping utility
  *
- * Generates consistent colors for species names using the viridis palette.
- * Same species always gets the same color across all visualizations.
+ * Generates consistent colors for species names using a custom gradient.
+ * Colors are assigned based on alphabetical order of species names.
+ * Gradient: #0f6064 (dark teal) -> #f9f871 (light yellow)
  */
 import chroma from 'chroma-js';
 
-// Viridis palette - perceptually uniform, colorblind-friendly
-const viridisScale = chroma.scale('viridis');
+// Custom gradient scale from dark teal to light yellow
+const speciesScale = chroma.scale(['#0f6064', '#f9f871']);
+
+// Cache for storing species -> color mappings within a context
+let speciesOrderCache: Map<string, number> = new Map();
 
 /**
- * Generate a deterministic hash from a string.
- * Same input always produces same output.
+ * Set the species order context for color assignment.
+ * Call this with all species that will be displayed together.
+ * Species are sorted alphabetically and assigned colors along the gradient.
+ *
+ * @param speciesList - Array of all species names in the current context
  */
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash);
+export function setSpeciesContext(speciesList: string[]): void {
+  speciesOrderCache.clear();
+  const sorted = [...speciesList].map(s => s.toLowerCase()).sort();
+  sorted.forEach((species, index) => {
+    const position = sorted.length > 1 ? index / (sorted.length - 1) : 0.5;
+    speciesOrderCache.set(species, position);
+  });
 }
 
 /**
  * Get a consistent color for a species name.
- * Uses hash of species name to pick position on viridis scale.
+ * Uses alphabetical position to pick color from gradient.
+ * Falls back to middle of gradient if species not in context.
  *
  * @param species - Species name (e.g., "fox", "roe_deer")
- * @returns Hex color string (e.g., "#440154")
+ * @returns Hex color string (e.g., "#0f6064")
  */
 export function getSpeciesColor(species: string): string {
-  const hash = hashString(species.toLowerCase());
-  const position = (hash % 1000) / 1000; // 0.0 to 1.0
-  return viridisScale(position).hex();
+  const position = speciesOrderCache.get(species.toLowerCase()) ?? 0.5;
+  return speciesScale(position).hex();
 }
 
 /**
  * Get colors for an array of species.
- * Each species gets its consistent color.
+ * Automatically sets the species context and returns colors.
  *
  * @param speciesList - Array of species names
  * @returns Array of hex color strings
  */
 export function getSpeciesColors(speciesList: string[]): string[] {
+  setSpeciesContext(speciesList);
   return speciesList.map(species => getSpeciesColor(species));
 }
 
@@ -52,12 +59,11 @@ export function getSpeciesColors(speciesList: string[]): string[] {
  *
  * @param species - Species name
  * @param alpha - Opacity (0.0 to 1.0), defaults to 0.8
- * @returns CSS color string with alpha (e.g., "rgba(68, 1, 84, 0.8)")
+ * @returns CSS color string with alpha (e.g., "rgba(15, 96, 100, 0.8)")
  */
 export function getSpeciesColorWithAlpha(species: string, alpha: number = 0.8): string {
-  const hash = hashString(species.toLowerCase());
-  const position = (hash % 1000) / 1000;
-  return viridisScale(position).alpha(alpha).css();
+  const position = speciesOrderCache.get(species.toLowerCase()) ?? 0.5;
+  return speciesScale(position).alpha(alpha).css();
 }
 
 /**

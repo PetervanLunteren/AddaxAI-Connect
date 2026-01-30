@@ -28,10 +28,16 @@ export const statisticsApi = {
   },
 
   /**
-   * Get images timeline (last 30 days)
+   * Get images timeline
    */
-  getImagesTimeline: async (): Promise<TimelineDataPoint[]> => {
-    const response = await apiClient.get<TimelineDataPoint[]>('/api/statistics/images-timeline');
+  getImagesTimeline: async (days?: number): Promise<TimelineDataPoint[]> => {
+    const params = new URLSearchParams();
+    if (days !== undefined) params.append('days', days.toString());
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/images-timeline?${queryString}`
+      : '/api/statistics/images-timeline';
+    const response = await apiClient.get<TimelineDataPoint[]>(url);
     return response.data;
   },
 
