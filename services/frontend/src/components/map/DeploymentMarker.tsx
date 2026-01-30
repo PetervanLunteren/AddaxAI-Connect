@@ -2,6 +2,7 @@
  * Deployment marker component
  * Displays a single camera deployment as a colored circle marker
  */
+import { useEffect, useRef } from 'react';
 import { CircleMarker, Popup } from 'react-leaflet';
 import type { DeploymentFeature } from '../../api/types';
 import { DeploymentPopup } from './DeploymentPopup';
@@ -12,6 +13,8 @@ interface DeploymentMarkerProps {
 }
 
 export function DeploymentMarker({ feature, color }: DeploymentMarkerProps) {
+  const markerRef = useRef<L.CircleMarker>(null);
+
   const [lat, lon] = [
     feature.geometry.coordinates[1],
     feature.geometry.coordinates[0],
@@ -20,8 +23,17 @@ export function DeploymentMarker({ feature, color }: DeploymentMarkerProps) {
   // Use hollow circle for zero detections
   const isZero = feature.properties.detection_count === 0;
 
+  // Store feature data on marker instance for cluster layer access
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (marker) {
+      (marker as any).feature = feature;
+    }
+  }, [feature]);
+
   return (
     <CircleMarker
+      ref={markerRef}
       center={[lat, lon]}
       radius={8}
       pathOptions={{
