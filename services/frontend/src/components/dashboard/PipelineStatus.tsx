@@ -1,82 +1,59 @@
 /**
- * Pipeline Status - Show pending vs classified image counts
+ * Pipeline Status - Show pending classification count as a health-style badge
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, CheckCircle, Image } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { statisticsApi } from '../../api/statistics';
 
 export const PipelineStatus: React.FC = () => {
-  // Fetch pipeline status
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'pipeline-status'],
     queryFn: () => statisticsApi.getPipelineStatus(),
   });
 
   const pendingCount = data?.pending ?? 0;
-  const classifiedCount = data?.classified ?? 0;
-  const totalImages = data?.total_images ?? 0;
+  const isHealthy = pendingCount === 0;
 
-  // Calculate progress percentage
-  const progressPercent = totalImages > 0 ? (classifiedCount / totalImages) * 100 : 0;
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 p-4 rounded-lg border bg-gray-50 border-gray-200">
+        <Loader2 className="h-5 w-5 text-muted-foreground animate-spin flex-shrink-0" />
+        <span className="text-sm text-muted-foreground">Checking pipeline status...</span>
+      </div>
+    );
+  }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Processing Pipeline</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Image classification status
+    <div
+      className={`flex items-start gap-3 p-4 rounded-lg border ${
+        isHealthy ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+      }`}
+    >
+      {isHealthy ? (
+        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+      ) : (
+        <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">Processing Pipeline</span>
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              isHealthy
+                ? 'bg-green-100 text-green-700'
+                : 'bg-red-100 text-red-700'
+            }`}
+          >
+            {isHealthy ? 'Healthy' : 'Unhealthy'}
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          {pendingCount === 0
+            ? 'No images pending classification'
+            : `${pendingCount.toLocaleString()} image${pendingCount === 1 ? '' : 's'} pending classification`}
         </p>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Progress bar */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Classification Progress</span>
-                <span className="font-medium">{progressPercent.toFixed(1)}%</span>
-              </div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-500 transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Status counts */}
-            <div className="grid grid-cols-3 gap-3 pt-2">
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                <Image className="h-5 w-5 text-blue-600" />
-                <div>
-                  <p className="text-lg font-bold">{totalImages.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Total</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="text-lg font-bold">{classifiedCount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Classified</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                <Clock className="h-5 w-5 text-orange-600" />
-                <div>
-                  <p className="text-lg font-bold">{pendingCount.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Pending</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
