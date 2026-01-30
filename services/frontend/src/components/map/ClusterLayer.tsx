@@ -26,9 +26,9 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
   const createClusterCustomIcon = (cluster: L.MarkerCluster) => {
     const markers = cluster.getAllChildMarkers();
 
-    // Calculate average detection rate for all deployments in this cluster
-    let totalRate = 0;
-    let count = 0;
+    // Calculate trap-day-weighted detection rate (same as hexbins)
+    let totalDetections = 0;
+    let totalTrapDays = 0;
 
     markers.forEach((marker: any) => {
       const latlng = marker.getLatLng();
@@ -36,15 +36,16 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
       const feature = coordsToFeature.get(key);
 
       if (feature) {
-        totalRate += feature.properties.detection_rate_per_100;
-        count++;
+        totalDetections += feature.properties.detection_count;
+        totalTrapDays += feature.properties.trap_days;
       }
     });
 
-    const avgRate = count > 0 ? totalRate / count : 0;
+    // Calculate overall rate: total detections / total trap-days × 100
+    const overallRate = totalTrapDays > 0 ? (totalDetections / totalTrapDays) * 100 : 0;
 
-    // Get color for this average rate
-    const color = getDetectionRateColor(avgRate, maxDetectionRate);
+    // Get color for this overall rate
+    const color = getDetectionRateColor(overallRate, maxDetectionRate);
 
     return L.divIcon({
       html: `<div style="
@@ -60,7 +61,7 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
         font-weight: bold;
         font-size: 14px;
         text-shadow: 0 0 2px rgba(0,0,0,0.5);
-      ">${Math.round(avgRate)}</div>`,
+      ">${Math.round(overallRate)}</div>`,
       className: 'custom-cluster-icon',
       iconSize: L.point(40, 40, true),
     });

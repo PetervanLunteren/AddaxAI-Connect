@@ -242,7 +242,7 @@ export function DetectionRateMap() {
       case 'points':
         return `Each point represents one camera deployment. Color shows its detection rate per 100 trap-days.`;
       case 'clusters':
-        return `Nearby deployments are grouped into clusters. Each cluster shows the average detection rate across all deployments within it.`;
+        return `Nearby deployments are grouped into clusters. Each cluster shows the overall detection rate across all deployments within it.`;
       default:
         return '';
     }
