@@ -87,25 +87,22 @@ export const Dashboard: React.FC = () => {
   // Summary cards data
   const summaryCards = [
     {
-      title: 'Total Images',
-      value: overview?.total_images ?? 0,
-      icon: Images,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
-    },
-    {
-      title: 'Total Cameras',
-      value: overview?.total_cameras ?? 0,
-      icon: Camera,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-    },
-    {
-      title: 'Images Today',
+      title: 'Images today',
       value: overview?.images_today ?? 0,
       icon: TrendingUp,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100',
+      color: '#0f6064',
+    },
+    {
+      title: 'Total images',
+      value: overview?.total_images ?? 0,
+      icon: Images,
+      color: '#7e4369',
+    },
+    {
+      title: 'Total cameras',
+      value: overview?.total_cameras ?? 0,
+      icon: Camera,
+      color: '#485e12',
     },
   ];
 
@@ -238,8 +235,11 @@ export const Dashboard: React.FC = () => {
                     {overviewLoading ? '...' : card.value.toLocaleString()}
                   </p>
                 </div>
-                <div className={`${card.bgColor} ${card.color} p-3 rounded-lg`}>
-                  <card.icon className="h-6 w-6" />
+                <div
+                  className="p-3 rounded-lg"
+                  style={{ backgroundColor: `${card.color}20` }}
+                >
+                  <card.icon className="h-6 w-6" style={{ color: card.color }} />
                 </div>
               </div>
             </CardContent>

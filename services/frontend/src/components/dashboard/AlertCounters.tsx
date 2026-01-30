@@ -16,22 +16,22 @@ export const AlertCounters: React.FC = () => {
 
   const counters = [
     {
+      label: 'Animals',
+      count: data?.animal_count ?? 0,
+      icon: PawPrint,
+      color: '#0f6064',
+    },
+    {
       label: 'People',
       count: data?.person_count ?? 0,
       icon: User,
-      color: '#882000',
+      color: '#7e4369',
     },
     {
       label: 'Vehicles',
       count: data?.vehicle_count ?? 0,
       icon: Car,
-      color: '#71b7ba',
-    },
-    {
-      label: 'Animals',
-      count: data?.animal_count ?? 0,
-      icon: PawPrint,
-      color: '#0f6064',
+      color: '#485e12',
     },
   ];
 

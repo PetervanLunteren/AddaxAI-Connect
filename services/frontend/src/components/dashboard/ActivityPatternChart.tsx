@@ -32,21 +32,25 @@ function getHourColors(): { background: string[]; border: string[] } {
   const border: string[] = [];
 
   for (let hour = 0; hour < 24; hour++) {
-    let color: string;
-    // Night: 21:00 - 05:00 (dark blue)
+    let bgColor: string;
+    let borderColor: string;
+    // Night: 21:00 - 05:00
     if (hour >= 21 || hour < 5) {
-      color = 'rgba(30, 58, 138, 0.7)'; // blue-900
+      bgColor = 'rgba(15, 96, 100, 0.7)';  // #0f6064
+      borderColor = '#0f6064';
     }
-    // Dawn/Dusk: 05:00 - 07:00, 17:00 - 21:00 (orange)
+    // Dawn/Dusk: 05:00 - 07:00, 17:00 - 21:00
     else if ((hour >= 5 && hour < 7) || (hour >= 17 && hour < 21)) {
-      color = 'rgba(234, 88, 12, 0.7)'; // orange-600
+      bgColor = 'rgba(126, 67, 105, 0.7)';  // #7e4369
+      borderColor = '#7e4369';
     }
-    // Day: 07:00 - 17:00 (yellow)
+    // Day: 07:00 - 17:00
     else {
-      color = 'rgba(250, 204, 21, 0.7)'; // yellow-400
+      bgColor = 'rgba(72, 94, 18, 0.7)';  // #485e12
+      borderColor = '#485e12';
     }
-    background.push(color);
-    border.push(color.replace('0.7', '1'));
+    background.push(bgColor);
+    border.push(borderColor);
   }
 
   return { background, border };
@@ -170,15 +174,15 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
         {selectedSpecies === 'all' && (
           <div className="flex items-center justify-center gap-4 mt-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(30, 58, 138, 0.7)' }} />
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#0f6064' }} />
               <span>Night</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(234, 88, 12, 0.7)' }} />
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#7e4369' }} />
               <span>Dawn/Dusk</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: 'rgba(250, 204, 21, 0.7)' }} />
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#485e12' }} />
               <span>Day</span>
             </div>
           </div>
