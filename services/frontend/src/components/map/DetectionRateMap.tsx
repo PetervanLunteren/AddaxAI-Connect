@@ -13,11 +13,12 @@ import {
 } from '../../utils/color-scale';
 import { DeploymentMarker } from './DeploymentMarker';
 import { HexbinLayer } from './HexbinLayer';
+import { ClusterLayer } from './ClusterLayer';
 import { MapLegend } from './MapLegend';
 import { MapControls } from './MapControls';
 import 'leaflet/dist/leaflet.css';
 
-type ViewMode = 'points' | 'hexbins';
+type ViewMode = 'points' | 'hexbins' | 'clusters';
 
 /**
  * Component to track zoom level changes
@@ -170,7 +171,7 @@ export function DetectionRateMap() {
 
         <ZoomHandler onZoomChange={handleZoomChange} />
 
-        {/* Render point markers or hexbin layer based on view mode */}
+        {/* Render markers, clusters, or hexbin layer based on view mode */}
         {viewMode === 'points' ? (
           data?.features.map((feature) => {
             const color = getDetectionRateColor(
@@ -186,6 +187,19 @@ export function DetectionRateMap() {
               />
             );
           })
+        ) : viewMode === 'clusters' ? (
+          data?.features && (
+            <ClusterLayer
+              deployments={data.features}
+              maxDetectionRate={colorDomain.max}
+              getMarkerColor={(feature) =>
+                getDetectionRateColor(
+                  feature.properties.detection_rate_per_100,
+                  colorDomain.max
+                )
+              }
+            />
+          )
         ) : (
           data?.features && (
             <HexbinLayer
