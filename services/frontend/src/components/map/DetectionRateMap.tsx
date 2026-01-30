@@ -5,7 +5,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Hexagon } from 'lucide-react';
 import { statisticsApi } from '../../api/statistics';
 import type { DetectionRateMapFilters } from '../../api/types';
 import {
@@ -16,8 +15,6 @@ import { DeploymentMarker } from './DeploymentMarker';
 import { HexbinLayer } from './HexbinLayer';
 import { MapLegend } from './MapLegend';
 import { MapControls } from './MapControls';
-import { getHexCellSize } from '../../utils/hex-grid';
-import { Button } from '../ui/Button';
 import 'leaflet/dist/leaflet.css';
 
 type ViewMode = 'points' | 'hexbins';
@@ -92,10 +89,6 @@ export function DetectionRateMap() {
     return [avgLat, avgLon];
   }, [data]);
 
-  // Get hex cell size for display (must be before early returns - Rules of Hooks!)
-  // No need for useMemo since getHexCellSize is a trivial function
-  const hexCellSize = getHexCellSize(zoomLevel);
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
@@ -116,37 +109,12 @@ export function DetectionRateMap() {
 
   return (
     <div className="relative">
-      <MapControls filters={filters} onFiltersChange={setFilters} />
-
-      {/* View mode toggle */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => setViewMode('points')}
-            variant={viewMode === 'points' ? 'default' : 'outline'}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <MapPin className="h-4 w-4" />
-            Points
-          </Button>
-          <Button
-            onClick={() => setViewMode('hexbins')}
-            variant={viewMode === 'hexbins' ? 'default' : 'outline'}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Hexagon className="h-4 w-4" />
-            Hexbins
-          </Button>
-        </div>
-
-        {viewMode === 'hexbins' && (
-          <div className="text-sm text-gray-600">
-            Cell size: {hexCellSize}km hexagons
-          </div>
-        )}
-      </div>
+      <MapControls
+        filters={filters}
+        onFiltersChange={setFilters}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
       <MapContainer
         center={mapCenter}
