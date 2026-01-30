@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Button } from '../../components/ui/Button';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { getServicesHealth, type ServiceStatus } from '../../api/health';
+import { PipelineStatus } from '../../components/dashboard';
 
 /**
  * Map service names to display names with proper capitalization
@@ -88,6 +89,8 @@ export const HealthPage: React.FC = () => {
       title="Service health"
       description="Monitor the status of all system services"
     >
+      <PipelineStatus />
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
