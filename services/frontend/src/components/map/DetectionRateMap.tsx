@@ -50,11 +50,21 @@ export function DetectionRateMap() {
     return (saved === 'hexbins' ? 'hexbins' : 'points') as ViewMode;
   });
   const [zoomLevel, setZoomLevel] = useState(10);
+  const [baseLayer, setBaseLayer] = useState(() => {
+    // Restore baselayer preference from localStorage
+    const saved = localStorage.getItem('detection-map-baselayer');
+    return saved || 'positron';
+  });
 
   // Save view mode preference
   useEffect(() => {
     localStorage.setItem('detection-map-view-mode', viewMode);
   }, [viewMode]);
+
+  // Save baselayer preference
+  useEffect(() => {
+    localStorage.setItem('detection-map-baselayer', baseLayer);
+  }, [baseLayer]);
 
   const handleZoomChange = useCallback((zoom: number) => {
     setZoomLevel(zoom);
@@ -107,6 +117,34 @@ export function DetectionRateMap() {
     );
   }
 
+  // Get tile layer configuration based on selected baselayer
+  const getTileLayerConfig = () => {
+    switch (baseLayer) {
+      case 'positron':
+        return {
+          url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        };
+      case 'satellite':
+        return {
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        };
+      case 'osm':
+        return {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        };
+      default:
+        return {
+          url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        };
+    }
+  };
+
+  const tileLayerConfig = getTileLayerConfig();
+
   return (
     <div className="relative">
       <MapControls
@@ -114,6 +152,8 @@ export function DetectionRateMap() {
         onFiltersChange={setFilters}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
+        baseLayer={baseLayer}
+        onBaseLayerChange={setBaseLayer}
       />
 
       <MapContainer
@@ -123,8 +163,9 @@ export function DetectionRateMap() {
         className="rounded-lg border border-gray-200"
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          key={baseLayer}
+          attribution={tileLayerConfig.attribution}
+          url={tileLayerConfig.url}
         />
 
         <ZoomHandler onZoomChange={handleZoomChange} />
