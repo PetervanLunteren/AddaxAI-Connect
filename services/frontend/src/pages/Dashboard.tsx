@@ -28,12 +28,8 @@ import {
   DateRange,
   ActivityPatternChart,
   DetectionTrendChart,
-  SpeciesAccumulationChart,
-  ConfidenceHistogram,
-  OccupancyMatrix,
   AlertCounters,
   SpeciesComparisonChart,
-  CameraHealthGrid,
   WeeklyTrendsChart,
 } from '../components/dashboard';
 
@@ -330,26 +326,14 @@ export const Dashboard: React.FC = () => {
       {/* Detection Trend (full width) */}
       <DetectionTrendChart dateRange={dateRange} />
 
-      {/* Row 3: Species Accumulation + Weekly Trends */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <SpeciesAccumulationChart dateRange={dateRange} />
-        <WeeklyTrendsChart dateRange={dateRange} />
-      </div>
+      {/* Row 3: Weekly Trends (full width) */}
+      <WeeklyTrendsChart dateRange={dateRange} />
 
       {/* Row 4: Species Comparison (full width) */}
       <SpeciesComparisonChart dateRange={dateRange} />
 
-      {/* Row 5: Occupancy Matrix (full width) */}
-      <OccupancyMatrix dateRange={dateRange} />
-
-      {/* Row 6: Confidence + Alerts */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <ConfidenceHistogram dateRange={dateRange} />
-        <AlertCounters />
-      </div>
-
-      {/* Row 7: Camera Health (full width) */}
-      <CameraHealthGrid />
+      {/* Row 5: Alerts */}
+      <AlertCounters />
     </div>
   );
 };
