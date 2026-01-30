@@ -135,7 +135,7 @@ export const WeeklyTrendsChart: React.FC<WeeklyTrendsChartProps> = ({ dateRange 
           <Select
             value={groupBy}
             onValueChange={(v) => setGroupBy(v as GroupBy)}
-            className="w-36 h-8 text-sm"
+            className="w-40 h-9 text-sm"
           >
             <SelectItem value="week">By Week</SelectItem>
             <SelectItem value="month">By Month</SelectItem>

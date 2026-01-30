@@ -142,9 +142,9 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
           <Select
             value={selectedSpecies}
             onValueChange={setSelectedSpecies}
-            className="w-40 h-8 text-sm"
+            className="w-48 h-9 text-sm"
           >
-            <SelectItem value="all">All Species</SelectItem>
+            <SelectItem value="all">All species</SelectItem>
             {speciesList?.map((s) => (
               <SelectItem key={s.species} value={s.species}>
                 {normalizeLabel(s.species)}
