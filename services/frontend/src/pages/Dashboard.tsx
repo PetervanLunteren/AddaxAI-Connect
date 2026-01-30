@@ -283,7 +283,7 @@ export const Dashboard: React.FC = () => {
               <Select
                 value={timelineDays}
                 onValueChange={setTimelineDays}
-                className="w-32 h-8 text-sm"
+                className="w-36 h-8 text-sm"
               >
                 <SelectItem value="7">Last 7 days</SelectItem>
                 <SelectItem value="30">Last 30 days</SelectItem>
@@ -358,17 +358,17 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Detection Trend (full width) */}
-      <DetectionTrendChart dateRange={dateRange} />
+      {/* Row 3: Detection Trend + Weekly Trends */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <DetectionTrendChart dateRange={dateRange} />
+        <WeeklyTrendsChart dateRange={dateRange} />
+      </div>
 
-      {/* Row 3: Weekly Trends (full width) */}
-      <WeeklyTrendsChart dateRange={dateRange} />
-
-      {/* Row 4: Species Comparison (full width) */}
-      <SpeciesComparisonChart dateRange={dateRange} />
-
-      {/* Row 5: Alerts */}
-      <AlertCounters />
+      {/* Row 4: Species Comparison + Alerts */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <SpeciesComparisonChart dateRange={dateRange} />
+        <AlertCounters />
+      </div>
     </div>
   );
 };
