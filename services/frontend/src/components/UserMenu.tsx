@@ -77,7 +77,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
     }] : []),
     {
       icon: Activity,
-      label: 'Service health',
+      label: 'System health',
       onClick: () => handleNavigate('/server/health'),
       variant: 'default' as const,
     },
