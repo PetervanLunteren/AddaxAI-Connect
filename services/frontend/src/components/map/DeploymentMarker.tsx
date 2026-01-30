@@ -27,7 +27,7 @@ export function DeploymentMarker({ feature, color }: DeploymentMarkerProps) {
       pathOptions={{
         fillColor: color,
         fillOpacity: isZero ? 0.3 : 0.7,
-        color: color,
+        color: '#555555', // Dark grey border to match hexagons
         weight: isZero ? 2 : 1,
         opacity: 1,
       }}
