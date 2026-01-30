@@ -319,3 +319,74 @@ export interface NotificationPreferenceUpdate {
   battery_threshold?: number;
   notify_system_health?: boolean;
 }
+
+// ============================================================================
+// Dashboard visualization types
+// ============================================================================
+
+// Activity pattern (hourly diel activity)
+export interface HourlyActivityPoint {
+  hour: number;  // 0-23
+  count: number;
+}
+
+export interface ActivityPatternResponse {
+  hours: HourlyActivityPoint[];
+  species: string;  // Species name or "all"
+  total_detections: number;
+}
+
+export interface ActivityPatternFilters {
+  species?: string;
+  start_date?: string;  // YYYY-MM-DD
+  end_date?: string;  // YYYY-MM-DD
+}
+
+// Species accumulation curve
+export interface SpeciesAccumulationPoint {
+  date: string;  // YYYY-MM-DD
+  cumulative_species: number;
+  new_species: string[];
+}
+
+export interface DateRangeFilters {
+  start_date?: string;  // YYYY-MM-DD
+  end_date?: string;  // YYYY-MM-DD
+}
+
+// Detection trend (daily counts)
+export interface DetectionTrendPoint {
+  date: string;  // YYYY-MM-DD
+  count: number;
+}
+
+export interface DetectionTrendFilters {
+  species?: string;
+  start_date?: string;  // YYYY-MM-DD
+  end_date?: string;  // YYYY-MM-DD
+}
+
+// Confidence distribution histogram
+export interface ConfidenceBin {
+  bin_label: string;  // e.g., "0.5-0.6"
+  bin_min: number;
+  bin_max: number;
+  count: number;
+}
+
+// Occupancy matrix (species x camera)
+export interface OccupancyMatrixResponse {
+  cameras: string[];  // Camera names
+  species: string[];  // Species names
+  matrix: number[][];  // matrix[species_idx][camera_idx] = detection count
+}
+
+// Pipeline status
+export interface PipelineStatusResponse {
+  pending: number;
+  classified: number;
+  total_images: number;
+  person_count: number;
+  vehicle_count: number;
+  animal_count: number;
+}

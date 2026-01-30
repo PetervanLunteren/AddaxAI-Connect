@@ -1,7 +1,7 @@
 /**
  * Dashboard page with statistics and charts
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -22,6 +22,21 @@ import { Camera, Images, Layers, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { statisticsApi } from '../api/statistics';
 import { normalizeLabel } from '../utils/labels';
+import { getSpeciesColors } from '../utils/species-colors';
+import {
+  DateRangeFilter,
+  DateRange,
+  ActivityPatternChart,
+  DetectionTrendChart,
+  SpeciesAccumulationChart,
+  ConfidenceHistogram,
+  OccupancyMatrix,
+  AlertCounters,
+  PipelineStatus,
+  SpeciesComparisonChart,
+  CameraHealthGrid,
+  WeeklyTrendsChart,
+} from '../components/dashboard';
 
 // Register ChartJS components
 ChartJS.register(
@@ -38,6 +53,12 @@ ChartJS.register(
 );
 
 export const Dashboard: React.FC = () => {
+  // Global date range filter
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
+
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['statistics', 'overview'],
@@ -127,25 +148,17 @@ export const Dashboard: React.FC = () => {
     },
   };
 
-  // Species distribution chart data
+  // Species distribution chart data - using consistent colors
+  const speciesColors = species ? getSpeciesColors(species.map(s => s.species)) : [];
   const speciesData = {
     labels: species?.map((s) => normalizeLabel(s.species)) ?? [],
     datasets: [
       {
         label: 'Count',
         data: species?.map((s) => s.count) ?? [],
-        backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(16, 185, 129, 0.8)',
-          'rgba(245, 158, 11, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(139, 92, 246, 0.8)',
-          'rgba(236, 72, 153, 0.8)',
-          'rgba(14, 165, 233, 0.8)',
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(251, 146, 60, 0.8)',
-          'rgba(244, 63, 94, 0.8)',
-        ],
+        backgroundColor: speciesColors.map(c => c.replace(')', ', 0.8)').replace('rgb', 'rgba')),
+        borderColor: speciesColors,
+        borderWidth: 1,
       },
     ],
   };
@@ -205,15 +218,19 @@ export const Dashboard: React.FC = () => {
     },
   };
 
-  const isLoading = overviewLoading || timelineLoading || speciesLoading || activityLoading;
-
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">Project overview with statistics and trends</p>
+    <div className="space-y-6">
+      {/* Header with date filter */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
+          <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends</p>
+        </div>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+      </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {summaryCards.map((card) => (
           <Card key={card.title}>
             <CardContent className="p-6">
@@ -233,15 +250,15 @@ export const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid gap-6 md:grid-cols-2 mb-6">
-        {/* Images Timeline */}
+      {/* Row 1: Activity Pattern + Images Timeline */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <ActivityPatternChart dateRange={dateRange} />
         <Card>
           <CardHeader>
-            <CardTitle>Images Over Time (Last 30 Days)</CardTitle>
+            <CardTitle className="text-lg">Images Over Time (Last 30 Days)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-72">
               {timelineLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-muted-foreground">Loading...</p>
@@ -256,14 +273,36 @@ export const Dashboard: React.FC = () => {
             </div>
           </CardContent>
         </Card>
+      </div>
 
-        {/* Camera Activity */}
+      {/* Row 2: Species Distribution + Camera Activity */}
+      <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Camera Activity Status</CardTitle>
+            <CardTitle className="text-lg">Top 10 Species Detected</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-72">
+              {speciesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              ) : species && species.length > 0 ? (
+                <Bar data={speciesData} options={speciesOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground">No species data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Camera Activity Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72">
               {activityLoading ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-muted-foreground">Loading...</p>
@@ -280,27 +319,30 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Species Distribution */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top 10 Species Detected</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-96">
-            {speciesLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">Loading...</p>
-              </div>
-            ) : species && species.length > 0 ? (
-              <Bar data={speciesData} options={speciesOptions} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">No species data available</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Detection Trend (full width) */}
+      <DetectionTrendChart dateRange={dateRange} />
+
+      {/* Row 3: Species Accumulation + Weekly Trends */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <SpeciesAccumulationChart dateRange={dateRange} />
+        <WeeklyTrendsChart dateRange={dateRange} />
+      </div>
+
+      {/* Row 4: Species Comparison (full width) */}
+      <SpeciesComparisonChart dateRange={dateRange} />
+
+      {/* Row 5: Occupancy Matrix (full width) */}
+      <OccupancyMatrix dateRange={dateRange} />
+
+      {/* Row 6: Confidence + Alerts + Pipeline */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <ConfidenceHistogram dateRange={dateRange} />
+        <AlertCounters />
+        <PipelineStatus />
+      </div>
+
+      {/* Row 7: Camera Health (full width) */}
+      <CameraHealthGrid />
     </div>
   );
 };

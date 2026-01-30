@@ -9,7 +9,16 @@ import type {
   CameraActivitySummary,
   LastUpdateResponse,
   DetectionRateMapResponse,
-  DetectionRateMapFilters
+  DetectionRateMapFilters,
+  ActivityPatternResponse,
+  ActivityPatternFilters,
+  SpeciesAccumulationPoint,
+  DateRangeFilters,
+  DetectionTrendPoint,
+  DetectionTrendFilters,
+  ConfidenceBin,
+  OccupancyMatrixResponse,
+  PipelineStatusResponse,
 } from './types';
 
 export const statisticsApi = {
@@ -68,6 +77,105 @@ export const statisticsApi = {
       : '/api/statistics/detection-rate-map';
 
     const response = await apiClient.get<DetectionRateMapResponse>(url);
+    return response.data;
+  },
+
+  // =========================================================================
+  // Dashboard visualization endpoints
+  // =========================================================================
+
+  /**
+   * Get activity pattern (hourly detection counts)
+   */
+  getActivityPattern: async (filters?: ActivityPatternFilters): Promise<ActivityPatternResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.species) params.append('species', filters.species);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/activity-pattern?${queryString}`
+      : '/api/statistics/activity-pattern';
+
+    const response = await apiClient.get<ActivityPatternResponse>(url);
+    return response.data;
+  },
+
+  /**
+   * Get species accumulation curve
+   */
+  getSpeciesAccumulation: async (filters?: DateRangeFilters): Promise<SpeciesAccumulationPoint[]> => {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/species-accumulation?${queryString}`
+      : '/api/statistics/species-accumulation';
+
+    const response = await apiClient.get<SpeciesAccumulationPoint[]>(url);
+    return response.data;
+  },
+
+  /**
+   * Get detection trend (daily counts)
+   */
+  getDetectionTrend: async (filters?: DetectionTrendFilters): Promise<DetectionTrendPoint[]> => {
+    const params = new URLSearchParams();
+    if (filters?.species) params.append('species', filters.species);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/detection-trend?${queryString}`
+      : '/api/statistics/detection-trend';
+
+    const response = await apiClient.get<DetectionTrendPoint[]>(url);
+    return response.data;
+  },
+
+  /**
+   * Get detection confidence distribution
+   */
+  getConfidenceDistribution: async (filters?: DateRangeFilters): Promise<ConfidenceBin[]> => {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/confidence-distribution?${queryString}`
+      : '/api/statistics/confidence-distribution';
+
+    const response = await apiClient.get<ConfidenceBin[]>(url);
+    return response.data;
+  },
+
+  /**
+   * Get occupancy matrix (species x camera)
+   */
+  getOccupancyMatrix: async (filters?: DateRangeFilters): Promise<OccupancyMatrixResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/occupancy-matrix?${queryString}`
+      : '/api/statistics/occupancy-matrix';
+
+    const response = await apiClient.get<OccupancyMatrixResponse>(url);
+    return response.data;
+  },
+
+  /**
+   * Get pipeline status (pending/classified counts)
+   */
+  getPipelineStatus: async (): Promise<PipelineStatusResponse> => {
+    const response = await apiClient.get<PipelineStatusResponse>('/api/statistics/pipeline-status');
     return response.data;
   },
 };

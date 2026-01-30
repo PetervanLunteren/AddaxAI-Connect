@@ -523,3 +523,458 @@ async def get_detection_rate_map(
         features.append(feature)
 
     return DetectionRateMapResponse(features=features)
+
+
+# ============================================================================
+# New dashboard visualization endpoints
+# ============================================================================
+
+
+class HourlyActivityPoint(BaseModel):
+    """Single hour activity count"""
+    hour: int  # 0-23
+    count: int
+
+
+class ActivityPatternResponse(BaseModel):
+    """Activity pattern response with hourly counts"""
+    hours: List[HourlyActivityPoint]
+    species: str  # Species name or "all"
+    total_detections: int
+
+
+@router.get(
+    "/activity-pattern",
+    response_model=ActivityPatternResponse,
+)
+async def get_activity_pattern(
+    species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
+    start_date: Optional[date] = Query(None, description="Filter from this date"),
+    end_date: Optional[date] = Query(None, description="Filter to this date"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get activity pattern showing detections per hour of day (0-23).
+
+    Used for radial/polar charts showing diel activity patterns.
+    """
+    # Build base query
+    query = (
+        select(
+            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.count(Classification.id).label('count')
+        )
+        .select_from(Classification)
+        .join(Detection)
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+    )
+
+    # Apply optional filters
+    if species:
+        query = query.where(func.lower(Classification.species) == species.lower())
+
+    if start_date:
+        query = query.where(func.date(Image.uploaded_at) >= start_date)
+
+    if end_date:
+        query = query.where(func.date(Image.uploaded_at) <= end_date)
+
+    # Group by hour
+    query = query.group_by(func.extract('hour', Image.uploaded_at)).order_by('hour')
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Build full 24-hour response (fill missing hours with 0)
+    hour_counts = {int(row.hour): row.count for row in rows}
+    hours = []
+    total = 0
+    for h in range(24):
+        count = hour_counts.get(h, 0)
+        hours.append(HourlyActivityPoint(hour=h, count=count))
+        total += count
+
+    return ActivityPatternResponse(
+        hours=hours,
+        species=species if species else "all",
+        total_detections=total,
+    )
+
+
+class SpeciesAccumulationPoint(BaseModel):
+    """Single day in species accumulation curve"""
+    date: str  # YYYY-MM-DD
+    cumulative_species: int
+    new_species: List[str]
+
+
+@router.get(
+    "/species-accumulation",
+    response_model=List[SpeciesAccumulationPoint],
+)
+async def get_species_accumulation(
+    start_date: Optional[date] = Query(None, description="Filter from this date"),
+    end_date: Optional[date] = Query(None, description="Filter to this date"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get species accumulation curve showing cumulative species discovered over time.
+
+    Returns the first date each species was detected and cumulative count per day.
+    """
+    # Get first detection date for each species
+    query = (
+        select(
+            Classification.species,
+            func.min(func.date(Image.uploaded_at)).label('first_date')
+        )
+        .select_from(Classification)
+        .join(Detection)
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+    )
+
+    if start_date:
+        query = query.where(func.date(Image.uploaded_at) >= start_date)
+
+    if end_date:
+        query = query.where(func.date(Image.uploaded_at) <= end_date)
+
+    query = query.group_by(Classification.species)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Group species by first detection date
+    date_species: Dict[date, List[str]] = {}
+    for row in rows:
+        d = row.first_date
+        if d not in date_species:
+            date_species[d] = []
+        date_species[d].append(row.species)
+
+    # Build cumulative response
+    sorted_dates = sorted(date_species.keys())
+    accumulation = []
+    cumulative = 0
+    all_species: set = set()
+
+    for d in sorted_dates:
+        new_species = date_species[d]
+        all_species.update(new_species)
+        cumulative = len(all_species)
+        accumulation.append(SpeciesAccumulationPoint(
+            date=d.isoformat(),
+            cumulative_species=cumulative,
+            new_species=sorted(new_species),
+        ))
+
+    return accumulation
+
+
+class DetectionTrendPoint(BaseModel):
+    """Daily detection count"""
+    date: str  # YYYY-MM-DD
+    count: int
+
+
+@router.get(
+    "/detection-trend",
+    response_model=List[DetectionTrendPoint],
+)
+async def get_detection_trend(
+    species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
+    start_date: Optional[date] = Query(None, description="Filter from this date"),
+    end_date: Optional[date] = Query(None, description="Filter to this date"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get detection counts per day, optionally filtered by species.
+
+    Defaults to last 30 days if no date range specified.
+    """
+    # Default to last 30 days
+    if not start_date and not end_date:
+        end_dt = datetime.now(timezone.utc).date()
+        start_dt = end_dt - timedelta(days=30)
+    else:
+        start_dt = start_date
+        end_dt = end_date
+
+    query = (
+        select(
+            func.date(Image.uploaded_at).label('date'),
+            func.count(Classification.id).label('count')
+        )
+        .select_from(Classification)
+        .join(Detection)
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+    )
+
+    if species:
+        query = query.where(func.lower(Classification.species) == species.lower())
+
+    if start_dt:
+        query = query.where(func.date(Image.uploaded_at) >= start_dt)
+
+    if end_dt:
+        query = query.where(func.date(Image.uploaded_at) <= end_dt)
+
+    query = query.group_by(func.date(Image.uploaded_at)).order_by('date')
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        DetectionTrendPoint(date=row.date.isoformat(), count=row.count)
+        for row in rows
+    ]
+
+
+class ConfidenceBin(BaseModel):
+    """Detection confidence histogram bin"""
+    bin_label: str  # e.g., "0.5-0.6"
+    bin_min: float
+    bin_max: float
+    count: int
+
+
+@router.get(
+    "/confidence-distribution",
+    response_model=List[ConfidenceBin],
+)
+async def get_confidence_distribution(
+    start_date: Optional[date] = Query(None, description="Filter from this date"),
+    end_date: Optional[date] = Query(None, description="Filter to this date"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get distribution of detection confidences as histogram bins.
+
+    Returns counts for each 0.1-width bin from 0.0 to 1.0.
+    """
+    # Define bins (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
+    bins = [(i / 10, (i + 1) / 10) for i in range(10)]
+
+    query = (
+        select(Detection.confidence)
+        .join(Image)
+        .join(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
+    )
+
+    if start_date:
+        query = query.where(func.date(Image.uploaded_at) >= start_date)
+
+    if end_date:
+        query = query.where(func.date(Image.uploaded_at) <= end_date)
+
+    result = await db.execute(query)
+    confidences = [row[0] for row in result.all()]
+
+    # Count per bin
+    bin_counts = []
+    for bin_min, bin_max in bins:
+        count = sum(1 for c in confidences if bin_min <= c < bin_max)
+        # Handle edge case: 1.0 goes in last bin
+        if bin_max == 1.0:
+            count += sum(1 for c in confidences if c == 1.0)
+        bin_counts.append(ConfidenceBin(
+            bin_label=f"{bin_min:.1f}-{bin_max:.1f}",
+            bin_min=bin_min,
+            bin_max=bin_max,
+            count=count,
+        ))
+
+    return bin_counts
+
+
+class OccupancyMatrixResponse(BaseModel):
+    """Species x Camera occupancy matrix"""
+    cameras: List[str]  # Camera names
+    species: List[str]  # Species names
+    matrix: List[List[int]]  # matrix[species_idx][camera_idx] = detection count
+
+
+@router.get(
+    "/occupancy-matrix",
+    response_model=OccupancyMatrixResponse,
+)
+async def get_occupancy_matrix(
+    start_date: Optional[date] = Query(None, description="Filter from this date"),
+    end_date: Optional[date] = Query(None, description="Filter to this date"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get species x camera detection counts as a matrix.
+
+    Used for heatmap visualization showing which species appear at which cameras.
+    """
+    query = (
+        select(
+            Camera.name.label('camera_name'),
+            Classification.species,
+            func.count(Classification.id).label('count')
+        )
+        .select_from(Classification)
+        .join(Detection)
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+    )
+
+    if start_date:
+        query = query.where(func.date(Image.uploaded_at) >= start_date)
+
+    if end_date:
+        query = query.where(func.date(Image.uploaded_at) <= end_date)
+
+    query = query.group_by(Camera.name, Classification.species)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Build sets of cameras and species
+    cameras_set: set = set()
+    species_set: set = set()
+    counts: Dict[tuple, int] = {}
+
+    for row in rows:
+        cameras_set.add(row.camera_name)
+        species_set.add(row.species)
+        counts[(row.species, row.camera_name)] = row.count
+
+    # Sort for consistent ordering
+    cameras = sorted(cameras_set)
+    species_list = sorted(species_set)
+
+    # Build matrix: rows = species, columns = cameras
+    matrix = []
+    for sp in species_list:
+        row = [counts.get((sp, cam), 0) for cam in cameras]
+        matrix.append(row)
+
+    return OccupancyMatrixResponse(
+        cameras=cameras,
+        species=species_list,
+        matrix=matrix,
+    )
+
+
+class PipelineStatusResponse(BaseModel):
+    """Image processing pipeline status"""
+    pending: int
+    classified: int
+    total_images: int
+    person_count: int
+    vehicle_count: int
+    animal_count: int
+
+
+@router.get(
+    "/pipeline-status",
+    response_model=PipelineStatusResponse,
+)
+async def get_pipeline_status(
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get image processing pipeline status and detection category counts.
+
+    Shows pending vs classified images and counts of person/vehicle/animal detections.
+    """
+    # Count images by status
+    pending_result = await db.execute(
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Image.status != "classified"
+            )
+        )
+    )
+    pending = pending_result.scalar_one()
+
+    classified_result = await db.execute(
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Image.status == "classified"
+            )
+        )
+    )
+    classified = classified_result.scalar_one()
+
+    # Count detections by category
+    category_result = await db.execute(
+        select(
+            Detection.category,
+            func.count(Detection.id).label('count')
+        )
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(Detection.category)
+    )
+    category_rows = category_result.all()
+
+    category_counts = {row.category: row.count for row in category_rows}
+
+    return PipelineStatusResponse(
+        pending=pending,
+        classified=classified,
+        total_images=pending + classified,
+        person_count=category_counts.get('person', 0),
+        vehicle_count=category_counts.get('vehicle', 0),
+        animal_count=category_counts.get('animal', 0),
+    )
