@@ -148,7 +148,7 @@ export const WeeklyTrendsChart: React.FC<WeeklyTrendsChartProps> = ({ dateRange 
         )}
       </CardHeader>
       <CardContent>
-        <div className="h-64">
+        <div className="h-72">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Loading...</p>
