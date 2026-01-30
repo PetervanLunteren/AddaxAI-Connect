@@ -39,9 +39,9 @@ export function getHexCellSize(zoomLevel: number): number {
   // Higher zoom (zoomed in) = smaller km size
   const size = referenceSizeKm * Math.pow(2, referenceZoom - zoomLevel);
 
-  // Minimum cell size of 50m to avoid overly dense grids at high zoom
   // Maximum cell size of 500km to avoid issues at very low zoom
-  return Math.min(500, Math.max(0.05, size));
+  // No minimum - since we only generate hexes for visible viewport, performance is not an issue
+  return Math.min(500, size);
 }
 
 /**
