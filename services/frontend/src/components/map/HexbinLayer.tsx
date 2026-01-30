@@ -11,7 +11,6 @@ import type { DeploymentFeature } from '../../api/types';
 import {
   generateHexGrid,
   aggregateDeploymentsToHexes,
-  getDeploymentsBounds,
   type HexCell,
 } from '../../utils/hex-grid';
 import { getDetectionRateColor } from '../../utils/color-scale';
@@ -21,6 +20,7 @@ import { HexPopup } from './HexPopup';
 interface HexbinLayerProps {
   deployments: DeploymentFeature[];
   zoomLevel: number;
+  mapBounds: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
   maxDetectionRate?: number; // For color scale normalization
 }
 
@@ -31,19 +31,19 @@ interface HexFeatureProperties {
   isZero: boolean;
 }
 
-export function HexbinLayer({ deployments, zoomLevel, maxDetectionRate }: HexbinLayerProps) {
+export function HexbinLayer({ deployments, zoomLevel, mapBounds, maxDetectionRate }: HexbinLayerProps) {
   // Generate hex grid and aggregate deployments
   const hexCells = useMemo(() => {
     if (deployments.length === 0) {
       return [];
     }
 
-    const bounds = getDeploymentsBounds(deployments) as [number, number, number, number];
-    const hexGrid = generateHexGrid(bounds, zoomLevel);
+    // Use map viewport bounds instead of deployment bounds for consistent zoom-based sizing
+    const hexGrid = generateHexGrid(mapBounds, zoomLevel);
     const cells = aggregateDeploymentsToHexes(deployments, hexGrid);
 
     return cells;
-  }, [deployments, zoomLevel]);
+  }, [deployments, zoomLevel, mapBounds]);
 
   // Calculate max detection rate for color scale
   const maxRate = useMemo(() => {

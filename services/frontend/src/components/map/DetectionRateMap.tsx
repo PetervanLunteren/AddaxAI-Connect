@@ -133,6 +133,14 @@ export function DetectionRateMap() {
     return calculateColorScaleDomain(rates);
   }, [visibleDeployments]);
 
+  // Convert Leaflet bounds to bbox array for hex grid generation
+  const bboxBounds = useMemo<[number, number, number, number] | null>(() => {
+    if (!mapBounds) return null;
+    const sw = mapBounds.getSouthWest();
+    const ne = mapBounds.getNorthEast();
+    return [sw.lng, sw.lat, ne.lng, ne.lat]; // [minLon, minLat, maxLon, maxLat]
+  }, [mapBounds]);
+
   // Calculate map center (average of all deployment locations)
   const mapCenter = useMemo<[number, number]>(() => {
     if (!data?.features || data.features.length === 0) {
@@ -249,10 +257,11 @@ export function DetectionRateMap() {
             />
           )
         ) : (
-          visibleDeployments && (
+          visibleDeployments && bboxBounds && (
             <HexbinLayer
               deployments={visibleDeployments}
               zoomLevel={zoomLevel}
+              mapBounds={bboxBounds}
               maxDetectionRate={colorDomain.max}
             />
           )
