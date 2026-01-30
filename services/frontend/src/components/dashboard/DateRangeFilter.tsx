@@ -31,7 +31,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ value, onChang
     <div className="flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Calendar className="h-4 w-4" />
-        <span>Date Range:</span>
+        <span>Date range</span>
       </div>
       <div className="flex items-center gap-2">
         <input

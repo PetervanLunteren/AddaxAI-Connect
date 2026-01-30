@@ -1,7 +1,7 @@
 /**
  * Species Comparison Chart - Compare activity patterns between multiple species
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { Line } from 'react-chartjs-2';
 import {
@@ -12,16 +12,18 @@ import {
   LineElement,
   Tooltip,
   Legend,
+  Filler,
   ChartOptions,
 } from 'chart.js';
+import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
-import { getSpeciesColor, getSpeciesColorWithAlpha } from '../../utils/species-colors';
+import { getSpeciesColor, setSpeciesContext } from '../../utils/species-colors';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
 
 // Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 interface SpeciesComparisonChartProps {
   dateRange: DateRange;
@@ -36,12 +38,40 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
     queryFn: () => statisticsApi.getSpeciesDistribution(),
   });
 
+  // Sort species list alphabetically for display
+  const sortedSpeciesList = useMemo(() => {
+    if (!speciesList) return [];
+    return [...speciesList].sort((a, b) => a.species.localeCompare(b.species));
+  }, [speciesList]);
+
+  // Set species context for colors when list changes
+  useEffect(() => {
+    if (sortedSpeciesList.length > 0) {
+      setSpeciesContext(sortedSpeciesList.map((s) => s.species));
+    }
+  }, [sortedSpeciesList]);
+
   // Auto-select top 3 species when data loads
   useEffect(() => {
     if (speciesList && speciesList.length > 0 && selectedSpecies.length === 0) {
       setSelectedSpecies(speciesList.slice(0, 3).map((s) => s.species));
     }
   }, [speciesList, selectedSpecies.length]);
+
+  // Create gradient for fill
+  const createGradient = (ctx: CanvasRenderingContext2D, chartArea: { top: number; bottom: number }, color: string) => {
+    // Parse hex color to get RGB values
+    const hex = color.startsWith('#') ? color.slice(1) : color;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+
+    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.05)`);
+    gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.3)`);
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.6)`);
+    return gradient;
+  };
 
   // Fetch activity patterns for each selected species
   const activityQueries = useQueries({
@@ -65,20 +95,28 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
 
   const hourLabels = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, '0')}:00`);
 
-  const chartData = {
+  const chartData: ChartData<'line'> = {
     labels: hourLabels,
     datasets: allData
       .filter((d) => d.data)
-      .map((d) => ({
-        label: normalizeLabel(d.species),
-        data: d.data?.hours.map((h) => h.count) ?? [],
-        borderColor: getSpeciesColor(d.species),
-        backgroundColor: getSpeciesColorWithAlpha(d.species, 0.2),
-        tension: 0.3,
-        fill: true,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-      })),
+      .map((d) => {
+        const lineColor = getSpeciesColor(d.species);
+        return {
+          label: normalizeLabel(d.species),
+          data: d.data?.hours.map((h) => h.count) ?? [],
+          borderColor: lineColor,
+          backgroundColor: (context) => {
+            const chart = context.chart;
+            const { ctx, chartArea } = chart;
+            if (!chartArea) return `rgba(15, 96, 100, 0.2)`;
+            return createGradient(ctx, chartArea, lineColor);
+          },
+          tension: 0.3,
+          fill: true,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+        };
+      }),
   };
 
   const chartOptions: ChartOptions<'line'> = {
@@ -137,9 +175,9 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
         </p>
       </CardHeader>
       <CardContent>
-        {/* Species selector chips */}
+        {/* Species selector chips (sorted alphabetically) */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {speciesList?.map((s) => {
+          {sortedSpeciesList.map((s) => {
             const isSelected = selectedSpecies.includes(s.species);
             return (
               <button

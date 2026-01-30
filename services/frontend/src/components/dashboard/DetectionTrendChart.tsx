@@ -15,6 +15,7 @@ import {
   Filler,
   ChartOptions,
 } from 'chart.js';
+import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
@@ -54,12 +55,30 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     selectedSpecies !== 'all'
       ? getSpeciesColor(selectedSpecies)
       : '#0f6064';
-  const fillColor =
-    selectedSpecies !== 'all'
-      ? getSpeciesColorWithAlpha(selectedSpecies, 0.2)
-      : 'rgba(15, 96, 100, 0.2)';
 
-  const chartData = {
+  // Create gradient for fill
+  const createGradient = (ctx: CanvasRenderingContext2D, chartArea: { top: number; bottom: number }, color: string) => {
+    // Parse color to get RGB values
+    const isHex = color.startsWith('#');
+    let r: number, g: number, b: number;
+    if (isHex) {
+      const hex = color.slice(1);
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+    } else {
+      // Default to teal
+      r = 15; g = 96; b = 100;
+    }
+
+    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.05)`);
+    gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.3)`);
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.6)`);
+    return gradient;
+  };
+
+  const chartData: ChartData<'line'> = {
     labels:
       data?.map((d) =>
         new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -69,7 +88,12 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         label: 'Detections',
         data: data?.map((d) => d.count) ?? [],
         borderColor: lineColor,
-        backgroundColor: fillColor,
+        backgroundColor: (context) => {
+          const chart = context.chart;
+          const { ctx, chartArea } = chart;
+          if (!chartArea) return 'rgba(15, 96, 100, 0.2)';
+          return createGradient(ctx, chartArea, lineColor);
+        },
         tension: 0.3,
         fill: true,
         pointRadius: data && data.length < 30 ? 3 : 0,

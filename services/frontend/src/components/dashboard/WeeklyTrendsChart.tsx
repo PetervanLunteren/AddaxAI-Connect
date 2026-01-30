@@ -143,7 +143,7 @@ export const WeeklyTrendsChart: React.FC<WeeklyTrendsChartProps> = ({ dateRange 
         </div>
         {groupedData.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {groupedData.length} {groupBy === 'week' ? 'weeks' : 'months'}, avg {avgPerPeriod.toLocaleString()} per {groupBy}
+            {groupedData.length} {groupBy === 'week' ? 'weeks' : 'months'}, average {avgPerPeriod.toLocaleString()} per {groupBy}
           </p>
         )}
       </CardHeader>
