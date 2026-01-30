@@ -3,7 +3,7 @@
  * Provides filters for species and date range, and view mode selection
  */
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Hexagon, Layers, Grid3x3 } from 'lucide-react';
+import { MapPin, Hexagon, Layers } from 'lucide-react';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
 import { imagesApi } from '../../api/images';
@@ -11,8 +11,8 @@ import { imagesApi } from '../../api/images';
 interface MapControlsProps {
   filters: DetectionRateMapFilters;
   onFiltersChange: (filters: DetectionRateMapFilters) => void;
-  viewMode: 'points' | 'hexbins' | 'clusters' | 'default-clusters';
-  onViewModeChange: (mode: 'points' | 'hexbins' | 'clusters' | 'default-clusters') => void;
+  viewMode: 'points' | 'hexbins' | 'clusters';
+  onViewModeChange: (mode: 'points' | 'hexbins' | 'clusters') => void;
   baseLayer: string;
   onBaseLayerChange: (layer: string) => void;
 }
@@ -80,19 +80,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
               }`}
             >
               <Layers className="h-4 w-4" />
-              Colored
-            </button>
-            <button
-              type="button"
-              onClick={() => onViewModeChange('default-clusters')}
-              className={`px-4 py-2 text-sm font-medium border-t border-b border-r flex items-center gap-2 ${
-                viewMode === 'default-clusters'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <Grid3x3 className="h-4 w-4" />
-              Default
+              Clusters
             </button>
             <button
               type="button"
