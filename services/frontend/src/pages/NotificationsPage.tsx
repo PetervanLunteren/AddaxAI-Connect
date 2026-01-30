@@ -87,7 +87,17 @@ export const NotificationsPage: React.FC = () => {
   // Query Telegram configuration (to check if bot is set up)
   const { data: telegramConfig } = useQuery({
     queryKey: ['telegram-config'],
-    queryFn: adminApi.getTelegramConfig,
+    queryFn: async () => {
+      try {
+        return await adminApi.getTelegramConfig();
+      } catch (error: any) {
+        // 404 is expected when Telegram is not configured yet
+        if (error?.response?.status === 404) {
+          return { is_configured: false, bot_username: null };
+        }
+        throw error;
+      }
+    },
     retry: false,
   });
 
