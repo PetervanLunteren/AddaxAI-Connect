@@ -30,30 +30,67 @@ function MapEventHandler({
   onZoomChange: (zoom: number) => void;
   onBoundsChange: (bounds: L.LatLngBounds) => void;
 }) {
-  const zoomDebounceRef = useRef<NodeJS.Timeout>();
-  const moveDebounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const lastZoomTimeRef = useRef<number>(0);
 
   const map = useMapEvents({
     zoomend: (e) => {
-      // Debounce zoom changes to avoid excessive hex regeneration
-      if (zoomDebounceRef.current) {
-        clearTimeout(zoomDebounceRef.current);
+      const now = Date.now();
+      const zoom = e.target.getZoom();
+      console.log(`[MapEventHandler] zoomend fired`, {
+        zoom,
+        timestamp: now,
+        hadPendingTimeout: !!debounceRef.current,
+      });
+
+      // Clear any pending updates
+      if (debounceRef.current) {
+        console.log(`[MapEventHandler] Clearing pending timeout from zoomend`);
+        clearTimeout(debounceRef.current);
       }
 
-      zoomDebounceRef.current = setTimeout(() => {
-        const zoom = e.target.getZoom();
+      // Mark that a zoom just occurred
+      lastZoomTimeRef.current = now;
+
+      // Update both zoom and bounds together
+      debounceRef.current = setTimeout(() => {
+        console.log(`[MapEventHandler] zoomend timeout executing (300ms later)`, {
+          zoom,
+          timeSinceEvent: Date.now() - now,
+        });
         const bounds = e.target.getBounds();
         onZoomChange(zoom);
         onBoundsChange(bounds);
       }, 300);
     },
     moveend: (e) => {
-      // Update bounds when map is panned (but not zoomed)
-      if (moveDebounceRef.current) {
-        clearTimeout(moveDebounceRef.current);
+      const now = Date.now();
+      const timeSinceZoom = now - lastZoomTimeRef.current;
+
+      console.log(`[MapEventHandler] moveend fired`, {
+        timestamp: now,
+        timeSinceLastZoom: timeSinceZoom,
+        willIgnore: timeSinceZoom < 500,
+      });
+
+      // Don't respond to moveend if it's within 500ms of a zoom event
+      // (zoom triggers moveend, we don't want double updates)
+      if (timeSinceZoom < 500) {
+        console.log(`[MapEventHandler] Ignoring moveend (too soon after zoom)`);
+        return;
       }
 
-      moveDebounceRef.current = setTimeout(() => {
+      // Clear any pending updates
+      if (debounceRef.current) {
+        console.log(`[MapEventHandler] Clearing pending timeout from moveend`);
+        clearTimeout(debounceRef.current);
+      }
+
+      // Only update bounds on pure pan (no zoom)
+      debounceRef.current = setTimeout(() => {
+        console.log(`[MapEventHandler] moveend timeout executing (300ms later)`, {
+          timeSinceEvent: Date.now() - now,
+        });
         const bounds = e.target.getBounds();
         onBoundsChange(bounds);
       }, 300);
@@ -72,6 +109,9 @@ function MapEventHandler({
 }
 
 export function DetectionRateMap() {
+  console.log('=== DetectionRateMap component rendering ===');
+  console.log('TIMESTAMP:', Date.now());
+
   const [filters, setFilters] = useState<DetectionRateMapFilters>({});
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     // Restore view preference from localStorage
@@ -100,10 +140,19 @@ export function DetectionRateMap() {
   }, [baseLayer]);
 
   const handleZoomChange = useCallback((zoom: number) => {
+    console.log(`[DetectionRateMap] Setting zoom level to ${zoom}`);
     setZoomLevel(zoom);
   }, []);
 
   const handleBoundsChange = useCallback((bounds: L.LatLngBounds) => {
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    console.log(`[DetectionRateMap] Setting map bounds`, {
+      minLon: sw.lng,
+      minLat: sw.lat,
+      maxLon: ne.lng,
+      maxLat: ne.lat,
+    });
     setMapBounds(bounds);
   }, []);
 
@@ -117,10 +166,18 @@ export function DetectionRateMap() {
   const visibleDeployments = useMemo(() => {
     if (!data?.features || !mapBounds) return data?.features || [];
 
-    return data.features.filter((feature) => {
+    const visible = data.features.filter((feature) => {
       const [lon, lat] = feature.geometry.coordinates;
       return mapBounds.contains([lat, lon]);
     });
+
+    console.log(`[DetectionRateMap] Visible deployments recalculated`, {
+      total: data.features.length,
+      visible: visible.length,
+      timestamp: Date.now(),
+    });
+
+    return visible;
   }, [data, mapBounds]);
 
   // Calculate color scale domain from visible data only
@@ -138,7 +195,14 @@ export function DetectionRateMap() {
     if (!mapBounds) return null;
     const sw = mapBounds.getSouthWest();
     const ne = mapBounds.getNorthEast();
-    return [sw.lng, sw.lat, ne.lng, ne.lat]; // [minLon, minLat, maxLon, maxLat]
+    const bbox: [number, number, number, number] = [sw.lng, sw.lat, ne.lng, ne.lat];
+
+    console.log(`[DetectionRateMap] bboxBounds recalculated`, {
+      bbox,
+      timestamp: Date.now(),
+    });
+
+    return bbox; // [minLon, minLat, maxLon, maxLat]
   }, [mapBounds]);
 
   // Calculate map center (average of all deployment locations)
