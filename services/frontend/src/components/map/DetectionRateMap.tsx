@@ -14,12 +14,11 @@ import {
 import { DeploymentMarker } from './DeploymentMarker';
 import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
-import { DefaultClusterLayer } from './DefaultClusterLayer';
 import { MapLegend } from './MapLegend';
 import { MapControls } from './MapControls';
 import 'leaflet/dist/leaflet.css';
 
-type ViewMode = 'points' | 'hexbins' | 'clusters' | 'default-clusters';
+type ViewMode = 'points' | 'hexbins' | 'clusters';
 
 /**
  * Component to track zoom level and map bounds changes
@@ -229,18 +228,6 @@ export function DetectionRateMap() {
             <ClusterLayer
               deployments={data.features}
               maxDetectionRate={colorDomain.max}
-              getMarkerColor={(feature) =>
-                getDetectionRateColor(
-                  feature.properties.detection_rate_per_100,
-                  colorDomain.max
-                )
-              }
-            />
-          )
-        ) : viewMode === 'default-clusters' ? (
-          data?.features && (
-            <DefaultClusterLayer
-              deployments={data.features}
               getMarkerColor={(feature) =>
                 getDetectionRateColor(
                   feature.properties.detection_rate_per_100,
