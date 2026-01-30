@@ -34,13 +34,6 @@ interface HexFeatureProperties {
 export function HexbinLayer({ deployments, zoomLevel, mapBounds, maxDetectionRate }: HexbinLayerProps) {
   // Generate hex grid and aggregate deployments
   const hexCells = useMemo(() => {
-    console.log(`[HexbinLayer] Regenerating hexagons`, {
-      zoomLevel,
-      deploymentCount: deployments.length,
-      mapBounds,
-      timestamp: Date.now(),
-    });
-
     if (deployments.length === 0) {
       return [];
     }
@@ -49,7 +42,6 @@ export function HexbinLayer({ deployments, zoomLevel, mapBounds, maxDetectionRat
     const hexGrid = generateHexGrid(mapBounds, zoomLevel);
     const cells = aggregateDeploymentsToHexes(deployments, hexGrid);
 
-    console.log(`[HexbinLayer] Generated ${cells.length} hexagons`);
     return cells;
   }, [deployments, zoomLevel, mapBounds]);
 

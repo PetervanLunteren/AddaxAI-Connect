@@ -37,15 +37,9 @@ function MapEventHandler({
     zoomend: (e) => {
       const now = Date.now();
       const zoom = e.target.getZoom();
-      console.log(`[MapEventHandler] zoomend fired`, {
-        zoom,
-        timestamp: now,
-        hadPendingTimeout: !!debounceRef.current,
-      });
 
       // Clear any pending updates
       if (debounceRef.current) {
-        console.log(`[MapEventHandler] Clearing pending timeout from zoomend`);
         clearTimeout(debounceRef.current);
       }
 
@@ -54,10 +48,6 @@ function MapEventHandler({
 
       // Update both zoom and bounds together
       debounceRef.current = setTimeout(() => {
-        console.log(`[MapEventHandler] zoomend timeout executing (300ms later)`, {
-          zoom,
-          timeSinceEvent: Date.now() - now,
-        });
         const bounds = e.target.getBounds();
         onZoomChange(zoom);
         onBoundsChange(bounds);
@@ -67,30 +57,19 @@ function MapEventHandler({
       const now = Date.now();
       const timeSinceZoom = now - lastZoomTimeRef.current;
 
-      console.log(`[MapEventHandler] moveend fired`, {
-        timestamp: now,
-        timeSinceLastZoom: timeSinceZoom,
-        willIgnore: timeSinceZoom < 5000,
-      });
-
       // Don't respond to moveend if it's within 5000ms of a zoom event
       // Leaflet's zoom animation can take 3+ seconds and fires moveend when complete
       if (timeSinceZoom < 5000) {
-        console.log(`[MapEventHandler] Ignoring moveend (too soon after zoom)`);
         return;
       }
 
       // Clear any pending updates
       if (debounceRef.current) {
-        console.log(`[MapEventHandler] Clearing pending timeout from moveend`);
         clearTimeout(debounceRef.current);
       }
 
       // Only update bounds on pure pan (no zoom)
       debounceRef.current = setTimeout(() => {
-        console.log(`[MapEventHandler] moveend timeout executing (300ms later)`, {
-          timeSinceEvent: Date.now() - now,
-        });
         const bounds = e.target.getBounds();
         onBoundsChange(bounds);
       }, 300);
@@ -109,9 +88,6 @@ function MapEventHandler({
 }
 
 export function DetectionRateMap() {
-  console.log('=== DetectionRateMap component rendering ===');
-  console.log('TIMESTAMP:', Date.now());
-
   const [filters, setFilters] = useState<DetectionRateMapFilters>({});
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     // Restore view preference from localStorage
@@ -140,19 +116,10 @@ export function DetectionRateMap() {
   }, [baseLayer]);
 
   const handleZoomChange = useCallback((zoom: number) => {
-    console.log(`[DetectionRateMap] Setting zoom level to ${zoom}`);
     setZoomLevel(zoom);
   }, []);
 
   const handleBoundsChange = useCallback((bounds: L.LatLngBounds) => {
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    console.log(`[DetectionRateMap] Setting map bounds`, {
-      minLon: sw.lng,
-      minLat: sw.lat,
-      maxLon: ne.lng,
-      maxLat: ne.lat,
-    });
     setMapBounds(bounds);
   }, []);
 
@@ -166,18 +133,10 @@ export function DetectionRateMap() {
   const visibleDeployments = useMemo(() => {
     if (!data?.features || !mapBounds) return data?.features || [];
 
-    const visible = data.features.filter((feature) => {
+    return data.features.filter((feature) => {
       const [lon, lat] = feature.geometry.coordinates;
       return mapBounds.contains([lat, lon]);
     });
-
-    console.log(`[DetectionRateMap] Visible deployments recalculated`, {
-      total: data.features.length,
-      visible: visible.length,
-      timestamp: Date.now(),
-    });
-
-    return visible;
   }, [data, mapBounds]);
 
   // Calculate color scale domain from visible data only
@@ -195,15 +154,20 @@ export function DetectionRateMap() {
     if (!mapBounds) return null;
     const sw = mapBounds.getSouthWest();
     const ne = mapBounds.getNorthEast();
-    const bbox: [number, number, number, number] = [sw.lng, sw.lat, ne.lng, ne.lat];
-
-    console.log(`[DetectionRateMap] bboxBounds recalculated`, {
-      bbox,
-      timestamp: Date.now(),
-    });
-
-    return bbox; // [minLon, minLat, maxLon, maxLat]
+    return [sw.lng, sw.lat, ne.lng, ne.lat]; // [minLon, minLat, maxLon, maxLat]
   }, [mapBounds]);
+
+  // Calculate hex cells count for description (only when in hexbins view)
+  const hexCellsCount = useMemo(() => {
+    if (viewMode !== 'hexbins' || !visibleDeployments || visibleDeployments.length === 0 || !bboxBounds) {
+      return 0;
+    }
+    // Import hex grid utilities locally to avoid adding to every render
+    const { generateHexGrid, aggregateDeploymentsToHexes } = require('../../utils/hex-grid');
+    const hexGrid = generateHexGrid(bboxBounds, zoomLevel);
+    const cells = aggregateDeploymentsToHexes(visibleDeployments, hexGrid);
+    return cells.length;
+  }, [viewMode, visibleDeployments, bboxBounds, zoomLevel]);
 
   // Calculate map center (average of all deployment locations)
   const mapCenter = useMemo<[number, number]>(() => {
@@ -265,6 +229,22 @@ export function DetectionRateMap() {
   };
 
   const tileLayerConfig = getTileLayerConfig();
+
+  // Get description based on view mode
+  const getViewDescription = () => {
+    const deploymentCount = visibleDeployments?.length || 0;
+
+    switch (viewMode) {
+      case 'hexbins':
+        return `Deployments are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the combined detection rate across all deployments within it.`;
+      case 'points':
+        return `Each point represents one camera deployment. Color shows its detection rate per 100 trap-days.`;
+      case 'clusters':
+        return `Nearby deployments are grouped into clusters. Each cluster shows the average detection rate across all deployments within it.`;
+      default:
+        return '';
+    }
+  };
 
   return (
     <div className="relative">
@@ -333,6 +313,13 @@ export function DetectionRateMap() {
 
         <MapLegend domain={colorDomain} />
       </MapContainer>
+
+      {/* View mode description */}
+      {visibleDeployments && visibleDeployments.length > 0 && (
+        <div className="mt-3 text-sm text-gray-600">
+          {getViewDescription()}
+        </div>
+      )}
     </div>
   );
 }
