@@ -221,7 +221,7 @@ export function DetectionRateMap() {
 
         {/* Render markers, clusters, or hexbin layer based on view mode */}
         {viewMode === 'points' ? (
-          data?.features.map((feature) => {
+          visibleDeployments?.map((feature) => {
             const color = getDetectionRateColor(
               feature.properties.detection_rate_per_100,
               colorDomain.max
@@ -236,9 +236,9 @@ export function DetectionRateMap() {
             );
           })
         ) : viewMode === 'clusters' ? (
-          data?.features && (
+          visibleDeployments && (
             <ClusterLayer
-              deployments={data.features}
+              deployments={visibleDeployments}
               maxDetectionRate={colorDomain.max}
               getMarkerColor={(feature) =>
                 getDetectionRateColor(
@@ -249,9 +249,9 @@ export function DetectionRateMap() {
             />
           )
         ) : (
-          data?.features && (
+          visibleDeployments && (
             <HexbinLayer
-              deployments={data.features}
+              deployments={visibleDeployments}
               zoomLevel={zoomLevel}
               maxDetectionRate={colorDomain.max}
             />
