@@ -25,13 +25,13 @@ export const CamerasPage: React.FC = () => {
   const getStatusBadge = (status: string) => {
     const styles = {
       active: 'border-transparent',
-      inactive: 'border-[#882000]',
+      inactive: 'border-transparent',
       never_reported: 'border-transparent',
     };
 
     const bgColors = {
       active: { backgroundColor: '#0f6064', color: 'white' },
-      inactive: { backgroundColor: '#88200020', color: '#882000' },
+      inactive: { backgroundColor: '#882000', color: 'white' },
       never_reported: { backgroundColor: '#71b7ba', color: 'white' },
     };
 
