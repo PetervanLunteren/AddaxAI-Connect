@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Battery, Signal, Clock, ImageIcon } from 'lucide-react';
+import { MapPin, Battery, Signal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -64,6 +64,18 @@ export const CamerasPage: React.FC = () => {
     if (spaceLeft === null) return '#9ca3af';
     if (spaceLeft > 50) return '#0f6064';
     if (spaceLeft > 20) return '#ff8945';
+    return '#882000';
+  };
+
+  const getTimestampColor = (timestamp: string | null) => {
+    if (!timestamp) return '#9ca3af';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 1) return '#0f6064';
+    if (diffDays <= 7) return '#ff8945';
     return '#882000';
   };
 
@@ -216,16 +228,22 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4 text-gray-600" />
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: getTimestampColor(camera.last_report_timestamp) }}
+                      />
                       <span className="text-sm">
                         {formatTimestamp(camera.last_report_timestamp)}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <ImageIcon className="h-4 w-4 text-gray-600" />
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: getTimestampColor(camera.last_image_timestamp) }}
+                      />
                       <span className="text-sm">
                         {formatTimestamp(camera.last_image_timestamp)}
                       </span>
