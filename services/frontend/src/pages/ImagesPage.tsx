@@ -115,8 +115,9 @@ export const ImagesPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-0">
-        <h1 className="text-2xl font-bold mb-0">Images</h1>
+      <h1 className="text-2xl font-bold mb-0">Images</h1>
+      <div className="flex items-center justify-between mt-1 mb-6">
+        <p className="text-sm text-gray-600">Browse and filter captured wildlife images</p>
         <Button
           variant="outline"
           size="sm"
@@ -134,7 +135,6 @@ export const ImagesPage: React.FC = () => {
           )}
         </Button>
       </div>
-      <p className="text-sm text-gray-600 mt-1 mb-6">Browse and filter captured wildlife images</p>
 
       {/* Filters */}
       {showFilters && (
