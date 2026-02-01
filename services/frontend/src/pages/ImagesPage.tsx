@@ -10,6 +10,7 @@ import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { Checkbox } from '../components/ui/Checkbox';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
+import { statisticsApi } from '../api/statistics';
 import { ImageDetailModal } from '../components/ImageDetailModal';
 import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
 import { normalizeLabel } from '../utils/labels';
@@ -19,21 +20,10 @@ export const ImagesPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
 
-  // Calculate default dates (last 30 days)
-  const getDefaultDates = () => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-
-    return {
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
-    };
-  };
-
   const [filters, setFilters] = useState({
     camera_ids: [] as Option[],
-    ...getDefaultDates(),
+    start_date: '',
+    end_date: '',
     species: [] as Option[],
     show_empty: false, // Default: hide empty images
   });
@@ -72,6 +62,12 @@ export const ImagesPage: React.FC = () => {
     queryFn: () => imagesApi.getSpecies(),
   });
 
+  // Fetch overview for date bounds
+  const { data: overview } = useQuery({
+    queryKey: ['statistics', 'overview'],
+    queryFn: () => statisticsApi.getOverview(),
+  });
+
   const handleFilterChange = (key: string, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPage(1); // Reset to first page when filters change
@@ -80,7 +76,8 @@ export const ImagesPage: React.FC = () => {
   const clearFilters = () => {
     setFilters({
       camera_ids: [],
-      ...getDefaultDates(),
+      start_date: '',
+      end_date: '',
       species: [],
       show_empty: false,
     });
@@ -163,6 +160,8 @@ export const ImagesPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-input rounded-md bg-background"
                   value={filters.start_date}
                   onChange={(e) => handleFilterChange('start_date', e.target.value)}
+                  min={overview?.first_image_date || undefined}
+                  max={overview?.last_image_date || undefined}
                 />
               </div>
 
@@ -173,6 +172,8 @@ export const ImagesPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-input rounded-md bg-background"
                   value={filters.end_date}
                   onChange={(e) => handleFilterChange('end_date', e.target.value)}
+                  min={overview?.first_image_date || undefined}
+                  max={overview?.last_image_date || undefined}
                 />
               </div>
 

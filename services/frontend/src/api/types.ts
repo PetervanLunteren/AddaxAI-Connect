@@ -84,6 +84,8 @@ export interface StatisticsOverview {
   total_cameras: number;
   total_species: number;
   images_today: number;
+  first_image_date: string | null;  // YYYY-MM-DD or null if no images
+  last_image_date: string | null;  // YYYY-MM-DD or null if no images
 }
 
 export interface TimelineDataPoint {
