@@ -38,7 +38,7 @@ export const CamerasPage: React.FC = () => {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm">
         <span
-          className="w-2.5 h-2.5 rounded-full"
+          className="w-3 h-3 rounded-full"
           style={{ backgroundColor: colors[status as keyof typeof colors] }}
         />
         {labels[status as keyof typeof labels]}
@@ -201,7 +201,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: getBatteryColor(camera.battery_percentage) }}
                       />
                       <span className="text-sm">
@@ -214,7 +214,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
                       />
                       <span className="text-sm">
@@ -225,7 +225,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
                       />
                       <span className="text-sm">
@@ -238,7 +238,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: getTimestampColor(camera.last_report_timestamp) }}
                       />
                       <span className="text-sm">
@@ -249,7 +249,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: getTimestampColor(camera.last_image_timestamp) }}
                       />
                       <span className="text-sm">
@@ -260,7 +260,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: camera.location ? '#0f6064' : '#882000' }}
                       />
                       <span className="text-sm">{camera.location ? 'Known' : 'Unknown'}</span>
