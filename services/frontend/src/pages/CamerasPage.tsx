@@ -24,15 +24,21 @@ export const CamerasPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const styles = {
-      active: 'bg-green-100 text-green-800 border-green-200',
-      inactive: 'bg-orange-100 text-orange-800 border-orange-200',
-      never_reported: 'bg-gray-100 text-gray-800 border-gray-200',
+      active: 'border-[#0f6064]',
+      inactive: 'border-[#882000]',
+      never_reported: 'border-[#71b7ba]',
+    };
+
+    const bgColors = {
+      active: { backgroundColor: '#0f606420', color: '#0f6064' },
+      inactive: { backgroundColor: '#88200020', color: '#882000' },
+      never_reported: { backgroundColor: '#71b7ba20', color: '#71b7ba' },
     };
 
     const labels = {
       active: 'Active',
       inactive: 'Inactive',
-      never_reported: 'Never Reported',
+      never_reported: 'Never reported',
     };
 
     return (
@@ -40,6 +46,7 @@ export const CamerasPage: React.FC = () => {
         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
           styles[status as keyof typeof styles]
         }`}
+        style={bgColors[status as keyof typeof bgColors]}
       >
         {labels[status as keyof typeof labels]}
       </span>
@@ -48,23 +55,23 @@ export const CamerasPage: React.FC = () => {
 
   const getBatteryColor = (percentage: number | null) => {
     if (percentage === null) return 'text-gray-400';
-    if (percentage > 50) return 'text-green-600';
-    if (percentage > 20) return 'text-orange-600';
-    return 'text-red-600';
+    if (percentage > 50) return 'text-[#0f6064]';
+    if (percentage > 20) return 'text-[#ff8945]';
+    return 'text-[#882000]';
   };
 
   const getSignalColor = (quality: number | null) => {
     if (quality === null) return 'text-gray-400';
-    if (quality > 70) return 'text-green-600';
-    if (quality > 40) return 'text-orange-600';
-    return 'text-red-600';
+    if (quality > 70) return 'text-[#0f6064]';
+    if (quality > 40) return 'text-[#ff8945]';
+    return 'text-[#882000]';
   };
 
   const getSDColor = (utilization: number | null) => {
     if (utilization === null) return 'text-gray-400';
-    if (utilization < 70) return 'text-green-600';
-    if (utilization < 90) return 'text-orange-600';
-    return 'text-red-600';
+    if (utilization < 70) return 'text-[#0f6064]';
+    if (utilization < 90) return 'text-[#ff8945]';
+    return 'text-[#882000]';
   };
 
   const formatTimestamp = (timestamp: string | null) => {
@@ -102,13 +109,13 @@ export const CamerasPage: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active Cameras</p>
+                  <p className="text-sm font-medium text-muted-foreground">Active cameras</p>
                   <p className="text-2xl font-bold mt-1">
                     {cameras.filter((c: Camera) => c.status === 'active').length}
                   </p>
                 </div>
-                <div className="bg-green-100 text-green-600 p-3 rounded-lg">
-                  <Signal className="h-6 w-6" />
+                <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                  <Signal className="h-6 w-6" style={{ color: '#0f6064' }} />
                 </div>
               </div>
             </CardContent>
@@ -118,13 +125,13 @@ export const CamerasPage: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Inactive Cameras</p>
+                  <p className="text-sm font-medium text-muted-foreground">Inactive cameras</p>
                   <p className="text-2xl font-bold mt-1">
                     {cameras.filter((c: Camera) => c.status === 'inactive').length}
                   </p>
                 </div>
-                <div className="bg-orange-100 text-orange-600 p-3 rounded-lg">
-                  <Signal className="h-6 w-6" />
+                <div className="p-3 rounded-lg" style={{ backgroundColor: '#88200020' }}>
+                  <Signal className="h-6 w-6" style={{ color: '#882000' }} />
                 </div>
               </div>
             </CardContent>
@@ -134,7 +141,7 @@ export const CamerasPage: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Average Battery</p>
+                  <p className="text-sm font-medium text-muted-foreground">Average battery</p>
                   <p className="text-2xl font-bold mt-1">
                     {Math.round(
                       cameras
@@ -145,8 +152,8 @@ export const CamerasPage: React.FC = () => {
                     %
                   </p>
                 </div>
-                <div className="bg-blue-100 text-blue-600 p-3 rounded-lg">
-                  <Battery className="h-6 w-6" />
+                <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
+                  <Battery className="h-6 w-6" style={{ color: '#71b7ba' }} />
                 </div>
               </div>
             </CardContent>
@@ -167,9 +174,9 @@ export const CamerasPage: React.FC = () => {
                 <TableHead>Status</TableHead>
                 <TableHead className="text-center">Battery</TableHead>
                 <TableHead className="text-center">Signal</TableHead>
-                <TableHead className="text-center">SD Card</TableHead>
+                <TableHead className="text-center">SD card</TableHead>
                 <TableHead className="text-center">Temperature</TableHead>
-                <TableHead>Last Update</TableHead>
+                <TableHead>Last update</TableHead>
                 <TableHead>Location</TableHead>
               </TableRow>
             </TableHeader>
