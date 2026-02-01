@@ -143,8 +143,8 @@ export const CamerasPage: React.FC = () => {
                     {cameras.filter((c: Camera) => c.status === 'inactive').length}
                   </p>
                 </div>
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#88200020' }}>
-                  <Signal className="h-6 w-6" style={{ color: '#882000' }} />
+                <div className="p-3 rounded-lg" style={{ backgroundColor: '#ff894520' }}>
+                  <Signal className="h-6 w-6" style={{ color: '#ff8945' }} />
                 </div>
               </div>
             </CardContent>
