@@ -32,6 +32,19 @@ interface DetectionTrendChartProps {
 
 type Granularity = 'day' | 'week' | 'month';
 
+// Calculate optimal granularity based on date range span
+function getOptimalGranularity(startDate: string | null, endDate: string | null): Granularity {
+  if (!startDate || !endDate) return 'day';
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff <= 30) return 'day';
+  if (daysDiff <= 90) return 'week';
+  return 'month';
+}
+
 function getWeekNumber(date: Date): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -42,7 +55,14 @@ function getWeekNumber(date: Date): number {
 
 export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRange }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
-  const [granularity, setGranularity] = useState<Granularity>('day');
+  const [granularity, setGranularity] = useState<Granularity>(() =>
+    getOptimalGranularity(dateRange.startDate, dateRange.endDate)
+  );
+
+  // Update granularity when date range changes
+  useEffect(() => {
+    setGranularity(getOptimalGranularity(dateRange.startDate, dateRange.endDate));
+  }, [dateRange.startDate, dateRange.endDate]);
 
   // Fetch species list for the selector (sorted by count, most observed first)
   const { data: speciesList } = useQuery({
