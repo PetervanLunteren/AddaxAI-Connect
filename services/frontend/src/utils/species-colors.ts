@@ -82,3 +82,17 @@ export function getSpeciesChartColors(species: string, backgroundAlpha: number =
     backgroundColor: getSpeciesColorWithAlpha(species, backgroundAlpha),
   };
 }
+
+/**
+ * Get appropriate text color (white or dark) for a species background.
+ * Uses WCAG contrast ratio to determine readability.
+ *
+ * @param species - Species name
+ * @returns "white" or "#1f2937" (dark gray) for optimal contrast
+ */
+export function getSpeciesTextColor(species: string): string {
+  const position = speciesOrderCache.get(species.toLowerCase()) ?? 0.5;
+  const bgColor = speciesScale(position);
+  // Use chroma's contrast calculation - if contrast with white is >= 4.5, use white
+  return chroma.contrast(bgColor, 'white') >= 3 ? 'white' : '#1f2937';
+}

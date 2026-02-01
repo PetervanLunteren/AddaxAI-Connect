@@ -52,9 +52,10 @@ Good / active   = #0f6064
 4 = #882000
 
 ### Use this gradient if you need a gradient somewhere
-For example for gradients in heatmaps, or detemining the colors for species themselves (calculate colors based on the number of species)
-from (dark, many) = #0f6064 
-to (light, few)   = #f9f871 
+For example for gradients in heatmaps or other multi level color scales
+from (dark, first alphabetically) = #0f6064
+to (light, last alphabetically)   = #f9f871
+For example, species specific colors are calculated based on the number of species and mapped using this gradient (see `src/utils/species-colors.ts`). 
 
 ### Typography
 
