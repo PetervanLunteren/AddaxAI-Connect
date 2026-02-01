@@ -123,7 +123,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   onChange={(e) => setThreshold(parseFloat(e.target.value))}
                   className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${threshold * 100}%, #e5e7eb ${threshold * 100}%, #e5e7eb 100%)`,
+                    background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${threshold * 100}%, #e1eceb ${threshold * 100}%, #e1eceb 100%)`,
                   }}
                   disabled={updateMutation.isPending}
                 />
