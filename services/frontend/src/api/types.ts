@@ -12,6 +12,7 @@ export interface Camera {
   signal_quality: number | null;
   sd_utilization_percentage: number | null;
   last_report_timestamp: string | null;
+  last_image_timestamp: string | null;
   status: 'active' | 'inactive' | 'never_reported';
   total_images?: number;
   sent_images?: number;
