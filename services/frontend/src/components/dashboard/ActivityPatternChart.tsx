@@ -40,13 +40,13 @@ function getHourColors(): { background: string[]; border: string[] } {
     }
     // Dawn/Dusk: 05:00 - 07:00, 17:00 - 21:00
     else if ((hour >= 5 && hour < 7) || (hour >= 17 && hour < 21)) {
-      bgColor = 'rgba(113, 183, 186, 0.7)';  // #71b7ba
-      borderColor = '#71b7ba';
+      bgColor = 'rgba(255, 137, 69, 0.7)';  // #ff8945
+      borderColor = '#ff8945';
     }
     // Day: 07:00 - 17:00
     else {
-      bgColor = 'rgba(255, 137, 69, 0.7)';  // #ff8945
-      borderColor = '#ff8945';
+      bgColor = 'rgba(113, 183, 186, 0.7)';  // #71b7ba
+      borderColor = '#71b7ba';
     }
     background.push(bgColor);
     border.push(borderColor);
@@ -166,11 +166,11 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
             <span>Night</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#71b7ba' }} />
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#ff8945' }} />
             <span>Dawn/Dusk</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#ff8945' }} />
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#71b7ba' }} />
             <span>Day</span>
           </div>
         </div>
