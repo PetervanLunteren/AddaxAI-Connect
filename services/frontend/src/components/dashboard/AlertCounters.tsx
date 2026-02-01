@@ -1,19 +1,20 @@
 /**
- * Alert Counters - Display counts of person and vehicle detections
+ * Detection Categories - Display counts by detection type
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { User, Car, PawPrint } from 'lucide-react';
+import { User, Car, PawPrint, ImageOff } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
 
 export const AlertCounters: React.FC = () => {
-  // Fetch pipeline status which includes person/vehicle/animal counts
+  // Fetch pipeline status which includes detection category counts
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'pipeline-status'],
     queryFn: () => statisticsApi.getPipelineStatus(),
   });
 
+  // Colors from FRONTEND_CONVENTIONS.md color palette for distinct values
   const counters = [
     {
       label: 'Animals',
@@ -25,13 +26,19 @@ export const AlertCounters: React.FC = () => {
       label: 'People',
       count: data?.person_count ?? 0,
       icon: User,
-      color: '#7e4369',
+      color: '#98dee2',
     },
     {
       label: 'Vehicles',
       count: data?.vehicle_count ?? 0,
       icon: Car,
-      color: '#485e12',
+      color: '#ff8945',
+    },
+    {
+      label: 'Empties',
+      count: data?.empty_count ?? 0,
+      icon: ImageOff,
+      color: '#f1f1e6',
     },
   ];
 
