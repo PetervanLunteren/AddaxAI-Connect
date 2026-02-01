@@ -47,9 +47,9 @@ Good / active   = #0f6064
 
 ### color palette for four distinct values
 1 = #0f6064
-2 = #95b0b2
-3 = #617c7d
-4 = #8585ac
+2 = #71b7ba
+3 = #ff8945
+4 = #882000
 
 ### Use this gradient if you need a gradient somewhere
 For example for gradients in heatmaps, or detemining the colors for species themselves (calculate colors based on the number of species)
