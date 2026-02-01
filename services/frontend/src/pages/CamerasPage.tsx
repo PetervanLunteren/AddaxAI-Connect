@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Battery, Signal } from 'lucide-react';
+import { Battery, Signal, ExternalLink } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -92,9 +92,8 @@ export const CamerasPage: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  const formatLocation = (location: { lat: number; lon: number } | null) => {
-    if (!location) return 'Unknown';
-    return `${location.lat.toFixed(4)}, ${location.lon.toFixed(4)}`;
+  const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
+    return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
 
   return (
@@ -255,7 +254,17 @@ export const CamerasPage: React.FC = () => {
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: camera.location ? '#0f6064' : '#882000' }}
                       />
-                      <span className="text-sm">{formatLocation(camera.location)}</span>
+                      <span className="text-sm">{camera.location ? 'Known' : 'Unknown'}</span>
+                      {camera.location && (
+                        <a
+                          href={getGoogleMapsUrl(camera.location)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
