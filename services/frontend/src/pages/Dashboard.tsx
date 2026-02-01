@@ -90,7 +90,7 @@ export const Dashboard: React.FC = () => {
     queryFn: () => statisticsApi.getCameraActivity(),
   });
 
-  // Summary cards data
+  // Summary cards data (colors from FRONTEND_CONVENTIONS.md palette)
   const summaryCards = [
     {
       title: 'Images today',
@@ -102,13 +102,13 @@ export const Dashboard: React.FC = () => {
       title: 'Total images',
       value: overview?.total_images ?? 0,
       icon: Images,
-      color: '#7e4369',
+      color: '#71b7ba',
     },
     {
       title: 'Total cameras',
       value: overview?.total_cameras ?? 0,
       icon: Camera,
-      color: '#485e12',
+      color: '#ff8945',
     },
   ];
 
