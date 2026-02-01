@@ -26,19 +26,19 @@ export const AlertCounters: React.FC = () => {
       label: 'People',
       count: data?.person_count ?? 0,
       icon: User,
-      color: '#ff8945',
+      color: '#95b0b2',
     },
     {
       label: 'Vehicles',
       count: data?.vehicle_count ?? 0,
       icon: Car,
-      color: '#ffe8d2',
+      color: '#617c7d',
     },
     {
       label: 'Empties',
       count: data?.empty_count ?? 0,
       icon: ImageOff,
-      color: '#946f5c',
+      color: '#8585ac',
     },
   ];
 
