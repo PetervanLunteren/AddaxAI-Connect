@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Battery, Signal, ExternalLink } from 'lucide-react';
+import { Battery, ExternalLink, Camera as CameraIcon, HardDrive } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -120,67 +120,88 @@ export const CamerasPage: React.FC = () => {
         const inactivePercent = (inactiveCount / total) * 100;
         const neverReportedPercent = (neverReportedCount / total) * 100;
 
+        const camerasWithBattery = cameras.filter((c: Camera) => c.battery_percentage !== null);
+        const avgBattery = camerasWithBattery.length > 0
+          ? Math.round(camerasWithBattery.reduce((sum: number, c: Camera) => sum + (c.battery_percentage || 0), 0) / camerasWithBattery.length)
+          : 0;
+
+        const camerasWithSD = cameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
+        const avgSD = camerasWithSD.length > 0
+          ? Math.round(camerasWithSD.reduce((sum: number, c: Camera) => sum + (c.sd_utilization_percentage || 0), 0) / camerasWithSD.length)
+          : 0;
+
         return (
-          <div className="grid gap-6 md:grid-cols-3 mb-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+            {/* Total cameras */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
+                    <p className="text-2xl font-bold mt-1">{total}</p>
+                  </div>
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                    <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Camera status bar */}
             <Card>
               <CardContent className="p-6">
                 <p className="text-sm font-medium text-muted-foreground mb-3">Camera status</p>
                 <div className="flex h-3 rounded-full overflow-hidden">
                   {activePercent > 0 && (
                     <div
+                      className="cursor-default"
                       style={{ width: `${activePercent}%`, backgroundColor: '#0f6064' }}
-                      title={`Active: ${activeCount}`}
+                      title={`${activeCount} active`}
                     />
                   )}
                   {inactivePercent > 0 && (
                     <div
+                      className="cursor-default"
                       style={{ width: `${inactivePercent}%`, backgroundColor: '#882000' }}
-                      title={`Inactive: ${inactiveCount}`}
+                      title={`${inactiveCount} inactive`}
                     />
                   )}
                   {neverReportedPercent > 0 && (
                     <div
+                      className="cursor-default"
                       style={{ width: `${neverReportedPercent}%`, backgroundColor: '#71b7ba' }}
-                      title={`Never reported: ${neverReportedCount}`}
+                      title={`${neverReportedCount} never reported`}
                     />
                   )}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Inactive cameras</p>
-                    <p className="text-2xl font-bold mt-1">
-                      {inactiveCount}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#88200020' }}>
-                    <Signal className="h-6 w-6" style={{ color: '#882000' }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
+            {/* Average battery */}
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Average battery</p>
-                    <p className="text-2xl font-bold mt-1">
-                      {Math.round(
-                        cameras
-                          .filter((c: Camera) => c.battery_percentage !== null)
-                          .reduce((sum: number, c: Camera) => sum + (c.battery_percentage || 0), 0) /
-                          cameras.filter((c: Camera) => c.battery_percentage !== null).length || 0
-                      )}
-                      %
-                    </p>
+                    <p className="text-2xl font-bold mt-1">{avgBattery}%</p>
                   </div>
                   <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
                     <Battery className="h-6 w-6" style={{ color: '#71b7ba' }} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Average SD card */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Average SD card</p>
+                    <p className="text-2xl font-bold mt-1">{avgSD}%</p>
+                  </div>
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#ff894520' }}>
+                    <HardDrive className="h-6 w-6" style={{ color: '#ff8945' }} />
                   </div>
                 </div>
               </CardContent>
