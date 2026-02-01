@@ -18,6 +18,7 @@ import {
 import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
+import { imagesApi } from '../../api/images';
 import { getSpeciesColor, setSpeciesContext } from '../../utils/species-colors';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
@@ -38,18 +39,26 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
     queryFn: () => statisticsApi.getSpeciesDistribution(),
   });
 
+  // Fetch full species list for consistent colors app-wide
+  const { data: allSpeciesOptions } = useQuery({
+    queryKey: ['species'],
+    queryFn: () => imagesApi.getSpecies(),
+  });
+
   // Sort species list alphabetically for display
   const sortedSpeciesList = useMemo(() => {
     if (!speciesList) return [];
     return [...speciesList].sort((a, b) => a.species.localeCompare(b.species));
   }, [speciesList]);
 
-  // Set species context for colors when list changes
+  // Set species context using the full species list for consistent colors
   useEffect(() => {
-    if (sortedSpeciesList.length > 0) {
-      setSpeciesContext(sortedSpeciesList.map((s) => s.species));
+    if (allSpeciesOptions && allSpeciesOptions.length > 0) {
+      const allSpecies = allSpeciesOptions.map(s => s.value as string);
+      allSpecies.push('animal', 'person', 'vehicle', 'empty');
+      setSpeciesContext(allSpecies);
     }
-  }, [sortedSpeciesList]);
+  }, [allSpeciesOptions]);
 
   // Auto-select top 3 species when data loads
   useEffect(() => {

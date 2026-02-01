@@ -111,23 +111,15 @@ export const ImagesPage: React.FC = () => {
     });
   };
 
-  // Set species context for consistent colors across all images on the page
+  // Set species context using the full species list for consistent colors app-wide
   useMemo(() => {
-    if (imagesData?.items) {
-      const allSpecies = new Set<string>();
-      imagesData.items.forEach((image: ImageListItem) => {
-        image.detections.forEach(detection => {
-          detection.classifications.forEach(cls => {
-            allSpecies.add(cls.species);
-          });
-          // Also add category as fallback
-          allSpecies.add(detection.category);
-        });
-      });
-      allSpecies.add('empty'); // For empty images
-      setSpeciesContext(Array.from(allSpecies));
+    if (speciesOptions && speciesOptions.length > 0) {
+      const allSpecies = speciesOptions.map(s => s.value as string);
+      // Add categories and 'empty' as fallbacks
+      allSpecies.push('animal', 'person', 'vehicle', 'empty');
+      setSpeciesContext(allSpecies);
     }
-  }, [imagesData]);
+  }, [speciesOptions]);
 
   return (
     <div>

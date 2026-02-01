@@ -1,7 +1,7 @@
 /**
  * Dashboard page with statistics and charts
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -18,8 +18,9 @@ import {
 import { Camera, Images, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { statisticsApi } from '../api/statistics';
+import { imagesApi } from '../api/images';
 import { normalizeLabel } from '../utils/labels';
-import { getSpeciesColors } from '../utils/species-colors';
+import { getSpeciesColor, setSpeciesContext } from '../utils/species-colors';
 import {
   DateRangeFilter,
   DateRange,
@@ -63,6 +64,21 @@ export const Dashboard: React.FC = () => {
     queryFn: () => statisticsApi.getCameraActivity(),
   });
 
+  // Fetch full species list for consistent colors app-wide
+  const { data: allSpeciesOptions } = useQuery({
+    queryKey: ['species'],
+    queryFn: () => imagesApi.getSpecies(),
+  });
+
+  // Set species context using the full species list for consistent colors
+  useMemo(() => {
+    if (allSpeciesOptions && allSpeciesOptions.length > 0) {
+      const allSpecies = allSpeciesOptions.map(s => s.value as string);
+      allSpecies.push('animal', 'person', 'vehicle', 'empty');
+      setSpeciesContext(allSpecies);
+    }
+  }, [allSpeciesOptions]);
+
   // Summary cards data (colors from FRONTEND_CONVENTIONS.md palette)
   const summaryCards = [
     {
@@ -85,16 +101,22 @@ export const Dashboard: React.FC = () => {
     },
   ];
 
-  // Species distribution chart data - using consistent colors
-  const speciesColors = species ? getSpeciesColors(species.map(s => s.species)) : [];
+  // Species distribution chart data - using consistent colors from global context
   const speciesData = {
     labels: species?.map((s) => normalizeLabel(s.species)) ?? [],
     datasets: [
       {
         label: 'Count',
         data: species?.map((s) => s.count) ?? [],
-        backgroundColor: speciesColors.map(c => c.replace(')', ', 0.8)').replace('rgb', 'rgba')),
-        borderColor: speciesColors,
+        backgroundColor: species?.map((s) => {
+          const color = getSpeciesColor(s.species);
+          // Convert hex to rgba with 0.8 opacity
+          const r = parseInt(color.slice(1, 3), 16);
+          const g = parseInt(color.slice(3, 5), 16);
+          const b = parseInt(color.slice(5, 7), 16);
+          return `rgba(${r}, ${g}, ${b}, 0.8)`;
+        }) ?? [],
+        borderColor: species?.map((s) => getSpeciesColor(s.species)) ?? [],
         borderWidth: 1,
       },
     ],
