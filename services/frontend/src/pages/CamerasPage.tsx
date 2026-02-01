@@ -179,8 +179,10 @@ export const CamerasPage: React.FC = () => {
           <p className="text-muted-foreground">Loading cameras...</p>
         </div>
       ) : cameras && cameras.length > 0 ? (
-        <div className="overflow-x-auto">
-          <Table>
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -278,9 +280,11 @@ export const CamerasPage: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
       ) : (
         <div className="flex items-center justify-center py-8">
           <p className="text-muted-foreground">No cameras registered yet.</p>
