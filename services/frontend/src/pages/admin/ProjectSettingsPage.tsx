@@ -134,7 +134,7 @@ export const ProjectSettingsPage: React.FC = () => {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-0">Settings</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">Configure detection thresholds and species filtering</p>
+      <p className="text-sm text-gray-600 mt-1 mb-6">Configure project-wide settings and preferences</p>
 
       {error && (
         <div className="max-w-2xl mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-md flex items-center gap-2">
