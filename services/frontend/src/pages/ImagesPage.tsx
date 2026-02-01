@@ -115,27 +115,27 @@ export const ImagesPage: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-0">Images</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">Browse and filter captured wildlife images</p>
-
-      {/* Filter Toggle Button */}
-      <div className="mb-4 flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          {showFilters ? 'Hide Filters' : 'Show Filters'}
-          {hasActiveFilters && (
-            <span className="px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-              {filters.camera_ids.length + filters.species.length +
-               (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
-               (filters.show_empty ? 1 : 0)}
-            </span>
-          )}
-        </Button>
+      <div className="relative">
+        <h1 className="text-2xl font-bold mb-0">Images</h1>
+        <p className="text-sm text-gray-600 mt-1 mb-6">Browse and filter captured wildlife images</p>
+        <div className="absolute top-0 right-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+            {hasActiveFilters && (
+              <span className="px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+                {filters.camera_ids.length + filters.species.length +
+                 (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
+                 (filters.show_empty ? 1 : 0)}
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
