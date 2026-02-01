@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Battery, Signal, ExternalLink } from 'lucide-react';
+import { Battery, Signal, ExternalLink, Camera as CameraIcon } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -122,13 +122,13 @@ export const CamerasPage: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active cameras</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
                   <p className="text-2xl font-bold mt-1">
-                    {cameras.filter((c: Camera) => c.status === 'active').length}
+                    {cameras.length}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                  <Signal className="h-6 w-6" style={{ color: '#0f6064' }} />
+                  <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
                 </div>
               </div>
             </CardContent>
