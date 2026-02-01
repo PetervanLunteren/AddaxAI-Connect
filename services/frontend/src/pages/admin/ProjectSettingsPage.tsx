@@ -52,7 +52,28 @@ export const ProjectSettingsPage: React.FC = () => {
     }
   }, [currentProject]);
 
-  // Redirect if user doesn't have admin access
+  // Detection threshold mutation (must be before any conditional returns)
+  const updateThresholdMutation = useMutation({
+    mutationFn: async (newThreshold: number) => {
+      if (!currentProject) throw new Error('No project selected');
+      return await adminApi.updateDetectionThreshold(currentProject.id, newThreshold);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
+    },
+  });
+
+  // Species filtering mutation (must be before any conditional returns)
+  const updateSpeciesMutation = useMutation({
+    mutationFn: (data: { id: number; update: ProjectUpdate }) =>
+      projectsApi.update(data.id, data.update),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      refreshProjects();
+    },
+  });
+
+  // Redirect if user doesn't have admin access (after all hooks)
   if (!canAdminCurrentProject) {
     return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
   }
@@ -71,26 +92,6 @@ export const ProjectSettingsPage: React.FC = () => {
   const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
   const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges;
-
-  // Detection threshold mutation
-  const updateThresholdMutation = useMutation({
-    mutationFn: async (newThreshold: number) => {
-      return await adminApi.updateDetectionThreshold(currentProject.id, newThreshold);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
-    },
-  });
-
-  // Species filtering mutation
-  const updateSpeciesMutation = useMutation({
-    mutationFn: (data: { id: number; update: ProjectUpdate }) =>
-      projectsApi.update(data.id, data.update),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      refreshProjects();
-    },
-  });
 
   // Unified save handler
   const handleSave = async () => {
