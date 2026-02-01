@@ -137,13 +137,13 @@ export const ProjectSettingsPage: React.FC = () => {
       <p className="text-sm text-gray-600 mt-1 mb-6">Configure project-wide settings and preferences</p>
 
       {error && (
-        <div className="max-w-2xl mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-md flex items-center gap-2">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-md flex items-center gap-2">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
       )}
 
-      <Card className="max-w-2xl">
+      <Card>
         <CardContent className="pt-6">
           {/* Detection Confidence Threshold */}
           <div>
