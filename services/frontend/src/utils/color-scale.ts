@@ -1,36 +1,30 @@
 /**
  * Color scale utilities for detection rate map visualization
  * Uses chroma.js for color interpolation
+ *
+ * Gradient follows FRONTEND_CONVENTIONS.md:
+ * - Light yellow (#f9f871) for low/zero detection rates
+ * - Dark teal (#0f6064) for high detection rates
  */
 import chroma from 'chroma-js';
 
 /**
- * Generate color from detection rate using YlGnBu ColorBrewer palette
+ * Generate color from detection rate using app color gradient
  *
- * Uses exact ColorBrewer YlGnBu 9-class sequential scheme:
- * https://colorbrewer2.org/#type=sequential&scheme=YlGnBu&n=9
+ * Uses the standard app gradient from FRONTEND_CONVENTIONS.md:
+ * #f9f871 (light yellow, low) -> #0f6064 (dark teal, high)
  *
  * @param rate - Detection rate per 100 trap-days
  * @param maxRate - Maximum rate for scaling (auto-calculated if not provided)
  * @returns Hex color string
  */
 export function getDetectionRateColor(rate: number, maxRate?: number): string {
-  // Exact ColorBrewer YlGnBu 9-class sequential palette
-  const colorScale = chroma.scale([
-    '#ffffd9',  // Lightest yellow (for zero/lowest)
-    '#edf8b1',
-    '#c7e9b4',
-    '#7fcdbb',
-    '#41b6c4',
-    '#1d91c0',
-    '#225ea8',
-    '#253494',
-    '#081d58',  // Darkest blue (for highest)
-  ]).mode('lab');
+  // App color gradient: light yellow (low) to dark teal (high)
+  const colorScale = chroma.scale(['#f9f871', '#0f6064']).mode('lab');
 
   // For zero rates, return the lightest yellow
   if (rate <= 0) {
-    return '#ffffd9';
+    return '#f9f871';
   }
 
   // Normalize rate to 0-1 range
@@ -91,28 +85,28 @@ export function generateLegendItems(domain: {
 }): Array<{ color: string; label: string }> {
   const items = [];
 
-  // Zero detections (lightest yellow from ColorBrewer)
+  // Zero detections (lightest yellow)
   items.push({
-    color: '#ffffd9',
+    color: '#f9f871',
     label: '0',
   });
 
   if (domain.max > 0) {
-    // Low (light yellow-green)
+    // Low (light teal-yellow)
     items.push({
-      color: '#c7e9b4',
+      color: '#b4ca6a',
       label: `${domain.min.toFixed(1)} - ${domain.p33.toFixed(1)}`,
     });
 
-    // Medium (cyan)
+    // Medium (medium teal)
     items.push({
-      color: '#41b6c4',
+      color: '#5a9868',
       label: `${domain.p33.toFixed(1)} - ${domain.p66.toFixed(1)}`,
     });
 
-    // High (dark blue)
+    // High (dark teal)
     items.push({
-      color: '#081d58',
+      color: '#0f6064',
       label: `${domain.p66.toFixed(1)} - ${domain.max.toFixed(1)}`,
     });
   }

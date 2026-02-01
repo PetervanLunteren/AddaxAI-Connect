@@ -32,17 +32,10 @@ export function MapLegend({ domain }: MapLegendProps) {
       // Calculate middle value
       const middleValue = domain.max / 2;
 
-      // ColorBrewer YlGnBu 9-class sequential palette
+      // App gradient from FRONTEND_CONVENTIONS.md: #0f6064 (high) -> #f9f871 (low)
       const gradientColors = [
-        '#081d58',  // Top (highest) - darkest blue
-        '#253494',
-        '#225ea8',
-        '#1d91c0',
-        '#41b6c4',
-        '#7fcdbb',
-        '#c7e9b4',
-        '#edf8b1',
-        '#ffffd9',  // Bottom (zero) - lightest yellow
+        '#0f6064',  // Top (highest) - dark teal
+        '#f9f871',  // Bottom (zero) - light yellow
       ].join(', ');
 
       div.innerHTML = `
