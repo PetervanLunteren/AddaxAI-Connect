@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon } from 'lucide-react';
 import { projectsApi } from '../api/projects';
 import { useProject } from '../contexts/ProjectContext';
-import { Card, CardContent, CardHeader } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
   Table,
@@ -147,24 +147,20 @@ export const ProjectUsersPage: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-6 py-8 max-w-6xl">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Users</h2>
-              <p className="text-muted-foreground mt-1">
-                Manage user access to {selectedProject?.name}
-              </p>
-            </div>
-            <Button onClick={() => setShowAddUserModal(true)}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
-          </div>
-        </CardHeader>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold mb-0">Users</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage user access and permissions</p>
+        </div>
+        <Button onClick={() => setShowAddUserModal(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Add User
+        </Button>
+      </div>
 
-        <CardContent>
+      <Card>
+        <CardContent className="pt-6">
           {loadingUsers ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

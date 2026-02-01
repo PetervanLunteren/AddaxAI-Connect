@@ -270,10 +270,8 @@ export const CameraManagementPage: React.FC = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Camera Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Managing cameras for: <span className="font-medium">{currentProject.name}</span>
-          </p>
+          <h1 className="text-2xl font-bold mb-0">Camera Management</h1>
+          <p className="text-sm text-gray-600 mt-1">Register, edit, and manage camera deployments</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openImportDialog}>

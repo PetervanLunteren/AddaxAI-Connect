@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Settings, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
@@ -139,15 +139,8 @@ export const ProjectSettingsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Settings className="h-6 w-6" />
-          Settings
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Managing settings for: <span className="font-medium">{currentProject.name}</span>
-        </p>
-      </div>
+      <h1 className="text-2xl font-bold mb-0">Settings</h1>
+      <p className="text-sm text-gray-600 mt-1 mb-6">Configure detection thresholds and species filtering</p>
 
       {/* Success/Error Messages */}
       {successMessage && (
