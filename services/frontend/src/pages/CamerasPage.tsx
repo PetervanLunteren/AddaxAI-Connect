@@ -124,8 +124,7 @@ export const CamerasPage: React.FC = () => {
           <div className="grid gap-6 md:grid-cols-3 mb-6">
             <Card>
               <CardContent className="p-6">
-                <p className="text-sm font-medium text-muted-foreground">Camera status</p>
-                <p className="text-2xl font-bold mt-1 mb-3">{total} cameras</p>
+                <p className="text-sm font-medium text-muted-foreground mb-3">Camera status</p>
                 <div className="flex h-3 rounded-full overflow-hidden">
                   {activePercent > 0 && (
                     <div
