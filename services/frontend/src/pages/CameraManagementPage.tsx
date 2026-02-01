@@ -1,5 +1,5 @@
 /**
- * Camera Management Page
+ * Camera management Page
  *
  * Allows project admins and server admins to manually create and manage cameras for projects.
  */
@@ -51,7 +51,7 @@ export const CameraManagementPage: React.FC = () => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importResults, setImportResults] = useState<BulkImportResponse | null>(null);
 
-  // Form state - Add Camera
+  // Form state - Add camera
   const [newCameraIMEI, setNewCameraIMEI] = useState('');
   const [newCameraName, setNewCameraName] = useState('');
   const [newCameraSerialNumber, setNewCameraSerialNumber] = useState('');
@@ -270,7 +270,7 @@ export const CameraManagementPage: React.FC = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold mb-0">Camera Management</h1>
+          <h1 className="text-2xl font-bold mb-0">Camera management</h1>
           <p className="text-sm text-gray-600 mt-1">Register, edit, and manage camera deployments</p>
         </div>
         <div className="flex gap-2">
@@ -280,7 +280,7 @@ export const CameraManagementPage: React.FC = () => {
           </Button>
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Camera
+            Add camera
           </Button>
         </div>
       </div>
@@ -310,10 +310,10 @@ export const CameraManagementPage: React.FC = () => {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Name</th>
                     <th className="text-left py-3 px-4">IMEI</th>
-                    <th className="text-left py-3 px-4">Serial Number</th>
+                    <th className="text-left py-3 px-4">Serial number</th>
                     <th className="text-left py-3 px-4">Box</th>
                     <th className="text-left py-3 px-4">Order</th>
-                    <th className="text-left py-3 px-4">Scanned Date</th>
+                    <th className="text-left py-3 px-4">Scanned date</th>
                     <th className="text-left py-3 px-4">Firmware</th>
                     <th className="text-left py-3 px-4">Remark</th>
                     <th className="text-left py-3 px-4">SIM</th>
@@ -409,11 +409,11 @@ export const CameraManagementPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Add Camera Dialog */}
+      {/* Add camera Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent onClose={() => setShowAddDialog(false)}>
           <DialogHeader>
-            <DialogTitle>Add Camera</DialogTitle>
+            <DialogTitle>Add camera</DialogTitle>
             <DialogDescription>
               Create a new camera for project: {currentProject.name}
             </DialogDescription>
@@ -439,7 +439,7 @@ export const CameraManagementPage: React.FC = () => {
 
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-2">
-                Friendly Name (optional)
+                Friendly name (optional)
               </label>
               <input
                 id="name"
@@ -456,7 +456,7 @@ export const CameraManagementPage: React.FC = () => {
 
             <div>
               <label htmlFor="serial-number" className="block text-sm font-medium mb-2">
-                Serial Number (optional)
+                Serial number (optional)
               </label>
               <input
                 id="serial-number"
@@ -500,7 +500,7 @@ export const CameraManagementPage: React.FC = () => {
 
             <div>
               <label htmlFor="scanned-date" className="block text-sm font-medium mb-2">
-                Scanned Date (optional)
+                Scanned date (optional)
               </label>
               <input
                 id="scanned-date"
@@ -618,7 +618,7 @@ export const CameraManagementPage: React.FC = () => {
           <div className="space-y-4 py-4">
             <div>
               <label htmlFor="edit-name" className="block text-sm font-medium mb-2">
-                Friendly Name
+                Friendly name
               </label>
               <input
                 id="edit-name"
@@ -632,7 +632,7 @@ export const CameraManagementPage: React.FC = () => {
 
             <div>
               <label htmlFor="edit-serial-number" className="block text-sm font-medium mb-2">
-                Serial Number
+                Serial number
               </label>
               <input
                 id="edit-serial-number"
@@ -676,7 +676,7 @@ export const CameraManagementPage: React.FC = () => {
 
             <div>
               <label htmlFor="edit-scanned-date" className="block text-sm font-medium mb-2">
-                Scanned Date
+                Scanned date
               </label>
               <input
                 id="edit-scanned-date"

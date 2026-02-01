@@ -155,7 +155,7 @@ export const ProjectUsersPage: React.FC = () => {
         </div>
         <Button onClick={() => setShowAddUserModal(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
-          Add User
+          Add user
         </Button>
       </div>
 
@@ -249,11 +249,11 @@ export const ProjectUsersPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Add User Modal */}
+      {/* Add user Modal */}
       <Dialog open={showAddUserModal} onOpenChange={setShowAddUserModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add User to Project</DialogTitle>
+            <DialogTitle>Add user to Project</DialogTitle>
             <DialogDescription>
               Enter a user's email and assign them a role.
             </DialogDescription>
