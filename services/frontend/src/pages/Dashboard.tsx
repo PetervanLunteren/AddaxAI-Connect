@@ -183,7 +183,7 @@ export const Dashboard: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                  <p className="text-3xl font-bold mt-2">
+                  <p className="text-2xl font-bold mt-1">
                     {overviewLoading ? '...' : card.value.toLocaleString()}
                   </p>
                 </div>
