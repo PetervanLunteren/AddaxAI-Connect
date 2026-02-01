@@ -79,7 +79,7 @@ export const ProjectSettingsPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="h-6 w-6" />
-          Project settings
+          Settings
         </h1>
         <p className="text-muted-foreground mt-1">
           Managing settings for: <span className="font-medium">{currentProject.name}</span>
