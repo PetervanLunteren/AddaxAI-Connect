@@ -209,13 +209,6 @@ export const ImagesPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Results Summary */}
-      {imagesData && (
-        <div className="mb-4 text-sm text-muted-foreground">
-          Showing {(page - 1) * limit + 1} - {Math.min(page * limit, imagesData.total)} of{' '}
-          {imagesData.total} images
-        </div>
-      )}
 
       {/* Image Grid */}
       {imagesLoading ? (
@@ -316,8 +309,13 @@ export const ImagesPage: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          {imagesData.pages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <div className="text-sm text-muted-foreground">
+              Showing {(page - 1) * limit + 1} - {Math.min(page * limit, imagesData.total)} of{' '}
+              {imagesData.total} images
+            </div>
+            {imagesData.pages > 1 && (
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -365,7 +363,8 @@ export const ImagesPage: React.FC = () => {
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-          )}
+            )}
+          </div>
         </>
       ) : (
         <Card>
