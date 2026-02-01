@@ -53,17 +53,20 @@ export const CamerasPage: React.FC = () => {
     return '#882000';
   };
 
-  const csqToPercent = (csq: number | null) => {
-    if (csq === null) return null;
-    return Math.round((csq / 31) * 100);
+  const getSignalLabel = (csq: number | null) => {
+    if (csq === null) return 'N/A';
+    if (csq >= 20) return 'Excellent';
+    if (csq >= 15) return 'Good';
+    if (csq >= 10) return 'Fair';
+    if (csq >= 2) return 'Poor';
+    return 'No signal';
   };
 
   const getSignalColor = (csq: number | null) => {
-    const percent = csqToPercent(csq);
-    if (percent === null) return '#9ca3af';
-    if (percent > 60) return '#0f6064';
-    if (percent > 30) return '#ff8945';
-    return '#882000';
+    if (csq === null) return '#9ca3af';
+    if (csq >= 15) return '#0f6064';  // Excellent or Good
+    if (csq >= 10) return '#ff8945';  // Fair
+    return '#882000';                  // Poor or No signal
   };
 
   const getSDColor = (spaceLeft: number | null) => {
@@ -215,7 +218,7 @@ export const CamerasPage: React.FC = () => {
                         style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
                       />
                       <span className="text-sm">
-                        {camera.signal_quality !== null ? `${csqToPercent(camera.signal_quality)}%` : 'N/A'}
+                        {getSignalLabel(camera.signal_quality)}
                       </span>
                     </div>
                   </TableCell>
