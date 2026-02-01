@@ -1,27 +1,22 @@
 /**
  * Dashboard page with statistics and charts
  */
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Line, Bar, Doughnut } from 'react-chartjs-2';
-import type { ChartData } from 'chart.js';
+import { Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
   BarElement,
   ArcElement,
   Title,
   Tooltip,
   Legend,
-  Filler,
   ChartOptions,
 } from 'chart.js';
 import { Camera, Images, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Select, SelectItem } from '../components/ui/Select';
 import { statisticsApi } from '../api/statistics';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColors } from '../utils/species-colors';
@@ -38,14 +33,11 @@ import {
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
   BarElement,
   ArcElement,
   Title,
   Tooltip,
-  Legend,
-  Filler
+  Legend
 );
 
 export const Dashboard: React.FC = () => {
@@ -64,19 +56,10 @@ export const Dashboard: React.FC = () => {
   // Global date range filter
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDates());
 
-  // Timeline range selector
-  const [timelineDays, setTimelineDays] = useState<string>('30');
-  const chartRef = useRef<any>(null);
-
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['statistics', 'overview'],
     queryFn: () => statisticsApi.getOverview(),
-  });
-
-  const { data: timeline, isLoading: timelineLoading } = useQuery({
-    queryKey: ['statistics', 'timeline', timelineDays],
-    queryFn: () => statisticsApi.getImagesTimeline(timelineDays === 'all' ? 0 : parseInt(timelineDays)),
   });
 
   const { data: species, isLoading: speciesLoading } = useQuery({
@@ -110,62 +93,6 @@ export const Dashboard: React.FC = () => {
       color: '#71b7ba',
     },
   ];
-
-  // Create gradient for timeline chart
-  const createGradient = (ctx: CanvasRenderingContext2D, chartArea: { top: number; bottom: number }) => {
-    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-    gradient.addColorStop(0, 'rgba(15, 96, 100, 0.05)');
-    gradient.addColorStop(0.5, 'rgba(15, 96, 100, 0.3)');
-    gradient.addColorStop(1, 'rgba(15, 96, 100, 0.6)');
-    return gradient;
-  };
-
-  // Timeline chart data
-  const timelineData: ChartData<'line'> = {
-    labels: timeline?.map((d) => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })) ?? [],
-    datasets: [
-      {
-        label: 'Images Uploaded',
-        data: timeline?.map((d) => d.count) ?? [],
-        borderColor: '#0f6064',
-        backgroundColor: (context) => {
-          const chart = context.chart;
-          const { ctx, chartArea } = chart;
-          if (!chartArea) return 'rgba(15, 96, 100, 0.2)';
-          return createGradient(ctx, chartArea);
-        },
-        tension: 0.3,
-        fill: true,
-      },
-    ],
-  };
-
-  const timelineOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      title: {
-        display: false,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          precision: 0,
-        },
-      },
-    },
-  };
-
-  const timelineRangeLabel = timelineDays === 'all' ? 'All time' :
-    timelineDays === '7' ? 'Last 7 days' :
-    timelineDays === '30' ? 'Last 30 days' :
-    timelineDays === '90' ? 'Last 90 days' :
-    timelineDays === '365' ? 'Last year' : `Last ${timelineDays} days`;
 
   // Species distribution chart data - using consistent colors
   const speciesColors = species ? getSpeciesColors(species.map(s => s.species)) : [];
@@ -325,43 +252,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Row 3: Images over time (full width) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="text-lg">Images over time</CardTitle>
-            <Select
-              value={timelineDays}
-              onValueChange={setTimelineDays}
-              className="w-40 h-9 text-sm"
-            >
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-              <SelectItem value="365">Last year</SelectItem>
-              <SelectItem value="all">All time</SelectItem>
-            </Select>
-          </div>
-          <p className="text-sm text-muted-foreground">{timelineRangeLabel}</p>
-        </CardHeader>
-        <CardContent>
-          <div className="h-72">
-            {timelineLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">Loading...</p>
-              </div>
-            ) : timeline && timeline.length > 0 ? (
-              <Line ref={chartRef} data={timelineData} options={timelineOptions} />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">No data available</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Row 4: Species activity comparison (full width) */}
+      {/* Row 3: Species activity comparison (full width) */}
       <SpeciesComparisonChart dateRange={dateRange} />
     </div>
   );
