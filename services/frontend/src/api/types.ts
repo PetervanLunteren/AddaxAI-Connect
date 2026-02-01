@@ -367,4 +367,5 @@ export interface PipelineStatusResponse {
   person_count: number;
   vehicle_count: number;
   animal_count: number;
+  empty_count: number;
 }

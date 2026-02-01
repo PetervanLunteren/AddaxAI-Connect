@@ -910,6 +910,7 @@ class PipelineStatusResponse(BaseModel):
     person_count: int
     vehicle_count: int
     animal_count: int
+    empty_count: int
 
 
 @router.get(
@@ -972,6 +973,35 @@ async def get_pipeline_status(
 
     category_counts = {row.category: row.count for row in category_rows}
 
+    # Count empty images (classified but no detections above threshold)
+    # Subquery to get image IDs with detections
+    images_with_detections = (
+        select(Detection.image_id)
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .distinct()
+    )
+
+    empty_result = await db.execute(
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Image.status == "classified",
+                ~Image.id.in_(images_with_detections)
+            )
+        )
+    )
+    empty_count = empty_result.scalar_one()
+
     return PipelineStatusResponse(
         pending=pending,
         classified=classified,
@@ -979,4 +1009,5 @@ async def get_pipeline_status(
         person_count=category_counts.get('person', 0),
         vehicle_count=category_counts.get('vehicle', 0),
         animal_count=category_counts.get('animal', 0),
+        empty_count=empty_count,
     )
