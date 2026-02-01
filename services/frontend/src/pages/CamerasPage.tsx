@@ -49,7 +49,7 @@ export const CamerasPage: React.FC = () => {
   const getBatteryColor = (percentage: number | null) => {
     if (percentage === null) return '#9ca3af';
     if (percentage > 70) return '#0f6064';
-    if (percentage > 40) return '#ff8945';
+    if (percentage > 40) return '#71b7ba';
     return '#882000';
   };
 
@@ -65,14 +65,14 @@ export const CamerasPage: React.FC = () => {
   const getSignalColor = (csq: number | null) => {
     if (csq === null) return '#9ca3af';
     if (csq >= 15) return '#0f6064';  // Excellent or Good
-    if (csq >= 10) return '#ff8945';  // Fair
+    if (csq >= 10) return '#71b7ba';  // Fair
     return '#882000';                  // Poor or No signal
   };
 
   const getSDColor = (spaceLeft: number | null) => {
     if (spaceLeft === null) return '#9ca3af';
     if (spaceLeft > 50) return '#0f6064';
-    if (spaceLeft > 20) return '#ff8945';
+    if (spaceLeft > 20) return '#71b7ba';
     return '#882000';
   };
 
@@ -84,7 +84,7 @@ export const CamerasPage: React.FC = () => {
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays <= 1) return '#0f6064';
-    if (diffDays <= 7) return '#ff8945';
+    if (diffDays <= 7) return '#71b7ba';
     return '#882000';
   };
 
