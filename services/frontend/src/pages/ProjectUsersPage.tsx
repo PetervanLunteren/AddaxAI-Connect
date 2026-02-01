@@ -152,7 +152,7 @@ export const ProjectUsersPage: React.FC = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Project Users</h2>
+              <h2 className="text-2xl font-bold">Users</h2>
               <p className="text-muted-foreground mt-1">
                 Manage user access to {selectedProject?.name}
               </p>
