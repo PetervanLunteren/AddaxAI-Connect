@@ -60,10 +60,10 @@ export const CamerasPage: React.FC = () => {
     return '#882000';
   };
 
-  const getSDColor = (utilization: number | null) => {
-    if (utilization === null) return '#9ca3af';
-    if (utilization < 50) return '#0f6064';
-    if (utilization < 80) return '#ff8945';
+  const getSDColor = (spaceLeft: number | null) => {
+    if (spaceLeft === null) return '#9ca3af';
+    if (spaceLeft > 50) return '#0f6064';
+    if (spaceLeft > 20) return '#ff8945';
     return '#882000';
   };
 
