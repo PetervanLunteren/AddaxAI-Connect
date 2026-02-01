@@ -1,15 +1,16 @@
 /**
- * Detection Trend Chart - Line chart showing daily detection counts
+ * Detection Trend Chart - Shows detection counts with day/week/month granularity
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Line } from 'react-chartjs-2';
+import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
   Legend,
   Filler,
@@ -19,19 +20,30 @@ import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
-import { getSpeciesColor, getSpeciesColorWithAlpha } from '../../utils/species-colors';
+import { getSpeciesColor } from '../../utils/species-colors';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
 
 // Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
 
 interface DetectionTrendChartProps {
   dateRange: DateRange;
 }
 
+type Granularity = 'day' | 'week' | 'month';
+
+function getWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
 export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRange }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
+  const [granularity, setGranularity] = useState<Granularity>('day');
 
   // Fetch species list for the selector (sorted by count, most observed first)
   const { data: speciesList } = useQuery({
@@ -47,7 +59,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
   }, [speciesList, selectedSpecies]);
 
   // Fetch detection trend data
-  const { data, isLoading } = useQuery({
+  const { data: rawData, isLoading } = useQuery({
     queryKey: ['statistics', 'detection-trend', selectedSpecies, dateRange.startDate, dateRange.endDate],
     queryFn: () =>
       statisticsApi.getDetectionTrend({
@@ -57,6 +69,33 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
       }),
     enabled: selectedSpecies !== null,
   });
+
+  // Group data by granularity
+  const data = useMemo(() => {
+    if (!rawData) return null;
+    if (granularity === 'day') return rawData;
+
+    const groups = new Map<string, number>();
+
+    rawData.forEach((point) => {
+      const date = new Date(point.date);
+      let key: string;
+
+      if (granularity === 'week') {
+        const week = getWeekNumber(date);
+        const year = date.getFullYear();
+        key = `${year}-W${week.toString().padStart(2, '0')}`;
+      } else {
+        key = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      }
+
+      groups.set(key, (groups.get(key) ?? 0) + point.count);
+    });
+
+    return Array.from(groups.entries())
+      .map(([label, count]) => ({ date: label, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [rawData, granularity]);
 
   // Use species color if selected, otherwise teal
   const lineColor =
@@ -86,11 +125,16 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     return gradient;
   };
 
-  const chartData: ChartData<'line'> = {
-    labels:
-      data?.map((d) =>
-        new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      ) ?? [],
+  // Format labels based on granularity
+  const formatLabel = (d: { date: string }) => {
+    if (granularity === 'day') {
+      return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    return d.date; // Week/month labels are already formatted
+  };
+
+  const lineChartData: ChartData<'line'> = {
+    labels: data?.map(formatLabel) ?? [],
     datasets: [
       {
         label: 'Detections',
@@ -110,7 +154,20 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     ],
   };
 
-  const chartOptions: ChartOptions<'line'> = {
+  const barChartData: ChartData<'bar'> = {
+    labels: data?.map(formatLabel) ?? [],
+    datasets: [
+      {
+        label: 'Detections',
+        data: data?.map((d) => d.count) ?? [],
+        backgroundColor: 'rgba(15, 96, 100, 0.2)',
+        borderColor: lineColor,
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const chartOptions: ChartOptions<'line'> & ChartOptions<'bar'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -121,7 +178,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         callbacks: {
           label: (context) => {
             const count = context.raw as number;
-            return `${count} detection${count !== 1 ? 's' : ''}`;
+            return `${count.toLocaleString()} detection${count !== 1 ? 's' : ''}`;
           },
         },
       },
@@ -142,28 +199,44 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
   };
 
   const totalDetections = data?.reduce((sum, d) => sum + d.count, 0) ?? 0;
+  const periodCount = data?.length ?? 0;
+  const avgPerPeriod = periodCount > 0 ? Math.round(totalDetections / periodCount) : 0;
+
+  const granularityLabel = granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months';
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Detection trend</CardTitle>
-          <Select
-            value={selectedSpecies ?? ''}
-            onValueChange={setSelectedSpecies}
-            className="w-48 h-9 text-sm"
-          >
-            <SelectItem value="all">All species</SelectItem>
-            {speciesList?.map((s) => (
-              <SelectItem key={s.species} value={s.species}>
-                {normalizeLabel(s.species)}
-              </SelectItem>
-            ))}
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              value={granularity}
+              onValueChange={(v) => setGranularity(v as Granularity)}
+              className="w-28 h-9 text-sm"
+            >
+              <SelectItem value="day">By day</SelectItem>
+              <SelectItem value="week">By week</SelectItem>
+              <SelectItem value="month">By month</SelectItem>
+            </Select>
+            <Select
+              value={selectedSpecies ?? ''}
+              onValueChange={setSelectedSpecies}
+              className="w-40 h-9 text-sm"
+            >
+              <SelectItem value="all">All species</SelectItem>
+              {speciesList?.map((s) => (
+                <SelectItem key={s.species} value={s.species}>
+                  {normalizeLabel(s.species)}
+                </SelectItem>
+              ))}
+            </Select>
+          </div>
         </div>
-        {data && (
+        {data && data.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {totalDetections.toLocaleString()} detections over {data.length} days
+            {totalDetections.toLocaleString()} detections over {periodCount} {granularityLabel}
+            {granularity !== 'day' && `, avg ${avgPerPeriod.toLocaleString()} per ${granularity}`}
           </p>
         )}
       </CardHeader>
@@ -174,7 +247,11 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
               <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : data && data.length > 0 ? (
-            <Line data={chartData} options={chartOptions} />
+            granularity === 'day' ? (
+              <Line data={lineChartData} options={chartOptions as ChartOptions<'line'>} />
+            ) : (
+              <Bar data={barChartData} options={chartOptions as ChartOptions<'bar'>} />
+            )
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">No detection data available</p>
