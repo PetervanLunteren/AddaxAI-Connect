@@ -145,11 +145,6 @@ export const CamerasPage: React.FC = () => {
                     />
                   )}
                 </div>
-                <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                  {activeCount > 0 && <span style={{ color: '#0f6064' }}>{activeCount} active</span>}
-                  {inactiveCount > 0 && <span style={{ color: '#882000' }}>{inactiveCount} inactive</span>}
-                  {neverReportedCount > 0 && <span style={{ color: '#71b7ba' }}>{neverReportedCount} never reported</span>}
-                </div>
               </CardContent>
             </Card>
 
