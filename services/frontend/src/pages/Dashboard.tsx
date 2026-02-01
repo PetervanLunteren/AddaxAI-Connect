@@ -41,20 +41,11 @@ ChartJS.register(
 );
 
 export const Dashboard: React.FC = () => {
-  // Calculate default dates (last 30 days)
-  const getDefaultDates = (): DateRange => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-
-    return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
-    };
-  };
-
   // Global date range filter
-  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDates());
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: '',
+    endDate: '',
+  });
 
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
@@ -172,7 +163,12 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
           <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends</p>
         </div>
-        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        <DateRangeFilter
+          value={dateRange}
+          onChange={setDateRange}
+          minDate={overview?.first_image_date}
+          maxDate={overview?.last_image_date}
+        />
       </div>
 
       {/* Summary Cards */}

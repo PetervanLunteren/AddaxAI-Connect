@@ -23,6 +23,8 @@ class StatisticsOverview(BaseModel):
     total_cameras: int
     total_species: int
     images_today: int
+    first_image_date: Optional[str]  # YYYY-MM-DD or null if no images
+    last_image_date: Optional[str]  # YYYY-MM-DD or null if no images
 
 
 class TimelineDataPoint(BaseModel):
@@ -114,11 +116,28 @@ async def get_overview(
     )
     images_today = images_today_result.scalar_one()
 
+    # First and last image dates (for date picker bounds)
+    first_image_result = await db.execute(
+        select(func.min(func.date(Image.uploaded_at)))
+        .join(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
+    )
+    first_image_date = first_image_result.scalar_one()
+
+    last_image_result = await db.execute(
+        select(func.max(func.date(Image.uploaded_at)))
+        .join(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
+    )
+    last_image_date = last_image_result.scalar_one()
+
     return StatisticsOverview(
         total_images=total_images,
         total_cameras=total_cameras,
         total_species=total_species,
         images_today=images_today,
+        first_image_date=first_image_date.isoformat() if first_image_date else None,
+        last_image_date=last_image_date.isoformat() if last_image_date else None,
     )
 
 

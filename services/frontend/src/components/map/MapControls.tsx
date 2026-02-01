@@ -15,9 +15,11 @@ interface MapControlsProps {
   onViewModeChange: (mode: 'points' | 'hexbins' | 'clusters') => void;
   baseLayer: string;
   onBaseLayerChange: (layer: string) => void;
+  minDate?: string | null;  // YYYY-MM-DD
+  maxDate?: string | null;  // YYYY-MM-DD
 }
 
-export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChange, baseLayer, onBaseLayerChange }: MapControlsProps) {
+export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChange, baseLayer, onBaseLayerChange, minDate, maxDate }: MapControlsProps) {
   const species = filters.species || '';
   const startDate = filters.start_date || '';
   const endDate = filters.end_date || '';
@@ -129,6 +131,8 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
             type="date"
             value={startDate}
             onChange={(e) => handleStartDateChange(e.target.value)}
+            min={minDate || undefined}
+            max={maxDate || undefined}
             className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -142,6 +146,8 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
             type="date"
             value={endDate}
             onChange={(e) => handleEndDateChange(e.target.value)}
+            min={minDate || undefined}
+            max={maxDate || undefined}
             className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>

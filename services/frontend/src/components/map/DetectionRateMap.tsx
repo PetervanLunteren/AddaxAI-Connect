@@ -92,19 +92,10 @@ function MapEventHandler({
 }
 
 export function DetectionRateMap() {
-  // Calculate default dates (last 30 days)
-  const getDefaultDates = () => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30);
-
-    return {
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
-    };
-  };
-
-  const [filters, setFilters] = useState<DetectionRateMapFilters>(getDefaultDates());
+  const [filters, setFilters] = useState<DetectionRateMapFilters>({
+    start_date: '',
+    end_date: '',
+  });
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     // Restore view preference from localStorage
     const saved = localStorage.getItem('detection-map-view-mode');
@@ -138,6 +129,12 @@ export function DetectionRateMap() {
   const handleBoundsChange = useCallback((bounds: L.LatLngBounds) => {
     setMapBounds(bounds);
   }, []);
+
+  // Fetch overview statistics for date bounds
+  const { data: overview } = useQuery({
+    queryKey: ['statistics', 'overview'],
+    queryFn: () => statisticsApi.getOverview(),
+  });
 
   // Fetch detection rate map data
   const { data, isLoading, error } = useQuery({
@@ -269,6 +266,8 @@ export function DetectionRateMap() {
         onViewModeChange={setViewMode}
         baseLayer={baseLayer}
         onBaseLayerChange={setBaseLayer}
+        minDate={overview?.first_image_date}
+        maxDate={overview?.last_image_date}
       />
 
       <MapContainer
