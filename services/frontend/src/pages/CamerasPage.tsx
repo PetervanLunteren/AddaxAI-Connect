@@ -135,13 +135,10 @@ export const CamerasPage: React.FC = () => {
             {/* Camera status bar */}
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-medium text-muted-foreground">Camera status</p>
-                  <div className="p-2 rounded-lg" style={{ backgroundColor: '#88200020' }}>
-                    <Activity className="h-4 w-4" style={{ color: '#882000' }} />
-                  </div>
-                </div>
-                <div className="flex h-3 rounded-full overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 mr-4">
+                    <p className="text-sm font-medium text-muted-foreground mb-3">Camera status</p>
+                    <div className="flex h-3 rounded-full overflow-hidden">
                   {activePercent > 0 && (
                     <div
                       className="cursor-default"
@@ -163,6 +160,11 @@ export const CamerasPage: React.FC = () => {
                       title={`${neverReportedCount} never reported`}
                     />
                   )}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#88200020' }}>
+                    <Activity className="h-6 w-6" style={{ color: '#882000' }} />
+                  </div>
                 </div>
               </CardContent>
             </Card>
