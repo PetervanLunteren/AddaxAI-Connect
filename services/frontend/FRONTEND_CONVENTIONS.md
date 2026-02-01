@@ -37,26 +37,24 @@ We use a HSL-based color system defined in `src/index.css`:
 - Destructive: Delete, danger actions
 - Muted: Disabled states, subtle backgrounds
 
-### Colors palette for good / bad / middle
-Use these colors for any fail/pass or otherwise good/bad situations. 
-Bad = #882000
-Middle = #71b7ba
-Good = #0f6064
+## Color palettes
 
-### color palette for just three distict values
-#0f6064
-#7e4369
-#485e12
+### For 
+Use these colors for any good / bad / middle situations like warnings/errors, active/incative, fail/pass, good/bad etc. 
+Bad / inactive  = #882000
+Middle          = #71b7ba
+Good / active   = #0f6064
 
 ### color palette for four distinct values
 1 = #0f6064
-2 = #ff8945
-3 = #ffe8d2
-4 = #946f5c
+2 = #95b0b2
+3 = #617c7d
+4 = #8585ac
 
 ### Use this gradient if you need a gradient somewhere
-from #0f6064 (dark, many)
-to #f9f871 (light, few)
+For example for gradients in heatmaps, or detemining the colors for species themselves (calculate colors based on the number of species)
+from (dark, many) = #0f6064 
+to (light, few)   = #f9f871 
 
 ### Typography
 
