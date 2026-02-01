@@ -23,16 +23,10 @@ export const CamerasPage: React.FC = () => {
   });
 
   const getStatusBadge = (status: string) => {
-    const styles = {
-      active: 'border-transparent',
-      inactive: 'border-transparent',
-      never_reported: 'border-transparent',
-    };
-
-    const bgColors = {
-      active: { backgroundColor: '#0f6064', color: 'white' },
-      inactive: { backgroundColor: '#882000', color: 'white' },
-      never_reported: { backgroundColor: '#71b7ba', color: 'white' },
+    const colors = {
+      active: '#0f6064',
+      inactive: '#882000',
+      never_reported: '#71b7ba',
     };
 
     const labels = {
@@ -42,12 +36,11 @@ export const CamerasPage: React.FC = () => {
     };
 
     return (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-          styles[status as keyof typeof styles]
-        }`}
-        style={bgColors[status as keyof typeof bgColors]}
-      >
+      <span className="inline-flex items-center gap-1.5 text-sm">
+        <span
+          className="w-2 h-2 rounded-full"
+          style={{ backgroundColor: colors[status as keyof typeof colors] }}
+        />
         {labels[status as keyof typeof labels]}
       </span>
     );
