@@ -25,7 +25,7 @@ interface ActivityPatternChartProps {
   dateRange: DateRange;
 }
 
-// Generate colors for 24 hours based on time of day
+// Generate colors for 24 hours based on time of day (colors from FRONTEND_CONVENTIONS.md palette)
 function getHourColors(): { background: string[]; border: string[] } {
   const background: string[] = [];
   const border: string[] = [];
@@ -40,13 +40,13 @@ function getHourColors(): { background: string[]; border: string[] } {
     }
     // Dawn/Dusk: 05:00 - 07:00, 17:00 - 21:00
     else if ((hour >= 5 && hour < 7) || (hour >= 17 && hour < 21)) {
-      bgColor = 'rgba(126, 67, 105, 0.7)';  // #7e4369
-      borderColor = '#7e4369';
+      bgColor = 'rgba(113, 183, 186, 0.7)';  // #71b7ba
+      borderColor = '#71b7ba';
     }
     // Day: 07:00 - 17:00
     else {
-      bgColor = 'rgba(72, 94, 18, 0.7)';  // #485e12
-      borderColor = '#485e12';
+      bgColor = 'rgba(255, 137, 69, 0.7)';  // #ff8945
+      borderColor = '#ff8945';
     }
     background.push(bgColor);
     border.push(borderColor);
@@ -166,11 +166,11 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
             <span>Night</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#7e4369' }} />
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#71b7ba' }} />
             <span>Dawn/Dusk</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#485e12' }} />
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: '#ff8945' }} />
             <span>Day</span>
           </div>
         </div>
