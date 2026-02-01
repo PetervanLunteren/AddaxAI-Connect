@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -118,28 +118,30 @@ export const ImagesPage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-0">Images</h1>
       <p className="text-sm text-gray-600 mt-1 mb-6">Browse and filter captured wildlife images</p>
 
+      {/* Filter Toggle Button */}
+      <div className="mb-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-2"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {showFilters ? 'Hide Filters' : 'Show Filters'}
+          {hasActiveFilters && (
+            <span className="px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+              {filters.camera_ids.length + filters.species.length +
+               (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
+               (filters.show_empty ? 1 : 0)}
+            </span>
+          )}
+        </Button>
+      </div>
+
       {/* Filters */}
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle>Filters</CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
-          >
-            {showFilters ? 'Hide' : 'Show'}
-            {hasActiveFilters && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                {filters.camera_ids.length + filters.species.length +
-                 (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
-                 (filters.show_empty ? 1 : 0)}
-              </span>
-            )}
-          </Button>
-        </CardHeader>
-        {showFilters && (
-          <CardContent>
+      {showFilters && (
+        <Card className="mb-6">
+          <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Cameras</label>
@@ -204,8 +206,8 @@ export const ImagesPage: React.FC = () => {
               </div>
             )}
           </CardContent>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {/* Results Summary */}
       {imagesData && (
