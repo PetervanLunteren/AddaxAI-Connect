@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Battery, ExternalLink, Camera as CameraIcon, HardDrive } from 'lucide-react';
+import { Battery, ExternalLink, Camera as CameraIcon, HardDrive, Activity } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -132,25 +132,15 @@ export const CamerasPage: React.FC = () => {
 
         return (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
-            {/* Total cameras */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
-                    <p className="text-2xl font-bold mt-1">{total}</p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                    <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Camera status bar */}
             <Card>
               <CardContent className="p-6">
-                <p className="text-sm font-medium text-muted-foreground mb-3">Camera status</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-muted-foreground">Camera status</p>
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: '#88200020' }}>
+                    <Activity className="h-4 w-4" style={{ color: '#882000' }} />
+                  </div>
+                </div>
                 <div className="flex h-3 rounded-full overflow-hidden">
                   {activePercent > 0 && (
                     <div
@@ -177,6 +167,21 @@ export const CamerasPage: React.FC = () => {
               </CardContent>
             </Card>
 
+            {/* Total cameras */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
+                    <p className="text-2xl font-bold mt-1">{total}</p>
+                  </div>
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                    <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Average battery */}
             <Card>
               <CardContent className="p-6">
@@ -185,8 +190,8 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground">Average battery</p>
                     <p className="text-2xl font-bold mt-1">{avgBattery}%</p>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
-                    <Battery className="h-6 w-6" style={{ color: '#71b7ba' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#ff894520' }}>
+                    <Battery className="h-6 w-6" style={{ color: '#ff8945' }} />
                   </div>
                 </div>
               </CardContent>
@@ -200,8 +205,8 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground">Average SD card</p>
                     <p className="text-2xl font-bold mt-1">{avgSD}%</p>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#ff894520' }}>
-                    <HardDrive className="h-6 w-6" style={{ color: '#ff8945' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
+                    <HardDrive className="h-6 w-6" style={{ color: '#71b7ba' }} />
                   </div>
                 </div>
               </CardContent>
