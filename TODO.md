@@ -6,11 +6,9 @@
 - [ ] The filtering options in the IMages page do not take into account the detection threhsold. If there eg is a fox below the det thresh, and a dog above it, the image will still show up if you search for "fox". 
 
 **SPW points**
-- [ ] dashboarding, activity patterns, counts, etc
 - [ ] export to camtrap DP
 - [ ] Edit labels in ImageDetailModal. No need to adjust bounding boxes, just the counts per species. 
 - [ ] Add a project artifacts upload and download function. Good for storing settings files, etc. 
 - [ ] NEW server spw.addaxai.com project namne: ANLIER NORD
 - [ ] email notifications daily report
 - [ ] map for camera's to see where the batterys are low, etc.
-- [ ] Last image received column added to the camera tab

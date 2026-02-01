@@ -1,7 +1,7 @@
 /**
  * Images page with grid view and filters
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -14,6 +14,7 @@ import { statisticsApi } from '../api/statistics';
 import { ImageDetailModal } from '../components/ImageDetailModal';
 import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
 import { normalizeLabel } from '../utils/labels';
+import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../utils/species-colors';
 import type { ImageListItem } from '../api/types';
 
 export const ImagesPage: React.FC = () => {
@@ -109,6 +110,24 @@ export const ImagesPage: React.FC = () => {
       hour12: false,
     });
   };
+
+  // Set species context for consistent colors across all images on the page
+  useMemo(() => {
+    if (imagesData?.items) {
+      const allSpecies = new Set<string>();
+      imagesData.items.forEach((image: ImageListItem) => {
+        image.detections.forEach(detection => {
+          detection.classifications.forEach(cls => {
+            allSpecies.add(cls.species);
+          });
+          // Also add category as fallback
+          allSpecies.add(detection.category);
+        });
+      });
+      allSpecies.add('empty'); // For empty images
+      setSpeciesContext(Array.from(allSpecies));
+    }
+  }, [imagesData]);
 
   return (
     <div>
@@ -276,13 +295,17 @@ export const ImagesPage: React.FC = () => {
                         {visibleLabels.map((label, idx) => (
                           <span
                             key={`${label}-${idx}`}
-                            className="bg-primary text-primary-foreground px-2 py-1 rounded-md text-xs font-medium"
+                            className="px-2 py-1 rounded-md text-xs font-medium"
+                            style={{
+                              backgroundColor: getSpeciesColor(label),
+                              color: getSpeciesTextColor(label),
+                            }}
                           >
                             {normalizeLabel(label)}
                           </span>
                         ))}
                         {remainingCount > 0 && (
-                          <span className="bg-primary/80 text-primary-foreground px-2 py-1 rounded-md text-xs font-medium">
+                          <span className="bg-gray-600 text-white px-2 py-1 rounded-md text-xs font-medium">
                             +{remainingCount} more
                           </span>
                         )}
