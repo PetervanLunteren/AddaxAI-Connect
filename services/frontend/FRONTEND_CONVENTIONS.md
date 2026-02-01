@@ -48,6 +48,12 @@ Good = #0f6064
 #7e4369
 #485e12
 
+### color palette for four distinct values
+1 = #0f6064
+2 = #ff8945
+3 = #ffe8d2
+4 = #946f5c
+
 ### Use this gradient if you need a gradient somewhere
 from #0f6064 (dark, many)
 to #f9f871 (light, few)
