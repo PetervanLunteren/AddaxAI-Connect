@@ -35,11 +35,6 @@ export const CameraManagementPage: React.FC = () => {
   const { selectedProject: currentProject, canAdminCurrentProject } = useProject();
   const queryClient = useQueryClient();
 
-  // Redirect if user doesn't have admin access
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
-
   // Modal state
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -156,6 +151,11 @@ export const CameraManagementPage: React.FC = () => {
       alert(`Failed to import CSV: ${error.response?.data?.detail || error.message}`);
     },
   });
+
+  // Redirect if user doesn't have admin access (must be after all hooks)
+  if (!canAdminCurrentProject) {
+    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
+  }
 
   const handleAddCamera = () => {
     if (!newCameraIMEI.trim()) {
@@ -321,7 +321,7 @@ export const CameraManagementPage: React.FC = () => {
                     <th className="text-left py-3 px-4">ICCID</th>
                     <th className="text-left py-3 px-4">Status</th>
                     <th className="text-left py-3 px-4">Images</th>
-                    <th className="text-left py-3 px-4">Last Report</th>
+                    <th className="text-left py-3 px-4">Last report</th>
                     <th className="text-right py-3 px-4">Actions</th>
                   </tr>
                 </thead>
@@ -599,7 +599,7 @@ export const CameraManagementPage: React.FC = () => {
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Camera
+                  Create camera
                 </>
               )}
             </Button>
@@ -611,7 +611,7 @@ export const CameraManagementPage: React.FC = () => {
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent onClose={() => setShowEditDialog(false)}>
           <DialogHeader>
-            <DialogTitle>Edit Camera</DialogTitle>
+            <DialogTitle>Edit camera</DialogTitle>
             <DialogDescription>Update camera information</DialogDescription>
           </DialogHeader>
 
@@ -770,7 +770,7 @@ export const CameraManagementPage: React.FC = () => {
                   Saving...
                 </>
               ) : (
-                'Save Changes'
+                'Save changes'
               )}
             </Button>
           </DialogFooter>
@@ -781,7 +781,7 @@ export const CameraManagementPage: React.FC = () => {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent onClose={() => setShowDeleteDialog(false)}>
           <DialogHeader>
-            <DialogTitle>Delete Camera</DialogTitle>
+            <DialogTitle>Delete camera</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete camera "{selectedCamera?.name}"? This action cannot
               be undone.
@@ -817,7 +817,7 @@ export const CameraManagementPage: React.FC = () => {
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent onClose={() => setShowImportDialog(false)} className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Import Cameras from CSV</DialogTitle>
+            <DialogTitle>Import cameras from CSV</DialogTitle>
             <DialogDescription>
               Upload a CSV file with camera information. Required: IMEI. Optional: FriendlyName,
               Serial, Box, Order, Scanned, Firmware, Remark, SIM, IMSI, ICCID. Date format: DD-MM-YYYY or YYYY-MM-DD.
