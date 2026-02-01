@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Battery, Signal } from 'lucide-react';
+import { Battery, Signal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -250,8 +250,11 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4 text-gray-600" />
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: camera.location ? '#0f6064' : '#882000' }}
+                      />
                       <span className="text-sm">{formatLocation(camera.location)}</span>
                     </div>
                   </TableCell>
