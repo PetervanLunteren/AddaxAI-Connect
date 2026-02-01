@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Battery, Thermometer, Signal, HardDrive, Clock } from 'lucide-react';
+import { MapPin, Battery, Signal, HardDrive, Clock, ImageIcon } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -175,8 +175,8 @@ export const CamerasPage: React.FC = () => {
                 <TableHead className="text-center">Battery</TableHead>
                 <TableHead className="text-center">Signal</TableHead>
                 <TableHead className="text-center">SD card</TableHead>
-                <TableHead className="text-center">Temperature</TableHead>
-                <TableHead>Last update</TableHead>
+                <TableHead>Last report</TableHead>
+                <TableHead>Last image</TableHead>
                 <TableHead>Location</TableHead>
               </TableRow>
             </TableHeader>
@@ -220,18 +220,18 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Thermometer className="h-4 w-4 text-gray-600" />
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-4 w-4 text-gray-600" />
                       <span className="text-sm">
-                        {camera.temperature !== null ? `${camera.temperature}°C` : 'N/A'}
+                        {formatTimestamp(camera.last_report_timestamp)}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4 text-gray-600" />
+                      <ImageIcon className="h-4 w-4 text-gray-600" />
                       <span className="text-sm">
-                        {formatTimestamp(camera.last_report_timestamp)}
+                        {formatTimestamp(camera.last_image_timestamp)}
                       </span>
                     </div>
                   </TableCell>

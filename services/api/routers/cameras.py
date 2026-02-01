@@ -7,10 +7,10 @@ import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project
+from shared.models import User, Camera, Project, Image
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -40,6 +40,7 @@ class CameraResponse(BaseModel):
     signal_quality: Optional[int] = None
     sd_utilization_percentage: Optional[float] = None
     last_report_timestamp: Optional[str] = None
+    last_image_timestamp: Optional[str] = None
     status: str  # active, inactive, never_reported
     total_images: Optional[int] = None
     sent_images: Optional[int] = None
@@ -124,12 +125,13 @@ def parse_camera_status(camera: Camera) -> str:
         return 'never_reported'
 
 
-def camera_to_response(camera: Camera) -> CameraResponse:
+def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] = None) -> CameraResponse:
     """
     Convert Camera model to CameraResponse
 
     Args:
         camera: Camera model instance
+        last_image_timestamp: Optional timestamp of the most recent image
 
     Returns:
         CameraResponse with parsed health data
@@ -152,10 +154,10 @@ def camera_to_response(camera: Camera) -> CameraResponse:
         iccid=camera.iccid,
         location=gps_data,
         battery_percentage=health_data.get('battery_percentage'),
-        temperature=health_data.get('temperature'),
         signal_quality=health_data.get('signal_quality'),
         sd_utilization_percentage=health_data.get('sd_utilization_percentage'),
         last_report_timestamp=camera.config.get('last_report_timestamp') if camera.config else None,
+        last_image_timestamp=last_image_timestamp.isoformat() if last_image_timestamp else None,
         status=parse_camera_status(camera),
         total_images=health_data.get('total_images'),
         sent_images=health_data.get('sent_images'),
@@ -191,7 +193,20 @@ async def list_cameras(
     result = await db.execute(query)
     cameras = result.scalars().all()
 
-    return [camera_to_response(camera) for camera in cameras]
+    # Get last image timestamp for each camera
+    camera_ids = [c.id for c in cameras]
+    if camera_ids:
+        last_image_query = (
+            select(Image.camera_id, func.max(Image.uploaded_at).label('last_uploaded'))
+            .where(Image.camera_id.in_(camera_ids))
+            .group_by(Image.camera_id)
+        )
+        last_image_result = await db.execute(last_image_query)
+        last_image_map = {row.camera_id: row.last_uploaded for row in last_image_result}
+    else:
+        last_image_map = {}
+
+    return [camera_to_response(camera, last_image_map.get(camera.id)) for camera in cameras]
 
 
 @router.get(
@@ -237,7 +252,15 @@ async def get_camera(
             detail="You do not have access to this camera"
         )
 
-    return camera_to_response(camera)
+    # Get last image timestamp
+    last_image_query = (
+        select(func.max(Image.uploaded_at))
+        .where(Image.camera_id == camera_id)
+    )
+    last_image_result = await db.execute(last_image_query)
+    last_image_timestamp = last_image_result.scalar_one_or_none()
+
+    return camera_to_response(camera, last_image_timestamp)
 
 
 @router.post(
