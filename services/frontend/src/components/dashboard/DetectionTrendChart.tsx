@@ -3,14 +3,13 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Line, Bar } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
   Tooltip,
   Legend,
   Filler,
@@ -25,7 +24,7 @@ import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
 
 // Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 interface DetectionTrendChartProps {
   dateRange: DateRange;
@@ -133,7 +132,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     return d.date; // Week/month labels are already formatted
   };
 
-  const lineChartData: ChartData<'line'> = {
+  const chartData: ChartData<'line'> = {
     labels: data?.map(formatLabel) ?? [],
     datasets: [
       {
@@ -154,20 +153,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     ],
   };
 
-  const barChartData: ChartData<'bar'> = {
-    labels: data?.map(formatLabel) ?? [],
-    datasets: [
-      {
-        label: 'Detections',
-        data: data?.map((d) => d.count) ?? [],
-        backgroundColor: 'rgba(15, 96, 100, 0.2)',
-        borderColor: lineColor,
-        borderWidth: 2,
-      },
-    ],
-  };
-
-  const chartOptions: ChartOptions<'line'> & ChartOptions<'bar'> = {
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -247,11 +233,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
               <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : data && data.length > 0 ? (
-            granularity === 'day' ? (
-              <Line data={lineChartData} options={chartOptions as ChartOptions<'line'>} />
-            ) : (
-              <Bar data={barChartData} options={chartOptions as ChartOptions<'bar'>} />
-            )
+            <Line data={chartData} options={chartOptions} />
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">No detection data available</p>
