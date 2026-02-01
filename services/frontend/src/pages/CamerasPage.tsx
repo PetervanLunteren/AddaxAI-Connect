@@ -165,9 +165,9 @@ export const CamerasPage: React.FC = () => {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-center">Battery</TableHead>
-                <TableHead className="text-center">Signal</TableHead>
-                <TableHead className="text-center">SD card</TableHead>
+                <TableHead>Battery</TableHead>
+                <TableHead>Signal</TableHead>
+                <TableHead>SD card</TableHead>
                 <TableHead>Last report</TableHead>
                 <TableHead>Last image</TableHead>
                 <TableHead>Location</TableHead>
@@ -179,7 +179,7 @@ export const CamerasPage: React.FC = () => {
                   <TableCell className="font-medium">{camera.name}</TableCell>
                   <TableCell>{getStatusBadge(camera.status)}</TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <span
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: getBatteryColor(camera.battery_percentage) }}
@@ -192,7 +192,7 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <span
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
@@ -203,7 +203,7 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <span
                         className="w-2.5 h-2.5 rounded-full"
                         style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
