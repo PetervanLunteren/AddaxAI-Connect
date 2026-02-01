@@ -45,11 +45,6 @@ export const ProjectUsersPage: React.FC = () => {
   const [addUserEmail, setAddUserEmail] = useState<string>('');
   const [addUserRole, setAddUserRole] = useState<string>('project-viewer');
 
-  // Redirect if user doesn't have admin access
-  if (!canAdminCurrentProject) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
-
   // Fetch project users
   const { data: projectUsers, isLoading: loadingUsers } = useQuery({
     queryKey: ['project-users', projectId],
@@ -61,7 +56,7 @@ export const ProjectUsersPage: React.FC = () => {
   const addUserByEmailMutation = useMutation({
     mutationFn: ({ email, role }: { email: string; role: string }) =>
       projectsApi.addUserByEmail(parseInt(projectId!), { email, role }),
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
       setShowAddUserModal(false);
       setAddUserEmail('');
@@ -99,6 +94,11 @@ export const ProjectUsersPage: React.FC = () => {
       alert(`Failed to remove user: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
+
+  // Redirect if user doesn't have admin access (must be after all hooks)
+  if (!canAdminCurrentProject) {
+    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
+  }
 
   const handleAddUser = () => {
     if (addUserEmail && addUserRole) {
