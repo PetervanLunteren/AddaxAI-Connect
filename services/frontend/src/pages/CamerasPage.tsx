@@ -107,12 +107,7 @@ export const CamerasPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-0">
-        <h1 className="text-2xl font-bold mb-0">Cameras</h1>
-        <div className="text-sm text-muted-foreground">
-          {cameras ? `${cameras.length} camera${cameras.length !== 1 ? 's' : ''} registered` : ''}
-        </div>
-      </div>
+      <h1 className="text-2xl font-bold mb-0">Cameras</h1>
       <p className="text-sm text-gray-600 mt-1 mb-6">Monitor camera health, battery levels, and connectivity status</p>
 
       {/* Summary Statistics */}
