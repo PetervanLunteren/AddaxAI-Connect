@@ -162,8 +162,8 @@ export const CamerasPage: React.FC = () => {
                   )}
                     </div>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#88200020' }}>
-                    <Activity className="h-6 w-6" style={{ color: '#882000' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                    <Activity className="h-6 w-6" style={{ color: '#0f6064' }} />
                   </div>
                 </div>
               </CardContent>
@@ -177,8 +177,8 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
                     <p className="text-2xl font-bold mt-1">{total}</p>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                    <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
+                    <CameraIcon className="h-6 w-6" style={{ color: '#71b7ba' }} />
                   </div>
                 </div>
               </CardContent>
@@ -192,8 +192,8 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground">Average battery</p>
                     <p className="text-2xl font-bold mt-1">{avgBattery}%</p>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#ff894520' }}>
-                    <Battery className="h-6 w-6" style={{ color: '#ff8945' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                    <Battery className="h-6 w-6" style={{ color: '#0f6064' }} />
                   </div>
                 </div>
               </CardContent>
