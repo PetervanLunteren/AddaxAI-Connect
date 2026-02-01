@@ -119,7 +119,7 @@ export const ImagesPage: React.FC = () => {
       <p className="text-sm text-gray-600 mt-1 mb-6">Browse and filter captured wildlife images</p>
 
       {/* Filter Toggle Button */}
-      <div className="mb-4">
+      <div className="mb-4 flex justify-end">
         <Button
           variant="outline"
           size="sm"
