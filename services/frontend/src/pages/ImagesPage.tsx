@@ -154,10 +154,10 @@ export const ImagesPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Start Date</label>
+                <label className="block text-sm font-medium mb-2">Start date</label>
                 <input
                   type="date"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                  className="w-full h-10 px-3 border border-input rounded-md bg-background"
                   value={filters.start_date}
                   onChange={(e) => handleFilterChange('start_date', e.target.value)}
                   min={overview?.first_image_date || undefined}
@@ -166,10 +166,10 @@ export const ImagesPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">End Date</label>
+                <label className="block text-sm font-medium mb-2">End date</label>
                 <input
                   type="date"
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                  className="w-full h-10 px-3 border border-input rounded-md bg-background"
                   value={filters.end_date}
                   onChange={(e) => handleFilterChange('end_date', e.target.value)}
                   min={overview?.first_image_date || undefined}
