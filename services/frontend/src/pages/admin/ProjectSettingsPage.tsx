@@ -7,8 +7,8 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { Loader2, Save, AlertCircle } from 'lucide-react';
+import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { useProject } from '../../contexts/ProjectContext';
@@ -32,28 +32,16 @@ export const ProjectSettingsPage: React.FC = () => {
   const { selectedProject: currentProject, canAdminCurrentProject, refreshProjects } = useProject();
   const queryClient = useQueryClient();
 
-  // Detection threshold state
-  const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold!);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  // Species filtering state
+  // State
+  const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
-  const [speciesSaveStatus, setSpeciesSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
 
-  // Update local threshold when project loads
+  // Load values when project changes
   useEffect(() => {
     if (currentProject) {
-      if (currentProject.detection_threshold === undefined) {
-        throw new Error('Project detection_threshold is undefined - database schema violation');
-      }
-      setThreshold(currentProject.detection_threshold);
-    }
-  }, [currentProject]);
-
-  // Load included species when project changes
-  useEffect(() => {
-    if (currentProject) {
+      setThreshold(currentProject.detection_threshold ?? 0.2);
       const included = currentProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
@@ -77,20 +65,20 @@ export const ProjectSettingsPage: React.FC = () => {
     );
   }
 
+  // Check for unsaved changes
+  const hasThresholdChanges = threshold !== currentProject.detection_threshold;
+  const currentSpeciesValues = (currentProject.included_species || []).sort().join(',');
+  const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
+  const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
+  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges;
+
   // Detection threshold mutation
   const updateThresholdMutation = useMutation({
-    mutationFn: async (threshold: number) => {
-      return await adminApi.updateDetectionThreshold(currentProject.id, threshold);
+    mutationFn: async (newThreshold: number) => {
+      return await adminApi.updateDetectionThreshold(currentProject.id, newThreshold);
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-projects'] });
-      setSuccessMessage(`Updated detection threshold to ${(data.detection_threshold * 100).toFixed(0)}%`);
-      setError(null);
-      setTimeout(() => setSuccessMessage(null), 3000);
-    },
-    onError: (error: any) => {
-      setError(error.response?.data?.detail || error.message || 'Failed to update threshold');
-      setTimeout(() => setError(null), 5000);
     },
   });
 
@@ -101,210 +89,139 @@ export const ProjectSettingsPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       refreshProjects();
-      setSpeciesSaveStatus('success');
-      setTimeout(() => setSpeciesSaveStatus('idle'), 3000);
-    },
-    onError: () => {
-      setSpeciesSaveStatus('error');
-      setTimeout(() => setSpeciesSaveStatus('idle'), 3000);
     },
   });
 
-  const handleThresholdSave = () => {
-    if (threshold !== currentProject.detection_threshold) {
-      updateThresholdMutation.mutate(threshold);
+  // Unified save handler
+  const handleSave = async () => {
+    setSaveStatus('saving');
+    setError(null);
+
+    try {
+      const promises: Promise<any>[] = [];
+
+      if (hasThresholdChanges) {
+        promises.push(updateThresholdMutation.mutateAsync(threshold));
+      }
+
+      if (hasSpeciesChanges) {
+        promises.push(updateSpeciesMutation.mutateAsync({
+          id: currentProject.id,
+          update: {
+            included_species: includedSpecies.map(s => s.value as string),
+          },
+        }));
+      }
+
+      await Promise.all(promises);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to save settings');
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
   };
-
-  const handleThresholdCancel = () => {
-    setThreshold(currentProject.detection_threshold);
-  };
-
-  const handleSpeciesSave = () => {
-    setSpeciesSaveStatus('saving');
-    updateSpeciesMutation.mutate({
-      id: currentProject.id,
-      update: {
-        included_species: includedSpecies.map(s => s.value as string),
-      },
-    });
-  };
-
-  const hasThresholdChanges = threshold !== currentProject.detection_threshold;
 
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
     label: normalizeLabel(species),
     value: species
   }));
 
+  const isSaving = saveStatus === 'saving';
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-0">Settings</h1>
       <p className="text-sm text-gray-600 mt-1 mb-6">Configure detection thresholds and species filtering</p>
 
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-800 rounded-md">
-          {successMessage}
-        </div>
-      )}
-
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-md flex items-center gap-2">
+        <div className="max-w-2xl mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-md flex items-center gap-2">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
       )}
 
-      <div className="space-y-6">
-        {/* Detection Confidence Threshold */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Detection confidence threshold</CardTitle>
-            <CardDescription>
-              Control which detections are visible based on their confidence score
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium block mb-2">
-                  Detection confidence threshold
-                </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={threshold}
-                    onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                    className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
-                    style={{
-                      background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${threshold * 100}%, #e1eceb ${threshold * 100}%, #e1eceb 100%)`,
-                    }}
-                    disabled={updateThresholdMutation.isPending}
-                  />
-                  <span className="text-sm font-medium w-16 text-right">
-                    {(threshold * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Only show detections with confidence above this value. Affects statistics, charts, and image display.
-                  Works on all historic data immediately.
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              {hasThresholdChanges && (
-                <div className="flex items-center gap-2 pt-2 border-t">
-                  <Button
-                    onClick={handleThresholdSave}
-                    disabled={updateThresholdMutation.isPending}
-                    size="sm"
-                  >
-                    {updateThresholdMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save changes
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleThresholdCancel}
-                    disabled={updateThresholdMutation.isPending}
-                    size="sm"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
+      <Card className="max-w-2xl">
+        <CardContent className="pt-6">
+          {/* Detection Confidence Threshold */}
+          <div>
+            <label className="text-sm font-medium block mb-2">
+              Detection confidence threshold
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={threshold}
+                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${threshold * 100}%, #e1eceb ${threshold * 100}%, #e1eceb 100%)`,
+                }}
+                disabled={isSaving}
+              />
+              <span className="text-sm font-medium w-12 text-right">
+                {(threshold * 100).toFixed(0)}%
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <p className="text-xs text-muted-foreground mt-1">
+              Minimum confidence for detections to appear in results
+            </p>
+          </div>
 
-        {/* Species Filtering */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Species filtering</CardTitle>
-            <CardDescription>
-              Select which species are present in your study area to improve classification accuracy.
-              Note: Species filtering applies to newly uploaded images only. Existing classifications are not affected.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium block mb-2">
-                  Species present in study area
-                </label>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Select which species occur in your study area. Only these species will appear in classification results. Leave empty to allow all species.
-                </p>
-                <MultiSelect
-                  options={speciesOptions}
-                  value={includedSpecies}
-                  onChange={setIncludedSpecies}
-                  placeholder="Select species present in your area..."
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  {includedSpecies.length === 0
-                    ? 'No filter applied - all 38 species will be considered'
-                    : `${includedSpecies.length} species allowed`}
-                </p>
-              </div>
+          {/* Divider */}
+          <div className="border-t my-6" />
 
-              {/* Save Button */}
-              <div className="flex items-center gap-3 pt-2 border-t">
-                <Button
-                  onClick={handleSpeciesSave}
-                  disabled={speciesSaveStatus === 'saving'}
-                  size="sm"
-                >
-                  {speciesSaveStatus === 'saving' ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : speciesSaveStatus === 'success' ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Saved
-                    </>
-                  ) : speciesSaveStatus === 'error' ? (
-                    <>
-                      <AlertCircle className="h-4 w-4 mr-2" />
-                      Error
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save changes
-                    </>
-                  )}
-                </Button>
+          {/* Species Filtering */}
+          <div>
+            <label className="text-sm font-medium block mb-2">
+              Species filtering
+            </label>
+            <MultiSelect
+              options={speciesOptions}
+              value={includedSpecies}
+              onChange={setIncludedSpecies}
+              placeholder="Select species..."
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Only selected species appear in new classifications. Leave empty for all.
+            </p>
+          </div>
 
-                {speciesSaveStatus === 'success' && (
-                  <p className="text-sm text-green-600">
-                    Settings saved successfully
-                  </p>
+          {/* Save Button */}
+          {hasUnsavedChanges && (
+            <div className="mt-6 pt-4 border-t">
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
+                size="sm"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save changes
+                  </>
                 )}
-                {speciesSaveStatus === 'error' && (
-                  <p className="text-sm text-red-600">
-                    Failed to save settings
-                  </p>
-                )}
-              </div>
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+
+          {/* Success message */}
+          {saveStatus === 'success' && !hasUnsavedChanges && (
+            <div className="mt-6 pt-4 border-t">
+              <p className="text-sm text-green-600">Settings saved</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
