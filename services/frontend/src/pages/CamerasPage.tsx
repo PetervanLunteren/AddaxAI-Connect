@@ -38,7 +38,7 @@ export const CamerasPage: React.FC = () => {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm">
         <span
-          className="w-2 h-2 rounded-full"
+          className="w-2.5 h-2.5 rounded-full"
           style={{ backgroundColor: colors[status as keyof typeof colors] }}
         />
         {labels[status as keyof typeof labels]}
