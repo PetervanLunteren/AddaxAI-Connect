@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin, Battery, Signal, HardDrive, Clock, ImageIcon } from 'lucide-react';
+import { MapPin, Battery, Signal, Clock, ImageIcon } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -47,24 +47,24 @@ export const CamerasPage: React.FC = () => {
   };
 
   const getBatteryColor = (percentage: number | null) => {
-    if (percentage === null) return 'text-gray-400';
-    if (percentage > 50) return 'text-[#0f6064]';
-    if (percentage > 20) return 'text-[#ff8945]';
-    return 'text-[#882000]';
+    if (percentage === null) return '#9ca3af';
+    if (percentage > 70) return '#0f6064';
+    if (percentage > 40) return '#ff8945';
+    return '#882000';
   };
 
   const getSignalColor = (quality: number | null) => {
-    if (quality === null) return 'text-gray-400';
-    if (quality > 70) return 'text-[#0f6064]';
-    if (quality > 40) return 'text-[#ff8945]';
-    return 'text-[#882000]';
+    if (quality === null) return '#9ca3af';
+    if (quality > 60) return '#0f6064';
+    if (quality > 30) return '#ff8945';
+    return '#882000';
   };
 
   const getSDColor = (utilization: number | null) => {
-    if (utilization === null) return 'text-gray-400';
-    if (utilization < 70) return 'text-[#0f6064]';
-    if (utilization < 90) return 'text-[#ff8945]';
-    return 'text-[#882000]';
+    if (utilization === null) return '#9ca3af';
+    if (utilization < 50) return '#0f6064';
+    if (utilization < 80) return '#ff8945';
+    return '#882000';
   };
 
   const formatTimestamp = (timestamp: string | null) => {
@@ -179,9 +179,10 @@ export const CamerasPage: React.FC = () => {
                   <TableCell className="font-medium">{camera.name}</TableCell>
                   <TableCell>{getStatusBadge(camera.status)}</TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Battery
-                        className={`h-4 w-4 ${getBatteryColor(camera.battery_percentage)}`}
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: getBatteryColor(camera.battery_percentage) }}
                       />
                       <span className="text-sm">
                         {camera.battery_percentage !== null
@@ -191,9 +192,10 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Signal
-                        className={`h-4 w-4 ${getSignalColor(camera.signal_quality)}`}
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
                       />
                       <span className="text-sm">
                         {camera.signal_quality !== null ? `${camera.signal_quality}%` : 'N/A'}
@@ -201,13 +203,14 @@ export const CamerasPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <HardDrive
-                        className={`h-4 w-4 ${getSDColor(camera.sd_utilization_percentage)}`}
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
                       />
                       <span className="text-sm">
                         {camera.sd_utilization_percentage !== null
-                          ? `${camera.sd_utilization_percentage}%`
+                          ? `${Math.round(camera.sd_utilization_percentage)}%`
                           : 'N/A'}
                       </span>
                     </div>
