@@ -47,8 +47,8 @@ Good / active   = #0f6064
 
 ### color palette for four distinct values
 1 = #0f6064
-2 = #71b7ba
-3 = #ff8945
+2 = #ff8945
+3 = #71b7ba
 4 = #882000
 
 ### Use this gradient if you need a gradient somewhere

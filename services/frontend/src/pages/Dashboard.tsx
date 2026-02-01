@@ -102,13 +102,13 @@ export const Dashboard: React.FC = () => {
       title: 'Total images',
       value: overview?.total_images ?? 0,
       icon: Images,
-      color: '#71b7ba',
+      color: '#ff8945',
     },
     {
       title: 'Total cameras',
       value: overview?.total_cameras ?? 0,
       icon: Camera,
-      color: '#ff8945',
+      color: '#71b7ba',
     },
   ];
 
