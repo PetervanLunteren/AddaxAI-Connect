@@ -329,6 +329,35 @@ services:
     networks:
       - addaxai-network
 
+  # Email Notifications Worker
+  notifications-email:
+    build:
+      context: .
+      dockerfile: services/notifications-email/Dockerfile
+    container_name: addaxai-notifications-email
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MAIL_SERVER: ${MAIL_SERVER}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
+      DOMAIN_NAME: ${DOMAIN_NAME}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      notifications:
+        condition: service_started
+    networks:
+      - addaxai-network
+
 networks:
   addaxai-network:
     driver: bridge

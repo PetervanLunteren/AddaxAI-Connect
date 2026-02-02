@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, Save, Check, X, MessageCircle, XCircle, Copy, Settings } from 'lucide-react';
+import { Loader2, Save, Check, X, MessageCircle, XCircle, Copy, Settings, Mail } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -77,6 +77,15 @@ export const NotificationsPage: React.FC = () => {
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
 
+  // Email reports state
+  const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
+  const [reportEmail, setReportEmail] = useState('');
+  const [reportFrequency, setReportFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [includeStats, setIncludeStats] = useState(true);
+  const [includeHealth, setIncludeHealth] = useState(true);
+  const [includeActivity, setIncludeActivity] = useState(true);
+  const [includeDetections, setIncludeDetections] = useState(true);
+
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['notification-preferences', projectIdNum],
@@ -136,6 +145,7 @@ export const NotificationsPage: React.FC = () => {
 
         setTelegramEnabled(telegramEnabledAny && hasTelegramChatId);
         setTelegramChatId((preferences as any).telegram_chat_id || '');
+        setReportEmail((preferences as any).report_email || '');
 
         // Convert species to options
         const telegramSpeciesValues = speciesConfig.notify_species || [];
@@ -147,6 +157,15 @@ export const NotificationsPage: React.FC = () => {
         setTelegramNotifyLowBattery(telegramInBattery);
         setTelegramBatteryThreshold(batteryConfig.battery_threshold || 30);
         setTelegramNotifySystemHealth(telegramInHealth);
+
+        // Email reports configuration
+        const emailReportConfig = notificationChannels.email_report || {};
+        setEmailReportsEnabled(emailReportConfig.enabled || false);
+        setReportFrequency(emailReportConfig.frequency || 'weekly');
+        setIncludeStats(emailReportConfig.include_stats !== false);
+        setIncludeHealth(emailReportConfig.include_health !== false);
+        setIncludeActivity(emailReportConfig.include_activity !== false);
+        setIncludeDetections(emailReportConfig.include_detections !== false);
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
@@ -284,6 +303,14 @@ export const NotificationsPage: React.FC = () => {
       system_health: {
         enabled: telegramEnabled && telegramNotifySystemHealth,
         channels: telegramNotifySystemHealth ? channels : []
+      },
+      email_report: {
+        enabled: emailReportsEnabled,
+        frequency: reportFrequency,
+        include_stats: includeStats,
+        include_health: includeHealth,
+        include_activity: includeActivity,
+        include_detections: includeDetections
       }
     };
 
@@ -296,6 +323,8 @@ export const NotificationsPage: React.FC = () => {
       notify_low_battery: legacyLowBattery,
       battery_threshold: legacyBatteryThreshold,
       notify_system_health: legacySystemHealth,
+      // Email reports
+      report_email: emailReportsEnabled && reportEmail.trim() ? reportEmail.trim() : null,
       // New multi-channel configuration
       notification_channels: notificationChannels,
     });
@@ -472,6 +501,99 @@ export const NotificationsPage: React.FC = () => {
                     onChange={setTelegramNotifySystemHealth}
                     label="System Health Alerts"
                   />
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Email Reports Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                <CardTitle>Email Reports</CardTitle>
+              </div>
+              <CardDescription>
+                Receive scheduled email summaries with project statistics and insights
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Checkbox
+                id="email-reports-enabled"
+                checked={emailReportsEnabled}
+                onChange={setEmailReportsEnabled}
+                label="Enable email reports"
+              />
+
+              {emailReportsEnabled && (
+                <>
+                  {/* Report Email */}
+                  <div>
+                    <label htmlFor="report-email" className="block text-sm font-medium mb-2">
+                      Report Email
+                    </label>
+                    <input
+                      id="report-email"
+                      type="email"
+                      value={reportEmail}
+                      onChange={(e) => setReportEmail(e.target.value)}
+                      placeholder="Leave empty to use your account email"
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Optional: specify a different email address for reports
+                    </p>
+                  </div>
+
+                  {/* Report Frequency */}
+                  <div>
+                    <label htmlFor="report-frequency" className="block text-sm font-medium mb-2">
+                      Report Frequency
+                    </label>
+                    <select
+                      id="report-frequency"
+                      value={reportFrequency}
+                      onChange={(e) => setReportFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="daily">Daily (sent every morning at 06:00 UTC)</option>
+                      <option value="weekly">Weekly (sent every Monday at 06:00 UTC)</option>
+                      <option value="monthly">Monthly (sent on the 1st at 06:00 UTC)</option>
+                    </select>
+                  </div>
+
+                  {/* Report Content Options */}
+                  <div>
+                    <label className="block text-sm font-medium mb-3">
+                      Report Content
+                    </label>
+                    <div className="space-y-3 pl-1">
+                      <Checkbox
+                        id="include-stats"
+                        checked={includeStats}
+                        onChange={setIncludeStats}
+                        label="Overview statistics (images, cameras, species counts)"
+                      />
+                      <Checkbox
+                        id="include-health"
+                        checked={includeHealth}
+                        onChange={setIncludeHealth}
+                        label="Camera health summary (active, inactive, low battery)"
+                      />
+                      <Checkbox
+                        id="include-activity"
+                        checked={includeActivity}
+                        onChange={setIncludeActivity}
+                        label="Activity patterns (peak hours, busiest days)"
+                      />
+                      <Checkbox
+                        id="include-detections"
+                        checked={includeDetections}
+                        onChange={setIncludeDetections}
+                        label="Notable detections (rare species, high confidence)"
+                      />
+                    </div>
+                  </div>
                 </>
               )}
             </CardContent>
