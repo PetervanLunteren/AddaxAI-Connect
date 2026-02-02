@@ -6,6 +6,7 @@ evaluates rules, and routes to appropriate channel queues.
 
 Also runs scheduled jobs:
 - Daily battery digest at 12:00 UTC
+- Email reports: daily at 06:00 UTC, weekly on Monday, monthly on 1st
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -17,6 +18,7 @@ from shared.config import get_settings
 from rule_engine import get_matching_users
 from event_handlers import handle_species_detection, handle_low_battery, handle_system_health
 from battery_digest import send_daily_battery_digest
+from email_report import send_daily_reports, send_weekly_reports, send_monthly_reports
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -95,9 +97,42 @@ def main() -> None:
         id='daily_battery_digest',
         name='Send daily battery digest at noon UTC'
     )
+    # Email reports - daily at 06:00 UTC
+    scheduler.add_job(
+        send_daily_reports,
+        'cron',
+        hour=6,
+        minute=0,
+        id='daily_email_reports',
+        name='Send daily email reports at 06:00 UTC'
+    )
+
+    # Email reports - weekly on Monday at 06:00 UTC
+    scheduler.add_job(
+        send_weekly_reports,
+        'cron',
+        day_of_week='mon',
+        hour=6,
+        minute=0,
+        id='weekly_email_reports',
+        name='Send weekly email reports at 06:00 UTC Monday'
+    )
+
+    # Email reports - monthly on 1st at 06:00 UTC
+    scheduler.add_job(
+        send_monthly_reports,
+        'cron',
+        day=1,
+        hour=6,
+        minute=0,
+        id='monthly_email_reports',
+        name='Send monthly email reports at 06:00 UTC on 1st'
+    )
+
     scheduler.start()
 
     logger.info("Scheduled daily battery digest at 12:00 UTC")
+    logger.info("Scheduled email reports: daily 06:00, weekly Monday 06:00, monthly 1st 06:00 UTC")
 
     # Listen to notification events queue
     queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)

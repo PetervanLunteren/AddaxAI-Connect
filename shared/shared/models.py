@@ -268,6 +268,7 @@ class ProjectNotificationPreference(Base):
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     enabled = Column(Boolean, nullable=False, server_default="false")
     telegram_chat_id = Column(String(50), nullable=True)  # Telegram chat ID
+    report_email = Column(String(255), nullable=True)  # Custom email for reports (defaults to user email if null)
     notify_species = Column(JSON, nullable=True)  # DEPRECATED: Use notification_channels instead
     notify_low_battery = Column(Boolean, nullable=False, server_default="true")  # DEPRECATED: Use notification_channels instead
     battery_threshold = Column(Integer, nullable=False, server_default="30")  # DEPRECATED: Use notification_channels instead

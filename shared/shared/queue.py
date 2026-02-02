@@ -85,7 +85,7 @@ QUEUE_FAILED_JOBS = "failed-jobs"
 # Notification queues
 QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here
 QUEUE_NOTIFICATION_TELEGRAM = "notification-telegram"  # Telegram worker listens here
+QUEUE_NOTIFICATION_EMAIL = "notification-email"  # Email worker listens here
 # Future channels:
-# QUEUE_NOTIFICATION_EMAIL = "notification-email"
 # QUEUE_NOTIFICATION_SMS = "notification-sms"
 # QUEUE_NOTIFICATION_EARTHRANGER = "notification-earthranger"
