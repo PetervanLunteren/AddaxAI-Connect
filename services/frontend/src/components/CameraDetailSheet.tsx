@@ -40,6 +40,7 @@ interface CameraDetailSheetProps {
   onClose: () => void;
   canAdmin: boolean;
   projectId?: number;
+  onUpdate?: (updatedCamera: Camera) => void;
 }
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
@@ -48,6 +49,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   onClose,
   canAdmin,
   projectId,
+  onUpdate,
 }) => {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
@@ -78,9 +80,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: (data: UpdateCameraRequest) => camerasApi.update(camera!.id, data),
-    onSuccess: () => {
+    onSuccess: (updatedCamera) => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       setIsEditing(false);
+      onUpdate?.(updatedCamera);
     },
     onError: (error: any) => {
       alert(`Failed to update camera: ${error.response?.data?.detail || error.message}`);
