@@ -212,6 +212,8 @@ def get_camera_health_summary(
     inactive = 0
     never_reported = 0
     low_battery_cameras = []
+    battery_values = []
+    sd_values = []
 
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
 
@@ -235,18 +237,31 @@ def get_camera_health_summary(
             never_reported += 1
 
         # Check battery
-        if camera.battery_percent is not None and camera.battery_percent <= battery_threshold:
-            low_battery_cameras.append({
-                'name': camera.name,
-                'battery': camera.battery_percent
-            })
+        if camera.battery_percent is not None:
+            battery_values.append(camera.battery_percent)
+            if camera.battery_percent <= battery_threshold:
+                low_battery_cameras.append({
+                    'name': camera.name,
+                    'battery': camera.battery_percent
+                })
+
+        # Check SD card usage
+        if camera.sd_used_mb is not None and camera.sd_total_mb is not None and camera.sd_total_mb > 0:
+            sd_percent = int((camera.sd_used_mb / camera.sd_total_mb) * 100)
+            sd_values.append(sd_percent)
+
+    # Calculate averages
+    avg_battery = int(sum(battery_values) / len(battery_values)) if battery_values else 0
+    avg_sd = int(sum(sd_values) / len(sd_values)) if sd_values else 0
 
     return {
         'total': total,
         'active': active,
         'inactive': inactive + never_reported,
         'low_battery_count': len(low_battery_cameras),
-        'low_battery_cameras': sorted(low_battery_cameras, key=lambda x: x['battery'])
+        'low_battery_cameras': sorted(low_battery_cameras, key=lambda x: x['battery']),
+        'avg_battery': avg_battery,
+        'avg_sd': avg_sd
     }
 
 
@@ -386,6 +401,85 @@ def get_activity_summary(
         'total_detections': total_detections,
         'peak_hour': peak_hour,
         'hourly_distribution': hourly_distribution
+    }
+
+
+def get_hero_detection(
+    db: Session,
+    project_id: int,
+    start_date: date,
+    end_date: date,
+    domain: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Get the best (highest confidence) detection for the period.
+
+    This becomes the "hero" image featured at the top of the email report.
+
+    Args:
+        db: Database session
+        project_id: Project to query
+        start_date: Start of period (inclusive)
+        end_date: End of period (inclusive)
+        domain: Domain name for constructing image URLs
+
+    Returns:
+        Dictionary with species, confidence, camera, timestamp, image_url
+        or None if no detections found
+    """
+    start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+
+    # Get project detection threshold
+    project = db.execute(
+        select(Project).where(Project.id == project_id)
+    ).scalar_one_or_none()
+    detection_threshold = project.detection_threshold if project else 0.5
+
+    query = (
+        select(
+            Classification.species,
+            Classification.confidence.label('classification_confidence'),
+            Camera.name.label('camera_name'),
+            Image.uploaded_at,
+            Image.uuid.label('image_uuid')
+        )
+        .select_from(Classification)
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Detection.confidence >= detection_threshold,
+                Image.uploaded_at >= start_dt,
+                Image.uploaded_at <= end_dt
+            )
+        )
+        .order_by(desc(Classification.confidence))
+        .limit(1)
+    )
+
+    row = db.execute(query).first()
+
+    if not row:
+        return None
+
+    # Format timestamp for display
+    timestamp_str = None
+    if row.uploaded_at:
+        timestamp_str = row.uploaded_at.strftime('%b %d, %Y at %H:%M')
+
+    # Construct image URL (thumbnail)
+    image_url = f"https://{domain}/api/images/{row.image_uuid}/thumbnail"
+
+    return {
+        'species': row.species,
+        'confidence': round(row.classification_confidence * 100, 1),
+        'camera': row.camera_name,
+        'timestamp': timestamp_str,
+        'image_url': image_url,
+        'image_uuid': row.image_uuid
     }
 
 

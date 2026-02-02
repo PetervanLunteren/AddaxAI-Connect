@@ -28,7 +28,8 @@ from report_stats import (
     get_camera_health_summary,
     get_notable_detections,
     get_activity_summary,
-    get_images_timeline
+    get_images_timeline,
+    get_hero_detection
 )
 
 logger = get_logger("notifications.email_report")
@@ -317,13 +318,47 @@ def generate_report_content(
     project_url = f"https://{domain}/projects/{project_id}/dashboard"
     settings_url = f"https://{domain}/projects/{project_id}/notifications"
 
-    # Determine which sections to include
-    include_stats = email_config.get('include_stats', True)
-    include_health = email_config.get('include_health', True)
-    include_activity = email_config.get('include_activity', True)
-    include_detections = email_config.get('include_detections', True)
+    # Frequency label for hero section ("Capture of the day/week/month")
+    frequency_label = "Capture" if frequency == 'daily' else "Highlight"
 
-    # Gather statistics
+    # Get overview stats
+    overview = get_overview_stats(db, project_id, start_date, end_date)
+
+    # Get activity summary for detection count
+    activity = get_activity_summary(db, project_id, start_date, end_date)
+
+    # Build stats object for template
+    stats = {
+        'new_images': overview['new_images'],
+        'detections': activity['total_detections'],
+        'species_count': overview['total_species']
+    }
+
+    # Get top species (limit to 5 for simplified view)
+    species = get_species_distribution(db, project_id, start_date, end_date, limit=5)
+
+    # Get camera health (always included)
+    cameras = get_camera_health_summary(db, project_id)
+
+    # Get hero detection (best capture of the period)
+    hero = get_hero_detection(db, project_id, start_date, end_date, domain)
+
+    # Build template data
+    template_data = {
+        'project_name': project_name,
+        'project_url': project_url,
+        'settings_url': settings_url,
+        'period_label': f"Showing results of {period_label}",
+        'frequency': frequency.capitalize(),
+        'frequency_label': frequency_label,
+        'domain': domain,
+        'hero': hero,
+        'stats': stats,
+        'species': species,
+        'cameras': cameras
+    }
+
+    # Also keep full data for text report generation
     report_data = {
         'project_name': project_name,
         'project_url': project_url,
@@ -331,33 +366,17 @@ def generate_report_content(
         'period_label': period_label,
         'frequency': frequency.capitalize(),
         'domain': domain,
-        'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+        'overview': overview,
+        'species': species,
+        'health': cameras,
+        'activity': activity,
+        'notable': [hero] if hero else []
     }
-
-    if include_stats:
-        report_data['overview'] = get_overview_stats(db, project_id, start_date, end_date)
-        report_data['species'] = get_species_distribution(
-            db, project_id, start_date, end_date,
-            limit=email_config.get('top_species_count', 10)
-        )
-
-    if include_health:
-        report_data['health'] = get_camera_health_summary(db, project_id)
-
-    if include_activity:
-        report_data['activity'] = get_activity_summary(db, project_id, start_date, end_date)
-        report_data['timeline'] = get_images_timeline(db, project_id, start_date, end_date)
-
-    if include_detections:
-        report_data['notable'] = get_notable_detections(
-            db, project_id, start_date, end_date,
-            limit=email_config.get('notable_detection_count', 5)
-        )
 
     # Generate HTML
     try:
         html_template = jinja_env.get_template('email_report.html')
-        html_content = html_template.render(**report_data)
+        html_content = html_template.render(**template_data)
     except Exception as e:
         logger.warning("Failed to render HTML template, using text only", error=str(e))
         html_content = None

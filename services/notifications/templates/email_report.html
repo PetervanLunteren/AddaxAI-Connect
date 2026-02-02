@@ -57,14 +57,14 @@
         .header .report-type {
             font-size: 16px;
             font-weight: 500;
-            margin: 0 0 8px 0;
+            margin: 0;
             color: #1f2937;
         }
 
         .header .period {
             font-size: 14px;
             color: #6b7280;
-            margin: 0;
+            margin: 4px 0 0 0;
         }
 
         /* Section */
@@ -78,7 +78,7 @@
         }
 
         .section-title {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             color: #6b7280;
             text-transform: uppercase;
@@ -86,85 +86,150 @@
             margin: 0 0 16px 0;
         }
 
-        /* Stat grid */
-        .stat-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .stat-box {
-            flex: 1;
-            min-width: 120px;
+        /* Hero Image */
+        .hero-section {
+            padding: 24px;
             background: #f9fafb;
-            border-radius: 8px;
-            padding: 16px;
             text-align: center;
         }
 
-        .stat-value {
+        .hero-image {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border-radius: 8px;
+            margin: 0 auto 16px auto;
+        }
+
+        .hero-species {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0f6064;
+            margin: 0 0 4px 0;
+        }
+
+        .hero-confidence {
+            display: inline-block;
+            background: #0f6064;
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .hero-meta {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 8px 0 0 0;
+        }
+
+        /* Quick Stats */
+        .quick-stats {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            padding: 20px 24px;
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .quick-stat {
+            text-align: center;
+        }
+
+        .quick-stat-value {
             font-size: 28px;
             font-weight: 700;
             color: #0f6064;
             line-height: 1.2;
         }
 
-        .stat-label {
+        .quick-stat-label {
             font-size: 12px;
             color: #6b7280;
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
-        /* Table */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
+        /* Species List */
+        .species-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
         }
 
-        .data-table th,
-        .data-table td {
-            padding: 12px 8px;
-            text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+        .species-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
         }
 
-        .data-table th {
-            font-size: 12px;
-            font-weight: 600;
-            color: #6b7280;
-            text-transform: uppercase;
-        }
-
-        .data-table td {
-            font-size: 14px;
-        }
-
-        .data-table tr:last-child td {
+        .species-item:last-child {
             border-bottom: none;
         }
 
-        /* Health indicators */
-        .health-good { color: #0f6064; }
-        .health-warning { color: #ff8945; }
-        .health-critical { color: #882000; }
-
-        /* Alert box */
-        .alert-box {
-            background: #fff5f0;
-            border-left: 4px solid #882000;
-            border-radius: 0 8px 8px 0;
-            padding: 12px 16px;
-            margin-top: 16px;
+        .species-rank {
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            width: 24px;
         }
 
-        .alert-box-title {
+        .species-name {
+            flex: 1;
+            font-size: 15px;
+            color: #1f2937;
+        }
+
+        .species-count {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0f6064;
+        }
+
+        /* Camera Status */
+        .camera-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .camera-status-ok {
+            color: #0f6064;
+            font-weight: 600;
+        }
+
+        .camera-status-warning {
+            color: #882000;
+            font-weight: 600;
+        }
+
+        .camera-stat {
             font-size: 14px;
+            color: #6b7280;
+        }
+
+        .camera-alerts {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: #fff5f0;
+            border-left: 3px solid #882000;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .camera-alert-title {
+            font-size: 13px;
             font-weight: 600;
             color: #882000;
             margin: 0 0 4px 0;
         }
 
-        .alert-box-content {
+        .camera-alert-list {
             font-size: 13px;
             color: #882000;
             margin: 0;
@@ -176,14 +241,10 @@
             background: #0f6064;
             color: #ffffff !important;
             text-decoration: none;
-            padding: 12px 24px;
+            padding: 14px 32px;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
-        }
-
-        .btn:hover {
-            background: #0a4a4d;
         }
 
         /* Footer */
@@ -199,31 +260,13 @@
             text-decoration: none;
         }
 
-        .footer a:hover {
-            text-decoration: underline;
-        }
-
         /* Responsive */
         @media only screen and (max-width: 480px) {
-            .container {
-                padding: 12px;
-            }
-
-            .header {
-                padding: 24px 16px;
-            }
-
-            .section {
-                padding: 16px;
-            }
-
-            .stat-box {
-                min-width: 100px;
-            }
-
-            .stat-value {
-                font-size: 24px;
-            }
+            .container { padding: 12px; }
+            .header { padding: 24px 16px; }
+            .section { padding: 16px; }
+            .quick-stats { gap: 16px; }
+            .quick-stat-value { font-size: 24px; }
         }
     </style>
 </head>
@@ -235,148 +278,95 @@
                 <img src="https://{{ domain }}/logo-wide.svg" alt="AddaxAI" class="header-logo">
                 <h1>{{ project_name }}</h1>
                 <p class="report-type">{{ frequency }} report</p>
-                <p class="period">Showing results of {{ period_label }}</p>
+                <p class="period">{{ period_label }}</p>
             </div>
 
-            {% if overview %}
-            <!-- Overview Section -->
-            <div class="section">
-                <h2 class="section-title">Overview</h2>
-                <div class="stat-grid">
-                    <div class="stat-box">
-                        <div class="stat-value">{{ overview.new_images }}</div>
-                        <div class="stat-label">New images</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ overview.total_cameras }}</div>
-                        <div class="stat-label">Cameras</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value">{{ overview.total_species }}</div>
-                        <div class="stat-label">Species</div>
-                    </div>
-                    {% if overview.new_species > 0 %}
-                    <div class="stat-box">
-                        <div class="stat-value">{{ overview.new_species }}</div>
-                        <div class="stat-label">New species</div>
-                    </div>
-                    {% endif %}
+            {% if hero %}
+            <!-- Hero: Capture of the Period -->
+            <div class="hero-section">
+                <p class="section-title">{{ frequency_label }} of the {{ frequency|lower }}</p>
+                {% if hero.image_url %}
+                <img src="{{ hero.image_url }}" alt="{{ hero.species }}" class="hero-image">
+                {% endif %}
+                <p class="hero-species">
+                    {{ hero.species|replace('_', ' ')|title }}
+                    <span class="hero-confidence">{{ hero.confidence }}%</span>
+                </p>
+                <p class="hero-meta">{{ hero.camera }} · {{ hero.timestamp }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Quick Stats -->
+            <div class="quick-stats">
+                <div class="quick-stat">
+                    <div class="quick-stat-value">{{ stats.new_images }}</div>
+                    <div class="quick-stat-label">images</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="quick-stat-value">{{ stats.detections }}</div>
+                    <div class="quick-stat-label">detections</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="quick-stat-value">{{ stats.species_count }}</div>
+                    <div class="quick-stat-label">species</div>
                 </div>
             </div>
-            {% endif %}
 
             {% if species and species|length > 0 %}
-            <!-- Species Distribution -->
+            <!-- Top Species -->
             <div class="section">
                 <h2 class="section-title">Top species</h2>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Species</th>
-                            <th style="text-align: right;">Detections</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for sp in species %}
-                        <tr>
-                            <td>{{ sp.species|replace('_', ' ')|title }}</td>
-                            <td style="text-align: right;">{{ sp.count }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <ul class="species-list">
+                    {% for sp in species[:5] %}
+                    <li class="species-item">
+                        <span class="species-rank">{{ loop.index }}.</span>
+                        <span class="species-name">{{ sp.species|replace('_', ' ')|title }}</span>
+                        <span class="species-count">{{ sp.count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
             {% endif %}
 
-            {% if health %}
             <!-- Camera Health -->
             <div class="section">
-                <h2 class="section-title">Camera health</h2>
-                <table class="data-table">
-                    <tbody>
-                        <tr>
-                            <td>Active cameras</td>
-                            <td style="text-align: right;" class="health-good">{{ health.active }} / {{ health.total }}</td>
-                        </tr>
-                        <tr>
-                            <td>Inactive cameras</td>
-                            <td style="text-align: right;" class="{% if health.inactive > 0 %}health-warning{% endif %}">{{ health.inactive }}</td>
-                        </tr>
-                        <tr>
-                            <td>Low battery</td>
-                            <td style="text-align: right;" class="{% if health.low_battery_count > 0 %}health-critical{% endif %}">{{ health.low_battery_count }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <h2 class="section-title">Cameras</h2>
+                <div class="camera-status">
+                    {% if cameras.inactive == 0 and cameras.low_battery_count == 0 %}
+                    <span class="camera-status-ok">✓ {{ cameras.active }}/{{ cameras.total }} active</span>
+                    {% else %}
+                    <span class="camera-status-warning">{{ cameras.active }}/{{ cameras.total }} active</span>
+                    {% endif %}
+                    <span class="camera-stat">Avg battery {{ cameras.avg_battery }}%</span>
+                    <span class="camera-stat">Avg SD {{ cameras.avg_sd }}%</span>
+                </div>
 
-                {% if health.low_battery_cameras and health.low_battery_cameras|length > 0 %}
-                <div class="alert-box">
-                    <p class="alert-box-title">Cameras need attention</p>
-                    <p class="alert-box-content">
-                        {% for cam in health.low_battery_cameras[:5] %}
+                {% if cameras.low_battery_count > 0 or cameras.inactive > 0 %}
+                <div class="camera-alerts">
+                    {% if cameras.low_battery_count > 0 %}
+                    <p class="camera-alert-title">Low battery ({{ cameras.low_battery_count }})</p>
+                    <p class="camera-alert-list">
+                        {% for cam in cameras.low_battery_cameras[:3] %}
                         {{ cam.name }} ({{ cam.battery }}%){% if not loop.last %}, {% endif %}
                         {% endfor %}
                     </p>
+                    {% endif %}
+                    {% if cameras.inactive > 0 %}
+                    <p class="camera-alert-title" {% if cameras.low_battery_count > 0 %}style="margin-top: 8px;"{% endif %}>Inactive ({{ cameras.inactive }})</p>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
-            {% endif %}
-
-            {% if activity %}
-            <!-- Activity Summary -->
-            <div class="section">
-                <h2 class="section-title">Activity</h2>
-                <div class="stat-grid">
-                    <div class="stat-box">
-                        <div class="stat-value">{{ activity.total_detections }}</div>
-                        <div class="stat-label">Total detections</div>
-                    </div>
-                    {% if activity.peak_hour is not none %}
-                    <div class="stat-box">
-                        <div class="stat-value">{{ '%02d:00'|format(activity.peak_hour) }}</div>
-                        <div class="stat-label">Peak activity</div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if notable and notable|length > 0 %}
-            <!-- Notable Detections -->
-            <div class="section">
-                <h2 class="section-title">Notable detections</h2>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Species</th>
-                            <th>Camera</th>
-                            <th style="text-align: right;">Confidence</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for det in notable %}
-                        <tr>
-                            <td>{{ det.species|replace('_', ' ')|title }}</td>
-                            <td>{{ det.camera }}</td>
-                            <td style="text-align: right;">{{ det.confidence }}%</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% endif %}
 
             <!-- CTA -->
-            <div class="section" style="text-align: center;">
-                <a href="{{ project_url }}" class="btn">View full dashboard</a>
+            <div class="section" style="text-align: center; border-bottom: none;">
+                <a href="{{ project_url }}" class="btn">View dashboard</a>
             </div>
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            <p>
-                <a href="{{ settings_url }}">Manage notification settings</a>
-            </p>
+            <p><a href="{{ settings_url }}">Manage notification settings</a></p>
             <p style="margin-top: 12px;">
                 AddaxAI Connect<br>
                 Camera trap image processing platform
