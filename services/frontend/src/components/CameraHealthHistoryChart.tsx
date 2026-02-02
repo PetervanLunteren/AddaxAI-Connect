@@ -52,7 +52,7 @@ const METRIC_CONFIG: Record<Metric, {
   signal: {
     label: 'Signal quality',
     field: 'signal_quality',
-    color: '#71b7ba',
+    color: '#ff8945',
     unit: ' CSQ',
     min: 0,
     max: 31,
@@ -60,7 +60,7 @@ const METRIC_CONFIG: Record<Metric, {
   sd: {
     label: 'SD utilization',
     field: 'sd_utilization_percent',
-    color: '#8b5cf6',
+    color: '#71b7ba',
     unit: '%',
     min: 0,
     max: 100,
@@ -68,7 +68,7 @@ const METRIC_CONFIG: Record<Metric, {
   images: {
     label: 'Images on SD',
     field: 'total_images',
-    color: '#0ea5e9',
+    color: '#882000',
     unit: '',
     min: 0,
   },
