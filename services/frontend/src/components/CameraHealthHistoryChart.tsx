@@ -1,7 +1,7 @@
 /**
  * Camera Health History Chart
  *
- * Shows historical health metrics (battery, signal, temperature, SD) as line charts.
+ * Shows historical health metrics (battery, signal, SD, images) as line charts.
  * Includes metric selector and time range selector (7/30/90 days or custom).
  */
 import React, { useState, useMemo } from 'react';
@@ -31,7 +31,7 @@ interface CameraHealthHistoryChartProps {
 }
 
 type TimeRange = '7' | '30' | '90' | 'custom';
-type Metric = 'battery' | 'signal' | 'temperature' | 'sd' | 'images';
+type Metric = 'battery' | 'signal' | 'sd' | 'images';
 
 const METRIC_CONFIG: Record<Metric, {
   label: string;
@@ -56,12 +56,6 @@ const METRIC_CONFIG: Record<Metric, {
     unit: ' CSQ',
     min: 0,
     max: 31,
-  },
-  temperature: {
-    label: 'Temperature',
-    field: 'temperature_c',
-    color: '#e07b39',
-    unit: '°C',
   },
   sd: {
     label: 'SD utilization',
@@ -167,7 +161,6 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
         >
           <SelectItem value="battery">Battery</SelectItem>
           <SelectItem value="signal">Signal</SelectItem>
-          <SelectItem value="temperature">Temperature</SelectItem>
           <SelectItem value="sd">SD card</SelectItem>
           <SelectItem value="images">Images on SD</SelectItem>
         </Select>
