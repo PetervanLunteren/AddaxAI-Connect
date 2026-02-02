@@ -151,13 +151,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     return labels[status as keyof typeof labels] || status;
   };
 
-  const getBatteryColor = (percentage: number | null) => {
-    if (percentage === null) return '#9ca3af';
-    if (percentage > 70) return '#0f6064';
-    if (percentage > 40) return '#71b7ba';
-    return '#882000';
-  };
-
   const getSignalLabel = (csq: number | null) => {
     if (csq === null) return 'N/A';
     if (csq >= 20) return 'Excellent';
@@ -165,20 +158,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     if (csq >= 10) return 'Fair';
     if (csq >= 2) return 'Poor';
     return 'No signal';
-  };
-
-  const getSignalColor = (csq: number | null) => {
-    if (csq === null) return '#9ca3af';
-    if (csq >= 15) return '#0f6064';
-    if (csq >= 10) return '#71b7ba';
-    return '#882000';
-  };
-
-  const getSDColor = (spaceLeft: number | null) => {
-    if (spaceLeft === null) return '#9ca3af';
-    if (spaceLeft > 50) return '#0f6064';
-    if (spaceLeft > 20) return '#71b7ba';
-    return '#882000';
   };
 
   const formatTimestamp = (timestamp: string | null) => {
@@ -243,33 +222,22 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: getStatusColor(camera.status) }}
                     />
-                    <span className="font-medium">{getStatusLabel(camera.status)}</span>
+                    <span>{getStatusLabel(camera.status)}</span>
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Battery</span>
-                  <span
-                    className="font-medium"
-                    style={{ color: getBatteryColor(camera.battery_percentage) }}
-                  >
+                  <span>
                     {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Signal</span>
-                  <span
-                    className="font-medium"
-                    style={{ color: getSignalColor(camera.signal_quality) }}
-                  >
-                    {getSignalLabel(camera.signal_quality)}
-                  </span>
+                  <span>{getSignalLabel(camera.signal_quality)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">SD card</span>
-                  <span
-                    className="font-medium"
-                    style={{ color: getSDColor(camera.sd_utilization_percentage) }}
-                  >
+                  <span>
                     {camera.sd_utilization_percentage !== null
                       ? `${Math.round(camera.sd_utilization_percentage)}%`
                       : 'N/A'}
