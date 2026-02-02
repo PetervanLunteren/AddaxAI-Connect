@@ -419,10 +419,7 @@ export const CamerasPage: React.FC = () => {
                     <TableHead>Last image</TableHead>
                     <TableHead>Location</TableHead>
                     {canAdminCurrentProject && (
-                      <>
-                        <TableHead>IMEI</TableHead>
-                        <TableHead>Images</TableHead>
-                      </>
+                      <TableHead>IMEI</TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
@@ -509,12 +506,9 @@ export const CamerasPage: React.FC = () => {
                         </div>
                       </TableCell>
                       {canAdminCurrentProject && (
-                        <>
-                          <TableCell className="font-mono text-xs text-muted-foreground">
-                            {camera.imei || '-'}
-                          </TableCell>
-                          <TableCell>{camera.total_images ?? 0}</TableCell>
-                        </>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {camera.imei || '-'}
+                        </TableCell>
                       )}
                     </TableRow>
                   ))}
