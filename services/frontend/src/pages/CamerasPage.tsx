@@ -539,6 +539,7 @@ export const CamerasPage: React.FC = () => {
         }}
         canAdmin={canAdminCurrentProject}
         projectId={currentProject?.id}
+        onUpdate={(updatedCamera) => setSelectedCamera(updatedCamera)}
       />
 
       {/* Add Camera Dialog */}
