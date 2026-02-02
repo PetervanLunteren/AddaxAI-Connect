@@ -20,7 +20,6 @@ import { CamerasPage } from './pages/CamerasPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { AboutPage } from './pages/AboutPage';
-import { CameraManagementPage } from './pages/CameraManagementPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { UserAssignmentPage } from './pages/server/UserAssignmentPage';
 import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
@@ -137,7 +136,6 @@ function App() {
                 <Route path="map" element={<DetectionRateMapPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="settings" element={<ProjectSettingsPage />} />
-                <Route path="camera-management" element={<CameraManagementPage />} />
                 <Route path="users" element={<ProjectUsersPage />} />
               </Route>
 

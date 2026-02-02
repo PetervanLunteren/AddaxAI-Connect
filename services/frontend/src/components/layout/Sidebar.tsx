@@ -10,7 +10,6 @@ import {
   Bell,
   X,
   Menu,
-  VideoIcon,
   ArrowLeft,
   ChevronDown,
   ChevronRight,
@@ -47,7 +46,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // Admin tools - visible to project admins and server admins
   const adminTools = [
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
-    { to: `/projects/${projectId}/camera-management`, icon: VideoIcon, label: 'Camera management' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
   ];
 
