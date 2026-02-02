@@ -1,6 +1,6 @@
 """Add camera_health_reports table for historical health tracking
 
-Revision ID: 20260202_add_camera_health_reports
+Revision ID: 20260202_camera_health_reports
 Revises: 20260129_add_deployment_periods
 Create Date: 2026-02-02
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic
-revision = '20260202_add_camera_health_reports'
+revision = '20260202_camera_health_reports'
 down_revision = '20260129_add_deployment_periods'
 branch_labels = None
 depends_on = None
