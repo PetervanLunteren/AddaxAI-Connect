@@ -284,10 +284,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Details tab (admins only) */}
             {activeTab === 'details' && canAdmin && (
               <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                  Administrative details
-                  {!isServerAdmin && <span className="text-xs font-normal ml-2">(read-only)</span>}
-                </h3>
                 {isEditing && isServerAdmin ? (
                   <div className="space-y-3">
                     <div>
