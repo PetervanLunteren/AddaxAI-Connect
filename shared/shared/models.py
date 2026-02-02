@@ -113,6 +113,43 @@ class CameraDeploymentPeriod(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
+class CameraHealthReport(Base):
+    """
+    Historical camera health reports from daily status messages.
+
+    Each daily report is stored as a separate row, enabling time-series
+    analysis of battery, signal, temperature, SD utilization, and image counts.
+
+    Used for:
+    - Debugging camera issues over time
+    - Visualizing health trends in charts
+    - Identifying patterns (e.g., battery drain, signal loss)
+    """
+    __tablename__ = "camera_health_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    report_date = Column(Date, nullable=False, index=True)  # Date of the daily report
+
+    # Health metrics
+    battery_percent = Column(Integer, nullable=True)  # 0-100
+    signal_quality = Column(Integer, nullable=True)   # CSQ value (0-31)
+    temperature_c = Column(Integer, nullable=True)    # Celsius
+    sd_utilization_percent = Column(Float, nullable=True)  # 0-100
+
+    # Image counts from SD card
+    total_images = Column(Integer, nullable=True)     # Images on SD card
+    sent_images = Column(Integer, nullable=True)      # Images already transmitted
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Unique constraint: one report per camera per day
+    __table_args__ = (
+        UniqueConstraint('camera_id', 'report_date', name='uq_camera_report_date'),
+    )
+
+
 class Detection(Base):
     """Object detection result"""
     __tablename__ = "detections"

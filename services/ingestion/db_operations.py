@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 from sqlalchemy import and_, func, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, CameraDeploymentPeriod, Image, Project
+from shared.models import Camera, CameraDeploymentPeriod, CameraHealthReport, Image, Project
 from shared.logger import get_logger
 from camera_profiles import CameraProfile
 
@@ -333,7 +333,9 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
     """
     Update camera record with health data from daily report.
 
-    Stores health data in camera.config JSON field.
+    Stores health data in:
+    1. camera.config JSON field (for current status display)
+    2. camera_health_reports table (for historical tracking)
 
     Args:
         imei: Camera IMEI
@@ -355,8 +357,9 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
 
         # Store camera_id before session closes
         camera_id = camera.id
+        report_date = datetime.now(timezone.utc).date()
 
-        # Update config JSON with health data
+        # Update config JSON with health data (for current status)
         camera.config = camera.config or {}
         camera.config['last_health_report'] = {
             'signal_quality': health_data.get('signal_quality'),
@@ -378,6 +381,36 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
 
         # Mark config as modified so SQLAlchemy detects the change
         flag_modified(camera, 'config')
+
+        # Insert or update historical health report (UPSERT pattern)
+        existing_report = session.query(CameraHealthReport).filter(
+            CameraHealthReport.camera_id == camera_id,
+            CameraHealthReport.report_date == report_date
+        ).first()
+
+        if existing_report:
+            # Update existing report for today
+            existing_report.battery_percent = health_data.get('battery_percentage')
+            existing_report.signal_quality = health_data.get('signal_quality')
+            existing_report.temperature_c = health_data.get('temperature')
+            existing_report.sd_utilization_percent = health_data.get('sd_utilization_percentage')
+            existing_report.total_images = health_data.get('total_images')
+            existing_report.sent_images = health_data.get('sent_images')
+            logger.debug("Updated existing health report", camera_id=camera_id, date=report_date)
+        else:
+            # Create new health report for today
+            health_report = CameraHealthReport(
+                camera_id=camera_id,
+                report_date=report_date,
+                battery_percent=health_data.get('battery_percentage'),
+                signal_quality=health_data.get('signal_quality'),
+                temperature_c=health_data.get('temperature'),
+                sd_utilization_percent=health_data.get('sd_utilization_percentage'),
+                total_images=health_data.get('total_images'),
+                sent_images=health_data.get('sent_images'),
+            )
+            session.add(health_report)
+            logger.debug("Created new health report", camera_id=camera_id, date=report_date)
 
         session.flush()
 

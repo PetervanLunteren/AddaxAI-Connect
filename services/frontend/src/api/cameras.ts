@@ -4,7 +4,7 @@
  * Includes both health monitoring (for all users) and management (admin only) operations.
  */
 import apiClient from './client';
-import type { Camera } from './types';
+import type { Camera, HealthHistoryResponse, HealthHistoryFilters } from './types';
 
 // Request types for camera management
 export interface CreateCameraRequest {
@@ -106,6 +106,24 @@ export const camerasApi = {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  },
+
+  /**
+   * Get camera health history for charts
+   */
+  getHealthHistory: async (id: number, filters?: HealthHistoryFilters): Promise<HealthHistoryResponse> => {
+    const params = new URLSearchParams();
+    if (filters?.days) params.append('days', filters.days.toString());
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/cameras/${id}/health-history?${queryString}`
+      : `/api/cameras/${id}/health-history`;
+
+    const response = await apiClient.get<HealthHistoryResponse>(url);
     return response.data;
   },
 };
