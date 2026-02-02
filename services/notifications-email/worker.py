@@ -39,10 +39,11 @@ def process_email_message(message: Dict[str, Any]) -> None:
     body_text = message.get('body_text')
     body_html = message.get('body_html')
 
-    if not all([log_id, to_email, subject, body_text]):
+    # Validate required fields (log_id is optional for test messages)
+    if not all([to_email, subject, body_text]):
         logger.error(
             "Invalid message format",
-            has_log_id=bool(log_id),
+            has_log_id=log_id is not None,
             has_to_email=bool(to_email),
             has_subject=bool(subject),
             has_body_text=bool(body_text)
@@ -66,8 +67,9 @@ def process_email_message(message: Dict[str, Any]) -> None:
             body_html=body_html
         )
 
-        # Update notification log status
-        update_notification_status(log_id, 'sent')
+        # Update notification log status (if log_id provided)
+        if log_id:
+            update_notification_status(log_id, 'sent')
 
         logger.info(
             "Email sent successfully",
@@ -85,8 +87,9 @@ def process_email_message(message: Dict[str, Any]) -> None:
             exc_info=True
         )
 
-        # Update notification log with error
-        update_notification_status(log_id, 'failed', error_message=error_msg)
+        # Update notification log with error (if log_id provided)
+        if log_id:
+            update_notification_status(log_id, 'failed', error_message=error_msg)
 
         # Re-raise to potentially trigger retry logic in the future
         raise
