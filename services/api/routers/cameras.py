@@ -5,12 +5,12 @@ from typing import List, Optional
 from datetime import datetime, timedelta, date, timezone
 import csv
 import io
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project, Image
+from shared.models import User, Camera, Project, Image, CameraHealthReport
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -94,6 +94,27 @@ class BulkImportResponse(BaseModel):
     success_count: int
     failed_count: int
     results: List[CameraImportRow]
+
+
+class HealthReportPoint(BaseModel):
+    """Single health report data point"""
+    date: str  # YYYY-MM-DD
+    battery_percent: Optional[int] = None
+    signal_quality: Optional[int] = None
+    temperature_c: Optional[int] = None
+    sd_utilization_percent: Optional[float] = None
+    total_images: Optional[int] = None
+    sent_images: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class HealthHistoryResponse(BaseModel):
+    """Camera health history response"""
+    camera_id: int
+    camera_name: str
+    reports: List[HealthReportPoint]
 
 
 def parse_camera_status(camera: Camera) -> str:
@@ -261,6 +282,103 @@ async def get_camera(
     last_image_timestamp = last_image_result.scalar_one_or_none()
 
     return camera_to_response(camera, last_image_timestamp)
+
+
+@router.get(
+    "/{camera_id}/health-history",
+    response_model=HealthHistoryResponse,
+)
+async def get_camera_health_history(
+    camera_id: int,
+    days: int = Query(30, ge=1, le=365, description="Number of days to look back (1-365)"),
+    start_date: Optional[date] = Query(None, description="Start date (overrides days if provided)"),
+    end_date: Optional[date] = Query(None, description="End date (defaults to today)"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get historical health reports for a camera.
+
+    Returns daily health metrics over the specified time range.
+    Supports preset ranges (7/30/90 days) via `days` parameter,
+    or custom ranges via start_date/end_date.
+
+    Args:
+        camera_id: Camera ID
+        days: Number of days to look back (default 30, max 365)
+        start_date: Custom start date (YYYY-MM-DD)
+        end_date: Custom end date (YYYY-MM-DD, defaults to today)
+        accessible_project_ids: Project IDs accessible to user
+        db: Database session
+        current_user: Current authenticated user
+
+    Returns:
+        Health history with daily data points
+
+    Raises:
+        HTTPException: If camera not found or not accessible
+    """
+    # Get camera and verify access
+    result = await db.execute(
+        select(Camera).where(Camera.id == camera_id)
+    )
+    camera = result.scalar_one_or_none()
+
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Camera not found",
+        )
+
+    if camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this camera"
+        )
+
+    # Calculate date range
+    if end_date is None:
+        end_date = date.today()
+
+    if start_date is None:
+        start_date = end_date - timedelta(days=days)
+
+    # Query health reports
+    query = (
+        select(CameraHealthReport)
+        .where(
+            and_(
+                CameraHealthReport.camera_id == camera_id,
+                CameraHealthReport.report_date >= start_date,
+                CameraHealthReport.report_date <= end_date,
+            )
+        )
+        .order_by(CameraHealthReport.report_date)
+    )
+
+    result = await db.execute(query)
+    reports = result.scalars().all()
+
+    # Convert to response format
+    report_points = [
+        HealthReportPoint(
+            date=report.report_date.isoformat(),
+            battery_percent=report.battery_percent,
+            signal_quality=report.signal_quality,
+            temperature_c=report.temperature_c,
+            sd_utilization_percent=report.sd_utilization_percent,
+            total_images=report.total_images,
+            sent_images=report.sent_images,
+        )
+        for report in reports
+    ]
+
+    return HealthHistoryResponse(
+        camera_id=camera_id,
+        camera_name=camera.name,
+        reports=report_points,
+    )
 
 
 @router.post(

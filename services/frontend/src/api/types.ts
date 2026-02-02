@@ -30,6 +30,29 @@ export interface Camera {
   sent_images?: number;
 }
 
+// Camera health history types
+export interface HealthReportPoint {
+  date: string;  // YYYY-MM-DD
+  battery_percent: number | null;
+  signal_quality: number | null;
+  temperature_c: number | null;
+  sd_utilization_percent: number | null;
+  total_images: number | null;
+  sent_images: number | null;
+}
+
+export interface HealthHistoryResponse {
+  camera_id: number;
+  camera_name: string;
+  reports: HealthReportPoint[];
+}
+
+export interface HealthHistoryFilters {
+  days?: number;
+  start_date?: string;  // YYYY-MM-DD
+  end_date?: string;    // YYYY-MM-DD
+}
+
 export interface ImageListItem {
   uuid: string;
   filename: string;

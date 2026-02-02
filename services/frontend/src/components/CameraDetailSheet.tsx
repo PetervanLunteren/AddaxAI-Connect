@@ -31,8 +31,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from './ui/Dialog';
+import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
+import { cn } from '../lib/utils';
 
 interface CameraDetailSheetProps {
   camera: Camera | null;
@@ -56,11 +58,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
 
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
 
-  // Reset editing state when camera changes or sheet closes
+  // Reset editing state and tab when camera changes or sheet closes
   useEffect(() => {
     if (camera) {
       setEditForm({
@@ -77,6 +80,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       });
     }
     setIsEditing(false);
+    setActiveTab('details');
   }, [camera]);
 
   // Update mutation
@@ -200,17 +204,45 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            {/* Status section */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Status</h3>
-              <div className="flex items-center gap-2">
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: getStatusColor(camera.status) }}
-                />
-                <span className="font-medium">{getStatusLabel(camera.status)}</span>
-              </div>
+            {/* Tab navigation */}
+            <div className="flex border-b -mt-2">
+              <button
+                onClick={() => setActiveTab('details')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                  activeTab === 'details'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Details
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                  activeTab === 'history'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                History
+              </button>
             </div>
+
+            {activeTab === 'details' ? (
+              <>
+                {/* Status section */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Status</h3>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: getStatusColor(camera.status) }}
+                    />
+                    <span className="font-medium">{getStatusLabel(camera.status)}</span>
+                  </div>
+                </div>
 
             {/* Health metrics section */}
             <div>
@@ -507,6 +539,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                 )}
               </div>
+            )}
+              </>
+            ) : (
+              <CameraHealthHistoryChart cameraId={camera.id} />
             )}
           </SheetBody>
 
