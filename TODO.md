@@ -4,6 +4,7 @@
 - [ ] blur people and vehicles disable only by server admin
 - [ ] Limit the notifcation species options to only the ones selected to be poresent in the project.
 - [ ] The filtering options in the IMages page do not take into account the detection threhsold. If there eg is a fox below the det thresh, and a dog above it, the image will still show up if you search for "fox". 
+- [ ] Make it so that the webapp looks like a native app on iphone. 
 
 **SPW points**
 - [ ] export to camtrap DP
