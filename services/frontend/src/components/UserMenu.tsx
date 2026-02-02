@@ -83,8 +83,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
     },
     {
       icon: Users,
-      label: 'Manage users',
-      onClick: () => handleNavigate('/server/user-assignment'),
+      label: 'Server admins',
+      onClick: () => handleNavigate('/server/server-admin-management'),
       variant: 'default' as const,
     },
     {

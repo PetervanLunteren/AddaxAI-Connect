@@ -21,7 +21,7 @@ import { ImagesPage } from './pages/ImagesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { AboutPage } from './pages/AboutPage';
 import { ProjectsPage } from './pages/ProjectsPage';
-import { UserAssignmentPage } from './pages/server/UserAssignmentPage';
+import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementPage';
 import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
 import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
@@ -57,17 +57,21 @@ function App() {
 
               {/* Server administration pages (superuser only) */}
               <Route
-                path="/server/user-assignment"
+                path="/server/server-admin-management"
                 element={
                   <ProtectedRoute>
-                    <UserAssignmentPage />
+                    <ServerAdminManagementPage />
                   </ProtectedRoute>
                 }
               />
-              {/* Alias for admin users page */}
+              {/* Aliases for backwards compatibility */}
+              <Route
+                path="/server/user-assignment"
+                element={<Navigate to="/server/server-admin-management" replace />}
+              />
               <Route
                 path="/admin/users"
-                element={<Navigate to="/server/user-assignment" replace />}
+                element={<Navigate to="/server/server-admin-management" replace />}
               />
               <Route
                 path="/server/rejected-files"
