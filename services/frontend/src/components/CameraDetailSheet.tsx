@@ -14,11 +14,6 @@ import {
   Trash2,
   Loader2,
   ExternalLink,
-  Battery,
-  Signal,
-  HardDrive,
-  MapPin,
-  Clock,
   Camera as CameraIcon,
   Save,
   X,
@@ -240,115 +235,77 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
             {/* Overview tab */}
             {activeTab === 'overview' && (
-              <>
-                {/* Status section */}
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Status</h3>
-                  <div className="flex items-center gap-2">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="flex items-center gap-2">
                     <span
-                      className="w-3 h-3 rounded-full"
+                      className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: getStatusColor(camera.status) }}
                     />
                     <span className="font-medium">{getStatusLabel(camera.status)}</span>
-                  </div>
+                  </span>
                 </div>
-
-                {/* Health metrics section */}
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Health metrics</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <Battery className="h-4 w-4" />
-                        Battery
-                      </span>
-                      <span
-                        className="font-medium"
-                        style={{ color: getBatteryColor(camera.battery_percentage) }}
-                      >
-                        {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <Signal className="h-4 w-4" />
-                        Signal
-                      </span>
-                      <span
-                        className="font-medium"
-                        style={{ color: getSignalColor(camera.signal_quality) }}
-                      >
-                        {getSignalLabel(camera.signal_quality)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <HardDrive className="h-4 w-4" />
-                        SD card
-                      </span>
-                      <span
-                        className="font-medium"
-                        style={{ color: getSDColor(camera.sd_utilization_percentage) }}
-                      >
-                        {camera.sd_utilization_percentage !== null
-                          ? `${Math.round(camera.sd_utilization_percentage)}%`
-                          : 'N/A'}
-                      </span>
-                    </div>
-                  </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Battery</span>
+                  <span
+                    className="font-medium"
+                    style={{ color: getBatteryColor(camera.battery_percentage) }}
+                  >
+                    {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
+                  </span>
                 </div>
-
-                {/* Activity section */}
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Activity</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
-                        Last report
-                      </span>
-                      <span>{formatTimestamp(camera.last_report_timestamp)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <CameraIcon className="h-4 w-4" />
-                        Last image
-                      </span>
-                      <span>{formatTimestamp(camera.last_image_timestamp)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <HardDrive className="h-4 w-4" />
-                        Images on SD card
-                      </span>
-                      <span className="font-medium">{camera.total_images ?? 'N/A'}</span>
-                    </div>
-                  </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Signal</span>
+                  <span
+                    className="font-medium"
+                    style={{ color: getSignalColor(camera.signal_quality) }}
+                  >
+                    {getSignalLabel(camera.signal_quality)}
+                  </span>
                 </div>
-
-                {/* Location section */}
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Location</h3>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SD card</span>
+                  <span
+                    className="font-medium"
+                    style={{ color: getSDColor(camera.sd_utilization_percentage) }}
+                  >
+                    {camera.sd_utilization_percentage !== null
+                      ? `${Math.round(camera.sd_utilization_percentage)}%`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Last report</span>
+                  <span>{formatTimestamp(camera.last_report_timestamp)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Last image</span>
+                  <span>{formatTimestamp(camera.last_image_timestamp)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Images on SD card</span>
+                  <span>{camera.total_images ?? 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Location</span>
                   {camera.location ? (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">
-                        {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
-                      </span>
+                    <span className="flex items-center gap-1">
+                      {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
                       <a
                         href={getGoogleMapsUrl(camera.location)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>
-                    </div>
+                    </span>
                   ) : (
-                    <span className="text-sm text-muted-foreground">Unknown</span>
+                    <span>Unknown</span>
                   )}
                 </div>
-              </>
+              </div>
             )}
 
             {/* History tab */}
