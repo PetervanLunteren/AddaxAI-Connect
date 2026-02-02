@@ -1,11 +1,12 @@
 /**
  * Camera detail side panel
  *
- * Shows full camera details in a slide-out panel with 4 tabs:
+ * Shows full camera details in a slide-out panel with tabs:
  * - Notes: Friendly name and remarks (admins only, first tab)
  * - Overview: Status, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
  * - Details: Administrative info like IMEI, serial, SIM (admins only)
+ * - Actions: Delete camera and other admin actions (server admins only)
  */
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -43,7 +44,7 @@ interface CameraDetailSheetProps {
   onUpdate?: (updatedCamera: Camera) => void;
 }
 
-type TabType = 'overview' | 'history' | 'details' | 'notes';
+type TabType = 'overview' | 'history' | 'details' | 'notes' | 'actions';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
@@ -191,8 +192,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     </button>
   );
 
-  // Check if footer should be shown (only on Details tab for admins)
-  const showFooter = canAdmin && activeTab === 'details';
+  // Check if footer should be shown (only on Details tab for server admins who can edit)
+  const showFooter = isServerAdmin && activeTab === 'details';
 
   return (
     <>
@@ -212,6 +213,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               {canAdmin && <TabButton tab="details" label="Details" />}
+              {isServerAdmin && <TabButton tab="actions" label="Actions" />}
             </div>
 
             {/* Overview tab */}
@@ -469,9 +471,28 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 )}
               </div>
             )}
+
+            {/* Actions tab (server admins only) */}
+            {activeTab === 'actions' && isServerAdmin && (
+              <div className="space-y-4">
+                <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                  <h4 className="text-sm font-medium text-destructive mb-2">Danger zone</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Deleting a camera will remove all associated data. This action cannot be undone.
+                  </p>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete camera
+                  </Button>
+                </div>
+              </div>
+            )}
           </SheetBody>
 
-          {/* Admin actions footer - only show on Details and Notes tabs */}
+          {/* Admin actions footer - only show on Details tab for server admins */}
           {showFooter && (
             <SheetFooter>
               {isEditing ? (
@@ -499,20 +520,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </Button>
                 </>
               ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                  <Button onClick={() => setIsEditing(true)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </Button>
-                </>
+                <Button onClick={() => setIsEditing(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
               )}
             </SheetFooter>
           )}
