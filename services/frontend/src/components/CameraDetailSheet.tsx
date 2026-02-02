@@ -2,7 +2,7 @@
  * Camera detail side panel
  *
  * Shows full camera details in a slide-out panel with tabs:
- * - Notes: Friendly name and remarks (admins only, first tab)
+ * - Notes: Friendly name and remarks (all users, editable by admins)
  * - Overview: Status, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
  * - Details: Administrative info like IMEI, serial, SIM (admins only)
@@ -58,7 +58,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>(canAdmin ? 'notes' : 'overview');
+  const [activeTab, setActiveTab] = useState<TabType>('notes');
 
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
@@ -80,8 +80,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       });
     }
     setIsEditing(false);
-    setActiveTab(canAdmin ? 'notes' : 'overview');
-  }, [camera, canAdmin]);
+    setActiveTab('notes');
+  }, [camera]);
 
   // Check if notes have been modified
   const notesModified = camera && (
@@ -209,7 +209,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           <SheetBody className="space-y-6">
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">
-              {canAdmin && <TabButton tab="notes" label="Notes" />}
+              <TabButton tab="notes" label="Notes" />
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               {canAdmin && <TabButton tab="details" label="Details" />}
@@ -429,8 +429,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               </div>
             )}
 
-            {/* Notes tab (admins only) */}
-            {activeTab === 'notes' && canAdmin && (
+            {/* Notes tab (visible to all, editable by admins) */}
+            {activeTab === 'notes' && (
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-muted-foreground">Friendly name</label>
@@ -438,7 +438,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     type="text"
                     value={editForm.friendly_name || ''}
                     onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    disabled={!canAdmin}
+                    className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -446,11 +447,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   <textarea
                     value={editForm.remark || ''}
                     onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    disabled={!canAdmin}
+                    className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
                     rows={4}
                   />
                 </div>
-                {notesModified && (
+                {notesModified && canAdmin && (
                   <Button
                     onClick={handleSave}
                     disabled={updateMutation.isPending}
