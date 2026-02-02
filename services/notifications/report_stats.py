@@ -97,9 +97,10 @@ def get_overview_stats(
             Classification.species,
             func.min(Image.uploaded_at).label('first_seen')
         )
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
+        .select_from(Classification)
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
         .where(
             and_(
                 Camera.project_id == project_id,
