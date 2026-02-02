@@ -272,8 +272,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <CameraIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Total images:</span>
-                  <span className="text-sm font-medium">{camera.total_images ?? 0}</span>
+                  <span className="text-sm">Images on SD card:</span>
+                  <span className="text-sm font-medium">{camera.total_images ?? 'N/A'}</span>
                 </div>
               </div>
             </div>
