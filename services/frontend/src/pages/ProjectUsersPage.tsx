@@ -131,15 +131,18 @@ export const ProjectUsersPage: React.FC = () => {
 
   const getRoleBadge = (role: string) => {
     const config = {
-      'project-admin': { label: 'project admin', icon: UsersIcon, className: 'bg-blue-100 text-blue-700' },
-      'project-viewer': { label: 'project viewer', icon: Eye, className: 'bg-gray-100 text-gray-700' },
-      'server-admin': { label: 'server admin', icon: Shield, className: 'bg-purple-100 text-purple-700' },
-    }[role] || { label: role, icon: Shield, className: 'bg-gray-100 text-gray-700' };
+      'project-admin': { label: 'project admin', icon: UsersIcon, color: '#ff8945' },
+      'project-viewer': { label: 'project viewer', icon: Eye, color: '#71b7ba' },
+      'server-admin': { label: 'server admin', icon: Shield, color: '#0f6064' },
+    }[role] || { label: role, icon: Shield, color: '#71b7ba' };
 
     const Icon = config.icon;
 
     return (
-      <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${config.className}`}>
+      <div
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium"
+        style={{ backgroundColor: `${config.color}1a`, color: config.color }}
+      >
         <Icon className="h-3 w-3" />
         <span>{config.label}</span>
       </div>
@@ -151,7 +154,7 @@ export const ProjectUsersPage: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-0">Users</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage user access and permissions</p>
+          <p className="text-sm text-muted-foreground mt-1">Manage user access and permissions</p>
         </div>
         <Button onClick={() => setShowAddUserModal(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
@@ -188,11 +191,17 @@ export const ProjectUsersPage: React.FC = () => {
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>
                       {user.is_registered ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
+                        <span
+                          className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
+                          style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
+                        >
                           Yes
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-700">
+                        <span
+                          className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
+                          style={{ backgroundColor: '#8820001a', color: '#882000' }}
+                        >
                           No
                         </span>
                       )}
@@ -200,12 +209,18 @@ export const ProjectUsersPage: React.FC = () => {
                     <TableCell>
                       <div className="flex gap-2">
                         {user.is_registered && user.is_active && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700">
+                          <span
+                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
+                            style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
+                          >
                             Active
                           </span>
                         )}
                         {user.is_registered && user.is_verified && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700">
+                          <span
+                            className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
+                            style={{ backgroundColor: '#71b7ba1a', color: '#71b7ba' }}
+                          >
                             Verified
                           </span>
                         )}
@@ -266,7 +281,7 @@ export const ProjectUsersPage: React.FC = () => {
                 id="email"
                 type="email"
                 placeholder="user@example.com"
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full mt-1 px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                 value={addUserEmail}
                 onChange={(e) => setAddUserEmail(e.target.value)}
               />
@@ -335,7 +350,7 @@ export const ProjectUsersPage: React.FC = () => {
               <SelectItem value="project-viewer">project viewer</SelectItem>
               <SelectItem value="project-admin">project admin</SelectItem>
             </Select>
-            <p className="text-xs text-gray-500 mt-1">Current value: {selectedRole}</p>
+            <p className="text-xs text-muted-foreground mt-1">Current value: {selectedRole}</p>
           </div>
 
           <DialogFooter>
