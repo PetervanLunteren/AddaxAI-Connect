@@ -114,3 +114,6 @@ services/api/alembic/versions/*.pyc
 
 # Debug stuff
 debug-evidence/*
+
+# Email template preview
+email_preview.html
