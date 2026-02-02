@@ -39,6 +39,7 @@ interface CameraDetailSheetProps {
   isOpen: boolean;
   onClose: () => void;
   canAdmin: boolean;
+  isServerAdmin: boolean;
   projectId?: number;
   onUpdate?: (updatedCamera: Camera) => void;
 }
@@ -48,6 +49,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   isOpen,
   onClose,
   canAdmin,
+  isServerAdmin,
   projectId,
   onUpdate,
 }) => {
@@ -301,11 +303,11 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               )}
             </div>
 
-            {/* Admin-only fields */}
+            {/* Basic details - editable by all admins */}
             {canAdmin && (
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                  Administrative details
+                  Basic details
                 </h3>
                 {isEditing ? (
                   <div className="space-y-3">
@@ -318,6 +320,42 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         className="w-full px-3 py-2 border rounded-md text-sm"
                       />
                     </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Remark</label>
+                      <textarea
+                        value={editForm.remark || ''}
+                        onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Friendly name</span>
+                      <span>{camera.name || '-'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Remark</span>
+                      <span className="max-w-[200px] truncate" title={camera.remark || ''}>
+                        {camera.remark || '-'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Administrative details - editable only by server admins */}
+            {canAdmin && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">
+                  Administrative details
+                  {!isServerAdmin && <span className="text-xs font-normal ml-2">(read-only)</span>}
+                </h3>
+                {isEditing && isServerAdmin ? (
+                  <div className="space-y-3">
                     <div>
                       <label className="text-xs text-muted-foreground">IMEI</label>
                       <input
@@ -373,15 +411,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         value={editForm.firmware || ''}
                         onChange={(e) => setEditForm({ ...editForm, firmware: e.target.value })}
                         className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Remark</label>
-                      <textarea
-                        value={editForm.remark || ''}
-                        onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        rows={2}
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -444,12 +473,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Firmware</span>
                       <span>{camera.firmware || '-'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Remark</span>
-                      <span className="max-w-[200px] truncate" title={camera.remark || ''}>
-                        {camera.remark || '-'}
-                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">SIM card</span>

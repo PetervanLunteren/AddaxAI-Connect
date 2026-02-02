@@ -47,7 +47,7 @@ import type { Camera } from '../api/types';
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const { selectedProject: currentProject, canAdminCurrentProject } = useProject();
+  const { selectedProject: currentProject, canAdminCurrentProject, isServerAdmin } = useProject();
 
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
@@ -532,6 +532,7 @@ export const CamerasPage: React.FC = () => {
           setSelectedCamera(null);
         }}
         canAdmin={canAdminCurrentProject}
+        isServerAdmin={isServerAdmin}
         projectId={currentProject?.id}
         onUpdate={(updatedCamera) => setSelectedCamera(updatedCamera)}
       />
