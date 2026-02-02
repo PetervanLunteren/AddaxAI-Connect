@@ -2,7 +2,8 @@
  * Cameras page with health status table and management functionality
  *
  * All users can view camera health metrics.
- * Admins can add, edit, delete cameras and import from CSV.
+ * Server admins can add, delete cameras and import from CSV.
+ * Project admins can edit camera notes (friendly name, remarks).
  */
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -277,7 +278,7 @@ export const CamerasPage: React.FC = () => {
             Monitor camera health, battery levels, and connectivity status
           </p>
         </div>
-        {canAdminCurrentProject && (
+        {isServerAdmin && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={openImportDialog}>
               <Upload className="h-4 w-4 mr-2" />
@@ -537,8 +538,8 @@ export const CamerasPage: React.FC = () => {
         onUpdate={(updatedCamera) => setSelectedCamera(updatedCamera)}
       />
 
-      {/* Add Camera Dialog */}
-      {canAdminCurrentProject && (
+      {/* Add Camera Dialog (server admins only) */}
+      {isServerAdmin && (
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogContent onClose={() => setShowAddDialog(false)}>
             <DialogHeader>
@@ -735,8 +736,8 @@ export const CamerasPage: React.FC = () => {
         </Dialog>
       )}
 
-      {/* CSV Import Dialog */}
-      {canAdminCurrentProject && (
+      {/* CSV Import Dialog (server admins only) */}
+      {isServerAdmin && (
         <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
           <DialogContent onClose={() => setShowImportDialog(false)} className="max-w-4xl">
             <DialogHeader>
