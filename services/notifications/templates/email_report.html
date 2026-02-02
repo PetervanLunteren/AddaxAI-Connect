@@ -35,21 +35,34 @@
 
         /* Header */
         .header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: #0f6064;
             color: #ffffff;
             padding: 32px 24px;
             text-align: center;
         }
 
+        .header-logo {
+            margin: 0 auto 16px auto;
+            width: 48px;
+            height: 48px;
+        }
+
         .header h1 {
             font-size: 24px;
             font-weight: 600;
-            margin: 0 0 8px 0;
+            margin: 0 0 4px 0;
         }
 
-        .header p {
+        .header .report-type {
+            font-size: 16px;
+            font-weight: 500;
+            margin: 0 0 8px 0;
+            color: #71b7ba;
+        }
+
+        .header .period {
             font-size: 14px;
-            opacity: 0.9;
+            opacity: 0.85;
             margin: 0;
         }
 
@@ -91,7 +104,7 @@
         .stat-value {
             font-size: 28px;
             font-weight: 700;
-            color: #2563eb;
+            color: #0f6064;
             line-height: 1.2;
         }
 
@@ -130,14 +143,14 @@
         }
 
         /* Health indicators */
-        .health-good { color: #059669; }
-        .health-warning { color: #d97706; }
-        .health-critical { color: #dc2626; }
+        .health-good { color: #0f6064; }
+        .health-warning { color: #ff8945; }
+        .health-critical { color: #882000; }
 
         /* Alert box */
         .alert-box {
-            background: #fef3c7;
-            border-left: 4px solid #f59e0b;
+            background: #fff5f0;
+            border-left: 4px solid #882000;
             border-radius: 0 8px 8px 0;
             padding: 12px 16px;
             margin-top: 16px;
@@ -146,20 +159,20 @@
         .alert-box-title {
             font-size: 14px;
             font-weight: 600;
-            color: #92400e;
+            color: #882000;
             margin: 0 0 4px 0;
         }
 
         .alert-box-content {
             font-size: 13px;
-            color: #78350f;
+            color: #882000;
             margin: 0;
         }
 
         /* Button */
         .btn {
             display: inline-block;
-            background: #2563eb;
+            background: #0f6064;
             color: #ffffff !important;
             text-decoration: none;
             padding: 12px 24px;
@@ -169,7 +182,7 @@
         }
 
         .btn:hover {
-            background: #1d4ed8;
+            background: #0a4a4d;
         }
 
         /* Footer */
@@ -181,7 +194,7 @@
         }
 
         .footer a {
-            color: #2563eb;
+            color: #0f6064;
             text-decoration: none;
         }
 
@@ -218,8 +231,10 @@
         <div class="card">
             <!-- Header -->
             <div class="header">
+                <img src="https://{{ domain }}/logo-square-no-text.png" alt="AddaxAI" class="header-logo">
                 <h1>{{ project_name }}</h1>
-                <p>{{ frequency }} report - {{ period_label }}</p>
+                <p class="report-type">{{ frequency }} report</p>
+                <p class="period">Showing results of {{ period_label }}</p>
             </div>
 
             {% if overview %}
