@@ -1,8 +1,11 @@
 /**
  * Camera detail side panel
  *
- * Shows full camera details in a slide-out panel.
- * Edit and delete functionality available to admins only.
+ * Shows full camera details in a slide-out panel with 4 tabs:
+ * - Overview: Status, health metrics, activity, location (all users)
+ * - History: Health history charts (all users)
+ * - Details: Administrative info like IMEI, serial, SIM (admins only)
+ * - Notes: Friendly name and remarks (admins only)
  */
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +20,6 @@ import {
   MapPin,
   Clock,
   Camera as CameraIcon,
-  Thermometer,
   Save,
   X,
 } from 'lucide-react';
@@ -46,6 +48,8 @@ interface CameraDetailSheetProps {
   onUpdate?: (updatedCamera: Camera) => void;
 }
 
+type TabType = 'overview' | 'history' | 'details' | 'notes';
+
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
   isOpen,
@@ -58,7 +62,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
 
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
@@ -80,7 +84,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       });
     }
     setIsEditing(false);
-    setActiveTab('details');
+    setActiveTab('overview');
   }, [camera]);
 
   // Update mutation
@@ -192,6 +196,24 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
 
+  // Tab button helper
+  const TabButton = ({ tab, label }: { tab: TabType; label: string }) => (
+    <button
+      onClick={() => setActiveTab(tab)}
+      className={cn(
+        'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+        activeTab === tab
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground'
+      )}
+    >
+      {label}
+    </button>
+  );
+
+  // Check if footer should be shown (only on editable tabs for admins)
+  const showFooter = canAdmin && (activeTab === 'details' || activeTab === 'notes');
+
   return (
     <>
       <Sheet open={isOpen} onOpenChange={onClose}>
@@ -206,31 +228,18 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           <SheetBody className="space-y-6">
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">
-              <button
-                onClick={() => setActiveTab('details')}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-                  activeTab === 'details'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Details
-              </button>
-              <button
-                onClick={() => setActiveTab('history')}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-                  activeTab === 'history'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                )}
-              >
-                History
-              </button>
+              <TabButton tab="overview" label="Overview" />
+              <TabButton tab="history" label="History" />
+              {canAdmin && (
+                <>
+                  <TabButton tab="details" label="Details" />
+                  <TabButton tab="notes" label="Notes" />
+                </>
+              )}
             </div>
 
-            {activeTab === 'details' ? (
+            {/* Overview tab */}
+            {activeTab === 'overview' && (
               <>
                 {/* Status section */}
                 <div>
@@ -244,157 +253,111 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                 </div>
 
-            {/* Health metrics section */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Health metrics</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <Battery className="h-4 w-4" />
-                    Battery
-                  </span>
-                  <span
-                    className="font-medium"
-                    style={{ color: getBatteryColor(camera.battery_percentage) }}
-                  >
-                    {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <Signal className="h-4 w-4" />
-                    Signal
-                  </span>
-                  <span
-                    className="font-medium"
-                    style={{ color: getSignalColor(camera.signal_quality) }}
-                  >
-                    {getSignalLabel(camera.signal_quality)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <HardDrive className="h-4 w-4" />
-                    SD card
-                  </span>
-                  <span
-                    className="font-medium"
-                    style={{ color: getSDColor(camera.sd_utilization_percentage) }}
-                  >
-                    {camera.sd_utilization_percentage !== null
-                      ? `${Math.round(camera.sd_utilization_percentage)}%`
-                      : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <Thermometer className="h-4 w-4" />
-                    Temperature
-                  </span>
-                  <span className="font-medium">
-                    {camera.temperature !== null ? `${camera.temperature}°C` : 'N/A'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Timestamps section */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Activity</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    Last report
-                  </span>
-                  <span>{formatTimestamp(camera.last_report_timestamp)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <CameraIcon className="h-4 w-4" />
-                    Last image
-                  </span>
-                  <span>{formatTimestamp(camera.last_image_timestamp)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <HardDrive className="h-4 w-4" />
-                    Images on SD card
-                  </span>
-                  <span className="font-medium">{camera.total_images ?? 'N/A'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Location section */}
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Location</h3>
-              {camera.location ? (
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
-                  </span>
-                  <a
-                    href={getGoogleMapsUrl(camera.location)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">Unknown</span>
-              )}
-            </div>
-
-            {/* Basic details - editable by all admins */}
-            {canAdmin && (
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                  Basic details
-                </h3>
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Friendly name</label>
-                      <input
-                        type="text"
-                        value={editForm.friendly_name || ''}
-                        onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Remark</label>
-                      <textarea
-                        value={editForm.remark || ''}
-                        onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                ) : (
+                {/* Health metrics section */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Health metrics</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Friendly name</span>
-                      <span>{camera.name || '-'}</span>
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <Battery className="h-4 w-4" />
+                        Battery
+                      </span>
+                      <span
+                        className="font-medium"
+                        style={{ color: getBatteryColor(camera.battery_percentage) }}
+                      >
+                        {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Remark</span>
-                      <span className="max-w-[200px] truncate" title={camera.remark || ''}>
-                        {camera.remark || '-'}
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <Signal className="h-4 w-4" />
+                        Signal
+                      </span>
+                      <span
+                        className="font-medium"
+                        style={{ color: getSignalColor(camera.signal_quality) }}
+                      >
+                        {getSignalLabel(camera.signal_quality)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <HardDrive className="h-4 w-4" />
+                        SD card
+                      </span>
+                      <span
+                        className="font-medium"
+                        style={{ color: getSDColor(camera.sd_utilization_percentage) }}
+                      >
+                        {camera.sd_utilization_percentage !== null
+                          ? `${Math.round(camera.sd_utilization_percentage)}%`
+                          : 'N/A'}
                       </span>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+
+                {/* Activity section */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Activity</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Last report
+                      </span>
+                      <span>{formatTimestamp(camera.last_report_timestamp)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <CameraIcon className="h-4 w-4" />
+                        Last image
+                      </span>
+                      <span>{formatTimestamp(camera.last_image_timestamp)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <HardDrive className="h-4 w-4" />
+                        Images on SD card
+                      </span>
+                      <span className="font-medium">{camera.total_images ?? 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location section */}
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Location</h3>
+                  {camera.location ? (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
+                      </span>
+                      <a
+                        href={getGoogleMapsUrl(camera.location)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Unknown</span>
+                  )}
+                </div>
+              </>
             )}
 
-            {/* Administrative details - editable only by server admins */}
-            {canAdmin && (
+            {/* History tab */}
+            {activeTab === 'history' && (
+              <CameraHealthHistoryChart cameraId={camera.id} />
+            )}
+
+            {/* Details tab (admins only) */}
+            {activeTab === 'details' && canAdmin && (
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">
                   Administrative details
@@ -540,14 +503,52 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 )}
               </div>
             )}
-              </>
-            ) : (
-              <CameraHealthHistoryChart cameraId={camera.id} />
+
+            {/* Notes tab (admins only) */}
+            {activeTab === 'notes' && canAdmin && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">Notes</h3>
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Friendly name</label>
+                      <input
+                        type="text"
+                        value={editForm.friendly_name || ''}
+                        onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Remarks</label>
+                      <textarea
+                        value={editForm.remark || ''}
+                        onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Friendly name</span>
+                      <span>{camera.name || '-'}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Remarks</span>
+                      <p className="mt-1 text-foreground whitespace-pre-wrap">
+                        {camera.remark || '-'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </SheetBody>
 
-          {/* Admin actions footer */}
-          {canAdmin && (
+          {/* Admin actions footer - only show on Details and Notes tabs */}
+          {showFooter && (
             <SheetFooter>
               {isEditing ? (
                 <>
