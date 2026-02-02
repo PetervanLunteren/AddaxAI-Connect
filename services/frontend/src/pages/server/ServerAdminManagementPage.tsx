@@ -29,7 +29,7 @@ import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../hooks/useAuth';
 
-export const UserAssignmentPage: React.FC = () => {
+export const ServerAdminManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
