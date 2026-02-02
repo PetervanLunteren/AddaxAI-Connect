@@ -2,10 +2,10 @@
  * Camera detail side panel
  *
  * Shows full camera details in a slide-out panel with 4 tabs:
+ * - Notes: Friendly name and remarks (admins only, first tab)
  * - Overview: Status, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
  * - Details: Administrative info like IMEI, serial, SIM (admins only)
- * - Notes: Friendly name and remarks (admins only)
  */
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -57,7 +57,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>(canAdmin ? 'notes' : 'overview');
 
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
@@ -79,8 +79,14 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       });
     }
     setIsEditing(false);
-    setActiveTab('overview');
-  }, [camera]);
+    setActiveTab(canAdmin ? 'notes' : 'overview');
+  }, [camera, canAdmin]);
+
+  // Check if notes have been modified
+  const notesModified = camera && (
+    editForm.friendly_name !== camera.name ||
+    editForm.remark !== (camera.remark || '')
+  );
 
   // Update mutation
   const updateMutation = useMutation({
@@ -185,8 +191,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     </button>
   );
 
-  // Check if footer should be shown (only on editable tabs for admins)
-  const showFooter = canAdmin && (activeTab === 'details' || activeTab === 'notes');
+  // Check if footer should be shown (only on Details tab for admins)
+  const showFooter = canAdmin && activeTab === 'details';
 
   return (
     <>
@@ -202,14 +208,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           <SheetBody className="space-y-6">
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">
+              {canAdmin && <TabButton tab="notes" label="Notes" />}
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
-              {canAdmin && (
-                <>
-                  <TabButton tab="details" label="Details" />
-                  <TabButton tab="notes" label="Notes" />
-                </>
-              )}
+              {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
 
             {/* Overview tab */}
@@ -427,42 +429,43 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
             {/* Notes tab (admins only) */}
             {activeTab === 'notes' && canAdmin && (
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground mb-3">Notes</h3>
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Friendly name</label>
-                      <input
-                        type="text"
-                        value={editForm.friendly_name || ''}
-                        onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Remarks</label>
-                      <textarea
-                        value={editForm.remark || ''}
-                        onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                        rows={4}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Friendly name</span>
-                      <span>{camera.name || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Remarks</span>
-                      <p className="mt-1 text-foreground whitespace-pre-wrap">
-                        {camera.remark || '-'}
-                      </p>
-                    </div>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-muted-foreground">Friendly name</label>
+                  <input
+                    type="text"
+                    value={editForm.friendly_name || ''}
+                    onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Remarks</label>
+                  <textarea
+                    value={editForm.remark || ''}
+                    onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    rows={4}
+                  />
+                </div>
+                {notesModified && (
+                  <Button
+                    onClick={handleSave}
+                    disabled={updateMutation.isPending}
+                    className="w-full"
+                  >
+                    {updateMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save changes
+                      </>
+                    )}
+                  </Button>
                 )}
               </div>
             )}
