@@ -215,32 +215,38 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Health metrics section */}
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Health metrics</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <Battery className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Battery:</span>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Battery className="h-4 w-4" />
+                    Battery
+                  </span>
                   <span
-                    className="text-sm font-medium"
+                    className="font-medium"
                     style={{ color: getBatteryColor(camera.battery_percentage) }}
                   >
                     {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Signal className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Signal:</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Signal className="h-4 w-4" />
+                    Signal
+                  </span>
                   <span
-                    className="text-sm font-medium"
+                    className="font-medium"
                     style={{ color: getSignalColor(camera.signal_quality) }}
                   >
                     {getSignalLabel(camera.signal_quality)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <HardDrive className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">SD card:</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <HardDrive className="h-4 w-4" />
+                    SD card
+                  </span>
                   <span
-                    className="text-sm font-medium"
+                    className="font-medium"
                     style={{ color: getSDColor(camera.sd_utilization_percentage) }}
                   >
                     {camera.sd_utilization_percentage !== null
@@ -248,10 +254,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       : 'N/A'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Thermometer className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Temp:</span>
-                  <span className="text-sm font-medium">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Thermometer className="h-4 w-4" />
+                    Temperature
+                  </span>
+                  <span className="font-medium">
                     {camera.temperature !== null ? `${camera.temperature}°C` : 'N/A'}
                   </span>
                 </div>
@@ -261,21 +269,27 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Timestamps section */}
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Activity</h3>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Last report:</span>
-                  <span className="text-sm">{formatTimestamp(camera.last_report_timestamp)}</span>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Last report
+                  </span>
+                  <span>{formatTimestamp(camera.last_report_timestamp)}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CameraIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Last image:</span>
-                  <span className="text-sm">{formatTimestamp(camera.last_image_timestamp)}</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <CameraIcon className="h-4 w-4" />
+                    Last image
+                  </span>
+                  <span>{formatTimestamp(camera.last_image_timestamp)}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CameraIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Images on SD card:</span>
-                  <span className="text-sm font-medium">{camera.total_images ?? 'N/A'}</span>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <HardDrive className="h-4 w-4" />
+                    Images on SD card
+                  </span>
+                  <span className="font-medium">{camera.total_images ?? 'N/A'}</span>
                 </div>
               </div>
             </div>
