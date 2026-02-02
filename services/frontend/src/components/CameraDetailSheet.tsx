@@ -457,7 +457,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">IMEI</span>
-                      <span className="font-mono">{camera.imei || '-'}</span>
+                      <span className="font-mono text-xs">{camera.imei || '-'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Serial number</span>
