@@ -103,7 +103,21 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   if (!camera) return null;
 
   const handleSave = () => {
-    updateMutation.mutate(editForm);
+    // Clean up empty strings - backend expects null/undefined, not empty strings
+    const cleanedData: UpdateCameraRequest = {};
+
+    if (editForm.friendly_name) cleanedData.friendly_name = editForm.friendly_name;
+    if (editForm.serial_number) cleanedData.serial_number = editForm.serial_number;
+    if (editForm.box) cleanedData.box = editForm.box;
+    if (editForm.order) cleanedData.order = editForm.order;
+    if (editForm.scanned_date) cleanedData.scanned_date = editForm.scanned_date;
+    if (editForm.firmware) cleanedData.firmware = editForm.firmware;
+    if (editForm.remark) cleanedData.remark = editForm.remark;
+    if (typeof editForm.has_sim === 'boolean') cleanedData.has_sim = editForm.has_sim;
+    if (editForm.imsi) cleanedData.imsi = editForm.imsi;
+    if (editForm.iccid) cleanedData.iccid = editForm.iccid;
+
+    updateMutation.mutate(cleanedData);
   };
 
   const handleDelete = () => {
