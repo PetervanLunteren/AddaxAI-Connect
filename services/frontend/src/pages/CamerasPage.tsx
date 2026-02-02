@@ -177,8 +177,8 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
                     <p className="text-2xl font-bold mt-1">{total}</p>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
-                    <CameraIcon className="h-6 w-6" style={{ color: '#71b7ba' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                    <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
                   </div>
                 </div>
               </CardContent>
@@ -207,8 +207,8 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium text-muted-foreground">Average SD card</p>
                     <p className="text-2xl font-bold mt-1">{avgSD}%</p>
                   </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#71b7ba20' }}>
-                    <HardDrive className="h-6 w-6" style={{ color: '#71b7ba' }} />
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
+                    <HardDrive className="h-6 w-6" style={{ color: '#0f6064' }} />
                   </div>
                 </div>
               </CardContent>
