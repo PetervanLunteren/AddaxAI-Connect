@@ -39,7 +39,7 @@ We use a HSL-based color system defined in `src/index.css`:
 
 ## Color palettes
 
-### For 
+### good / bad situations 
 Use these colors for any good / bad / middle situations like warnings/errors, active/incative, fail/pass, good/bad etc. 
 Bad / inactive  = #882000
 Middle          = #71b7ba
