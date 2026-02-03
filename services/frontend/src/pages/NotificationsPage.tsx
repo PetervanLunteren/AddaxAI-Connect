@@ -79,12 +79,7 @@ export const NotificationsPage: React.FC = () => {
 
   // Email reports state
   const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
-  const [reportEmail, setReportEmail] = useState('');
   const [reportFrequency, setReportFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
-  const [includeStats, setIncludeStats] = useState(true);
-  const [includeHealth, setIncludeHealth] = useState(true);
-  const [includeActivity, setIncludeActivity] = useState(true);
-  const [includeDetections, setIncludeDetections] = useState(true);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -145,7 +140,6 @@ export const NotificationsPage: React.FC = () => {
 
         setTelegramEnabled(telegramEnabledAny && hasTelegramChatId);
         setTelegramChatId((preferences as any).telegram_chat_id || '');
-        setReportEmail((preferences as any).report_email || '');
 
         // Convert species to options
         const telegramSpeciesValues = speciesConfig.notify_species || [];
@@ -162,10 +156,6 @@ export const NotificationsPage: React.FC = () => {
         const emailReportConfig = notificationChannels.email_report || {};
         setEmailReportsEnabled(emailReportConfig.enabled || false);
         setReportFrequency(emailReportConfig.frequency || 'weekly');
-        setIncludeStats(emailReportConfig.include_stats !== false);
-        setIncludeHealth(emailReportConfig.include_health !== false);
-        setIncludeActivity(emailReportConfig.include_activity !== false);
-        setIncludeDetections(emailReportConfig.include_detections !== false);
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
@@ -306,11 +296,7 @@ export const NotificationsPage: React.FC = () => {
       },
       email_report: {
         enabled: emailReportsEnabled,
-        frequency: reportFrequency,
-        include_stats: includeStats,
-        include_health: includeHealth,
-        include_activity: includeActivity,
-        include_detections: includeDetections
+        frequency: reportFrequency
       }
     };
 
@@ -323,8 +309,6 @@ export const NotificationsPage: React.FC = () => {
       notify_low_battery: legacyLowBattery,
       battery_threshold: legacyBatteryThreshold,
       notify_system_health: legacySystemHealth,
-      // Email reports
-      report_email: emailReportsEnabled && reportEmail.trim() ? reportEmail.trim() : null,
       // New multi-channel configuration
       notification_channels: notificationChannels,
     });
@@ -341,12 +325,12 @@ export const NotificationsPage: React.FC = () => {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Telegram Notifications Card */}
+          {/* Telegram notifications card */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
-                <CardTitle>Telegram Notifications</CardTitle>
+                <CardTitle>Telegram notifications</CardTitle>
               </div>
               <CardDescription>
                 Receive notifications via Telegram messenger
@@ -361,7 +345,7 @@ export const NotificationsPage: React.FC = () => {
                 disabled={!isTelegramConfigured}
               />
 
-              {/* Link Status and Button - When Telegram Configured AND Enabled */}
+              {/* Link status - when Telegram configured and enabled */}
               {isTelegramConfigured && telegramEnabled && (
                 <div className="mt-3 mb-4">
                   {linkStatus?.linked ? (
@@ -410,7 +394,7 @@ export const NotificationsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Warning Banner - When Telegram Not Configured and User Wants to Enable */}
+              {/* Warning banner - when Telegram not configured */}
               {telegramEnabled && !isTelegramConfigured && (
                 <div className="mb-4 p-4 border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 rounded-md">
                   <div className="flex items-start gap-4">
@@ -440,13 +424,13 @@ export const NotificationsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Notification Options - Only show if enabled AND linked */}
+              {/* Notification options - only show if enabled and linked */}
               {telegramEnabled && linkStatus?.linked && (
                 <>
-                  {/* Species Alerts */}
+                  {/* Species alerts */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
-                      Species Alerts
+                      Species alerts
                     </label>
                     <MultiSelect
                       options={speciesOptions}
@@ -461,20 +445,20 @@ export const NotificationsPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Battery Warnings */}
+                  {/* Battery warnings */}
                   <div>
                     <Checkbox
                       id="telegram-battery"
                       checked={telegramNotifyLowBattery}
                       onChange={setTelegramNotifyLowBattery}
-                      label="Battery Warnings"
+                      label="Battery warnings"
                       className="mb-3"
                     />
 
                     {telegramNotifyLowBattery && (
                       <div className="pl-8">
                         <label className="block text-sm font-medium mb-2">
-                          Battery Threshold (%)
+                          Battery threshold (%)
                         </label>
                         <div className="flex items-center gap-4">
                           <input
@@ -494,24 +478,24 @@ export const NotificationsPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* System Health */}
+                  {/* System health */}
                   <Checkbox
                     id="telegram-health"
                     checked={telegramNotifySystemHealth}
                     onChange={setTelegramNotifySystemHealth}
-                    label="System Health Alerts"
+                    label="System health alerts"
                   />
                 </>
               )}
             </CardContent>
           </Card>
 
-          {/* Email Reports Card */}
+          {/* Email reports card */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
-                <CardTitle>Email Reports</CardTitle>
+                <CardTitle>Email reports</CardTitle>
               </div>
               <CardDescription>
                 Receive scheduled email summaries with project statistics and insights
@@ -526,80 +510,26 @@ export const NotificationsPage: React.FC = () => {
               />
 
               {emailReportsEnabled && (
-                <>
-                  {/* Report Email */}
-                  <div>
-                    <label htmlFor="report-email" className="block text-sm font-medium mb-2">
-                      Report Email
-                    </label>
-                    <input
-                      id="report-email"
-                      type="email"
-                      value={reportEmail}
-                      onChange={(e) => setReportEmail(e.target.value)}
-                      placeholder="Leave empty to use your account email"
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Optional: specify a different email address for reports
-                    </p>
-                  </div>
-
-                  {/* Report Frequency */}
-                  <div>
-                    <label htmlFor="report-frequency" className="block text-sm font-medium mb-2">
-                      Report Frequency
-                    </label>
-                    <select
-                      id="report-frequency"
-                      value={reportFrequency}
-                      onChange={(e) => setReportFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="daily">Daily (sent every morning at 06:00 UTC)</option>
-                      <option value="weekly">Weekly (sent every Monday at 06:00 UTC)</option>
-                      <option value="monthly">Monthly (sent on the 1st at 06:00 UTC)</option>
-                    </select>
-                  </div>
-
-                  {/* Report Content Options */}
-                  <div>
-                    <label className="block text-sm font-medium mb-3">
-                      Report Content
-                    </label>
-                    <div className="space-y-3 pl-1">
-                      <Checkbox
-                        id="include-stats"
-                        checked={includeStats}
-                        onChange={setIncludeStats}
-                        label="Overview statistics (images, cameras, species counts)"
-                      />
-                      <Checkbox
-                        id="include-health"
-                        checked={includeHealth}
-                        onChange={setIncludeHealth}
-                        label="Camera health summary (active, inactive, low battery)"
-                      />
-                      <Checkbox
-                        id="include-activity"
-                        checked={includeActivity}
-                        onChange={setIncludeActivity}
-                        label="Activity patterns (peak hours, busiest days)"
-                      />
-                      <Checkbox
-                        id="include-detections"
-                        checked={includeDetections}
-                        onChange={setIncludeDetections}
-                        label="Notable detections (rare species, high confidence)"
-                      />
-                    </div>
-                  </div>
-                </>
+                <div>
+                  <label htmlFor="report-frequency" className="block text-sm font-medium mb-2">
+                    Report frequency
+                  </label>
+                  <select
+                    id="report-frequency"
+                    value={reportFrequency}
+                    onChange={(e) => setReportFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="daily">Daily (sent every morning at 06:00 UTC)</option>
+                    <option value="weekly">Weekly (sent every Monday at 06:00 UTC)</option>
+                    <option value="monthly">Monthly (sent on the 1st at 06:00 UTC)</option>
+                  </select>
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Save Button */}
+          {/* Save button */}
           <div className="flex justify-end">
             <button
               type="submit"
@@ -614,7 +544,7 @@ export const NotificationsPage: React.FC = () => {
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  Save Preferences
+                  Save preferences
                 </>
               )}
             </button>
@@ -622,13 +552,13 @@ export const NotificationsPage: React.FC = () => {
         </form>
       )}
 
-      {/* Telegram Linking Modal */}
+      {/* Telegram linking modal */}
       {showLinkModal && deepLink && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Link Your Telegram Account</h2>
+                <h2 className="text-xl font-bold">Link your Telegram account</h2>
                 <button
                   onClick={() => setShowLinkModal(false)}
                   className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
@@ -638,12 +568,12 @@ export const NotificationsPage: React.FC = () => {
               </div>
 
               <div className="space-y-6">
-                {/* QR Code */}
+                {/* QR code */}
                 <div className="flex justify-center bg-white p-4 rounded-lg">
                   <QRCode value={deepLink} size={200} />
                 </div>
 
-                {/* Open Telegram Button */}
+                {/* Open Telegram button */}
                 <div className="flex justify-center">
                   <a
                     href={deepLink}
@@ -665,7 +595,7 @@ export const NotificationsPage: React.FC = () => {
                   </ol>
                 </div>
 
-                {/* Check Status Button */}
+                {/* Check status button */}
                 <div className="flex justify-center">
                   <button
                     type="button"
