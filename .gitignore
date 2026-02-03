@@ -118,3 +118,4 @@ debug-evidence/*
 # Email template preview
 email_preview.html
 email_verification_preview.html
+email_previews/
