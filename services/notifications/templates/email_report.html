@@ -85,10 +85,14 @@
                                         {% else %}
                                         <span style="color: #882000; font-weight: 600;">{{ cameras.active }}/{{ cameras.total }} active</span>
                                         {% endif %}
+{% if cameras.avg_battery > 0 %}
                                         &nbsp;&nbsp;
                                         <span style="font-size: 14px; color: #6b7280;">Avg battery {{ cameras.avg_battery }}%</span>
+                                        {% endif %}
+                                        {% if cameras.avg_sd > 0 %}
                                         &nbsp;&nbsp;
                                         <span style="font-size: 14px; color: #6b7280;">Avg SD {{ cameras.avg_sd }}%</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                             </table>
