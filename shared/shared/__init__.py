@@ -7,6 +7,7 @@ This package provides common code shared across all microservices:
 - Redis queue client
 - MinIO storage client
 - Configuration loading
+- Email template rendering
 """
 
 import os
