@@ -236,18 +236,31 @@ def get_camera_health_summary(
         else:
             never_reported += 1
 
-        # Check battery
-        if camera.battery_percent is not None:
-            battery_values.append(camera.battery_percent)
-            if camera.battery_percent <= battery_threshold:
+        # Check battery - first try direct column, then config
+        battery = camera.battery_percent
+        if battery is None and camera.config:
+            health = camera.config.get('last_health_report', {})
+            battery = health.get('battery_percentage')
+
+        if battery is not None:
+            battery_values.append(battery)
+            if battery <= battery_threshold:
                 low_battery_cameras.append({
                     'name': camera.name,
-                    'battery': camera.battery_percent
+                    'battery': battery
                 })
 
-        # Check SD card usage
+        # Check SD card usage - first try direct columns, then config
+        sd_percent = None
         if camera.sd_used_mb is not None and camera.sd_total_mb is not None and camera.sd_total_mb > 0:
             sd_percent = int((camera.sd_used_mb / camera.sd_total_mb) * 100)
+        elif camera.config:
+            health = camera.config.get('last_health_report', {})
+            sd_percent = health.get('sd_utilization_percentage')
+            if sd_percent is not None:
+                sd_percent = int(sd_percent)
+
+        if sd_percent is not None:
             sd_values.append(sd_percent)
 
     # Calculate averages
