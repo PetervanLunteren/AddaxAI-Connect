@@ -520,7 +520,7 @@ export const NotificationsPage: React.FC = () => {
                     onChange={(e) => setReportFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
                     className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    <option value="daily">Daily (sent every morning at 06:00 UTC)</option>
+                    <option value="daily">Daily (sent at 06:00 UTC)</option>
                     <option value="weekly">Weekly (sent every Monday)</option>
                     <option value="monthly">Monthly (sent on the 1st)</option>
                   </select>
