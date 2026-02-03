@@ -1,0 +1,30 @@
+{% extends "base_email.html" %}
+
+{% block title %}Added to {{ project_name }} - AddaxAI Connect{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 20px; font-weight: 600; margin: 0; color: #0f6064;">Added to project</h1>
+{% endblock %}
+
+{% block content %}
+<p style="margin: 0 0 16px 0; color: #1f2937;">
+    <strong>{{ inviter_email }}</strong> has added you to the project <strong>{{ project_name }}</strong> as {{ role }}.
+</p>
+<p style="margin: 0 0 24px 0; color: #1f2937;">
+    You can now access this project from your dashboard.
+</p>
+{% endblock %}
+
+{% block cta %}
+<tr>
+    <td align="center" style="padding: 0 24px 32px 24px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td style="background: #0f6064; border-radius: 8px;">
+                    <a href="{{ login_url }}" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">View project</a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endblock %}

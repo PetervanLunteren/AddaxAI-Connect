@@ -1,0 +1,42 @@
+{% extends "base_email.html" %}
+
+{% block title %}Server admin invitation - AddaxAI Connect{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 20px; font-weight: 600; margin: 0; color: #0f6064;">Admin invitation</h1>
+{% endblock %}
+
+{% block content %}
+<p style="margin: 0 0 16px 0; color: #1f2937;">
+    <strong>{{ inviter_email }}</strong> has invited you to join AddaxAI Connect as a server administrator.
+</p>
+<p style="margin: 0 0 16px 0; color: #1f2937;">
+    Create an account to accept this invitation and manage the platform.
+</p>
+<p style="margin: 0 0 24px 0; color: #6b7280; font-size: 14px;">
+    This invitation will expire in {{ expiry_days }} days.
+</p>
+{% endblock %}
+
+{% block cta %}
+<tr>
+    <td align="center" style="padding: 0 24px 32px 24px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td style="background: #0f6064; border-radius: 8px;">
+                    <a href="{{ registration_url }}" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">Accept invitation</a>
+                </td>
+            </tr>
+        </table>
+        <p style="margin: 16px 0 0 0; font-size: 13px; color: #6b7280;">
+            Or copy this link: {{ registration_url }}
+        </p>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_link %}
+<p style="margin: 0; color: #6b7280; font-size: 13px;">
+    If you don't recognize this invitation, you can safely ignore this email.
+</p>
+{% endblock %}

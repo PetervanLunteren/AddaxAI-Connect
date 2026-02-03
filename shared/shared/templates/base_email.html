@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AddaxAI Connect{% endblock %}</title>
+    <!--[if mso]>
+    <style type="text/css">
+        table { border-collapse: collapse; }
+        .fallback-font { font-family: Arial, sans-serif; }
+    </style>
+    <![endif]-->
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #1f2937; background-color: #f3f4f6;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6;">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background: #ffffff; border-radius: 12px; overflow: hidden;">
+
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: rgba(15, 96, 100, 0.1); padding: 32px 24px; text-align: center;">
+                            <p style="font-size: 28px; font-weight: 700; color: #0f6064; margin: 0; letter-spacing: -0.5px;">AddaxAI</p>
+                            <p style="font-size: 28px; font-weight: 700; color: #0f6064; margin: 0 0 20px 0; letter-spacing: -0.5px;">Connect</p>
+                            {% block header_content %}{% endblock %}
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 32px 24px;">
+                            {% block content %}{% endblock %}
+                        </td>
+                    </tr>
+
+                    {% block extra_sections %}{% endblock %}
+
+                    <!-- CTA Button (optional) -->
+                    {% block cta %}{% endblock %}
+
+                </table>
+
+                <!-- Footer -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px;">
+                    <tr>
+                        <td align="center" style="padding: 24px; color: #6b7280; font-size: 13px;">
+                            {% block footer_link %}{% endblock %}
+                            <p style="margin: 12px 0 0 0;">
+                                AddaxAI Connect<br>
+                                Camera trap image processing platform
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

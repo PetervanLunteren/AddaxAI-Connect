@@ -6,8 +6,6 @@ containing comprehensive statistics for the report period.
 """
 from typing import Tuple, Optional, List, Dict, Any
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
 
 from sqlalchemy import select, and_
 
@@ -20,6 +18,7 @@ from shared.models import (
 )
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
+from shared.email_renderer import render_email
 
 from db_operations import create_notification_log
 from report_stats import (
@@ -34,13 +33,6 @@ from report_stats import (
 
 logger = get_logger("notifications.email_report")
 settings = get_settings()
-
-# Set up Jinja2 template environment
-TEMPLATE_DIR = Path(__file__).parent / "templates"
-jinja_env = Environment(
-    loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=True
-)
 
 
 def send_daily_reports() -> None:
@@ -373,15 +365,14 @@ def generate_report_content(
         'notable': [hero] if hero else []
     }
 
-    # Generate HTML
+    # Generate HTML and plain text using shared renderer
     try:
-        html_template = jinja_env.get_template('email_report.html')
-        html_content = html_template.render(**template_data)
+        html_content, _ = render_email('email_report.html', **template_data)
     except Exception as e:
         logger.warning("Failed to render HTML template, using text only", error=str(e))
         html_content = None
 
-    # Generate plain text
+    # Generate custom plain text for reports (more detailed than auto-generated)
     text_content = _generate_text_report(report_data)
 
     return html_content, text_content

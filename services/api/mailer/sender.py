@@ -1,15 +1,18 @@
 """
 Email sender using SMTP via aiosmtplib.
 
-Sends verification and password reset emails.
+Sends verification, password reset, and invitation emails.
 Crashes loudly if email configuration is missing.
 """
 import aiosmtplib
 from email.message import EmailMessage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from typing import Optional
 
 from shared.config import get_settings
 from shared.logger import get_logger
+from shared.email_renderer import render_email
 
 logger = get_logger("api.mailer")
 
@@ -56,7 +59,8 @@ class EmailSender:
         self,
         to_email: str,
         subject: str,
-        body: str,
+        body_text: str,
+        body_html: Optional[str] = None,
     ) -> None:
         """
         Send email via SMTP.
@@ -64,7 +68,8 @@ class EmailSender:
         Args:
             to_email: Recipient email address
             subject: Email subject line
-            body: Email body (plain text)
+            body_text: Email body (plain text)
+            body_html: Email body (HTML, optional)
 
         Raises:
             aiosmtplib.SMTPException: If email sending fails
@@ -79,19 +84,33 @@ class EmailSender:
             subject=subject,
             mail_server=self.settings.mail_server,
             mail_port=self.settings.mail_port,
+            has_html=body_html is not None,
         )
 
         try:
-            message = EmailMessage()
-            message["From"] = self.settings.mail_from
-            message["To"] = to_email
-            message["Subject"] = subject
-            message.set_content(body)
+            if body_html:
+                # Multipart message with HTML and text alternatives
+                message = MIMEMultipart("alternative")
+                message["From"] = self.settings.mail_from
+                message["To"] = to_email
+                message["Subject"] = subject
+
+                # Attach plain text first (fallback)
+                part_text = MIMEText(body_text, "plain", "utf-8")
+                message.attach(part_text)
+
+                # Attach HTML (preferred)
+                part_html = MIMEText(body_html, "html", "utf-8")
+                message.attach(part_html)
+            else:
+                # Plain text only
+                message = EmailMessage()
+                message["From"] = self.settings.mail_from
+                message["To"] = to_email
+                message["Subject"] = subject
+                message.set_content(body_text)
 
             # Auto-detect TLS mode based on port
-            # Port 465: use_tls=True (implicit TLS/SSL from start)
-            # Port 587: start_tls=True (STARTTLS upgrade)
-            # Port 25: no TLS (not recommended)
             port = self.settings.mail_port
             if port == 465:
                 # Implicit TLS for port 465 (SMTPS)
@@ -148,24 +167,14 @@ class EmailSender:
         """
         verification_url = f"https://{self.settings.domain_name}/verify-email?token={token}"
 
+        html_content, text_content = render_email(
+            "email_verification.html",
+            verification_url=verification_url,
+            expiry_hours=24,
+        )
+
         subject = "AddaxAI Connect - Verify Your Email"
-        body = f"""
-Welcome to AddaxAI Connect!
-
-Please verify your email address by clicking the link below:
-
-{verification_url}
-
-This link will expire in 24 hours.
-
-If you did not create an account, please ignore this email.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
     async def send_password_reset_email(
         self,
@@ -190,25 +199,14 @@ Realtime camera trap image processing platform
 
         reset_url = f"https://{self.settings.domain_name}/reset-password?token={token}"
 
+        html_content, text_content = render_email(
+            "password_reset.html",
+            reset_url=reset_url,
+            expiry_hours=1,
+        )
+
         subject = "AddaxAI Connect - Password Reset"
-        body = f"""
-You requested a password reset for your AddaxAI Connect account.
-
-Click the link below to reset your password:
-
-{reset_url}
-
-This link will expire in 1 hour.
-
-If you did not request a password reset, please ignore this email.
-Your password will not be changed.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
         logger.info(
             "Password reset email sent",
@@ -249,33 +247,20 @@ Realtime camera trap image processing platform
         # Format role for display
         role_display = role.replace('-', ' ').title()
 
-        # Registration link with secure token (proves email ownership)
+        # Registration link with secure token
         registration_url = f"https://{self.settings.domain_name}/register?token={token}"
 
+        html_content, text_content = render_email(
+            "project_invitation.html",
+            project_name=project_name,
+            role=role_display,
+            inviter_email=inviter_email,
+            registration_url=registration_url,
+            expiry_days=7,
+        )
+
         subject = f"You've been invited to join {project_name} on AddaxAI Connect"
-        body = f"""
-Hello!
-
-{inviter_email} has invited you to join the "{project_name}" project on AddaxAI Connect.
-
-Your assigned role: {role_display}
-
-To accept this invitation and get started, click the link below to register your account:
-
-{registration_url}
-
-This invitation link is unique to you and will expire in 7 days.
-
-Once registered, you'll have immediate access to the project and can start working with camera trap images.
-
-If you have any questions, feel free to reach out to {inviter_email}.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
         logger.info(
             "Invitation email sent",
@@ -317,28 +302,16 @@ Realtime camera trap image processing platform
         # Login link
         login_url = f"https://{self.settings.domain_name}/login"
 
+        html_content, text_content = render_email(
+            "project_assignment.html",
+            project_name=project_name,
+            role=role_display,
+            inviter_email=inviter_email,
+            login_url=login_url,
+        )
+
         subject = f"You've been added to {project_name} on AddaxAI Connect"
-        body = f"""
-Hello!
-
-{inviter_email} has added you to the "{project_name}" project on AddaxAI Connect.
-
-Your assigned role: {role_display}
-
-You can now access this project by logging in:
-
-{login_url}
-
-The project will appear in your projects list once you log in.
-
-If you have any questions, feel free to reach out to {inviter_email}.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
         logger.info(
             "Project assignment email sent",
@@ -369,29 +342,14 @@ Realtime camera trap image processing platform
         # Login link
         login_url = f"https://{self.settings.domain_name}/login"
 
+        html_content, text_content = render_email(
+            "server_admin_promotion.html",
+            promoter_email=promoter_email,
+            login_url=login_url,
+        )
+
         subject = "You've been promoted to Server Admin on AddaxAI Connect"
-        body = f"""
-Hello!
-
-{promoter_email} has granted you Server Admin privileges on AddaxAI Connect.
-
-As a Server Admin, you now have:
-- Access to all projects on the platform
-- Ability to create and manage projects
-- Administrative tools for user and system management
-
-You can access the platform by logging in:
-
-{login_url}
-
-If you have any questions, feel free to reach out to {promoter_email}.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
         logger.info(
             "Server admin promotion email sent",
@@ -407,10 +365,6 @@ Realtime camera trap image processing platform
         """
         Send server admin invitation email with secure token.
 
-        This is specifically for inviting new users as server admins,
-        distinct from project invitations. Server admins get platform-wide
-        administrative access.
-
         Args:
             email: Invited user's email address
             token: Secure invitation token (URL-safe)
@@ -425,37 +379,18 @@ Realtime camera trap image processing platform
             token_length=len(token)
         )
 
-        # Registration link with secure token (proves email ownership)
+        # Registration link with secure token
         registration_url = f"https://{self.settings.domain_name}/register?token={token}"
 
+        html_content, text_content = render_email(
+            "server_admin_invitation.html",
+            inviter_email=inviter_email,
+            registration_url=registration_url,
+            expiry_days=7,
+        )
+
         subject = "You've been invited as Server Admin on AddaxAI Connect"
-        body = f"""
-Hello!
-
-{inviter_email} has invited you to join AddaxAI Connect as a Server Administrator.
-
-As a Server Admin, you will have:
-- Full administrative access to the entire platform
-- Ability to create and manage all projects
-- User management and system configuration capabilities
-- Access to all camera trap data and analytics
-
-To accept this invitation and set up your account, click the link below:
-
-{registration_url}
-
-This invitation link is unique to you and will expire in 7 days.
-
-Once registered, you'll have immediate server admin access and can begin managing the platform.
-
-If you have any questions, feel free to reach out to {inviter_email}.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
         logger.info(
             "Server admin invitation email sent",
@@ -472,8 +407,6 @@ Realtime camera trap image processing platform
     ) -> None:
         """
         Send project role change notification to user.
-
-        Notifies user when their project role has been changed by an admin.
 
         Args:
             email: User's email address
@@ -500,30 +433,17 @@ Realtime camera trap image processing platform
         # Login link
         login_url = f"https://{self.settings.domain_name}/login"
 
+        html_content, text_content = render_email(
+            "project_role_change.html",
+            project_name=project_name,
+            old_role=old_role_display,
+            new_role=new_role_display,
+            changer_email=changer_email,
+            login_url=login_url,
+        )
+
         subject = f"Your role in {project_name} has been updated"
-        body = f"""
-Hello!
-
-{changer_email} has updated your role in the "{project_name}" project on AddaxAI Connect.
-
-Role change:
-- Previous role: {old_role_display}
-- New role: {new_role_display}
-
-You can access the project by logging in:
-
-{login_url}
-
-Your new permissions will be available immediately upon login.
-
-If you have any questions about this change, feel free to reach out to {changer_email}.
-
----
-AddaxAI Connect
-Realtime camera trap image processing platform
-"""
-
-        await self.send_email(email, subject, body)
+        await self.send_email(email, subject, text_content, html_content)
 
         logger.info(
             "Role change email sent",
