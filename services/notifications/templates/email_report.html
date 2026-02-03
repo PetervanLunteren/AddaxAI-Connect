@@ -4,374 +4,164 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ project_name }} - {{ frequency }} report</title>
-    <style>
-        /* Reset */
-        body, table, td, p, a { margin: 0; padding: 0; }
-        img { border: 0; display: block; }
-
-        /* Base */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            font-size: 16px;
-            line-height: 1.6;
-            color: #1f2937;
-            background-color: #f3f4f6;
-            -webkit-text-size-adjust: 100%;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .card {
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-
-        /* Header */
-        .header {
-            background: rgba(15, 96, 100, 0.1);
-            color: #1f2937;
-            padding: 32px 24px;
-            text-align: center;
-        }
-
-        .header-logo {
-            margin: 0 auto 20px auto;
-            width: 180px;
-            height: auto;
-        }
-
-        .header h1 {
-            font-size: 24px;
-            font-weight: 600;
-            margin: 0 0 4px 0;
-            color: #0f6064;
-        }
-
-        .header .report-type {
-            font-size: 16px;
-            font-weight: 500;
-            margin: 0;
-            color: #1f2937;
-        }
-
-        .header .period {
-            font-size: 14px;
-            color: #6b7280;
-            margin: 4px 0 0 0;
-        }
-
-        /* Section */
-        .section {
-            padding: 24px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .section:last-child {
-            border-bottom: none;
-        }
-
-        .section-title {
-            font-size: 12px;
-            font-weight: 600;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin: 0 0 16px 0;
-        }
-
-        /* Hero Image */
-        .hero-section {
-            padding: 24px;
-            background: #f9fafb;
-            text-align: center;
-        }
-
-        .hero-image {
-            width: 100%;
-            max-width: 400px;
-            height: auto;
-            border-radius: 8px;
-            margin: 0 auto 16px auto;
-        }
-
-        .hero-species {
-            font-size: 20px;
-            font-weight: 600;
-            color: #0f6064;
-            margin: 0 0 4px 0;
-        }
-
-        .hero-confidence {
-            display: inline-block;
-            background: #0f6064;
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 12px;
-            margin-left: 8px;
-        }
-
-        .hero-meta {
-            font-size: 14px;
-            color: #6b7280;
-            margin: 8px 0 0 0;
-        }
-
-        /* Quick Stats */
-        .quick-stats {
-            display: flex;
-            justify-content: center;
-            gap: 24px;
-            flex-wrap: wrap;
-            padding: 20px 24px;
-            background: #ffffff;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .quick-stat {
-            text-align: center;
-        }
-
-        .quick-stat-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: #0f6064;
-            line-height: 1.2;
-        }
-
-        .quick-stat-label {
-            font-size: 12px;
-            color: #6b7280;
-            margin-top: 2px;
-        }
-
-        /* Species List */
-        .species-list {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        .species-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #f3f4f6;
-        }
-
-        .species-item:last-child {
-            border-bottom: none;
-        }
-
-        .species-rank {
-            font-size: 14px;
-            font-weight: 600;
-            color: #6b7280;
-            width: 24px;
-        }
-
-        .species-name {
-            flex: 1;
-            font-size: 15px;
-            color: #1f2937;
-        }
-
-        .species-count {
-            font-size: 15px;
-            font-weight: 600;
-            color: #0f6064;
-        }
-
-        /* Camera Status */
-        .camera-status {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .camera-status-ok {
-            color: #0f6064;
-            font-weight: 600;
-        }
-
-        .camera-status-warning {
-            color: #882000;
-            font-weight: 600;
-        }
-
-        .camera-stat {
-            font-size: 14px;
-            color: #6b7280;
-        }
-
-        .camera-alerts {
-            margin-top: 12px;
-            padding: 12px 16px;
-            background: #fff5f0;
-            border-left: 3px solid #882000;
-            border-radius: 0 8px 8px 0;
-        }
-
-        .camera-alert-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #882000;
-            margin: 0 0 4px 0;
-        }
-
-        .camera-alert-list {
-            font-size: 13px;
-            color: #882000;
-            margin: 0;
-        }
-
-        /* Button */
-        .btn {
-            display: inline-block;
-            background: #0f6064;
-            color: #ffffff !important;
-            text-decoration: none;
-            padding: 14px 32px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-        }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            padding: 24px;
-            color: #6b7280;
-            font-size: 13px;
-        }
-
-        .footer a {
-            color: #0f6064;
-            text-decoration: none;
-        }
-
-        /* Responsive */
-        @media only screen and (max-width: 480px) {
-            .container { padding: 12px; }
-            .header { padding: 24px 16px; }
-            .section { padding: 16px; }
-            .quick-stats { gap: 16px; }
-            .quick-stat-value { font-size: 24px; }
-        }
+    <!--[if mso]>
+    <style type="text/css">
+        table { border-collapse: collapse; }
+        .fallback-font { font-family: Arial, sans-serif; }
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="container">
-        <div class="card">
-            <!-- Header -->
-            <div class="header">
-                <img src="https://{{ domain }}/logo-wide.svg?v=2" alt="AddaxAI" class="header-logo">
-                <h1>{{ project_name }}</h1>
-                <p class="report-type">{{ frequency }} report</p>
-                <p class="period">{{ period_label }}</p>
-            </div>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #1f2937; background-color: #f3f4f6;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f3f4f6;">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px; background: #ffffff; border-radius: 12px; overflow: hidden;">
 
-            {% if hero %}
-            <!-- Hero: Capture of the Period -->
-            <div class="hero-section">
-                <p class="section-title">{{ frequency_label }} of the {{ frequency|lower }}</p>
-                {% if hero.image_url %}
-                <img src="{{ hero.image_url }}" alt="{{ hero.species }}" class="hero-image">
-                {% endif %}
-                <p class="hero-species">
-                    {{ hero.species|replace('_', ' ')|title }}
-                    <span class="hero-confidence">{{ hero.confidence }}%</span>
-                </p>
-                <p class="hero-meta">{{ hero.camera }} · {{ hero.timestamp }}</p>
-            </div>
-            {% endif %}
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: rgba(15, 96, 100, 0.1); padding: 32px 24px; text-align: center;">
+                            <img src="https://{{ domain }}/logo-wide.svg?v=2" alt="AddaxAI" width="180" style="display: block; margin: 0 auto 20px auto; width: 180px; height: auto;">
+                            <h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
+                            <p style="font-size: 16px; font-weight: 500; margin: 0; color: #1f2937;">{{ frequency }} report</p>
+                            <p style="font-size: 14px; color: #6b7280; margin: 4px 0 0 0;">{{ period_label }}</p>
+                        </td>
+                    </tr>
 
-            <!-- Quick Stats -->
-            <div class="quick-stats">
-                <div class="quick-stat">
-                    <div class="quick-stat-value">{{ stats.new_images }}</div>
-                    <div class="quick-stat-label">images</div>
-                </div>
-                <div class="quick-stat">
-                    <div class="quick-stat-value">{{ stats.detections }}</div>
-                    <div class="quick-stat-label">detections</div>
-                </div>
-                <div class="quick-stat">
-                    <div class="quick-stat-value">{{ stats.species_count }}</div>
-                    <div class="quick-stat-label">species</div>
-                </div>
-            </div>
-
-            {% if species and species|length > 0 %}
-            <!-- Top Species -->
-            <div class="section">
-                <h2 class="section-title">Top species</h2>
-                <ul class="species-list">
-                    {% for sp in species[:5] %}
-                    <li class="species-item">
-                        <span class="species-rank">{{ loop.index }}.</span>
-                        <span class="species-name">{{ sp.species|replace('_', ' ')|title }}</span>
-                        <span class="species-count">{{ sp.count }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-
-            <!-- Camera Health -->
-            <div class="section">
-                <h2 class="section-title">Cameras</h2>
-                <div class="camera-status">
-                    {% if cameras.inactive == 0 and cameras.low_battery_count == 0 %}
-                    <span class="camera-status-ok">✓ {{ cameras.active }}/{{ cameras.total }} active</span>
-                    {% else %}
-                    <span class="camera-status-warning">{{ cameras.active }}/{{ cameras.total }} active</span>
+                    {% if hero %}
+                    <!-- Hero Image -->
+                    <tr>
+                        <td style="background: #f9fafb; padding: 24px; text-align: center;">
+                            <p style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 16px 0;">{{ frequency_label }} of the {{ frequency|lower }}</p>
+                            {% if hero.image_url %}
+                            <img src="{{ hero.image_url }}" alt="{{ hero.species }}" width="400" style="display: block; margin: 0 auto 16px auto; width: 100%; max-width: 400px; height: auto; border-radius: 8px;">
+                            {% endif %}
+                            <p style="font-size: 20px; font-weight: 600; color: #0f6064; margin: 0 0 4px 0;">
+                                {{ hero.species|replace('_', ' ')|title }}
+                                <span style="display: inline-block; background: #0f6064; color: #ffffff; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 12px; margin-left: 8px;">{{ hero.confidence }}%</span>
+                            </p>
+                            <p style="font-size: 14px; color: #6b7280; margin: 8px 0 0 0;">{{ hero.camera }} &middot; {{ hero.timestamp }}</p>
+                        </td>
+                    </tr>
                     {% endif %}
-                    <span class="camera-stat">Avg battery {{ cameras.avg_battery }}%</span>
-                    <span class="camera-stat">Avg SD {{ cameras.avg_sd }}%</span>
-                </div>
 
-                {% if cameras.low_battery_count > 0 or cameras.inactive > 0 %}
-                <div class="camera-alerts">
-                    {% if cameras.low_battery_count > 0 %}
-                    <p class="camera-alert-title">Low battery ({{ cameras.low_battery_count }})</p>
-                    <p class="camera-alert-list">
-                        {% for cam in cameras.low_battery_cameras[:3] %}
-                        {{ cam.name }} ({{ cam.battery }}%){% if not loop.last %}, {% endif %}
-                        {% endfor %}
-                    </p>
+                    <!-- Quick Stats -->
+                    <tr>
+                        <td style="padding: 20px 24px; border-bottom: 1px solid #e5e7eb;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                                <tr>
+                                    <td width="33%" align="center" style="padding: 10px;">
+                                        <p style="font-size: 28px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ stats.new_images }}</p>
+                                        <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">images</p>
+                                    </td>
+                                    <td width="33%" align="center" style="padding: 10px;">
+                                        <p style="font-size: 28px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ stats.detections }}</p>
+                                        <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">detections</p>
+                                    </td>
+                                    <td width="33%" align="center" style="padding: 10px;">
+                                        <p style="font-size: 28px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ stats.species_count }}</p>
+                                        <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">species</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    {% if species and species|length > 0 %}
+                    <!-- Top Species -->
+                    <tr>
+                        <td style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
+                            <h2 style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 16px 0;">Top species</h2>
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                                {% for sp in species[:5] %}
+                                <tr>
+                                    <td width="30" style="padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                                        <span style="font-size: 14px; font-weight: 600; color: #6b7280;">{{ loop.index }}.</span>
+                                    </td>
+                                    <td style="padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                                        <span style="font-size: 15px; color: #1f2937;">{{ sp.species|replace('_', ' ')|title }}</span>
+                                    </td>
+                                    <td align="right" style="padding: 10px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                                        <span style="font-size: 15px; font-weight: 600; color: #0f6064;">{{ sp.count }}</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </td>
+                    </tr>
                     {% endif %}
-                    {% if cameras.inactive > 0 %}
-                    <p class="camera-alert-title" {% if cameras.low_battery_count > 0 %}style="margin-top: 8px;"{% endif %}>Inactive ({{ cameras.inactive }})</p>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
 
-            <!-- CTA -->
-            <div class="section" style="text-align: center; border-bottom: none;">
-                <a href="{{ project_url }}" class="btn">Visit project</a>
-            </div>
-        </div>
+                    <!-- Camera Health -->
+                    <tr>
+                        <td style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
+                            <h2 style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 16px 0;">Cameras</h2>
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                                <tr>
+                                    <td>
+                                        {% if cameras.inactive == 0 and cameras.low_battery_count == 0 %}
+                                        <span style="color: #0f6064; font-weight: 600;">&#10003; {{ cameras.active }}/{{ cameras.total }} active</span>
+                                        {% else %}
+                                        <span style="color: #882000; font-weight: 600;">{{ cameras.active }}/{{ cameras.total }} active</span>
+                                        {% endif %}
+                                        &nbsp;&nbsp;
+                                        <span style="font-size: 14px; color: #6b7280;">Avg battery {{ cameras.avg_battery }}%</span>
+                                        &nbsp;&nbsp;
+                                        <span style="font-size: 14px; color: #6b7280;">Avg SD {{ cameras.avg_sd }}%</span>
+                                    </td>
+                                </tr>
+                            </table>
 
-        <!-- Footer -->
-        <div class="footer">
-            <p><a href="{{ settings_url }}">Manage notification settings</a></p>
-            <p style="margin-top: 12px;">
-                AddaxAI Connect<br>
-                Camera trap image processing platform
-            </p>
-        </div>
-    </div>
+                            {% if cameras.low_battery_count > 0 or cameras.inactive > 0 %}
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 12px;">
+                                <tr>
+                                    <td style="background: #fff5f0; border-left: 3px solid #882000; border-radius: 0 8px 8px 0; padding: 12px 16px;">
+                                        {% if cameras.low_battery_count > 0 %}
+                                        <p style="font-size: 13px; font-weight: 600; color: #882000; margin: 0 0 4px 0;">Low battery ({{ cameras.low_battery_count }})</p>
+                                        <p style="font-size: 13px; color: #882000; margin: 0;">
+                                            {% for cam in cameras.low_battery_cameras[:3] %}
+                                            {{ cam.name }} ({{ cam.battery }}%){% if not loop.last %}, {% endif %}
+                                            {% endfor %}
+                                        </p>
+                                        {% endif %}
+                                        {% if cameras.inactive > 0 %}
+                                        <p style="font-size: 13px; font-weight: 600; color: #882000; margin: {% if cameras.low_battery_count > 0 %}8px{% else %}0{% endif %} 0 0 0;">Inactive ({{ cameras.inactive }})</p>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- CTA Button -->
+                    <tr>
+                        <td align="center" style="padding: 24px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                <tr>
+                                    <td style="background: #0f6064; border-radius: 8px;">
+                                        <a href="{{ project_url }}" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">Visit project</a>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                </table>
+
+                <!-- Footer -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width: 600px;">
+                    <tr>
+                        <td align="center" style="padding: 24px; color: #6b7280; font-size: 13px;">
+                            <p style="margin: 0;"><a href="{{ settings_url }}" style="color: #0f6064; text-decoration: none;">Manage notification settings</a></p>
+                            <p style="margin: 12px 0 0 0;">
+                                AddaxAI Connect<br>
+                                Camera trap image processing platform
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
