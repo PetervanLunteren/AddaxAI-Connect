@@ -471,7 +471,10 @@ def get_hero_detection(
         timestamp_str = row.uploaded_at.strftime('%b %d, %Y at %H:%M')
 
     # Construct image URL (public thumbnail for email)
-    image_url = f"https://{domain}/api/images/{row.image_uuid}/thumbnail/public"
+    # Add cache-busting parameter to avoid Gmail proxy caching issues
+    import time
+    cache_bust = int(time.time())
+    image_url = f"https://{domain}/api/images/{row.image_uuid}/thumbnail/public?v={cache_bust}"
 
     return {
         'species': row.species,
