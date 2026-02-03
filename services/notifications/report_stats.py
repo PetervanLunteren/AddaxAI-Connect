@@ -470,8 +470,8 @@ def get_hero_detection(
     if row.uploaded_at:
         timestamp_str = row.uploaded_at.strftime('%b %d, %Y at %H:%M')
 
-    # Construct image URL (thumbnail)
-    image_url = f"https://{domain}/api/images/{row.image_uuid}/thumbnail"
+    # Construct image URL (public thumbnail for email)
+    image_url = f"https://{domain}/api/images/{row.image_uuid}/thumbnail/public"
 
     return {
         'species': row.species,
