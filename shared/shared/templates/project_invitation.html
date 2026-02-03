@@ -8,19 +8,19 @@
 
 {% block content %}
 <p style="margin: 0 0 16px 0; color: #1f2937;">
-    <strong>{{ inviter_email }}</strong> has invited you to join the project <strong>{{ project_name }}</strong> as {{ role }}.
+    <strong style="color: #0f6064;">{{ inviter_email }}</strong> has invited you to join the project <strong style="color: #0f6064;">{{ project_name }}</strong> as {{ role }}.
 </p>
 <p style="margin: 0 0 16px 0; color: #1f2937;">
     Create an account to accept this invitation and start collaborating.
 </p>
-<p style="margin: 0 0 24px 0; color: #6b7280; font-size: 14px;">
+<p style="margin: 0; color: #6b7280; font-size: 14px;">
     This invitation will expire in {{ expiry_days }} days.
 </p>
 {% endblock %}
 
 {% block cta %}
 <tr>
-    <td align="center" style="padding: 0 24px 32px 24px;">
+    <td align="center" style="padding: 24px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr>
                 <td style="background: #0f6064; border-radius: 8px;">

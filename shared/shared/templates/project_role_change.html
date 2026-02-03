@@ -8,23 +8,23 @@
 
 {% block content %}
 <p style="margin: 0 0 16px 0; color: #1f2937;">
-    Your role in <strong>{{ project_name }}</strong> has been changed by <strong>{{ changer_email }}</strong>.
+    Your role in <strong style="color: #0f6064;">{{ project_name }}</strong> has been changed by <strong style="color: #0f6064;">{{ changer_email }}</strong>.
 </p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0;">
     <tr>
         <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Previous role:</td>
         <td style="padding: 8px 0 8px 16px; color: #1f2937;">{{ old_role }}</td>
     </tr>
     <tr>
         <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">New role:</td>
-        <td style="padding: 8px 0 8px 16px; color: #0f6064; font-weight: 600;">{{ new_role }}</td>
+        <td style="padding: 8px 0 8px 16px; color: #1f2937;">{{ new_role }}</td>
     </tr>
 </table>
 {% endblock %}
 
 {% block cta %}
 <tr>
-    <td align="center" style="padding: 0 24px 32px 24px;">
+    <td align="center" style="padding: 24px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr>
                 <td style="background: #0f6064; border-radius: 8px;">
@@ -34,4 +34,10 @@
         </table>
     </td>
 </tr>
+{% endblock %}
+
+{% block footer_link %}
+<p style="margin: 0; color: #6b7280; font-size: 13px;">
+    You received this email because your role was updated on AddaxAI Connect.
+</p>
 {% endblock %}

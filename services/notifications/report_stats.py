@@ -185,7 +185,8 @@ def get_species_distribution(
 def get_camera_health_summary(
     db: Session,
     project_id: int,
-    battery_threshold: int = 30
+    battery_threshold: int = 30,
+    sd_threshold: int = 80
 ) -> Dict[str, Any]:
     """
     Get camera health summary for project.
@@ -194,6 +195,7 @@ def get_camera_health_summary(
         db: Database session
         project_id: Project to query
         battery_threshold: Battery % below which camera is considered low
+        sd_threshold: SD card % above which camera is considered full
 
     Returns:
         Dictionary with:
@@ -202,6 +204,8 @@ def get_camera_health_summary(
         - inactive: Cameras without recent activity
         - low_battery_count: Cameras below battery threshold
         - low_battery_cameras: List of {'name': str, 'battery': int}
+        - high_sd_count: Cameras above SD threshold
+        - high_sd_cameras: List of {'name': str, 'sd_percent': int}
     """
     cameras = db.execute(
         select(Camera).where(Camera.project_id == project_id)
@@ -209,9 +213,9 @@ def get_camera_health_summary(
 
     total = len(cameras)
     active = 0
-    inactive = 0
-    never_reported = 0
+    inactive_cameras = []
     low_battery_cameras = []
+    high_sd_cameras = []
     battery_values = []
     sd_values = []
 
@@ -219,22 +223,22 @@ def get_camera_health_summary(
 
     for camera in cameras:
         # Check activity status
+        is_active = False
         if camera.last_daily_report_at:
             if camera.last_daily_report_at >= cutoff_date:
-                active += 1
-            else:
-                inactive += 1
+                is_active = True
         elif camera.config and camera.config.get('last_report_timestamp'):
             try:
                 last_report = datetime.fromisoformat(camera.config['last_report_timestamp'])
                 if last_report >= cutoff_date:
-                    active += 1
-                else:
-                    inactive += 1
+                    is_active = True
             except (ValueError, TypeError):
-                never_reported += 1
+                pass
+
+        if is_active:
+            active += 1
         else:
-            never_reported += 1
+            inactive_cameras.append({'name': camera.name})
 
         # Check battery - first try direct column, then config
         battery = camera.battery_percent
@@ -262,6 +266,11 @@ def get_camera_health_summary(
 
         if sd_percent is not None:
             sd_values.append(sd_percent)
+            if sd_percent >= sd_threshold:
+                high_sd_cameras.append({
+                    'name': camera.name,
+                    'sd_percent': sd_percent
+                })
 
     # Calculate averages
     avg_battery = int(sum(battery_values) / len(battery_values)) if battery_values else 0
@@ -270,9 +279,12 @@ def get_camera_health_summary(
     return {
         'total': total,
         'active': active,
-        'inactive': inactive + never_reported,
+        'inactive': len(inactive_cameras),
+        'inactive_cameras': inactive_cameras,
         'low_battery_count': len(low_battery_cameras),
         'low_battery_cameras': sorted(low_battery_cameras, key=lambda x: x['battery']),
+        'high_sd_count': len(high_sd_cameras),
+        'high_sd_cameras': sorted(high_sd_cameras, key=lambda x: -x['sd_percent']),
         'avg_battery': avg_battery,
         'avg_sd': avg_sd
     }
