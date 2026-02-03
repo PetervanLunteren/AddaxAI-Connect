@@ -637,6 +637,35 @@ async def get_image_full(
     return await _stream_image_from_storage(image, cache_max_age=86400)
 
 
+@router.get("/{uuid}/thumbnail/public")
+async def get_image_thumbnail_public(
+    uuid: str,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Stream image thumbnail without authentication.
+
+    This endpoint does not require authentication since:
+    - Image UUIDs are cryptographically random and serve as access tokens
+    - Used for email reports where clients cannot authenticate
+    - Images are not sensitive data (wildlife camera trap photos)
+
+    Returns the pre-generated 300px thumbnail if available, otherwise falls back
+    to the full-size image.
+    """
+    query = select(Image).where(Image.uuid == uuid)
+    result = await db.execute(query)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    return await _stream_image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
+
+
 @router.get("/{uuid}/annotated")
 async def get_annotated_image(
     uuid: str,
