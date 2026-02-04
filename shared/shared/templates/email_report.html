@@ -65,8 +65,8 @@
                     <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">cameras</p>
                 </td>
                 <td width="25%" align="center" style="padding: 10px;">
-                    <p style="font-size: 28px; font-weight: 700; color: {% if cameras.inactive > 0 %}#882000{% else %}#0f6064{% endif %}; line-height: 1.2; margin: 0;">{{ cameras.active }}</p>
-                    <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">active</p>
+                    <p style="font-size: 28px; font-weight: 700; color: {% if cameras.inactive > 0 %}#882000{% else %}#0f6064{% endif %}; line-height: 1.2; margin: 0;">{{ cameras.inactive }}</p>
+                    <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">inactive</p>
                 </td>
                 <td width="25%" align="center" style="padding: 10px;">
                     <p style="font-size: 28px; font-weight: 700; color: {% if cameras.low_battery_count > 0 %}#882000{% else %}#0f6064{% endif %}; line-height: 1.2; margin: 0;">{{ cameras.avg_battery }}%</p>
