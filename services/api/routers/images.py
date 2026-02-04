@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 import io
 
-from shared.models import User, Image, Camera, Detection, Classification, Project
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation
 from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
@@ -87,6 +87,8 @@ class ImageDetailResponse(BaseModel):
     image_metadata: dict
     full_image_url: str
     detections: List[DetectionResponse]
+    verification: VerificationInfo
+    human_observations: List[HumanObservationResponse]
 
     class Config:
         from_attributes = True
@@ -105,6 +107,49 @@ class SpeciesOption(BaseModel):
     """Species filter option"""
     label: str
     value: str
+
+
+# Human verification schemas
+class HumanObservationResponse(BaseModel):
+    """Human-entered species observation"""
+    id: int
+    species: str
+    count: int
+    created_at: str
+    created_by_email: str
+    updated_at: Optional[str] = None
+    updated_by_email: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class VerificationInfo(BaseModel):
+    """Verification status for an image"""
+    is_verified: bool
+    verified_at: Optional[str] = None
+    verified_by_email: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class HumanObservationInput(BaseModel):
+    """Input for creating/updating a human observation"""
+    species: str
+    count: int = 1
+
+
+class SaveVerificationRequest(BaseModel):
+    """Request body for saving verification"""
+    is_verified: bool
+    notes: Optional[str] = None
+    observations: List[HumanObservationInput]
+
+
+class SaveVerificationResponse(BaseModel):
+    """Response after saving verification"""
+    message: str
+    verification: VerificationInfo
+    human_observations: List[HumanObservationResponse]
 
 
 @router.get(
@@ -441,7 +486,12 @@ async def get_image(
         .join(Camera, Image.camera_id == Camera.id)
         .join(Project, Camera.project_id == Project.id)
         .where(Image.uuid == uuid)
-        .options(selectinload(Image.detections).selectinload(Detection.classifications))
+        .options(
+            selectinload(Image.detections).selectinload(Detection.classifications),
+            selectinload(Image.human_observations).selectinload(HumanObservation.created_by),
+            selectinload(Image.human_observations).selectinload(HumanObservation.updated_by),
+            selectinload(Image.verified_by),
+        )
     )
 
     result = await db.execute(query)
@@ -493,6 +543,28 @@ async def get_image(
             classifications=classifications_response,
         ))
 
+    # Build verification info
+    verification = VerificationInfo(
+        is_verified=image.is_verified,
+        verified_at=image.verified_at.isoformat() if image.verified_at else None,
+        verified_by_email=image.verified_by.email if image.verified_by else None,
+        notes=image.verification_notes,
+    )
+
+    # Build human observations response
+    human_observations_response = [
+        HumanObservationResponse(
+            id=obs.id,
+            species=obs.species,
+            count=obs.count,
+            created_at=obs.created_at.isoformat(),
+            created_by_email=obs.created_by.email if obs.created_by else "unknown",
+            updated_at=obs.updated_at.isoformat() if obs.updated_at else None,
+            updated_by_email=obs.updated_by.email if obs.updated_by else None,
+        )
+        for obs in image.human_observations
+    ]
+
     return ImageDetailResponse(
         id=image.id,
         uuid=image.uuid,
@@ -505,6 +577,140 @@ async def get_image(
         image_metadata=image.image_metadata or {},
         full_image_url=full_image_url,
         detections=detections_response,
+        verification=verification,
+        human_observations=human_observations_response,
+    )
+
+
+@router.put(
+    "/{uuid}/verification",
+    response_model=SaveVerificationResponse,
+)
+async def save_verification(
+    uuid: str,
+    request: SaveVerificationRequest,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Save human verification for an image.
+
+    This endpoint allows users to:
+    - Add/update human observations (species + count at image level)
+    - Mark the image as verified
+    - Add verification notes
+
+    Args:
+        uuid: Image UUID
+        request: Verification data (observations, is_verified, notes)
+        accessible_project_ids: Project IDs accessible to user
+        db: Database session
+        current_user: Current authenticated user
+
+    Returns:
+        Updated verification info and observations
+
+    Raises:
+        HTTPException: If image not found or user lacks access
+    """
+    from datetime import datetime, timezone
+
+    # Fetch image with camera for access check
+    query = (
+        select(Image)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(Image.uuid == uuid)
+        .options(
+            selectinload(Image.human_observations).selectinload(HumanObservation.created_by),
+            selectinload(Image.human_observations).selectinload(HumanObservation.updated_by),
+        )
+    )
+    result = await db.execute(query)
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    # Check project access
+    camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
+    camera = camera_result.scalar_one_or_none()
+    if not camera or camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image",
+        )
+
+    # Delete existing human observations for this image
+    from sqlalchemy import delete
+    await db.execute(
+        delete(HumanObservation).where(HumanObservation.image_id == image.id)
+    )
+
+    # Insert new observations
+    now = datetime.now(timezone.utc)
+    new_observations = []
+    for obs_input in request.observations:
+        observation = HumanObservation(
+            image_id=image.id,
+            species=obs_input.species,
+            count=obs_input.count,
+            created_at=now,
+            created_by_user_id=current_user.id,
+        )
+        db.add(observation)
+        new_observations.append(observation)
+
+    # Update verification fields on image
+    image.is_verified = request.is_verified
+    image.verification_notes = request.notes
+
+    if request.is_verified:
+        image.verified_at = now
+        image.verified_by_user_id = current_user.id
+    else:
+        # If unmarking as verified, clear the timestamp but keep the user for audit
+        image.verified_at = None
+
+    await db.commit()
+
+    # Refresh to get created IDs and relationships
+    for obs in new_observations:
+        await db.refresh(obs)
+    await db.refresh(image)
+
+    # Load user relationships for response
+    user_result = await db.execute(select(User).where(User.id == current_user.id))
+    user = user_result.scalar_one()
+
+    # Build response
+    verification = VerificationInfo(
+        is_verified=image.is_verified,
+        verified_at=image.verified_at.isoformat() if image.verified_at else None,
+        verified_by_email=user.email if image.is_verified else None,
+        notes=image.verification_notes,
+    )
+
+    human_observations_response = [
+        HumanObservationResponse(
+            id=obs.id,
+            species=obs.species,
+            count=obs.count,
+            created_at=obs.created_at.isoformat(),
+            created_by_email=user.email,
+            updated_at=None,
+            updated_by_email=None,
+        )
+        for obs in new_observations
+    ]
+
+    return SaveVerificationResponse(
+        message="Verification saved successfully",
+        verification=verification,
+        human_observations=human_observations_response,
     )
 
 

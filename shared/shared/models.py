@@ -27,9 +27,17 @@ class Image(Base):
     status = Column(String(50), nullable=False, default="pending", index=True)
     image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
+    # Human verification fields
+    is_verified = Column(Boolean, nullable=False, default=False, index=True)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    verified_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    verification_notes = Column(Text, nullable=True)
+
     # Relationships
     camera = relationship("Camera", back_populates="images")
     detections = relationship("Detection", back_populates="image", cascade="all, delete-orphan")
+    human_observations = relationship("HumanObservation", back_populates="image", cascade="all, delete-orphan")
+    verified_by = relationship("User", foreign_keys=[verified_by_user_id])
 
 
 class Camera(Base):
@@ -176,6 +184,25 @@ class Classification(Base):
 
     # Relationships
     detection = relationship("Detection", back_populates="classifications")
+
+
+class HumanObservation(Base):
+    """Human-entered species observation for an image (image-level, not detection-level)"""
+    __tablename__ = "human_observations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    image_id = Column(Integer, ForeignKey("images.id", ondelete="CASCADE"), nullable=False, index=True)
+    species = Column(String(255), nullable=False, index=True)
+    count = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    updated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    image = relationship("Image", back_populates="human_observations")
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
+    updated_by = relationship("User", foreign_keys=[updated_by_user_id])
 
 
 class Project(Base):

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { imagesApi } from '../api/images';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { normalizeLabel } from '../utils/labels';
+import { VerificationPanel } from './VerificationPanel';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -526,6 +527,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 </div>
               </CardContent>
             </Card>
+
+            {/* Verification Panel */}
+            <VerificationPanel
+              imageUuid={imageUuid}
+              imageDetail={imageDetail}
+            />
           </div>
         </div>
         ) : (

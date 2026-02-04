@@ -2,7 +2,7 @@
  * Images API endpoints
  */
 import apiClient from './client';
-import type { ImageListItem, ImageDetail, PaginatedResponse } from './types';
+import type { ImageListItem, ImageDetail, PaginatedResponse, SaveVerificationRequest, SaveVerificationResponse } from './types';
 
 export interface ImageFilters {
   page?: number;
@@ -43,6 +43,14 @@ export const imagesApi = {
    */
   getSpecies: async (): Promise<SpeciesOption[]> => {
     const response = await apiClient.get<SpeciesOption[]>('/api/images/species');
+    return response.data;
+  },
+
+  /**
+   * Save human verification for an image
+   */
+  saveVerification: async (uuid: string, data: SaveVerificationRequest): Promise<SaveVerificationResponse> => {
+    const response = await apiClient.put<SaveVerificationResponse>(`/api/images/${uuid}/verification`, data);
     return response.data;
   },
 };
