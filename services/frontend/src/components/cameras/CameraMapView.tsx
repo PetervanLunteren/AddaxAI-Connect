@@ -120,7 +120,7 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
         <MapContainer
           center={mapCenter}
           zoom={10}
-          style={{ height: '500px', width: '100%' }}
+          style={{ height: '500px', width: '100%', zIndex: 0 }}
           className="rounded-lg border border-gray-200"
         >
           <TileLayer
