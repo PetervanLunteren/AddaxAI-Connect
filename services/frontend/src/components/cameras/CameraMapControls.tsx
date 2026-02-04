@@ -2,7 +2,7 @@
  * Camera map controls component
  * Provides color-by selector and base layer toggle as segmented buttons
  */
-import { Map, Satellite, Navigation } from 'lucide-react';
+import { Map, Satellite, Navigation, Activity, Battery, Signal } from 'lucide-react';
 import type { ColorByMetric } from '../../utils/camera-colors';
 
 interface CameraMapControlsProps {
@@ -30,34 +30,43 @@ export function CameraMapControls({
             <button
               type="button"
               onClick={() => onColorByChange('status')}
-              className={`flex-1 h-10 px-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
+              title="Color by camera status (active, inactive, never reported)"
+              aria-label="Status"
+              className={`flex-1 h-10 px-2 text-sm font-medium rounded-l-md border flex items-center justify-center gap-1.5 ${
                 colorBy === 'status'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
+              <Activity className="h-4 w-4" />
               Status
             </button>
             <button
               type="button"
               onClick={() => onColorByChange('battery')}
-              className={`flex-1 h-10 px-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
+              title="Color by battery level"
+              aria-label="Battery"
+              className={`flex-1 h-10 px-2 text-sm font-medium border-t border-b border-r flex items-center justify-center gap-1.5 ${
                 colorBy === 'battery'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
+              <Battery className="h-4 w-4" />
               Battery
             </button>
             <button
               type="button"
               onClick={() => onColorByChange('signal')}
-              className={`flex-1 h-10 px-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
+              title="Color by signal strength"
+              aria-label="Signal"
+              className={`flex-1 h-10 px-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center gap-1.5 ${
                 colorBy === 'signal'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
+              <Signal className="h-4 w-4" />
               Signal
             </button>
           </div>
