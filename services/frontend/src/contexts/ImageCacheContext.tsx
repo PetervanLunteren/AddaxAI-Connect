@@ -30,7 +30,9 @@ export const ImageCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const fetchPromisesRef = useRef<Map<string, Promise<string>>>(new Map());
 
   const fetchImage = useCallback(async (imageUrl: string): Promise<string> => {
-    const shortUrl = imageUrl.split('/').pop(); // Just the UUID for readability
+    // Extract UUID from URL pattern: /api/images/{uuid}/full
+    const parts = imageUrl.split('/');
+    const shortUrl = parts[parts.length - 2]?.slice(-8) || imageUrl; // Last 8 chars of UUID
 
     // Check cache first
     const cached = cacheRef.current.get(imageUrl);
