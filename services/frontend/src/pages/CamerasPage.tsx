@@ -5,7 +5,7 @@
  * Server admins can add, delete cameras and import from CSV.
  * Project admins can edit camera notes (friendly name, remarks).
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Battery,
@@ -18,6 +18,8 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  Map as MapIcon,
+  Table as TableIcon,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -45,10 +47,23 @@ import {
   type BulkImportResponse,
 } from '../api/cameras';
 import type { Camera } from '../api/types';
+import { CameraMapView } from '../components/cameras/CameraMapView';
+import { cn } from '../lib/utils';
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { selectedProject: currentProject, canAdminCurrentProject, isServerAdmin } = useProject();
+
+  // View mode state (table or map)
+  const [viewMode, setViewMode] = useState<'table' | 'map'>(() => {
+    const saved = localStorage.getItem('cameras-view-mode');
+    return saved === 'map' || saved === 'table' ? saved : 'table';
+  });
+
+  // Persist view mode preference
+  useEffect(() => {
+    localStorage.setItem('cameras-view-mode', viewMode);
+  }, [viewMode]);
 
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
@@ -292,8 +307,44 @@ export const CamerasPage: React.FC = () => {
         )}
       </div>
 
-      {/* Summary Statistics */}
-      {cameras && cameras.length > 0 && (() => {
+      {/* Tab navigation */}
+      <div className="flex border-b mb-6">
+        <button
+          onClick={() => setViewMode('table')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+            viewMode === 'table'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <TableIcon className="h-4 w-4" />
+          Table
+        </button>
+        <button
+          onClick={() => setViewMode('map')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+            viewMode === 'map'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <MapIcon className="h-4 w-4" />
+          Map
+        </button>
+      </div>
+
+      {/* Map view */}
+      {viewMode === 'map' && cameras && (
+        <CameraMapView cameras={cameras} onCameraClick={handleRowClick} />
+      )}
+
+      {/* Table view content */}
+      {viewMode === 'table' && (
+        <>
+          {/* Summary Statistics */}
+          {cameras && cameras.length > 0 && (() => {
         const activeCount = cameras.filter((c: Camera) => c.status === 'active').length;
         const inactiveCount = cameras.filter((c: Camera) => c.status === 'inactive').length;
         const neverReportedCount = cameras.filter((c: Camera) => c.status === 'never_reported').length;
@@ -522,6 +573,8 @@ export const CamerasPage: React.FC = () => {
         <div className="flex items-center justify-center py-8">
           <p className="text-muted-foreground">No cameras registered yet.</p>
         </div>
+      )}
+        </>
       )}
 
       {/* Camera Detail Side Panel */}
