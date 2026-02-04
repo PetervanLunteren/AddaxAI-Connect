@@ -36,7 +36,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
-  const { getOrFetchImage } = useImageCache();
+  const { getImageBlobUrl, getOrFetchImage } = useImageCache();
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -53,12 +53,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   };
 
   // Fetch authenticated image using the shared cache
-  // This waits for any in-progress prefetch instead of starting a duplicate request
+  // Check synchronously first to avoid loader flash for cached images
   useEffect(() => {
     if (!isOpen || !imageUuid) return;
 
+    // Check cache SYNCHRONOUSLY first - this prevents the loader flash
+    const cachedUrl = getImageBlobUrl(fullImageUrl);
+    if (cachedUrl) {
+      logModal('SYNC CACHE HIT');
+      setImageBlobUrl(cachedUrl);
+      return; // No cleanup needed for cached images
+    }
+
+    // Not in cache - need to fetch (show loader)
     let cancelled = false;
-    logModal('REQUEST image');
+    logModal('REQUEST image (fetching)');
+    setImageBlobUrl(null);
 
     getOrFetchImage(fullImageUrl)
       .then((blobUrl) => {
@@ -73,10 +83,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
     return () => {
       cancelled = true;
-      setImageBlobUrl(null);
       setImageLoaded(false);
     };
-  }, [isOpen, imageUuid, fullImageUrl, getOrFetchImage]);
+  }, [isOpen, imageUuid, fullImageUrl, getImageBlobUrl, getOrFetchImage]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {
