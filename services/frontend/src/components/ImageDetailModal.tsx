@@ -44,21 +44,24 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     enabled: isOpen && !!imageUuid,
   });
 
-  // Fetch authenticated image and create blob URL
-  // Only re-fetch when the image URL changes, not when verification data changes
-  const fullImageUrl = imageDetail?.full_image_url;
-  useEffect(() => {
-    if (!fullImageUrl) return;
+  // Construct URL directly from UUID - don't wait for imageDetail
+  const fullImageUrl = `/api/images/${imageUuid}/full`;
 
-    // Check cache first
+  // Fetch authenticated image and create blob URL
+  // Check cache immediately using the predictable URL pattern
+  useEffect(() => {
+    if (!isOpen || !imageUuid) return;
+
+    // Check cache first - this is instant if prefetched
     const cachedBlobUrl = getImageBlobUrl(fullImageUrl);
     if (cachedBlobUrl) {
       setImageBlobUrl(cachedBlobUrl);
       return;
     }
 
-    // Not in cache, fetch it (and cache it via prefetchImage for future use)
+    // Not in cache, fetch it
     let objectUrl: string | null = null;
+    let cancelled = false;
 
     const fetchAuthenticatedImage = async () => {
       try {
@@ -67,8 +70,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           responseType: 'blob',
         });
 
-        objectUrl = URL.createObjectURL(response.data);
-        setImageBlobUrl(objectUrl);
+        if (!cancelled) {
+          objectUrl = URL.createObjectURL(response.data);
+          setImageBlobUrl(objectUrl);
+        }
       } catch (err) {
         console.error('Failed to load authenticated full image:', err);
       }
@@ -77,6 +82,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     fetchAuthenticatedImage();
 
     return () => {
+      cancelled = true;
       // Only revoke if we created the URL ourselves (not from cache)
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
@@ -84,7 +90,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       setImageBlobUrl(null);
       setImageLoaded(false);
     };
-  }, [fullImageUrl, getImageBlobUrl]);
+  }, [isOpen, imageUuid, fullImageUrl, getImageBlobUrl]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {
