@@ -189,19 +189,9 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
     );
   }, [observations, notes, imageDetail]);
 
-  // Status message based on verification state
-  const statusMessage = imageDetail.verification.is_verified
-    ? `Verified by ${imageDetail.verification.verified_by_email}`
-    : 'AI predictions are not verified yet.';
-
   return (
     <Card>
       <CardContent className="pt-4 pb-3">
-        {/* Status message */}
-        <p className="text-sm text-muted-foreground mb-3">
-          {statusMessage}
-        </p>
-
         <div className="space-y-2">
           {observations.map(obs => (
             <div key={obs.id} className="flex items-center gap-2">
@@ -279,6 +269,13 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
             </>
           )}
         </Button>
+
+        {/* Status message */}
+        <p className="text-sm text-muted-foreground mt-3 text-center">
+          {imageDetail.verification.is_verified
+            ? `Verified by ${imageDetail.verification.verified_by_email}`
+            : 'Not verified yet'}
+        </p>
       </CardContent>
     </Card>
   );
