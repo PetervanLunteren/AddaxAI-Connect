@@ -38,7 +38,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [showBboxes, setShowBboxes] = useState(true);
   const { getImageBlobUrl, getOrFetchImage } = useImageCache();
 
-  const { data: imageDetail, isLoading, error, isFetching } = useQuery({
+  const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
     queryFn: () => imagesApi.getByUuid(imageUuid),
     enabled: isOpen && !!imageUuid,
@@ -46,16 +46,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     placeholderData: (previousData) => previousData,
   });
 
-  // Debug: log React Query state
-  console.log(`[Modal] RQ state: isLoading=${isLoading}, isFetching=${isFetching}, hasData=${!!imageDetail} (uuid: ${imageUuid?.slice(-8)})`);
-
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full`;
-
-  // Debug logging
-  const logModal = (msg: string) => {
-    console.log(`[Modal] ${msg} (uuid: ${imageUuid?.slice(-8)})`);
-  };
 
   // Fetch authenticated image using the shared cache
   // Check synchronously first to avoid loader flash for cached images
@@ -65,20 +57,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     // Check cache SYNCHRONOUSLY first - this prevents the loader flash
     const cachedUrl = getImageBlobUrl(fullImageUrl);
     if (cachedUrl) {
-      logModal('SYNC CACHE HIT');
       setImageBlobUrl(cachedUrl);
       return; // No cleanup needed for cached images
     }
 
     // Not in cache - need to fetch (show loader)
     let cancelled = false;
-    logModal('REQUEST image (fetching)');
     setImageBlobUrl(null);
 
     getOrFetchImage(fullImageUrl)
       .then((blobUrl) => {
         if (!cancelled) {
-          logModal('RECEIVED blob URL');
           setImageBlobUrl(blobUrl);
         }
       })
@@ -405,10 +394,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     src={imageBlobUrl}
                     alt={imageDetail.filename}
                     className="w-full h-auto rounded-lg"
-                    onLoad={() => {
-                      logModal('IMAGE onLoad fired');
-                      setImageLoaded(true);
-                    }}
+                    onLoad={() => setImageLoaded(true)}
                   />
                   <canvas
                     ref={canvasRef}
