@@ -240,7 +240,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   <span>{getSignalLabel(camera.signal_quality)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">SD card used</span>
+                  <span className="text-muted-foreground">SD used</span>
                   <span>
                     {/* SD value is "space left", invert to show "space used" */}
                     {camera.sd_utilization_percentage !== null
