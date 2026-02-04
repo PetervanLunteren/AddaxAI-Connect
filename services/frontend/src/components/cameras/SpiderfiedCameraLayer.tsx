@@ -27,13 +27,28 @@ const SPIDER_LEG_STYLE = {
   opacity: 0.6,
 };
 
+/**
+ * Interpolate between two points at a given ratio (0 = start, 1 = end)
+ */
+function interpolate(
+  start: { lat: number; lon: number },
+  end: { lat: number; lon: number },
+  ratio: number
+): [number, number] {
+  return [
+    start.lat + (end.lat - start.lat) * ratio,
+    start.lon + (end.lon - start.lon) * ratio,
+  ];
+}
+
 function SpiderLegLine({ leg }: { leg: SpiderLeg }) {
+  // Draw line from 10% to 90% to leave gaps at both ends
+  const startPoint = interpolate(leg.displayPosition, leg.realPosition, 0.1);
+  const endPoint = interpolate(leg.displayPosition, leg.realPosition, 0.9);
+
   return (
     <Polyline
-      positions={[
-        [leg.displayPosition.lat, leg.displayPosition.lon],
-        [leg.realPosition.lat, leg.realPosition.lon],
-      ]}
+      positions={[startPoint, endPoint]}
       pathOptions={SPIDER_LEG_STYLE}
     />
   );
