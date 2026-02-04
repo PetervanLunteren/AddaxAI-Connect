@@ -36,7 +36,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
-  const { getImageBlobUrl, prefetchImage } = useImageCache();
+  const { getOrFetchImage } = useImageCache();
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -47,50 +47,36 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full`;
 
-  // Fetch authenticated image and create blob URL
-  // Check cache immediately using the predictable URL pattern
+  // Debug logging
+  const logModal = (msg: string) => {
+    console.log(`[Modal] ${msg} (uuid: ${imageUuid?.slice(-8)})`);
+  };
+
+  // Fetch authenticated image using the shared cache
+  // This waits for any in-progress prefetch instead of starting a duplicate request
   useEffect(() => {
     if (!isOpen || !imageUuid) return;
 
-    // Check cache first - this is instant if prefetched
-    const cachedBlobUrl = getImageBlobUrl(fullImageUrl);
-    if (cachedBlobUrl) {
-      setImageBlobUrl(cachedBlobUrl);
-      return;
-    }
-
-    // Not in cache, fetch it
-    let objectUrl: string | null = null;
     let cancelled = false;
+    logModal('REQUEST image');
 
-    const fetchAuthenticatedImage = async () => {
-      try {
-        const apiClient = (await import('../api/client')).default;
-        const response = await apiClient.get(fullImageUrl, {
-          responseType: 'blob',
-        });
-
+    getOrFetchImage(fullImageUrl)
+      .then((blobUrl) => {
         if (!cancelled) {
-          objectUrl = URL.createObjectURL(response.data);
-          setImageBlobUrl(objectUrl);
+          logModal('RECEIVED blob URL');
+          setImageBlobUrl(blobUrl);
         }
-      } catch (err) {
-        console.error('Failed to load authenticated full image:', err);
-      }
-    };
-
-    fetchAuthenticatedImage();
+      })
+      .catch((err) => {
+        console.error('Failed to load full image:', err);
+      });
 
     return () => {
       cancelled = true;
-      // Only revoke if we created the URL ourselves (not from cache)
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
       setImageBlobUrl(null);
       setImageLoaded(false);
     };
-  }, [isOpen, imageUuid, fullImageUrl, getImageBlobUrl]);
+  }, [isOpen, imageUuid, fullImageUrl, getOrFetchImage]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {
@@ -405,7 +391,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     src={imageBlobUrl}
                     alt={imageDetail.filename}
                     className="w-full h-auto rounded-lg"
-                    onLoad={() => setImageLoaded(true)}
+                    onLoad={() => {
+                      logModal('IMAGE onLoad fired');
+                      setImageLoaded(true);
+                    }}
                   />
                   <canvas
                     ref={canvasRef}
