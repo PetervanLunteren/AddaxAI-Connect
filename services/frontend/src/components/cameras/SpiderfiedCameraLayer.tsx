@@ -42,9 +42,9 @@ function interpolate(
 }
 
 function SpiderLegLine({ leg }: { leg: SpiderLeg }) {
-  // Draw line from 30% to 90% (larger gap near circle, small gap near location)
-  const startPoint = interpolate(leg.displayPosition, leg.realPosition, 0.3);
-  const endPoint = interpolate(leg.displayPosition, leg.realPosition, 0.9);
+  // Draw line from 0% to 80% (starts at circle, 20% gap near location)
+  const startPoint = interpolate(leg.displayPosition, leg.realPosition, 0);
+  const endPoint = interpolate(leg.displayPosition, leg.realPosition, 0.8);
 
   return (
     <Polyline
