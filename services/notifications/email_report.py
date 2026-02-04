@@ -27,8 +27,7 @@ from report_stats import (
     get_camera_health_summary,
     get_notable_detections,
     get_activity_summary,
-    get_images_timeline,
-    get_hero_detection
+    get_images_timeline
 )
 
 logger = get_logger("notifications.email_report")
@@ -332,9 +331,6 @@ def generate_report_content(
     # Get camera health (always included)
     cameras = get_camera_health_summary(db, project_id)
 
-    # Get hero detection (best capture of the period)
-    hero = get_hero_detection(db, project_id, start_date, end_date, domain)
-
     # Build template data
     template_data = {
         'project_name': project_name,
@@ -344,7 +340,6 @@ def generate_report_content(
         'frequency': frequency.capitalize(),
         'frequency_label': frequency_label,
         'domain': domain,
-        'hero': hero,
         'stats': stats,
         'species': species,
         'cameras': cameras
@@ -362,7 +357,7 @@ def generate_report_content(
         'species': species,
         'health': cameras,
         'activity': activity,
-        'notable': [hero] if hero else []
+        'notable': []
     }
 
     # Generate HTML and plain text using shared renderer

@@ -843,41 +843,11 @@ async def get_image_full(
     return await _stream_image_from_storage(image, cache_max_age=86400)
 
 
-@router.api_route("/{uuid}/thumbnail/public", methods=["GET", "HEAD"])
-async def get_image_thumbnail_public(
-    uuid: str,
-    db: AsyncSession = Depends(get_async_session),
-):
-    """
-    Stream image thumbnail without authentication.
-
-    This endpoint does not require authentication since:
-    - Image UUIDs are cryptographically random and serve as access tokens
-    - Used for email reports where clients cannot authenticate
-    - Images are not sensitive data (wildlife camera trap photos)
-
-    Supports both GET and HEAD methods (Gmail's image proxy uses HEAD to verify images).
-
-    Returns the pre-generated 300px thumbnail if available, otherwise falls back
-    to the full-size image.
-    """
-    query = select(Image).where(Image.uuid == uuid)
-    result = await db.execute(query)
-    image = result.scalar_one_or_none()
-
-    if not image:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Image not found",
-        )
-
-    return await _stream_image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
-
-
 @router.get("/{uuid}/annotated")
 async def get_annotated_image(
     uuid: str,
     db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
 ):
     """
     Generate and return annotated image with bounding boxes and labels.
@@ -891,14 +861,7 @@ async def get_annotated_image(
     3. Generates an annotated version using Playwright with Canvas rendering
     4. Returns the annotated JPEG with 1-hour cache
 
-    Used by:
-    - Frontend download functionality (ImageDetailModal)
-    - Notification attachments (Signal, Telegram)
-
-    Note: This endpoint does not require authentication since:
-    - Image UUIDs are cryptographically random and serve as access tokens
-    - Used for internal service-to-service calls (notifications workers)
-    - Images are not sensitive data (wildlife camera trap photos)
+    Requires authentication. Notifications use MinIO-based delivery instead.
     """
     from utils.annotated_image_generator import generate_annotated_image
 
@@ -924,6 +887,14 @@ async def get_annotated_image(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Image camera or project not assigned",
+        )
+
+    # Check user has access to this project
+    accessible_projects = await get_accessible_project_ids(db, current_user)
+    if image.camera.project_id not in accessible_projects:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image"
         )
 
     # Load project to get detection threshold

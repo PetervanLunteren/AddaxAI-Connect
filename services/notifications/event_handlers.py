@@ -35,7 +35,7 @@ def handle_species_detection(
         'camera_id': int,
         'camera_name': str,
         'camera_location': {'lat': float, 'lon': float} or None,
-        'annotated_image_url': str,  # API URL to annotated image
+        'annotated_minio_path': str or None,  # MinIO path to annotated image
         'timestamp': str (ISO 8601)
     }
 
@@ -55,7 +55,7 @@ def handle_species_detection(
     confidence = event.get('confidence')
     camera_name = event.get('camera_name')
     location = event.get('camera_location')
-    annotated_image_url = event.get('annotated_image_url')
+    annotated_minio_path = event.get('annotated_minio_path')
     project_id = event.get('project_id')
     timestamp_str = event.get('timestamp')
 
@@ -161,7 +161,7 @@ def handle_species_detection(
                     'notification_log_id': log_id,
                     'chat_id': user['telegram_chat_id'],
                     'message_text': message_content,
-                    'attachment_url': annotated_image_url,
+                    'annotated_minio_path': annotated_minio_path,
                     'reply_markup': reply_markup,
                 })
 

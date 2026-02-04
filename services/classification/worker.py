@@ -12,6 +12,12 @@ from model_loader import load_model
 from classifier import run_classification
 from storage_operations import download_image_from_minio
 from db_operations import get_detections_for_image, insert_classifications, update_image_status
+from annotated_image import (
+    generate_annotated_image,
+    upload_annotated_image_to_minio,
+    Detection as AnnotatedDetection,
+    Classification as AnnotatedClassification
+)
 
 # Enable PIL to load truncated images from camera traps
 from PIL import ImageFile
@@ -141,9 +147,58 @@ def process_detection_complete(message: dict, classifier) -> None:
                     camera = db.query(Camera).filter(Camera.id == image.camera_id).first() if image else None
 
                     if image and camera:
-                        # Use API-generated annotated image URL instead of pre-generating
-                        # This ensures exact visual match with frontend downloads
-                        annotated_image_url = f"/api/images/{image_uuid}/annotated"
+                        # Generate annotated image and upload to MinIO for secure delivery
+                        # Image is deleted after Telegram sends it (no public URLs)
+                        annotated_minio_path = None
+                        try:
+                            # Build detection/classification pairs for annotation
+                            # Match by detection_id and convert bbox to pixel coords
+                            detection_classification_pairs = []
+                            for classification in classifications:
+                                # Find matching detection
+                                matching_det = next(
+                                    (d for d in detections if d.detection_id == classification.detection_id),
+                                    None
+                                )
+                                if matching_det:
+                                    # Convert normalized bbox to pixel coordinates
+                                    bbox_n = matching_det.bbox_normalized
+                                    pixel_bbox = {
+                                        'x': int(bbox_n[0] * matching_det.image_width),
+                                        'y': int(bbox_n[1] * matching_det.image_height),
+                                        'width': int(bbox_n[2] * matching_det.image_width),
+                                        'height': int(bbox_n[3] * matching_det.image_height)
+                                    }
+                                    ann_det = AnnotatedDetection(
+                                        bbox=pixel_bbox,
+                                        category=matching_det.category
+                                    )
+                                    ann_class = AnnotatedClassification(
+                                        species=classification.species,
+                                        confidence=classification.confidence
+                                    )
+                                    detection_classification_pairs.append((ann_det, ann_class))
+
+                            if detection_classification_pairs:
+                                # Generate and upload annotated image
+                                annotated_bytes = generate_annotated_image(
+                                    image_path=image_path,
+                                    detections=detection_classification_pairs
+                                )
+                                annotated_minio_path = upload_annotated_image_to_minio(
+                                    image_bytes=annotated_bytes,
+                                    image_uuid=image_uuid
+                                )
+                                logger.info(
+                                    "Generated annotated image for notifications",
+                                    image_uuid=image_uuid,
+                                    minio_path=annotated_minio_path
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                "Failed to generate annotated image, notifications will be sent without image",
+                                error=str(e)
+                            )
 
                         # Use image EXIF timestamp (DateTimeOriginal) or GPS from image, not camera
                         # Priority: Image GPS > Camera GPS
@@ -183,7 +238,7 @@ def process_detection_complete(message: dict, classifier) -> None:
                                 "species": species,
                                 "confidence": classification.confidence,
                                 "detection_count": len(classifications),
-                                "annotated_image_url": annotated_image_url,  # API endpoint URL
+                                "annotated_minio_path": annotated_minio_path,  # MinIO path for secure delivery
                                 "timestamp": timestamp
                             })
                             logger.info(
@@ -191,7 +246,7 @@ def process_detection_complete(message: dict, classifier) -> None:
                                 species=species,
                                 confidence=classification.confidence,
                                 total_species_count=len(species_map),
-                                annotated_url=annotated_image_url
+                                annotated_minio_path=annotated_minio_path
                             )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))

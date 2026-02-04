@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 
 from telegram_client import TelegramClient, TelegramNotConfiguredError
 from db_operations import update_notification_status
+from shared.storage import StorageClient
 import requests
 
 logger = get_logger("notifications-telegram")
@@ -100,12 +101,12 @@ def handle_link_token(token: str, chat_id: str) -> bool:
         return False
 
 
-def download_image_from_api(api_url: str) -> bytes:
+def download_image_from_minio(minio_path: str) -> bytes:
     """
-    Download annotated image from API endpoint.
+    Download annotated image from MinIO storage.
 
     Args:
-        api_url: API endpoint URL (e.g., "/api/images/{uuid}/annotated")
+        minio_path: Path in MinIO (e.g., "annotated/{uuid}.jpg")
 
     Returns:
         Image bytes
@@ -113,36 +114,49 @@ def download_image_from_api(api_url: str) -> bytes:
     Raises:
         Exception: If download fails
     """
-    # Get API base URL from settings
-    api_host = settings.api_host or "api:8000"
-    if not api_url.startswith('http'):
-        # Relative URL - construct full URL
-        full_url = f"http://{api_host}{api_url}"
-    else:
-        full_url = api_url
-
-    logger.debug("Fetching image from API", url=full_url)
+    logger.debug("Fetching image from MinIO", path=minio_path)
 
     try:
-        # Make internal API request (no auth needed for internal calls)
-        response = requests.get(full_url, timeout=30)
-        response.raise_for_status()
+        storage = StorageClient()
+        image_bytes = storage.download_fileobj(bucket='thumbnails', object_name=minio_path)
 
         logger.debug(
-            "Downloaded image from API",
-            url=api_url,
-            size_bytes=len(response.content)
+            "Downloaded image from MinIO",
+            path=minio_path,
+            size_bytes=len(image_bytes)
         )
 
-        return response.content
+        return image_bytes
 
     except Exception as e:
         logger.error(
-            "Failed to download image from API",
-            url=api_url,
+            "Failed to download image from MinIO",
+            path=minio_path,
             error=str(e)
         )
         raise
+
+
+def delete_image_from_minio(minio_path: str) -> None:
+    """
+    Delete annotated image from MinIO after sending notification.
+
+    This ensures images are only temporarily accessible, improving security.
+
+    Args:
+        minio_path: Path in MinIO (e.g., "annotated/{uuid}.jpg")
+    """
+    try:
+        storage = StorageClient()
+        storage.delete_object(bucket='thumbnails', object_name=minio_path)
+        logger.debug("Deleted annotated image from MinIO", path=minio_path)
+    except Exception as e:
+        # Log but don't fail - image delivery was successful
+        logger.warning(
+            "Failed to delete annotated image from MinIO",
+            path=minio_path,
+            error=str(e)
+        )
 
 
 def process_telegram_message(message: Dict[str, Any]) -> None:
@@ -157,14 +171,14 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         'notification_log_id': int,
         'chat_id': str,  # Telegram chat ID
         'message_text': str,
-        'attachment_url': str or None,  # API URL to annotated image
+        'annotated_minio_path': str or None,  # MinIO path to annotated image
         'reply_markup': dict or None  # Optional inline keyboard
     }
     """
     log_id = message.get('notification_log_id')
     chat_id = message.get('chat_id')
     message_text = message.get('message_text')
-    attachment_url = message.get('attachment_url')
+    annotated_minio_path = message.get('annotated_minio_path')
     reply_markup = message.get('reply_markup')
 
     # Validate required fields
@@ -176,7 +190,7 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         "Processing Telegram notification",
         log_id=log_id,
         chat_id=chat_id[:5] + "***" if len(chat_id) > 5 else chat_id,
-        has_attachment=attachment_url is not None,
+        has_attachment=annotated_minio_path is not None,
         has_buttons=reply_markup is not None
     )
 
@@ -184,16 +198,16 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         # Initialize Telegram client
         client = TelegramClient()
 
-        # Download image attachment if present
+        # Download image attachment from MinIO if present
         photo_bytes: Optional[bytes] = None
-        if attachment_url:
+        if annotated_minio_path:
             try:
-                photo_bytes = download_image_from_api(attachment_url)
-                logger.debug("Downloaded attachment from API", url=attachment_url)
+                photo_bytes = download_image_from_minio(annotated_minio_path)
+                logger.debug("Downloaded attachment from MinIO", path=annotated_minio_path)
             except Exception as e:
                 logger.warning(
                     "Failed to download attachment, sending without image",
-                    url=attachment_url,
+                    path=annotated_minio_path,
                     error=str(e)
                 )
                 # Continue without attachment
@@ -208,6 +222,10 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
 
         # Update notification log status to 'sent'
         update_notification_status(log_id, status='sent')
+
+        # Delete annotated image from MinIO after successful send (security: no persistent public access)
+        if annotated_minio_path:
+            delete_image_from_minio(annotated_minio_path)
 
         logger.info("Telegram notification sent", log_id=log_id)
 
