@@ -1,6 +1,6 @@
 /**
  * Camera map controls component
- * Provides color-by selector and base layer toggle
+ * Provides color-by selector and base layer toggle as segmented buttons
  */
 import { Map, Satellite, Navigation } from 'lucide-react';
 import type { ColorByMetric } from '../../utils/camera-colors';
@@ -20,25 +20,47 @@ export function CameraMapControls({
 }: CameraMapControlsProps) {
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-        {/* Color-by selector */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+        {/* Color-by segmented button */}
         <div>
-          <label
-            htmlFor="color-by"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Color by
           </label>
-          <select
-            id="color-by"
-            value={colorBy}
-            onChange={(e) => onColorByChange(e.target.value as ColorByMetric)}
-            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="status">Status</option>
-            <option value="battery">Battery</option>
-            <option value="signal">Signal</option>
-          </select>
+          <div className="flex w-full rounded-md shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => onColorByChange('status')}
+              className={`flex-1 h-10 px-2 text-sm font-medium rounded-l-md border flex items-center justify-center ${
+                colorBy === 'status'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Status
+            </button>
+            <button
+              type="button"
+              onClick={() => onColorByChange('battery')}
+              className={`flex-1 h-10 px-2 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
+                colorBy === 'battery'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Battery
+            </button>
+            <button
+              type="button"
+              onClick={() => onColorByChange('signal')}
+              className={`flex-1 h-10 px-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
+                colorBy === 'signal'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Signal
+            </button>
+          </div>
         </div>
 
         {/* Base layer toggle */}
@@ -88,6 +110,10 @@ export function CameraMapControls({
             </button>
           </div>
         </div>
+
+        {/* Empty columns 3 and 4 */}
+        <div className="hidden md:block" />
+        <div className="hidden md:block" />
       </div>
     </div>
   );
