@@ -92,6 +92,41 @@ export interface Detection {
   classifications: Classification[];
 }
 
+// Human verification types
+export interface HumanObservation {
+  id: number;
+  species: string;
+  count: number;
+  created_at: string;
+  created_by_email: string;
+  updated_at: string | null;
+  updated_by_email: string | null;
+}
+
+export interface VerificationInfo {
+  is_verified: boolean;
+  verified_at: string | null;
+  verified_by_email: string | null;
+  notes: string | null;
+}
+
+export interface HumanObservationInput {
+  species: string;
+  count: number;
+}
+
+export interface SaveVerificationRequest {
+  is_verified: boolean;
+  notes: string | null;
+  observations: HumanObservationInput[];
+}
+
+export interface SaveVerificationResponse {
+  message: string;
+  verification: VerificationInfo;
+  human_observations: HumanObservation[];
+}
+
 export interface ImageDetail {
   id: number;
   uuid: string;
@@ -104,6 +139,8 @@ export interface ImageDetail {
   image_metadata: Record<string, any>;
   full_image_url: string;
   detections: Detection[];
+  verification: VerificationInfo;
+  human_observations: HumanObservation[];
 }
 
 export interface PaginatedResponse<T> {
