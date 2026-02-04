@@ -30,44 +30,41 @@ export function CameraMapControls({
             <button
               type="button"
               onClick={() => onColorByChange('status')}
-              title="Color by camera status (active, inactive, never reported)"
+              title="Status"
               aria-label="Status"
-              className={`flex-1 h-10 px-2 text-sm font-medium rounded-l-md border flex items-center justify-center gap-1.5 ${
+              className={`flex-1 h-10 px-3 text-sm font-medium rounded-l-md border flex items-center justify-center ${
                 colorBy === 'status'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
               <Activity className="h-4 w-4" />
-              Status
             </button>
             <button
               type="button"
               onClick={() => onColorByChange('battery')}
-              title="Color by battery level"
+              title="Battery"
               aria-label="Battery"
-              className={`flex-1 h-10 px-2 text-sm font-medium border-t border-b border-r flex items-center justify-center gap-1.5 ${
+              className={`flex-1 h-10 px-3 text-sm font-medium border-t border-b border-r flex items-center justify-center ${
                 colorBy === 'battery'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
               <Battery className="h-4 w-4" />
-              Battery
             </button>
             <button
               type="button"
               onClick={() => onColorByChange('signal')}
-              title="Color by signal strength"
+              title="Signal"
               aria-label="Signal"
-              className={`flex-1 h-10 px-2 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center gap-1.5 ${
+              className={`flex-1 h-10 px-3 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center justify-center ${
                 colorBy === 'signal'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
               <Signal className="h-4 w-4" />
-              Signal
             </button>
           </div>
         </div>
