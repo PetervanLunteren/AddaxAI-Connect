@@ -161,7 +161,7 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
         >
           <SelectItem value="battery">Battery</SelectItem>
           <SelectItem value="signal">Signal</SelectItem>
-          <SelectItem value="sd">SD card</SelectItem>
+          <SelectItem value="sd">SD used</SelectItem>
           <SelectItem value="images">Images on SD</SelectItem>
         </Select>
 
