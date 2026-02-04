@@ -6,40 +6,79 @@ import apiClient from '../api/client';
 
 interface ImageCacheContextType {
   getImageBlobUrl: (imageUrl: string) => string | null;
+  getOrFetchImage: (imageUrl: string) => Promise<string>;
   prefetchImage: (imageUrl: string) => void;
   prefetchImages: (imageUrls: string[]) => void;
 }
 
 const ImageCacheContext = createContext<ImageCacheContextType | null>(null);
 
+// Debug logging with timestamps
+const DEBUG = true;
+const startTime = Date.now();
+const log = (msg: string, ...args: any[]) => {
+  if (DEBUG) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`[ImageCache ${elapsed}s] ${msg}`, ...args);
+  }
+};
+
 export const ImageCacheProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Cache maps image URL to blob URL
   const cacheRef = useRef<Map<string, string>>(new Map());
-  // Track which URLs are being fetched to avoid duplicates
-  const fetchingRef = useRef<Set<string>>(new Set());
+  // Track in-flight fetch promises so we can await them instead of starting duplicates
+  const fetchPromisesRef = useRef<Map<string, Promise<string>>>(new Map());
 
-  const prefetchImage = useCallback(async (imageUrl: string) => {
-    // Skip if already cached or being fetched
-    if (cacheRef.current.has(imageUrl) || fetchingRef.current.has(imageUrl)) {
-      return;
+  const fetchImage = useCallback(async (imageUrl: string): Promise<string> => {
+    const shortUrl = imageUrl.split('/').pop(); // Just the UUID for readability
+
+    // Check cache first
+    const cached = cacheRef.current.get(imageUrl);
+    if (cached) {
+      log(`CACHE HIT: ${shortUrl}`);
+      return cached;
     }
 
-    fetchingRef.current.add(imageUrl);
-
-    try {
-      const response = await apiClient.get(imageUrl, {
-        responseType: 'blob',
-      });
-      const blobUrl = URL.createObjectURL(response.data);
-      cacheRef.current.set(imageUrl, blobUrl);
-    } catch (err) {
-      console.error('Failed to prefetch image:', imageUrl, err);
-    } finally {
-      fetchingRef.current.delete(imageUrl);
+    // Check if already fetching - return existing promise
+    const existingPromise = fetchPromisesRef.current.get(imageUrl);
+    if (existingPromise) {
+      log(`WAITING for in-flight: ${shortUrl}`);
+      return existingPromise;
     }
+
+    // Start new fetch and store the promise
+    log(`FETCH START: ${shortUrl}`);
+    const fetchPromise = (async () => {
+      try {
+        const response = await apiClient.get(imageUrl, {
+          responseType: 'blob',
+        });
+        const blobUrl = URL.createObjectURL(response.data);
+        cacheRef.current.set(imageUrl, blobUrl);
+        log(`FETCH DONE: ${shortUrl} (cache size: ${cacheRef.current.size})`);
+        return blobUrl;
+      } finally {
+        fetchPromisesRef.current.delete(imageUrl);
+      }
+    })();
+
+    fetchPromisesRef.current.set(imageUrl, fetchPromise);
+    return fetchPromise;
   }, []);
 
+  const prefetchImage = useCallback((imageUrl: string) => {
+    // Skip if already cached
+    if (cacheRef.current.has(imageUrl)) {
+      return;
+    }
+    // Start fetch (will be deduplicated by fetchImage)
+    fetchImage(imageUrl).catch(err => {
+      console.error('Failed to prefetch image:', imageUrl, err);
+    });
+  }, [fetchImage]);
+
   const prefetchImages = useCallback((imageUrls: string[]) => {
+    log(`PREFETCH queued: ${imageUrls.length} images (50ms stagger)`);
     // Prefetch images with a small delay between each to avoid overwhelming the server
     imageUrls.forEach((url, index) => {
       setTimeout(() => prefetchImage(url), index * 50);
@@ -50,8 +89,12 @@ export const ImageCacheProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return cacheRef.current.get(imageUrl) || null;
   }, []);
 
+  const getOrFetchImage = useCallback((imageUrl: string): Promise<string> => {
+    return fetchImage(imageUrl);
+  }, [fetchImage]);
+
   return (
-    <ImageCacheContext.Provider value={{ getImageBlobUrl, prefetchImage, prefetchImages }}>
+    <ImageCacheContext.Provider value={{ getImageBlobUrl, getOrFetchImage, prefetchImage, prefetchImages }}>
       {children}
     </ImageCacheContext.Provider>
   );
