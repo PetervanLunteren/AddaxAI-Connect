@@ -10,6 +10,7 @@ import { imagesApi } from '../api/images';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { normalizeLabel } from '../utils/labels';
 import { VerificationPanel } from './VerificationPanel';
+import { useImageCache } from '../contexts/ImageCacheContext';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -35,6 +36,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
+  const { getImageBlobUrl, prefetchImage } = useImageCache();
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -46,11 +48,19 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   // Only re-fetch when the image URL changes, not when verification data changes
   const fullImageUrl = imageDetail?.full_image_url;
   useEffect(() => {
+    if (!fullImageUrl) return;
+
+    // Check cache first
+    const cachedBlobUrl = getImageBlobUrl(fullImageUrl);
+    if (cachedBlobUrl) {
+      setImageBlobUrl(cachedBlobUrl);
+      return;
+    }
+
+    // Not in cache, fetch it (and cache it via prefetchImage for future use)
     let objectUrl: string | null = null;
 
     const fetchAuthenticatedImage = async () => {
-      if (!fullImageUrl) return;
-
       try {
         const apiClient = (await import('../api/client')).default;
         const response = await apiClient.get(fullImageUrl, {
@@ -64,18 +74,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       }
     };
 
-    if (fullImageUrl) {
-      fetchAuthenticatedImage();
-    }
+    fetchAuthenticatedImage();
 
     return () => {
+      // Only revoke if we created the URL ourselves (not from cache)
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
       setImageBlobUrl(null);
       setImageLoaded(false);
     };
-  }, [fullImageUrl]);
+  }, [fullImageUrl, getImageBlobUrl]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {

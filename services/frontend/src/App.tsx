@@ -5,6 +5,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProjectProvider } from './contexts/ProjectContext';
+import { ImageCacheProvider } from './contexts/ImageCacheContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
@@ -37,6 +38,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <ProjectProvider>
+            <ImageCacheProvider>
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
@@ -149,6 +151,7 @@ function App() {
               {/* 404 - redirect to projects */}
               <Route path="*" element={<Navigate to="/projects" replace />} />
             </Routes>
+            </ImageCacheProvider>
           </ProjectProvider>
         </AuthProvider>
       </BrowserRouter>
