@@ -1,9 +1,10 @@
 /**
  * Hook for calculating spiderfied positions for overlapping camera markers
- * Groups cameras within a distance threshold and spreads them in a circle pattern
+ * Groups cameras based on screen pixel distance and spreads them in a circle pattern
  */
 import { useState, useMemo } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
+import type { Map as LeafletMap } from 'leaflet';
 import type { Camera } from '../api/types';
 
 // Types
@@ -36,51 +37,39 @@ export interface SpiderLeg {
 }
 
 interface SpiderfyOptions {
-  proximityThresholdMeters?: number;
+  /** Pixel distance threshold for grouping overlapping cameras (default: 30) */
+  proximityThresholdPixels?: number;
+  /** Pixel radius for spreading cameras in circle (default: 20) */
   spreadRadiusPixels?: number;
 }
 
-const DEFAULT_PROXIMITY_THRESHOLD = 100; // meters
-const DEFAULT_SPREAD_RADIUS = 40; // pixels
+const DEFAULT_PROXIMITY_THRESHOLD = 30; // pixels
+const DEFAULT_SPREAD_RADIUS = 20; // pixels
 
 /**
- * Convert degrees to radians
+ * Calculate pixel distance between two cameras on screen
  */
-function toRadians(degrees: number): number {
-  return degrees * (Math.PI / 180);
-}
-
-/**
- * Calculate distance between two GPS coordinates using Haversine formula
- * @returns Distance in meters
- */
-function calculateDistanceMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
+function calculatePixelDistance(
+  map: LeafletMap,
+  cam1: CameraWithLocation,
+  cam2: CameraWithLocation
 ): number {
-  const R = 6371000; // Earth's radius in meters
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
+  const point1 = map.latLngToContainerPoint([cam1.location.lat, cam1.location.lon]);
+  const point2 = map.latLngToContainerPoint([cam2.location.lat, cam2.location.lon]);
 
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+  const dx = point1.x - point2.x;
+  const dy = point1.y - point2.y;
 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 /**
- * Group cameras that are within the proximity threshold using Union-Find
+ * Group cameras that are within the pixel proximity threshold using Union-Find
  */
 function groupOverlappingCameras(
+  map: LeafletMap,
   cameras: CameraWithLocation[],
-  thresholdMeters: number
+  thresholdPixels: number
 ): CameraGroup[] {
   const n = cameras.length;
   if (n === 0) return [];
@@ -111,17 +100,12 @@ function groupOverlappingCameras(
     }
   }
 
-  // Compare all pairs and union if within threshold
+  // Compare all pairs and union if within pixel threshold
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
-      const dist = calculateDistanceMeters(
-        cameras[i].location.lat,
-        cameras[i].location.lon,
-        cameras[j].location.lat,
-        cameras[j].location.lon
-      );
+      const pixelDist = calculatePixelDistance(map, cameras[i], cameras[j]);
 
-      if (dist <= thresholdMeters) {
+      if (pixelDist <= thresholdPixels) {
         union(i, j);
       }
     }
@@ -161,6 +145,7 @@ function groupOverlappingCameras(
 
 /**
  * Hook that calculates spiderfied positions for overlapping cameras
+ * Groups are determined by screen pixel distance, so they adapt to zoom level
  *
  * @param cameras - Array of cameras (may include cameras without location)
  * @param options - Configuration options
@@ -173,11 +158,11 @@ export function useSpiderfiedCameras(
   const map = useMap();
   const [zoomLevel, setZoomLevel] = useState(() => map.getZoom());
 
-  const thresholdMeters =
-    options.proximityThresholdMeters ?? DEFAULT_PROXIMITY_THRESHOLD;
+  const thresholdPixels =
+    options.proximityThresholdPixels ?? DEFAULT_PROXIMITY_THRESHOLD;
   const spreadRadius = options.spreadRadiusPixels ?? DEFAULT_SPREAD_RADIUS;
 
-  // Listen for zoom changes to recalculate positions
+  // Listen for zoom changes to recalculate positions and groups
   useMapEvents({
     zoomend: () => {
       setZoomLevel(map.getZoom());
@@ -190,14 +175,11 @@ export function useSpiderfiedCameras(
     [cameras]
   );
 
-  // Group overlapping cameras (only depends on cameras and threshold)
-  const groups = useMemo(
-    () => groupOverlappingCameras(camerasWithLocation, thresholdMeters),
-    [camerasWithLocation, thresholdMeters]
-  );
-
-  // Calculate spiderfied positions (depends on groups, zoom, and spread radius)
+  // Calculate groups and spiderfied positions (both depend on zoom level now)
   const result = useMemo(() => {
+    // Group based on current screen pixel distances
+    const groups = groupOverlappingCameras(map, camerasWithLocation, thresholdPixels);
+
     const spiderfiedCameras: SpiderfiedCamera[] = [];
     const spiderLegs: SpiderLeg[] = [];
 
@@ -260,7 +242,7 @@ export function useSpiderfiedCameras(
     }
 
     return { spiderfiedCameras, spiderLegs };
-  }, [groups, zoomLevel, map, spreadRadius]);
+  }, [camerasWithLocation, zoomLevel, map, thresholdPixels, spreadRadius]);
 
   return result;
 }
