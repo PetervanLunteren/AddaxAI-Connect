@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X, Loader2, Check } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
-import { Checkbox } from './ui/Checkbox';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
 import { imagesApi } from '../api/images';
 import { normalizeLabel } from '../utils/labels';
@@ -35,7 +34,6 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
   // Local state for form
   const [observations, setObservations] = useState<ObservationRow[]>([]);
   const [notes, setNotes] = useState('');
-  const [isVerified, setIsVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch species list for dropdown
@@ -89,11 +87,10 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
         setObservations(aiObs);
       }
       setNotes(imageDetail.verification.notes || '');
-      setIsVerified(imageDetail.verification.is_verified);
     }
   }, [imageDetail, aiPredictions]);
 
-  // Save mutation
+  // Save mutation - always marks as verified
   const saveMutation = useMutation({
     mutationFn: () => {
       const validObservations: HumanObservationInput[] = observations
@@ -104,7 +101,7 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
         }));
 
       return imagesApi.saveVerification(imageUuid, {
-        is_verified: isVerified,
+        is_verified: true,
         notes: notes || null,
         observations: validObservations,
       });
@@ -187,17 +184,22 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
 
     return (
       currentObs !== baselineObs ||
-      notes !== (imageDetail.verification.notes || '') ||
-      isVerified !== imageDetail.verification.is_verified
+      notes !== (imageDetail.verification.notes || '')
     );
-  }, [observations, notes, isVerified, imageDetail, aiPredictions]);
+  }, [observations, notes, imageDetail, aiPredictions]);
+
+  // Status message based on verification state
+  const statusMessage = imageDetail.verification.is_verified
+    ? `Verified by ${imageDetail.verification.verified_by_email}`
+    : 'AI predictions are not verified yet.';
 
   return (
     <Card>
       <CardContent className="pt-4 pb-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-          <span className="font-medium">Species observations</span>
-        </div>
+        {/* Status message */}
+        <p className="text-sm text-muted-foreground mb-3">
+          {statusMessage}
+        </p>
 
         <div className="space-y-2">
           {observations.map(obs => (
@@ -251,16 +253,6 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
           />
         </div>
 
-        {/* Verification checkbox */}
-        <div className="mt-4 pt-3 border-t border-border">
-          <Checkbox
-            id="mark-verified"
-            checked={isVerified}
-            onChange={setIsVerified}
-            label="Mark as verified"
-          />
-        </div>
-
         {/* Error message */}
         {error && (
           <div className="mt-3 p-2 bg-destructive/10 text-destructive text-sm rounded-md">
@@ -286,13 +278,6 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
             </>
           )}
         </Button>
-
-        {/* Last verified info */}
-        {imageDetail.verification.is_verified && imageDetail.verification.verified_by_email && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            Verified by {imageDetail.verification.verified_by_email}
-          </p>
-        )}
       </CardContent>
     </Card>
   );
