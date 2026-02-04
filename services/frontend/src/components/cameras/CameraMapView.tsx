@@ -4,10 +4,9 @@
  */
 import { useState, useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import type { Camera } from '../../api/types';
-import { getCameraMarkerColor, type ColorByMetric } from '../../utils/camera-colors';
-import { CameraMarker } from './CameraMarker';
+import { type ColorByMetric } from '../../utils/camera-colors';
+import { SpiderfiedCameraLayer } from './SpiderfiedCameraLayer';
 import { CameraMapLegend } from './CameraMapLegend';
 import { CameraMapControls } from './CameraMapControls';
 import 'leaflet/dist/leaflet.css';
@@ -130,27 +129,11 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
             url={tileLayerConfig.url}
           />
 
-          <MarkerClusterGroup
-            maxClusterRadius={30}
-            spiderfyOnEveryZoom={true}
-            spiderfyDistanceMultiplier={1.5}
-            showCoverageOnHover={false}
-            zoomToBoundsOnClick={true}
-            spiderLegPolylineOptions={{
-              weight: 1.5,
-              color: '#666666',
-              opacity: 0.6,
-            }}
-          >
-            {camerasWithLocation.map((camera) => (
-              <CameraMarker
-                key={camera.id}
-                camera={camera}
-                color={getCameraMarkerColor(camera, colorBy)}
-                onClick={() => onCameraClick(camera)}
-              />
-            ))}
-          </MarkerClusterGroup>
+          <SpiderfiedCameraLayer
+            cameras={camerasWithLocation}
+            colorBy={colorBy}
+            onCameraClick={onCameraClick}
+          />
 
           <CameraMapLegend colorBy={colorBy} />
         </MapContainer>
