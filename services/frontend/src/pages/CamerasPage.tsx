@@ -241,11 +241,11 @@ export const CamerasPage: React.FC = () => {
     return '#882000';
   };
 
-  const getSDColor = (spaceLeft: number | null) => {
-    if (spaceLeft === null) return '#9ca3af';
-    if (spaceLeft > 50) return '#0f6064';
-    if (spaceLeft > 20) return '#71b7ba';
-    return '#882000';
+  const getSDColor = (sdUsed: number | null) => {
+    if (sdUsed === null) return '#9ca3af';
+    if (sdUsed < 50) return '#0f6064';      // Green: less than 50% used
+    if (sdUsed < 80) return '#71b7ba';      // Teal: 50-80% used
+    return '#882000';                        // Red: more than 80% used
   };
 
   const getTimestampColor = (timestamp: string | null) => {
@@ -358,9 +358,10 @@ export const CamerasPage: React.FC = () => {
           ? Math.round(camerasWithBattery.reduce((sum: number, c: Camera) => sum + (c.battery_percentage || 0), 0) / camerasWithBattery.length)
           : 0;
 
+        // SD values from cameras represent "space left", so invert to get "space used"
         const camerasWithSD = cameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
         const avgSD = camerasWithSD.length > 0
-          ? Math.round(camerasWithSD.reduce((sum: number, c: Camera) => sum + (c.sd_utilization_percentage || 0), 0) / camerasWithSD.length)
+          ? Math.round(camerasWithSD.reduce((sum: number, c: Camera) => sum + (100 - (c.sd_utilization_percentage || 0)), 0) / camerasWithSD.length)
           : 0;
 
         return (
@@ -507,14 +508,15 @@ export const CamerasPage: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
+                        {/* SD value is "space left", invert to show "space used" */}
                         <div className="flex items-center gap-1.5">
                           <span
                             className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
+                            style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage !== null ? 100 - camera.sd_utilization_percentage : null) }}
                           />
                           <span className="text-sm">
                             {camera.sd_utilization_percentage !== null
-                              ? `${Math.round(camera.sd_utilization_percentage)}%`
+                              ? `${Math.round(100 - camera.sd_utilization_percentage)}%`
                               : 'N/A'}
                           </span>
                         </div>
