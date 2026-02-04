@@ -214,6 +214,7 @@ def get_camera_health_summary(
     total = len(cameras)
     active = 0
     inactive_cameras = []
+    never_reported_cameras = []
     low_battery_cameras = []
     high_sd_cameras = []
     battery_values = []
@@ -222,7 +223,12 @@ def get_camera_health_summary(
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
 
     for camera in cameras:
-        # Check activity status
+        # Check if camera has never reported (use status field)
+        if camera.status == 'never_reported':
+            never_reported_cameras.append({'name': camera.name})
+            continue
+
+        # Check activity status for cameras that have reported before
         is_active = False
         if camera.last_daily_report_at:
             if camera.last_daily_report_at >= cutoff_date:
@@ -283,6 +289,8 @@ def get_camera_health_summary(
         'active': active,
         'inactive': len(inactive_cameras),
         'inactive_cameras': inactive_cameras,
+        'never_reported': len(never_reported_cameras),
+        'never_reported_cameras': never_reported_cameras,
         'low_battery_count': len(low_battery_cameras),
         'low_battery_cameras': sorted(low_battery_cameras, key=lambda x: x['battery']),
         'high_sd_count': len(high_sd_cameras),
