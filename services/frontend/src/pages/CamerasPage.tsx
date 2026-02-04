@@ -438,7 +438,7 @@ export const CamerasPage: React.FC = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Average SD card</p>
+                    <p className="text-sm font-medium text-muted-foreground">Average SD used</p>
                     <p className="text-2xl font-bold mt-1">{avgSD}%</p>
                   </div>
                   <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
@@ -467,7 +467,7 @@ export const CamerasPage: React.FC = () => {
                     <TableHead>Status</TableHead>
                     <TableHead>Battery</TableHead>
                     <TableHead>Signal</TableHead>
-                    <TableHead>SD card</TableHead>
+                    <TableHead>SD used</TableHead>
                     <TableHead>Last report</TableHead>
                     <TableHead>Last image</TableHead>
                     <TableHead>Location</TableHead>
