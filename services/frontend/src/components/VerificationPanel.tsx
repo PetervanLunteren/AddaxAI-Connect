@@ -163,30 +163,31 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
     return options;
   }, [speciesOptions, aiPredictions]);
 
-  // Check if form has changes (compare against saved observations OR AI predictions)
-  const hasChanges = React.useMemo(() => {
+  // Check if save button should be enabled
+  // Enable if: not yet verified OR there are changes to saved data
+  const canSave = React.useMemo(() => {
+    // Always allow saving if not yet verified (to confirm AI predictions)
+    if (!imageDetail.verification.is_verified) {
+      return true;
+    }
+
+    // If already verified, only enable if there are changes
     const currentObs = observations
       .filter(obs => obs.species !== null)
       .map(obs => `${obs.species!.value}:${obs.count}`)
       .sort()
       .join(',');
 
-    // Compare against saved human observations if they exist, otherwise compare against AI predictions
-    const baselineObs = imageDetail.human_observations.length > 0
-      ? imageDetail.human_observations
-          .map(obs => `${obs.species}:${obs.count}`)
-          .sort()
-          .join(',')
-      : aiPredictions
-          .map(pred => `${pred.species}:${pred.count}`)
-          .sort()
-          .join(',');
+    const savedObs = imageDetail.human_observations
+      .map(obs => `${obs.species}:${obs.count}`)
+      .sort()
+      .join(',');
 
     return (
-      currentObs !== baselineObs ||
+      currentObs !== savedObs ||
       notes !== (imageDetail.verification.notes || '')
     );
-  }, [observations, notes, imageDetail, aiPredictions]);
+  }, [observations, notes, imageDetail]);
 
   // Status message based on verification state
   const statusMessage = imageDetail.verification.is_verified
@@ -264,7 +265,7 @@ export const VerificationPanel: React.FC<VerificationPanelProps> = ({
         <Button
           className="w-full mt-4"
           onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending || !hasChanges}
+          disabled={saveMutation.isPending || !canSave}
         >
           {saveMutation.isPending ? (
             <>
