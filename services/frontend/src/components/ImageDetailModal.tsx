@@ -38,11 +38,16 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [showBboxes, setShowBboxes] = useState(true);
   const { getImageBlobUrl, getOrFetchImage } = useImageCache();
 
-  const { data: imageDetail, isLoading, error } = useQuery({
+  const { data: imageDetail, isLoading, error, isFetching } = useQuery({
     queryKey: ['image', imageUuid],
     queryFn: () => imagesApi.getByUuid(imageUuid),
     enabled: isOpen && !!imageUuid,
+    // Keep showing previous image while loading new one (no loader flash)
+    placeholderData: (previousData) => previousData,
   });
+
+  // Debug: log React Query state
+  console.log(`[Modal] RQ state: isLoading=${isLoading}, isFetching=${isFetching}, hasData=${!!imageDetail} (uuid: ${imageUuid?.slice(-8)})`);
 
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full`;
