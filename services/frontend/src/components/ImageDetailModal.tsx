@@ -3,7 +3,7 @@
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -396,9 +396,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   />
                   {/* Camera name chip */}
                   <div
-                    className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white"
+                    className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
                     style={{ backgroundColor: '#0f6064' }}
                   >
+                    <Camera className="h-3 w-3" />
                     {imageDetail.camera_name}
                   </div>
                 </>
