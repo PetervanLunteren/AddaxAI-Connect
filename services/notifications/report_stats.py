@@ -401,14 +401,16 @@ def get_activity_summary(
     ).scalar_one_or_none()
     detection_threshold = project.detection_threshold if project else 0.5
 
-    # Get hourly distribution
-    # Using EXIF DateTimeOriginal from image_metadata if available, otherwise uploaded_at
+    # Get hourly distribution - count classifications (not raw detections)
+    # This ensures consistency with species counts
     query = (
         select(
             func.extract('hour', Image.uploaded_at).label('hour'),
-            func.count(Detection.id).label('count')
+            func.count(Classification.id).label('count')
         )
-        .join(Detection, Detection.image_id == Image.id)
+        .select_from(Classification)
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(
             and_(
