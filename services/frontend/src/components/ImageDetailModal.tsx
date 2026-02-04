@@ -14,6 +14,7 @@ import { useImageCache } from '../contexts/ImageCacheContext';
 
 interface ImageDetailModalProps {
   imageUuid: string;
+  allImageUuids?: string[];  // For look-ahead prefetching
   isOpen: boolean;
   onClose: () => void;
   onPrevious?: () => void;
@@ -24,6 +25,7 @@ interface ImageDetailModalProps {
 
 export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   imageUuid,
+  allImageUuids,
   isOpen,
   onClose,
   onPrevious,
@@ -36,7 +38,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
-  const { getImageBlobUrl, getOrFetchImage } = useImageCache();
+  const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -80,6 +82,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       setImageLoaded(false);
     };
   }, [isOpen, imageUuid, fullImageUrl, getImageBlobUrl, getOrFetchImage]);
+
+  // Prefetch adjacent images for smooth navigation
+  useEffect(() => {
+    if (!isOpen || !imageUuid || !allImageUuids) return;
+
+    const currentIndex = allImageUuids.indexOf(imageUuid);
+    if (currentIndex === -1) return;
+
+    // Prefetch previous and next images
+    if (currentIndex > 0) {
+      prefetchImage(`/api/images/${allImageUuids[currentIndex - 1]}/full`);
+    }
+    if (currentIndex < allImageUuids.length - 1) {
+      prefetchImage(`/api/images/${allImageUuids[currentIndex + 1]}/full`);
+    }
+  }, [isOpen, imageUuid, allImageUuids, prefetchImage]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {

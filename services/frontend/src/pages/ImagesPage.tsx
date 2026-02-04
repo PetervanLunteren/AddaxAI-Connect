@@ -1,9 +1,8 @@
 /**
  * Images page with grid view and filters
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useImageCache } from '../contexts/ImageCacheContext';
 import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -21,7 +20,6 @@ import type { ImageListItem } from '../api/types';
 export const ImagesPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
-  const { prefetchImages } = useImageCache();
 
   const [filters, setFilters] = useState({
     camera_ids: [] as Option[],
@@ -70,14 +68,6 @@ export const ImagesPage: React.FC = () => {
     queryKey: ['statistics', 'overview'],
     queryFn: () => statisticsApi.getOverview(),
   });
-
-  // Prefetch full-size images when the images list loads
-  useEffect(() => {
-    if (imagesData?.items) {
-      const imageUrls = imagesData.items.map(img => `/api/images/${img.uuid}/full`);
-      prefetchImages(imageUrls);
-    }
-  }, [imagesData, prefetchImages]);
 
   const handleFilterChange = (key: string, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -416,6 +406,7 @@ export const ImagesPage: React.FC = () => {
       {selectedImageUuid && imagesData && (
         <ImageDetailModal
           imageUuid={selectedImageUuid}
+          allImageUuids={imagesData.items.map(img => img.uuid)}
           isOpen={!!selectedImageUuid}
           onClose={() => setSelectedImageUuid(null)}
           onPrevious={() => {
