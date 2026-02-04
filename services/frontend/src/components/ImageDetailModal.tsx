@@ -43,15 +43,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   });
 
   // Fetch authenticated image and create blob URL
+  // Only re-fetch when the image URL changes, not when verification data changes
+  const fullImageUrl = imageDetail?.full_image_url;
   useEffect(() => {
     let objectUrl: string | null = null;
 
     const fetchAuthenticatedImage = async () => {
-      if (!imageDetail?.full_image_url) return;
+      if (!fullImageUrl) return;
 
       try {
         const apiClient = (await import('../api/client')).default;
-        const response = await apiClient.get(imageDetail.full_image_url, {
+        const response = await apiClient.get(fullImageUrl, {
           responseType: 'blob',
         });
 
@@ -62,7 +64,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       }
     };
 
-    if (imageDetail) {
+    if (fullImageUrl) {
       fetchAuthenticatedImage();
     }
 
@@ -73,7 +75,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       setImageBlobUrl(null);
       setImageLoaded(false);
     };
-  }, [imageDetail]);
+  }, [fullImageUrl]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {
