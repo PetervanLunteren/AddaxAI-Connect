@@ -1,7 +1,6 @@
 /**
  * Camera marker component for the map view
  * Displays a camera location as a colored circle marker with tooltip
- * Uses Marker with custom divIcon for compatibility with MarkerClusterGroup
  */
 import { useMemo } from 'react';
 import { Marker, Tooltip } from 'react-leaflet';
@@ -12,10 +11,23 @@ interface CameraMarkerProps {
   camera: Camera;
   color: string;
   onClick: () => void;
+  /** Optional position override for spiderfying */
+  position?: [number, number];
 }
 
-export function CameraMarker({ camera, color, onClick }: CameraMarkerProps) {
+export function CameraMarker({
+  camera,
+  color,
+  onClick,
+  position,
+}: CameraMarkerProps) {
   if (!camera.location) return null;
+
+  // Use provided position or fall back to camera's real location
+  const markerPosition: [number, number] = position ?? [
+    camera.location.lat,
+    camera.location.lon,
+  ];
 
   // Memoize icon to prevent recreation on every render
   const icon = useMemo(
@@ -38,7 +50,7 @@ export function CameraMarker({ camera, color, onClick }: CameraMarkerProps) {
 
   return (
     <Marker
-      position={[camera.location.lat, camera.location.lon]}
+      position={markerPosition}
       icon={icon}
       eventHandlers={{ click: onClick }}
     >
