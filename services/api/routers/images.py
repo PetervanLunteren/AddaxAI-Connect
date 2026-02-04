@@ -74,6 +74,29 @@ class ImageListItemResponse(BaseModel):
         from_attributes = True
 
 
+# Human verification schemas (must be defined before ImageDetailResponse)
+class HumanObservationResponse(BaseModel):
+    """Human-entered species observation"""
+    id: int
+    species: str
+    count: int
+    created_at: str
+    created_by_email: str
+    updated_at: Optional[str] = None
+    updated_by_email: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class VerificationInfo(BaseModel):
+    """Verification status for an image"""
+    is_verified: bool
+    verified_at: Optional[str] = None
+    verified_by_email: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class ImageDetailResponse(BaseModel):
     """Full image detail with all detections"""
     id: int
@@ -107,29 +130,6 @@ class SpeciesOption(BaseModel):
     """Species filter option"""
     label: str
     value: str
-
-
-# Human verification schemas
-class HumanObservationResponse(BaseModel):
-    """Human-entered species observation"""
-    id: int
-    species: str
-    count: int
-    created_at: str
-    created_by_email: str
-    updated_at: Optional[str] = None
-    updated_by_email: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
-class VerificationInfo(BaseModel):
-    """Verification status for an image"""
-    is_verified: bool
-    verified_at: Optional[str] = None
-    verified_by_email: Optional[str] = None
-    notes: Optional[str] = None
 
 
 class HumanObservationInput(BaseModel):
