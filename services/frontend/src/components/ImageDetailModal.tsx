@@ -3,10 +3,9 @@
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Calendar, Camera, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, File, Scan, PawPrint } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
 import { imagesApi } from '../api/images';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { normalizeLabel } from '../utils/labels';
@@ -229,26 +228,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [imageLoaded]);
 
-  const formatTimestamp = (timestamp: string) => {
-    // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
-    const exifFormatted = timestamp.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-    const date = new Date(exifFormatted);
-
-    if (isNaN(date.getTime())) {
-      return timestamp; // Return original if can't parse
-    }
-
-    return date.toLocaleString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-  };
-
   const handleDownload = async () => {
     if (!imageRef.current || !imageDetail) return;
 
@@ -390,32 +369,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     }
   };
 
-  // Group detections by category and classifications by species
-  const getDetectionSummary = () => {
-    if (!imageDetail) return { detections: '', classifications: '' };
-
-    const categoryCount: Record<string, number> = {};
-    const speciesCount: Record<string, number> = {};
-
-    imageDetail.detections.forEach(detection => {
-      categoryCount[detection.category] = (categoryCount[detection.category] || 0) + 1;
-
-      detection.classifications.forEach(classification => {
-        speciesCount[classification.species] = (speciesCount[classification.species] || 0) + 1;
-      });
-    });
-
-    const detections = Object.entries(categoryCount)
-      .map(([category, count]) => `${normalizeLabel(category)} (${count})`)
-      .join(', ');
-
-    const classifications = Object.entries(speciesCount)
-      .map(([species, count]) => `${normalizeLabel(species)} (${count})`)
-      .join(', ');
-
-    return { detections, classifications };
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <div className="bg-background p-6 rounded-lg shadow-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
@@ -441,6 +394,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     ref={canvasRef}
                     className="absolute top-0 left-0 w-full h-full pointer-events-none"
                   />
+                  {/* Camera name chip */}
+                  <div
+                    className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white"
+                    style={{ backgroundColor: '#0f6064' }}
+                  >
+                    {imageDetail.camera_name}
+                  </div>
                 </>
               ) : (
                 <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
@@ -494,39 +454,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <X className="h-5 w-5" />
               </Button>
             </div>
-
-            {/* Details Card */}
-            <Card>
-              <CardContent className="space-y-4 pt-6">
-                <div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <Camera className="h-4 w-4" />
-                    <span>Camera</span>
-                  </div>
-                  <p className="text-sm">{imageDetail.camera_name}</p>
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>Captured</span>
-                  </div>
-                  <p className="text-sm">
-                    {imageDetail.image_metadata?.DateTimeOriginal
-                      ? formatTimestamp(imageDetail.image_metadata.DateTimeOriginal)
-                      : formatTimestamp(imageDetail.uploaded_at)}
-                  </p>
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                    <File className="h-4 w-4" />
-                    <span>Filename</span>
-                  </div>
-                  <p className="text-sm break-all">{imageDetail.filename}</p>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Verification Panel */}
             <VerificationPanel
