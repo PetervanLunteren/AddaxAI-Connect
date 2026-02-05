@@ -187,6 +187,25 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     },
   });
 
+  // "Unverify" mutation - called when clicking Edit on verified image
+  const unverifyMutation = useMutation({
+    mutationFn: () => {
+      const currentObservations: HumanObservationInput[] = imageDetail.human_observations.map(obs => ({
+        species: obs.species,
+        count: obs.count,
+      }));
+
+      return imagesApi.saveVerification(imageUuid, {
+        is_verified: false,
+        notes: imageDetail.verification.notes || null,
+        observations: currentObservations,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+    },
+  });
+
   // Expose methods for parent components
   useImperativeHandle(ref, () => ({
     save: () => {
@@ -341,10 +360,21 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                unverifyMutation.mutate();
+                setIsEditing(true);
+              }}
+              disabled={unverifyMutation.isPending}
               className="w-full mt-3"
             >
-              Edit
+              {unverifyMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'Edit'
+              )}
             </Button>
           </CardContent>
         </Card>
