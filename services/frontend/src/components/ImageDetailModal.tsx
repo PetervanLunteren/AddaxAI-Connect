@@ -50,6 +50,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [localNotes, setLocalNotes] = useState('');
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
 
+  const { data: imageDetail, isLoading, error } = useQuery({
+    queryKey: ['image', imageUuid],
+    queryFn: () => imagesApi.getByUuid(imageUuid),
+    enabled: isOpen && !!imageUuid,
+    // Keep showing previous image while loading new one (no loader flash)
+    placeholderData: (previousData) => previousData,
+  });
+
   // Sync notes from verification panel when image changes
   useEffect(() => {
     if (imageDetail) {
@@ -62,14 +70,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   useEffect(() => {
     verificationPanelRef.current?.setNotes(localNotes);
   }, [localNotes]);
-
-  const { data: imageDetail, isLoading, error } = useQuery({
-    queryKey: ['image', imageUuid],
-    queryFn: () => imagesApi.getByUuid(imageUuid),
-    enabled: isOpen && !!imageUuid,
-    // Keep showing previous image while loading new one (no loader flash)
-    placeholderData: (previousData) => previousData,
-  });
 
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full`;
