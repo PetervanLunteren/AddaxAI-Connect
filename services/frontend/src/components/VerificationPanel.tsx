@@ -319,7 +319,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             {/* Species list - read only */}
             <div className="space-y-2">
               {imageDetail.human_observations.length === 0 ? (
-                <div className="flex justify-between items-center py-1.5 px-2 rounded bg-muted/30">
+                <div className="flex justify-center items-center py-1.5 px-2">
                   <span className="text-sm text-muted-foreground">Empty</span>
                 </div>
               ) : (
