@@ -2,14 +2,14 @@
  * Image detail modal with bounding boxes
  *
  * Keyboard shortcuts:
- * - Enter: Save observations
+ * - Space: Save and go to next
  * - Escape: Close modal
  * - Left/Right arrows: Navigate images
  * - B: Toggle bounding boxes
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera, Keyboard } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -45,6 +45,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
   const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
 
   const { data: imageDetail, isLoading, error } = useQuery({
@@ -272,11 +273,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       }
 
       switch (e.key) {
-        case 'Enter':
-          // Save observations (Ctrl/Cmd+Enter or just Enter when not in input)
-          if (!target.tagName || target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-            e.preventDefault();
-            verificationPanelRef.current?.save();
+        case ' ':
+          // Space: Save and go to next
+          e.preventDefault();
+          verificationPanelRef.current?.save();
+          if (hasNext && onNext) {
+            // Small delay to let save complete
+            setTimeout(() => onNext(), 100);
           }
           break;
         case 'Escape':
@@ -562,14 +565,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <Button
                   variant="ghost"
                   size="icon"
-                  title={`Keyboard shortcuts:\nEnter - Save\nEsc - Close\n← → - Navigate\nB - Toggle boxes`}
-                  className="cursor-help"
-                >
-                  <Keyboard className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
                   onClick={onPrevious}
                   disabled={!hasPrevious}
                   title="Previous image"
@@ -598,6 +593,38 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               imageDetail={imageDetail}
               highlightedSpecies={highlightedSpecies}
             />
+
+            {/* Keyboard shortcuts link */}
+            <div className="relative">
+              <button
+                onClick={() => setShowShortcuts(!showShortcuts)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Keyboard shortcuts
+              </button>
+              {showShortcuts && (
+                <div className="absolute bottom-6 left-0 bg-popover border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Space</span>
+                      <span>Save + next</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Esc</span>
+                      <span>Close</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">← →</span>
+                      <span>Navigate</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">B</span>
+                      <span>Toggle boxes</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         ) : (
