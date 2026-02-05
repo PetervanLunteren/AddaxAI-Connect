@@ -31,10 +31,12 @@ interface ObservationRow {
   isAiSuggested: boolean;  // Track if this row is from AI and not yet modified
 }
 
-// Expose methods for parent components (keyboard shortcuts, bbox linking)
+// Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
   save: () => void;
   highlightSpecies: (species: string) => void;
+  getNotes: () => string;
+  setNotes: (notes: string) => void;
 }
 
 export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPanelProps>(({
@@ -179,6 +181,8 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         setTimeout(() => setHighlightedRowId(null), 1500);
       }
     },
+    getNotes: () => notes,
+    setNotes: (newNotes: string) => setNotes(newNotes),
   }));
 
   // Add new observation row
@@ -367,17 +371,6 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             <Plus className="h-4 w-4 mr-1" />
             Add species
           </Button>
-        </div>
-
-        {/* Notes */}
-        <div className="mt-4">
-          <label className="block text-sm text-muted-foreground mb-1">Notes</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes..."
-            className="w-full h-16 px-3 py-2 text-sm border border-input rounded-md bg-background resize-none"
-          />
         </div>
 
         {/* Error message */}
