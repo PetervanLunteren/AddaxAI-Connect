@@ -433,7 +433,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           ))}
 
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={addObservation}
             className="w-full mt-2"
@@ -459,12 +459,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           {saveMutation.isPending ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
+              Verifying...
             </>
           ) : (
             <>
               <Check className="h-4 w-4 mr-2" />
-              Save observations
+              Verify
             </>
           )}
         </Button>
