@@ -7,6 +7,7 @@
 - [ ] Make it so that the webapp looks like a native app on iphone. 
 - [ ] Add a project artifacts upload and download function. Good for storing settings files, etc. 
 - [ ] how to reset youre password? Should we add an option in the hambuerger menu?
+- [ ] Make an ANIML sort of camera registration field, where you can choose "Camera type" and input "IMEI number". Thats all. That means that we need to properly make the camera types at the ingestion service. That we we can keep adding them as we go. 
 
 
 **SPW points**
