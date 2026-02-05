@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Minus, X, Loader2, Check, Ban, Sparkles } from 'lucide-react';
+import { Plus, Minus, X, Loader2, Check, Ban } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
@@ -298,21 +298,11 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
               key={obs.id}
               className={`
                 flex items-center gap-2 p-2 rounded-md transition-all duration-300
-                ${obs.isAiSuggested
-                  ? 'border border-dashed border-muted-foreground/40 bg-muted/30'
-                  : 'border border-solid border-input bg-background'
-                }
+                border border-input bg-background
                 ${highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
-              {/* AI badge for unconfirmed suggestions */}
-              {obs.isAiSuggested && (
-                <div className="flex-shrink-0" title="AI suggestion - not yet confirmed">
-                  <Sparkles className="h-3.5 w-3.5 text-muted-foreground/60" />
-                </div>
-              )}
-
-              {/* Species select - click anywhere increments count */}
+              {/* Species select */}
               <div className="flex-1 min-w-0">
                 <CreatableSpeciesSelect
                   options={allSpeciesOptions}
