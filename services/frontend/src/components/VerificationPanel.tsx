@@ -60,11 +60,25 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     queryFn: () => imagesApi.getSpecies(),
   });
 
-  // Aggregate AI predictions by species
+  // Aggregate AI predictions by species (including person/vehicle)
   const aiPredictions = React.useMemo(() => {
     const speciesMap: Record<string, { count: number; maxConfidence: number }> = {};
 
     imageDetail.detections.forEach(detection => {
+      // Count person and vehicle detections directly
+      if (detection.category === 'person' || detection.category === 'vehicle') {
+        const key = detection.category;
+        if (!speciesMap[key]) {
+          speciesMap[key] = { count: 0, maxConfidence: 0 };
+        }
+        speciesMap[key].count += 1;
+        speciesMap[key].maxConfidence = Math.max(
+          speciesMap[key].maxConfidence,
+          detection.confidence
+        );
+      }
+
+      // Count animal species from classifications
       detection.classifications.forEach(cls => {
         if (!speciesMap[cls.species]) {
           speciesMap[cls.species] = { count: 0, maxConfidence: 0 };
@@ -238,6 +252,14 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       label: s.label,
       value: s.value,
     })) || [];
+
+    // Add Person and Vehicle as standard options
+    if (!options.find(o => o.value === 'person')) {
+      options.push({ label: 'Person', value: 'person' });
+    }
+    if (!options.find(o => o.value === 'vehicle')) {
+      options.push({ label: 'Vehicle', value: 'vehicle' });
+    }
 
     // Add any detected species not in the list
     aiPredictions.forEach(pred => {
