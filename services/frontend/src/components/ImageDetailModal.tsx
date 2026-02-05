@@ -522,7 +522,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <div className="bg-background p-6 rounded-lg shadow-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-background p-6 rounded-lg shadow-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto relative">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -655,38 +655,39 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               )}
             </div>
 
-            {/* Keyboard shortcuts link */}
-            <div className="mt-4 relative flex justify-end">
-              <button
-                onClick={() => setShowShortcuts(!showShortcuts)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Show keyboard shortcuts
-              </button>
-              {showShortcuts && (
-                <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Space</span>
-                      <span>Save + next</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Esc</span>
-                      <span>Close</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">← →</span>
-                      <span>Navigate</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">B</span>
-                      <span>Toggle boxes</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
+        </div>
+
+        {/* Keyboard shortcuts link - anchored bottom right */}
+        <div className="absolute bottom-4 right-4">
+          <button
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Show keyboard shortcuts
+          </button>
+          {showShortcuts && (
+            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Space</span>
+                  <span>Save + next</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Esc</span>
+                  <span>Close</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">← →</span>
+                  <span>Navigate</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">B</span>
+                  <span>Toggle boxes</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         </>
         ) : (
