@@ -438,7 +438,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   min="1"
                   value={obs.count}
                   onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
-                  className="w-10 h-8 px-1 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded"
+                  className="w-10 h-8 px-1 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <button
                   type="button"
