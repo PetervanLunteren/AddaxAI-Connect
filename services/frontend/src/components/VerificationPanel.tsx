@@ -52,6 +52,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(!imageDetail.verification.is_verified);
 
   // Fetch species list for dropdown
   const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
@@ -108,6 +109,11 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       setNotes(imageDetail.verification.notes || '');
     }
   }, [imageDetail, aiPredictions]);
+
+  // Reset editing state when image changes
+  useEffect(() => {
+    setIsEditing(!imageDetail.verification.is_verified);
+  }, [imageDetail.uuid]);
 
   // Handle highlighting from bbox clicks
   useEffect(() => {
@@ -273,6 +279,45 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
 
   const isSaving = saveMutation.isPending || noAnimalsMutation.isPending;
 
+  // Read-only view for verified images
+  if (imageDetail.verification.is_verified && !isEditing) {
+    return (
+      <Card>
+        <CardContent className="pt-4 pb-3">
+          {/* Species list - read only */}
+          <div className="space-y-2">
+            {imageDetail.human_observations.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-2">No animals</p>
+            ) : (
+              imageDetail.human_observations.map((obs) => (
+                <div key={obs.id} className="flex justify-between items-center py-1.5 px-2 rounded bg-muted/30">
+                  <span className="text-sm">{normalizeLabel(obs.species)}</span>
+                  <span className="text-sm text-muted-foreground">× {obs.count}</span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Verified status */}
+          <p className="text-sm text-muted-foreground mt-4 text-center">
+            Verified by {imageDetail.verification.verified_by_email}
+          </p>
+
+          {/* Edit button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsEditing(true)}
+            className="w-full mt-3"
+          >
+            Edit
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Editable view for unverified images or when editing
   return (
     <Card>
       <CardContent className="pt-4 pb-3">

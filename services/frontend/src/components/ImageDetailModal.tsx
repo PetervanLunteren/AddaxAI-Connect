@@ -289,12 +289,19 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
       switch (e.key) {
         case ' ':
-          // Space: Save and go to next
+          // Space: Save and go to next (or just go to next if already verified)
           e.preventDefault();
-          verificationPanelRef.current?.save();
-          if (hasNext && onNext) {
-            // Small delay to let save complete
-            setTimeout(() => onNext(), 100);
+          if (imageDetail?.verification.is_verified) {
+            // Already verified - just go to next
+            if (hasNext && onNext) {
+              onNext();
+            }
+          } else {
+            // Not verified - save and go to next
+            verificationPanelRef.current?.save();
+            if (hasNext && onNext) {
+              setTimeout(() => onNext(), 100);
+            }
           }
           break;
         case 'Escape':
