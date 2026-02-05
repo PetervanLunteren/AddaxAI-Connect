@@ -319,7 +319,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             {/* Species list - read only */}
             <div className="space-y-2">
               {imageDetail.human_observations.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-2">No animals</p>
+                <div className="flex justify-between items-center py-1.5 px-2 rounded bg-muted/30">
+                  <span className="text-sm text-muted-foreground">Empty</span>
+                </div>
               ) : (
                 imageDetail.human_observations.map((obs) => (
                   <div key={obs.id} className="flex justify-between items-center py-1.5 px-2 rounded bg-muted/30">
