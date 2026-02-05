@@ -1,15 +1,20 @@
 /**
  * Image detail modal with bounding boxes
+ *
+ * Keyboard shortcuts:
+ * - Enter: Save observations
+ * - Escape: Close modal
+ * - Left/Right arrows: Navigate images
+ * - B: Toggle bounding boxes
  */
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
-import { AuthenticatedImage } from './AuthenticatedImage';
 import { normalizeLabel } from '../utils/labels';
-import { VerificationPanel } from './VerificationPanel';
+import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { useImageCache } from '../contexts/ImageCacheContext';
 
 interface ImageDetailModalProps {
@@ -35,9 +40,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const verificationPanelRef = useRef<VerificationPanelRef>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
+  const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
 
   const { data: imageDetail, isLoading, error } = useQuery({
@@ -252,6 +259,101 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [imageLoaded]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        // Allow Escape even in inputs
+        if (e.key !== 'Escape') return;
+      }
+
+      switch (e.key) {
+        case 'Enter':
+          // Save observations (Ctrl/Cmd+Enter or just Enter when not in input)
+          if (!target.tagName || target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            verificationPanelRef.current?.save();
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          onClose();
+          break;
+        case 'ArrowLeft':
+          if (hasPrevious && onPrevious) {
+            e.preventDefault();
+            onPrevious();
+          }
+          break;
+        case 'ArrowRight':
+          if (hasNext && onNext) {
+            e.preventDefault();
+            onNext();
+          }
+          break;
+        case 'b':
+        case 'B':
+          // Toggle bounding boxes
+          e.preventDefault();
+          setShowBboxes(prev => !prev);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext]);
+
+  // Handle bbox click to highlight species row
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!imageDetail || !canvasRef.current || !imageRef.current) return;
+
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const img = imageRef.current;
+    const scaleX = canvas.width / img.naturalWidth;
+    const scaleY = canvas.height / img.naturalHeight;
+
+    // Check if click is inside any detection bbox
+    for (const detection of imageDetail.detections) {
+      const bbox = detection.bbox;
+      const x = bbox.x * scaleX;
+      const y = bbox.y * scaleY;
+      const width = bbox.width * scaleX;
+      const height = bbox.height * scaleY;
+
+      // Add padding like we do when drawing
+      const bboxPadding = 8;
+      const paddedX = x - bboxPadding;
+      const paddedY = y - bboxPadding;
+      const paddedWidth = width + (bboxPadding * 2);
+      const paddedHeight = height + (bboxPadding * 2);
+
+      if (
+        clickX >= paddedX &&
+        clickX <= paddedX + paddedWidth &&
+        clickY >= paddedY &&
+        clickY <= paddedY + paddedHeight
+      ) {
+        // Found a matching bbox - get the species from top classification
+        if (detection.classifications.length > 0) {
+          const species = detection.classifications[0].species;
+          setHighlightedSpecies(species);
+          // Clear after a moment to allow re-clicking same bbox
+          setTimeout(() => setHighlightedSpecies(null), 100);
+        }
+        break;
+      }
+    }
+  }, [imageDetail]);
+
   const handleDownload = async () => {
     if (!imageRef.current || !imageDetail) return;
 
@@ -416,7 +518,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   />
                   <canvas
                     ref={canvasRef}
-                    className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                    className="absolute top-0 left-0 w-full h-full cursor-pointer"
+                    onClick={handleCanvasClick}
                   />
                   {/* Camera name chip */}
                   <div
@@ -482,8 +585,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
             {/* Verification Panel */}
             <VerificationPanel
+              ref={verificationPanelRef}
               imageUuid={imageUuid}
               imageDetail={imageDetail}
+              highlightedSpecies={highlightedSpecies}
             />
           </div>
         </div>
