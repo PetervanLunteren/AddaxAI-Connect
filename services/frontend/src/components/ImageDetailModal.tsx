@@ -506,6 +506,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : imageDetail ? (
+          <>
           <div className="grid md:grid-cols-3 gap-6">
           {/* Image Display */}
           <div className="md:col-span-2">
@@ -593,40 +594,41 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               imageDetail={imageDetail}
               highlightedSpecies={highlightedSpecies}
             />
-
-            {/* Keyboard shortcuts link */}
-            <div className="relative">
-              <button
-                onClick={() => setShowShortcuts(!showShortcuts)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Keyboard shortcuts
-              </button>
-              {showShortcuts && (
-                <div className="absolute bottom-6 left-0 bg-popover border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Space</span>
-                      <span>Save + next</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Esc</span>
-                      <span>Close</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">← →</span>
-                      <span>Navigate</span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">B</span>
-                      <span>Toggle boxes</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
+
+        {/* Keyboard shortcuts link - bottom right of modal */}
+        <div className="flex justify-end mt-4 relative">
+          <button
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Show keyboard shortcuts
+          </button>
+          {showShortcuts && (
+            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Space</span>
+                  <span>Save + next</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Esc</span>
+                  <span>Close</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">← →</span>
+                  <span>Navigate</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">B</span>
+                  <span>Toggle boxes</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        </>
         ) : (
           <div className="py-12 text-center">
             <p className="text-muted-foreground">Image not found</p>
