@@ -654,39 +654,39 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 </button>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Keyboard shortcuts link - bottom right of modal */}
-        <div className="flex justify-end mt-4 relative">
-          <button
-            onClick={() => setShowShortcuts(!showShortcuts)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Show keyboard shortcuts
-          </button>
-          {showShortcuts && (
-            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
-              <div className="text-xs space-y-1">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Space</span>
-                  <span>Save + next</span>
+            {/* Keyboard shortcuts link */}
+            <div className="mt-4 relative flex justify-end">
+              <button
+                onClick={() => setShowShortcuts(!showShortcuts)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Show keyboard shortcuts
+              </button>
+              {showShortcuts && (
+                <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
+                  <div className="text-xs space-y-1">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Space</span>
+                      <span>Save + next</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Esc</span>
+                      <span>Close</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">← →</span>
+                      <span>Navigate</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">B</span>
+                      <span>Toggle boxes</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Esc</span>
-                  <span>Close</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">← →</span>
-                  <span>Navigate</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">B</span>
-                  <span>Toggle boxes</span>
-                </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
         </>
         ) : (
