@@ -439,7 +439,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             className="w-full mt-2"
           >
             <Plus className="h-4 w-4 mr-1" />
-            Add species
+            Add observation
           </Button>
         </div>
 
