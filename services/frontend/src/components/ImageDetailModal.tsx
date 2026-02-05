@@ -9,7 +9,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera, Keyboard } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -558,6 +558,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   title="Download image"
                 >
                   <Download className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title={`Keyboard shortcuts:\nEnter - Save\nEsc - Close\n← → - Navigate\nB - Toggle boxes`}
+                  className="cursor-help"
+                >
+                  <Keyboard className="h-5 w-5" />
                 </Button>
                 <Button
                   variant="ghost"
