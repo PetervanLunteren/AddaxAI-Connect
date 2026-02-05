@@ -160,6 +160,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
       setError(null);
+      setIsEditing(false);
       onVerificationSaved?.();
     },
     onError: (err: any) => {
@@ -180,6 +181,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
       setObservations([]);
       setError(null);
+      setIsEditing(false);
       onVerificationSaved?.();
     },
     onError: (err: any) => {
