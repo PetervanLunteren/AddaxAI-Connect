@@ -304,38 +304,49 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   // Read-only view for verified images
   if (imageDetail.verification.is_verified && !isEditing) {
     return (
-      <Card>
-        <CardContent className="pt-4 pb-3">
-          {/* Species list - read only */}
-          <div className="space-y-2">
-            {imageDetail.human_observations.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-2">No animals</p>
-            ) : (
-              imageDetail.human_observations.map((obs) => (
-                <div key={obs.id} className="flex justify-between items-center py-1.5 px-2 rounded bg-muted/30">
-                  <span className="text-sm">{normalizeLabel(obs.species)}</span>
-                  <span className="text-sm text-muted-foreground">× {obs.count}</span>
-                </div>
-              ))
-            )}
-          </div>
+      <div className="relative">
+        {/* Verified badge */}
+        <div
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+          style={{ backgroundColor: '#0f6064' }}
+          title="Verified"
+        >
+          <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+        </div>
 
-          {/* Verified status */}
-          <p className="text-sm text-muted-foreground mt-4 text-center">
-            Verified by {imageDetail.verification.verified_by_email}
-          </p>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            {/* Species list - read only */}
+            <div className="space-y-2">
+              {imageDetail.human_observations.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">No animals</p>
+              ) : (
+                imageDetail.human_observations.map((obs) => (
+                  <div key={obs.id} className="flex justify-between items-center py-1.5 px-2 rounded bg-muted/30">
+                    <span className="text-sm">{normalizeLabel(obs.species)}</span>
+                    <span className="text-sm text-muted-foreground">× {obs.count}</span>
+                  </div>
+                ))
+              )}
+            </div>
 
-          {/* Edit button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditing(true)}
-            className="w-full mt-3"
-          >
-            Edit
-          </Button>
-        </CardContent>
-      </Card>
+            {/* Verified status */}
+            <p className="text-sm text-muted-foreground mt-4 text-center">
+              Verified by {imageDetail.verification.verified_by_email}
+            </p>
+
+            {/* Edit button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+              className="w-full mt-3"
+            >
+              Edit
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
