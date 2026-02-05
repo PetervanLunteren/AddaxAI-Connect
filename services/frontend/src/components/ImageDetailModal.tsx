@@ -46,7 +46,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [showBboxes, setShowBboxes] = useState(true);
   const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [notesExpanded, setNotesExpanded] = useState(false);
+  const [localNotes, setLocalNotes] = useState('');
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
+
+  // Sync notes from verification panel when image changes
+  useEffect(() => {
+    if (imageDetail) {
+      setLocalNotes(imageDetail.verification.notes || '');
+      setNotesExpanded(false);
+    }
+  }, [imageDetail?.uuid]);
+
+  // Update verification panel when local notes change
+  useEffect(() => {
+    verificationPanelRef.current?.setNotes(localNotes);
+  }, [localNotes]);
 
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
@@ -594,6 +609,44 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               imageDetail={imageDetail}
               highlightedSpecies={highlightedSpecies}
             />
+
+            {/* Collapsible Notes Section */}
+            <div className="mt-3">
+              {notesExpanded ? (
+                <div className="border border-input rounded-md p-3 bg-background">
+                  <textarea
+                    value={localNotes}
+                    onChange={(e) => setLocalNotes(e.target.value)}
+                    placeholder="Add notes about this image..."
+                    className="w-full h-20 px-2 py-1.5 text-sm border-0 bg-transparent resize-none focus:outline-none"
+                    autoFocus
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setNotesExpanded(false)}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : localNotes ? (
+                <button
+                  onClick={() => setNotesExpanded(true)}
+                  className="w-full text-left p-2 rounded-md border border-input bg-muted/30 hover:bg-muted/50 transition-colors"
+                >
+                  <p className="text-xs text-muted-foreground mb-0.5">Notes</p>
+                  <p className="text-sm line-clamp-2">{localNotes}</p>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setNotesExpanded(true)}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  + Add notes
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
