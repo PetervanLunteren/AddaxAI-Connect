@@ -160,6 +160,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           count: obs.count,
         }));
 
+      console.log('[saveMutation] CALLING API for', imageUuid, 'with', validObservations.length, 'observations');
       return imagesApi.saveVerification(imageUuid, {
         is_verified: true,
         notes: notes || null,
@@ -167,12 +168,14 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       });
     },
     onSuccess: () => {
+      console.log('[saveMutation] SUCCESS for', imageUuid);
       queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
       setError(null);
       setIsEditing(false);
       onVerificationSaved?.();
     },
     onError: (err: any) => {
+      console.log('[saveMutation] ERROR for', imageUuid, err);
       setError(err.response?.data?.detail || err.message || 'Failed to save verification');
     },
   });
@@ -180,6 +183,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   // "No animals" mutation - one-click save as empty
   const noAnimalsMutation = useMutation({
     mutationFn: () => {
+      console.log('[noAnimalsMutation] CALLING API for', imageUuid);
       return imagesApi.saveVerification(imageUuid, {
         is_verified: true,
         notes: notes || null,
@@ -187,6 +191,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       });
     },
     onSuccess: () => {
+      console.log('[noAnimalsMutation] SUCCESS for', imageUuid);
       queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
       setObservations([]);
       setError(null);
@@ -194,6 +199,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       onVerificationSaved?.();
     },
     onError: (err: any) => {
+      console.log('[noAnimalsMutation] ERROR for', imageUuid, err);
       setError(err.response?.data?.detail || err.message || 'Failed to save');
     },
   });
@@ -239,16 +245,16 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   // Expose methods for parent components
   useImperativeHandle(ref, () => ({
     save: (onComplete?: () => void) => {
-      console.log('[VerificationPanel.save] called, canSave:', canSave, 'isPending:', saveMutation.isPending);
+      console.log('[save] imageUuid:', imageUuid, 'canSave:', canSave, 'isPending:', saveMutation.isPending, 'is_verified:', imageDetail.verification.is_verified);
       if (canSave && !saveMutation.isPending) {
-        console.log('[VerificationPanel.save] calling mutate');
+        console.log('[save] → WILL CALL MUTATION for', imageUuid);
         saveMutation.mutate(undefined, { onSuccess: () => {
-          console.log('[VerificationPanel.save] mutation onSuccess, calling onComplete:', !!onComplete);
+          console.log('[save] → mutation callback, proceeding to next');
           if (onComplete) onComplete();
         }});
       } else {
         // Nothing to save (or already saving), but still proceed with callback
-        console.log('[VerificationPanel.save] skipped mutation, calling onComplete directly');
+        console.log('[save] → SKIPPED mutation for', imageUuid, '(canSave:', canSave, 'isPending:', saveMutation.isPending, ')');
         if (onComplete) onComplete();
       }
     },
@@ -258,10 +264,16 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       }
     },
     noAnimals: (onComplete?: () => void) => {
+      console.log('[noAnimals] imageUuid:', imageUuid, 'isPending:', noAnimalsMutation.isPending);
       if (!noAnimalsMutation.isPending) {
-        noAnimalsMutation.mutate(undefined, { onSuccess: onComplete });
+        console.log('[noAnimals] → WILL CALL MUTATION for', imageUuid);
+        noAnimalsMutation.mutate(undefined, { onSuccess: () => {
+          console.log('[noAnimals] → mutation callback, proceeding to next');
+          if (onComplete) onComplete();
+        }});
       } else {
         // Already saving, still proceed with callback
+        console.log('[noAnimals] → SKIPPED mutation for', imageUuid, '(isPending:', noAnimalsMutation.isPending, ')');
         if (onComplete) onComplete();
       }
     },
