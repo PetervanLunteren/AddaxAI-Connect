@@ -350,26 +350,35 @@ export const ImagesPage: React.FC = () => {
                     </div>
                   )}
                   {(() => {
-                    // Extract classification labels (species) from all detections
-                    const speciesLabels = Array.from(new Set(
-                      image.detections.flatMap(detection =>
-                        detection.classifications.map(cls => cls.species)
-                      )
-                    ));
+                    // For verified images: use top_species from human observations
+                    // For unverified: extract from AI detections
+                    let allLabels: string[];
 
-                    // If no species, fall back to detection categories
-                    const categoryLabels = speciesLabels.length === 0
-                      ? Array.from(new Set(
-                          image.detections.map(detection => detection.category)
-                        ))
-                      : [];
+                    if (image.is_verified) {
+                      // Verified image: use human observation data
+                      allLabels = image.top_species ? [image.top_species] : ['empty'];
+                    } else {
+                      // Unverified image: use AI detection data
+                      const speciesLabels = Array.from(new Set(
+                        image.detections.flatMap(detection =>
+                          detection.classifications.map(cls => cls.species)
+                        )
+                      ));
 
-                    // Combine labels: prefer species, fallback to categories, finally "empty"
-                    const allLabels = speciesLabels.length > 0
-                      ? speciesLabels
-                      : categoryLabels.length > 0
-                        ? categoryLabels
-                        : ['empty'];
+                      // If no species, fall back to detection categories
+                      const categoryLabels = speciesLabels.length === 0
+                        ? Array.from(new Set(
+                            image.detections.map(detection => detection.category)
+                          ))
+                        : [];
+
+                      // Combine labels: prefer species, fallback to categories, finally "empty"
+                      allLabels = speciesLabels.length > 0
+                        ? speciesLabels
+                        : categoryLabels.length > 0
+                          ? categoryLabels
+                          : ['empty'];
+                    }
 
                     // Show first 2 labels + count of remaining
                     const visibleLabels = allLabels.slice(0, 2);
