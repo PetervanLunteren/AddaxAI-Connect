@@ -425,7 +425,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         <div className="space-y-2">
           {observations.length === 0 && (
             <div className="flex items-center justify-center p-2 rounded-md border border-input bg-background">
-              <span className="text-sm text-muted-foreground h-8 flex items-center">No detections</span>
+              <span className="text-sm text-muted-foreground h-9 flex items-center">No detections</span>
             </div>
           )}
           {observations.map(obs => (
