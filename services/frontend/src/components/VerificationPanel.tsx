@@ -3,13 +3,12 @@
  * Unified editable list pre-populated from AI predictions
  *
  * UX optimizations:
- * - "No animals" one-click save for empty images
  * - Click species name or +/- buttons to adjust counts
- * - Visual distinction between AI suggestions and human-confirmed rows
+ * - Keyboard shortcut "0" for empty verification (no animals)
  */
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Minus, X, Loader2, Check, Ban } from 'lucide-react';
+import { Plus, Minus, X, Loader2, Check } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
@@ -35,6 +34,7 @@ interface ObservationRow {
 export interface VerificationPanelRef {
   save: () => void;
   saveNotes: () => void;
+  noAnimals: () => void;
   highlightSpecies: (species: string) => void;
   getNotes: () => string;
   setNotes: (notes: string) => void;
@@ -240,6 +240,11 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         saveNotesMutation.mutate();
       }
     },
+    noAnimals: () => {
+      if (!noAnimalsMutation.isPending) {
+        noAnimalsMutation.mutate();
+      }
+    },
     highlightSpecies: (species: string) => {
       const row = observations.find(obs => obs.species?.value === species);
       if (row) {
@@ -417,22 +422,6 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   return (
     <Card>
       <CardContent className="pt-4 pb-3">
-        {/* "No animals" button - one-click save for empty images */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => noAnimalsMutation.mutate()}
-          disabled={isSaving}
-          className="w-full mb-3 text-muted-foreground"
-        >
-          {noAnimalsMutation.isPending ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Ban className="h-4 w-4 mr-2" />
-          )}
-          No animals
-        </Button>
-
         <div className="space-y-2">
           {observations.map(obs => (
             <div
