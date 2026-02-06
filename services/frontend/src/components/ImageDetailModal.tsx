@@ -709,20 +709,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Verify + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Esc</span>
-                  <span>Close</span>
+                  <span className="text-muted-foreground">0</span>
+                  <span>Empty + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">← →</span>
                   <span>Navigate</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">B</span>
-                  <span>Toggle boxes</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">0</span>
-                  <span>Empty + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Tab</span>
@@ -735,6 +727,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">↑ ↓</span>
                   <span>Change count</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">B</span>
+                  <span>Toggle boxes</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Esc</span>
+                  <span>Close</span>
                 </div>
               </div>
             </div>
