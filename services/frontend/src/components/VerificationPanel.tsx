@@ -248,10 +248,17 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       console.log('[save] imageUuid:', imageUuid, 'canSave:', canSave, 'isPending:', saveMutation.isPending, 'is_verified:', imageDetail.verification.is_verified);
       if (canSave && !saveMutation.isPending) {
         console.log('[save] → WILL CALL MUTATION for', imageUuid);
-        saveMutation.mutate(undefined, { onSuccess: () => {
-          console.log('[save] → mutation callback, proceeding to next');
-          if (onComplete) onComplete();
-        }});
+        saveMutation.mutate(undefined, {
+          onSuccess: () => {
+            console.log('[save] → mutation SUCCESS, proceeding to next');
+            if (onComplete) onComplete();
+          },
+          onError: (err: any) => {
+            console.error('[save] → mutation FAILED for', imageUuid, err);
+            // Still proceed to next on error to avoid getting stuck
+            if (onComplete) onComplete();
+          }
+        });
       } else {
         // Nothing to save (or already saving), but still proceed with callback
         console.log('[save] → SKIPPED mutation for', imageUuid, '(canSave:', canSave, 'isPending:', saveMutation.isPending, ')');
@@ -267,10 +274,17 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       console.log('[noAnimals] imageUuid:', imageUuid, 'isPending:', noAnimalsMutation.isPending);
       if (!noAnimalsMutation.isPending) {
         console.log('[noAnimals] → WILL CALL MUTATION for', imageUuid);
-        noAnimalsMutation.mutate(undefined, { onSuccess: () => {
-          console.log('[noAnimals] → mutation callback, proceeding to next');
-          if (onComplete) onComplete();
-        }});
+        noAnimalsMutation.mutate(undefined, {
+          onSuccess: () => {
+            console.log('[noAnimals] → mutation SUCCESS, proceeding to next');
+            if (onComplete) onComplete();
+          },
+          onError: (err: any) => {
+            console.error('[noAnimals] → mutation FAILED for', imageUuid, err);
+            // Still proceed to next on error to avoid getting stuck
+            if (onComplete) onComplete();
+          }
+        });
       } else {
         // Already saving, still proceed with callback
         console.log('[noAnimals] → SKIPPED mutation for', imageUuid, '(isPending:', noAnimalsMutation.isPending, ')');

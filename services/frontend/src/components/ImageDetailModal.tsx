@@ -294,8 +294,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         case 'Enter':
           // Enter: Verify and go to next (or just go to next if already verified)
           e.preventDefault();
-          console.log('[Enter] imageUuid:', imageUuid, 'is_verified:', imageDetail?.verification.is_verified);
-          if (imageDetail?.verification.is_verified) {
+          console.log('[Enter] imageUuid:', imageUuid, 'is_verified:', imageDetail?.verification.is_verified, 'imageDetail loaded:', !!imageDetail);
+          if (!imageDetail) {
+            // Image not loaded yet, skip
+            console.log('[Enter] SKIPPED - imageDetail not loaded yet');
+            return;
+          }
+          if (imageDetail.verification.is_verified) {
             // Already verified - just go to next
             if (hasNext && onNext) {
               onNext();
