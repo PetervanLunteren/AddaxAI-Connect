@@ -23,6 +23,8 @@ import { useImageCache } from '../contexts/ImageCacheContext';
 interface ImageDetailModalProps {
   imageUuid: string;
   allImageUuids?: string[];  // For look-ahead prefetching
+  nextPageFirstUuid?: string | null;  // For cross-page prefetching
+  prevPageLastUuid?: string | null;   // For cross-page prefetching
   isOpen: boolean;
   onClose: () => void;
   onPrevious?: () => void;
@@ -34,6 +36,8 @@ interface ImageDetailModalProps {
 export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   imageUuid,
   allImageUuids,
+  nextPageFirstUuid,
+  prevPageLastUuid,
   isOpen,
   onClose,
   onPrevious,
@@ -116,14 +120,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     const currentIndex = allImageUuids.indexOf(imageUuid);
     if (currentIndex === -1) return;
 
-    // Prefetch previous and next images
+    // Same-page prefetching
     if (currentIndex > 0) {
       prefetchImage(`/api/images/${allImageUuids[currentIndex - 1]}/full`);
     }
     if (currentIndex < allImageUuids.length - 1) {
       prefetchImage(`/api/images/${allImageUuids[currentIndex + 1]}/full`);
     }
-  }, [isOpen, imageUuid, allImageUuids, prefetchImage]);
+
+    // Cross-page prefetching: when at page boundary, prefetch adjacent page's image
+    if (currentIndex === allImageUuids.length - 1 && nextPageFirstUuid) {
+      prefetchImage(`/api/images/${nextPageFirstUuid}/full`);
+    }
+    if (currentIndex === 0 && prevPageLastUuid) {
+      prefetchImage(`/api/images/${prevPageLastUuid}/full`);
+    }
+  }, [isOpen, imageUuid, allImageUuids, nextPageFirstUuid, prevPageLastUuid, prefetchImage]);
 
   // Draw bounding boxes on canvas
   useEffect(() => {
@@ -294,10 +306,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         case 'Enter':
           // Enter: Verify and go to next (or just go to next if already verified)
           e.preventDefault();
-          console.log('[Enter] imageUuid:', imageUuid, 'is_verified:', imageDetail?.verification.is_verified, 'imageDetail loaded:', !!imageDetail);
           if (!imageDetail) {
             // Image not loaded yet, skip
-            console.log('[Enter] SKIPPED - imageDetail not loaded yet');
             return;
           }
           if (imageDetail.verification.is_verified) {
@@ -339,7 +349,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         case '0':
           // Verify as empty (no animals) and go to next
           e.preventDefault();
-          console.log('[0] imageUuid:', imageUuid, 'is_verified:', imageDetail?.verification.is_verified);
           verificationPanelRef.current?.noAnimals(() => {
             if (hasNext && onNext) {
               onNext();

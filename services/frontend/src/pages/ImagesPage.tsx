@@ -2,7 +2,7 @@
  * Images page with grid view and filters
  */
 import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -18,10 +18,13 @@ import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../util
 import type { ImageListItem } from '../api/types';
 
 export const ImagesPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
   const [pendingFirstImage, setPendingFirstImage] = useState(false);
   const [pendingLastImage, setPendingLastImage] = useState(false);
+  const [nextPageFirstUuid, setNextPageFirstUuid] = useState<string | null>(null);
+  const [prevPageLastUuid, setPrevPageLastUuid] = useState<string | null>(null);
 
   const [filters, setFilters] = useState({
     camera_ids: [] as Option[],
@@ -135,6 +138,55 @@ export const ImagesPage: React.FC = () => {
       }
     }
   }, [imagesData, pendingFirstImage, pendingLastImage]);
+
+  // Prefetch adjacent page data when at page boundary (for cross-page image prefetching)
+  useEffect(() => {
+    if (!selectedImageUuid || !imagesData) return;
+
+    const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
+    if (currentIndex === -1) return;
+
+    const queryParams = {
+      limit,
+      camera_id: filters.camera_ids.length > 0
+        ? filters.camera_ids.map(c => c.value).join(',')
+        : undefined,
+      start_date: filters.start_date || undefined,
+      end_date: filters.end_date || undefined,
+      species: filters.species.length > 0
+        ? filters.species.map(s => s.value).join(',')
+        : undefined,
+      show_empty: filters.show_empty,
+    };
+
+    // On last image of page → prefetch next page's first image UUID
+    if (currentIndex === imagesData.items.length - 1 && page < imagesData.pages) {
+      queryClient.fetchQuery({
+        queryKey: ['images', page + 1, filters],
+        queryFn: () => imagesApi.getAll({ ...queryParams, page: page + 1 }),
+      }).then(data => {
+        if (data?.items[0]) {
+          setNextPageFirstUuid(data.items[0].uuid);
+        }
+      }).catch(() => {}); // Silently fail, it's just prefetching
+    } else {
+      setNextPageFirstUuid(null);
+    }
+
+    // On first image of page → prefetch previous page's last image UUID
+    if (currentIndex === 0 && page > 1) {
+      queryClient.fetchQuery({
+        queryKey: ['images', page - 1, filters],
+        queryFn: () => imagesApi.getAll({ ...queryParams, page: page - 1 }),
+      }).then(data => {
+        if (data?.items.length > 0) {
+          setPrevPageLastUuid(data.items[data.items.length - 1].uuid);
+        }
+      }).catch(() => {});
+    } else {
+      setPrevPageLastUuid(null);
+    }
+  }, [selectedImageUuid, imagesData, page, filters, queryClient]);
 
   return (
     <div>
@@ -424,6 +476,8 @@ export const ImagesPage: React.FC = () => {
           <ImageDetailModal
             imageUuid={selectedImageUuid}
             allImageUuids={imagesData.items.map(img => img.uuid)}
+            nextPageFirstUuid={nextPageFirstUuid}
+            prevPageLastUuid={prevPageLastUuid}
             isOpen={!!selectedImageUuid}
             onClose={() => setSelectedImageUuid(null)}
             onPrevious={() => {
