@@ -68,6 +68,7 @@ export interface ImageListItem {
   detections: Detection[];
   image_width: number | null;
   image_height: number | null;
+  is_verified: boolean;
 }
 
 export interface BoundingBox {

@@ -69,6 +69,7 @@ class ImageListItemResponse(BaseModel):
     detections: List[DetectionResponse] = []
     image_width: Optional[int] = None
     image_height: Optional[int] = None
+    is_verified: bool = False
 
     class Config:
         from_attributes = True
@@ -446,6 +447,7 @@ async def list_images(
             detections=detections_response,
             image_width=image_width,
             image_height=image_height,
+            is_verified=image.is_verified,
         ))
 
     return PaginatedImagesResponse(
