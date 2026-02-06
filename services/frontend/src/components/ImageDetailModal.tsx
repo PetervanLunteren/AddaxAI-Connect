@@ -4,10 +4,10 @@
  * Keyboard shortcuts:
  * - Enter: Verify and go to next
  * - Escape: Close modal
- * - A/D or Left/Right arrows: Navigate images
+ * - Left/Right arrows: Navigate images
  * - B: Toggle bounding boxes
  * - 0: Mark as empty and go to next
- * - J/K or Tab: Cycle focus between observations
+ * - Tab/Shift+Tab: Cycle focus between observations
  * - Up/Down arrows: Increase/decrease count of focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -312,16 +312,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           onClose();
           break;
         case 'ArrowLeft':
-        case 'a':
-        case 'A':
           if (hasPrevious && onPrevious) {
             e.preventDefault();
             onPrevious();
           }
           break;
         case 'ArrowRight':
-        case 'd':
-        case 'D':
           if (hasNext && onNext) {
             e.preventDefault();
             onNext();
@@ -342,17 +338,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           }
           break;
         case 'Tab':
-        case 'j':
-        case 'J':
-          // Next observation
+          // Cycle focus between observations
           e.preventDefault();
-          verificationPanelRef.current?.focusNext();
-          break;
-        case 'k':
-        case 'K':
-          // Previous observation
-          e.preventDefault();
-          verificationPanelRef.current?.focusPrevious();
+          if (e.shiftKey) {
+            verificationPanelRef.current?.focusPrevious();
+          } else {
+            verificationPanelRef.current?.focusNext();
+          }
           break;
         case 'ArrowUp':
           // Increment count of focused observation
@@ -719,7 +711,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Close</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">A / D</span>
+                  <span className="text-muted-foreground">← →</span>
                   <span>Navigate</span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -731,8 +723,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Empty + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">J / K</span>
-                  <span>Next / prev obs</span>
+                  <span className="text-muted-foreground">Tab</span>
+                  <span>Next observation</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">⇧Tab</span>
+                  <span>Prev observation</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">↑ ↓</span>
