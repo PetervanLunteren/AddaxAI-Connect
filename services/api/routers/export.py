@@ -143,7 +143,7 @@ def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
             dep["latitude"],
             dep["longitude"],
             _format_date_as_dt(dep["start_date"], tz),
-            _format_date_as_dt(dep["end_date"], tz) if dep["end_date"] else "",
+            _format_date_as_dt(dep["end_date"] or date.today(), tz),
             dep["camera_identifier"],
             camera_model,
         ])
@@ -154,6 +154,7 @@ def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
 def _build_media_csv(
     images: list,
     deployments_by_camera: Dict[int, list],
+    camera_identifiers: Dict[int, str],
     tz: ZoneInfo,
     include_media: bool,
 ) -> tuple[str, list]:
@@ -161,6 +162,7 @@ def _build_media_csv(
     Build media.csv content and return (csv_string, media_entries).
 
     media_entries is a list of dicts with keys needed for observations and thumbnail download.
+    Filenames are prefixed with {cameraID}_ to avoid collisions across cameras.
     """
     output = io.StringIO()
     writer = csv.writer(output)
@@ -185,7 +187,10 @@ def _build_media_csv(
             )
             continue
 
-        file_path = f"media/{image.filename}" if include_media else image.filename
+        cam_id = camera_identifiers.get(image.camera_id, str(image.camera_id))
+        short_uuid = image.uuid.split("-")[0]  # first 8 chars of UUID
+        unique_filename = f"{cam_id}_{short_uuid}_{image.filename}"
+        file_path = f"media/{unique_filename}" if include_media else unique_filename
 
         writer.writerow([
             image.uuid,
@@ -201,6 +206,7 @@ def _build_media_csv(
             "image": image,
             "deployment_id": dep_id,
             "timestamp": ts,
+            "unique_filename": unique_filename,
         })
 
     return output.getvalue(), media_entries
@@ -579,9 +585,16 @@ async def export_camtrap_dp(
         include_media=include_media,
     )
 
+    # Build camera_id -> camera identifier lookup for unique filenames
+    camera_identifiers: Dict[int, str] = {}
+    for cam_id, cam_deps in deployments_by_camera.items():
+        camera_identifiers[cam_id] = cam_deps[0]["camera_identifier"]
+
     # Build CSV contents
     deployments_csv = _build_deployments_csv(deployments, tz)
-    media_csv, media_entries = _build_media_csv(images, deployments_by_camera, tz, include_media)
+    media_csv, media_entries = _build_media_csv(
+        images, deployments_by_camera, camera_identifiers, tz, include_media,
+    )
     observations_csv, observed_species = _build_observations_csv(
         media_entries, taxonomy_lookup, project.detection_threshold, tz,
     )
@@ -606,7 +619,7 @@ async def export_camtrap_dp(
                     continue
                 try:
                     thumb_data = storage_client.download_fileobj(BUCKET_THUMBNAILS, image.thumbnail_path)
-                    zf.writestr(f"media/{image.filename}", thumb_data)
+                    zf.writestr(f"media/{entry['unique_filename']}", thumb_data)
                 except Exception as e:
                     logger.warning(
                         "Failed to download thumbnail, skipping",
