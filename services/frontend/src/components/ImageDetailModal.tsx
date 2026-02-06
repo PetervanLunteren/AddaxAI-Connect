@@ -704,7 +704,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               <div className="text-xs space-y-1">
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Space</span>
-                  <span>Save + next</span>
+                  <span>Verify + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Esc</span>
