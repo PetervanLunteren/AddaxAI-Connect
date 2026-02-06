@@ -44,6 +44,7 @@ export interface VerificationPanelRef {
   focusPrevious: () => void;
   incrementFocused: () => void;
   decrementFocused: () => void;
+  deleteFocused: () => void;
 }
 
 export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPanelProps>(({
@@ -302,6 +303,16 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     decrementFocused: () => {
       if (observations.length > 0 && focusedIndex < observations.length) {
         decrementCount(observations[focusedIndex].id);
+      }
+    },
+    deleteFocused: () => {
+      if (observations.length > 0 && focusedIndex < observations.length) {
+        const idToRemove = observations[focusedIndex].id;
+        removeObservation(idToRemove);
+        // Adjust focus index if needed
+        if (focusedIndex >= observations.length - 1 && focusedIndex > 0) {
+          setFocusedIndex(focusedIndex - 1);
+        }
       }
     },
   }));
