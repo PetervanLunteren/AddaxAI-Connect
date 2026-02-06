@@ -397,6 +397,20 @@ async def list_images(
     storage_client = StorageClient()
     items = []
 
+    # Pre-fetch human observations for verified images in one query
+    verified_image_ids = [image.id for image, camera, project in rows if image.is_verified]
+    human_obs_by_image = {}
+    if verified_image_ids:
+        obs_result = await db.execute(
+            select(HumanObservation)
+            .where(HumanObservation.image_id.in_(verified_image_ids))
+            .order_by(HumanObservation.count.desc())
+        )
+        for obs in obs_result.scalars().all():
+            if obs.image_id not in human_obs_by_image:
+                human_obs_by_image[obs.image_id] = []
+            human_obs_by_image[obs.image_id].append(obs)
+
     for image, camera, project in rows:
         # Filter detections by project threshold
         visible_detections = [
@@ -404,20 +418,31 @@ async def list_images(
             if d.confidence >= project.detection_threshold
         ]
 
-        # Count only visible detections
-        detection_count = len(visible_detections)
-
-        # Find top species and max confidence from visible detections only
+        # For verified images: use human observations
+        # For unverified images: use AI detections
         top_species = None
         max_confidence = None
+        detection_count = 0
 
-        if visible_detections:
-            for detection in visible_detections:
-                if detection.classifications:
-                    for classification in detection.classifications:
-                        if max_confidence is None or classification.confidence > max_confidence:
-                            max_confidence = classification.confidence
-                            top_species = classification.species
+        if image.is_verified:
+            # Use human observations for verified images
+            observations = human_obs_by_image.get(image.id, [])
+            if observations:
+                # Top species = species with highest count
+                top_obs = observations[0]  # Already sorted by count desc
+                top_species = top_obs.species
+                detection_count = sum(obs.count for obs in observations)
+                max_confidence = None  # Human observations don't have confidence
+        else:
+            # Use AI detections for unverified images
+            detection_count = len(visible_detections)
+            if visible_detections:
+                for detection in visible_detections:
+                    if detection.classifications:
+                        for classification in detection.classifications:
+                            if max_confidence is None or classification.confidence > max_confidence:
+                                max_confidence = classification.confidence
+                                top_species = classification.species
 
         # Generate thumbnail URL using the streaming endpoint
         thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
