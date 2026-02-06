@@ -32,6 +32,7 @@ export const ImagesPage: React.FC = () => {
     end_date: '',
     species: [] as Option[],
     show_empty: false, // Default: hide empty images
+    verified: '' as '' | 'true' | 'false',  // '' = all
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -53,6 +54,7 @@ export const ImagesPage: React.FC = () => {
           ? filters.species.map(s => s.value).join(',')
           : undefined,
         show_empty: filters.show_empty,
+        verified: filters.verified || undefined,
       }),
   });
 
@@ -86,6 +88,7 @@ export const ImagesPage: React.FC = () => {
       end_date: '',
       species: [],
       show_empty: false,
+      verified: '',
     });
     setPage(1);
   };
@@ -95,7 +98,8 @@ export const ImagesPage: React.FC = () => {
     filters.start_date !== '' ||
     filters.end_date !== '' ||
     filters.species.length > 0 ||
-    filters.show_empty;
+    filters.show_empty ||
+    filters.verified !== '';
 
   const formatTimestamp = (timestamp: string) => {
     // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
@@ -206,7 +210,7 @@ export const ImagesPage: React.FC = () => {
               <span className="px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
                 {filters.camera_ids.length + filters.species.length +
                  (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
-                 (filters.show_empty ? 1 : 0)}
+                 (filters.show_empty ? 1 : 0) + (filters.verified ? 1 : 0)}
               </span>
             )}
           </Button>
@@ -267,14 +271,26 @@ export const ImagesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Show Empty Images Toggle */}
-            <div className="mt-4">
+            {/* Show Empty Images Toggle and Verification Filter */}
+            <div className="mt-4 flex flex-wrap items-center gap-6">
               <Checkbox
                 id="show-empty"
                 checked={filters.show_empty}
                 onChange={(checked) => handleFilterChange('show_empty', checked)}
                 label="Show images without detections"
               />
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Verification:</label>
+                <select
+                  className="h-9 px-3 border border-input rounded-md bg-background text-sm"
+                  value={filters.verified}
+                  onChange={(e) => handleFilterChange('verified', e.target.value)}
+                >
+                  <option value="">All</option>
+                  <option value="false">Unverified</option>
+                  <option value="true">Verified</option>
+                </select>
+              </div>
             </div>
 
             {hasActiveFilters && (

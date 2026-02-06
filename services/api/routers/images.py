@@ -220,6 +220,7 @@ async def list_images(
     end_date: Optional[str] = None,
     species: Optional[str] = None,
     show_empty: bool = Query(False),
+    verified: Optional[str] = Query(None),  # "true", "false", or None for all
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -284,6 +285,13 @@ async def list_images(
         species_list = [s.strip() for s in species.split(',') if s.strip()]
         if species_list:
             species_filter = species_list
+
+    # Handle verification status filter
+    if verified is not None:
+        if verified.lower() == "true":
+            filters.append(Image.is_verified == True)
+        elif verified.lower() == "false":
+            filters.append(Image.is_verified == False)
 
     # Filter out empty images if show_empty is False (default)
     if not show_empty:
