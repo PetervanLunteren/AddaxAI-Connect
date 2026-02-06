@@ -370,7 +370,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext]);
+  }, [isOpen, onClose, onPrevious, onNext, hasPrevious, hasNext, imageDetail, imageUuid]);
 
   // Handle bbox click to highlight species row
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
