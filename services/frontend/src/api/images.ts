@@ -12,6 +12,7 @@ export interface ImageFilters {
   end_date?: string;
   species?: string;
   show_empty?: boolean;
+  verified?: string;  // "true", "false", or undefined for all
 }
 
 export interface SpeciesOption {
