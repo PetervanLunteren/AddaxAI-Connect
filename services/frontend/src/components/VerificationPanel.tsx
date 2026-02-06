@@ -348,7 +348,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   <div
                     key={obs.id}
                     className="flex justify-between items-center py-1.5 px-2 rounded"
-                    style={{ backgroundColor: 'rgba(15, 96, 100, 0.3)' }}
+                    style={{ backgroundColor: 'rgba(15, 96, 100, 0.1)' }}
                   >
                     <span className="text-sm">{normalizeLabel(obs.species)}</span>
                     <span className="text-sm text-muted-foreground">× {obs.count}</span>
