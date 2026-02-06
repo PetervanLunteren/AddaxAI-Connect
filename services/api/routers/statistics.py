@@ -8,10 +8,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids
+from utils.preferred_counts import (
+    get_preferred_species_counts,
+    get_preferred_unique_species,
+    get_preferred_total_species_count,
+    get_preferred_hourly_activity,
+    get_preferred_daily_trend,
+)
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
@@ -86,21 +93,8 @@ async def get_overview(
     )
     total_cameras = total_cameras_result.scalar_one()
 
-    # Total unique species (filtered by project and detection threshold)
-    total_species_result = await db.execute(
-        select(func.count(func.distinct(Classification.species)))
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(
-            and_(
-                Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
-            )
-        )
-    )
-    total_species = total_species_result.scalar_one()
+    # Total unique species (preferring human observations for verified images)
+    total_species = await get_preferred_total_species_count(db, accessible_project_ids)
 
     # Images today (filtered by project)
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -208,7 +202,9 @@ async def get_species_distribution(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Get species distribution (top 10, filtered by accessible projects and detection threshold)
+    Get species distribution (top 10, filtered by accessible projects)
+
+    Prefers human observations for verified images, falls back to AI for unverified.
 
     Args:
         accessible_project_ids: Project IDs accessible to user
@@ -216,39 +212,15 @@ async def get_species_distribution(
         current_user: Current authenticated user
 
     Returns:
-        List of species with counts (top 10 by count, only from detections above threshold)
+        List of species with counts (top 10 by count)
     """
-    query = (
-        select(
-            Classification.species,
-            func.count(Classification.id).label('count')
-        )
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(
-            and_(
-                Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
-            )
-        )
-        .group_by(Classification.species)
-        .order_by(desc('count'))
-        .limit(10)
+    counts = await get_preferred_species_counts(
+        db=db,
+        project_ids=accessible_project_ids,
+        limit=10,
     )
 
-    result = await db.execute(query)
-    rows = result.all()
-
-    species_counts = []
-    for row in rows:
-        species_counts.append(SpeciesCount(
-            species=row.species,
-            count=row.count,
-        ))
-
-    return species_counts
+    return [SpeciesCount(species=c['species'], count=c['count']) for c in counts]
 
 
 @router.get(
@@ -579,45 +551,23 @@ async def get_activity_pattern(
     """
     Get activity pattern showing detections per hour of day (0-23).
 
+    Prefers human observations for verified images, falls back to AI for unverified.
     Used for radial/polar charts showing diel activity patterns.
     """
-    # Build base query
-    query = (
-        select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
-            func.count(Classification.id).label('count')
-        )
-        .select_from(Classification)
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(
-            and_(
-                Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
-            )
-        )
+    # Convert date to datetime for the helper
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    hourly_data = await get_preferred_hourly_activity(
+        db=db,
+        project_ids=accessible_project_ids,
+        species_filter=species,
+        start_date=start_dt,
+        end_date=end_dt,
     )
 
-    # Apply optional filters
-    if species:
-        query = query.where(func.lower(Classification.species) == species.lower())
-
-    if start_date:
-        query = query.where(func.date(Image.uploaded_at) >= start_date)
-
-    if end_date:
-        query = query.where(func.date(Image.uploaded_at) <= end_date)
-
-    # Group by hour
-    query = query.group_by(func.extract('hour', Image.uploaded_at)).order_by('hour')
-
-    result = await db.execute(query)
-    rows = result.all()
-
     # Build full 24-hour response (fill missing hours with 0)
-    hour_counts = {int(row.hour): row.count for row in rows}
+    hour_counts = {d['hour']: d['count'] for d in hourly_data}
     hours = []
     total = 0
     for h in range(24):
@@ -733,51 +683,28 @@ async def get_detection_trend(
     """
     Get detection counts per day, optionally filtered by species.
 
+    Prefers human observations for verified images, falls back to AI for unverified.
     Defaults to last 30 days if no date range specified.
     """
     # Default to last 30 days
     if not start_date and not end_date:
-        end_dt = datetime.now(timezone.utc).date()
+        end_dt = datetime.now(timezone.utc)
         start_dt = end_dt - timedelta(days=30)
     else:
-        start_dt = start_date
-        end_dt = end_date
+        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
 
-    query = (
-        select(
-            func.date(Image.uploaded_at).label('date'),
-            func.count(Classification.id).label('count')
-        )
-        .select_from(Classification)
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(
-            and_(
-                Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
-            )
-        )
+    daily_data = await get_preferred_daily_trend(
+        db=db,
+        project_ids=accessible_project_ids,
+        species_filter=species,
+        start_date=start_dt,
+        end_date=end_dt,
     )
 
-    if species:
-        query = query.where(func.lower(Classification.species) == species.lower())
-
-    if start_dt:
-        query = query.where(func.date(Image.uploaded_at) >= start_dt)
-
-    if end_dt:
-        query = query.where(func.date(Image.uploaded_at) <= end_dt)
-
-    query = query.group_by(func.date(Image.uploaded_at)).order_by('date')
-
-    result = await db.execute(query)
-    rows = result.all()
-
     return [
-        DetectionTrendPoint(date=row.date.isoformat(), count=row.count)
-        for row in rows
+        DetectionTrendPoint(date=d['date'], count=d['count'])
+        for d in daily_data
     ]
 
 
