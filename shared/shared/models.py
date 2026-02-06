@@ -353,6 +353,24 @@ class TelegramLinkingToken(Base):
     used = Column(Boolean, nullable=False, server_default="false")
 
 
+class SpeciesTaxonomy(Base):
+    """
+    Maps common species names (from classification models) to scientific names.
+
+    Global lookup table used for CamTrap DP export and other biodiversity standards.
+    Pre-populated for DeepFaune v1.4. Future models (e.g., SpeciesNet) add their own entries.
+    """
+    __tablename__ = "species_taxonomy"
+
+    id = Column(Integer, primary_key=True, index=True)
+    common_name = Column(String(255), unique=True, nullable=False, index=True)
+    scientific_name = Column(String(255), nullable=True)  # null = unmapped (e.g., "micromammal")
+    taxon_rank = Column(String(50), nullable=False, server_default='species')  # species, genus, family, order, class
+    model_source = Column(String(100), nullable=False, server_default='deepfaune')
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
 class UserInvitation(Base):
     """
     Pending user invitations.
