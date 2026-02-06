@@ -263,6 +263,169 @@ async def get_preferred_hourly_activity(
     return [{'hour': int(row.hour), 'count': int(row.total_count)} for row in result.all()]
 
 
+async def get_preferred_species_first_dates(
+    db: AsyncSession,
+    project_ids: List[int],
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+) -> List[dict]:
+    """
+    Get the first observation date for each species from preferred data source.
+
+    For each species, returns the earliest date it was observed across both
+    verified (human) and unverified (AI) images.
+
+    Returns list of {species: str, first_date: date}.
+    """
+    from shared.models import Image, Camera, Project, Detection, Classification, HumanObservation
+
+    # Common filters
+    verified_filters = [
+        Image.is_verified == True,
+        Camera.project_id.in_(project_ids),
+    ]
+    unverified_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+    ]
+
+    if start_date:
+        verified_filters.append(Image.uploaded_at >= start_date)
+        unverified_filters.append(Image.uploaded_at >= start_date)
+    if end_date:
+        verified_filters.append(Image.uploaded_at <= end_date)
+        unverified_filters.append(Image.uploaded_at <= end_date)
+
+    # Verified: first date from human observations
+    verified_query = (
+        select(
+            HumanObservation.species.label('species'),
+            func.min(func.date(Image.uploaded_at)).label('first_date')
+        )
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(and_(*verified_filters))
+        .group_by(HumanObservation.species)
+    )
+
+    # Unverified: first date from AI classifications
+    unverified_query = (
+        select(
+            Classification.species.label('species'),
+            func.min(func.date(Image.uploaded_at)).label('first_date')
+        )
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *unverified_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(Classification.species)
+    )
+
+    # Combine and get min date per species (earliest across both sources)
+    combined = union_all(verified_query, unverified_query).subquery()
+    final_query = (
+        select(
+            combined.c.species,
+            func.min(combined.c.first_date).label('first_date')
+        )
+        .group_by(combined.c.species)
+        .order_by(func.min(combined.c.first_date))
+    )
+
+    result = await db.execute(final_query)
+    return [{'species': row.species, 'first_date': row.first_date} for row in result.all()]
+
+
+async def get_preferred_species_camera_matrix(
+    db: AsyncSession,
+    project_ids: List[int],
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+) -> List[dict]:
+    """
+    Get species counts per camera from preferred data source.
+
+    For verified images: uses HumanObservation
+    For unverified: uses Classification
+
+    Returns list of {camera_name: str, species: str, count: int}.
+    """
+    from shared.models import Image, Camera, Project, Detection, Classification, HumanObservation
+
+    # Common filters
+    verified_filters = [
+        Image.is_verified == True,
+        Camera.project_id.in_(project_ids),
+    ]
+    unverified_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+    ]
+
+    if start_date:
+        verified_filters.append(Image.uploaded_at >= start_date)
+        unverified_filters.append(Image.uploaded_at >= start_date)
+    if end_date:
+        verified_filters.append(Image.uploaded_at <= end_date)
+        unverified_filters.append(Image.uploaded_at <= end_date)
+
+    # Verified: group by camera and species, sum counts
+    verified_query = (
+        select(
+            Camera.name.label('camera_name'),
+            HumanObservation.species.label('species'),
+            func.sum(HumanObservation.count).label('count')
+        )
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(and_(*verified_filters))
+        .group_by(Camera.name, HumanObservation.species)
+    )
+
+    # Unverified: group by camera and species, count classifications
+    unverified_query = (
+        select(
+            Camera.name.label('camera_name'),
+            Classification.species.label('species'),
+            func.count(Classification.id).label('count')
+        )
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *unverified_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(Camera.name, Classification.species)
+    )
+
+    # Combine and sum
+    combined = union_all(verified_query, unverified_query).subquery()
+    final_query = (
+        select(
+            combined.c.camera_name,
+            combined.c.species,
+            func.sum(combined.c.count).label('total_count')
+        )
+        .group_by(combined.c.camera_name, combined.c.species)
+    )
+
+    result = await db.execute(final_query)
+    return [
+        {'camera_name': row.camera_name, 'species': row.species, 'count': int(row.total_count)}
+        for row in result.all()
+    ]
+
+
 async def get_preferred_daily_trend(
     db: AsyncSession,
     project_ids: List[int],

@@ -166,12 +166,28 @@ async def get_species(
     Get list of unique species found in classified images.
 
     Returns list of species for use in filter dropdown (filtered by accessible projects).
-    Only includes species from detections that meet the project's confidence threshold.
+    Includes species from both human observations (verified) and AI classifications (unverified).
     """
-    # Query for unique species from classifications, filtered by accessible projects and threshold
-    query = (
-        select(Classification.species)
+    from sqlalchemy import union_all
+
+    # Query 1: Species from human observations (verified images)
+    human_species = (
+        select(HumanObservation.species.label('species'))
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Image.status == "classified",
+                Image.is_verified == True,
+                Camera.project_id.in_(accessible_project_ids),
+            )
+        )
         .distinct()
+    )
+
+    # Query 2: Species from AI classifications (unverified images, above threshold)
+    ai_species = (
+        select(Classification.species.label('species'))
         .join(Detection)
         .join(Image)
         .join(Camera)
@@ -179,14 +195,19 @@ async def get_species(
         .where(
             and_(
                 Image.status == "classified",
+                Image.is_verified == False,
                 Camera.project_id.in_(accessible_project_ids),
                 Detection.confidence >= Project.detection_threshold
             )
         )
-        .order_by(Classification.species)
+        .distinct()
     )
 
-    result = await db.execute(query)
+    # Combine and get unique species
+    combined = union_all(human_species, ai_species).subquery()
+    final_query = select(combined.c.species).distinct().order_by(combined.c.species)
+
+    result = await db.execute(final_query)
     species_list = result.scalars().all()
 
     # Helper function to normalize labels (matches frontend normalizeLabel utility)
