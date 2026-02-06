@@ -34,9 +34,9 @@ interface ObservationRow {
 
 // Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
-  save: () => void;
+  save: (onComplete?: () => void) => void;
   saveNotes: () => void;
-  noAnimals: () => void;
+  noAnimals: (onComplete?: () => void) => void;
   highlightSpecies: (species: string) => void;
   getNotes: () => string;
   setNotes: (notes: string) => void;
@@ -238,9 +238,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
 
   // Expose methods for parent components
   useImperativeHandle(ref, () => ({
-    save: () => {
+    save: (onComplete?: () => void) => {
       if (canSave && !saveMutation.isPending) {
-        saveMutation.mutate();
+        saveMutation.mutate(undefined, { onSuccess: onComplete });
       }
     },
     saveNotes: () => {
@@ -248,9 +248,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         saveNotesMutation.mutate();
       }
     },
-    noAnimals: () => {
+    noAnimals: (onComplete?: () => void) => {
       if (!noAnimalsMutation.isPending) {
-        noAnimalsMutation.mutate();
+        noAnimalsMutation.mutate(undefined, { onSuccess: onComplete });
       }
     },
     highlightSpecies: (species: string) => {
