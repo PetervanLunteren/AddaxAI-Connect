@@ -2,12 +2,12 @@
  * Image detail modal with bounding boxes
  *
  * Keyboard shortcuts:
- * - Space: Save and go to next
+ * - Enter: Verify and go to next
  * - Escape: Close modal
- * - Left/Right arrows: Navigate images
+ * - A/D or Left/Right arrows: Navigate images
  * - B: Toggle bounding boxes
  * - 0: Mark as empty and go to next
- * - Tab/Shift+Tab: Cycle focus between observations
+ * - J/K or Tab: Cycle focus between observations
  * - Up/Down arrows: Increase/decrease count of focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -291,8 +291,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       }
 
       switch (e.key) {
-        case ' ':
-          // Space: Save and go to next (or just go to next if already verified)
+        case 'Enter':
+          // Enter: Verify and go to next (or just go to next if already verified)
           e.preventDefault();
           if (imageDetail?.verification.is_verified) {
             // Already verified - just go to next
@@ -312,12 +312,16 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           onClose();
           break;
         case 'ArrowLeft':
+        case 'a':
+        case 'A':
           if (hasPrevious && onPrevious) {
             e.preventDefault();
             onPrevious();
           }
           break;
         case 'ArrowRight':
+        case 'd':
+        case 'D':
           if (hasNext && onNext) {
             e.preventDefault();
             onNext();
@@ -338,13 +342,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           }
           break;
         case 'Tab':
-          // Cycle focus between observations
+        case 'j':
+        case 'J':
+          // Next observation
           e.preventDefault();
-          if (e.shiftKey) {
-            verificationPanelRef.current?.focusPrevious();
-          } else {
-            verificationPanelRef.current?.focusNext();
-          }
+          verificationPanelRef.current?.focusNext();
+          break;
+        case 'k':
+        case 'K':
+          // Previous observation
+          e.preventDefault();
+          verificationPanelRef.current?.focusPrevious();
           break;
         case 'ArrowUp':
           // Increment count of focused observation
@@ -703,7 +711,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
               <div className="text-xs space-y-1">
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Space</span>
+                  <span className="text-muted-foreground">Enter</span>
                   <span>Verify + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -711,7 +719,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Close</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">← →</span>
+                  <span className="text-muted-foreground">A / D</span>
                   <span>Navigate</span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -723,12 +731,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Empty + next</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Tab</span>
-                  <span>Next observation</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">⇧Tab</span>
-                  <span>Prev observation</span>
+                  <span className="text-muted-foreground">J / K</span>
+                  <span>Next / prev obs</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">↑ ↓</span>
