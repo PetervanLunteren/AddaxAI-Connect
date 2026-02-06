@@ -18,6 +18,8 @@ from utils.preferred_counts import (
     get_preferred_total_species_count,
     get_preferred_hourly_activity,
     get_preferred_daily_trend,
+    get_preferred_species_first_dates,
+    get_preferred_species_camera_matrix,
 )
 
 
@@ -414,9 +416,69 @@ async def get_detection_rate_map(
         GeoJSON FeatureCollection with deployment features
     """
     # Build SQL query with conditional filters
-    # Use LEFT JOIN to include deployments with zero detections
+    # Use UNION to combine verified (human observations) and unverified (AI) counts
+    # For verified images: sum HumanObservation.count
+    # For unverified images: count Detection/Classification with threshold
     query_sql = """
-        WITH deployment_detections AS (
+        WITH verified_counts AS (
+            -- Counts from human observations (verified images only)
+            SELECT
+                cdp.id as deployment_id,
+                COALESCE(SUM(ho.count) FILTER (WHERE
+                    ho.id IS NOT NULL
+                    AND (CAST(:species AS text) IS NULL OR LOWER(ho.species) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
+                ), 0) as detection_count
+            FROM camera_deployment_periods cdp
+            INNER JOIN cameras c ON cdp.camera_id = c.id
+            LEFT JOIN images i ON
+                i.camera_id = cdp.camera_id
+                AND i.is_verified = true
+                AND i.uploaded_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+            LEFT JOIN human_observations ho ON ho.image_id = i.id
+            WHERE c.project_id = ANY(:project_ids)
+            GROUP BY cdp.id
+        ),
+        unverified_counts AS (
+            -- Counts from AI detections (unverified images only)
+            SELECT
+                cdp.id as deployment_id,
+                COUNT(d.id) FILTER (WHERE
+                    d.id IS NOT NULL
+                    AND d.confidence >= p.detection_threshold
+                    AND (CAST(:species AS text) IS NULL OR LOWER(cl.species) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
+                ) as detection_count
+            FROM camera_deployment_periods cdp
+            INNER JOIN cameras c ON cdp.camera_id = c.id
+            INNER JOIN projects p ON c.project_id = p.id
+            LEFT JOIN images i ON
+                i.camera_id = cdp.camera_id
+                AND i.is_verified = false
+                AND i.uploaded_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+            LEFT JOIN detections d ON d.image_id = i.id
+            LEFT JOIN classifications cl ON cl.detection_id = d.id
+            WHERE c.project_id = ANY(:project_ids)
+            GROUP BY cdp.id
+        ),
+        combined_counts AS (
+            -- Sum verified and unverified counts per deployment
+            SELECT
+                deployment_id,
+                SUM(detection_count) as detection_count
+            FROM (
+                SELECT deployment_id, detection_count FROM verified_counts
+                UNION ALL
+                SELECT deployment_id, detection_count FROM unverified_counts
+            ) combined
+            GROUP BY deployment_id
+        ),
+        deployment_info AS (
+            -- Get deployment metadata
             SELECT
                 cdp.id as deployment_id,
                 cdp.camera_id,
@@ -425,60 +487,36 @@ async def get_detection_rate_map(
                 cdp.end_date,
                 ST_X(cdp.location::geometry) as lon,
                 ST_Y(cdp.location::geometry) as lat,
-                -- Calculate trap days
                 COALESCE(
                     (cdp.end_date - cdp.start_date + 1),
                     (CURRENT_DATE - cdp.start_date + 1)
                 ) as trap_days,
-                -- Count detections (filtered by species/date if specified)
-                COUNT(d.id) FILTER (WHERE
-                    d.id IS NOT NULL
-                    AND d.confidence >= p.detection_threshold
-                    AND (CAST(:species AS text) IS NULL OR LOWER(cl.species) = LOWER(CAST(:species AS text)))
-                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
-                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
-                ) as detection_count,
                 c.name as camera_name
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
-            INNER JOIN projects p ON c.project_id = p.id
-            LEFT JOIN images i ON
-                i.camera_id = cdp.camera_id
-                AND i.uploaded_at::date >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
-            LEFT JOIN detections d ON d.image_id = i.id
-            LEFT JOIN classifications cl ON cl.detection_id = d.id
             WHERE c.project_id = ANY(:project_ids)
-            GROUP BY
-                cdp.id,
-                cdp.camera_id,
-                cdp.deployment_id,
-                cdp.start_date,
-                cdp.end_date,
-                cdp.location,
-                c.name,
-                p.detection_threshold
         )
         SELECT
-            camera_id,
-            camera_name,
-            deployment_number,
-            start_date,
-            end_date,
-            lon,
-            lat,
-            trap_days,
-            detection_count,
+            di.camera_id,
+            di.camera_name,
+            di.deployment_number,
+            di.start_date,
+            di.end_date,
+            di.lon,
+            di.lat,
+            di.trap_days,
+            COALESCE(cc.detection_count, 0) as detection_count,
             CASE
-                WHEN trap_days > 0 THEN detection_count::float / trap_days
+                WHEN di.trap_days > 0 THEN COALESCE(cc.detection_count, 0)::float / di.trap_days
                 ELSE 0.0
             END as detection_rate,
             CASE
-                WHEN trap_days > 0 THEN (detection_count::float / trap_days) * 100
+                WHEN di.trap_days > 0 THEN (COALESCE(cc.detection_count, 0)::float / di.trap_days) * 100
                 ELSE 0.0
             END as detection_rate_per_100
-        FROM deployment_detections
-        ORDER BY camera_id, deployment_number
+        FROM deployment_info di
+        LEFT JOIN combined_counts cc ON cc.deployment_id = di.deployment_id
+        ORDER BY di.camera_id, di.deployment_number
     """
 
     # Execute query
@@ -603,45 +641,30 @@ async def get_species_accumulation(
     """
     Get species accumulation curve showing cumulative species discovered over time.
 
-    Returns the first date each species was detected and cumulative count per day.
+    Prefers human observations for verified images, falls back to AI for unverified.
+    Returns the first date each species was observed and cumulative count per day.
     """
-    # Get first detection date for each species
-    query = (
-        select(
-            Classification.species,
-            func.min(func.date(Image.uploaded_at)).label('first_date')
-        )
-        .select_from(Classification)
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(
-            and_(
-                Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
-            )
-        )
+    # Convert dates
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    # Get first observation date for each species from preferred source
+    species_data = await get_preferred_species_first_dates(
+        db=db,
+        project_ids=accessible_project_ids,
+        start_date=start_dt,
+        end_date=end_dt,
     )
 
-    if start_date:
-        query = query.where(func.date(Image.uploaded_at) >= start_date)
+    # Convert to row-like format for existing logic
+    rows = [(d['species'], d['first_date']) for d in species_data]
 
-    if end_date:
-        query = query.where(func.date(Image.uploaded_at) <= end_date)
-
-    query = query.group_by(Classification.species)
-
-    result = await db.execute(query)
-    rows = result.all()
-
-    # Group species by first detection date
+    # Group species by first observation date
     date_species: Dict[date, List[str]] = {}
-    for row in rows:
-        d = row.first_date
-        if d not in date_species:
-            date_species[d] = []
-        date_species[d].append(row.species)
+    for species, first_date in rows:
+        if first_date not in date_species:
+            date_species[first_date] = []
+        date_species[first_date].append(species)
 
     # Build cumulative response
     sorted_dates = sorted(date_species.keys())
@@ -789,47 +812,30 @@ async def get_occupancy_matrix(
     """
     Get species x camera detection counts as a matrix.
 
+    Prefers human observations for verified images, falls back to AI for unverified.
     Used for heatmap visualization showing which species appear at which cameras.
     """
-    query = (
-        select(
-            Camera.name.label('camera_name'),
-            Classification.species,
-            func.count(Classification.id).label('count')
-        )
-        .select_from(Classification)
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(
-            and_(
-                Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
-            )
-        )
+    # Convert dates for helper function
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    # Get camera × species matrix from preferred source
+    matrix_data = await get_preferred_species_camera_matrix(
+        db=db,
+        project_ids=accessible_project_ids,
+        start_date=start_dt,
+        end_date=end_dt,
     )
-
-    if start_date:
-        query = query.where(func.date(Image.uploaded_at) >= start_date)
-
-    if end_date:
-        query = query.where(func.date(Image.uploaded_at) <= end_date)
-
-    query = query.group_by(Camera.name, Classification.species)
-
-    result = await db.execute(query)
-    rows = result.all()
 
     # Build sets of cameras and species
     cameras_set: set = set()
     species_set: set = set()
     counts: Dict[tuple, int] = {}
 
-    for row in rows:
-        cameras_set.add(row.camera_name)
-        species_set.add(row.species)
-        counts[(row.species, row.camera_name)] = row.count
+    for row in matrix_data:
+        cameras_set.add(row['camera_name'])
+        species_set.add(row['species'])
+        counts[(row['species'], row['camera_name'])] = row['count']
 
     # Sort for consistent ordering
     cameras = sorted(cameras_set)
@@ -919,9 +925,40 @@ async def get_pipeline_status(
 
     category_counts = {row.category: row.count for row in category_rows}
 
-    # Count empty images (classified but no detections above threshold)
-    # Subquery to get image IDs with detections
-    images_with_detections = (
+    # Count empty images
+    # For verified images: no HumanObservation rows
+    # For unverified images: no detections above threshold
+
+    # Verified images with observations
+    verified_with_observations = (
+        select(HumanObservation.image_id)
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Image.is_verified == True
+            )
+        )
+        .distinct()
+    )
+
+    # Count verified empty (verified but no observations)
+    verified_empty_result = await db.execute(
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(
+            and_(
+                Camera.project_id.in_(accessible_project_ids),
+                Image.is_verified == True,
+                ~Image.id.in_(verified_with_observations)
+            )
+        )
+    )
+    verified_empty = verified_empty_result.scalar_one()
+
+    # Unverified images with detections above threshold
+    unverified_with_detections = (
         select(Detection.image_id)
         .join(Image)
         .join(Camera)
@@ -929,24 +966,30 @@ async def get_pipeline_status(
         .where(
             and_(
                 Camera.project_id.in_(accessible_project_ids),
+                Image.is_verified == False,
+                Image.status == "classified",
                 Detection.confidence >= Project.detection_threshold
             )
         )
         .distinct()
     )
 
-    empty_result = await db.execute(
+    # Count unverified empty (classified, not verified, no detections)
+    unverified_empty_result = await db.execute(
         select(func.count(Image.id))
         .join(Camera)
         .where(
             and_(
                 Camera.project_id.in_(accessible_project_ids),
                 Image.status == "classified",
-                ~Image.id.in_(images_with_detections)
+                Image.is_verified == False,
+                ~Image.id.in_(unverified_with_detections)
             )
         )
     )
-    empty_count = empty_result.scalar_one()
+    unverified_empty = unverified_empty_result.scalar_one()
+
+    empty_count = verified_empty + unverified_empty
 
     return PipelineStatusResponse(
         pending=pending,

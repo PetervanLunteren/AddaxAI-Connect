@@ -10,8 +10,9 @@ from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import Session
 
 from shared.models import (
-    Image, Camera, Detection, Classification, Project
+    Image, Camera, Detection, Classification, Project, HumanObservation
 )
+from sqlalchemy import union_all
 from shared.logger import get_logger
 
 logger = get_logger("notifications.report_stats")
@@ -76,38 +77,80 @@ def get_overview_stats(
         .where(Camera.project_id == project_id)
     ).scalar_one()
 
-    # Total unique species (all-time, above threshold)
-    total_species = db.execute(
-        select(func.count(func.distinct(Classification.species)))
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
+    # Total unique species (all-time)
+    # Prefer human observations for verified images, AI for unverified
+    verified_species_query = (
+        select(HumanObservation.species.label('species'))
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
         .where(
             and_(
                 Camera.project_id == project_id,
-                Detection.confidence >= detection_threshold
+                Image.is_verified == True
             )
         )
-    ).scalar_one()
-
-    # Species first detected in period
-    # Find species where min(upload_date) falls within the period
-    all_species_first_seen = db.execute(
-        select(
-            Classification.species,
-            func.min(Image.uploaded_at).label('first_seen')
-        )
-        .select_from(Classification)
+        .distinct()
+    )
+    unverified_species_query = (
+        select(Classification.species.label('species'))
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(
             and_(
                 Camera.project_id == project_id,
+                Image.is_verified == False,
+                Detection.confidence >= detection_threshold
+            )
+        )
+        .distinct()
+    )
+    combined_species = union_all(verified_species_query, unverified_species_query).subquery()
+    total_species = db.execute(
+        select(func.count(func.distinct(combined_species.c.species)))
+    ).scalar_one()
+
+    # Species first detected in period
+    # Prefer human observations for verified images, AI for unverified
+    verified_first_seen = (
+        select(
+            HumanObservation.species.label('species'),
+            func.min(Image.uploaded_at).label('first_seen')
+        )
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == True
+            )
+        )
+        .group_by(HumanObservation.species)
+    )
+    unverified_first_seen = (
+        select(
+            Classification.species.label('species'),
+            func.min(Image.uploaded_at).label('first_seen')
+        )
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == False,
                 Detection.confidence >= detection_threshold
             )
         )
         .group_by(Classification.species)
+    )
+    combined_first_seen = union_all(verified_first_seen, unverified_first_seen).subquery()
+    all_species_first_seen = db.execute(
+        select(
+            combined_first_seen.c.species,
+            func.min(combined_first_seen.c.first_seen).label('first_seen')
+        )
+        .group_by(combined_first_seen.c.species)
     ).all()
 
     new_species_count = sum(
@@ -134,6 +177,8 @@ def get_species_distribution(
     """
     Get top species by detection count for date range.
 
+    Prefers human observations for verified images, falls back to AI for unverified.
+
     Args:
         db: Database session
         project_id: Project to query
@@ -153,31 +198,62 @@ def get_species_distribution(
     ).scalar_one_or_none()
     detection_threshold = project.detection_threshold if project else 0.5
 
-    query = (
+    # Query 1: Verified images - use HumanObservation.count
+    verified_query = (
         select(
-            Classification.species,
-            func.count(Classification.id).label('count')
+            HumanObservation.species.label('species'),
+            func.sum(HumanObservation.count).label('count')
         )
-        .join(Detection)
-        .join(Image)
-        .join(Camera)
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
         .where(
             and_(
                 Camera.project_id == project_id,
+                Image.is_verified == True,
+                Image.uploaded_at >= start_dt,
+                Image.uploaded_at <= end_dt
+            )
+        )
+        .group_by(HumanObservation.species)
+    )
+
+    # Query 2: Unverified images - use AI Classification count
+    unverified_query = (
+        select(
+            Classification.species.label('species'),
+            func.count(Classification.id).label('count')
+        )
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == False,
                 Detection.confidence >= detection_threshold,
                 Image.uploaded_at >= start_dt,
                 Image.uploaded_at <= end_dt
             )
         )
         .group_by(Classification.species)
-        .order_by(desc('count'))
+    )
+
+    # Combine and aggregate
+    combined = union_all(verified_query, unverified_query).subquery()
+    final_query = (
+        select(
+            combined.c.species,
+            func.sum(combined.c.count).label('total_count')
+        )
+        .group_by(combined.c.species)
+        .order_by(desc('total_count'))
         .limit(limit)
     )
 
-    rows = db.execute(query).all()
+    rows = db.execute(final_query).all()
 
     return [
-        {'species': row.species, 'count': row.count}
+        {'species': row.species, 'count': int(row.total_count)}
         for row in rows
     ]
 
@@ -379,6 +455,7 @@ def get_activity_summary(
     Get activity pattern summary for the period.
 
     Analyzes hourly detection distribution to find peak activity times.
+    Prefers human observations for verified images, falls back to AI for unverified.
 
     Args:
         db: Database session
@@ -401,9 +478,28 @@ def get_activity_summary(
     ).scalar_one_or_none()
     detection_threshold = project.detection_threshold if project else 0.5
 
-    # Get hourly distribution - count classifications (not raw detections)
-    # This ensures consistency with species counts
-    query = (
+    # Query 1: Verified images - use HumanObservation.count
+    verified_query = (
+        select(
+            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.sum(HumanObservation.count).label('count')
+        )
+        .select_from(HumanObservation)
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == True,
+                Image.uploaded_at >= start_dt,
+                Image.uploaded_at <= end_dt
+            )
+        )
+        .group_by(func.extract('hour', Image.uploaded_at))
+    )
+
+    # Query 2: Unverified images - use AI Classification count
+    unverified_query = (
         select(
             func.extract('hour', Image.uploaded_at).label('hour'),
             func.count(Classification.id).label('count')
@@ -415,6 +511,7 @@ def get_activity_summary(
         .where(
             and_(
                 Camera.project_id == project_id,
+                Image.is_verified == False,
                 Detection.confidence >= detection_threshold,
                 Image.uploaded_at >= start_dt,
                 Image.uploaded_at <= end_dt
@@ -423,13 +520,23 @@ def get_activity_summary(
         .group_by(func.extract('hour', Image.uploaded_at))
     )
 
-    rows = db.execute(query).all()
+    # Combine and aggregate by hour
+    combined = union_all(verified_query, unverified_query).subquery()
+    final_query = (
+        select(
+            combined.c.hour,
+            func.sum(combined.c.count).label('total_count')
+        )
+        .group_by(combined.c.hour)
+    )
+
+    rows = db.execute(final_query).all()
 
     # Build 24-hour distribution
     hourly_distribution = [0] * 24
     for row in rows:
         if row.hour is not None:
-            hourly_distribution[int(row.hour)] = row.count
+            hourly_distribution[int(row.hour)] = int(row.total_count)
 
     total_detections = sum(hourly_distribution)
     peak_hour = hourly_distribution.index(max(hourly_distribution)) if total_detections > 0 else None
