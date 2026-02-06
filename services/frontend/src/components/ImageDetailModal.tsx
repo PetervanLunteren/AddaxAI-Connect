@@ -630,7 +630,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   />
                   <div className="flex justify-end">
                     <button
-                      onClick={() => setNotesExpanded(false)}
+                      onClick={() => {
+                        verificationPanelRef.current?.saveNotes();
+                        setNotesExpanded(false);
+                      }}
                       className="text-xs text-muted-foreground hover:text-foreground"
                     >
                       Done

@@ -34,6 +34,7 @@ interface ObservationRow {
 // Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
   save: () => void;
+  saveNotes: () => void;
   highlightSpecies: (species: string) => void;
   getNotes: () => string;
   setNotes: (notes: string) => void;
@@ -208,11 +209,35 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     },
   });
 
+  // Save notes mutation - preserves current verification state
+  const saveNotesMutation = useMutation({
+    mutationFn: () => {
+      const currentObservations: HumanObservationInput[] = imageDetail.human_observations.map(obs => ({
+        species: obs.species,
+        count: obs.count,
+      }));
+
+      return imagesApi.saveVerification(imageUuid, {
+        is_verified: imageDetail.verification.is_verified,
+        notes: notes || null,
+        observations: currentObservations,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+    },
+  });
+
   // Expose methods for parent components
   useImperativeHandle(ref, () => ({
     save: () => {
       if (canSave && !saveMutation.isPending) {
         saveMutation.mutate();
+      }
+    },
+    saveNotes: () => {
+      if (!saveNotesMutation.isPending) {
+        saveNotesMutation.mutate();
       }
     },
     highlightSpecies: (species: string) => {
