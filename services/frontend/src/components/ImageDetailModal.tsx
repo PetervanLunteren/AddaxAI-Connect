@@ -9,6 +9,7 @@
  * - 0: Mark as empty and go to next
  * - Tab/Shift+Tab: Cycle focus between observations
  * - Up/Down arrows: Increase/decrease count of focused observation
+ * - X: Delete focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -373,6 +374,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           // Decrement count of focused observation
           e.preventDefault();
           verificationPanelRef.current?.decrementFocused();
+          break;
+        case 'x':
+        case 'X':
+          // Delete focused observation
+          e.preventDefault();
+          verificationPanelRef.current?.deleteFocused();
           break;
       }
     };
@@ -743,6 +750,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">↑ ↓</span>
                   <span>Change count</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">X</span>
+                  <span>Delete observation</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">B</span>
