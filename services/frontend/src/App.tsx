@@ -20,6 +20,7 @@ import { Dashboard } from './pages/Dashboard';
 import { CamerasPage } from './pages/CamerasPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { ExportsPage } from './pages/ExportsPage';
 import { AboutPage } from './pages/AboutPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementPage';
@@ -141,6 +142,7 @@ function App() {
                 <Route path="images" element={<ImagesPage />} />
                 <Route path="map" element={<DetectionRateMapPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
+                <Route path="exports" element={<ExportsPage />} />
                 <Route path="settings" element={<ProjectSettingsPage />} />
                 <Route path="users" element={<ProjectUsersPage />} />
               </Route>

@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Images,
   Bell,
+  Download,
   X,
   Menu,
   ArrowLeft,
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/map`, icon: Map, label: 'Map' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
+    { to: `/projects/${projectId}/exports`, icon: Download, label: 'Exports' },
   ];
 
   // Admin tools - visible to project admins and server admins
