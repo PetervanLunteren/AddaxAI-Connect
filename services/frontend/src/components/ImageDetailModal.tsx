@@ -326,6 +326,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           e.preventDefault();
           setShowBboxes(prev => !prev);
           break;
+        case '0':
+          // Verify as empty (no animals) and go to next
+          e.preventDefault();
+          verificationPanelRef.current?.noAnimals();
+          if (hasNext && onNext) {
+            setTimeout(() => onNext(), 100);
+          }
+          break;
       }
     };
 
@@ -687,6 +695,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">B</span>
                   <span>Toggle boxes</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">0</span>
+                  <span>Empty + next</span>
                 </div>
               </div>
             </div>
