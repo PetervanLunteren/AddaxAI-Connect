@@ -423,6 +423,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     <Card>
       <CardContent className="pt-4 pb-3">
         <div className="space-y-2">
+          {observations.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">No detections</p>
+          )}
           {observations.map(obs => (
             <div
               key={obs.id}
