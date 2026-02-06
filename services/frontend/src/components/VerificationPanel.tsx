@@ -247,7 +247,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           if (onComplete) onComplete();
         }});
       } else {
-        console.log('[VerificationPanel.save] skipped - canSave:', canSave, 'isPending:', saveMutation.isPending);
+        // Nothing to save (or already saving), but still proceed with callback
+        console.log('[VerificationPanel.save] skipped mutation, calling onComplete directly');
+        if (onComplete) onComplete();
       }
     },
     saveNotes: () => {
@@ -258,6 +260,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     noAnimals: (onComplete?: () => void) => {
       if (!noAnimalsMutation.isPending) {
         noAnimalsMutation.mutate(undefined, { onSuccess: onComplete });
+      } else {
+        // Already saving, still proceed with callback
+        if (onComplete) onComplete();
       }
     },
     highlightSpecies: (species: string) => {
