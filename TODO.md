@@ -10,8 +10,9 @@
 - [ ] Make an ANIML sort of camera registration field, where you can choose "Camera type" and input "IMEI number". Thats all. That means that we need to properly make the camera types at the ingestion service. That we we can keep adding them as we go. 
 - [ ] It looks like the dashboard graph "Camera activity status - Based on last 7 days" doesnt show the same numbers of the "Status" column on the cameras page. Why?
 - [ ] It seems that the detection threshold is not applied to the telegram notifications, but the visualisations (bbox + labels) on the telegram images are. Sometimes i get a message that a fox was observed, but nothing is visualised. I get the feeling that the fox in question has a detection confidence below the threshold, and is hence not visualised, but send nonetheless. Only send for detections above the detecion threshhold. investigate. 
+- [ ] create a script that populates a fresh server with dummy data for showcaseing the platform. The script must populate the database with ecologically relevant data, and make sure it looks engaging in in maps, graphs, etc. We can go full overboard with 100 cams and 2 years of data. This is great ;)
+- make each project a timezone setting. needed for activity patterns and camtrapDP. 
 
 **SPW points**
 - [ ] export to camtrap DP
-- [ ] Edit labels in ImageDetailModal. No need to adjust bounding boxes, just the counts per species. 
 - [ ] NEW server spw.addaxai.com project namne: ANLIER NORD
