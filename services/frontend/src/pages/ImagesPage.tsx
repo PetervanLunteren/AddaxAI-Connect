@@ -300,9 +300,19 @@ export const ImagesPage: React.FC = () => {
             {imagesData.items.map((image: ImageListItem) => (
               <Card
                 key={image.uuid}
-                className="cursor-pointer hover:shadow-lg transition-shadow"
+                className="cursor-pointer hover:shadow-lg transition-shadow relative"
                 onClick={() => setSelectedImageUuid(image.uuid)}
               >
+                {/* Verified badge - overflow top-right corner */}
+                {image.is_verified && (
+                  <div
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+                    style={{ backgroundColor: '#0f6064' }}
+                    title="Verified"
+                  >
+                    <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                  </div>
+                )}
                 <div className="aspect-[4/3] bg-muted relative overflow-hidden rounded-t-lg">
                   {image.thumbnail_url ? (
                     <ImageThumbnailWithBoxes
@@ -371,16 +381,6 @@ export const ImagesPage: React.FC = () => {
                       </div>
                     );
                   })()}
-                  {/* Verified badge */}
-                  {image.is_verified && (
-                    <div
-                      className="absolute bottom-2 left-2 w-5 h-5 rounded-full flex items-center justify-center z-10"
-                      style={{ backgroundColor: '#0f6064' }}
-                      title="Verified"
-                    >
-                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                    </div>
-                  )}
                 </div>
                 <CardContent className="p-4">
                   <div className="space-y-2">
