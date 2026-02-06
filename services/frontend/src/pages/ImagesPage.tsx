@@ -350,13 +350,15 @@ export const ImagesPage: React.FC = () => {
                     </div>
                   )}
                   {(() => {
-                    // For verified images: use top_species from human observations
+                    // For verified images: use observed_species from human observations
                     // For unverified: extract from AI detections
                     let allLabels: string[];
 
                     if (image.is_verified) {
                       // Verified image: use human observation data
-                      allLabels = image.top_species ? [image.top_species] : ['empty'];
+                      allLabels = image.observed_species && image.observed_species.length > 0
+                        ? image.observed_species
+                        : ['empty'];
                     } else {
                       // Unverified image: use AI detection data
                       const speciesLabels = Array.from(new Set(
