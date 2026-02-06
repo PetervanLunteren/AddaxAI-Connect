@@ -300,11 +300,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               onNext();
             }
           } else {
-            // Not verified - save and go to next
-            verificationPanelRef.current?.save();
-            if (hasNext && onNext) {
-              setTimeout(() => onNext(), 100);
-            }
+            // Not verified - save and go to next after save completes
+            verificationPanelRef.current?.save(() => {
+              if (hasNext && onNext) {
+                onNext();
+              }
+            });
           }
           break;
         case 'Escape':
@@ -332,10 +333,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         case '0':
           // Verify as empty (no animals) and go to next
           e.preventDefault();
-          verificationPanelRef.current?.noAnimals();
-          if (hasNext && onNext) {
-            setTimeout(() => onNext(), 100);
-          }
+          verificationPanelRef.current?.noAnimals(() => {
+            if (hasNext && onNext) {
+              onNext();
+            }
+          });
           break;
         case 'Tab':
           // Cycle focus between observations
