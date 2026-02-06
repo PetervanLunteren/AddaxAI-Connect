@@ -727,6 +727,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Next observation</span>
                 </div>
                 <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">⇧Tab</span>
+                  <span>Prev observation</span>
+                </div>
+                <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">↑ ↓</span>
                   <span>Change count</span>
                 </div>
