@@ -1,7 +1,7 @@
 /**
  * Images page with grid view and filters
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
@@ -20,6 +20,8 @@ import type { ImageListItem } from '../api/types';
 export const ImagesPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
+  const [pendingFirstImage, setPendingFirstImage] = useState(false);
+  const [pendingLastImage, setPendingLastImage] = useState(false);
 
   const [filters, setFilters] = useState({
     camera_ids: [] as Option[],
@@ -120,6 +122,19 @@ export const ImagesPage: React.FC = () => {
       setSpeciesContext(allSpecies);
     }
   }, [speciesOptions]);
+
+  // Handle cross-page navigation: select first/last image after page loads
+  useEffect(() => {
+    if (imagesData?.items.length > 0) {
+      if (pendingFirstImage) {
+        setSelectedImageUuid(imagesData.items[0].uuid);
+        setPendingFirstImage(false);
+      } else if (pendingLastImage) {
+        setSelectedImageUuid(imagesData.items[imagesData.items.length - 1].uuid);
+        setPendingLastImage(false);
+      }
+    }
+  }, [imagesData, pendingFirstImage, pendingLastImage]);
 
   return (
     <div>
@@ -403,28 +418,37 @@ export const ImagesPage: React.FC = () => {
       )}
 
       {/* Image Detail Modal */}
-      {selectedImageUuid && imagesData && (
-        <ImageDetailModal
-          imageUuid={selectedImageUuid}
-          allImageUuids={imagesData.items.map(img => img.uuid)}
-          isOpen={!!selectedImageUuid}
-          onClose={() => setSelectedImageUuid(null)}
-          onPrevious={() => {
-            const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
-            if (currentIndex > 0) {
-              setSelectedImageUuid(imagesData.items[currentIndex - 1].uuid);
-            }
-          }}
-          onNext={() => {
-            const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
-            if (currentIndex < imagesData.items.length - 1) {
-              setSelectedImageUuid(imagesData.items[currentIndex + 1].uuid);
-            }
-          }}
-          hasPrevious={imagesData.items.findIndex(img => img.uuid === selectedImageUuid) > 0}
-          hasNext={imagesData.items.findIndex(img => img.uuid === selectedImageUuid) < imagesData.items.length - 1}
-        />
-      )}
+      {selectedImageUuid && imagesData && (() => {
+        const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
+        return (
+          <ImageDetailModal
+            imageUuid={selectedImageUuid}
+            allImageUuids={imagesData.items.map(img => img.uuid)}
+            isOpen={!!selectedImageUuid}
+            onClose={() => setSelectedImageUuid(null)}
+            onPrevious={() => {
+              if (currentIndex > 0) {
+                setSelectedImageUuid(imagesData.items[currentIndex - 1].uuid);
+              } else if (page > 1) {
+                // Go to previous page, select last image
+                setPage(page - 1);
+                setPendingLastImage(true);
+              }
+            }}
+            onNext={() => {
+              if (currentIndex < imagesData.items.length - 1) {
+                setSelectedImageUuid(imagesData.items[currentIndex + 1].uuid);
+              } else if (page < imagesData.pages) {
+                // Go to next page, select first image
+                setPage(page + 1);
+                setPendingFirstImage(true);
+              }
+            }}
+            hasPrevious={currentIndex > 0 || page > 1}
+            hasNext={currentIndex < imagesData.items.length - 1 || page < imagesData.pages}
+          />
+        );
+      })()}
     </div>
   );
 };
