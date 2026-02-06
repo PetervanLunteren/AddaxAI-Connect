@@ -285,8 +285,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in inputs
       const target = e.target as HTMLElement;
+      console.log('[KeyDown]', e.key, 'target:', target.tagName, 'contentEditable:', target.isContentEditable);
+
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         // Allow Escape even in inputs
+        console.log('[KeyDown] Blocked - input element focused');
         if (e.key !== 'Escape') return;
       }
 
@@ -294,14 +297,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         case 'Enter':
           // Enter: Verify and go to next (or just go to next if already verified)
           e.preventDefault();
+          console.log('[Enter] imageDetail:', !!imageDetail, 'is_verified:', imageDetail?.verification.is_verified, 'hasNext:', hasNext, 'onNext:', !!onNext);
           if (imageDetail?.verification.is_verified) {
             // Already verified - just go to next
+            console.log('[Enter] Already verified, going to next');
             if (hasNext && onNext) {
               onNext();
+            } else {
+              console.log('[Enter] Cannot go to next: hasNext=', hasNext, 'onNext=', !!onNext);
             }
           } else {
             // Not verified - save and go to next after save completes
+            console.log('[Enter] Not verified, calling save with callback');
             verificationPanelRef.current?.save(() => {
+              console.log('[Enter] Save callback fired, hasNext:', hasNext, 'onNext:', !!onNext);
               if (hasNext && onNext) {
                 onNext();
               }

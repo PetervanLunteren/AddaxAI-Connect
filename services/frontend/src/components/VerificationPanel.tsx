@@ -239,8 +239,15 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   // Expose methods for parent components
   useImperativeHandle(ref, () => ({
     save: (onComplete?: () => void) => {
+      console.log('[VerificationPanel.save] called, canSave:', canSave, 'isPending:', saveMutation.isPending);
       if (canSave && !saveMutation.isPending) {
-        saveMutation.mutate(undefined, { onSuccess: onComplete });
+        console.log('[VerificationPanel.save] calling mutate');
+        saveMutation.mutate(undefined, { onSuccess: () => {
+          console.log('[VerificationPanel.save] mutation onSuccess, calling onComplete:', !!onComplete);
+          if (onComplete) onComplete();
+        }});
+      } else {
+        console.log('[VerificationPanel.save] skipped - canSave:', canSave, 'isPending:', saveMutation.isPending);
       }
     },
     saveNotes: () => {
