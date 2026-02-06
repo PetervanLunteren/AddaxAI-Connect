@@ -904,7 +904,8 @@ async def get_pipeline_status(
     )
     classified = classified_result.scalar_one()
 
-    # Count detections by category
+    # Count detections by category (only from UNVERIFIED images)
+    # Verified images use human observations, not AI detections
     category_result = await db.execute(
         select(
             Detection.category,
@@ -916,6 +917,7 @@ async def get_pipeline_status(
         .where(
             and_(
                 Camera.project_id.in_(accessible_project_ids),
+                Image.is_verified == False,  # Only count unverified images
                 Detection.confidence >= Project.detection_threshold
             )
         )
