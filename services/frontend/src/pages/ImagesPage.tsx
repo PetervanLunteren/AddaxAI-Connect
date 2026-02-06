@@ -3,7 +3,7 @@
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal, Check } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -371,6 +371,16 @@ export const ImagesPage: React.FC = () => {
                       </div>
                     );
                   })()}
+                  {/* Verified badge */}
+                  {image.is_verified && (
+                    <div
+                      className="absolute bottom-2 left-2 w-5 h-5 rounded-full flex items-center justify-center z-10"
+                      style={{ backgroundColor: '#0f6064' }}
+                      title="Verified"
+                    >
+                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-4">
                   <div className="space-y-2">
