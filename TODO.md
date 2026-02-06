@@ -8,7 +8,8 @@
 - [ ] Add a project artifacts upload and download function. Good for storing settings files, etc. 
 - [ ] how to reset youre password? Should we add an option in the hambuerger menu?
 - [ ] Make an ANIML sort of camera registration field, where you can choose "Camera type" and input "IMEI number". Thats all. That means that we need to properly make the camera types at the ingestion service. That we we can keep adding them as we go. 
-
+- [ ] It looks like the dashboard graph "Camera activity status - Based on last 7 days" doesnt show the same numbers of the "Status" column on the cameras page. Why?
+- [ ] It seems that the detection threshold is not applied to the telegram notifications, but the visualisations (bbox + labels) on the telegram images are. Sometimes i get a message that a fox was observed, but nothing is visualised. I get the feeling that the fox in question has a detection confidence below the threshold, and is hence not visualised, but send nonetheless. Only send for detections above the detecion threshhold. investigate. 
 
 **SPW points**
 - [ ] export to camtrap DP
