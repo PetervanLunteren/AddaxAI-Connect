@@ -70,6 +70,7 @@ class ImageListItemResponse(BaseModel):
     image_width: Optional[int] = None
     image_height: Optional[int] = None
     is_verified: bool = False
+    observed_species: List[str] = []  # Human observations for verified images
 
     class Config:
         from_attributes = True
@@ -424,6 +425,8 @@ async def list_images(
         max_confidence = None
         detection_count = 0
 
+        observed_species = []  # List of all human-observed species for verified images
+
         if image.is_verified:
             # Use human observations for verified images
             observations = human_obs_by_image.get(image.id, [])
@@ -433,6 +436,8 @@ async def list_images(
                 top_species = top_obs.species
                 detection_count = sum(obs.count for obs in observations)
                 max_confidence = None  # Human observations don't have confidence
+                # Collect all observed species
+                observed_species = [obs.species for obs in observations]
         else:
             # Use AI detections for unverified images
             detection_count = len(visible_detections)
@@ -502,6 +507,7 @@ async def list_images(
             image_width=image_width,
             image_height=image_height,
             is_verified=image.is_verified,
+            observed_species=observed_species,
         ))
 
     return PaginatedImagesResponse(

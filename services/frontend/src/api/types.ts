@@ -69,6 +69,7 @@ export interface ImageListItem {
   image_width: number | null;
   image_height: number | null;
   is_verified: boolean;
+  observed_species: string[];  // Human observations for verified images
 }
 
 export interface BoundingBox {
