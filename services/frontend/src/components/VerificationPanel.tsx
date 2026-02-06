@@ -5,6 +5,8 @@
  * UX optimizations:
  * - Click species name or +/- buttons to adjust counts
  * - Keyboard shortcut "0" for empty verification (no animals)
+ * - Tab/Shift+Tab to cycle focus between observations
+ * - Up/Down arrows to adjust count of focused observation
  */
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,6 +40,10 @@ export interface VerificationPanelRef {
   highlightSpecies: (species: string) => void;
   getNotes: () => string;
   setNotes: (notes: string) => void;
+  focusNext: () => void;
+  focusPrevious: () => void;
+  incrementFocused: () => void;
+  decrementFocused: () => void;
 }
 
 export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPanelProps>(({
@@ -54,6 +60,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const [error, setError] = useState<string | null>(null);
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(!imageDetail.verification.is_verified);
+  const [focusedIndex, setFocusedIndex] = useState<number>(0);
 
   // Fetch species list for dropdown
   const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
@@ -125,9 +132,10 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     }
   }, [imageDetail, aiPredictions]);
 
-  // Reset editing state when image changes
+  // Reset editing state and focus when image changes
   useEffect(() => {
     setIsEditing(!imageDetail.verification.is_verified);
+    setFocusedIndex(0);
   }, [imageDetail.uuid]);
 
   // Handle highlighting from bbox clicks
@@ -254,6 +262,26 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     },
     getNotes: () => notes,
     setNotes: (newNotes: string) => setNotes(newNotes),
+    focusNext: () => {
+      if (observations.length > 0) {
+        setFocusedIndex(prev => (prev + 1) % observations.length);
+      }
+    },
+    focusPrevious: () => {
+      if (observations.length > 0) {
+        setFocusedIndex(prev => (prev - 1 + observations.length) % observations.length);
+      }
+    },
+    incrementFocused: () => {
+      if (observations.length > 0 && focusedIndex < observations.length) {
+        incrementCount(observations[focusedIndex].id);
+      }
+    },
+    decrementFocused: () => {
+      if (observations.length > 0 && focusedIndex < observations.length) {
+        decrementCount(observations[focusedIndex].id);
+      }
+    },
   }));
 
   // Add new observation row
@@ -428,13 +456,13 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
               <span className="text-sm text-muted-foreground h-9 flex items-center">No detections</span>
             </div>
           )}
-          {observations.map(obs => (
+          {observations.map((obs, index) => (
             <div
               key={obs.id}
               className={`
                 flex items-center gap-2 p-2 rounded-md transition-all duration-300
                 border border-input bg-background
-                ${highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
+                ${index === focusedIndex || highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
               {/* Species select */}

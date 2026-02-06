@@ -6,6 +6,9 @@
  * - Escape: Close modal
  * - Left/Right arrows: Navigate images
  * - B: Toggle bounding boxes
+ * - 0: Mark as empty and go to next
+ * - Tab/Shift+Tab: Cycle focus between observations
+ * - Up/Down arrows: Increase/decrease count of focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -333,6 +336,25 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           if (hasNext && onNext) {
             setTimeout(() => onNext(), 100);
           }
+          break;
+        case 'Tab':
+          // Cycle focus between observations
+          e.preventDefault();
+          if (e.shiftKey) {
+            verificationPanelRef.current?.focusPrevious();
+          } else {
+            verificationPanelRef.current?.focusNext();
+          }
+          break;
+        case 'ArrowUp':
+          // Increment count of focused observation
+          e.preventDefault();
+          verificationPanelRef.current?.incrementFocused();
+          break;
+        case 'ArrowDown':
+          // Decrement count of focused observation
+          e.preventDefault();
+          verificationPanelRef.current?.decrementFocused();
           break;
       }
     };
@@ -699,6 +721,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">0</span>
                   <span>Empty + next</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Tab</span>
+                  <span>Next observation</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">↑ ↓</span>
+                  <span>Change count</span>
                 </div>
               </div>
             </div>
