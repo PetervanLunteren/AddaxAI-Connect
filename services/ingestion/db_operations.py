@@ -184,10 +184,17 @@ def update_or_create_deployment(
 
                 session.flush()
             else:
-                # Same deployment - just update end_date if event is newer
-                if current_deployment.end_date is None or event_date > current_deployment.end_date:
-                    # Keep deployment open (end_date stays NULL for active deployments)
-                    pass
+                # Same deployment - backdate start_date if image arrived out of order
+                if event_date < current_deployment.start_date:
+                    logger.info(
+                        "Backdating deployment start_date for out-of-order image",
+                        camera_id=camera_id,
+                        deployment_id=current_deployment.deployment_id,
+                        old_start=str(current_deployment.start_date),
+                        new_start=str(event_date),
+                    )
+                    current_deployment.start_date = event_date
+                    session.flush()
 
                 logger.debug(
                     "GPS within threshold - same deployment",
