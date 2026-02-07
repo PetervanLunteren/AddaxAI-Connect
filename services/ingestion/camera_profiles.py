@@ -78,7 +78,7 @@ WILLFINE_2025_PROFILE = CameraProfile(
     model_pattern=r"4\.0T CG",
     get_camera_id=extract_willfine_2025_camera_id,
     requires_datetime=True,
-    requires_gps=False,
+    requires_gps=True,
 )
 
 # Registry of all supported camera profiles

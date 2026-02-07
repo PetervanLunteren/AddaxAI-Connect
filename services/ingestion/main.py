@@ -273,6 +273,15 @@ def process_image(filepath: str) -> None:
         # Step 8: Extract GPS if present
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
+        if not gps_location and profile.requires_gps:
+            reject_file(
+                filepath,
+                "missing_gps",
+                f"Image has no GPS coordinates. Profile {profile.name} requires GPS for deployment tracking.",
+                exif_metadata=exif
+            )
+            return
+
         # Step 9: Upload to MinIO (using cleaned filename, IMEI as folder, UUID for uniqueness)
         storage_path = upload_image_to_minio(filepath, imei, image_uuid, clean_filename)
 
@@ -509,6 +518,7 @@ def main():
         "unsupported_camera",
         "missing_camera_id",
         "missing_datetime",
+        "missing_gps",
         "validation_failed",
         "parse_failed",
         "exif_extraction_failed",
