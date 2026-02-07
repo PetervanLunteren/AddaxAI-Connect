@@ -189,7 +189,8 @@ def _build_media_csv(
 
         cam_id = camera_identifiers.get(image.camera_id, str(image.camera_id))
         short_uuid = image.uuid.split("-")[0]  # first 8 chars of UUID
-        unique_filename = f"{cam_id}_{short_uuid}_{image.filename}"
+        name, ext = image.filename.rsplit(".", 1) if "." in image.filename else (image.filename, "")
+        unique_filename = f"{cam_id}_{name}_{short_uuid}.{ext}" if ext else f"{cam_id}_{name}_{short_uuid}"
         file_path = f"media/{unique_filename}" if include_media else unique_filename
 
         writer.writerow([
