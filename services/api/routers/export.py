@@ -764,7 +764,7 @@ def _build_csv_export(
             writer.writerow([
                 image.uuid, image.filename, ts_str, camera_name,
                 lat, lon,
-                "", "", "", "",
+                "blank", "", "", "",
                 blank_method, blank_comments, is_verified,
             ])
 
