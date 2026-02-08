@@ -1,9 +1,9 @@
 """
-CamTrap DP export endpoint.
+Export endpoints for project data.
 
-Generates a Camera Trap Data Package (https://camtrap-dp.tdwg.org/) as a ZIP file
-containing deployments.csv, media.csv, observations.csv, datapackage.json,
-and optionally thumbnail images in a media/ folder.
+Supports:
+- CamTrap DP: Camera Trap Data Package (https://camtrap-dp.tdwg.org/) as a ZIP file
+- CSV: Simple observations CSV for analysis in Excel or R
 """
 from typing import List, Dict, Optional, Any
 from datetime import date, datetime, timedelta
@@ -235,6 +235,7 @@ def _build_observations_csv(
         "scientificName", "count",
         "classificationMethod", "classifiedBy", "classificationProbability",
         "bboxX", "bboxY", "bboxWidth", "bboxHeight",
+        "observationComments",
     ]
     writer.writerow(headers)
 
@@ -274,6 +275,7 @@ def _build_observations_csv(
                     "",  # classifiedBy - user privacy
                     "",  # classificationProbability
                     "", "", "", "",  # bbox
+                    "Human identification",
                 ])
         else:
             # AI detections for unverified images
@@ -293,7 +295,7 @@ def _build_observations_csv(
                 # Get species and bbox for animal detections
                 sci_name = ""
                 class_confidence = ""
-                classified_by = ""
+                classified_by = "MegaDetector v1000"
                 species_name = ""
 
                 if detection.category == "animal" and detection.classifications:
@@ -301,7 +303,7 @@ def _build_observations_csv(
                     species_name = classification.species
                     observed_species.add(species_name)
                     class_confidence = str(round(classification.confidence, 6))
-                    classified_by = "DeepFaune v1.4"
+                    classified_by = "MegaDetector v1000 + DeepFaune v1.4"
 
                     tax = taxonomy_lookup.get(species_name)
                     if tax and tax["scientific_name"]:
@@ -319,6 +321,7 @@ def _build_observations_csv(
                     bbox_h = str(round(normalized[3], 6))
 
                 has_observations = True
+                observation_comments = f"{classified_by}, not reviewed"
                 writer.writerow([
                     f"obs-ai-{detection.id}",
                     dep_id,
@@ -334,10 +337,18 @@ def _build_observations_csv(
                     classified_by,
                     class_confidence,
                     bbox_x, bbox_y, bbox_w, bbox_h,
+                    observation_comments,
                 ])
 
         # Blank observation for images with no detections/observations
         if not has_observations:
+            if image.is_verified:
+                blank_method = "human"
+                blank_comments = "Human identification"
+            else:
+                blank_method = "machine"
+                blank_comments = "MegaDetector v1000, not reviewed"
+
             writer.writerow([
                 f"obs-blank-{image.uuid}",
                 dep_id,
@@ -348,8 +359,9 @@ def _build_observations_csv(
                 "media",
                 "blank",
                 "", "",  # scientificName, count
-                "", "", "",  # classification fields
+                blank_method, "", "",  # classificationMethod, classifiedBy, classificationProbability
                 "", "", "", "",  # bbox
+                blank_comments,
             ])
 
     return output.getvalue(), observed_species
@@ -645,5 +657,196 @@ async def export_camtrap_dp(
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# CSV export
+# ---------------------------------------------------------------------------
+
+
+def _build_csv_export(
+    images: list,
+    camera_names: Dict[int, str],
+    taxonomy_lookup: Dict[str, dict],
+    detection_threshold: float,
+    tz: ZoneInfo,
+) -> str:
+    """
+    Build a simple observations CSV with one row per species per image.
+
+    Detections are grouped by species (animals) or category (person/vehicle).
+    Blank images get a single row with empty species/count fields.
+    """
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    headers = [
+        "image_uuid", "filename", "datetime", "camera_name",
+        "latitude", "longitude",
+        "species", "scientific_name", "count", "max_confidence",
+        "classification_method", "observation_comments", "is_verified",
+    ]
+    writer.writerow(headers)
+
+    for image in images:
+        ts = _parse_timestamp(image, tz)
+        ts_str = _format_dt(ts)
+        camera_name = camera_names.get(image.camera_id, "")
+
+        # Extract GPS from image EXIF metadata
+        lat, lon = "", ""
+        gps = image.image_metadata.get("gps_decimal") if image.image_metadata else None
+        if gps and len(gps) == 2:
+            lat, lon = gps[0], gps[1]
+
+        is_verified = "TRUE" if image.is_verified else "FALSE"
+        has_observations = False
+
+        if image.is_verified:
+            # Human observations for verified images
+            for ho in image.human_observations:
+                has_observations = True
+                tax = taxonomy_lookup.get(ho.species, {})
+                sci_name = tax.get("scientific_name") or ho.species
+
+                writer.writerow([
+                    image.uuid, image.filename, ts_str, camera_name,
+                    lat, lon,
+                    ho.species, sci_name, ho.count, "",
+                    "human", "Human identification", is_verified,
+                ])
+        else:
+            # Group AI detections above threshold by species/category
+            groups: Dict[str, Dict[str, Any]] = {}
+
+            for det in image.detections:
+                if det.confidence < detection_threshold:
+                    continue
+
+                if det.category == "animal" and det.classifications:
+                    species = det.classifications[0].species
+                    confidence = det.classifications[0].confidence
+                    classified_by = "MegaDetector v1000 + DeepFaune v1.4"
+                else:
+                    species = det.category  # "person" or "vehicle"
+                    confidence = det.confidence
+                    classified_by = "MegaDetector v1000"
+
+                if species not in groups:
+                    groups[species] = {"count": 0, "max_confidence": 0.0, "classified_by": classified_by}
+                groups[species]["count"] += 1
+                groups[species]["max_confidence"] = max(groups[species]["max_confidence"], confidence)
+
+            for species, data in groups.items():
+                has_observations = True
+                tax = taxonomy_lookup.get(species, {})
+                sci_name = tax.get("scientific_name") or ""
+
+                writer.writerow([
+                    image.uuid, image.filename, ts_str, camera_name,
+                    lat, lon,
+                    species, sci_name, data["count"],
+                    round(data["max_confidence"], 6),
+                    "machine", f"{data['classified_by']}, not reviewed", is_verified,
+                ])
+
+        # Blank row for images with no observations
+        if not has_observations:
+            if image.is_verified:
+                blank_method = "human"
+                blank_comments = "Human identification"
+            else:
+                blank_method = "machine"
+                blank_comments = "MegaDetector v1000, not reviewed"
+
+            writer.writerow([
+                image.uuid, image.filename, ts_str, camera_name,
+                lat, lon,
+                "", "", "", "",
+                blank_method, blank_comments, is_verified,
+            ])
+
+    return output.getvalue()
+
+
+@router.get("/csv")
+async def export_csv(
+    project_id: int,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+) -> StreamingResponse:
+    """
+    Export project observations as a simple CSV file.
+
+    One row per species per image, grouped by species (animals) or category
+    (person/vehicle). Includes blank images, applies detection threshold.
+    """
+    # Verify project access
+    if project_id not in accessible_project_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
+
+    # Load project
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    tz = ZoneInfo(EXPORT_TIMEZONE)
+
+    # Load species taxonomy lookup
+    tax_result = await db.execute(select(SpeciesTaxonomy))
+    taxonomy_rows = tax_result.scalars().all()
+    taxonomy_lookup = {
+        t.common_name: {
+            "scientific_name": t.scientific_name,
+            "taxon_rank": t.taxon_rank,
+        }
+        for t in taxonomy_rows
+    }
+
+    # Load camera names for this project
+    cam_result = await db.execute(
+        select(Camera.id, Camera.name).where(Camera.project_id == project_id)
+    )
+    camera_names = {row.id: row.name for row in cam_result.all()}
+
+    # Load all classified images with related data
+    images_query = (
+        select(Image)
+        .join(Camera)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.status == "classified",
+            )
+        )
+        .options(
+            selectinload(Image.detections).selectinload(Detection.classifications),
+            selectinload(Image.human_observations),
+        )
+        .order_by(Image.uploaded_at)
+    )
+    images_result = await db.execute(images_query)
+    images = images_result.scalars().unique().all()
+
+    logger.info(
+        "Starting CSV export",
+        project_id=project_id,
+        num_images=len(images),
+    )
+
+    csv_content = _build_csv_export(
+        images, camera_names, taxonomy_lookup, project.detection_threshold, tz,
+    )
+
+    today = date.today().isoformat()
+    filename = f"observations-{_slugify(project.name)}-{today}.csv"
+
+    return StreamingResponse(
+        io.BytesIO(csv_content.encode("utf-8")),
+        media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

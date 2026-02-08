@@ -14,4 +14,15 @@ export const exportApi = {
     );
     return response.data;
   },
+
+  /**
+   * Download observations as a CSV file
+   */
+  downloadCSV: async (projectId: number): Promise<Blob> => {
+    const response = await apiClient.get(
+      `/api/projects/${projectId}/export/csv`,
+      { responseType: 'blob' },
+    );
+    return response.data;
+  },
 };
