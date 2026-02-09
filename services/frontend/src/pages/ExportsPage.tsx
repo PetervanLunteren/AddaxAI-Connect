@@ -3,7 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Loader2, AlertCircle, Package, Table, MapPin } from 'lucide-react';
+import { Download, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Checkbox } from '../components/ui/Checkbox';
 import { useProject } from '../contexts/ProjectContext';
@@ -138,10 +138,7 @@ export const ExportsPage: React.FC = () => {
         {/* Observations export card */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Table className="h-5 w-5" />
-              <CardTitle>Observations</CardTitle>
-            </div>
+            <CardTitle>Observations</CardTitle>
             <CardDescription>
               Species observations spreadsheet (one row per species per image).
             </CardDescription>
@@ -195,10 +192,7 @@ export const ExportsPage: React.FC = () => {
         {/* Spatial export card */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              <CardTitle>Spatial</CardTitle>
-            </div>
+            <CardTitle>Spatial</CardTitle>
             <CardDescription>
               Geographic point data for GIS tools (QGIS, ArcGIS).
             </CardDescription>
@@ -252,10 +246,7 @@ export const ExportsPage: React.FC = () => {
         {/* CamTrap DP export card */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              <CardTitle>CamTrap DP</CardTitle>
-            </div>
+            <CardTitle>CamTrap DP</CardTitle>
             <CardDescription>
               Camera Trap Data Package for sharing with GBIF and biodiversity platforms.
             </CardDescription>
