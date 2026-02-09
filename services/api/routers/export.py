@@ -4,6 +4,7 @@ Export endpoints for project data.
 Supports:
 - CamTrap DP: Camera Trap Data Package (https://camtrap-dp.tdwg.org/) as a ZIP file
 - Observations: CSV, TSV, or XLSX spreadsheet for analysis in Excel or R
+- Spatial: GeoJSON, Shapefile, or GeoPackage for GIS tools
 """
 from typing import List, Dict, Optional, Any
 from datetime import date, datetime, timedelta
@@ -12,6 +13,8 @@ import csv
 import io
 import json
 import re
+import sqlite3
+import struct
 import uuid
 import zipfile
 
@@ -886,4 +889,612 @@ async def export_observations(
             io.BytesIO(content.encode("utf-8")),
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.csv"'},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Spatial export (GeoJSON, Shapefile, GeoPackage)
+# ---------------------------------------------------------------------------
+
+
+def _build_spatial_layers(
+    images: list,
+    camera_names: Dict[int, str],
+    taxonomy_lookup: Dict[str, dict],
+    detection_threshold: float,
+    tz: ZoneInfo,
+    deployment_rows: list,
+) -> Dict[str, list]:
+    """
+    Build three spatial layers from project data.
+
+    Returns a dict with keys "deployments", "observations", and
+    "species_summary".  Each value is a list of feature dicts with
+    "lon", "lat", and "properties" keys.
+    """
+    from collections import defaultdict
+
+    # --- Deployments layer: one feature per deployment row ---
+    deployments = []
+    for row in deployment_rows:
+        deployments.append({
+            "lon": float(row.lon) if row.lon is not None else 0.0,
+            "lat": float(row.lat) if row.lat is not None else 0.0,
+            "properties": {
+                "camera_name": row.camera_name,
+                "deployment_id": row.deployment_number,
+                "start_date": row.start_date.isoformat() if row.start_date else "",
+                "end_date": row.end_date.isoformat() if row.end_date else "",
+                "trap_days": row.trap_days,
+                "detection_count": row.detection_count,
+                "detection_rate_per_100": round(float(row.detection_rate_per_100), 2),
+            },
+        })
+
+    # --- Observations layer ---
+    headers, rows = _build_observation_rows(
+        images, camera_names, taxonomy_lookup, detection_threshold, tz,
+    )
+
+    # Build GPS lookup from image objects (reliable float values)
+    gps_lookup: Dict[str, tuple] = {}
+    for image in images:
+        gps = image.image_metadata.get("gps_decimal") if image.image_metadata else None
+        if gps and len(gps) == 2:
+            try:
+                lat_f = float(gps[0])
+                lon_f = float(gps[1])
+                gps_lookup[image.uuid] = (lat_f, lon_f)
+            except (ValueError, TypeError):
+                pass
+
+    observations = []
+    for row in rows:
+        image_uuid = row[0]
+        coords = gps_lookup.get(image_uuid)
+        if coords is None:
+            continue
+        lat_val, lon_val = coords
+        if lat_val == 0.0 and lon_val == 0.0:
+            continue
+
+        observations.append({
+            "lon": lon_val,
+            "lat": lat_val,
+            "properties": {
+                "image_uuid": row[0],
+                "filename": row[1],
+                "datetime": row[2],
+                "camera_name": row[3],
+                "species": row[6],
+                "scientific_name": row[7],
+                "count": row[8],
+                "max_confidence": row[9],
+                "classification_method": row[10],
+                "observation_comments": row[11],
+                "is_verified": row[12],
+            },
+        })
+
+    # --- Species summary layer ---
+    # Aggregate observations by (camera_name, species)
+    camera_species: Dict[tuple, Dict[str, Any]] = defaultdict(lambda: {
+        "scientific_name": "",
+        "total_count": 0,
+    })
+    for feat in observations:
+        props = feat["properties"]
+        key = (props["camera_name"], props["species"])
+        camera_species[key]["scientific_name"] = props["scientific_name"]
+        count_val = props["count"]
+        try:
+            camera_species[key]["total_count"] += int(count_val)
+        except (ValueError, TypeError):
+            pass
+
+    # Find the most recent deployment per camera for location
+    camera_latest_deployment: Dict[str, Any] = {}
+    camera_total_trap_days: Dict[str, int] = defaultdict(int)
+    for row in deployment_rows:
+        cam = row.camera_name
+        camera_total_trap_days[cam] += int(row.trap_days) if row.trap_days else 0
+        existing = camera_latest_deployment.get(cam)
+        if existing is None or (row.start_date and (existing["start_date"] is None or row.start_date > existing["start_date"])):
+            camera_latest_deployment[cam] = {
+                "start_date": row.start_date,
+                "lon": float(row.lon) if row.lon is not None else 0.0,
+                "lat": float(row.lat) if row.lat is not None else 0.0,
+            }
+
+    species_summary = []
+    for (camera_name, species), data in camera_species.items():
+        dep_info = camera_latest_deployment.get(camera_name)
+        if dep_info is None:
+            continue
+        total_trap = camera_total_trap_days.get(camera_name, 0)
+        rate = (data["total_count"] / total_trap * 100) if total_trap > 0 else 0.0
+
+        species_summary.append({
+            "lon": dep_info["lon"],
+            "lat": dep_info["lat"],
+            "properties": {
+                "camera_name": camera_name,
+                "species": species,
+                "scientific_name": data["scientific_name"],
+                "total_count": data["total_count"],
+                "detection_rate_per_100": round(rate, 2),
+            },
+        })
+
+    return {
+        "deployments": deployments,
+        "observations": observations,
+        "species_summary": species_summary,
+    }
+
+
+def _serialize_spatial_geojson(layers: Dict[str, list]) -> str:
+    """Serialize spatial layers as a GeoJSON string with three FeatureCollections."""
+    output = {}
+    for layer_name, features in layers.items():
+        geojson_features = []
+        for feat in features:
+            geojson_features.append({
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [feat["lon"], feat["lat"]],
+                },
+                "properties": feat["properties"],
+            })
+        output[layer_name] = {
+            "type": "FeatureCollection",
+            "features": geojson_features,
+        }
+    return json.dumps(output, indent=2)
+
+
+def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
+    """
+    Serialize spatial layers as a ZIP containing three shapefiles.
+
+    Uses pyshp (imported as ``shapefile``) to write .shp/.shx/.dbf
+    buffers and adds a .prj file for WGS84.
+    """
+    import shapefile
+
+    WGS84_PRJ = (
+        'GEOGCS["GCS_WGS_1984",'
+        'DATUM["D_WGS_1984",'
+        'SPHEROID["WGS_1984",6378137.0,298.257223563]],'
+        'PRIMEM["Greenwich",0.0],'
+        'UNIT["Degree",0.0174532925199433]]'
+    )
+
+    # Field definitions per layer.
+    # Each entry: (short_name, field_type, size, decimal)
+    layer_fields = {
+        "deployments": [
+            ("cam_name",  "C", 80,  0),
+            ("deploy_id", "N", 10,  0),
+            ("start_date","C", 10,  0),
+            ("end_date",  "C", 10,  0),
+            ("trap_days", "N", 10,  0),
+            ("det_count", "N", 10,  0),
+            ("det_rate",  "N", 10,  2),
+        ],
+        "observations": [
+            ("img_uuid",  "C", 36,  0),
+            ("filename",  "C", 100, 0),
+            ("datetime",  "C", 25,  0),
+            ("cam_name",  "C", 80,  0),
+            ("species",   "C", 80,  0),
+            ("sci_name",  "C", 100, 0),
+            ("count",     "C", 10,  0),
+            ("max_conf",  "C", 10,  0),
+            ("class_meth","C", 10,  0),
+            ("obs_cmnt",  "C", 100, 0),
+            ("is_verif",  "C", 5,   0),
+        ],
+        "species_summary": [
+            ("cam_name",  "C", 80,  0),
+            ("species",   "C", 80,  0),
+            ("sci_name",  "C", 100, 0),
+            ("total_cnt", "N", 10,  0),
+            ("det_rate",  "N", 10,  2),
+        ],
+    }
+
+    # Map from full property names to short field names, per layer
+    property_keys = {
+        "deployments": [
+            "camera_name", "deployment_id", "start_date", "end_date",
+            "trap_days", "detection_count", "detection_rate_per_100",
+        ],
+        "observations": [
+            "image_uuid", "filename", "datetime", "camera_name",
+            "species", "scientific_name", "count", "max_confidence",
+            "classification_method", "observation_comments", "is_verified",
+        ],
+        "species_summary": [
+            "camera_name", "species", "scientific_name",
+            "total_count", "detection_rate_per_100",
+        ],
+    }
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for layer_name, features in layers.items():
+            shp_buf = io.BytesIO()
+            shx_buf = io.BytesIO()
+            dbf_buf = io.BytesIO()
+            w = shapefile.Writer(shp=shp_buf, shx=shx_buf, dbf=dbf_buf)
+            w.shapeType = shapefile.POINT
+
+            for fname, ftype, fsize, fdecimal in layer_fields[layer_name]:
+                w.field(fname, ftype, size=fsize, decimal=fdecimal)
+
+            keys = property_keys[layer_name]
+            for feat in features:
+                w.point(feat["lon"], feat["lat"])
+                record_values = [feat["properties"].get(k, "") for k in keys]
+                # Ensure values are the right type for numeric fields
+                coerced = []
+                for val, (_, ftype, _, _) in zip(record_values, layer_fields[layer_name]):
+                    if ftype == "N" and val == "":
+                        coerced.append(0)
+                    else:
+                        coerced.append(val)
+                w.record(*coerced)
+
+            w.close()
+
+            zf.writestr(f"{layer_name}.shp", shp_buf.getvalue())
+            zf.writestr(f"{layer_name}.shx", shx_buf.getvalue())
+            zf.writestr(f"{layer_name}.dbf", dbf_buf.getvalue())
+            zf.writestr(f"{layer_name}.prj", WGS84_PRJ)
+
+    return zip_buf.getvalue()
+
+
+def _make_gpkg_point(lon: float, lat: float) -> bytes:
+    """
+    Build a GeoPackage binary geometry for a Point (EPSG:4326).
+
+    Layout (29 bytes total):
+      - 'GP' magic (2 bytes)
+      - version 0 (1 byte)
+      - flags 1 = little-endian, no envelope (1 byte)
+      - SRID 4326 (4 bytes, int32 LE)
+      - WKB Point: byte-order 1, type 1, X=lon, Y=lat
+    """
+    header = b'GP' + struct.pack('<BBi', 0, 1, 4326)
+    wkb = struct.pack('<BI2d', 1, 1, lon, lat)
+    return header + wkb
+
+
+def _serialize_spatial_geopackage(layers: Dict[str, list]) -> bytes:
+    """
+    Serialize spatial layers as a GeoPackage (.gpkg) file.
+
+    Creates an in-memory SQLite database conforming to the GeoPackage
+    standard, writes it to a temporary file, and returns the bytes.
+    """
+    import os
+    import tempfile
+
+    WGS84_WKT = (
+        'GEOGCS["WGS 84",DATUM["WGS_1984",'
+        'SPHEROID["WGS_1984",6378137.0,298.257223563]],'
+        'PRIMEM["Greenwich",0.0],'
+        'UNIT["Degree",0.0174532925199433]]'
+    )
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".gpkg")
+    os.close(tmp_fd)
+
+    try:
+        conn = sqlite3.connect(tmp_path)
+        conn.execute("PRAGMA application_id = 1196444487")  # 'GPKG'
+        conn.execute("PRAGMA user_version = 10200")  # GeoPackage 1.2
+
+        conn.execute("""
+            CREATE TABLE gpkg_spatial_ref_sys (
+                srs_name TEXT NOT NULL,
+                srs_id INTEGER NOT NULL PRIMARY KEY,
+                organization TEXT NOT NULL,
+                organization_coordsys_id INTEGER NOT NULL,
+                definition TEXT NOT NULL,
+                description TEXT
+            )
+        """)
+        conn.execute(
+            "INSERT INTO gpkg_spatial_ref_sys VALUES (?, ?, ?, ?, ?, ?)",
+            ("Undefined Cartesian", -1, "NONE", -1, "undefined", None),
+        )
+        conn.execute(
+            "INSERT INTO gpkg_spatial_ref_sys VALUES (?, ?, ?, ?, ?, ?)",
+            ("Undefined Geographic", 0, "NONE", 0, "undefined", None),
+        )
+        conn.execute(
+            "INSERT INTO gpkg_spatial_ref_sys VALUES (?, ?, ?, ?, ?, ?)",
+            ("WGS 84", 4326, "EPSG", 4326, WGS84_WKT, "WGS 84"),
+        )
+
+        conn.execute("""
+            CREATE TABLE gpkg_contents (
+                table_name TEXT NOT NULL PRIMARY KEY,
+                data_type TEXT NOT NULL DEFAULT 'features',
+                identifier TEXT UNIQUE,
+                description TEXT DEFAULT '',
+                last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+                min_x DOUBLE, min_y DOUBLE, max_x DOUBLE, max_y DOUBLE,
+                srs_id INTEGER,
+                CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id)
+                    REFERENCES gpkg_spatial_ref_sys(srs_id)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE gpkg_geometry_columns (
+                table_name TEXT NOT NULL,
+                column_name TEXT NOT NULL,
+                geometry_type_name TEXT NOT NULL,
+                srs_id INTEGER NOT NULL,
+                z TINYINT NOT NULL,
+                m TINYINT NOT NULL,
+                CONSTRAINT pk_gc PRIMARY KEY (table_name, column_name),
+                CONSTRAINT fk_gc_tn FOREIGN KEY (table_name)
+                    REFERENCES gpkg_contents(table_name),
+                CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id)
+                    REFERENCES gpkg_spatial_ref_sys(srs_id)
+            )
+        """)
+
+        # Column definitions per layer: (col_name, sql_type)
+        layer_columns = {
+            "deployments": [
+                ("camera_name", "TEXT"),
+                ("deployment_id", "INTEGER"),
+                ("start_date", "TEXT"),
+                ("end_date", "TEXT"),
+                ("trap_days", "INTEGER"),
+                ("detection_count", "INTEGER"),
+                ("detection_rate_per_100", "REAL"),
+            ],
+            "observations": [
+                ("image_uuid", "TEXT"),
+                ("filename", "TEXT"),
+                ("datetime", "TEXT"),
+                ("camera_name", "TEXT"),
+                ("species", "TEXT"),
+                ("scientific_name", "TEXT"),
+                ("count", "TEXT"),
+                ("max_confidence", "TEXT"),
+                ("classification_method", "TEXT"),
+                ("observation_comments", "TEXT"),
+                ("is_verified", "TEXT"),
+            ],
+            "species_summary": [
+                ("camera_name", "TEXT"),
+                ("species", "TEXT"),
+                ("scientific_name", "TEXT"),
+                ("total_count", "INTEGER"),
+                ("detection_rate_per_100", "REAL"),
+            ],
+        }
+
+        for layer_name, features in layers.items():
+            columns = layer_columns[layer_name]
+            col_defs = ", ".join(f"{name} {typ}" for name, typ in columns)
+            conn.execute(f"""
+                CREATE TABLE "{layer_name}" (
+                    fid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    geom BLOB,
+                    {col_defs}
+                )
+            """)
+
+            # Compute bounding box
+            if features:
+                min_x = min(f["lon"] for f in features)
+                max_x = max(f["lon"] for f in features)
+                min_y = min(f["lat"] for f in features)
+                max_y = max(f["lat"] for f in features)
+            else:
+                min_x = max_x = min_y = max_y = 0.0
+
+            conn.execute(
+                "INSERT INTO gpkg_contents (table_name, data_type, identifier, "
+                "description, min_x, min_y, max_x, max_y, srs_id) "
+                "VALUES (?, 'features', ?, '', ?, ?, ?, ?, 4326)",
+                (layer_name, layer_name, min_x, min_y, max_x, max_y),
+            )
+            conn.execute(
+                "INSERT INTO gpkg_geometry_columns VALUES (?, 'geom', 'POINT', 4326, 0, 0)",
+                (layer_name,),
+            )
+
+            # Insert features
+            col_names = [name for name, _ in columns]
+            placeholders = ", ".join(["?"] * (1 + len(col_names)))
+            insert_sql = (
+                f'INSERT INTO "{layer_name}" (geom, {", ".join(col_names)}) '
+                f"VALUES ({placeholders})"
+            )
+            for feat in features:
+                geom_blob = _make_gpkg_point(feat["lon"], feat["lat"])
+                values = [feat["properties"].get(c, "") for c in col_names]
+                conn.execute(insert_sql, [geom_blob] + values)
+
+        conn.commit()
+        conn.close()
+
+        with open(tmp_path, "rb") as f:
+            data = f.read()
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+    return data
+
+
+@router.get("/spatial")
+async def export_spatial(
+    project_id: int,
+    format: str = Query("geojson", pattern="^(geojson|shapefile|gpkg)$"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+) -> StreamingResponse:
+    """
+    Export spatial data as GeoJSON, Shapefile (ZIP), or GeoPackage.
+
+    Produces three layers -- deployments, observations, and species_summary --
+    suitable for loading into QGIS, ArcGIS, or other GIS tools.
+    """
+    if project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No access to this project",
+        )
+
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    tz = ZoneInfo(EXPORT_TIMEZONE)
+
+    # Taxonomy lookup
+    tax_result = await db.execute(select(SpeciesTaxonomy))
+    taxonomy_rows = tax_result.scalars().all()
+    taxonomy_lookup = {
+        t.common_name: {
+            "scientific_name": t.scientific_name,
+            "taxon_rank": t.taxon_rank,
+        }
+        for t in taxonomy_rows
+    }
+
+    # Camera name lookup
+    cam_result = await db.execute(
+        select(Camera.id, Camera.name).where(Camera.project_id == project_id)
+    )
+    camera_names = {row.id: row.name for row in cam_result.all()}
+
+    # Load classified images with detections and human observations
+    images_query = (
+        select(Image)
+        .join(Camera)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.status == "classified",
+            )
+        )
+        .options(
+            selectinload(Image.detections).selectinload(Detection.classifications),
+            selectinload(Image.human_observations),
+        )
+        .order_by(Image.uploaded_at)
+    )
+    images_result = await db.execute(images_query)
+    images = images_result.scalars().unique().all()
+
+    # Query deployment data with detection counts
+    deployment_sql = text("""
+        WITH dep_info AS (
+            SELECT cdp.id,
+                   cdp.camera_id,
+                   c.name AS camera_name,
+                   cdp.deployment_id AS deployment_number,
+                   cdp.start_date,
+                   cdp.end_date,
+                   ST_X(cdp.location::geometry) AS lon,
+                   ST_Y(cdp.location::geometry) AS lat,
+                   COALESCE(
+                       cdp.end_date - cdp.start_date + 1,
+                       CURRENT_DATE - cdp.start_date + 1
+                   ) AS trap_days
+            FROM camera_deployment_periods cdp
+            JOIN cameras c ON cdp.camera_id = c.id
+            WHERE c.project_id = :project_id
+        ),
+        dep_det_counts AS (
+            SELECT di.id AS dep_id,
+                   COUNT(d.id) AS det_count
+            FROM dep_info di
+            LEFT JOIN images i
+                ON i.camera_id = di.camera_id
+                AND i.uploaded_at::date >= di.start_date
+                AND (di.end_date IS NULL OR i.uploaded_at::date <= di.end_date)
+                AND i.status = 'classified'
+            LEFT JOIN detections d
+                ON d.image_id = i.id
+                AND d.confidence >= :detection_threshold
+            GROUP BY di.id
+        )
+        SELECT di.*,
+               COALESCE(dc.det_count, 0) AS detection_count,
+               CASE
+                   WHEN di.trap_days > 0
+                   THEN (COALESCE(dc.det_count, 0)::float / di.trap_days) * 100
+                   ELSE 0.0
+               END AS detection_rate_per_100
+        FROM dep_info di
+        LEFT JOIN dep_det_counts dc ON dc.dep_id = di.id
+        ORDER BY di.camera_name, di.start_date
+    """)
+    dep_result = await db.execute(
+        deployment_sql,
+        {"project_id": project_id, "detection_threshold": project.detection_threshold},
+    )
+    deployment_rows = dep_result.all()
+
+    logger.info(
+        "Starting spatial export",
+        project_id=project_id,
+        format=format,
+        num_images=len(images),
+        num_deployments=len(deployment_rows),
+    )
+
+    layers = _build_spatial_layers(
+        images, camera_names, taxonomy_lookup,
+        project.detection_threshold, tz, deployment_rows,
+    )
+
+    today = date.today().isoformat()
+    slug = _slugify(project.name)
+
+    if format == "shapefile":
+        content = _serialize_spatial_shapefile(layers)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="spatial-{slug}-{today}.zip"'
+            },
+        )
+    elif format == "gpkg":
+        content = _serialize_spatial_geopackage(layers)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type="application/geopackage+sqlite3",
+            headers={
+                "Content-Disposition": f'attachment; filename="spatial-{slug}-{today}.gpkg"'
+            },
+        )
+    else:
+        content = _serialize_spatial_geojson(layers)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="application/geo+json",
+            headers={
+                "Content-Disposition": f'attachment; filename="spatial-{slug}-{today}.geojson"'
+            },
         )

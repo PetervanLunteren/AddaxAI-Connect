@@ -25,4 +25,15 @@ export const exportApi = {
     );
     return response.data;
   },
+
+  /**
+   * Download spatial/GIS data as GeoJSON, Shapefile, or GeoPackage
+   */
+  downloadSpatial: async (projectId: number, format: 'geojson' | 'shapefile' | 'gpkg' = 'geojson'): Promise<Blob> => {
+    const response = await apiClient.get(
+      `/api/projects/${projectId}/export/spatial`,
+      { params: { format }, responseType: 'blob' },
+    );
+    return response.data;
+  },
 };
