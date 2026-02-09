@@ -3,7 +3,7 @@ Export endpoints for project data.
 
 Supports:
 - CamTrap DP: Camera Trap Data Package (https://camtrap-dp.tdwg.org/) as a ZIP file
-- CSV: Simple observations CSV for analysis in Excel or R
+- Observations: CSV, TSV, or XLSX spreadsheet for analysis in Excel or R
 """
 from typing import List, Dict, Optional, Any
 from datetime import date, datetime, timedelta
@@ -666,29 +666,26 @@ async def export_camtrap_dp(
 # ---------------------------------------------------------------------------
 
 
-def _build_csv_export(
+def _build_observation_rows(
     images: list,
     camera_names: Dict[int, str],
     taxonomy_lookup: Dict[str, dict],
     detection_threshold: float,
     tz: ZoneInfo,
-) -> str:
+) -> tuple:
     """
-    Build a simple observations CSV with one row per species per image.
+    Build observation data as (headers, rows) for export in any tabular format.
 
-    Detections are grouped by species (animals) or category (person/vehicle).
-    Blank images get a single row with empty species/count fields.
+    One row per species per image, grouped by species (animals) or category
+    (person/vehicle). Blank images get a single row with species="blank".
     """
-    output = io.StringIO()
-    writer = csv.writer(output)
-
     headers = [
         "image_uuid", "filename", "datetime", "camera_name",
         "latitude", "longitude",
         "species", "scientific_name", "count", "max_confidence",
         "classification_method", "observation_comments", "is_verified",
     ]
-    writer.writerow(headers)
+    rows = []
 
     for image in images:
         ts = _parse_timestamp(image, tz)
@@ -705,20 +702,18 @@ def _build_csv_export(
         has_observations = False
 
         if image.is_verified:
-            # Human observations for verified images
             for ho in image.human_observations:
                 has_observations = True
                 tax = taxonomy_lookup.get(ho.species, {})
                 sci_name = tax.get("scientific_name") or ho.species
 
-                writer.writerow([
+                rows.append([
                     image.uuid, image.filename, ts_str, camera_name,
                     lat, lon,
                     ho.species, sci_name, ho.count, "",
                     "human", "Human identification", is_verified,
                 ])
         else:
-            # Group AI detections above threshold by species/category
             groups: Dict[str, Dict[str, Any]] = {}
 
             for det in image.detections:
@@ -730,7 +725,7 @@ def _build_csv_export(
                     confidence = det.classifications[0].confidence
                     classified_by = "MegaDetector v1000 + DeepFaune v1.4"
                 else:
-                    species = det.category  # "person" or "vehicle"
+                    species = det.category
                     confidence = det.confidence
                     classified_by = "MegaDetector v1000"
 
@@ -744,7 +739,7 @@ def _build_csv_export(
                 tax = taxonomy_lookup.get(species, {})
                 sci_name = tax.get("scientific_name") or ""
 
-                writer.writerow([
+                rows.append([
                     image.uuid, image.filename, ts_str, camera_name,
                     lat, lon,
                     species, sci_name, data["count"],
@@ -752,7 +747,6 @@ def _build_csv_export(
                     "machine", f"{data['classified_by']}, not reviewed", is_verified,
                 ])
 
-        # Blank row for images with no observations
         if not has_observations:
             if image.is_verified:
                 blank_method = "human"
@@ -761,34 +755,63 @@ def _build_csv_export(
                 blank_method = "machine"
                 blank_comments = "MegaDetector v1000, not reviewed"
 
-            writer.writerow([
+            rows.append([
                 image.uuid, image.filename, ts_str, camera_name,
                 lat, lon,
                 "blank", "", "", "",
                 blank_method, blank_comments, is_verified,
             ])
 
+    return headers, rows
+
+
+def _serialize_csv(headers: list, rows: list) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
     return output.getvalue()
 
 
-@router.get("/csv")
-async def export_csv(
+def _serialize_tsv(headers: list, rows: list) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter="\t")
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+def _serialize_xlsx(headers: list, rows: list) -> bytes:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Observations"
+    ws.append(headers)
+    for row in rows:
+        ws.append(row)
+    output = io.BytesIO()
+    wb.save(output)
+    return output.getvalue()
+
+
+@router.get("/observations")
+async def export_observations(
     project_id: int,
+    format: str = Query("csv", pattern="^(csv|tsv|xlsx)$"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ) -> StreamingResponse:
     """
-    Export project observations as a simple CSV file.
+    Export project observations as CSV, TSV, or XLSX.
 
     One row per species per image, grouped by species (animals) or category
     (person/vehicle). Includes blank images, applies detection threshold.
     """
-    # Verify project access
     if project_id not in accessible_project_ids:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
 
-    # Load project
     project_result = await db.execute(select(Project).where(Project.id == project_id))
     project = project_result.scalar_one_or_none()
     if project is None:
@@ -796,7 +819,6 @@ async def export_csv(
 
     tz = ZoneInfo(EXPORT_TIMEZONE)
 
-    # Load species taxonomy lookup
     tax_result = await db.execute(select(SpeciesTaxonomy))
     taxonomy_rows = tax_result.scalars().all()
     taxonomy_lookup = {
@@ -807,13 +829,11 @@ async def export_csv(
         for t in taxonomy_rows
     }
 
-    # Load camera names for this project
     cam_result = await db.execute(
         select(Camera.id, Camera.name).where(Camera.project_id == project_id)
     )
     camera_names = {row.id: row.name for row in cam_result.all()}
 
-    # Load all classified images with related data
     images_query = (
         select(Image)
         .join(Camera)
@@ -833,20 +853,37 @@ async def export_csv(
     images = images_result.scalars().unique().all()
 
     logger.info(
-        "Starting CSV export",
+        "Starting observations export",
         project_id=project_id,
+        format=format,
         num_images=len(images),
     )
 
-    csv_content = _build_csv_export(
+    headers, rows = _build_observation_rows(
         images, camera_names, taxonomy_lookup, project.detection_threshold, tz,
     )
 
     today = date.today().isoformat()
-    filename = f"observations-{_slugify(project.name)}-{today}.csv"
+    slug = _slugify(project.name)
 
-    return StreamingResponse(
-        io.BytesIO(csv_content.encode("utf-8")),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    if format == "xlsx":
+        content = _serialize_xlsx(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.xlsx"'},
+        )
+    elif format == "tsv":
+        content = _serialize_tsv(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/tab-separated-values",
+            headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.tsv"'},
+        )
+    else:
+        content = _serialize_csv(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.csv"'},
+        )
