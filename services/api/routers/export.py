@@ -1034,24 +1034,28 @@ def _build_spatial_layers(
 
 
 def _serialize_spatial_geojson(layers: Dict[str, list]) -> str:
-    """Serialize spatial layers as a GeoJSON string with three FeatureCollections."""
-    output = {}
+    """Serialize spatial layers as a single GeoJSON FeatureCollection.
+
+    Each feature has a "layer" property to distinguish deployments,
+    observations, and species_summary.
+    """
+    all_features = []
     for layer_name, features in layers.items():
-        geojson_features = []
         for feat in features:
-            geojson_features.append({
+            props = dict(feat["properties"])
+            props["layer"] = layer_name
+            all_features.append({
                 "type": "Feature",
                 "geometry": {
                     "type": "Point",
                     "coordinates": [feat["lon"], feat["lat"]],
                 },
-                "properties": feat["properties"],
+                "properties": props,
             })
-        output[layer_name] = {
-            "type": "FeatureCollection",
-            "features": geojson_features,
-        }
-    return json.dumps(output, indent=2)
+    return json.dumps({
+        "type": "FeatureCollection",
+        "features": all_features,
+    }, indent=2)
 
 
 def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
