@@ -1,18 +1,25 @@
 # TODO list
-- [ ] EXLUCDE IMGS PAGE - Make a page for project admins where we can include/exclude images from the view and statistics. That way we can exclude test images for example.
-- [ ] REJECT PAGE IMPROVEMENT - Can we expand the rejected page for server admins to also see the contents of the uploads folder directly?
-- [ ] BLUR FEATURE - blur people and vehicles disable only by server admin
-- [ ] DROPDOWN SETTING - Limit the notifcation species options to only the ones selected to be poresent in the project.
-- [ ] FILTERING BUG - The filtering options in the images page do not take into account the detection threhsold. If there eg is a fox below the det thresh, and a dog above it, the image will still show up if you search for "fox". 
-- [ ] IPHONE APP - Make it so that the webapp looks like a native app on iphone. 
-- [ ] ARTIFACT STORAGE - Add a project artifacts upload and download function. Good for storing settings files, etc. 
-- [ ] RESET PASSWORD - how to reset youre password? Should we add an option in the hambuerger menu?
-- [ ] CAMID + IMEI - Make an ANIML sort of camera registration field, where you can choose "Camera type" and input "IMEI number". Thats all. That means that we need to properly make the camera types at the ingestion service. That we we can keep adding them as we go. 
+
+### Priority 1
+- [ ] TIMEZONE SETTING - New task! Make an option for each project to define a timezone setting, and place it in the settings page of each project (follow the other settings UI UX and feel). Knowning which timezone is set in the cameras is needed for activity patterns and camtrapDP. Currently there is a timezone hardcoded. Find it and make it configurable. How does this work? Do we just provide a list with all Timezones with friendly names like "Amsterdam" and UTC diffs? But this assumes the timezones have summer and sinter times, right? I assume it is also possible to set camera traps to UTC, or just something like UTC - 9. Then there are no summer/winter time differences, right?
+- [ ] BLUR FEATURE - New task! We want to, by default, blur all the boxes of people and vehicles in the UI. So in the thumbnails, the ImageModals, and everywhere else where we see the images. Also in the camtrapDP export. This should be a setting in the project settings (follow the other settings UI UX and feel), so only project admins and server admins can change it. 
+- [ ] FILTERING BUG - New task! The filtering options in the images page do not take into account the detection threhsold. If there eg is a fox below the det thresh, and a dog above it, the image will still show up if you search for "fox". Investigate and find out how to fix this. Its probabaly due to a SQL query that is missing the detection threhsold set in the project settings. 
+- [ ] RESET PASSWORD - New task! How to reset my password? If a user want to reset their password, how do they do it? If there is no way to do it now, should we add an option in the hamburger menu? I know the backend is functioning with password reset links etc, but i think the front end is just not shoing an option to actually do it. Investigate. 
 - [ ] TELEGRAM NOTIFICATIONS BUG - It seems that the detection threshold is not applied to the telegram notifications, but the visualisations (bbox + labels) on the telegram images are. Sometimes i get a message that a fox was observed, but nothing is visualised. I get the feeling that the fox in question has a detection confidence below the threshold, and is hence not visualised, but send nonetheless. Only send for detections above the detecion threshhold. investigate. 
-- [ ] TEST DATA SCRIPT - create a script that populates a fresh server with dummy data for showcaseing the platform. The script must populate the database with ecologically relevant data, and make sure it looks engaging in in maps, graphs, etc. We can go full overboard with 100 cams and 2 years of data.
-- [ ] TIMEZONE SETTING - make each project a timezone setting. needed for activity patterns and camtrapDP. 
+
+### Priority 2
 - [ ] DEPLOYMENT DEFINITION - understand the definition of a deployment better. what defines it? Is that also what CamtrapDP defines as a deployment? 
 - [ ] DAILY REPORT DEPENDENCE - make sure to understand how the mapping, deployment creation, etc. works. I'm curious because the current setup had two points of GPS truth (from the image and form the camera daily report). The current camera type (Willfine) does send this via daily report, but we want to make the system generic to cmaera types, so we should not rely on the daily reports, as I exepct that many cameras dont have this feature. The whole system (mapping, deployment creation, etc) should work just as well without these daily reports. Investigate. 
+- [ ] SPECIESNET ADDITION - Make the whole system be able to use SpeciesNet as well as DeepFaune. (this will probably take a day or so, so make sure to write an elaborate prompt for this). 
+- [ ] CAMID + IMEI - Make an ANIML sort of camera registration field, where you can choose "Camera type" and input "IMEI number". Thats all. That means that we need to properly make the camera types at the ingestion service. That we we can keep adding them as we go. The other cols, like box, serial number, etc, etc, are just metadata. The code should not depend on it. IMEI + camera type. 
+- [ ] REJECT PAGE IMPROVEMENT - Can we expand the rejected page for server admins to also see the contents of the uploads folder directly?
+- [ ] IPHONE APP - Make it so that the webapp looks like a native app on iphone. 
+- [ ] ARTIFACT STORAGE - Add a project artifacts upload and download function. Good for storing settings files, etc. 
+- [ ] TEST DATA SCRIPT - create a script that populates a fresh server with dummy data for showcaseing the platform. The script must populate the database with ecologically relevant data, and make sure it looks engaging in in maps, graphs, etc. We can go full overboard with 100 cams and 2 years of data.
 
-**SPW points**
+### Priority 3
+- [ ] EXLUCDE IMGS PAGE - Make a page for project admins where we can include/exclude images from the view and statistics. That way we can exclude test images for example.
+- [ ] DROPDOWN SETTING - Limit the notifcation species options to only the ones selected to be poresent in the project.
+
+**SPW server**
 - [ ] NEW server spw.addaxai.com project namne: ANLIER NORD
