@@ -143,13 +143,18 @@ export const ExportsPage: React.FC = () => {
               <CardTitle>Observations</CardTitle>
             </div>
             <CardDescription>
-              Species observations spreadsheet for analysis in Excel or R.
-              One row per species per image, including species, count, confidence, location, and verification status.
+              Species observations spreadsheet (one row per species per image).
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Format</label>
+          <CardContent className="space-y-3">
+            {obsError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {obsError}
+              </div>
+            )}
+
+            <div className="flex items-center gap-4">
               <div className="inline-flex rounded-md overflow-hidden border border-input">
                 {formatOptions.map((opt) => (
                   <button
@@ -165,32 +170,25 @@ export const ExportsPage: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              <button
+                onClick={handleDownloadObservations}
+                disabled={isExportingObs}
+                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {isExportingObs ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing export...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download {observationFormat.toUpperCase()}
+                  </>
+                )}
+              </button>
             </div>
-
-            {obsError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {obsError}
-              </div>
-            )}
-
-            <button
-              onClick={handleDownloadObservations}
-              disabled={isExportingObs}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-            >
-              {isExportingObs ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparing export...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Download {observationFormat.toUpperCase()}
-                </>
-              )}
-            </button>
           </CardContent>
         </Card>
 
@@ -202,13 +200,18 @@ export const ExportsPage: React.FC = () => {
               <CardTitle>Spatial</CardTitle>
             </div>
             <CardDescription>
-              Geographic data for GIS tools (QGIS, ArcGIS).
-              Includes camera deployment locations, observation points, and species summaries per camera.
+              Geographic point data for GIS tools (QGIS, ArcGIS).
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Format</label>
+          <CardContent className="space-y-3">
+            {spatialError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {spatialError}
+              </div>
+            )}
+
+            <div className="flex items-center gap-4">
               <div className="inline-flex rounded-md overflow-hidden border border-input">
                 {spatialFormatOptions.map((opt) => (
                   <button
@@ -224,32 +227,25 @@ export const ExportsPage: React.FC = () => {
                   </button>
                 ))}
               </div>
+
+              <button
+                onClick={handleDownloadSpatial}
+                disabled={isExportingSpatial}
+                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {isExportingSpatial ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing export...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download {spatialFormatOptions.find(o => o.value === spatialFormat)?.label}
+                  </>
+                )}
+              </button>
             </div>
-
-            {spatialError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {spatialError}
-              </div>
-            )}
-
-            <button
-              onClick={handleDownloadSpatial}
-              disabled={isExportingSpatial}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-            >
-              {isExportingSpatial ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparing export...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Download {spatialFormatOptions.find(o => o.value === spatialFormat)?.label}
-                </>
-              )}
-            </button>
           </CardContent>
         </Card>
 
@@ -261,22 +257,10 @@ export const ExportsPage: React.FC = () => {
               <CardTitle>CamTrap DP</CardTitle>
             </div>
             <CardDescription>
-              Camera Trap Data Package — the standard format for sharing camera trap data with GBIF and other biodiversity platforms.
-              The export includes deployment periods, image metadata, and species observations (AI detections, human verifications, and blanks).
+              Camera Trap Data Package for sharing with GBIF and biodiversity platforms.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Checkbox
-              id="include-media"
-              checked={includeMedia}
-              onChange={setIncludeMedia}
-              label="Include thumbnail images in the package"
-            />
-            <p className="text-sm text-muted-foreground ml-8 -mt-2">
-              Adds thumbnail images to the ZIP file (~10-20 MB for a typical project).
-              Without thumbnails, the package contains metadata only.
-            </p>
-
+          <CardContent className="space-y-3">
             {dpError && (
               <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -284,23 +268,32 @@ export const ExportsPage: React.FC = () => {
               </div>
             )}
 
-            <button
-              onClick={handleDownloadCamtrapDP}
-              disabled={isExportingDP}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-            >
-              {isExportingDP ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Preparing export...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Download CamTrap DP
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-4">
+              <Checkbox
+                id="include-media"
+                checked={includeMedia}
+                onChange={setIncludeMedia}
+                label="Include thumbnails"
+              />
+
+              <button
+                onClick={handleDownloadCamtrapDP}
+                disabled={isExportingDP}
+                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {isExportingDP ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing export...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download CamTrap DP
+                  </>
+                )}
+              </button>
+            </div>
           </CardContent>
         </Card>
       </div>
