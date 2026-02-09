@@ -39,22 +39,41 @@ async function extractErrorMessage(err: any): Promise<string> {
   return err.response?.data?.detail || err.message || 'Export failed';
 }
 
+type ObservationFormat = 'csv' | 'xlsx' | 'tsv';
+
 export const ExportsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
   const { selectedProject } = useProject();
 
+  const [observationFormat, setObservationFormat] = useState<ObservationFormat>('csv');
+  const [isExportingObs, setIsExportingObs] = useState(false);
+  const [obsError, setObsError] = useState<string | null>(null);
   const [includeMedia, setIncludeMedia] = useState(true);
   const [isExportingDP, setIsExportingDP] = useState(false);
   const [dpError, setDpError] = useState<string | null>(null);
-  const [isExportingCSV, setIsExportingCSV] = useState(false);
-  const [csvError, setCsvError] = useState<string | null>(null);
 
   const projectSlug = (selectedProject?.name || 'project')
     .toLowerCase()
     .replace(/[^\w\s-]/g, '')
     .replace(/[\s_]+/g, '-');
   const today = new Date().toISOString().split('T')[0];
+
+  const handleDownloadObservations = async () => {
+    if (!projectIdNum) return;
+
+    setIsExportingObs(true);
+    setObsError(null);
+
+    try {
+      const blob = await exportApi.downloadObservations(projectIdNum, observationFormat);
+      downloadBlob(blob, `observations-${projectSlug}-${today}.${observationFormat}`);
+    } catch (err: any) {
+      setObsError(await extractErrorMessage(err));
+    } finally {
+      setIsExportingObs(false);
+    }
+  };
 
   const handleDownloadCamtrapDP = async () => {
     if (!projectIdNum) return;
@@ -72,21 +91,11 @@ export const ExportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadCSV = async () => {
-    if (!projectIdNum) return;
-
-    setIsExportingCSV(true);
-    setCsvError(null);
-
-    try {
-      const blob = await exportApi.downloadCSV(projectIdNum);
-      downloadBlob(blob, `observations-${projectSlug}-${today}.csv`);
-    } catch (err: any) {
-      setCsvError(await extractErrorMessage(err));
-    } finally {
-      setIsExportingCSV(false);
-    }
-  };
+  const formatOptions: { value: ObservationFormat; label: string }[] = [
+    { value: 'csv', label: 'CSV' },
+    { value: 'xlsx', label: 'XLSX' },
+    { value: 'tsv', label: 'TSV' },
+  ];
 
   return (
     <div>
@@ -94,32 +103,51 @@ export const ExportsPage: React.FC = () => {
       <p className="text-sm text-gray-600 mt-1 mb-6">Export your project data in standardized formats</p>
 
       <div className="space-y-6">
-        {/* CSV export card */}
+        {/* Observations export card */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Table className="h-5 w-5" />
-              <CardTitle>CSV</CardTitle>
+              <CardTitle>Observations</CardTitle>
             </div>
             <CardDescription>
-              Simple observations spreadsheet for analysis in Excel or R.
+              Species observations spreadsheet for analysis in Excel or R.
               One row per species per image, including species, count, confidence, location, and verification status.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {csvError && (
+            <div>
+              <label className="text-sm font-medium mb-2 block">Format</label>
+              <div className="inline-flex rounded-md overflow-hidden border border-input">
+                {formatOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setObservationFormat(opt.value)}
+                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                      observationFormat === opt.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-foreground hover:bg-secondary'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {obsError && (
               <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {csvError}
+                {obsError}
               </div>
             )}
 
             <button
-              onClick={handleDownloadCSV}
-              disabled={isExportingCSV}
+              onClick={handleDownloadObservations}
+              disabled={isExportingObs}
               className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
             >
-              {isExportingCSV ? (
+              {isExportingObs ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Preparing export...
@@ -127,7 +155,7 @@ export const ExportsPage: React.FC = () => {
               ) : (
                 <>
                   <Download className="h-4 w-4" />
-                  Download CSV
+                  Download {observationFormat.toUpperCase()}
                 </>
               )}
             </button>

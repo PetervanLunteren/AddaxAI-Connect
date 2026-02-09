@@ -16,12 +16,12 @@ export const exportApi = {
   },
 
   /**
-   * Download observations as a CSV file
+   * Download observations as CSV, TSV, or XLSX
    */
-  downloadCSV: async (projectId: number): Promise<Blob> => {
+  downloadObservations: async (projectId: number, format: 'csv' | 'tsv' | 'xlsx' = 'csv'): Promise<Blob> => {
     const response = await apiClient.get(
-      `/api/projects/${projectId}/export/csv`,
-      { responseType: 'blob' },
+      `/api/projects/${projectId}/export/observations`,
+      { params: { format }, responseType: 'blob' },
     );
     return response.data;
   },
