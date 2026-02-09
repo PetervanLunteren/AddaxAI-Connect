@@ -243,10 +243,10 @@ export const ExportsPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* CamTrap DP export card */}
+        {/* Camtrap DP export card */}
         <Card>
           <CardHeader>
-            <CardTitle>CamTrap DP</CardTitle>
+            <CardTitle>Camtrap DP</CardTitle>
             <CardDescription>
               Camera Trap Data Package for sharing with GBIF and biodiversity platforms.
             </CardDescription>
@@ -280,7 +280,7 @@ export const ExportsPage: React.FC = () => {
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    Download CamTrap DP
+                    Download Camtrap DP
                   </>
                 )}
               </button>
