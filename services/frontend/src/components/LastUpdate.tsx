@@ -22,6 +22,11 @@ const formatRelativeTime = (date: string | Date): string => {
   const diffMs = now.getTime() - then.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);
 
+  // Handle future timestamps (e.g. EXIF time from a different timezone)
+  if (diffSeconds < 0) {
+    return 'just now';
+  }
+
   if (diffSeconds < 60) {
     return `${diffSeconds}s ago`;
   }
