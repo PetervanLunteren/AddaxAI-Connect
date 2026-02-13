@@ -13,19 +13,8 @@ import { useProject } from '../contexts/ProjectContext';
  */
 const formatRelativeTime = (date: string | Date): string => {
   const now = new Date();
-
-  // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
-  let dateStr = typeof date === 'string' ? date : date.toISOString();
-  const exifFormatted = dateStr.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-
-  const then = new Date(exifFormatted);
-  const diffMs = now.getTime() - then.getTime();
-  const diffSeconds = Math.floor(diffMs / 1000);
-
-  // Handle future timestamps (e.g. EXIF time from a different timezone)
-  if (diffSeconds < 0) {
-    return 'just now';
-  }
+  const then = new Date(date);
+  const diffSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
 
   if (diffSeconds < 60) {
     return `${diffSeconds}s ago`;

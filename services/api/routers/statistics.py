@@ -341,14 +341,7 @@ async def get_last_update(
     if not image:
         return LastUpdateResponse(last_update=None)
 
-    # Prefer EXIF DateTimeOriginal (actual capture time) over uploaded_at
-    last_update_str = None
-    if image.image_metadata and 'DateTimeOriginal' in image.image_metadata:
-        last_update_str = image.image_metadata['DateTimeOriginal']
-    else:
-        last_update_str = image.uploaded_at.isoformat()
-
-    return LastUpdateResponse(last_update=last_update_str)
+    return LastUpdateResponse(last_update=image.uploaded_at.isoformat())
 
 
 class DeploymentFeatureProperties(BaseModel):
