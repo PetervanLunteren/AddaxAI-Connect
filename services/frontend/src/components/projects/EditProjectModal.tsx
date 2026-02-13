@@ -63,7 +63,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       handleClose();
     },
     onError: (error: any) => {

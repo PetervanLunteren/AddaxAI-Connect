@@ -47,7 +47,7 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
     mutationFn: () => projectsApi.delete(project.id, confirmName),
     onSuccess: (result) => {
       setDeleteResult(result);
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       // Navigate to projects page after short delay to show results
       setTimeout(() => {
         handleClose();
