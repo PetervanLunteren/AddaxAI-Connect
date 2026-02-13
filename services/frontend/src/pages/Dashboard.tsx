@@ -21,6 +21,7 @@ import { statisticsApi } from '../api/statistics';
 import { imagesApi } from '../api/images';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, setSpeciesContext } from '../utils/species-colors';
+import { useProject } from '../contexts/ProjectContext';
 import {
   DateRangeFilter,
   DateRange,
@@ -42,6 +43,9 @@ ChartJS.register(
 );
 
 export const Dashboard: React.FC = () => {
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id;
+
   // Global date range filter
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: '',
@@ -50,24 +54,28 @@ export const Dashboard: React.FC = () => {
 
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['statistics', 'overview'],
-    queryFn: () => statisticsApi.getOverview(),
+    queryKey: ['statistics', 'overview', projectId],
+    queryFn: () => statisticsApi.getOverview(projectId),
+    enabled: projectId !== undefined,
   });
 
   const { data: species, isLoading: speciesLoading } = useQuery({
-    queryKey: ['statistics', 'species'],
-    queryFn: () => statisticsApi.getSpeciesDistribution(),
+    queryKey: ['statistics', 'species', projectId],
+    queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
+    enabled: projectId !== undefined,
   });
 
   const { data: cameraActivity, isLoading: activityLoading } = useQuery({
-    queryKey: ['statistics', 'activity'],
-    queryFn: () => statisticsApi.getCameraActivity(),
+    queryKey: ['statistics', 'activity', projectId],
+    queryFn: () => statisticsApi.getCameraActivity(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Fetch full species list for consistent colors app-wide
   const { data: allSpeciesOptions } = useQuery({
-    queryKey: ['species'],
-    queryFn: () => imagesApi.getSpecies(),
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Set species context using the full species list for consistent colors
@@ -240,13 +248,13 @@ export const Dashboard: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        <DetectionTrendChart dateRange={dateRange} />
+        <DetectionTrendChart dateRange={dateRange} projectId={projectId} />
       </div>
 
       {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <ActivityPatternChart dateRange={dateRange} />
-        <AlertCounters />
+        <ActivityPatternChart dateRange={dateRange} projectId={projectId} />
+        <AlertCounters projectId={projectId} />
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Camera activity status</CardTitle>
@@ -271,7 +279,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Row 3: Species activity comparison (full width) */}
-      <SpeciesComparisonChart dateRange={dateRange} />
+      <SpeciesComparisonChart dateRange={dateRange} projectId={projectId} />
     </div>
   );
 };

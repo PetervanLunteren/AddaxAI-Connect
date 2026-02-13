@@ -13,6 +13,7 @@ export interface ImageFilters {
   species?: string;
   show_empty?: boolean;
   verified?: string;  // "true", "false", or undefined for all
+  project_id?: number;
 }
 
 export interface SpeciesOption {
@@ -42,8 +43,10 @@ export const imagesApi = {
   /**
    * Get list of unique species for filter dropdown
    */
-  getSpecies: async (): Promise<SpeciesOption[]> => {
-    const response = await apiClient.get<SpeciesOption[]>('/api/images/species');
+  getSpecies: async (projectId?: number): Promise<SpeciesOption[]> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<SpeciesOption[]>('/api/images/species', { params });
     return response.data;
   },
 

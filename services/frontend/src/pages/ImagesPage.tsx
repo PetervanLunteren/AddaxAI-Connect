@@ -15,10 +15,13 @@ import { ImageDetailModal } from '../components/ImageDetailModal';
 import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../utils/species-colors';
+import { useProject } from '../contexts/ProjectContext';
 import type { ImageListItem } from '../api/types';
 
 export const ImagesPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id;
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
   const [pendingFirstImage, setPendingFirstImage] = useState(false);
@@ -38,13 +41,19 @@ export const ImagesPage: React.FC = () => {
 
   const limit = 24; // Images per page
 
+  // Reset page when project changes
+  useEffect(() => {
+    setPage(1);
+  }, [projectId]);
+
   // Fetch images with current filters and pagination
   const { data: imagesData, isLoading: imagesLoading } = useQuery({
-    queryKey: ['images', page, filters],
+    queryKey: ['images', projectId, page, filters],
     queryFn: () =>
       imagesApi.getAll({
         page,
         limit,
+        project_id: projectId,
         camera_id: filters.camera_ids.length > 0
           ? filters.camera_ids.map(c => c.value).join(',')
           : undefined,
@@ -56,24 +65,28 @@ export const ImagesPage: React.FC = () => {
         show_empty: filters.show_empty,
         verified: filters.verified || undefined,
       }),
+    enabled: projectId !== undefined,
   });
 
   // Fetch cameras for filter dropdown
   const { data: cameras } = useQuery({
-    queryKey: ['cameras'],
-    queryFn: () => camerasApi.getAll(),
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Fetch species for filter dropdown
   const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
-    queryKey: ['species'],
-    queryFn: () => imagesApi.getSpecies(),
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Fetch overview for date bounds
   const { data: overview } = useQuery({
-    queryKey: ['statistics', 'overview'],
-    queryFn: () => statisticsApi.getOverview(),
+    queryKey: ['statistics', 'overview', projectId],
+    queryFn: () => statisticsApi.getOverview(projectId),
+    enabled: projectId !== undefined,
   });
 
   const handleFilterChange = (key: string, value: any) => {
@@ -152,6 +165,7 @@ export const ImagesPage: React.FC = () => {
 
     const queryParams = {
       limit,
+      project_id: projectId,
       camera_id: filters.camera_ids.length > 0
         ? filters.camera_ids.map(c => c.value).join(',')
         : undefined,
@@ -166,7 +180,7 @@ export const ImagesPage: React.FC = () => {
     // On last image of page → prefetch next page's first image UUID
     if (currentIndex === imagesData.items.length - 1 && page < imagesData.pages) {
       queryClient.fetchQuery({
-        queryKey: ['images', page + 1, filters],
+        queryKey: ['images', projectId, page + 1, filters],
         queryFn: () => imagesApi.getAll({ ...queryParams, page: page + 1 }),
       }).then(data => {
         if (data?.items[0]) {
@@ -180,7 +194,7 @@ export const ImagesPage: React.FC = () => {
     // On first image of page → prefetch previous page's last image UUID
     if (currentIndex === 0 && page > 1) {
       queryClient.fetchQuery({
-        queryKey: ['images', page - 1, filters],
+        queryKey: ['images', projectId, page - 1, filters],
         queryFn: () => imagesApi.getAll({ ...queryParams, page: page - 1 }),
       }).then(data => {
         if (data?.items.length > 0) {

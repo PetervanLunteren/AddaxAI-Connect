@@ -14,7 +14,7 @@ from shared.models import User, Camera, Project, Image, CameraHealthReport
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
-from auth.project_access import get_accessible_project_ids
+from auth.project_access import get_accessible_project_ids, narrow_to_project
 
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
@@ -190,6 +190,7 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
     response_model=List[CameraResponse],
 )
 async def list_cameras(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -202,6 +203,7 @@ async def list_cameras(
     - Regular users: only cameras from their assigned projects
 
     Args:
+        project_id: Optional project ID to filter to
         accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
@@ -209,6 +211,8 @@ async def list_cameras(
     Returns:
         List of cameras with health data
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+
     # Filter cameras by accessible projects
     query = select(Camera).where(Camera.project_id.in_(accessible_project_ids))
     result = await db.execute(query)

@@ -6,10 +6,15 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { statisticsApi } from '../../api/statistics';
 
-export const PipelineStatus: React.FC = () => {
+interface PipelineStatusProps {
+  projectId?: number;
+}
+
+export const PipelineStatus: React.FC<PipelineStatusProps> = ({ projectId }) => {
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'pipeline-status'],
-    queryFn: () => statisticsApi.getPipelineStatus(),
+    queryKey: ['statistics', 'pipeline-status', projectId],
+    queryFn: () => statisticsApi.getPipelineStatus(projectId),
+    enabled: projectId !== undefined,
   });
 
   const pendingCount = data?.pending ?? 0;

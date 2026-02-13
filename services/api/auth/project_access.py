@@ -3,8 +3,8 @@ Project access control dependency
 
 Provides functions to get accessible project IDs for the current user.
 """
-from typing import List
-from fastapi import Depends
+from typing import List, Optional
+from fastapi import Depends, HTTPException, status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -44,3 +44,18 @@ async def get_accessible_project_ids(
         )
         project_ids = [row[0] for row in result.all()]
         return project_ids
+
+
+def narrow_to_project(
+    accessible_project_ids: List[int],
+    project_id: Optional[int],
+) -> List[int]:
+    """Narrow accessible project IDs to a single project if specified."""
+    if project_id is None:
+        return accessible_project_ids
+    if project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="No access to this project",
+        )
+    return [project_id]

@@ -22,16 +22,19 @@ export const statisticsApi = {
   /**
    * Get dashboard overview statistics
    */
-  getOverview: async (): Promise<StatisticsOverview> => {
-    const response = await apiClient.get<StatisticsOverview>('/api/statistics/overview');
+  getOverview: async (projectId?: number): Promise<StatisticsOverview> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<StatisticsOverview>('/api/statistics/overview', { params });
     return response.data;
   },
 
   /**
    * Get images timeline
    */
-  getImagesTimeline: async (days?: number): Promise<TimelineDataPoint[]> => {
+  getImagesTimeline: async (projectId?: number, days?: number): Promise<TimelineDataPoint[]> => {
     const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (days !== undefined) params.append('days', days.toString());
     const queryString = params.toString();
     const url = queryString
@@ -44,32 +47,39 @@ export const statisticsApi = {
   /**
    * Get species distribution (top 10)
    */
-  getSpeciesDistribution: async (): Promise<SpeciesCount[]> => {
-    const response = await apiClient.get<SpeciesCount[]>('/api/statistics/species-distribution');
+  getSpeciesDistribution: async (projectId?: number): Promise<SpeciesCount[]> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<SpeciesCount[]>('/api/statistics/species-distribution', { params });
     return response.data;
   },
 
   /**
    * Get camera activity summary
    */
-  getCameraActivity: async (): Promise<CameraActivitySummary> => {
-    const response = await apiClient.get<CameraActivitySummary>('/api/statistics/camera-activity');
+  getCameraActivity: async (projectId?: number): Promise<CameraActivitySummary> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<CameraActivitySummary>('/api/statistics/camera-activity', { params });
     return response.data;
   },
 
   /**
    * Get last update timestamp
    */
-  getLastUpdate: async (): Promise<LastUpdateResponse> => {
-    const response = await apiClient.get<LastUpdateResponse>('/api/statistics/last-update');
+  getLastUpdate: async (projectId?: number): Promise<LastUpdateResponse> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<LastUpdateResponse>('/api/statistics/last-update', { params });
     return response.data;
   },
 
   /**
    * Get detection rate map data (GeoJSON)
    */
-  getDetectionRateMap: async (filters?: DetectionRateMapFilters): Promise<DetectionRateMapResponse> => {
+  getDetectionRateMap: async (projectId?: number, filters?: DetectionRateMapFilters): Promise<DetectionRateMapResponse> => {
     const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
@@ -90,8 +100,9 @@ export const statisticsApi = {
   /**
    * Get activity pattern (hourly detection counts)
    */
-  getActivityPattern: async (filters?: ActivityPatternFilters): Promise<ActivityPatternResponse> => {
+  getActivityPattern: async (projectId?: number, filters?: ActivityPatternFilters): Promise<ActivityPatternResponse> => {
     const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
@@ -108,8 +119,9 @@ export const statisticsApi = {
   /**
    * Get detection trend (daily counts)
    */
-  getDetectionTrend: async (filters?: DetectionTrendFilters): Promise<DetectionTrendPoint[]> => {
+  getDetectionTrend: async (projectId?: number, filters?: DetectionTrendFilters): Promise<DetectionTrendPoint[]> => {
     const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
@@ -126,8 +138,10 @@ export const statisticsApi = {
   /**
    * Get pipeline status (pending/classified counts)
    */
-  getPipelineStatus: async (): Promise<PipelineStatusResponse> => {
-    const response = await apiClient.get<PipelineStatusResponse>('/api/statistics/pipeline-status');
+  getPipelineStatus: async (projectId?: number): Promise<PipelineStatusResponse> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<PipelineStatusResponse>('/api/statistics/pipeline-status', { params });
     return response.data;
   },
 };

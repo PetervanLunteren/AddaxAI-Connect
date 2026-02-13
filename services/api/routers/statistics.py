@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation
 from shared.database import get_async_session
 from auth.users import current_verified_user
-from auth.project_access import get_accessible_project_ids
+from auth.project_access import get_accessible_project_ids, narrow_to_project
 from utils.preferred_counts import (
     get_preferred_species_counts,
     get_preferred_unique_species,
@@ -65,6 +65,7 @@ class LastUpdateResponse(BaseModel):
     response_model=StatisticsOverview,
 )
 async def get_overview(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -80,6 +81,7 @@ async def get_overview(
     Returns:
         Overview statistics for dashboard
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Total images (filtered by project via camera)
     total_images_result = await db.execute(
         select(func.count(Image.id))
@@ -142,6 +144,7 @@ async def get_overview(
     response_model=List[TimelineDataPoint],
 )
 async def get_images_timeline(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     days: Optional[int] = Query(None, description="Number of days to look back (default: 30, use 0 for all time)"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
@@ -159,6 +162,7 @@ async def get_images_timeline(
     Returns:
         List of data points with date and count
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Calculate date range
     end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     num_days = days if days is not None else 30
@@ -199,6 +203,7 @@ async def get_images_timeline(
     response_model=List[SpeciesCount],
 )
 async def get_species_distribution(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -216,6 +221,7 @@ async def get_species_distribution(
     Returns:
         List of species with counts (top 10 by count)
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     counts = await get_preferred_species_counts(
         db=db,
         project_ids=accessible_project_ids,
@@ -230,6 +236,7 @@ async def get_species_distribution(
     response_model=CameraActivitySummary,
 )
 async def get_camera_activity(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -250,6 +257,7 @@ async def get_camera_activity(
     Returns:
         Camera activity counts by status
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Fetch cameras filtered by accessible projects
     result = await db.execute(
         select(Camera).where(Camera.project_id.in_(accessible_project_ids))
@@ -294,6 +302,7 @@ async def get_camera_activity(
     response_model=LastUpdateResponse,
 )
 async def get_last_update(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -311,6 +320,7 @@ async def get_last_update(
     Returns:
         Last update timestamp (EXIF capture time preferred) or null if no images exist
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Query most recent classified image (filtered by project via camera)
     query = (
         select(Image)
@@ -379,6 +389,7 @@ class DetectionRateMapResponse(BaseModel):
     response_model=DetectionRateMapResponse,
 )
 async def get_detection_rate_map(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
@@ -415,6 +426,7 @@ async def get_detection_rate_map(
     Returns:
         GeoJSON FeatureCollection with deployment features
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Build SQL query with conditional filters
     # Use UNION to combine verified (human observations) and unverified (AI) counts
     # For verified images: sum HumanObservation.count
@@ -579,6 +591,7 @@ class ActivityPatternResponse(BaseModel):
     response_model=ActivityPatternResponse,
 )
 async def get_activity_pattern(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
@@ -592,6 +605,7 @@ async def get_activity_pattern(
     Prefers human observations for verified images, falls back to AI for unverified.
     Used for radial/polar charts showing diel activity patterns.
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Convert date to datetime for the helper
     start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
     end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
@@ -632,6 +646,7 @@ class SpeciesAccumulationPoint(BaseModel):
     response_model=List[SpeciesAccumulationPoint],
 )
 async def get_species_accumulation(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -644,6 +659,7 @@ async def get_species_accumulation(
     Prefers human observations for verified images, falls back to AI for unverified.
     Returns the first date each species was observed and cumulative count per day.
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Convert dates
     start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
     end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
@@ -696,6 +712,7 @@ class DetectionTrendPoint(BaseModel):
     response_model=List[DetectionTrendPoint],
 )
 async def get_detection_trend(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
@@ -709,6 +726,7 @@ async def get_detection_trend(
     Prefers human observations for verified images, falls back to AI for unverified.
     Defaults to last 30 days if no date range specified.
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Default to last 30 days
     if not start_date and not end_date:
         end_dt = datetime.now(timezone.utc)
@@ -744,6 +762,7 @@ class ConfidenceBin(BaseModel):
     response_model=List[ConfidenceBin],
 )
 async def get_confidence_distribution(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -755,6 +774,7 @@ async def get_confidence_distribution(
 
     Returns counts for each 0.1-width bin from 0.0 to 1.0.
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Define bins (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
     bins = [(i / 10, (i + 1) / 10) for i in range(10)]
 
@@ -803,6 +823,7 @@ class OccupancyMatrixResponse(BaseModel):
     response_model=OccupancyMatrixResponse,
 )
 async def get_occupancy_matrix(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -815,6 +836,7 @@ async def get_occupancy_matrix(
     Prefers human observations for verified images, falls back to AI for unverified.
     Used for heatmap visualization showing which species appear at which cameras.
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Convert dates for helper function
     start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
     end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
@@ -870,6 +892,7 @@ class PipelineStatusResponse(BaseModel):
     response_model=PipelineStatusResponse,
 )
 async def get_pipeline_status(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -879,6 +902,7 @@ async def get_pipeline_status(
 
     Shows pending vs classified images and counts of person/vehicle/animal detections.
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     # Count images by status
     pending_result = await db.execute(
         select(func.count(Image.id))
