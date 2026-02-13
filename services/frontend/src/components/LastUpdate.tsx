@@ -4,6 +4,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../api/statistics';
+import { useProject } from '../contexts/ProjectContext';
 
 /**
  * Format a date as relative time string
@@ -45,9 +46,13 @@ const formatRelativeTime = (date: string | Date): string => {
 };
 
 export const LastUpdate: React.FC = () => {
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id;
+
   const { data } = useQuery({
-    queryKey: ['last-update'],
-    queryFn: () => statisticsApi.getLastUpdate(),
+    queryKey: ['last-update', projectId],
+    queryFn: () => statisticsApi.getLastUpdate(projectId),
+    enabled: projectId !== undefined,
     refetchInterval: 15000, // Refresh every 15 seconds
     retry: false, // Don't retry on failure, just keep showing last value
     staleTime: 10000, // Consider data stale after 10 seconds
