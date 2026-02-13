@@ -235,6 +235,7 @@ export interface ProjectCreate {
   name: string;
   description?: string;
   included_species?: string[];
+  timezone: string;
 }
 
 export interface ProjectUpdate {
