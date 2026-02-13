@@ -52,7 +52,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
       return project;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       handleClose();
     },
     onError: (error: any) => {

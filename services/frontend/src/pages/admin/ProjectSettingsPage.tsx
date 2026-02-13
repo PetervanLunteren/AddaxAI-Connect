@@ -71,7 +71,7 @@ export const ProjectSettingsPage: React.FC = () => {
     mutationFn: (data: { id: number; update: ProjectUpdate }) =>
       projectsApi.update(data.id, data.update),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       refreshProjects();
     },
   });

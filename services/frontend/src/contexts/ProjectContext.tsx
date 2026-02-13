@@ -9,10 +9,16 @@
  */
 import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { getUserProjects } from '../api/auth';
 import { useAuth } from '../hooks/useAuth';
 import type { ProjectWithRole } from '../api/types';
+
+/** Extract project ID from URL path since useParams doesn't work above Routes */
+function getProjectIdFromPath(pathname: string): string | undefined {
+  const match = pathname.match(/^\/projects\/(\d+)/);
+  return match ? match[1] : undefined;
+}
 
 interface ProjectContextType {
   selectedProject: ProjectWithRole | null;
@@ -47,8 +53,8 @@ interface ProjectProviderProps {
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [selectedProject, setSelectedProject] = useState<ProjectWithRole | null>(null);
   const { user } = useAuth();
-  const { projectId } = useParams<{ projectId: string }>();
   const location = useLocation();
+  const projectId = getProjectIdFromPath(location.pathname);
 
   // Check if user is authenticated
   const isAuthenticated = !!localStorage.getItem('access_token');
