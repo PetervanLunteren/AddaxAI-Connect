@@ -28,21 +28,24 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 interface SpeciesComparisonChartProps {
   dateRange: DateRange;
+  projectId?: number;
 }
 
-export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ dateRange }) => {
+export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ dateRange, projectId }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string[]>([]);
 
   // Fetch species list
   const { data: speciesList } = useQuery({
-    queryKey: ['statistics', 'species'],
-    queryFn: () => statisticsApi.getSpeciesDistribution(),
+    queryKey: ['statistics', 'species', projectId],
+    queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Fetch full species list for consistent colors app-wide
   const { data: allSpeciesOptions } = useQuery({
-    queryKey: ['species'],
-    queryFn: () => imagesApi.getSpecies(),
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Sort species list alphabetically for display
@@ -85,14 +88,14 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
   // Fetch activity patterns for each selected species
   const activityQueries = useQueries({
     queries: selectedSpecies.map((species) => ({
-      queryKey: ['statistics', 'activity-pattern', species, dateRange.startDate, dateRange.endDate],
+      queryKey: ['statistics', 'activity-pattern', projectId, species, dateRange.startDate, dateRange.endDate],
       queryFn: () =>
-        statisticsApi.getActivityPattern({
+        statisticsApi.getActivityPattern(projectId, {
           species,
           start_date: dateRange.startDate || undefined,
           end_date: dateRange.endDate || undefined,
         }),
-      enabled: selectedSpecies.length > 0,
+      enabled: projectId !== undefined && selectedSpecies.length > 0,
     })),
   });
 

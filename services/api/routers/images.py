@@ -16,7 +16,7 @@ from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_verified_user
-from auth.project_access import get_accessible_project_ids
+from auth.project_access import get_accessible_project_ids, narrow_to_project
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -159,6 +159,7 @@ class SaveVerificationResponse(BaseModel):
     response_model=List[SpeciesOption],
 )
 async def get_species(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -169,6 +170,7 @@ async def get_species(
     Returns list of species for use in filter dropdown (filtered by accessible projects).
     Includes species from both human observations (verified) and AI classifications (unverified).
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     from sqlalchemy import union_all
 
     # Query 1: Species from human observations (verified images)
@@ -243,6 +245,7 @@ async def list_images(
     species: Optional[str] = None,
     show_empty: bool = Query(False),
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -265,6 +268,8 @@ async def list_images(
     Returns:
         Paginated list of images with detection summaries (filtered by accessible projects)
     """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+
     # Build query filters
     filters = [
         # Only show images that have completed ML processing

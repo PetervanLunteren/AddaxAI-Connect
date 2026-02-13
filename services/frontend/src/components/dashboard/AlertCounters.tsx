@@ -7,11 +7,16 @@ import { User, Car, PawPrint, ImageOff } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
 
-export const AlertCounters: React.FC = () => {
+interface AlertCountersProps {
+  projectId?: number;
+}
+
+export const AlertCounters: React.FC<AlertCountersProps> = ({ projectId }) => {
   // Fetch pipeline status which includes detection category counts
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'pipeline-status'],
-    queryFn: () => statisticsApi.getPipelineStatus(),
+    queryKey: ['statistics', 'pipeline-status', projectId],
+    queryFn: () => statisticsApi.getPipelineStatus(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Colors from FRONTEND_CONVENTIONS.md color palette for distinct values

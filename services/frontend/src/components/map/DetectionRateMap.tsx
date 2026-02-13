@@ -6,6 +6,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
+import { useProject } from '../../contexts/ProjectContext';
 import type { DetectionRateMapFilters } from '../../api/types';
 import {
   getDetectionRateColor,
@@ -92,6 +93,9 @@ function MapEventHandler({
 }
 
 export function DetectionRateMap() {
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id;
+
   const [filters, setFilters] = useState<DetectionRateMapFilters>({
     start_date: '',
     end_date: '',
@@ -132,14 +136,16 @@ export function DetectionRateMap() {
 
   // Fetch overview statistics for date bounds
   const { data: overview } = useQuery({
-    queryKey: ['statistics', 'overview'],
-    queryFn: () => statisticsApi.getOverview(),
+    queryKey: ['statistics', 'overview', projectId],
+    queryFn: () => statisticsApi.getOverview(projectId),
+    enabled: projectId !== undefined,
   });
 
   // Fetch detection rate map data
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detection-rate-map', filters],
-    queryFn: () => statisticsApi.getDetectionRateMap(filters),
+    queryKey: ['detection-rate-map', projectId, filters],
+    queryFn: () => statisticsApi.getDetectionRateMap(projectId, filters),
+    enabled: projectId !== undefined,
   });
 
   // Filter deployments to only those visible in current viewport
