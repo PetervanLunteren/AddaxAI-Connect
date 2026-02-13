@@ -54,6 +54,7 @@ class ProjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
+    timezone: str
 
 
 class ProjectUpdate(BaseModel):
@@ -220,10 +221,20 @@ async def create_project(
     Returns:
         Created project
     """
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(project_data.timezone)
+    except (KeyError, Exception):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid timezone: {project_data.timezone}",
+        )
+
     project = Project(
         name=project_data.name,
         description=project_data.description,
         included_species=project_data.included_species,
+        timezone=project_data.timezone,
     )
 
     db.add(project)
