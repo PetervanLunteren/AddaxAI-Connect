@@ -62,6 +62,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None
+    timezone: Optional[str] = None
 
 
 class ProjectDeleteResponse(BaseModel):
@@ -80,6 +81,7 @@ class ProjectResponse(BaseModel):
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: float
+    timezone: str
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     created_at: str
@@ -142,6 +144,7 @@ async def list_projects(
             description=project.description,
             included_species=project.included_species,
             detection_threshold=project.detection_threshold,
+            timezone=project.timezone,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
             created_at=project.created_at.isoformat(),
@@ -190,6 +193,7 @@ async def get_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
+        timezone=project.timezone,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
@@ -234,6 +238,7 @@ async def create_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
+        timezone=project.timezone,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
@@ -289,6 +294,16 @@ async def update_project(
         project.description = project_data.description
     if project_data.included_species is not None:
         project.included_species = project_data.included_species
+    if project_data.timezone is not None:
+        from zoneinfo import ZoneInfo
+        try:
+            ZoneInfo(project_data.timezone)
+        except (KeyError, Exception):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid timezone: {project_data.timezone}",
+            )
+        project.timezone = project_data.timezone
 
     await db.commit()
     await db.refresh(project)
@@ -301,6 +316,7 @@ async def update_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
+        timezone=project.timezone,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
