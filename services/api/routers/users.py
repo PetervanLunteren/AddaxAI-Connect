@@ -27,6 +27,7 @@ class ProjectWithRole(BaseModel):
     role: str
     included_species: List[str] | None = None
     detection_threshold: float
+    timezone: str
     image_url: str | None = None
     thumbnail_url: str | None = None
 
@@ -74,6 +75,7 @@ async def get_my_projects(
                     role="server-admin",
                     included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
+                    timezone=project.timezone,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
                 )
@@ -98,6 +100,7 @@ async def get_my_projects(
                     role=membership.role,
                     included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
+                    timezone=project.timezone,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
                 )

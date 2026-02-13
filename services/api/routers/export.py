@@ -37,9 +37,6 @@ from auth.project_access import get_accessible_project_ids
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
 
-# TODO: make timezone configurable per project
-EXPORT_TIMEZONE = "Europe/Amsterdam"
-
 CAMTRAP_DP_VERSION = "1.0"
 CAMTRAP_DP_PROFILE = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/camtrap-dp-profile.json"
 DEPLOYMENTS_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTRAP_DP_VERSION}/deployments-table-schema.json"
@@ -516,7 +513,7 @@ async def export_camtrap_dp(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    tz = ZoneInfo(EXPORT_TIMEZONE)
+    tz = ZoneInfo(project.timezone)
 
     # Load species taxonomy lookup
     tax_result = await db.execute(select(SpeciesTaxonomy))
@@ -820,7 +817,7 @@ async def export_observations(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    tz = ZoneInfo(EXPORT_TIMEZONE)
+    tz = ZoneInfo(project.timezone)
 
     tax_result = await db.execute(select(SpeciesTaxonomy))
     taxonomy_rows = tax_result.scalars().all()
@@ -1371,7 +1368,7 @@ async def export_spatial(
             detail="Project not found",
         )
 
-    tz = ZoneInfo(EXPORT_TIMEZONE)
+    tz = ZoneInfo(project.timezone)
 
     # Taxonomy lookup
     tax_result = await db.execute(select(SpeciesTaxonomy))

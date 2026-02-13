@@ -11,6 +11,7 @@ import { Loader2, Save, AlertCircle } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
+import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
@@ -35,6 +36,7 @@ export const ProjectSettingsPage: React.FC = () => {
   // State
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
+  const [timezone, setTimezone] = useState<string>(currentProject?.timezone ?? 'UTC');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +44,7 @@ export const ProjectSettingsPage: React.FC = () => {
   useEffect(() => {
     if (currentProject) {
       setThreshold(currentProject.detection_threshold ?? 0.2);
+      setTimezone(currentProject.timezone ?? 'UTC');
       const included = currentProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
@@ -91,7 +94,8 @@ export const ProjectSettingsPage: React.FC = () => {
   const currentSpeciesValues = (currentProject.included_species || []).sort().join(',');
   const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
-  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges;
+  const hasTimezoneChanges = timezone !== (currentProject.timezone ?? 'UTC');
+  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasTimezoneChanges;
 
   // Unified save handler
   const handleSave = async () => {
@@ -105,12 +109,17 @@ export const ProjectSettingsPage: React.FC = () => {
         promises.push(updateThresholdMutation.mutateAsync(threshold));
       }
 
-      if (hasSpeciesChanges) {
+      if (hasSpeciesChanges || hasTimezoneChanges) {
+        const update: ProjectUpdate = {};
+        if (hasSpeciesChanges) {
+          update.included_species = includedSpecies.map(s => s.value as string);
+        }
+        if (hasTimezoneChanges) {
+          update.timezone = timezone;
+        }
         promises.push(updateSpeciesMutation.mutateAsync({
           id: currentProject.id,
-          update: {
-            included_species: includedSpecies.map(s => s.value as string),
-          },
+          update,
         }));
       }
 
@@ -189,6 +198,24 @@ export const ProjectSettingsPage: React.FC = () => {
             />
             <p className="text-xs text-muted-foreground mt-1">
               Only selected species appear in new classifications. Leave empty for all.
+            </p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t my-6" />
+
+          {/* Timezone */}
+          <div>
+            <label className="text-sm font-medium block mb-2">
+              Camera timezone
+            </label>
+            <TimezoneSelect
+              value={timezone}
+              onChange={setTimezone}
+              disabled={isSaving}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Timezone the cameras are set to. Used for CamTrap DP exports and activity charts.
             </p>
           </div>
 

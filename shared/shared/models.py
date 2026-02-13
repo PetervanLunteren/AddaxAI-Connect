@@ -217,6 +217,7 @@ class Project(Base):
     image_path = Column(String(512), nullable=True)  # MinIO path to original project image
     thumbnail_path = Column(String(512), nullable=True)  # MinIO path to thumbnail (256x256)
     detection_threshold = Column(Float, nullable=False, server_default='0.5')  # Minimum confidence for detections to be visible (0.0-1.0)
+    timezone = Column(String(50), nullable=False, server_default='UTC')  # IANA timezone name for camera timestamps (e.g., "Europe/Amsterdam")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

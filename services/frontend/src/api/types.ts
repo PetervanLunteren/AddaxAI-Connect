@@ -224,6 +224,7 @@ export interface Project {
   description: string | null;
   included_species: string[] | null;
   detection_threshold: number;
+  timezone: string;
   created_at: string;
   updated_at: string | null;
   image_url: string | null;
@@ -240,6 +241,7 @@ export interface ProjectUpdate {
   name?: string;
   description?: string;
   included_species?: string[];
+  timezone?: string;
 }
 
 export interface ProjectDeleteResponse {
@@ -279,6 +281,7 @@ export interface ProjectWithRole {
   role: string;
   included_species: string[] | null;
   detection_threshold: number;
+  timezone: string;
   image_url: string | null;
   thumbnail_url: string | null;
 }
