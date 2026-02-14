@@ -1,11 +1,6 @@
 # TODO list
 
 ### Priority 1
-- [x] RESET PASSWORD - New task! How to reset my password? If a user want to reset their password, how do they do it? If there is no way to do it now, should we add an option in the hamburger menu? I know the backend is functioning with password reset links etc, but i think the front end is just not shoing an option to actually do it. Investigate.
-
-
-
-- [ ] TELEGRAM NOTIFICATIONS BUG - It seems that the detection threshold is not applied to the telegram notifications, but the visualisations (bbox + labels) on the telegram images are. Sometimes i get a message that a fox was observed, but nothing is visualised. I get the feeling that the fox in question has a detection confidence below the threshold, and is hence not visualised, but send nonetheless. Only send for detections above the detecion threshhold. investigate. 
 - [ ] INDEPENDENCE INTERVAL - investigate. (Create proper prompt with refs to other platforms.)
 
 ### Priority 2

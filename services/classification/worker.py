@@ -132,12 +132,8 @@ def process_detection_complete(message: dict, classifier) -> None:
         # Step 6.5: Publish notification events for each unique species detected
         if classifications:
             try:
-                # Group classifications by species and get highest confidence for each
-                species_map = {}
-                for classification in classifications:
-                    species = classification.species
-                    if species not in species_map or classification.confidence > species_map[species].confidence:
-                        species_map[species] = classification
+                # Build detection confidence lookup for threshold filtering
+                detection_confidence = {d.detection_id: d.confidence for d in detections}
 
                 # Get camera info from image record
                 from shared.database import get_db_session
@@ -154,133 +150,153 @@ def process_detection_complete(message: dict, classifier) -> None:
                         # Apply privacy blur to person/vehicle regions before annotation
                         from shared.models import Project, Detection as DetectionModel
                         project = db.query(Project).filter(Project.id == camera.project_id).first()
-                        if project and project.blur_people_vehicles:
-                            pv_dets = db.query(DetectionModel).filter(
-                                DetectionModel.image_id == image.id,
-                                DetectionModel.category.in_(["person", "vehicle"]),
-                                DetectionModel.confidence >= project.detection_threshold,
-                            ).all()
-                            if pv_dets:
-                                from PIL import Image as PILImage
-                                from PIL import ImageFilter
-                                img = PILImage.open(image_path)
-                                if img.mode != 'RGB':
-                                    img = img.convert('RGB')
-                                img_w, img_h = img.size
-                                for det in pv_dets:
-                                    normalized = det.bbox.get('normalized')
-                                    if not normalized or len(normalized) != 4:
-                                        continue
-                                    x_min_n, y_min_n, width_n, height_n = normalized
-                                    x1 = max(0, int(x_min_n * img_w))
-                                    y1 = max(0, int(y_min_n * img_h))
-                                    x2 = min(img_w, int((x_min_n + width_n) * img_w))
-                                    y2 = min(img_h, int((y_min_n + height_n) * img_h))
-                                    if x2 > x1 and y2 > y1:
-                                        region = img.crop((x1, y1, x2, y2))
-                                        region = region.filter(ImageFilter.GaussianBlur(radius=25))
-                                        img.paste(region, (x1, y1))
-                                img.save(image_path, format='JPEG', quality=90)
-                                logger.info("Applied privacy blur", image_uuid=image_uuid, num_blurred=len(pv_dets))
 
-                        try:
-                            # Build detection/classification pairs for annotation
-                            # Match by detection_id and convert bbox to pixel coords
-                            detection_classification_pairs = []
-                            for classification in classifications:
-                                # Find matching detection
-                                matching_det = next(
-                                    (d for d in detections if d.detection_id == classification.detection_id),
-                                    None
-                                )
-                                if matching_det:
-                                    # Convert normalized bbox to pixel coordinates
-                                    bbox_n = matching_det.bbox_normalized
-                                    pixel_bbox = {
-                                        'x': int(bbox_n[0] * matching_det.image_width),
-                                        'y': int(bbox_n[1] * matching_det.image_height),
-                                        'width': int(bbox_n[2] * matching_det.image_width),
-                                        'height': int(bbox_n[3] * matching_det.image_height)
-                                    }
-                                    ann_det = AnnotatedDetection(
-                                        bbox=pixel_bbox,
-                                        category=matching_det.category
-                                    )
-                                    ann_class = AnnotatedClassification(
-                                        species=classification.species,
-                                        confidence=classification.confidence
-                                    )
-                                    detection_classification_pairs.append((ann_det, ann_class))
+                        # Filter classifications by parent detection confidence vs project threshold
+                        det_threshold = project.detection_threshold if project else 0
+                        species_map = {}
+                        for classification in classifications:
+                            det_conf = detection_confidence.get(classification.detection_id, 0)
+                            if det_conf < det_threshold:
+                                continue
+                            species = classification.species
+                            if species not in species_map or classification.confidence > species_map[species].confidence:
+                                species_map[species] = classification
 
-                            if detection_classification_pairs:
-                                # Generate and upload annotated image
-                                annotated_bytes = generate_annotated_image(
-                                    image_path=image_path,
-                                    detections=detection_classification_pairs
-                                )
-                                annotated_minio_path = upload_annotated_image_to_minio(
-                                    image_bytes=annotated_bytes,
-                                    image_uuid=image_uuid
-                                )
-                                logger.info(
-                                    "Generated annotated image for notifications",
-                                    image_uuid=image_uuid,
-                                    minio_path=annotated_minio_path
-                                )
-                        except Exception as e:
-                            logger.warning(
-                                "Failed to generate annotated image, notifications will be sent without image",
-                                error=str(e)
-                            )
-
-                        # Use image EXIF timestamp (DateTimeOriginal) or GPS from image, not camera
-                        # Priority: Image GPS > Camera GPS
-                        location = None
-                        metadata = image.image_metadata or {}
-
-                        # GPS coordinates are stored as gps_decimal: [lat, lon] tuple in metadata
-                        gps_decimal = metadata.get('gps_decimal')
-                        if gps_decimal and len(gps_decimal) == 2:
-                            # Use GPS from image EXIF
-                            location = {
-                                "lat": gps_decimal[0],
-                                "lon": gps_decimal[1]
-                            }
-                        elif camera.location:
-                            # Fallback to camera location
-                            location = {
-                                "lat": camera.location.coords[1],
-                                "lon": camera.location.coords[0]
-                            }
-
-                        # DateTimeOriginal is stored as ISO string in metadata
-                        datetime_original = metadata.get('DateTimeOriginal')
-                        timestamp = datetime_original if datetime_original else message.get("timestamp")
-
-                        notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
-
-                        # Publish one notification per unique species
-                        for species, classification in species_map.items():
-                            notification_queue.publish({
-                                "event_type": "species_detection",
-                                "project_id": camera.project_id,
-                                "image_uuid": image_uuid,
-                                "camera_id": camera.id,
-                                "camera_name": camera.name,
-                                "camera_location": location,
-                                "species": species,
-                                "confidence": classification.confidence,
-                                "detection_count": len(classifications),
-                                "annotated_minio_path": annotated_minio_path,  # MinIO path for secure delivery
-                                "timestamp": timestamp
-                            })
+                        if not species_map:
                             logger.info(
-                                "Published species detection notification",
-                                species=species,
-                                confidence=classification.confidence,
-                                total_species_count=len(species_map),
-                                annotated_minio_path=annotated_minio_path
+                                "All detections below threshold, skipping notifications",
+                                image_uuid=image_uuid,
+                                detection_threshold=det_threshold
                             )
+                        else:
+                            if project and project.blur_people_vehicles:
+                                pv_dets = db.query(DetectionModel).filter(
+                                    DetectionModel.image_id == image.id,
+                                    DetectionModel.category.in_(["person", "vehicle"]),
+                                    DetectionModel.confidence >= project.detection_threshold,
+                                ).all()
+                                if pv_dets:
+                                    from PIL import Image as PILImage
+                                    from PIL import ImageFilter
+                                    img = PILImage.open(image_path)
+                                    if img.mode != 'RGB':
+                                        img = img.convert('RGB')
+                                    img_w, img_h = img.size
+                                    for det in pv_dets:
+                                        normalized = det.bbox.get('normalized')
+                                        if not normalized or len(normalized) != 4:
+                                            continue
+                                        x_min_n, y_min_n, width_n, height_n = normalized
+                                        x1 = max(0, int(x_min_n * img_w))
+                                        y1 = max(0, int(y_min_n * img_h))
+                                        x2 = min(img_w, int((x_min_n + width_n) * img_w))
+                                        y2 = min(img_h, int((y_min_n + height_n) * img_h))
+                                        if x2 > x1 and y2 > y1:
+                                            region = img.crop((x1, y1, x2, y2))
+                                            region = region.filter(ImageFilter.GaussianBlur(radius=25))
+                                            img.paste(region, (x1, y1))
+                                    img.save(image_path, format='JPEG', quality=90)
+                                    logger.info("Applied privacy blur", image_uuid=image_uuid, num_blurred=len(pv_dets))
+
+                            try:
+                                # Build detection/classification pairs for annotation
+                                # Only include detections above the detection threshold
+                                detection_classification_pairs = []
+                                for classification in classifications:
+                                    # Find matching detection
+                                    matching_det = next(
+                                        (d for d in detections if d.detection_id == classification.detection_id),
+                                        None
+                                    )
+                                    if matching_det and matching_det.confidence >= det_threshold:
+                                        # Convert normalized bbox to pixel coordinates
+                                        bbox_n = matching_det.bbox_normalized
+                                        pixel_bbox = {
+                                            'x': int(bbox_n[0] * matching_det.image_width),
+                                            'y': int(bbox_n[1] * matching_det.image_height),
+                                            'width': int(bbox_n[2] * matching_det.image_width),
+                                            'height': int(bbox_n[3] * matching_det.image_height)
+                                        }
+                                        ann_det = AnnotatedDetection(
+                                            bbox=pixel_bbox,
+                                            category=matching_det.category
+                                        )
+                                        ann_class = AnnotatedClassification(
+                                            species=classification.species,
+                                            confidence=classification.confidence
+                                        )
+                                        detection_classification_pairs.append((ann_det, ann_class))
+
+                                if detection_classification_pairs:
+                                    # Generate and upload annotated image
+                                    annotated_bytes = generate_annotated_image(
+                                        image_path=image_path,
+                                        detections=detection_classification_pairs
+                                    )
+                                    annotated_minio_path = upload_annotated_image_to_minio(
+                                        image_bytes=annotated_bytes,
+                                        image_uuid=image_uuid
+                                    )
+                                    logger.info(
+                                        "Generated annotated image for notifications",
+                                        image_uuid=image_uuid,
+                                        minio_path=annotated_minio_path
+                                    )
+                            except Exception as e:
+                                logger.warning(
+                                    "Failed to generate annotated image, notifications will be sent without image",
+                                    error=str(e)
+                                )
+
+                            # Use image EXIF timestamp (DateTimeOriginal) or GPS from image, not camera
+                            # Priority: Image GPS > Camera GPS
+                            location = None
+                            metadata = image.image_metadata or {}
+
+                            # GPS coordinates are stored as gps_decimal: [lat, lon] tuple in metadata
+                            gps_decimal = metadata.get('gps_decimal')
+                            if gps_decimal and len(gps_decimal) == 2:
+                                # Use GPS from image EXIF
+                                location = {
+                                    "lat": gps_decimal[0],
+                                    "lon": gps_decimal[1]
+                                }
+                            elif camera.location:
+                                # Fallback to camera location
+                                location = {
+                                    "lat": camera.location.coords[1],
+                                    "lon": camera.location.coords[0]
+                                }
+
+                            # DateTimeOriginal is stored as ISO string in metadata
+                            datetime_original = metadata.get('DateTimeOriginal')
+                            timestamp = datetime_original if datetime_original else message.get("timestamp")
+
+                            notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
+
+                            # Publish one notification per unique species
+                            for species, classification in species_map.items():
+                                notification_queue.publish({
+                                    "event_type": "species_detection",
+                                    "project_id": camera.project_id,
+                                    "image_uuid": image_uuid,
+                                    "camera_id": camera.id,
+                                    "camera_name": camera.name,
+                                    "camera_location": location,
+                                    "species": species,
+                                    "confidence": classification.confidence,
+                                    "detection_confidence": detection_confidence.get(classification.detection_id, 0),
+                                    "detection_count": len(classifications),
+                                    "annotated_minio_path": annotated_minio_path,
+                                    "timestamp": timestamp
+                                })
+                                logger.info(
+                                    "Published species detection notification",
+                                    species=species,
+                                    confidence=classification.confidence,
+                                    total_species_count=len(species_map),
+                                    annotated_minio_path=annotated_minio_path
+                                )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))
 

@@ -173,7 +173,8 @@ def _evaluate_json_preferences(
             return None
 
         # Check detection confidence vs project threshold
-        confidence = event.get('confidence')
+        # Use detection_confidence (MegaDetector) if available, fall back to classification confidence
+        confidence = event.get('detection_confidence', event.get('confidence'))
         if confidence is None:
             logger.warning("Missing confidence in species_detection event")
             return None

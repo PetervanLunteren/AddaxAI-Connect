@@ -24,12 +24,14 @@ class DetectionInfo:
         self,
         detection_id: int,
         category: str,
+        confidence: float,
         bbox_normalized: list[float],
         image_width: int,
         image_height: int
     ):
         self.detection_id = detection_id
         self.category = category
+        self.confidence = confidence
         self.bbox_normalized = bbox_normalized
         self.image_width = image_width
         self.image_height = image_height
