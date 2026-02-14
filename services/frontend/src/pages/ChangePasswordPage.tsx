@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import { changePassword } from '../api/auth';
 
 export const ChangePasswordPage: React.FC = () => {
@@ -68,7 +68,7 @@ export const ChangePasswordPage: React.FC = () => {
         title="Change password"
         description="Update your account password"
       >
-        <Card>
+        <Card className="max-w-md">
           <CardContent className="py-8">
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
@@ -92,12 +92,9 @@ export const ChangePasswordPage: React.FC = () => {
       title="Change password"
       description="Update your account password"
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Change password</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-6 max-w-md" onSubmit={handleSubmit}>
+      <Card className="max-w-md">
+        <CardContent className="pt-6">
+          <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
                 {error}
