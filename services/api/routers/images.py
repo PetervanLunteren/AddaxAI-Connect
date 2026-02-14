@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, or_, desc
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 import io
@@ -334,28 +334,46 @@ async def list_images(
             )
         )
 
+    # Build species filter condition (reused for both count and data queries)
+    # Must respect verified status: use AI classifications for unverified, human observations for verified
+    species_condition = None
+    if species_filter:
+        species_condition = or_(
+            # Unverified images: match by AI Classification (with detection threshold)
+            and_(
+                Image.is_verified == False,
+                Image.id.in_(
+                    select(Image.id)
+                    .join(Detection)
+                    .join(Classification)
+                    .join(Camera, Image.camera_id == Camera.id)
+                    .join(Project, Camera.project_id == Project.id)
+                    .where(
+                        and_(
+                            Classification.species.in_(species_filter),
+                            Detection.confidence >= Project.detection_threshold
+                        )
+                    )
+                )
+            ),
+            # Verified images: match by HumanObservation species
+            and_(
+                Image.is_verified == True,
+                Image.id.in_(
+                    select(Image.id)
+                    .join(HumanObservation)
+                    .where(HumanObservation.species.in_(species_filter))
+                )
+            ),
+        )
+
     # Count total (join with Camera for project filtering)
     count_query = select(func.count(Image.id)).join(Camera)
     if filters:
         count_query = count_query.where(and_(*filters))
 
-    # Add species filter if present (requires subquery with threshold check)
-    if species_filter:
-        count_query = count_query.where(
-            Image.id.in_(
-                select(Image.id)
-                .join(Detection)
-                .join(Classification)
-                .join(Camera, Image.camera_id == Camera.id)
-                .join(Project, Camera.project_id == Project.id)
-                .where(
-                    and_(
-                        Classification.species.in_(species_filter),
-                        Detection.confidence >= Project.detection_threshold
-                    )
-                )
-            )
-        )
+    if species_condition is not None:
+        count_query = count_query.where(species_condition)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar_one()
@@ -378,23 +396,8 @@ async def list_images(
     if filters:
         query = query.where(and_(*filters))
 
-    # Add species filter if present (requires subquery with threshold check)
-    if species_filter:
-        query = query.where(
-            Image.id.in_(
-                select(Image.id)
-                .join(Detection)
-                .join(Classification)
-                .join(Camera, Image.camera_id == Camera.id)
-                .join(Project, Camera.project_id == Project.id)
-                .where(
-                    and_(
-                        Classification.species.in_(species_filter),
-                        Detection.confidence >= Project.detection_threshold
-                    )
-                )
-            )
-        )
+    if species_condition is not None:
+        query = query.where(species_condition)
 
     result = await db.execute(query)
     rows = result.all()
