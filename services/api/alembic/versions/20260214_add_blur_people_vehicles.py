@@ -3,7 +3,7 @@
 Per-project privacy setting to automatically blur detected people and vehicles
 in all images. Enabled by default for privacy protection.
 
-Revision ID: 20260214_add_blur_people_vehicles
+Revision ID: 20260214_add_blur_ppl_vehicles
 Revises: 20260213_add_project_timezone
 Create Date: 2026-02-14
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic
-revision = '20260214_add_blur_people_vehicles'
+revision = '20260214_add_blur_ppl_vehicles'
 down_revision = '20260213_add_project_timezone'
 branch_labels = None
 depends_on = None
