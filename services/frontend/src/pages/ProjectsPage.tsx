@@ -6,8 +6,10 @@
  * Server admins and project admins can manage their projects.
  */
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Loader2, Camera } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2, Camera, AlertCircle } from 'lucide-react';
+import { adminApi } from '../api/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
@@ -20,6 +22,13 @@ export const ProjectsPage: React.FC = () => {
   const { user, logout } = useAuth();
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Check if timezone is configured (server admins only)
+  const { data: tzStatus } = useQuery({
+    queryKey: ['timezone-configured'],
+    queryFn: adminApi.isTimezoneConfigured,
+    enabled: isServerAdmin,
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -64,6 +73,17 @@ export const ProjectsPage: React.FC = () => {
             }
           </p>
         </div>
+
+        {/* Timezone not configured banner (server admins only) */}
+        {isServerAdmin && tzStatus && !tzStatus.configured && (
+          <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">
+              Camera timezone hasn't been configured yet.{' '}
+              <Link to="/server/settings" className="underline font-medium">Set it in Server Settings</Link>
+            </span>
+          </div>
+        )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">

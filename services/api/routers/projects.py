@@ -54,7 +54,6 @@ class ProjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
-    timezone: str
 
 
 class ProjectUpdate(BaseModel):
@@ -63,7 +62,6 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None
-    timezone: Optional[str] = None
     blur_people_vehicles: Optional[bool] = None
 
 
@@ -83,7 +81,6 @@ class ProjectResponse(BaseModel):
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: float
-    timezone: str
     blur_people_vehicles: bool
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
@@ -147,7 +144,6 @@ async def list_projects(
             description=project.description,
             included_species=project.included_species,
             detection_threshold=project.detection_threshold,
-            timezone=project.timezone,
             blur_people_vehicles=project.blur_people_vehicles,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
@@ -197,7 +193,6 @@ async def get_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
-        timezone=project.timezone,
         blur_people_vehicles=project.blur_people_vehicles,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -225,20 +220,10 @@ async def create_project(
     Returns:
         Created project
     """
-    from zoneinfo import ZoneInfo
-    try:
-        ZoneInfo(project_data.timezone)
-    except (KeyError, Exception):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid timezone: {project_data.timezone}",
-        )
-
     project = Project(
         name=project_data.name,
         description=project_data.description,
         included_species=project_data.included_species,
-        timezone=project_data.timezone,
     )
 
     db.add(project)
@@ -253,7 +238,6 @@ async def create_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
-        timezone=project.timezone,
         blur_people_vehicles=project.blur_people_vehicles,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -310,16 +294,6 @@ async def update_project(
         project.description = project_data.description
     if project_data.included_species is not None:
         project.included_species = project_data.included_species
-    if project_data.timezone is not None:
-        from zoneinfo import ZoneInfo
-        try:
-            ZoneInfo(project_data.timezone)
-        except (KeyError, Exception):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid timezone: {project_data.timezone}",
-            )
-        project.timezone = project_data.timezone
     if project_data.blur_people_vehicles is not None:
         project.blur_people_vehicles = project_data.blur_people_vehicles
 
@@ -334,7 +308,6 @@ async def update_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
-        timezone=project.timezone,
         blur_people_vehicles=project.blur_people_vehicles,
         image_url=image_url,
         thumbnail_url=thumbnail_url,

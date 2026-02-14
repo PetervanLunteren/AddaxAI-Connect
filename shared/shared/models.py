@@ -217,7 +217,6 @@ class Project(Base):
     image_path = Column(String(512), nullable=True)  # MinIO path to original project image
     thumbnail_path = Column(String(512), nullable=True)  # MinIO path to thumbnail (256x256)
     detection_threshold = Column(Float, nullable=False, server_default='0.5')  # Minimum confidence for detections to be visible (0.0-1.0)
-    timezone = Column(String(50), nullable=False, server_default='UTC')  # IANA timezone name for camera timestamps (e.g., "Europe/Amsterdam")
     blur_people_vehicles = Column(Boolean, nullable=False, server_default='true')  # Blur detected people and vehicles in all images for privacy
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
@@ -338,6 +337,16 @@ class TelegramConfig(Base):
     is_configured = Column(Boolean, nullable=False, server_default="false")
     last_health_check = Column(DateTime(timezone=True), nullable=True)
     health_status = Column(String(50), nullable=True)  # healthy, error, not_configured
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class ServerSettings(Base):
+    """Server-wide settings (single row)"""
+    __tablename__ = "server_settings"
+
+    id = Column(Integer, primary_key=True)
+    timezone = Column(String(50), nullable=True)  # NULL = not configured yet
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

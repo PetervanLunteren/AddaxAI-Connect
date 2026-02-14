@@ -16,7 +16,8 @@ import type {
   SignalRegisterRequest,
   SignalUpdateConfigRequest,
   TelegramConfig,
-  TelegramConfigureRequest
+  TelegramConfigureRequest,
+  ServerSettings,
 } from './types';
 
 export const adminApi = {
@@ -216,6 +217,31 @@ export const adminApi = {
       chat_id: chatId,
       message
     });
+    return response.data;
+  },
+
+  // Server Settings
+  /**
+   * Get server-wide settings (server admin only)
+   */
+  getServerSettings: async (): Promise<ServerSettings> => {
+    const response = await apiClient.get<ServerSettings>('/api/admin/server-settings');
+    return response.data;
+  },
+
+  /**
+   * Update server-wide settings (server admin only)
+   */
+  updateServerSettings: async (data: { timezone: string }): Promise<ServerSettings> => {
+    const response = await apiClient.patch<ServerSettings>('/api/admin/server-settings', data);
+    return response.data;
+  },
+
+  /**
+   * Check if server timezone has been configured (any authenticated user)
+   */
+  isTimezoneConfigured: async (): Promise<{ configured: boolean }> => {
+    const response = await apiClient.get<{ configured: boolean }>('/api/admin/server-settings/timezone-configured');
     return response.data;
   },
 

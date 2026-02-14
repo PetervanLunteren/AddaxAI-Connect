@@ -1,13 +1,16 @@
 /**
- * Telegram Configuration Page
+ * Server Settings Page
  *
- * Allows superusers to configure Telegram bot for notifications
+ * Unified page for server-wide settings: timezone configuration and Telegram bot setup.
+ * Only accessible by server admins.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
+import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
+import { Button } from '../../components/ui/Button';
 import { adminApi } from '../../api/admin';
 
 // Generate random 5-character hash for bot username
@@ -81,16 +84,62 @@ const DownloadButton: React.FC<{ fileName: string }> = ({ fileName }) => {
   );
 };
 
-export const TelegramConfigPage: React.FC = () => {
+export const ServerSettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
+
+  // --- Timezone state ---
+  const [timezone, setTimezone] = useState('');
+  const [tzSaveStatus, setTzSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [tzError, setTzError] = useState<string | null>(null);
+
+  // --- Telegram state ---
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [botToken, setBotToken] = useState('');
   const [botUsername, setBotUsername] = useState(generateBotUsername());
   const [showTestModal, setShowTestModal] = useState(false);
   const [testChatId, setTestChatId] = useState('');
 
+  // Query server settings
+  const { data: serverSettings, isLoading: settingsLoading } = useQuery({
+    queryKey: ['server-settings'],
+    queryFn: adminApi.getServerSettings,
+    retry: false,
+  });
+
+  // Sync timezone state when server settings load
+  useEffect(() => {
+    if (serverSettings?.timezone) {
+      setTimezone(serverSettings.timezone);
+    }
+  }, [serverSettings]);
+
+  const hasTimezoneChanges = timezone !== (serverSettings?.timezone ?? '') && timezone !== '';
+
+  // Update timezone mutation
+  const updateTimezoneMutation = useMutation({
+    mutationFn: (tz: string) => adminApi.updateServerSettings({ timezone: tz }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['server-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['timezone-configured'] });
+      setTzSaveStatus('success');
+      setTimeout(() => setTzSaveStatus('idle'), 2000);
+    },
+    onError: (error: any) => {
+      setTzError(error.response?.data?.detail || error.message || 'Failed to save timezone');
+      setTzSaveStatus('error');
+      setTimeout(() => setTzSaveStatus('idle'), 3000);
+    },
+  });
+
+  const handleSaveTimezone = () => {
+    if (!timezone) return;
+    setTzSaveStatus('saving');
+    setTzError(null);
+    updateTimezoneMutation.mutate(timezone);
+  };
+
   // Query Telegram configuration
-  const { data: config, isLoading, error } = useQuery({
+  const { data: telegramConfig, isLoading: telegramLoading, error: telegramError } = useQuery({
     queryKey: ['telegram-config'],
     queryFn: adminApi.getTelegramConfig,
     retry: false,
@@ -162,30 +211,85 @@ export const TelegramConfigPage: React.FC = () => {
     sendTestMutation.mutate({ chatId: testChatId, message });
   };
 
-  const isConfigured = !error && config?.is_configured;
+  const isTelegramConfigured = !telegramError && telegramConfig?.is_configured;
 
   return (
     <ServerPageLayout
-      title="Telegram Notifications"
-      description="Configure Telegram bot for sending notifications to users"
+      title="Server Settings"
+      description="Configure server-wide settings for timezone and notifications"
     >
       <div className="space-y-6">
-        {/* Status Card */}
+        {/* Section 1: Timezone */}
         <Card>
           <CardHeader>
-            <CardTitle>Telegram Status</CardTitle>
+            <CardTitle>Camera Timezone</CardTitle>
             <CardDescription>
-              Current Telegram bot configuration status
+              Timezone the cameras are set to. Used for exports and activity charts.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {settingsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : isConfigured && config ? (
+            ) : (
               <div className="space-y-4">
-                {/* Configured State - Prominent */}
+                <TimezoneSelect
+                  value={timezone}
+                  onChange={setTimezone}
+                  disabled={tzSaveStatus === 'saving'}
+                />
+
+                {tzError && (
+                  <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    {tzError}
+                  </div>
+                )}
+
+                {hasTimezoneChanges && (
+                  <Button
+                    onClick={handleSaveTimezone}
+                    disabled={tzSaveStatus === 'saving'}
+                    size="sm"
+                  >
+                    {tzSaveStatus === 'saving' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save timezone
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {tzSaveStatus === 'success' && !hasTimezoneChanges && (
+                  <p className="text-sm text-green-600">Timezone saved</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Section 2: Telegram Notifications */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Telegram Notifications</CardTitle>
+            <CardDescription>
+              Configure Telegram bot for sending notifications to users
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {telegramLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : isTelegramConfigured && telegramConfig ? (
+              <div className="space-y-4">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 mt-1">
                     <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -193,7 +297,7 @@ export const TelegramConfigPage: React.FC = () => {
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold mb-2">Configured and ready</h3>
                     <p className="text-sm text-muted-foreground mb-1">
-                      Telegram bot: <span className="font-medium text-foreground">@{config.bot_username}</span>
+                      Telegram bot: <span className="font-medium text-foreground">@{telegramConfig.bot_username}</span>
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Users can now configure Telegram notifications in their project settings.
@@ -223,7 +327,6 @@ export const TelegramConfigPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Not Configured State - Prominent */}
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 mt-1">
                     <XCircle className="h-8 w-8 text-red-500" />

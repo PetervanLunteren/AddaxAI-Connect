@@ -27,6 +27,7 @@ from sqlalchemy.orm import selectinload
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
     HumanObservation, CameraDeploymentPeriod, SpeciesTaxonomy,
+    ServerSettings,
 )
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
@@ -513,7 +514,9 @@ async def export_camtrap_dp(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    tz = ZoneInfo(project.timezone)
+    from routers.admin import get_server_timezone
+    server_tz = await get_server_timezone(db)
+    tz = ZoneInfo(server_tz)
 
     # Load species taxonomy lookup
     tax_result = await db.execute(select(SpeciesTaxonomy))
@@ -829,7 +832,9 @@ async def export_observations(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
-    tz = ZoneInfo(project.timezone)
+    from routers.admin import get_server_timezone
+    server_tz = await get_server_timezone(db)
+    tz = ZoneInfo(server_tz)
 
     tax_result = await db.execute(select(SpeciesTaxonomy))
     taxonomy_rows = tax_result.scalars().all()
@@ -1380,7 +1385,9 @@ async def export_spatial(
             detail="Project not found",
         )
 
-    tz = ZoneInfo(project.timezone)
+    from routers.admin import get_server_timezone
+    server_tz = await get_server_timezone(db)
+    tz = ZoneInfo(server_tz)
 
     # Taxonomy lookup
     tax_result = await db.execute(select(SpeciesTaxonomy))

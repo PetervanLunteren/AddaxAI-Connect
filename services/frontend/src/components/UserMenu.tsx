@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Plus, MessageCircle, Activity, LogOut, Info, KeyRound } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, Plus, Settings, Activity, LogOut, Info, KeyRound } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -90,9 +90,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
       variant: 'default' as const,
     },
     {
-      icon: MessageCircle,
-      label: 'Set up Telegram bot',
-      onClick: () => handleNavigate('/server/telegram-config'),
+      icon: Settings,
+      label: 'Server settings',
+      onClick: () => handleNavigate('/server/settings'),
       variant: 'default' as const,
     },
     {

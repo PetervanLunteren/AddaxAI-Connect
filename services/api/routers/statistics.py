@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
@@ -322,12 +322,11 @@ async def get_last_update(
         Last update timestamp (EXIF capture time preferred) or null if no images exist
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    # Query most recent classified image with project timezone
+
+    # Query most recent classified image
     query = (
-        select(Image, Project.timezone)
-        .select_from(Image)
+        select(Image)
         .join(Camera, Image.camera_id == Camera.id)
-        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Image.status == "classified",
@@ -339,18 +338,20 @@ async def get_last_update(
     )
 
     result = await db.execute(query)
-    row = result.first()
+    image = result.scalar_one_or_none()
 
-    if not row:
+    if not image:
         return LastUpdateResponse(last_update=None)
 
-    image, project_timezone = row
+    # Get server timezone
+    from routers.admin import get_server_timezone
+    server_tz = await get_server_timezone(db)
 
     # uploaded_at is set from EXIF capture time by the ingestion pipeline,
-    # stored as UTC but actually in the camera's local timezone (project timezone).
+    # stored as UTC but actually in the camera's local timezone (server timezone).
     # Re-interpret it in the correct timezone, then convert to real UTC.
     naive_dt = image.uploaded_at.replace(tzinfo=None)
-    local_dt = naive_dt.replace(tzinfo=ZoneInfo(project_timezone or "UTC"))
+    local_dt = naive_dt.replace(tzinfo=ZoneInfo(server_tz))
     utc_dt = local_dt.astimezone(timezone.utc)
 
     return LastUpdateResponse(last_update=utc_dt.isoformat())
