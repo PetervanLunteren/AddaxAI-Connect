@@ -178,7 +178,7 @@ def process_detection_complete(message: dict, classifier) -> None:
                                     y2 = min(img_h, int((y_min_n + height_n) * img_h))
                                     if x2 > x1 and y2 > y1:
                                         region = img.crop((x1, y1, x2, y2))
-                                        region = region.filter(ImageFilter.GaussianBlur(radius=40))
+                                        region = region.filter(ImageFilter.GaussianBlur(radius=25))
                                         img.paste(region, (x1, y1))
                                 img.save(image_path, format='JPEG', quality=90)
                                 logger.info("Applied privacy blur", image_uuid=image_uuid, num_blurred=len(pv_dets))
