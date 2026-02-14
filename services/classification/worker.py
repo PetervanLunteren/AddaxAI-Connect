@@ -168,10 +168,14 @@ def process_detection_complete(message: dict, classifier) -> None:
                                     img = img.convert('RGB')
                                 img_w, img_h = img.size
                                 for det in pv_dets:
-                                    x1 = max(0, int(det.bbox['x_min']))
-                                    y1 = max(0, int(det.bbox['y_min']))
-                                    x2 = min(img_w, x1 + int(det.bbox['width']))
-                                    y2 = min(img_h, y1 + int(det.bbox['height']))
+                                    normalized = det.bbox.get('normalized')
+                                    if not normalized or len(normalized) != 4:
+                                        continue
+                                    x_min_n, y_min_n, width_n, height_n = normalized
+                                    x1 = max(0, int(x_min_n * img_w))
+                                    y1 = max(0, int(y_min_n * img_h))
+                                    x2 = min(img_w, int((x_min_n + width_n) * img_w))
+                                    y2 = min(img_h, int((y_min_n + height_n) * img_h))
                                     if x2 > x1 and y2 > y1:
                                         region = img.crop((x1, y1, x2, y2))
                                         region = region.filter(ImageFilter.GaussianBlur(radius=40))

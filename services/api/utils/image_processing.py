@@ -212,10 +212,14 @@ def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
     Used to blur detected people and vehicles in camera trap images.
     Returns the original bytes unchanged if blur_regions is empty.
 
+    Uses normalized bbox coordinates (0-1 range) so blur works correctly
+    at any image size (thumbnails, full images, exports).
+
     Args:
         image_data: Raw image bytes (JPEG/PNG)
-        blur_regions: List of detection bbox dicts, each with
-            x_min, y_min, width, height in pixel coordinates
+        blur_regions: List of detection bbox dicts, each with a
+            "normalized" key containing [x_min, y_min, width, height]
+            in 0-1 range relative to the original image dimensions
 
     Returns:
         JPEG image bytes with specified regions blurred
@@ -229,10 +233,15 @@ def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
     img_w, img_h = img.size
 
     for region in blur_regions:
-        x1 = max(0, int(region['x_min']))
-        y1 = max(0, int(region['y_min']))
-        x2 = min(img_w, x1 + int(region['width']))
-        y2 = min(img_h, y1 + int(region['height']))
+        normalized = region.get('normalized')
+        if not normalized or len(normalized) != 4:
+            continue
+
+        x_min_n, y_min_n, width_n, height_n = normalized
+        x1 = max(0, int(x_min_n * img_w))
+        y1 = max(0, int(y_min_n * img_h))
+        x2 = min(img_w, int((x_min_n + width_n) * img_w))
+        y2 = min(img_h, int((y_min_n + height_n) * img_h))
 
         if x2 <= x1 or y2 <= y1:
             continue
