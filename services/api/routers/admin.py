@@ -83,7 +83,9 @@ async def list_users(
         List of users and pending invitations with project memberships
     """
     # Get all users
-    result = await db.execute(select(User))
+    result = await db.execute(
+        select(User).where(User.email != "system@addaxai.com")
+    )
     users = result.scalars().all()
 
     # Build responses with project memberships
