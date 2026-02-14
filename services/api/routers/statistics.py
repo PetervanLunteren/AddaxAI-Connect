@@ -3,6 +3,7 @@ Statistics endpoints for dashboard metrics and charts.
 """
 from typing import List, Optional, Any, Dict
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc, text
@@ -321,10 +322,11 @@ async def get_last_update(
         Last update timestamp (EXIF capture time preferred) or null if no images exist
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    # Query most recent classified image (filtered by project via camera)
+    # Query most recent classified image with project timezone
     query = (
-        select(Image)
+        select(Image, Project.timezone)
         .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Image.status == "classified",
@@ -336,12 +338,21 @@ async def get_last_update(
     )
 
     result = await db.execute(query)
-    image = result.scalar_one_or_none()
+    row = result.first()
 
-    if not image:
+    if not row:
         return LastUpdateResponse(last_update=None)
 
-    return LastUpdateResponse(last_update=image.uploaded_at.isoformat())
+    image, project_timezone = row
+
+    # uploaded_at is set from EXIF capture time by the ingestion pipeline,
+    # stored as UTC but actually in the camera's local timezone (project timezone).
+    # Re-interpret it in the correct timezone, then convert to real UTC.
+    naive_dt = image.uploaded_at.replace(tzinfo=None)
+    local_dt = naive_dt.replace(tzinfo=ZoneInfo(project_timezone or "UTC"))
+    utc_dt = local_dt.astimezone(timezone.utc)
+
+    return LastUpdateResponse(last_update=utc_dt.isoformat())
 
 
 class DeploymentFeatureProperties(BaseModel):
