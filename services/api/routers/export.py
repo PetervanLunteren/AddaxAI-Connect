@@ -625,6 +625,8 @@ async def export_camtrap_dp(
 
         # Add thumbnails if requested
         if include_media:
+            from utils.image_processing import apply_privacy_blur
+
             storage_client = StorageClient()
             for entry in media_entries:
                 image = entry["image"]
@@ -632,6 +634,16 @@ async def export_camtrap_dp(
                     continue
                 try:
                     thumb_data = storage_client.download_fileobj(BUCKET_THUMBNAILS, image.thumbnail_path)
+
+                    # Apply privacy blur to person/vehicle detections
+                    if project.blur_people_vehicles:
+                        blur_regions = [
+                            d.bbox for d in image.detections
+                            if d.category in ("person", "vehicle")
+                            and d.confidence >= project.detection_threshold
+                        ]
+                        thumb_data = apply_privacy_blur(thumb_data, blur_regions)
+
                     zf.writestr(f"media/{entry['unique_filename']}", thumb_data)
                 except Exception as e:
                     logger.warning(

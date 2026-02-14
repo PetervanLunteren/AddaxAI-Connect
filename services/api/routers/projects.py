@@ -64,6 +64,7 @@ class ProjectUpdate(BaseModel):
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None
     timezone: Optional[str] = None
+    blur_people_vehicles: Optional[bool] = None
 
 
 class ProjectDeleteResponse(BaseModel):
@@ -83,6 +84,7 @@ class ProjectResponse(BaseModel):
     included_species: Optional[List[str]] = None
     detection_threshold: float
     timezone: str
+    blur_people_vehicles: bool
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     created_at: str
@@ -146,6 +148,7 @@ async def list_projects(
             included_species=project.included_species,
             detection_threshold=project.detection_threshold,
             timezone=project.timezone,
+            blur_people_vehicles=project.blur_people_vehicles,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
             created_at=project.created_at.isoformat(),
@@ -195,6 +198,7 @@ async def get_project(
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
         timezone=project.timezone,
+        blur_people_vehicles=project.blur_people_vehicles,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
@@ -250,6 +254,7 @@ async def create_project(
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
         timezone=project.timezone,
+        blur_people_vehicles=project.blur_people_vehicles,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),
@@ -315,6 +320,8 @@ async def update_project(
                 detail=f"Invalid timezone: {project_data.timezone}",
             )
         project.timezone = project_data.timezone
+    if project_data.blur_people_vehicles is not None:
+        project.blur_people_vehicles = project_data.blur_people_vehicles
 
     await db.commit()
     await db.refresh(project)
@@ -328,6 +335,7 @@ async def update_project(
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
         timezone=project.timezone,
+        blur_people_vehicles=project.blur_people_vehicles,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         created_at=project.created_at.isoformat(),

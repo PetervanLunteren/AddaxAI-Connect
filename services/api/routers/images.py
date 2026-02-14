@@ -781,6 +781,28 @@ async def save_verification(
     )
 
 
+async def _get_blur_regions(
+    db: AsyncSession, image: Image, project: Project,
+) -> list[dict]:
+    """
+    Return person/vehicle detection bboxes if blur is enabled for the project.
+
+    Returns empty list if blur is disabled or no matching detections exist.
+    Only includes detections above the project's detection threshold.
+    """
+    if not project.blur_people_vehicles:
+        return []
+
+    result = await db.execute(
+        select(Detection).where(
+            Detection.image_id == image.id,
+            Detection.category.in_(["person", "vehicle"]),
+            Detection.confidence >= project.detection_threshold,
+        )
+    )
+    return [d.bbox for d in result.scalars().all()]
+
+
 async def _stream_image_from_storage(
     image: Image,
     use_thumbnail: bool = False,
@@ -861,13 +883,37 @@ async def get_image_thumbnail(
             detail="Image not found",
         )
 
-    # Check project access
+    # Check project access and get project for blur setting
     camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
     camera = camera_result.scalar_one_or_none()
     if camera and camera.project_id not in accessible_project_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image"
+        )
+
+    # Check if privacy blur is needed
+    project = None
+    if camera and camera.project_id:
+        project_result = await db.execute(select(Project).where(Project.id == camera.project_id))
+        project = project_result.scalar_one_or_none()
+
+    blur_regions = await _get_blur_regions(db, image, project) if project else []
+
+    if blur_regions:
+        from utils.image_processing import apply_privacy_blur
+        storage_client = StorageClient()
+        bucket = "thumbnails" if image.thumbnail_path else "raw-images"
+        object_name = image.thumbnail_path if image.thumbnail_path else image.storage_path
+        image_data = storage_client.download_fileobj(bucket, object_name)
+        blurred_data = apply_privacy_blur(image_data, blur_regions)
+        return StreamingResponse(
+            io.BytesIO(blurred_data),
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "private, max-age=3600",
+                "ETag": f'"{image.uuid}-blurred"',
+            }
         )
 
     return await _stream_image_from_storage(image, use_thumbnail=True, cache_max_age=3600)
@@ -898,13 +944,35 @@ async def get_image_full(
             detail="Image not found",
         )
 
-    # Check project access
+    # Check project access and get project for blur setting
     camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
     camera = camera_result.scalar_one_or_none()
     if camera and camera.project_id not in accessible_project_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image"
+        )
+
+    # Check if privacy blur is needed
+    project = None
+    if camera and camera.project_id:
+        project_result = await db.execute(select(Project).where(Project.id == camera.project_id))
+        project = project_result.scalar_one_or_none()
+
+    blur_regions = await _get_blur_regions(db, image, project) if project else []
+
+    if blur_regions:
+        from utils.image_processing import apply_privacy_blur
+        storage_client = StorageClient()
+        image_data = storage_client.download_fileobj("raw-images", image.storage_path)
+        blurred_data = apply_privacy_blur(image_data, blur_regions)
+        return StreamingResponse(
+            io.BytesIO(blurred_data),
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "private, max-age=86400",
+                "ETag": f'"{image.uuid}-blurred"',
+            }
         )
 
     return await _stream_image_from_storage(image, cache_max_age=86400)
@@ -989,6 +1057,12 @@ async def get_annotated_image(
             detail=f"Failed to fetch image from storage: {str(e)}",
         )
 
+    # Apply privacy blur to person/vehicle regions before annotation
+    blur_regions = await _get_blur_regions(db, image, project)
+    if blur_regions:
+        from utils.image_processing import apply_privacy_blur
+        image_bytes = apply_privacy_blur(image_bytes, blur_regions)
+
     # Get image dimensions from metadata
     if not image.image_metadata or 'width' not in image.image_metadata:
         raise HTTPException(
@@ -1059,6 +1133,6 @@ async def get_annotated_image(
         media_type="image/jpeg",
         headers={
             "Cache-Control": f"private, max-age=3600",
-            "ETag": f'"{uuid}-annotated"',
+            "ETag": f'"{uuid}-annotated{"-blurred" if blur_regions else ""}"',
         }
     )
