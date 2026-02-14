@@ -247,7 +247,7 @@ def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
             continue
 
         cropped = img.crop((x1, y1, x2, y2))
-        blurred = cropped.filter(ImageFilter.GaussianBlur(radius=15))
+        blurred = cropped.filter(ImageFilter.GaussianBlur(radius=25))
         img.paste(blurred, (x1, y1))
 
     output = BytesIO()
