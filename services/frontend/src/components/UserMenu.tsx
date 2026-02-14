@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { Menu, Users, FileX, Upload, Trash2, Plus, MessageCircle, Activity, LogOut, Info, KeyRound } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 interface UserMenuProps {
   user: User;
@@ -21,6 +22,7 @@ interface UserMenuProps {
 export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreateProject, onLogout }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -145,7 +147,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
               <span>Logout</span>
             </button>
             <button
-              onClick={() => handleNavigate('/change-password')}
+              onClick={() => { setIsOpen(false); setShowChangePassword(true); }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
             >
               <KeyRound className="h-4 w-4" />
@@ -193,6 +195,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
           </div>
         </div>
       )}
+
+      <ChangePasswordModal
+        open={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
     </div>
   );
 };
