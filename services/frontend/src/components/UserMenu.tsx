@@ -60,12 +60,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
   // General items (visible to all users)
   const generalItems = [
     {
-      icon: KeyRound,
-      label: 'Change password',
-      onClick: () => handleNavigate('/change-password'),
-      variant: 'default' as const,
-    },
-    {
       icon: Info,
       label: 'About',
       onClick: () => handleNavigate('/about'),
@@ -141,18 +135,22 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
             <p className="text-sm text-muted-foreground truncate">{user.email}</p>
           </div>
 
-          {/* General Items (All Users) */}
+          {/* Account Actions */}
           <div className="py-1">
-            {generalItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={item.onClick}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
-              >
-                <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </button>
-            ))}
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </button>
+            <button
+              onClick={() => handleNavigate('/change-password')}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+            >
+              <KeyRound className="h-4 w-4" />
+              <span>Change password</span>
+            </button>
           </div>
 
           {/* Server Admin Items (Conditionally Rendered) */}
@@ -179,16 +177,19 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
             </>
           )}
 
-          {/* Footer: Logout */}
+          {/* Footer: About */}
           <div className="border-t border-border my-1" />
           <div className="py-1">
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Logout</span>
-            </button>
+            {generalItems.map((item, index) => (
+              <button
+                key={index}
+                onClick={item.onClick}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
