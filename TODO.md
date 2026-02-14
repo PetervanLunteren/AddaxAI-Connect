@@ -1,11 +1,11 @@
 # TODO list
 
 ### Priority 1
-- [ ] TIMEZONE SETTING - New task! Make an option for each project to define a timezone setting, and place it in the settings page of each project (follow the other settings UI UX and feel). Knowning which timezone is set in the cameras is needed for activity patterns and camtrapDP. Currently there is a timezone hardcoded. Find it and make it configurable. How does this work? Do we just provide a list with all Timezones with friendly names like "Amsterdam" and UTC diffs? But this assumes the timezones have summer and sinter times, right? I assume it is also possible to set camera traps to UTC, or just something like UTC - 9. Then there are no summer/winter time differences, right?
 - [ ] BLUR FEATURE - New task! We want to, by default, blur all the boxes of people and vehicles in the UI. So in the thumbnails, the ImageModals, and everywhere else where we see the images. Also in the camtrapDP export. This should be a setting in the project settings (follow the other settings UI UX and feel), so only project admins and server admins can change it. 
 - [ ] FILTERING BUG - New task! The filtering options in the images page do not take into account the detection threhsold. If there eg is a fox below the det thresh, and a dog above it, the image will still show up if you search for "fox". Investigate and find out how to fix this. Its probabaly due to a SQL query that is missing the detection threhsold set in the project settings. 
 - [ ] RESET PASSWORD - New task! How to reset my password? If a user want to reset their password, how do they do it? If there is no way to do it now, should we add an option in the hamburger menu? I know the backend is functioning with password reset links etc, but i think the front end is just not shoing an option to actually do it. Investigate. 
 - [ ] TELEGRAM NOTIFICATIONS BUG - It seems that the detection threshold is not applied to the telegram notifications, but the visualisations (bbox + labels) on the telegram images are. Sometimes i get a message that a fox was observed, but nothing is visualised. I get the feeling that the fox in question has a detection confidence below the threshold, and is hence not visualised, but send nonetheless. Only send for detections above the detecion threshhold. investigate. 
+- [ ] INDEPENDENCE INTERVAL - investigate. (Create proper prompt with refs to other platforms.)
 
 ### Priority 2
 - [ ] DEPLOYMENT DEFINITION - understand the definition of a deployment better. what defines it? Is that also what CamtrapDP defines as a deployment? 
@@ -20,6 +20,7 @@
 ### Priority 3
 - [ ] EXLUCDE IMGS PAGE - Make a page for project admins where we can include/exclude images from the view and statistics. That way we can exclude test images for example.
 - [ ] DROPDOWN SETTING - Limit the notifcation species options to only the ones selected to be poresent in the project.
+- [ ] FULL SCREEN MAP VIEW - Add option to see maps in full screen. 
 
 **SPW server**
 - [ ] NEW server spw.addaxai.com project namne: ANLIER NORD
