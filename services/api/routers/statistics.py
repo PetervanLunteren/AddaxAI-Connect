@@ -341,7 +341,7 @@ async def get_last_update(
     if not image:
         return LastUpdateResponse(last_update=None)
 
-    return LastUpdateResponse(last_update=image.uploaded_at.isoformat())
+    return LastUpdateResponse(last_update=image.uploaded_at.isoformat() + "Z")
 
 
 class DeploymentFeatureProperties(BaseModel):
