@@ -16,6 +16,10 @@ const formatRelativeTime = (date: string | Date): string => {
   const then = new Date(date);
   const diffSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
 
+  if (diffSeconds < 0) {
+    return 'just now';
+  }
+
   if (diffSeconds < 60) {
     return `${diffSeconds}s ago`;
   }
