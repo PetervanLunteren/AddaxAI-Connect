@@ -5,8 +5,8 @@ Handles validation, thumbnail generation, and local file storage for project ima
 """
 import os
 from io import BytesIO
-from typing import BinaryIO
-from PIL import Image
+from typing import BinaryIO, List
+from PIL import Image, ImageFilter
 from fastapi import UploadFile
 
 from shared.logger import get_logger
@@ -203,6 +203,47 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
             exc_info=True
         )
         raise ValueError(f"Failed to save image: {str(e)}")
+
+
+def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
+    """
+    Apply Gaussian blur to specified regions of an image for privacy.
+
+    Used to blur detected people and vehicles in camera trap images.
+    Returns the original bytes unchanged if blur_regions is empty.
+
+    Args:
+        image_data: Raw image bytes (JPEG/PNG)
+        blur_regions: List of detection bbox dicts, each with
+            x_min, y_min, width, height in pixel coordinates
+
+    Returns:
+        JPEG image bytes with specified regions blurred
+    """
+    if not blur_regions:
+        return image_data
+
+    img = Image.open(BytesIO(image_data))
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    img_w, img_h = img.size
+
+    for region in blur_regions:
+        x1 = max(0, int(region['x_min']))
+        y1 = max(0, int(region['y_min']))
+        x2 = min(img_w, x1 + int(region['width']))
+        y2 = min(img_h, y1 + int(region['height']))
+
+        if x2 <= x1 or y2 <= y1:
+            continue
+
+        cropped = img.crop((x1, y1, x2, y2))
+        blurred = cropped.filter(ImageFilter.GaussianBlur(radius=40))
+        img.paste(blurred, (x1, y1))
+
+    output = BytesIO()
+    img.save(output, format='JPEG', quality=95, optimize=True)
+    return output.getvalue()
 
 
 def delete_project_images(image_filename: str | None, thumbnail_filename: str | None) -> None:

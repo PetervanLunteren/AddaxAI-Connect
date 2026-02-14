@@ -150,6 +150,35 @@ def process_detection_complete(message: dict, classifier) -> None:
                         # Generate annotated image and upload to MinIO for secure delivery
                         # Image is deleted after Telegram sends it (no public URLs)
                         annotated_minio_path = None
+
+                        # Apply privacy blur to person/vehicle regions before annotation
+                        from shared.models import Project, Detection as DetectionModel
+                        project = db.query(Project).filter(Project.id == camera.project_id).first()
+                        if project and project.blur_people_vehicles:
+                            pv_dets = db.query(DetectionModel).filter(
+                                DetectionModel.image_id == image.id,
+                                DetectionModel.category.in_(["person", "vehicle"]),
+                                DetectionModel.confidence >= project.detection_threshold,
+                            ).all()
+                            if pv_dets:
+                                from PIL import Image as PILImage
+                                from PIL import ImageFilter
+                                img = PILImage.open(image_path)
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img_w, img_h = img.size
+                                for det in pv_dets:
+                                    x1 = max(0, int(det.bbox['x_min']))
+                                    y1 = max(0, int(det.bbox['y_min']))
+                                    x2 = min(img_w, x1 + int(det.bbox['width']))
+                                    y2 = min(img_h, y1 + int(det.bbox['height']))
+                                    if x2 > x1 and y2 > y1:
+                                        region = img.crop((x1, y1, x2, y2))
+                                        region = region.filter(ImageFilter.GaussianBlur(radius=40))
+                                        img.paste(region, (x1, y1))
+                                img.save(image_path, format='JPEG', quality=90)
+                                logger.info("Applied privacy blur", image_uuid=image_uuid, num_blurred=len(pv_dets))
+
                         try:
                             # Build detection/classification pairs for annotation
                             # Match by detection_id and convert bbox to pixel coords

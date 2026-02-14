@@ -37,6 +37,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [timezone, setTimezone] = useState<string>(currentProject?.timezone ?? 'UTC');
+  const [blurPeopleVehicles, setBlurPeopleVehicles] = useState<boolean>(currentProject?.blur_people_vehicles ?? true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,7 @@ export const ProjectSettingsPage: React.FC = () => {
     if (currentProject) {
       setThreshold(currentProject.detection_threshold ?? 0.2);
       setTimezone(currentProject.timezone ?? 'UTC');
+      setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
       const included = currentProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
@@ -95,7 +97,8 @@ export const ProjectSettingsPage: React.FC = () => {
   const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
   const hasTimezoneChanges = timezone !== (currentProject.timezone ?? 'UTC');
-  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasTimezoneChanges;
+  const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
+  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasTimezoneChanges || hasBlurChanges;
 
   // Unified save handler
   const handleSave = async () => {
@@ -109,13 +112,16 @@ export const ProjectSettingsPage: React.FC = () => {
         promises.push(updateThresholdMutation.mutateAsync(threshold));
       }
 
-      if (hasSpeciesChanges || hasTimezoneChanges) {
+      if (hasSpeciesChanges || hasTimezoneChanges || hasBlurChanges) {
         const update: ProjectUpdate = {};
         if (hasSpeciesChanges) {
           update.included_species = includedSpecies.map(s => s.value as string);
         }
         if (hasTimezoneChanges) {
           update.timezone = timezone;
+        }
+        if (hasBlurChanges) {
+          update.blur_people_vehicles = blurPeopleVehicles;
         }
         promises.push(updateSpeciesMutation.mutateAsync({
           id: currentProject.id,
@@ -217,6 +223,37 @@ export const ProjectSettingsPage: React.FC = () => {
             <p className="text-xs text-muted-foreground mt-1">
               Timezone the cameras are set to. Used for CamTrap DP exports and activity charts.
             </p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t my-6" />
+
+          {/* Privacy blur */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium block">
+                Blur people and vehicles
+              </label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Automatically blur detected people and vehicles in all images for privacy
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={blurPeopleVehicles}
+              onClick={() => setBlurPeopleVehicles(!blurPeopleVehicles)}
+              disabled={isSaving}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                blurPeopleVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
+              } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  blurPeopleVehicles ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Save Button */}
