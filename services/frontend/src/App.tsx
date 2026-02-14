@@ -22,6 +22,7 @@ import { ImagesPage } from './pages/ImagesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { AboutPage } from './pages/AboutPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementPage';
 import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
@@ -113,6 +114,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <HealthPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/change-password"
+                element={
+                  <ProtectedRoute>
+                    <ChangePasswordPage />
                   </ProtectedRoute>
                 }
               />

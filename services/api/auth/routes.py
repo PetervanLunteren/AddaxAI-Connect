@@ -14,13 +14,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from .users import fastapi_users, auth_backend
+from .users import fastapi_users, auth_backend, current_verified_user
 from .schemas import UserRead, UserCreate, UserUpdate
-from shared.models import UserInvitation, Project
+from .user_manager import UserManager, get_user_manager
+from shared.models import User, UserInvitation, Project
 from shared.database import get_async_session
 from shared.logger import get_logger
 
 logger = get_logger("api.auth")
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request body for changing password"""
+    current_password: str
+    new_password: str
 
 
 class InviteTokenValidationResponse(BaseModel):
@@ -73,6 +80,49 @@ def get_auth_router() -> APIRouter:
         prefix="/users",
         tags=["users"],
     )
+
+    # Custom change password endpoint
+    @router.post("/auth/change-password", tags=["auth"])
+    async def change_password(
+        request_body: ChangePasswordRequest,
+        user: User = Depends(current_verified_user),
+        user_manager: UserManager = Depends(get_user_manager),
+    ):
+        """
+        Change password for authenticated user.
+
+        Requires the current password for verification before setting a new one.
+        """
+        # Verify current password
+        verified, _ = user_manager.password_helper.verify_and_update(
+            request_body.current_password, user.hashed_password
+        )
+        if not verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Incorrect current password",
+            )
+
+        # Validate new password
+        try:
+            await user_manager.validate_password(request_body.new_password, user)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=e.reason if hasattr(e, "reason") else str(e),
+            )
+
+        # Hash and update
+        hashed = user_manager.password_helper.hash(request_body.new_password)
+        await user_manager.user_db.update(user, {"hashed_password": hashed})
+
+        logger.info(
+            "Password changed successfully",
+            user_id=user.id,
+            email=user.email,
+        )
+
+        return {"message": "Password changed"}
 
     # Custom invitation token validation endpoint
     @router.get(

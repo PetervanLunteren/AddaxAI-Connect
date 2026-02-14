@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Plus, MessageCircle, Activity, LogOut, Info } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, Plus, MessageCircle, Activity, LogOut, Info, KeyRound } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 
@@ -59,6 +59,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
 
   // General items (visible to all users)
   const generalItems = [
+    {
+      icon: KeyRound,
+      label: 'Change password',
+      onClick: () => handleNavigate('/change-password'),
+      variant: 'default' as const,
+    },
     {
       icon: Info,
       label: 'About',
