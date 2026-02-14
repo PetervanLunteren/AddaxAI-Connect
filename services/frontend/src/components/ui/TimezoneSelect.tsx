@@ -29,12 +29,12 @@ function buildFixedOffsetGroup(): TimezoneGroup {
 
   for (let i = -12; i <= 14; i++) {
     if (i === 0) {
-      offsets.push({ label: 'UTC (no DST)', value: 'UTC' });
+      offsets.push({ label: 'UTC (fixed, no daylight saving)', value: 'UTC' });
     } else {
       const sign = i > 0 ? '+' : '';
       const ianaSign = i > 0 ? '-' : '+';
       const ianaValue = `Etc/GMT${ianaSign}${Math.abs(i)}`;
-      offsets.push({ label: `UTC${sign}${i} (no DST)`, value: ianaValue });
+      offsets.push({ label: `UTC${sign}${i} (fixed, no daylight saving)`, value: ianaValue });
     }
   }
 
@@ -160,13 +160,13 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
 
   // Custom filter: search on city name and IANA value, not the offset in parentheses
   // This prevents "UTC" from matching every option via "(UTC+X)" in the label
-  // Fixed-offset entries (containing "no DST") match on their full label
+  // Fixed-offset entries (containing "fixed, no daylight saving") match on their full label
   const filterOption = (option: FilterOptionOption<TimezoneOption>, inputValue: string) => {
     const search = inputValue.toLowerCase();
     const value = option.value.toLowerCase();
     const label = option.label.toLowerCase();
 
-    // Fixed-offset entries: match on full label (e.g., "UTC+4 (no DST)")
+    // Fixed-offset entries: match on full label (e.g., "UTC+4 (fixed, no daylight saving)")
     if (label.includes('no dst')) {
       return label.includes(search);
     }
