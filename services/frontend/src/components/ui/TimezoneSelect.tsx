@@ -3,7 +3,7 @@
  * Styled to match the application theme (same as MultiSelect)
  */
 import React, { useMemo } from 'react';
-import Select, { SingleValue, StylesConfig, GroupBase } from 'react-select';
+import Select, { SingleValue, StylesConfig, GroupBase, FilterOptionOption } from 'react-select';
 
 interface TimezoneOption {
   label: string;
@@ -22,6 +22,25 @@ interface TimezoneSelectProps {
   className?: string;
 }
 
+function buildFixedOffsetGroup(): TimezoneGroup {
+  // Fixed UTC offsets without DST, using Etc/GMT± IANA names
+  // Note: IANA convention inverts the sign (Etc/GMT-4 = UTC+4)
+  const offsets: TimezoneOption[] = [];
+
+  for (let i = -12; i <= 14; i++) {
+    if (i === 0) {
+      offsets.push({ label: 'UTC (no DST)', value: 'UTC' });
+    } else {
+      const sign = i > 0 ? '+' : '';
+      const ianaSign = i > 0 ? '-' : '+';
+      const ianaValue = `Etc/GMT${ianaSign}${Math.abs(i)}`;
+      offsets.push({ label: `UTC${sign}${i} (no DST)`, value: ianaValue });
+    }
+  }
+
+  return { label: 'Fixed offset', options: offsets };
+}
+
 function buildTimezoneOptions(): TimezoneGroup[] {
   const timezones = Intl.supportedValuesOf('timeZone');
   const groups: Record<string, TimezoneOption[]> = {};
@@ -32,6 +51,9 @@ function buildTimezoneOptions(): TimezoneGroup[] {
     // City name: take last part, replace underscores with spaces
     const city = parts[parts.length - 1].replace(/_/g, ' ');
 
+    // Skip Etc/* zones - we handle these in the fixed offset group
+    if (region === 'Etc') continue;
+
     // Compute current UTC offset
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
@@ -40,7 +62,6 @@ function buildTimezoneOptions(): TimezoneGroup[] {
     const offsetPart = formatter.formatToParts(new Date())
       .find(p => p.type === 'timeZoneName');
     const offset = offsetPart?.value ?? '';
-    // Normalize "GMT" to "UTC", "GMT+X" to "UTC+X"
     const utcOffset = offset.replace('GMT', 'UTC');
 
     const label = `${city} (${utcOffset})`;
@@ -54,10 +75,13 @@ function buildTimezoneOptions(): TimezoneGroup[] {
     groups[region].sort((a, b) => a.label.localeCompare(b.label));
   }
 
-  // Sort groups alphabetically
-  return Object.keys(groups)
+  // Build geographic groups sorted alphabetically
+  const geographicGroups = Object.keys(groups)
     .sort()
     .map(region => ({ label: region, options: groups[region] }));
+
+  // Fixed offset group first, then geographic groups
+  return [buildFixedOffsetGroup(), ...geographicGroups];
 }
 
 const customStyles: StylesConfig<TimezoneOption, false, GroupBase<TimezoneOption>> = {
@@ -134,6 +158,24 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
     if (option) onChange(option.value);
   };
 
+  // Custom filter: search on city name and IANA value, not the offset in parentheses
+  // This prevents "UTC" from matching every option via "(UTC+X)" in the label
+  // Fixed-offset entries (containing "no DST") match on their full label
+  const filterOption = (option: FilterOptionOption<TimezoneOption>, inputValue: string) => {
+    const search = inputValue.toLowerCase();
+    const value = option.value.toLowerCase();
+    const label = option.label.toLowerCase();
+
+    // Fixed-offset entries: match on full label (e.g., "UTC+4 (no DST)")
+    if (label.includes('no dst')) {
+      return label.includes(search);
+    }
+
+    // Geographic entries: match on IANA value or city name (before the parentheses)
+    const cityPart = label.split('(')[0].trim();
+    return value.includes(search) || cityPart.includes(search);
+  };
+
   return (
     <Select<TimezoneOption, false, GroupBase<TimezoneOption>>
       options={groupedOptions}
@@ -145,6 +187,7 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
       classNamePrefix="react-select"
       isSearchable
       isDisabled={disabled}
+      filterOption={filterOption}
     />
   );
 };
