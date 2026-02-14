@@ -24,3 +24,4 @@ playwright==1.40.0
 openpyxl==3.1.2
 geojson==3.1.0
 pyshp==2.3.1
+tzdata>=2024.1
