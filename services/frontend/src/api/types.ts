@@ -224,7 +224,6 @@ export interface Project {
   description: string | null;
   included_species: string[] | null;
   detection_threshold: number;
-  timezone: string;
   blur_people_vehicles: boolean;
   created_at: string;
   updated_at: string | null;
@@ -236,14 +235,12 @@ export interface ProjectCreate {
   name: string;
   description?: string;
   included_species?: string[];
-  timezone: string;
 }
 
 export interface ProjectUpdate {
   name?: string;
   description?: string;
   included_species?: string[];
-  timezone?: string;
   blur_people_vehicles?: boolean;
 }
 
@@ -284,10 +281,14 @@ export interface ProjectWithRole {
   role: string;
   included_species: string[] | null;
   detection_threshold: number;
-  timezone: string;
   blur_people_vehicles: boolean;
   image_url: string | null;
   thumbnail_url: string | null;
+}
+
+// Server-wide settings
+export interface ServerSettings {
+  timezone: string | null;
 }
 
 // Project user management

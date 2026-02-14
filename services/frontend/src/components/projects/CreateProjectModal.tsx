@@ -17,7 +17,6 @@ import {
   DialogFooter,
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
-import { TimezoneSelect } from '../ui/TimezoneSelect';
 import { projectsApi } from '../../api/projects';
 
 interface CreateProjectModalProps {
@@ -29,7 +28,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [timezone, setTimezone] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +39,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
         name,
         description: description || undefined,
         included_species: null, // All species allowed
-        timezone,
       });
 
       // Then upload image if provided
@@ -100,7 +97,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
   const handleClose = () => {
     setName('');
     setDescription('');
-    setTimezone('');
     setImageFile(null);
     setImagePreview(null);
     setError(null);
@@ -116,10 +112,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     e.preventDefault();
     if (!name.trim()) {
       setError('Project name is required');
-      return;
-    }
-    if (!timezone) {
-      setError('Please select a timezone');
       return;
     }
     createMutation.mutate();
@@ -166,20 +158,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                 rows={3}
                 className="w-full px-3 py-2 border rounded-md resize-none"
               />
-            </div>
-
-            {/* Camera Timezone */}
-            <div>
-              <label className="text-sm font-medium block mb-1">
-                Camera timezone <span className="text-destructive">*</span>
-              </label>
-              <TimezoneSelect
-                value={timezone}
-                onChange={setTimezone}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Timezone the cameras are set to
-              </p>
             </div>
 
             {/* Image Upload */}
@@ -236,7 +214,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createMutation.isPending || !name.trim() || !timezone}>
+            <Button type="submit" disabled={createMutation.isPending || !name.trim()}>
               {createMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

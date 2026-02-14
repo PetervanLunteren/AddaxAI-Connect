@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation
+from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation, ServerSettings
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -1274,3 +1274,113 @@ async def update_project_detection_threshold(
         detection_threshold=project.detection_threshold,
         message=f"Detection threshold updated from {old_threshold} to {request.detection_threshold}"
     )
+
+
+# ==================== Server Settings ====================
+
+async def get_server_timezone(db: AsyncSession) -> str:
+    """Get server timezone, defaulting to UTC if not configured."""
+    result = await db.execute(select(ServerSettings).limit(1))
+    settings = result.scalar_one_or_none()
+    return settings.timezone if settings and settings.timezone else "UTC"
+
+
+class ServerSettingsResponse(BaseModel):
+    """Response for server settings"""
+    timezone: Optional[str] = None
+
+
+class ServerSettingsUpdateRequest(BaseModel):
+    """Request to update server settings"""
+    timezone: str
+
+
+@router.get(
+    "/server-settings",
+    response_model=ServerSettingsResponse,
+)
+async def get_server_settings(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Get server-wide settings (server admin only).
+
+    Returns:
+        Server settings including timezone
+    """
+    result = await db.execute(select(ServerSettings).limit(1))
+    settings = result.scalar_one_or_none()
+
+    if not settings:
+        return ServerSettingsResponse(timezone=None)
+
+    return ServerSettingsResponse(timezone=settings.timezone)
+
+
+@router.patch(
+    "/server-settings",
+    response_model=ServerSettingsResponse,
+)
+async def update_server_settings(
+    data: ServerSettingsUpdateRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Update server-wide settings (server admin only).
+
+    Validates timezone with ZoneInfo before saving.
+
+    Args:
+        data: Settings to update (timezone)
+
+    Returns:
+        Updated server settings
+
+    Raises:
+        HTTPException 400: If timezone is invalid
+    """
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(data.timezone)
+    except (KeyError, Exception):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid timezone: {data.timezone}",
+        )
+
+    result = await db.execute(select(ServerSettings).limit(1))
+    settings = result.scalar_one_or_none()
+
+    if settings:
+        settings.timezone = data.timezone
+    else:
+        settings = ServerSettings(timezone=data.timezone)
+        db.add(settings)
+
+    await db.commit()
+
+    logger.info("Server timezone updated", timezone=data.timezone, updated_by=current_user.email)
+
+    return ServerSettingsResponse(timezone=settings.timezone)
+
+
+@router.get(
+    "/server-settings/timezone-configured",
+)
+async def is_timezone_configured(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Check if server timezone has been configured (any authenticated user).
+
+    Returns:
+        { configured: true/false }
+    """
+    result = await db.execute(select(ServerSettings).limit(1))
+    settings = result.scalar_one_or_none()
+    configured = settings is not None and settings.timezone is not None
+
+    return {"configured": configured}

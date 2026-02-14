@@ -27,7 +27,7 @@ import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementP
 import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
 import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
-import { TelegramConfigPage } from './pages/server/TelegramConfigPage';
+import { ServerSettingsPage } from './pages/server/ServerSettingsPage';
 import { HealthPage } from './pages/server/HealthPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
@@ -101,12 +101,17 @@ function App() {
                 }
               />
               <Route
-                path="/server/telegram-config"
+                path="/server/settings"
                 element={
                   <ProtectedRoute>
-                    <TelegramConfigPage />
+                    <ServerSettingsPage />
                   </ProtectedRoute>
                 }
+              />
+              {/* Redirect old Telegram config URL */}
+              <Route
+                path="/server/telegram-config"
+                element={<Navigate to="/server/settings" replace />}
               />
               <Route
                 path="/server/health"

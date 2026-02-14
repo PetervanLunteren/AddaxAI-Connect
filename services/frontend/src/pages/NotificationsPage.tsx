@@ -408,7 +408,7 @@ export const NotificationsPage: React.FC = () => {
                       </p>
                       {user?.is_superuser ? (
                         <Link
-                          to="/server/telegram-config"
+                          to="/server/settings"
                           className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium text-sm"
                         >
                           <Settings className="h-4 w-4" />
