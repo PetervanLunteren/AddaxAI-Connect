@@ -70,6 +70,7 @@ def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[Detec
                 detection_info = DetectionInfo(
                     detection_id=det.id,
                     category=det.category or "unknown",
+                    confidence=det.confidence,
                     bbox_normalized=bbox_normalized,
                     image_width=image_width,
                     image_height=image_height
