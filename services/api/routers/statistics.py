@@ -325,7 +325,8 @@ async def get_last_update(
     # Query most recent classified image with project timezone
     query = (
         select(Image, Project.timezone)
-        .join(Camera)
+        .select_from(Image)
+        .join(Camera, Image.camera_id == Camera.id)
         .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
