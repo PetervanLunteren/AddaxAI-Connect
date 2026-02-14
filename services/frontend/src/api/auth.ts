@@ -47,6 +47,11 @@ export interface ResetPasswordRequest {
   password: string;
 }
 
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
 export interface VerifyEmailRequest {
   token: string;
 }
@@ -143,5 +148,15 @@ export const resetPassword = async (token: string, password: string): Promise<vo
   await apiClient.post('/auth/reset-password', {
     token,
     password,
+  });
+};
+
+/**
+ * Change password for authenticated user
+ */
+export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+  await apiClient.post('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
   });
 };
