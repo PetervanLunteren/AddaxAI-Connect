@@ -435,7 +435,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   onClick={() => { setShowChangesModal(true); setShowToast(false); setShowThresholdBreakdown(false); setShowIndependenceBreakdown(false); }}
                   className="text-[#0f6064] hover:underline font-medium"
                 >
-                  See changes
+                  See effect
                 </button>
               </>
             )}
