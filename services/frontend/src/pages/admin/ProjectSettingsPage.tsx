@@ -6,17 +6,18 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Save, AlertCircle, Check, X } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
-import type { ProjectUpdate } from '../../api/types';
+import type { ProjectUpdate, IndependenceSummaryResponse } from '../../api/types';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
 const DEEPFAUNE_SPECIES = [
@@ -48,7 +49,9 @@ export const ProjectSettingsPage: React.FC = () => {
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [showSpeciesBreakdown, setShowSpeciesBreakdown] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [showChangesModal, setShowChangesModal] = useState(false);
+  const [independenceSummary, setIndependenceSummary] = useState<IndependenceSummaryResponse | null>(null);
 
   // Load values when project changes
   useEffect(() => {
@@ -85,13 +88,6 @@ export const ProjectSettingsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       refreshProjects();
     },
-  });
-
-  // Independence interval impact summary (only fetched when saved interval > 0)
-  const { data: independenceSummary } = useQuery({
-    queryKey: ['independence-summary', currentProject?.id],
-    queryFn: () => statisticsApi.getIndependenceSummary(currentProject!.id),
-    enabled: !!currentProject && (currentProject.independence_interval_minutes ?? 0) > 0,
   });
 
   // Redirect if user doesn't have admin access (after all hooks)
@@ -146,9 +142,25 @@ export const ProjectSettingsPage: React.FC = () => {
       }
 
       await Promise.all(promises);
-      queryClient.invalidateQueries({ queryKey: ['independence-summary'] });
       setSaveStatus('success');
-      setTimeout(() => setSaveStatus('idle'), 2000);
+
+      // Fetch independence summary for the toast (if interval is active)
+      if (independenceInterval > 0 && currentProject) {
+        try {
+          const summary = await statisticsApi.getIndependenceSummary(currentProject.id);
+          setIndependenceSummary(summary);
+        } catch {
+          setIndependenceSummary(null);
+        }
+      } else {
+        setIndependenceSummary(null);
+      }
+
+      setShowToast(true);
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setShowToast(false);
+      }, 5000);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'Failed to save settings');
       setSaveStatus('error');
@@ -278,38 +290,6 @@ export const ProjectSettingsPage: React.FC = () => {
             <p className="text-xs text-muted-foreground mt-1">
               Detections of the same species at the same camera within this interval are counted as one event. Applies to all statistics and exports retroactively.
             </p>
-            {independenceSummary && independenceSummary.raw_total > 0 && (
-              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800">
-                <div className="flex items-center justify-between">
-                  <span>
-                    {independenceSummary.raw_total.toLocaleString()} detections → {independenceSummary.independent_total.toLocaleString()} independent events
-                  </span>
-                  {independenceSummary.species.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowSpeciesBreakdown(!showSpeciesBreakdown)}
-                      className="ml-2 text-blue-600 hover:text-blue-800"
-                    >
-                      {showSpeciesBreakdown ? (
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      ) : (
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  )}
-                </div>
-                {showSpeciesBreakdown && (
-                  <div className="mt-2 pt-2 border-t border-blue-200 space-y-1">
-                    {independenceSummary.species.map((s) => (
-                      <div key={s.species} className="flex justify-between">
-                        <span>{normalizeLabel(s.species)}</span>
-                        <span className="tabular-nums">{s.raw_count.toLocaleString()} → {s.independent_count.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Save Button */}
@@ -335,14 +315,79 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           )}
 
-          {/* Success message */}
-          {saveStatus === 'success' && !hasUnsavedChanges && (
-            <div className="mt-6 pt-4 border-t">
-              <p className="text-sm text-green-600">Settings saved</p>
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {/* Toast notification */}
+      {showToast && (
+        <div
+          className="fixed bottom-6 right-6 z-50 bg-white border border-gray-200 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3"
+          style={{ animation: 'toast-slide-up 0.2s ease-out' }}
+        >
+          <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <span className="text-sm">
+            Settings saved!
+            {independenceSummary && independenceSummary.raw_total > 0 && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={() => { setShowChangesModal(true); setShowToast(false); }}
+                  className="text-[#0f6064] hover:underline font-medium"
+                >
+                  See changes
+                </button>
+              </>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowToast(false)}
+            className="text-gray-400 hover:text-gray-600 ml-1"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Independence interval changes modal */}
+      <Dialog open={showChangesModal} onOpenChange={setShowChangesModal}>
+        <DialogContent onClose={() => setShowChangesModal(false)}>
+          <DialogHeader>
+            <DialogTitle>Independence interval impact</DialogTitle>
+          </DialogHeader>
+          {independenceSummary && independenceSummary.raw_total > 0 ? (
+            <div>
+              <div className="flex justify-between items-baseline mb-4 pb-4 border-b">
+                <span className="text-sm text-muted-foreground">Total</span>
+                <span className="text-sm font-medium tabular-nums">
+                  {independenceSummary.raw_total.toLocaleString()} detections → {independenceSummary.independent_total.toLocaleString()} events
+                </span>
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {independenceSummary.species.map((s) => {
+                  const reduction = s.raw_count > 0
+                    ? Math.round((1 - s.independent_count / s.raw_count) * 100)
+                    : 0;
+                  return (
+                    <div key={s.species} className="flex justify-between items-center text-sm">
+                      <span>{normalizeLabel(s.species)}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {s.raw_count.toLocaleString()} → {s.independent_count.toLocaleString()}
+                        {reduction > 0 && (
+                          <span className="text-xs ml-2 text-green-600">-{reduction}%</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No data available.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
