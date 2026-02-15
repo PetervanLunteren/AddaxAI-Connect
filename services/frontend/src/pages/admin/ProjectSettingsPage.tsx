@@ -254,10 +254,6 @@ export const ProjectSettingsPage: React.FC = () => {
   }));
 
   const isSaving = saveStatus === 'saving';
-  const hasImpactData = modalData && (
-    modalData.thresholdImpact || modalData.independenceImpact ||
-    modalData.speciesChanges || modalData.blurChanged
-  );
 
   return (
     <div>
@@ -442,35 +438,21 @@ export const ProjectSettingsPage: React.FC = () => {
           </DialogHeader>
 
           {modalData && (
-            <div className="space-y-6">
-              {/* Changes summary */}
-              <div>
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Changes</h3>
-                <div className="space-y-2">
-                  {modalData.changes.map((c) => (
-                    <div key={c.label} className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">{c.label}</span>
-                      <span className="tabular-nums">
-                        {c.from} <span className="text-muted-foreground mx-1">&rarr;</span> {c.to}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="space-y-3">
 
-              {/* Impact on results */}
-              {hasImpactData && (
-                <div>
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Impact on results</h3>
-                  <div className="space-y-4">
-
-                    {/* Threshold impact */}
+              {/* Threshold card */}
+              {modalData.changes.find(c => c.label === 'Detection threshold') && (
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-sm font-medium">Detection threshold</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.to}</code>
+                    </p>
                     {modalData.thresholdImpact && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">Detection threshold</p>
+                      <div className="mt-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
                         <p className="text-sm text-muted-foreground mb-2">
-                          {modalData.thresholdImpact.oldResult.total.toLocaleString()} detections
-                          {' '}&rarr; {modalData.thresholdImpact.newResult.total.toLocaleString()} detections
+                          {modalData.thresholdImpact.oldResult.total.toLocaleString()} &rarr; {modalData.thresholdImpact.newResult.total.toLocaleString()} detections
                           {modalData.thresholdImpact.oldResult.total > 0 && (() => {
                             const pct = Math.round(
                               ((modalData.thresholdImpact!.newResult.total - modalData.thresholdImpact!.oldResult.total)
@@ -483,7 +465,6 @@ export const ProjectSettingsPage: React.FC = () => {
                             );
                           })()}
                         </p>
-                        {/* Per-species breakdown */}
                         {(() => {
                           const oldMap = new Map(modalData.thresholdImpact!.oldResult.species.map(s => [s.species, s.count]));
                           const newMap = new Map(modalData.thresholdImpact!.newResult.species.map(s => [s.species, s.count]));
@@ -514,14 +495,23 @@ export const ProjectSettingsPage: React.FC = () => {
                         })()}
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              )}
 
-                    {/* Independence interval impact */}
+              {/* Independence interval card */}
+              {modalData.changes.find(c => c.label === 'Independence interval') && (
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-sm font-medium">Independence interval</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.to}</code>
+                    </p>
                     {modalData.independenceImpact && modalData.independenceImpact.raw_total > 0 && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">Independence interval</p>
+                      <div className="mt-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
                         <p className="text-sm text-muted-foreground mb-2">
-                          {modalData.independenceImpact.raw_total.toLocaleString()} detections
-                          {' '}&rarr; {modalData.independenceImpact.independent_total.toLocaleString()} events
+                          {modalData.independenceImpact.raw_total.toLocaleString()} &rarr; {modalData.independenceImpact.independent_total.toLocaleString()} independent events
                           {(() => {
                             const pct = Math.round(
                               ((modalData.independenceImpact!.independent_total - modalData.independenceImpact!.raw_total)
@@ -554,11 +544,21 @@ export const ProjectSettingsPage: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              )}
 
-                    {/* Species filter impact */}
+              {/* Species filter card */}
+              {modalData.changes.find(c => c.label === 'Species filter') && (
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-sm font-medium">Species filter</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.to}</code>
+                    </p>
                     {modalData.speciesChanges && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">Species filter</p>
+                      <div className="mt-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
                         {modalData.speciesChanges.added.length > 0 && (
                           <p className="text-sm text-muted-foreground">
                             Added: {modalData.speciesChanges.added.map(normalizeLabel).join(', ')}
@@ -574,19 +574,25 @@ export const ProjectSettingsPage: React.FC = () => {
                         </p>
                       </div>
                     )}
-
-                    {/* Blur impact */}
-                    {modalData.blurChanged && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">Blur people & vehicles</p>
-                        <p className="text-sm text-muted-foreground">
-                          Now {blurPeopleVehicles ? 'enabled' : 'disabled'}. This is a visual change only.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               )}
+
+              {/* Blur card */}
+              {modalData.blurChanged && (
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <p className="text-sm font-medium">Blur people & vehicles</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{blurPeopleVehicles ? 'Off' : 'On'}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{blurPeopleVehicles ? 'On' : 'Off'}</code>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2 italic">
+                      This is a visual change only.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
             </div>
           )}
         </DialogContent>
