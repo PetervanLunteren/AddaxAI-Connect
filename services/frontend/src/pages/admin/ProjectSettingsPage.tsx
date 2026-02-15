@@ -479,7 +479,7 @@ export const ProjectSettingsPage: React.FC = () => {
                             );
                             return (
                               <span className="text-xs ml-2 text-[#0f6064]">
-                                {pct >= 0 ? '+' : ''}{pct}%
+                                ({pct >= 0 ? '+' : ''}{pct}%)
                               </span>
                             );
                           })()}
@@ -516,7 +516,7 @@ export const ProjectSettingsPage: React.FC = () => {
                                         <span className="tabular-nums">
                                           <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
                                           <span className="ml-2 text-[#0f6064]">
-                                            {pct >= 0 ? '+' : ''}{pct}%
+                                            ({pct >= 0 ? '+' : ''}{pct}%)
                                           </span>
                                         </span>
                                       </div>
@@ -557,7 +557,7 @@ export const ProjectSettingsPage: React.FC = () => {
                             );
                             return (
                               <span className="text-xs ml-2 text-[#0f6064]">
-                                {pct >= 0 ? '+' : ''}{pct}%
+                                ({pct >= 0 ? '+' : ''}{pct}%)
                               </span>
                             );
                           })()}
@@ -594,7 +594,7 @@ export const ProjectSettingsPage: React.FC = () => {
                                         <span className="tabular-nums">
                                           <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
                                           <span className="ml-2 text-[#0f6064]">
-                                            {pct >= 0 ? '+' : ''}{pct}%
+                                            ({pct >= 0 ? '+' : ''}{pct}%)
                                           </span>
                                         </span>
                                       </div>
