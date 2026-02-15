@@ -449,7 +449,7 @@ export const ProjectSettingsPage: React.FC = () => {
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.to}</code>
                     </p>
                     {modalData.thresholdImpact && (
-                      <div className="mt-3">
+                      <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
                         <p className="text-sm text-muted-foreground mb-2">
                           {modalData.thresholdImpact.oldResult.total.toLocaleString()} &rarr; {modalData.thresholdImpact.newResult.total.toLocaleString()} detections
@@ -508,7 +508,7 @@ export const ProjectSettingsPage: React.FC = () => {
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.to}</code>
                     </p>
                     {modalData.independenceImpact && modalData.independenceImpact.raw_total > 0 && (
-                      <div className="mt-3">
+                      <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
                         <p className="text-sm text-muted-foreground mb-2">
                           {modalData.independenceImpact.raw_total.toLocaleString()} &rarr; {modalData.independenceImpact.independent_total.toLocaleString()} independent events
@@ -557,7 +557,7 @@ export const ProjectSettingsPage: React.FC = () => {
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.to}</code>
                     </p>
                     {modalData.speciesChanges && (
-                      <div className="mt-3">
+                      <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
                         {modalData.speciesChanges.added.length > 0 && (
                           <p className="text-sm text-muted-foreground">
