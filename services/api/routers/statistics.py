@@ -1119,3 +1119,80 @@ async def get_pipeline_status(
         animal_count=category_counts.get('animal', 0),
         empty_count=empty_count,
     )
+
+
+class IndependenceSummarySpecies(BaseModel):
+    species: str
+    raw_count: int
+    independent_count: int
+
+
+class IndependenceSummaryResponse(BaseModel):
+    raw_total: int
+    independent_total: int
+    species: List[IndependenceSummarySpecies]
+
+
+@router.get(
+    "/independence-summary",
+    response_model=IndependenceSummaryResponse,
+)
+async def get_independence_summary(
+    project_id: int = Query(..., description="Project ID (required)"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Compare raw detection counts vs independence-filtered event counts.
+
+    Returns per-species breakdown showing the effect of the independence interval.
+    Only meaningful when the project has independence_interval_minutes > 0.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    interval = await _get_independence_interval(db, project_id)
+
+    if interval == 0:
+        return IndependenceSummaryResponse(
+            raw_total=0,
+            independent_total=0,
+            species=[],
+        )
+
+    # Get raw counts (no independence filtering)
+    raw_counts = await get_preferred_species_counts(
+        db=db,
+        project_ids=accessible_project_ids,
+    )
+
+    # Get independence-filtered counts
+    indep_counts = await get_independent_species_counts(
+        db=db,
+        project_ids=accessible_project_ids,
+        interval_minutes=interval,
+    )
+
+    # Build lookup for independent counts
+    indep_lookup = {c['species']: c['count'] for c in indep_counts}
+
+    # Merge: use raw species list as base (it has all species)
+    species_list = []
+    raw_total = 0
+    indep_total = 0
+    for rc in raw_counts:
+        sp = rc['species']
+        raw_c = rc['count']
+        indep_c = indep_lookup.get(sp, 0)
+        raw_total += raw_c
+        indep_total += indep_c
+        species_list.append(IndependenceSummarySpecies(
+            species=sp,
+            raw_count=raw_c,
+            independent_count=indep_c,
+        ))
+
+    return IndependenceSummaryResponse(
+        raw_total=raw_total,
+        independent_total=indep_total,
+        species=species_list,
+    )

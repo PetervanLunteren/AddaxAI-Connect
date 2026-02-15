@@ -6,14 +6,15 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, AlertCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Save, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
+import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
 import type { ProjectUpdate } from '../../api/types';
 
@@ -47,6 +48,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [showSpeciesBreakdown, setShowSpeciesBreakdown] = useState(false);
 
   // Load values when project changes
   useEffect(() => {
@@ -83,6 +85,13 @@ export const ProjectSettingsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       refreshProjects();
     },
+  });
+
+  // Independence interval impact summary (only fetched when saved interval > 0)
+  const { data: independenceSummary } = useQuery({
+    queryKey: ['independence-summary', currentProject?.id],
+    queryFn: () => statisticsApi.getIndependenceSummary(currentProject!.id),
+    enabled: !!currentProject && (currentProject.independence_interval_minutes ?? 0) > 0,
   });
 
   // Redirect if user doesn't have admin access (after all hooks)
@@ -137,6 +146,7 @@ export const ProjectSettingsPage: React.FC = () => {
       }
 
       await Promise.all(promises);
+      queryClient.invalidateQueries({ queryKey: ['independence-summary'] });
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err: any) {
@@ -268,6 +278,38 @@ export const ProjectSettingsPage: React.FC = () => {
             <p className="text-xs text-muted-foreground mt-1">
               Detections of the same species at the same camera within this interval are counted as one event. Applies to all statistics and exports retroactively.
             </p>
+            {independenceSummary && independenceSummary.raw_total > 0 && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-800">
+                <div className="flex items-center justify-between">
+                  <span>
+                    {independenceSummary.raw_total.toLocaleString()} detections → {independenceSummary.independent_total.toLocaleString()} independent events
+                  </span>
+                  {independenceSummary.species.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSpeciesBreakdown(!showSpeciesBreakdown)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                    >
+                      {showSpeciesBreakdown ? (
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
+                {showSpeciesBreakdown && (
+                  <div className="mt-2 pt-2 border-t border-blue-200 space-y-1">
+                    {independenceSummary.species.map((s) => (
+                      <div key={s.species} className="flex justify-between">
+                        <span>{normalizeLabel(s.species)}</span>
+                        <span className="tabular-nums">{s.raw_count.toLocaleString()} → {s.independent_count.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Save Button */}

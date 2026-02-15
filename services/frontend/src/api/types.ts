@@ -457,3 +457,16 @@ export interface PipelineStatusResponse {
   animal_count: number;
   empty_count: number;
 }
+
+// Independence interval summary
+export interface IndependenceSummarySpecies {
+  species: string;
+  raw_count: number;
+  independent_count: number;
+}
+
+export interface IndependenceSummaryResponse {
+  raw_total: number;
+  independent_total: number;
+  species: IndependenceSummarySpecies[];
+}
