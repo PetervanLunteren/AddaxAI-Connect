@@ -27,6 +27,14 @@ const DEEPFAUNE_SPECIES = [
   'wild_boar', 'wolf', 'wolverine'
 ].sort();
 
+const INDEPENDENCE_INTERVAL_OPTIONS = [
+  { value: 0, label: 'Disabled' },
+  { value: 5, label: '5 minutes' },
+  { value: 15, label: '15 minutes' },
+  { value: 30, label: '30 minutes (recommended)' },
+  { value: 60, label: '60 minutes' },
+];
+
 export const ProjectSettingsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { selectedProject: currentProject, canAdminCurrentProject, refreshProjects } = useProject();
@@ -36,6 +44,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [blurPeopleVehicles, setBlurPeopleVehicles] = useState<boolean>(currentProject?.blur_people_vehicles ?? true);
+  const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +53,7 @@ export const ProjectSettingsPage: React.FC = () => {
     if (currentProject) {
       setThreshold(currentProject.detection_threshold ?? 0.2);
       setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
+      setIndependenceInterval(currentProject.independence_interval_minutes ?? 0);
       const included = currentProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
@@ -94,7 +104,8 @@ export const ProjectSettingsPage: React.FC = () => {
   const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
   const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
-  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasBlurChanges;
+  const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 0);
+  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasBlurChanges || hasIntervalChanges;
 
   // Unified save handler
   const handleSave = async () => {
@@ -108,13 +119,16 @@ export const ProjectSettingsPage: React.FC = () => {
         promises.push(updateThresholdMutation.mutateAsync(threshold));
       }
 
-      if (hasSpeciesChanges || hasBlurChanges) {
+      if (hasSpeciesChanges || hasBlurChanges || hasIntervalChanges) {
         const update: ProjectUpdate = {};
         if (hasSpeciesChanges) {
           update.included_species = includedSpecies.map(s => s.value as string);
         }
         if (hasBlurChanges) {
           update.blur_people_vehicles = blurPeopleVehicles;
+        }
+        if (hasIntervalChanges) {
+          update.independence_interval_minutes = independenceInterval;
         }
         promises.push(updateSpeciesMutation.mutateAsync({
           id: currentProject.id,
@@ -229,6 +243,31 @@ export const ProjectSettingsPage: React.FC = () => {
                 }`}
               />
             </button>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t my-6" />
+
+          {/* Independence Interval */}
+          <div>
+            <label className="text-sm font-medium block mb-2">
+              Independence interval
+            </label>
+            <select
+              value={independenceInterval}
+              onChange={(e) => setIndependenceInterval(parseInt(e.target.value, 10))}
+              disabled={isSaving}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6064] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {INDEPENDENCE_INTERVAL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Detections of the same species at the same camera within this interval are counted as one event. Applies to all statistics and exports retroactively.
+            </p>
           </div>
 
           {/* Save Button */}

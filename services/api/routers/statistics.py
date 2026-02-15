@@ -22,9 +22,26 @@ from utils.preferred_counts import (
     get_preferred_species_first_dates,
     get_preferred_species_camera_matrix,
 )
+from utils.independence_filter import (
+    get_independent_species_counts,
+    get_independent_hourly_activity,
+    get_independent_daily_trend,
+    get_independent_species_camera_matrix,
+    get_independent_detection_rate_counts,
+)
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
+
+
+async def _get_independence_interval(db: AsyncSession, project_id: Optional[int]) -> int:
+    """Load independence interval for a single project. Returns 0 for cross-project views."""
+    if project_id is None:
+        return 0
+    result = await db.execute(
+        select(Project.independence_interval_minutes).where(Project.id == project_id)
+    )
+    return result.scalar_one_or_none() or 0
 
 
 class StatisticsOverview(BaseModel):
@@ -223,11 +240,21 @@ async def get_species_distribution(
         List of species with counts (top 10 by count)
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    counts = await get_preferred_species_counts(
-        db=db,
-        project_ids=accessible_project_ids,
-        limit=10,
-    )
+    interval = await _get_independence_interval(db, project_id)
+
+    if interval > 0:
+        counts = await get_independent_species_counts(
+            db=db,
+            project_ids=accessible_project_ids,
+            interval_minutes=interval,
+            limit=10,
+        )
+    else:
+        counts = await get_preferred_species_counts(
+            db=db,
+            project_ids=accessible_project_ids,
+            limit=10,
+        )
 
     return [SpeciesCount(species=c['species'], count=c['count']) for c in counts]
 
@@ -433,6 +460,8 @@ async def get_detection_rate_map(
         GeoJSON FeatureCollection with deployment features
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    interval = await _get_independence_interval(db, project_id)
+
     # Build SQL query with conditional filters
     # Use UNION to combine verified (human observations) and unverified (AI) counts
     # For verified images: sum HumanObservation.count
@@ -549,9 +578,32 @@ async def get_detection_rate_map(
     )
     rows = result.fetchall()
 
+    # When independence interval is active, override detection counts
+    indep_counts = None
+    if interval > 0:
+        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+        indep_counts = await get_independent_detection_rate_counts(
+            db=db,
+            project_ids=accessible_project_ids,
+            interval_minutes=interval,
+            species_filter=species,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
+
     # Convert to GeoJSON features
     features = []
     for row in rows:
+        det_count = row.detection_count
+        trap_days = row.trap_days
+
+        if indep_counts is not None:
+            det_count = indep_counts.get((row.camera_id, row.deployment_number), 0)
+
+        det_rate = det_count / trap_days if trap_days > 0 else 0.0
+        det_rate_100 = det_rate * 100
+
         feature = DeploymentFeature(
             id=f"{row.camera_id}-{row.deployment_number}",
             geometry=DeploymentFeatureGeometry(
@@ -563,10 +615,10 @@ async def get_detection_rate_map(
                 deployment_id=row.deployment_number,
                 start_date=row.start_date.isoformat(),
                 end_date=row.end_date.isoformat() if row.end_date else None,
-                trap_days=row.trap_days,
-                detection_count=row.detection_count,
-                detection_rate=round(row.detection_rate, 4),
-                detection_rate_per_100=round(row.detection_rate_per_100, 2),
+                trap_days=trap_days,
+                detection_count=det_count,
+                detection_rate=round(det_rate, 4),
+                detection_rate_per_100=round(det_rate_100, 2),
             )
         )
         features.append(feature)
@@ -612,17 +664,29 @@ async def get_activity_pattern(
     Used for radial/polar charts showing diel activity patterns.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    interval = await _get_independence_interval(db, project_id)
+
     # Convert date to datetime for the helper
     start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
     end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
 
-    hourly_data = await get_preferred_hourly_activity(
-        db=db,
-        project_ids=accessible_project_ids,
-        species_filter=species,
-        start_date=start_dt,
-        end_date=end_dt,
-    )
+    if interval > 0:
+        hourly_data = await get_independent_hourly_activity(
+            db=db,
+            project_ids=accessible_project_ids,
+            interval_minutes=interval,
+            species_filter=species,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
+    else:
+        hourly_data = await get_preferred_hourly_activity(
+            db=db,
+            project_ids=accessible_project_ids,
+            species_filter=species,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
 
     # Build full 24-hour response (fill missing hours with 0)
     hour_counts = {d['hour']: d['count'] for d in hourly_data}
@@ -733,6 +797,8 @@ async def get_detection_trend(
     Defaults to last 30 days if no date range specified.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    interval = await _get_independence_interval(db, project_id)
+
     # Default to last 30 days
     if not start_date and not end_date:
         end_dt = datetime.now(timezone.utc)
@@ -741,13 +807,23 @@ async def get_detection_trend(
         start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
         end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
 
-    daily_data = await get_preferred_daily_trend(
-        db=db,
-        project_ids=accessible_project_ids,
-        species_filter=species,
-        start_date=start_dt,
-        end_date=end_dt,
-    )
+    if interval > 0:
+        daily_data = await get_independent_daily_trend(
+            db=db,
+            project_ids=accessible_project_ids,
+            interval_minutes=interval,
+            species_filter=species,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
+    else:
+        daily_data = await get_preferred_daily_trend(
+            db=db,
+            project_ids=accessible_project_ids,
+            species_filter=species,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
 
     return [
         DetectionTrendPoint(date=d['date'], count=d['count'])
@@ -843,17 +919,28 @@ async def get_occupancy_matrix(
     Used for heatmap visualization showing which species appear at which cameras.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    interval = await _get_independence_interval(db, project_id)
+
     # Convert dates for helper function
     start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
     end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
 
     # Get camera × species matrix from preferred source
-    matrix_data = await get_preferred_species_camera_matrix(
-        db=db,
-        project_ids=accessible_project_ids,
-        start_date=start_dt,
-        end_date=end_dt,
-    )
+    if interval > 0:
+        matrix_data = await get_independent_species_camera_matrix(
+            db=db,
+            project_ids=accessible_project_ids,
+            interval_minutes=interval,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
+    else:
+        matrix_data = await get_preferred_species_camera_matrix(
+            db=db,
+            project_ids=accessible_project_ids,
+            start_date=start_dt,
+            end_date=end_dt,
+        )
 
     # Build sets of cameras and species
     cameras_set: set = set()

@@ -225,6 +225,7 @@ export interface Project {
   included_species: string[] | null;
   detection_threshold: number;
   blur_people_vehicles: boolean;
+  independence_interval_minutes: number;
   created_at: string;
   updated_at: string | null;
   image_url: string | null;
@@ -242,6 +243,7 @@ export interface ProjectUpdate {
   description?: string;
   included_species?: string[];
   blur_people_vehicles?: boolean;
+  independence_interval_minutes?: number;
 }
 
 export interface ProjectDeleteResponse {
@@ -282,6 +284,7 @@ export interface ProjectWithRole {
   included_species: string[] | null;
   detection_threshold: number;
   blur_people_vehicles: boolean;
+  independence_interval_minutes: number;
   image_url: string | null;
   thumbnail_url: string | null;
 }
