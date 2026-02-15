@@ -476,10 +476,9 @@ export const ProjectSettingsPage: React.FC = () => {
                               ((modalData.thresholdImpact!.newResult.total - modalData.thresholdImpact!.oldResult.total)
                               / modalData.thresholdImpact!.oldResult.total) * 100
                             );
-                            if (pct === 0) return null;
                             return (
-                              <span className={`text-xs ml-2 ${pct < 0 ? 'text-[#882000]' : 'text-[#0f6064]'}`}>
-                                {pct > 0 ? '+' : ''}{pct}%
+                              <span className="text-xs ml-2 text-[#0f6064]">
+                                {pct >= 0 ? '+' : ''}{pct}%
                               </span>
                             );
                           })()}
@@ -503,11 +502,9 @@ export const ProjectSettingsPage: React.FC = () => {
                                     <span>{normalizeLabel(species)}</span>
                                     <span className="tabular-nums">
                                       {oldCount.toLocaleString()} &rarr; {newCount.toLocaleString()}
-                                      {diff !== 0 && (
-                                        <span className={`ml-2 ${diff < 0 ? 'text-[#882000]' : 'text-[#0f6064]'}`}>
-                                          {diff > 0 ? '+' : ''}{diff}%
-                                        </span>
-                                      )}
+                                      <span className="ml-2 text-[#0f6064]">
+                                        {diff >= 0 ? '+' : ''}{diff}%
+                                      </span>
                                     </span>
                                   </div>
                                 );
@@ -527,26 +524,29 @@ export const ProjectSettingsPage: React.FC = () => {
                           {' '}&rarr; {modalData.independenceImpact.independent_total.toLocaleString()} events
                           {(() => {
                             const pct = Math.round(
-                              (1 - modalData.independenceImpact!.independent_total / modalData.independenceImpact!.raw_total) * 100
+                              ((modalData.independenceImpact!.independent_total - modalData.independenceImpact!.raw_total)
+                              / modalData.independenceImpact!.raw_total) * 100
                             );
-                            return pct > 0 ? (
-                              <span className="text-xs ml-2 text-[#0f6064]">-{pct}%</span>
-                            ) : null;
+                            return (
+                              <span className="text-xs ml-2 text-[#0f6064]">
+                                {pct >= 0 ? '+' : ''}{pct}%
+                              </span>
+                            );
                           })()}
                         </p>
                         <div className="space-y-1 max-h-48 overflow-y-auto">
                           {modalData.independenceImpact.species.map((s) => {
-                            const reduction = s.raw_count > 0
-                              ? Math.round((1 - s.independent_count / s.raw_count) * 100)
+                            const pct = s.raw_count > 0
+                              ? Math.round(((s.independent_count - s.raw_count) / s.raw_count) * 100)
                               : 0;
                             return (
                               <div key={s.species} className="flex justify-between text-xs text-muted-foreground">
                                 <span>{normalizeLabel(s.species)}</span>
                                 <span className="tabular-nums">
                                   {s.raw_count.toLocaleString()} &rarr; {s.independent_count.toLocaleString()}
-                                  {reduction > 0 && (
-                                    <span className="ml-2 text-[#0f6064]">-{reduction}%</span>
-                                  )}
+                                  <span className="ml-2 text-[#0f6064]">
+                                    {pct >= 0 ? '+' : ''}{pct}%
+                                  </span>
                                 </span>
                               </div>
                             );
