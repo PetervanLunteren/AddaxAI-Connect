@@ -408,7 +408,7 @@ export const ProjectSettingsPage: React.FC = () => {
           className="fixed bottom-6 right-6 z-50 bg-white border border-gray-200 shadow-lg rounded-lg px-4 py-3 flex items-center gap-3"
           style={{ animation: 'toast-slide-up 0.2s ease-out' }}
         >
-          <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+          <Check className="h-4 w-4 text-[#0f6064] flex-shrink-0" />
           <span className="text-sm">
             Settings saved!
             {modalData && modalData.changes.length > 0 && (
@@ -478,7 +478,7 @@ export const ProjectSettingsPage: React.FC = () => {
                             );
                             if (pct === 0) return null;
                             return (
-                              <span className={`text-xs ml-2 ${pct < 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                              <span className={`text-xs ml-2 ${pct < 0 ? 'text-[#882000]' : 'text-[#0f6064]'}`}>
                                 {pct > 0 ? '+' : ''}{pct}%
                               </span>
                             );
@@ -504,7 +504,7 @@ export const ProjectSettingsPage: React.FC = () => {
                                     <span className="tabular-nums">
                                       {oldCount.toLocaleString()} &rarr; {newCount.toLocaleString()}
                                       {diff !== 0 && (
-                                        <span className={`ml-2 ${diff < 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                        <span className={`ml-2 ${diff < 0 ? 'text-[#882000]' : 'text-[#0f6064]'}`}>
                                           {diff > 0 ? '+' : ''}{diff}%
                                         </span>
                                       )}
@@ -530,7 +530,7 @@ export const ProjectSettingsPage: React.FC = () => {
                               (1 - modalData.independenceImpact!.independent_total / modalData.independenceImpact!.raw_total) * 100
                             );
                             return pct > 0 ? (
-                              <span className="text-xs ml-2 text-green-600">-{pct}%</span>
+                              <span className="text-xs ml-2 text-[#0f6064]">-{pct}%</span>
                             ) : null;
                           })()}
                         </p>
@@ -545,7 +545,7 @@ export const ProjectSettingsPage: React.FC = () => {
                                 <span className="tabular-nums">
                                   {s.raw_count.toLocaleString()} &rarr; {s.independent_count.toLocaleString()}
                                   {reduction > 0 && (
-                                    <span className="ml-2 text-green-600">-{reduction}%</span>
+                                    <span className="ml-2 text-[#0f6064]">-{reduction}%</span>
                                   )}
                                 </span>
                               </div>
