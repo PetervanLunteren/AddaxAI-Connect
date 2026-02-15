@@ -17,7 +17,7 @@ import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
-import type { ProjectUpdate, IndependenceSummaryResponse } from '../../api/types';
+import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse } from '../../api/types';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
 const DEEPFAUNE_SPECIES = [
@@ -46,7 +46,7 @@ function formatInterval(minutes: number): string {
 // Data collected after save to populate the modal
 interface ModalData {
   changes: { label: string; from: string; to: string }[];
-  thresholdImpact: { oldCount: number; newCount: number } | null;
+  thresholdImpact: { oldResult: DetectionCountResponse; newResult: DetectionCountResponse } | null;
   independenceImpact: IndependenceSummaryResponse | null;
   speciesChanges: { added: string[]; removed: string[] } | null;
   blurChanged: boolean;
@@ -220,7 +220,7 @@ export const ProjectSettingsPage: React.FC = () => {
             statisticsApi.getDetectionCount(currentProject.id, oldThreshold),
             statisticsApi.getDetectionCount(currentProject.id, threshold),
           ]).then(([oldResult, newResult]) => {
-            thresholdImpact = { oldCount: oldResult.total, newCount: newResult.total };
+            thresholdImpact = { oldResult, newResult };
           }).catch(() => {})
         );
       }
@@ -468,13 +468,13 @@ export const ProjectSettingsPage: React.FC = () => {
                     {modalData.thresholdImpact && (
                       <div>
                         <p className="text-sm font-medium mb-1">Detection threshold</p>
-                        <p className="text-sm text-muted-foreground">
-                          {modalData.thresholdImpact.oldCount.toLocaleString()} detections
-                          {' '}&rarr; {modalData.thresholdImpact.newCount.toLocaleString()} detections
-                          {modalData.thresholdImpact.oldCount > 0 && (() => {
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {modalData.thresholdImpact.oldResult.total.toLocaleString()} detections
+                          {' '}&rarr; {modalData.thresholdImpact.newResult.total.toLocaleString()} detections
+                          {modalData.thresholdImpact.oldResult.total > 0 && (() => {
                             const pct = Math.round(
-                              ((modalData.thresholdImpact!.newCount - modalData.thresholdImpact!.oldCount)
-                              / modalData.thresholdImpact!.oldCount) * 100
+                              ((modalData.thresholdImpact!.newResult.total - modalData.thresholdImpact!.oldResult.total)
+                              / modalData.thresholdImpact!.oldResult.total) * 100
                             );
                             if (pct === 0) return null;
                             return (
@@ -484,6 +484,37 @@ export const ProjectSettingsPage: React.FC = () => {
                             );
                           })()}
                         </p>
+                        {/* Per-species breakdown */}
+                        {(() => {
+                          const oldMap = new Map(modalData.thresholdImpact!.oldResult.species.map(s => [s.species, s.count]));
+                          const newMap = new Map(modalData.thresholdImpact!.newResult.species.map(s => [s.species, s.count]));
+                          const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
+                          allSpecies.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                          return (
+                            <div className="space-y-1 max-h-48 overflow-y-auto">
+                              {allSpecies.map((species) => {
+                                const oldCount = oldMap.get(species) ?? 0;
+                                const newCount = newMap.get(species) ?? 0;
+                                const diff = oldCount > 0
+                                  ? Math.round(((newCount - oldCount) / oldCount) * 100)
+                                  : 0;
+                                return (
+                                  <div key={species} className="flex justify-between text-xs text-muted-foreground">
+                                    <span>{normalizeLabel(species)}</span>
+                                    <span className="tabular-nums">
+                                      {oldCount.toLocaleString()} &rarr; {newCount.toLocaleString()}
+                                      {diff !== 0 && (
+                                        <span className={`ml-2 ${diff < 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                          {diff > 0 ? '+' : ''}{diff}%
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 
