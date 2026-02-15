@@ -155,10 +155,12 @@ export const statisticsApi = {
     return response.data;
   },
 
-  getIndependenceSummary: async (projectId: number): Promise<IndependenceSummaryResponse> => {
+  getIndependenceSummary: async (projectId: number, intervalMinutes?: number): Promise<IndependenceSummaryResponse> => {
+    const params: Record<string, string> = { project_id: projectId.toString() };
+    if (intervalMinutes !== undefined) params.interval_minutes = intervalMinutes.toString();
     const response = await apiClient.get<IndependenceSummaryResponse>(
       '/api/statistics/independence-summary',
-      { params: { project_id: projectId.toString() } }
+      { params }
     );
     return response.data;
   },

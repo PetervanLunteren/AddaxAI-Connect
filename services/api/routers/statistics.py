@@ -1228,6 +1228,7 @@ class IndependenceSummaryResponse(BaseModel):
 )
 async def get_independence_summary(
     project_id: int = Query(..., description="Project ID (required)"),
+    interval_minutes: Optional[int] = Query(None, description="Override interval (uses project setting if omitted)"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1236,10 +1237,10 @@ async def get_independence_summary(
     Compare raw detection counts vs independence-filtered event counts.
 
     Returns per-species breakdown showing the effect of the independence interval.
-    Only meaningful when the project has independence_interval_minutes > 0.
+    If interval_minutes is provided, uses that instead of the project's saved setting.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    interval = await _get_independence_interval(db, project_id)
+    interval = interval_minutes if interval_minutes is not None else await _get_independence_interval(db, project_id)
 
     if interval == 0:
         return IndependenceSummaryResponse(

@@ -47,7 +47,7 @@ function formatInterval(minutes: number): string {
 interface ModalData {
   changes: { label: string; from: string; to: string }[];
   thresholdImpact: { oldResult: DetectionCountResponse; newResult: DetectionCountResponse } | null;
-  independenceImpact: IndependenceSummaryResponse | null;
+  independenceImpact: { oldResult: IndependenceSummaryResponse; newResult: IndependenceSummaryResponse } | null;
   speciesChanges: { added: string[]; removed: string[] } | null;
   blurChanged: boolean;
 }
@@ -227,11 +227,29 @@ export const ProjectSettingsPage: React.FC = () => {
         );
       }
 
-      if (hasIntervalChanges && independenceInterval > 0) {
+      if (hasIntervalChanges && (oldInterval > 0 || independenceInterval > 0)) {
         impactPromises.push(
-          statisticsApi.getIndependenceSummary(currentProject.id)
-            .then((summary) => { independenceImpact = summary; })
-            .catch(() => {})
+          Promise.all([
+            oldInterval > 0
+              ? statisticsApi.getIndependenceSummary(currentProject.id, oldInterval)
+              : Promise.resolve(null),
+            independenceInterval > 0
+              ? statisticsApi.getIndependenceSummary(currentProject.id, independenceInterval)
+              : Promise.resolve(null),
+          ]).then(([oldResult, newResult]) => {
+            // When interval is 0 (disabled), independent count = raw count
+            const ref = oldResult ?? newResult;
+            if (!ref) return;
+            const rawAsFallback: IndependenceSummaryResponse = {
+              raw_total: ref.raw_total,
+              independent_total: ref.raw_total,
+              species: ref.species.map(s => ({ ...s, independent_count: s.raw_count })),
+            };
+            independenceImpact = {
+              oldResult: oldResult ?? rawAsFallback,
+              newResult: newResult ?? rawAsFallback,
+            };
+          }).catch(() => {})
         );
       }
 
@@ -529,15 +547,15 @@ export const ProjectSettingsPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mt-1">
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.to}</code>
                     </p>
-                    {modalData.independenceImpact && modalData.independenceImpact.raw_total > 0 && (
+                    {modalData.independenceImpact && (
                       <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
                         <p className="text-sm text-muted-foreground mb-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.raw_total.toLocaleString()}</code> &rarr; <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.independent_total.toLocaleString()}</code> independent events
-                          {(() => {
+                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.oldResult.independent_total.toLocaleString()}</code> &rarr; <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.newResult.independent_total.toLocaleString()}</code> independent events
+                          {modalData.independenceImpact.oldResult.independent_total > 0 && (() => {
                             const pct = Math.round(
-                              ((modalData.independenceImpact!.independent_total - modalData.independenceImpact!.raw_total)
-                              / modalData.independenceImpact!.raw_total) * 100
+                              ((modalData.independenceImpact!.newResult.independent_total - modalData.independenceImpact!.oldResult.independent_total)
+                              / modalData.independenceImpact!.oldResult.independent_total) * 100
                             );
                             return (
                               <span className="text-xs ml-2 text-[#0f6064]">
@@ -547,8 +565,12 @@ export const ProjectSettingsPage: React.FC = () => {
                           })()}
                         </p>
                         {(() => {
-                          const changed = modalData.independenceImpact!.species.filter(s => s.raw_count !== s.independent_count);
-                          const unchangedCount = modalData.independenceImpact!.species.length - changed.length;
+                          const oldMap = new Map(modalData.independenceImpact!.oldResult.species.map(s => [s.species, s.independent_count]));
+                          const newMap = new Map(modalData.independenceImpact!.newResult.species.map(s => [s.species, s.independent_count]));
+                          const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
+                          const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
+                          changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                          const unchangedCount = allSpecies.length - changed.length;
                           if (changed.length === 0) return null;
                           return (
                             <div>
@@ -558,19 +580,21 @@ export const ProjectSettingsPage: React.FC = () => {
                                 className="flex items-center gap-1 text-xs text-[#0f6064] hover:underline"
                               >
                                 {showIndependenceBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                {showIndependenceBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species affected)
+                                {showIndependenceBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
                               </button>
                               {showIndependenceBreakdown && (
                                 <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                                  {changed.map((s) => {
-                                    const pct = s.raw_count > 0
-                                      ? Math.round(((s.independent_count - s.raw_count) / s.raw_count) * 100)
+                                  {changed.map((species) => {
+                                    const oldCount = oldMap.get(species) ?? 0;
+                                    const newCount = newMap.get(species) ?? 0;
+                                    const pct = oldCount > 0
+                                      ? Math.round(((newCount - oldCount) / oldCount) * 100)
                                       : 0;
                                     return (
-                                      <div key={s.species} className="flex justify-between items-center text-xs text-muted-foreground">
-                                        <span>{normalizeLabel(s.species)}</span>
+                                      <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
+                                        <span>{normalizeLabel(species)}</span>
                                         <span className="tabular-nums">
-                                          <code className="bg-muted px-1 py-0.5 rounded">{s.raw_count.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{s.independent_count.toLocaleString()}</code>
+                                          <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
                                           <span className="ml-2 text-[#0f6064]">
                                             {pct >= 0 ? '+' : ''}{pct}%
                                           </span>
