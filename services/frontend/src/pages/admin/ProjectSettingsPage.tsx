@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, AlertCircle, Check, X } from 'lucide-react';
+import { Loader2, Save, AlertCircle, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
@@ -69,6 +69,8 @@ export const ProjectSettingsPage: React.FC = () => {
   const [showToast, setShowToast] = useState(false);
   const [showChangesModal, setShowChangesModal] = useState(false);
   const [modalData, setModalData] = useState<ModalData | null>(null);
+  const [showThresholdBreakdown, setShowThresholdBreakdown] = useState(false);
+  const [showIndependenceBreakdown, setShowIndependenceBreakdown] = useState(false);
 
   // Load values when project changes
   useEffect(() => {
@@ -412,7 +414,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 {' '}
                 <button
                   type="button"
-                  onClick={() => { setShowChangesModal(true); setShowToast(false); }}
+                  onClick={() => { setShowChangesModal(true); setShowToast(false); setShowThresholdBreakdown(false); setShowIndependenceBreakdown(false); }}
                   className="text-[#0f6064] hover:underline font-medium"
                 >
                   See changes
@@ -469,27 +471,47 @@ export const ProjectSettingsPage: React.FC = () => {
                           const oldMap = new Map(modalData.thresholdImpact!.oldResult.species.map(s => [s.species, s.count]));
                           const newMap = new Map(modalData.thresholdImpact!.newResult.species.map(s => [s.species, s.count]));
                           const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
-                          allSpecies.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                          const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
+                          changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                          const unchangedCount = allSpecies.length - changed.length;
+                          if (changed.length === 0) return null;
                           return (
-                            <div className="space-y-1 max-h-48 overflow-y-auto">
-                              {allSpecies.map((species) => {
-                                const oldCount = oldMap.get(species) ?? 0;
-                                const newCount = newMap.get(species) ?? 0;
-                                const diff = oldCount > 0
-                                  ? Math.round(((newCount - oldCount) / oldCount) * 100)
-                                  : 0;
-                                return (
-                                  <div key={species} className="flex justify-between text-xs text-muted-foreground">
-                                    <span>{normalizeLabel(species)}</span>
-                                    <span className="tabular-nums">
-                                      {oldCount.toLocaleString()} &rarr; {newCount.toLocaleString()}
-                                      <span className="ml-2 text-[#0f6064]">
-                                        {diff >= 0 ? '+' : ''}{diff}%
-                                      </span>
-                                    </span>
-                                  </div>
-                                );
-                              })}
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setShowThresholdBreakdown(!showThresholdBreakdown)}
+                                className="flex items-center gap-1 text-xs text-[#0f6064] hover:underline"
+                              >
+                                {showThresholdBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                {showThresholdBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
+                              </button>
+                              {showThresholdBreakdown && (
+                                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                                  {changed.map((species) => {
+                                    const oldCount = oldMap.get(species) ?? 0;
+                                    const newCount = newMap.get(species) ?? 0;
+                                    const pct = oldCount > 0
+                                      ? Math.round(((newCount - oldCount) / oldCount) * 100)
+                                      : 0;
+                                    return (
+                                      <div key={species} className="flex justify-between text-xs text-muted-foreground">
+                                        <span>{normalizeLabel(species)}</span>
+                                        <span className="tabular-nums">
+                                          {oldCount.toLocaleString()} &rarr; {newCount.toLocaleString()}
+                                          <span className="ml-2 text-[#0f6064]">
+                                            {pct >= 0 ? '+' : ''}{pct}%
+                                          </span>
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                  {unchangedCount > 0 && (
+                                    <p className="text-xs text-muted-foreground italic pt-1">
+                                      {unchangedCount} other species unchanged
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })()}
@@ -524,24 +546,48 @@ export const ProjectSettingsPage: React.FC = () => {
                             );
                           })()}
                         </p>
-                        <div className="space-y-1 max-h-48 overflow-y-auto">
-                          {modalData.independenceImpact.species.map((s) => {
-                            const pct = s.raw_count > 0
-                              ? Math.round(((s.independent_count - s.raw_count) / s.raw_count) * 100)
-                              : 0;
-                            return (
-                              <div key={s.species} className="flex justify-between text-xs text-muted-foreground">
-                                <span>{normalizeLabel(s.species)}</span>
-                                <span className="tabular-nums">
-                                  {s.raw_count.toLocaleString()} &rarr; {s.independent_count.toLocaleString()}
-                                  <span className="ml-2 text-[#0f6064]">
-                                    {pct >= 0 ? '+' : ''}{pct}%
-                                  </span>
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        {(() => {
+                          const changed = modalData.independenceImpact!.species.filter(s => s.raw_count !== s.independent_count);
+                          const unchangedCount = modalData.independenceImpact!.species.length - changed.length;
+                          if (changed.length === 0) return null;
+                          return (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setShowIndependenceBreakdown(!showIndependenceBreakdown)}
+                                className="flex items-center gap-1 text-xs text-[#0f6064] hover:underline"
+                              >
+                                {showIndependenceBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                {showIndependenceBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species affected)
+                              </button>
+                              {showIndependenceBreakdown && (
+                                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                                  {changed.map((s) => {
+                                    const pct = s.raw_count > 0
+                                      ? Math.round(((s.independent_count - s.raw_count) / s.raw_count) * 100)
+                                      : 0;
+                                    return (
+                                      <div key={s.species} className="flex justify-between text-xs text-muted-foreground">
+                                        <span>{normalizeLabel(s.species)}</span>
+                                        <span className="tabular-nums">
+                                          {s.raw_count.toLocaleString()} &rarr; {s.independent_count.toLocaleString()}
+                                          <span className="ml-2 text-[#0f6064]">
+                                            {pct >= 0 ? '+' : ''}{pct}%
+                                          </span>
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                  {unchangedCount > 0 && (
+                                    <p className="text-xs text-muted-foreground italic pt-1">
+                                      {unchangedCount} other species unchanged
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </CardContent>
