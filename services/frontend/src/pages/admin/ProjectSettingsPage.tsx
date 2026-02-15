@@ -452,7 +452,7 @@ export const ProjectSettingsPage: React.FC = () => {
                     </p>
                     {modalData.thresholdImpact && (
                       <div className="mt-3 pt-3 border-t">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
                         <p className="text-sm text-muted-foreground mb-2">
                           {modalData.thresholdImpact.oldResult.total.toLocaleString()} &rarr; {modalData.thresholdImpact.newResult.total.toLocaleString()} detections
                           {modalData.thresholdImpact.oldResult.total > 0 && (() => {
@@ -531,7 +531,7 @@ export const ProjectSettingsPage: React.FC = () => {
                     </p>
                     {modalData.independenceImpact && modalData.independenceImpact.raw_total > 0 && (
                       <div className="mt-3 pt-3 border-t">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
                         <p className="text-sm text-muted-foreground mb-2">
                           {modalData.independenceImpact.raw_total.toLocaleString()} &rarr; {modalData.independenceImpact.independent_total.toLocaleString()} independent events
                           {(() => {
