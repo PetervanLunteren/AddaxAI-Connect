@@ -469,10 +469,9 @@ export const ProjectSettingsPage: React.FC = () => {
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.to}</code>
                     </p>
                     {modalData.thresholdImpact && (
-                      <div className="mt-3 pt-3 border-t">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
+                      <div className="mt-1">
                         <p className="text-sm text-muted-foreground mb-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.oldResult.total.toLocaleString()}</code> &rarr; <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.newResult.total.toLocaleString()}</code> detections
+                          Resulted in <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.oldResult.total.toLocaleString()}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.newResult.total.toLocaleString()}</code> detections
                           {modalData.thresholdImpact.oldResult.total > 0 && (() => {
                             const pct = Math.round(
                               ((modalData.thresholdImpact!.newResult.total - modalData.thresholdImpact!.oldResult.total)
@@ -548,10 +547,9 @@ export const ProjectSettingsPage: React.FC = () => {
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.to}</code>
                     </p>
                     {modalData.independenceImpact && (
-                      <div className="mt-3 pt-3 border-t">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
+                      <div className="mt-1">
                         <p className="text-sm text-muted-foreground mb-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.oldResult.independent_total.toLocaleString()}</code> &rarr; <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.newResult.independent_total.toLocaleString()}</code> independent events
+                          Resulted in <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.oldResult.independent_total.toLocaleString()}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.newResult.independent_total.toLocaleString()}</code> independent events
                           {modalData.independenceImpact.oldResult.independent_total > 0 && (() => {
                             const pct = Math.round(
                               ((modalData.independenceImpact!.newResult.independent_total - modalData.independenceImpact!.oldResult.independent_total)
