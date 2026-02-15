@@ -224,11 +224,16 @@ export const ProjectSettingsPage: React.FC = () => {
       <Card>
         <CardContent className="pt-6">
           {/* Detection Confidence Threshold */}
-          <div>
-            <label className="text-sm font-medium block mb-2">
-              Detection confidence threshold
-            </label>
-            <div className="flex items-center gap-4">
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">
+                Detection confidence threshold
+              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Hide and exclude detections below this value. Applies to existing and new analyses.
+              </p>
+            </div>
+            <div className="flex-1 flex items-center gap-3">
               <input
                 type="range"
                 min="0"
@@ -246,84 +251,91 @@ export const ProjectSettingsPage: React.FC = () => {
                 {(threshold * 100).toFixed(0)}%
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Minimum confidence for detections to appear in results
-            </p>
           </div>
 
           {/* Divider */}
           <div className="border-t my-6" />
 
           {/* Species Filtering */}
-          <div>
-            <label className="text-sm font-medium block mb-2">
-              Species filtering
-            </label>
-            <MultiSelect
-              options={speciesOptions}
-              value={includedSpecies}
-              onChange={setIncludedSpecies}
-              placeholder="Select species..."
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Only selected species appear in new classifications. Leave empty for all.
-            </p>
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">
+                Species filtering
+              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Only selected species appear in new classifications. Leave empty for all.
+              </p>
+            </div>
+            <div className="flex-1">
+              <MultiSelect
+                options={speciesOptions}
+                value={includedSpecies}
+                onChange={setIncludedSpecies}
+                placeholder="Select species..."
+              />
+            </div>
           </div>
 
           {/* Divider */}
           <div className="border-t my-6" />
 
           {/* Privacy blur */}
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
               <label className="text-sm font-medium block">
                 Blur people and vehicles
               </label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Automatically blur detected people and vehicles in all images for privacy
+              <p className="text-sm text-muted-foreground mt-1">
+                Automatically blur detected people and vehicles in all images for privacy.
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={blurPeopleVehicles}
-              onClick={() => setBlurPeopleVehicles(!blurPeopleVehicles)}
-              disabled={isSaving}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                blurPeopleVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
-              } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  blurPeopleVehicles ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+            <div className="flex-1">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={blurPeopleVehicles}
+                onClick={() => setBlurPeopleVehicles(!blurPeopleVehicles)}
+                disabled={isSaving}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                  blurPeopleVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
+                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    blurPeopleVehicles ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {/* Divider */}
           <div className="border-t my-6" />
 
           {/* Independence Interval */}
-          <div>
-            <label className="text-sm font-medium block mb-2">
-              Independence interval
-            </label>
-            <select
-              value={independenceInterval}
-              onChange={(e) => setIndependenceInterval(parseInt(e.target.value, 10))}
-              disabled={isSaving}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6064] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {INDEPENDENCE_INTERVAL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Detections of the same species at the same camera within this interval are counted as one event. Applies to all statistics and exports retroactively.
-            </p>
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">
+                Independence interval
+              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Group detections into one event when they occur within this time gap. Applies retroactively.
+              </p>
+            </div>
+            <div className="flex-1">
+              <select
+                value={independenceInterval}
+                onChange={(e) => setIndependenceInterval(parseInt(e.target.value, 10))}
+                disabled={isSaving}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6064] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {INDEPENDENCE_INTERVAL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Save Button */}
