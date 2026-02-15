@@ -230,7 +230,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Detection confidence threshold
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Hide and exclude detections below this value. Applies to existing and new analyses.
+                Hide detections below this confidence score. Only affects unverified images. Verified observations are always included. Applies retroactively to all statistics and exports.
               </p>
             </div>
             <div className="flex-1 flex items-center gap-3">
@@ -263,7 +263,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Species filtering
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Only selected species appear in new classifications. Leave empty for all.
+                Only selected species will be classified when new images are uploaded. Already classified images are not affected. Leave empty to include all species.
               </p>
             </div>
             <div className="flex-1">
@@ -286,7 +286,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Blur people and vehicles
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Automatically blur detected people and vehicles in all images for privacy.
+                Automatically blur detected people and vehicles in all images for privacy. This is a visual change only and does not affect statistics or exports.
               </p>
             </div>
             <div className="flex-1">
@@ -319,7 +319,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Independence interval
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Group detections into one event when they occur within this time gap. Applies retroactively.
+                Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event is the maximum individuals seen in any single image. Affects all statistics retroactively.
               </p>
             </div>
             <div className="flex-1">
