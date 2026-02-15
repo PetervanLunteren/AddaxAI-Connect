@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, AlertCircle, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Save, AlertCircle, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
@@ -202,6 +202,96 @@ export const ProjectSettingsPage: React.FC = () => {
     }
   };
 
+  // Reset form to currently saved values
+  const handleResetUnsaved = () => {
+    setThreshold(currentProject.detection_threshold ?? 0.2);
+    setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
+    setIndependenceInterval(currentProject.independence_interval_minutes ?? 0);
+    const included = currentProject.included_species || [];
+    setIncludedSpecies(
+      included.map(species => ({ label: normalizeLabel(species), value: species }))
+    );
+  };
+
+  // Restore defaults and save immediately
+  const handleRestoreDefaults = async () => {
+    const defaultThreshold = 0.5;
+    const defaultBlur = true;
+    const defaultInterval = 30;
+
+    setThreshold(defaultThreshold);
+    setBlurPeopleVehicles(defaultBlur);
+    setIndependenceInterval(defaultInterval);
+
+    setSaveStatus('saving');
+    setError(null);
+
+    const oldThreshold = currentProject.detection_threshold;
+    const oldInterval = currentProject.independence_interval_minutes ?? 0;
+
+    try {
+      const [beforeObservations, beforeEventsRaw] = await Promise.all([
+        statisticsApi.getDetectionCount(currentProject.id, oldThreshold),
+        oldInterval > 0
+          ? statisticsApi.getIndependenceSummary(currentProject.id, oldInterval)
+          : null,
+      ]);
+
+      const promises: Promise<any>[] = [];
+
+      if (defaultThreshold !== currentProject.detection_threshold) {
+        promises.push(updateThresholdMutation.mutateAsync(defaultThreshold));
+      }
+
+      const update: ProjectUpdate = {};
+      if (defaultBlur !== (currentProject.blur_people_vehicles ?? true)) {
+        update.blur_people_vehicles = defaultBlur;
+      }
+      if (defaultInterval !== (currentProject.independence_interval_minutes ?? 0)) {
+        update.independence_interval_minutes = defaultInterval;
+      }
+      if (Object.keys(update).length > 0) {
+        promises.push(updateSpeciesMutation.mutateAsync({ id: currentProject.id, update }));
+      }
+
+      if (promises.length > 0) {
+        await Promise.all(promises);
+      }
+      setSaveStatus('success');
+
+      const [afterObservations, afterEventsRaw] = await Promise.all([
+        statisticsApi.getDetectionCount(currentProject.id, defaultThreshold),
+        defaultInterval > 0
+          ? statisticsApi.getIndependenceSummary(currentProject.id, defaultInterval)
+          : null,
+      ]);
+
+      const eventsFallback = (obs: DetectionCountResponse): IndependenceSummaryResponse => ({
+        raw_total: obs.total,
+        independent_total: obs.total,
+        species: obs.species.map(s => ({ species: s.species, raw_count: s.count, independent_count: s.count })),
+      });
+
+      setModalData({
+        observations: { before: beforeObservations, after: afterObservations },
+        events: {
+          before: beforeEventsRaw ?? eventsFallback(beforeObservations),
+          after: afterEventsRaw ?? eventsFallback(afterObservations),
+        },
+      });
+
+      setShowToast(true);
+      setTimeout(() => {
+        setSaveStatus('idle');
+        setShowToast(false);
+      }, 5000);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Failed to restore defaults');
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  };
+
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
     label: normalizeLabel(species),
     value: species
@@ -338,9 +428,29 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Save Button */}
-          {hasUnsavedChanges && (
-            <div className="mt-6 pt-4 border-t">
+          {/* Action buttons */}
+          <div className="mt-6 pt-4 border-t flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRestoreDefaults}
+                disabled={isSaving}
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Restore defaults
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetUnsaved}
+                disabled={isSaving || !hasUnsavedChanges}
+              >
+                <Undo2 className="h-4 w-4 mr-2" />
+                Reset changes
+              </Button>
+            </div>
+            {hasUnsavedChanges && (
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
@@ -358,8 +468,8 @@ export const ProjectSettingsPage: React.FC = () => {
                   </>
                 )}
               </Button>
-            </div>
-          )}
+            )}
+          </div>
 
         </CardContent>
       </Card>
