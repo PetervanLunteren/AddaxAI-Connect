@@ -219,6 +219,7 @@ def _build_observations_csv(
     taxonomy_lookup: Dict[str, dict],
     detection_threshold: float,
     tz: ZoneInfo,
+    event_assignments: Optional[dict] = None,
 ) -> tuple[str, set]:
     """
     Build observations.csv content.
@@ -261,13 +262,19 @@ def _build_observations_csv(
                     # Fall back to common name if no mapping exists
                     sci_name = ho.species
 
+                # Use event-based IDs when independence interval is active
+                evt = event_assignments.get((image.uuid, ho.species)) if event_assignments else None
+                event_id = evt["event_id"] if evt else image.uuid
+                event_start = _format_dt(evt["event_start"]) if evt else ts_str
+                event_end = _format_dt(evt["event_end"]) if evt else ts_str
+
                 writer.writerow([
                     f"obs-human-{ho.id}",
                     dep_id,
                     image.uuid,
-                    image.uuid,  # eventID = group by image
-                    ts_str,
-                    ts_str,
+                    event_id,
+                    event_start,
+                    event_end,
                     "media",
                     "animal",
                     sci_name,
@@ -323,13 +330,21 @@ def _build_observations_csv(
 
                 has_observations = True
                 observation_comments = f"{classified_by}, not reviewed"
+
+                # Use event-based IDs when independence interval is active
+                evt_key_species = species_name if species_name else detection.category
+                evt = event_assignments.get((image.uuid, evt_key_species)) if event_assignments else None
+                event_id = evt["event_id"] if evt else image.uuid
+                event_start_str = _format_dt(evt["event_start"]) if evt else ts_str
+                event_end_str = _format_dt(evt["event_end"]) if evt else ts_str
+
                 writer.writerow([
                     f"obs-ai-{detection.id}",
                     dep_id,
                     image.uuid,
-                    image.uuid,
-                    ts_str,
-                    ts_str,
+                    event_id,
+                    event_start_str,
+                    event_end_str,
                     "media",
                     obs_type,
                     sci_name,
@@ -354,7 +369,7 @@ def _build_observations_csv(
                 f"obs-blank-{image.uuid}",
                 dep_id,
                 image.uuid,
-                image.uuid,
+                image.uuid,  # blank images keep image-level eventID
                 ts_str,
                 ts_str,
                 "media",
@@ -606,6 +621,16 @@ async def export_camtrap_dp(
     for cam_id, cam_deps in deployments_by_camera.items():
         camera_identifiers[cam_id] = cam_deps[0]["camera_identifier"]
 
+    # Pre-compute event assignments if independence interval is active
+    event_assignments = None
+    if project.independence_interval_minutes > 0:
+        from utils.independence_filter import compute_event_assignments
+        event_assignments = await compute_event_assignments(
+            db=db,
+            project_id=project_id,
+            interval_minutes=project.independence_interval_minutes,
+        )
+
     # Build CSV contents
     deployments_csv = _build_deployments_csv(deployments, tz)
     media_csv, media_entries = _build_media_csv(
@@ -613,6 +638,7 @@ async def export_camtrap_dp(
     )
     observations_csv, observed_species = _build_observations_csv(
         media_entries, taxonomy_lookup, project.detection_threshold, tz,
+        event_assignments=event_assignments,
     )
     datapackage_json = _build_datapackage_json(
         project, deployments, media_entries, observed_species, taxonomy_lookup, tz,
