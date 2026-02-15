@@ -1,7 +1,68 @@
 # TODO list
 
 ### Priority 1
-- [ ] INDEPENDENCE INTERVAL - investigate. (Create proper prompt with refs to other platforms.)
+- [ ] INDEPENDENCE INTERVAL - I have been asked by users to add a independece interval, so we do not overcount animals that have several images taken of them. SO for example, if a group of grazing deer walk through the field of view, we might get 10 images of 5 deer. The system currently overcounts it as 50 deer, while in reality its just 5. How do similar camera trap management systems like Agouti, Camelot, Wildlife insights, TrapTagger, WildTrax, TRAPPER AI, eMammal do it? See below stadards to keep in mind. Please thoroughly investigate. I'm not in a rush. 
+- GBIF camera trap best practices - https://docs.gbif.org/camera-trap-guide/en/ - Guidance on managing, structuring, validating, and publishing camera trap data at scale.
+- Camtrap-DP (TDWG camera trap data package) - https://camtrap-dp.tdwg.org/ - The de facto data standard for camera trap datasets, defining tables, fields, relationships, and controlled vocabularies.
+- Darwin Core (TDWG) - https://dwc.tdwg.org/ - A widely used biodiversity data standard enabling interoperability with GBIF and other biodiversity infrastructures.
+- FAIR data principles - https://www.go-fair.org/fair-principles/ - Principles for making data findable, accessible, interoperable, and reusable.
+- MegaDetector documentation (Microsoft AI for Earth) - https://github.com/microsoft/CameraTraps - Standards and conventions for animal detection models commonly used in camera trap workflows.
+- eMammal camera trap protocols - https://emammal.si.edu/protocols - Best practices for camera deployment, metadata capture, QA/QC, and long-term monitoring.
+- WCAG accessibility standards - https://www.w3.org/WAI/standards-guidelines/wcag/ - Accessibility guidelines applicable to research dashboards and annotation tools.
+- Nielsen Norman Group usability heuristics - https://www.nngroup.com/articles/ten-usability-heuristics/ - Core UX principles for evaluating interface and workflow usability.
+- OCI (Operational Camera Trap Metadata Standard) - https://github.com/tdwg/camtrap-dp/blob/main/metadata/README.md - Guidance for consistent camera trap metadata capture across projects.
+- Open Geospatial Consortium standards (OGC) - https://www.ogc.org/standards - Standards for spatial metadata and georeferencing, relevant when publishing precise camera trap locations.
+- Snapshot Safari / Zooniverse project design guidelines - https://help.zooniverse.org/kb/ - Guidance on annotation UI/UX, workflow design, and volunteer engagement for large-scale projects.
+
+
+  ---
+  Summary of defaults across platforms
+
+  ┌───────────────────┬───────────────────┬────────────────────────┬────────────────────┬──────────────────────────────────────────────┐
+  │     Platform      │ Sequence interval │ Independence interval  │   Configurable?    │                Applied when?                 │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ Agouti            │ 120s              │ N/A (at analysis)      │ Yes, per project   │ Sequence at ingest, independence at analysis │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ Wildlife Insights │ burst grouping    │ N/A (at download)      │ N/A                │ Download/analysis                            │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ TrapTagger        │ 60s (cluster)     │ 15min (sub-cluster)    │ Yes                │ Annotation time                              │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ Camelot           │ 600s              │ configurable           │ Yes                │ Analysis time                                │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ eMammal           │ 60s               │ 60 min                 │ Yes, per project   │ Sequence at ingest, independence at analysis │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ TRAPPER           │ 120s              │ 30 min typical         │ Yes                │ Analysis time                                │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ camtrapR          │ N/A               │ 0 (default, user sets) │ Yes (minDeltaTime) │ Analysis time                                │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ Snapshot Safari   │ burst (3 imgs)    │ 30 min                 │ Fixed              │ Analysis time                                │
+  ├───────────────────┼───────────────────┼────────────────────────┼────────────────────┼──────────────────────────────────────────────┤
+  │ Most common       │ 60-120s           │ 30 min                 │ Yes                │ Analysis/export time                         │
+  └───────────────────┴───────────────────┴────────────────────────┴────────────────────┴──────────────────────────────────────────────┘
+
+  ---
+  Recommendation for AddaxAI Connect
+
+  Based on this research, the standard approach would be:
+
+  1. Sequence grouping (Level 1): Group consecutive images from the same camera within ~120 seconds into a sequence. This could happen at ingestion or detection time. The max count
+   across images in the sequence is the group size.
+  2. Independence interval (Level 2): Apply a configurable filter (default 30 minutes) when calculating statistics (RAI, species counts, etc.) and during data export. This filter
+  operates per-species, per-camera. It should be a project-level setting that users can adjust.
+  3. Store raw data: Keep every individual detection/classification in the database. Never discard data at ingestion. The independence filter is a view on the data, not a mutation
+  of it.
+  4. Align with Camtrap-DP: Use eventID to group observations. Support both media-level and event-level observation exports.
+
+
+
+
+
+
+
+
+
+
+
 
 ### Priority 2
 - [ ] DEPLOYMENT DEFINITION - understand the definition of a deployment better. what defines it? Is that also what CamtrapDP defines as a deployment? 
