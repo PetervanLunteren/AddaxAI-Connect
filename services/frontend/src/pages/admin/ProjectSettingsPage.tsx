@@ -549,31 +549,30 @@ export const ProjectSettingsPage: React.FC = () => {
               )}
 
               {/* Species filter card */}
-              {modalData.changes.find(c => c.label === 'Species filter') && (
+              {modalData.changes.find(c => c.label === 'Species filter') && modalData.speciesChanges && (
                 <Card>
                   <CardContent className="pt-4 pb-4">
                     <p className="text-sm font-medium">Species filter</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.to}</code>
                     </p>
-                    {modalData.speciesChanges && (
-                      <div className="mt-3 pt-3 border-t">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Impact on results</p>
-                        {modalData.speciesChanges.added.length > 0 && (
-                          <p className="text-sm text-muted-foreground">
-                            Added: {modalData.speciesChanges.added.map(normalizeLabel).join(', ')}
-                          </p>
-                        )}
-                        {modalData.speciesChanges.removed.length > 0 && (
-                          <p className="text-sm text-muted-foreground">
-                            Removed: {modalData.speciesChanges.removed.map(normalizeLabel).join(', ')}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1 italic">
-                          Changes apply to future classifications only.
-                        </p>
-                      </div>
+                    {modalData.speciesChanges.added.length > 0 && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Added: {modalData.speciesChanges.added.map(s => (
+                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs mr-1">{normalizeLabel(s)}</code>
+                        ))}
+                      </p>
                     )}
+                    {modalData.speciesChanges.removed.length > 0 && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Removed: {modalData.speciesChanges.removed.map(s => (
+                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs mr-1">{normalizeLabel(s)}</code>
+                        ))}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2 italic">
+                      Changes apply to future classifications only.
+                    </p>
                   </CardContent>
                 </Card>
               )}
