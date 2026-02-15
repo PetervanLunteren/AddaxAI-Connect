@@ -1121,8 +1121,14 @@ async def get_pipeline_status(
     )
 
 
+class DetectionCountSpecies(BaseModel):
+    species: str
+    count: int
+
+
 class DetectionCountResponse(BaseModel):
     total: int
+    species: List[DetectionCountSpecies]
 
 
 @router.get(
@@ -1137,16 +1143,19 @@ async def get_detection_count(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Count total detections at a given confidence threshold.
+    Count detections per species at a given confidence threshold.
 
     Verified images use human observation counts (unaffected by threshold).
     Unverified images count AI classifications above the threshold.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
 
-    # Verified: human observations (threshold doesn't apply)
-    verified_result = await db.execute(
-        select(func.coalesce(func.sum(HumanObservation.count), 0))
+    # Verified: human observations grouped by species (threshold doesn't apply)
+    verified_query = (
+        select(
+            HumanObservation.species.label('species'),
+            func.sum(HumanObservation.count).label('count'),
+        )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(
@@ -1155,12 +1164,15 @@ async def get_detection_count(
                 Camera.project_id.in_(accessible_project_ids),
             )
         )
+        .group_by(HumanObservation.species)
     )
-    verified_count = verified_result.scalar_one()
 
-    # Unverified: AI classifications above threshold
-    unverified_result = await db.execute(
-        select(func.count(Classification.id))
+    # Unverified: AI classifications above threshold, grouped by species
+    unverified_query = (
+        select(
+            Classification.species.label('species'),
+            func.count(Classification.id).label('count'),
+        )
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -1171,10 +1183,31 @@ async def get_detection_count(
                 Detection.confidence >= threshold,
             )
         )
+        .group_by(Classification.species)
     )
-    unverified_count = unverified_result.scalar_one()
 
-    return DetectionCountResponse(total=int(verified_count) + int(unverified_count))
+    # Combine and sum per species
+    from sqlalchemy import union_all
+    combined = union_all(verified_query, unverified_query).subquery()
+    final_query = (
+        select(
+            combined.c.species,
+            func.sum(combined.c.count).label('total_count'),
+        )
+        .group_by(combined.c.species)
+        .order_by(func.sum(combined.c.count).desc())
+    )
+
+    result = await db.execute(final_query)
+    rows = result.all()
+
+    species_list = [
+        DetectionCountSpecies(species=row.species, count=int(row.total_count))
+        for row in rows
+    ]
+    total = sum(s.count for s in species_list)
+
+    return DetectionCountResponse(total=total, species=species_list)
 
 
 class IndependenceSummarySpecies(BaseModel):
