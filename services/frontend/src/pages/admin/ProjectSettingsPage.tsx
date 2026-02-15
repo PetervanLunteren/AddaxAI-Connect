@@ -454,7 +454,7 @@ export const ProjectSettingsPage: React.FC = () => {
                       <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
                         <p className="text-sm text-muted-foreground mb-2">
-                          {modalData.thresholdImpact.oldResult.total.toLocaleString()} &rarr; {modalData.thresholdImpact.newResult.total.toLocaleString()} detections
+                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.oldResult.total.toLocaleString()}</code> &rarr; <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.newResult.total.toLocaleString()}</code> detections
                           {modalData.thresholdImpact.oldResult.total > 0 && (() => {
                             const pct = Math.round(
                               ((modalData.thresholdImpact!.newResult.total - modalData.thresholdImpact!.oldResult.total)
@@ -494,10 +494,10 @@ export const ProjectSettingsPage: React.FC = () => {
                                       ? Math.round(((newCount - oldCount) / oldCount) * 100)
                                       : 0;
                                     return (
-                                      <div key={species} className="flex justify-between text-xs text-muted-foreground">
+                                      <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
                                         <span>{normalizeLabel(species)}</span>
                                         <span className="tabular-nums">
-                                          {oldCount.toLocaleString()} &rarr; {newCount.toLocaleString()}
+                                          <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
                                           <span className="ml-2 text-[#0f6064]">
                                             {pct >= 0 ? '+' : ''}{pct}%
                                           </span>
@@ -533,7 +533,7 @@ export const ProjectSettingsPage: React.FC = () => {
                       <div className="mt-3 pt-3 border-t">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effect on statistics</p>
                         <p className="text-sm text-muted-foreground mb-2">
-                          {modalData.independenceImpact.raw_total.toLocaleString()} &rarr; {modalData.independenceImpact.independent_total.toLocaleString()} independent events
+                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.raw_total.toLocaleString()}</code> &rarr; <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.independent_total.toLocaleString()}</code> independent events
                           {(() => {
                             const pct = Math.round(
                               ((modalData.independenceImpact!.independent_total - modalData.independenceImpact!.raw_total)
@@ -567,10 +567,10 @@ export const ProjectSettingsPage: React.FC = () => {
                                       ? Math.round(((s.independent_count - s.raw_count) / s.raw_count) * 100)
                                       : 0;
                                     return (
-                                      <div key={s.species} className="flex justify-between text-xs text-muted-foreground">
+                                      <div key={s.species} className="flex justify-between items-center text-xs text-muted-foreground">
                                         <span>{normalizeLabel(s.species)}</span>
                                         <span className="tabular-nums">
-                                          {s.raw_count.toLocaleString()} &rarr; {s.independent_count.toLocaleString()}
+                                          <code className="bg-muted px-1 py-0.5 rounded">{s.raw_count.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{s.independent_count.toLocaleString()}</code>
                                           <span className="ml-2 text-[#0f6064]">
                                             {pct >= 0 ? '+' : ''}{pct}%
                                           </span>
