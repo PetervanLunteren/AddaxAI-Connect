@@ -37,19 +37,10 @@ const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 60, label: '60 minutes' },
 ];
 
-function formatInterval(minutes: number): string {
-  const opt = INDEPENDENCE_INTERVAL_OPTIONS.find(o => o.value === minutes);
-  if (opt) return opt.label;
-  return `${minutes} minutes`;
-}
-
 // Data collected after save to populate the modal
 interface ModalData {
-  changes: { label: string; from: string; to: string }[];
-  thresholdImpact: { oldResult: DetectionCountResponse; newResult: DetectionCountResponse } | null;
-  independenceImpact: { oldResult: IndependenceSummaryResponse; newResult: IndependenceSummaryResponse } | null;
-  speciesChanges: { added: string[]; removed: string[] } | null;
-  blurChanged: boolean;
+  observations: { before: DetectionCountResponse; after: DetectionCountResponse };
+  events: { before: IndependenceSummaryResponse; after: IndependenceSummaryResponse };
 }
 
 export const ProjectSettingsPage: React.FC = () => {
@@ -139,10 +130,17 @@ export const ProjectSettingsPage: React.FC = () => {
     // Snapshot old values before saving
     const oldThreshold = currentProject.detection_threshold;
     const oldInterval = currentProject.independence_interval_minutes ?? 0;
-    const oldSpecies = currentProject.included_species || [];
-    const oldBlur = currentProject.blur_people_vehicles ?? true;
 
     try {
+      // 1. Fetch "before" stats (old settings still in DB)
+      const [beforeObservations, beforeEventsRaw] = await Promise.all([
+        statisticsApi.getDetectionCount(currentProject.id, oldThreshold),
+        oldInterval > 0
+          ? statisticsApi.getIndependenceSummary(currentProject.id, oldInterval)
+          : null,
+      ]);
+
+      // 2. Save all changes
       const promises: Promise<any>[] = [];
 
       if (hasThresholdChanges) {
@@ -169,93 +167,29 @@ export const ProjectSettingsPage: React.FC = () => {
       await Promise.all(promises);
       setSaveStatus('success');
 
-      // Build modal data
-      const changes: ModalData['changes'] = [];
-      let thresholdImpact: ModalData['thresholdImpact'] = null;
-      let independenceImpact: ModalData['independenceImpact'] = null;
-      let speciesChanges: ModalData['speciesChanges'] = null;
-      const blurChanged = hasBlurChanges;
+      // 3. Fetch "after" stats (new settings now in DB)
+      const [afterObservations, afterEventsRaw] = await Promise.all([
+        statisticsApi.getDetectionCount(currentProject.id, threshold),
+        independenceInterval > 0
+          ? statisticsApi.getIndependenceSummary(currentProject.id, independenceInterval)
+          : null,
+      ]);
 
-      if (hasThresholdChanges) {
-        changes.push({
-          label: 'Detection threshold',
-          from: `${(oldThreshold * 100).toFixed(0)}%`,
-          to: `${(threshold * 100).toFixed(0)}%`,
-        });
-      }
+      // 4. Build fallback for interval=0 (no grouping = every detection is independent)
+      const eventsFallback = (obs: DetectionCountResponse): IndependenceSummaryResponse => ({
+        raw_total: obs.total,
+        independent_total: obs.total,
+        species: obs.species.map(s => ({ species: s.species, raw_count: s.count, independent_count: s.count })),
+      });
 
-      if (hasIntervalChanges) {
-        changes.push({
-          label: 'Independence interval',
-          from: formatInterval(oldInterval),
-          to: formatInterval(independenceInterval),
-        });
-      }
+      setModalData({
+        observations: { before: beforeObservations, after: afterObservations },
+        events: {
+          before: beforeEventsRaw ?? eventsFallback(beforeObservations),
+          after: afterEventsRaw ?? eventsFallback(afterObservations),
+        },
+      });
 
-      if (hasSpeciesChanges) {
-        const newSpecies = includedSpecies.map(s => s.value as string);
-        const oldSet = new Set(oldSpecies);
-        const newSet = new Set(newSpecies);
-        const added = newSpecies.filter(s => !oldSet.has(s));
-        const removed = oldSpecies.filter(s => !newSet.has(s));
-
-        const fromLabel = oldSpecies.length === 0 ? 'All species' : `${oldSpecies.length} selected`;
-        const toLabel = newSpecies.length === 0 ? 'All species' : `${newSpecies.length} selected`;
-        changes.push({ label: 'Species filter', from: fromLabel, to: toLabel });
-        speciesChanges = { added, removed };
-      }
-
-      if (blurChanged) {
-        changes.push({
-          label: 'Blur people & vehicles',
-          from: oldBlur ? 'On' : 'Off',
-          to: blurPeopleVehicles ? 'On' : 'Off',
-        });
-      }
-
-      // Fetch impact data in parallel
-      const impactPromises: Promise<void>[] = [];
-
-      if (hasThresholdChanges) {
-        impactPromises.push(
-          Promise.all([
-            statisticsApi.getDetectionCount(currentProject.id, oldThreshold),
-            statisticsApi.getDetectionCount(currentProject.id, threshold),
-          ]).then(([oldResult, newResult]) => {
-            thresholdImpact = { oldResult, newResult };
-          }).catch(() => {})
-        );
-      }
-
-      if (hasIntervalChanges && (oldInterval > 0 || independenceInterval > 0)) {
-        impactPromises.push(
-          Promise.all([
-            oldInterval > 0
-              ? statisticsApi.getIndependenceSummary(currentProject.id, oldInterval)
-              : Promise.resolve(null),
-            independenceInterval > 0
-              ? statisticsApi.getIndependenceSummary(currentProject.id, independenceInterval)
-              : Promise.resolve(null),
-          ]).then(([oldResult, newResult]) => {
-            // When interval is 0 (disabled), independent count = raw count
-            const ref = oldResult ?? newResult;
-            if (!ref) return;
-            const rawAsFallback: IndependenceSummaryResponse = {
-              raw_total: ref.raw_total,
-              independent_total: ref.raw_total,
-              species: ref.species.map(s => ({ ...s, independent_count: s.raw_count })),
-            };
-            independenceImpact = {
-              oldResult: oldResult ?? rawAsFallback,
-              newResult: newResult ?? rawAsFallback,
-            };
-          }).catch(() => {})
-        );
-      }
-
-      await Promise.all(impactPromises);
-
-      setModalData({ changes, thresholdImpact, independenceImpact, speciesChanges, blurChanged });
       setShowToast(true);
       setTimeout(() => {
         setSaveStatus('idle');
@@ -427,7 +361,7 @@ export const ProjectSettingsPage: React.FC = () => {
           <Check className="h-4 w-4 text-[#0f6064] flex-shrink-0" />
           <span className="text-sm">
             Settings saved!
-            {modalData && modalData.changes.length > 0 && (
+            {modalData && (
               <>
                 {' '}
                 <button
@@ -450,217 +384,157 @@ export const ProjectSettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Settings changes modal */}
+      {/* Effect on statistics modal */}
       <Dialog open={showChangesModal} onOpenChange={setShowChangesModal}>
         <DialogContent onClose={() => setShowChangesModal(false)}>
           <DialogHeader>
-            <DialogTitle>Settings updated</DialogTitle>
+            <DialogTitle>Effect on statistics</DialogTitle>
           </DialogHeader>
 
           {modalData && (
             <div className="space-y-3">
 
-              {/* Threshold card */}
-              {modalData.changes.find(c => c.label === 'Detection threshold') && (
-                <Card>
-                  <CardContent className="pt-4 pb-4">
-                    <p className="text-sm font-medium">Detection threshold</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Detection threshold')!.to}</code>
-                    </p>
-                    {modalData.thresholdImpact && (
-                      <div className="mt-1">
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Resulted in <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.oldResult.total.toLocaleString()}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.thresholdImpact.newResult.total.toLocaleString()}</code> detections
-                          {modalData.thresholdImpact.oldResult.total > 0 && (() => {
-                            const pct = Math.round(
-                              ((modalData.thresholdImpact!.newResult.total - modalData.thresholdImpact!.oldResult.total)
-                              / modalData.thresholdImpact!.oldResult.total) * 100
-                            );
-                            return (
-                              <span className="text-xs ml-2 text-muted-foreground">
-                                ({pct >= 0 ? '+' : ''}{pct}%)
-                              </span>
-                            );
-                          })()}
-                        </p>
-                        {(() => {
-                          const oldMap = new Map(modalData.thresholdImpact!.oldResult.species.map(s => [s.species, s.count]));
-                          const newMap = new Map(modalData.thresholdImpact!.newResult.species.map(s => [s.species, s.count]));
-                          const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
-                          const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
-                          changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
-                          const unchangedCount = allSpecies.length - changed.length;
-                          if (changed.length === 0) return null;
-                          return (
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setShowThresholdBreakdown(!showThresholdBreakdown)}
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
-                              >
-                                {showThresholdBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                {showThresholdBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
-                              </button>
-                              {showThresholdBreakdown && (
-                                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                                  {changed.map((species) => {
-                                    const oldCount = oldMap.get(species) ?? 0;
-                                    const newCount = newMap.get(species) ?? 0;
-                                    const pct = oldCount > 0
-                                      ? Math.round(((newCount - oldCount) / oldCount) * 100)
-                                      : 0;
-                                    return (
-                                      <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
-                                        <span>{normalizeLabel(species)}</span>
-                                        <span className="tabular-nums">
-                                          <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
-                                          <span className="ml-2 text-muted-foreground">
-                                            ({pct >= 0 ? '+' : ''}{pct}%)
-                                          </span>
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                  {unchangedCount > 0 && (
-                                    <p className="text-xs text-muted-foreground italic pt-1">
-                                      {unchangedCount} other species unchanged
-                                    </p>
-                                  )}
+              {/* Observations card */}
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-sm font-medium">Observations</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.observations.before.total.toLocaleString()}</code>
+                    {' '}&rarr;{' '}
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.observations.after.total.toLocaleString()}</code>
+                    {modalData.observations.before.total > 0 && (() => {
+                      const pct = Math.round(
+                        ((modalData.observations.after.total - modalData.observations.before.total)
+                        / modalData.observations.before.total) * 100
+                      );
+                      return (
+                        <span className="text-xs ml-2 text-muted-foreground">
+                          ({pct >= 0 ? '+' : ''}{pct}%)
+                        </span>
+                      );
+                    })()}
+                  </p>
+                  {(() => {
+                    const oldMap = new Map(modalData.observations.before.species.map(s => [s.species, s.count]));
+                    const newMap = new Map(modalData.observations.after.species.map(s => [s.species, s.count]));
+                    const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
+                    const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
+                    changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                    const unchangedCount = allSpecies.length - changed.length;
+                    if (changed.length === 0) return null;
+                    return (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowThresholdBreakdown(!showThresholdBreakdown)}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                        >
+                          {showThresholdBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          {showThresholdBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
+                        </button>
+                        {showThresholdBreakdown && (
+                          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                            {changed.map((species) => {
+                              const oldCount = oldMap.get(species) ?? 0;
+                              const newCount = newMap.get(species) ?? 0;
+                              const pct = oldCount > 0
+                                ? Math.round(((newCount - oldCount) / oldCount) * 100)
+                                : 0;
+                              return (
+                                <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
+                                  <span>{normalizeLabel(species)}</span>
+                                  <span className="tabular-nums">
+                                    <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
+                                    <span className="ml-2 text-muted-foreground">
+                                      ({pct >= 0 ? '+' : ''}{pct}%)
+                                    </span>
+                                  </span>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })()}
+                              );
+                            })}
+                            {unchangedCount > 0 && (
+                              <p className="text-xs text-muted-foreground italic pt-1">
+                                {unchangedCount} other species unchanged
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                    );
+                  })()}
+                </CardContent>
+              </Card>
 
-              {/* Independence interval card */}
-              {modalData.changes.find(c => c.label === 'Independence interval') && (
-                <Card>
-                  <CardContent className="pt-4 pb-4">
-                    <p className="text-sm font-medium">Independence interval</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Independence interval')!.to}</code>
-                    </p>
-                    {modalData.independenceImpact && (
-                      <div className="mt-1">
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Resulted in <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.oldResult.independent_total.toLocaleString()}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.independenceImpact.newResult.independent_total.toLocaleString()}</code> independent events
-                          {modalData.independenceImpact.oldResult.independent_total > 0 && (() => {
-                            const pct = Math.round(
-                              ((modalData.independenceImpact!.newResult.independent_total - modalData.independenceImpact!.oldResult.independent_total)
-                              / modalData.independenceImpact!.oldResult.independent_total) * 100
-                            );
-                            return (
-                              <span className="text-xs ml-2 text-muted-foreground">
-                                ({pct >= 0 ? '+' : ''}{pct}%)
-                              </span>
-                            );
-                          })()}
-                        </p>
-                        {(() => {
-                          const oldMap = new Map(modalData.independenceImpact!.oldResult.species.map(s => [s.species, s.independent_count]));
-                          const newMap = new Map(modalData.independenceImpact!.newResult.species.map(s => [s.species, s.independent_count]));
-                          const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
-                          const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
-                          changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
-                          const unchangedCount = allSpecies.length - changed.length;
-                          if (changed.length === 0) return null;
-                          return (
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setShowIndependenceBreakdown(!showIndependenceBreakdown)}
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
-                              >
-                                {showIndependenceBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                {showIndependenceBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
-                              </button>
-                              {showIndependenceBreakdown && (
-                                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                                  {changed.map((species) => {
-                                    const oldCount = oldMap.get(species) ?? 0;
-                                    const newCount = newMap.get(species) ?? 0;
-                                    const pct = oldCount > 0
-                                      ? Math.round(((newCount - oldCount) / oldCount) * 100)
-                                      : 0;
-                                    return (
-                                      <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
-                                        <span>{normalizeLabel(species)}</span>
-                                        <span className="tabular-nums">
-                                          <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
-                                          <span className="ml-2 text-muted-foreground">
-                                            ({pct >= 0 ? '+' : ''}{pct}%)
-                                          </span>
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                  {unchangedCount > 0 && (
-                                    <p className="text-xs text-muted-foreground italic pt-1">
-                                      {unchangedCount} other species unchanged
-                                    </p>
-                                  )}
+              {/* Independent events card */}
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-sm font-medium">Independent events</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.before.independent_total.toLocaleString()}</code>
+                    {' '}&rarr;{' '}
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.after.independent_total.toLocaleString()}</code>
+                    {modalData.events.before.independent_total > 0 && (() => {
+                      const pct = Math.round(
+                        ((modalData.events.after.independent_total - modalData.events.before.independent_total)
+                        / modalData.events.before.independent_total) * 100
+                      );
+                      return (
+                        <span className="text-xs ml-2 text-muted-foreground">
+                          ({pct >= 0 ? '+' : ''}{pct}%)
+                        </span>
+                      );
+                    })()}
+                  </p>
+                  {(() => {
+                    const oldMap = new Map(modalData.events.before.species.map(s => [s.species, s.independent_count]));
+                    const newMap = new Map(modalData.events.after.species.map(s => [s.species, s.independent_count]));
+                    const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
+                    const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
+                    changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                    const unchangedCount = allSpecies.length - changed.length;
+                    if (changed.length === 0) return null;
+                    return (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowIndependenceBreakdown(!showIndependenceBreakdown)}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                        >
+                          {showIndependenceBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          {showIndependenceBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
+                        </button>
+                        {showIndependenceBreakdown && (
+                          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                            {changed.map((species) => {
+                              const oldCount = oldMap.get(species) ?? 0;
+                              const newCount = newMap.get(species) ?? 0;
+                              const pct = oldCount > 0
+                                ? Math.round(((newCount - oldCount) / oldCount) * 100)
+                                : 0;
+                              return (
+                                <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
+                                  <span>{normalizeLabel(species)}</span>
+                                  <span className="tabular-nums">
+                                    <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
+                                    <span className="ml-2 text-muted-foreground">
+                                      ({pct >= 0 ? '+' : ''}{pct}%)
+                                    </span>
+                                  </span>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })()}
+                              );
+                            })}
+                            {unchangedCount > 0 && (
+                              <p className="text-xs text-muted-foreground italic pt-1">
+                                {unchangedCount} other species unchanged
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Species filter card */}
-              {modalData.changes.find(c => c.label === 'Species filter') && modalData.speciesChanges && (
-                <Card>
-                  <CardContent className="pt-4 pb-4">
-                    <p className="text-sm font-medium">Species filter</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.to}</code>
-                    </p>
-                    {modalData.speciesChanges.added.length > 0 && (
-                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
-                        <span>Added:</span>
-                        {modalData.speciesChanges.added.map(s => (
-                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs">{normalizeLabel(s)}</code>
-                        ))}
-                      </div>
-                    )}
-                    {modalData.speciesChanges.removed.length > 0 && (
-                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
-                        <span>Removed:</span>
-                        {modalData.speciesChanges.removed.map(s => (
-                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs">{normalizeLabel(s)}</code>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2 italic">
-                      Changes apply to future classifications only.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Blur card */}
-              {modalData.blurChanged && (
-                <Card>
-                  <CardContent className="pt-4 pb-4">
-                    <p className="text-sm font-medium">Blur people & vehicles</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{blurPeopleVehicles ? 'Off' : 'On'}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{blurPeopleVehicles ? 'On' : 'Off'}</code>
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2 italic">
-                      This is a visual change only.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+                    );
+                  })()}
+                </CardContent>
+              </Card>
 
             </div>
           )}
