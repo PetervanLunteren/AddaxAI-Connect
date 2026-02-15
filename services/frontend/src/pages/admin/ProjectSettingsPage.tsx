@@ -625,18 +625,20 @@ export const ProjectSettingsPage: React.FC = () => {
                       Changed from <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.from}</code> to <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.changes.find(c => c.label === 'Species filter')!.to}</code>
                     </p>
                     {modalData.speciesChanges.added.length > 0 && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Added: {modalData.speciesChanges.added.map(s => (
-                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs mr-1">{normalizeLabel(s)}</code>
+                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
+                        <span>Added:</span>
+                        {modalData.speciesChanges.added.map(s => (
+                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs">{normalizeLabel(s)}</code>
                         ))}
-                      </p>
+                      </div>
                     )}
                     {modalData.speciesChanges.removed.length > 0 && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Removed: {modalData.speciesChanges.removed.map(s => (
-                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs mr-1">{normalizeLabel(s)}</code>
+                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap items-center gap-1">
+                        <span>Removed:</span>
+                        {modalData.speciesChanges.removed.map(s => (
+                          <code key={s} className="bg-muted px-1.5 py-0.5 rounded text-xs">{normalizeLabel(s)}</code>
                         ))}
-                      </p>
+                      </div>
                     )}
                     <p className="text-xs text-muted-foreground mt-2 italic">
                       Changes apply to future classifications only.
