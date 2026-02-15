@@ -16,6 +16,7 @@ import type {
   DetectionTrendPoint,
   DetectionTrendFilters,
   PipelineStatusResponse,
+  DetectionCountResponse,
   IndependenceSummaryResponse,
 } from './types';
 
@@ -143,6 +144,14 @@ export const statisticsApi = {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
     const response = await apiClient.get<PipelineStatusResponse>('/api/statistics/pipeline-status', { params });
+    return response.data;
+  },
+
+  getDetectionCount: async (projectId: number, threshold: number): Promise<DetectionCountResponse> => {
+    const response = await apiClient.get<DetectionCountResponse>(
+      '/api/statistics/detection-count',
+      { params: { project_id: projectId.toString(), threshold: threshold.toString() } }
+    );
     return response.data;
   },
 

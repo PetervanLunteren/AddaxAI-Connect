@@ -37,21 +37,38 @@ const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 60, label: '60 minutes' },
 ];
 
+function formatInterval(minutes: number): string {
+  const opt = INDEPENDENCE_INTERVAL_OPTIONS.find(o => o.value === minutes);
+  if (opt) return opt.label;
+  return `${minutes} minutes`;
+}
+
+// Data collected after save to populate the modal
+interface ModalData {
+  changes: { label: string; from: string; to: string }[];
+  thresholdImpact: { oldCount: number; newCount: number } | null;
+  independenceImpact: IndependenceSummaryResponse | null;
+  speciesChanges: { added: string[]; removed: string[] } | null;
+  blurChanged: boolean;
+}
+
 export const ProjectSettingsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { selectedProject: currentProject, canAdminCurrentProject, refreshProjects } = useProject();
   const queryClient = useQueryClient();
 
-  // State
+  // Form state
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [blurPeopleVehicles, setBlurPeopleVehicles] = useState<boolean>(currentProject?.blur_people_vehicles ?? true);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  // Toast + modal state
   const [showToast, setShowToast] = useState(false);
   const [showChangesModal, setShowChangesModal] = useState(false);
-  const [independenceSummary, setIndependenceSummary] = useState<IndependenceSummaryResponse | null>(null);
+  const [modalData, setModalData] = useState<ModalData | null>(null);
 
   // Load values when project changes
   useEffect(() => {
@@ -117,6 +134,12 @@ export const ProjectSettingsPage: React.FC = () => {
     setSaveStatus('saving');
     setError(null);
 
+    // Snapshot old values before saving
+    const oldThreshold = currentProject.detection_threshold;
+    const oldInterval = currentProject.independence_interval_minutes ?? 0;
+    const oldSpecies = currentProject.included_species || [];
+    const oldBlur = currentProject.blur_people_vehicles ?? true;
+
     try {
       const promises: Promise<any>[] = [];
 
@@ -144,18 +167,75 @@ export const ProjectSettingsPage: React.FC = () => {
       await Promise.all(promises);
       setSaveStatus('success');
 
-      // Fetch independence summary for the toast (if interval is active)
-      if (independenceInterval > 0 && currentProject) {
-        try {
-          const summary = await statisticsApi.getIndependenceSummary(currentProject.id);
-          setIndependenceSummary(summary);
-        } catch {
-          setIndependenceSummary(null);
-        }
-      } else {
-        setIndependenceSummary(null);
+      // Build modal data
+      const changes: ModalData['changes'] = [];
+      let thresholdImpact: ModalData['thresholdImpact'] = null;
+      let independenceImpact: ModalData['independenceImpact'] = null;
+      let speciesChanges: ModalData['speciesChanges'] = null;
+      const blurChanged = hasBlurChanges;
+
+      if (hasThresholdChanges) {
+        changes.push({
+          label: 'Detection threshold',
+          from: `${(oldThreshold * 100).toFixed(0)}%`,
+          to: `${(threshold * 100).toFixed(0)}%`,
+        });
       }
 
+      if (hasIntervalChanges) {
+        changes.push({
+          label: 'Independence interval',
+          from: formatInterval(oldInterval),
+          to: formatInterval(independenceInterval),
+        });
+      }
+
+      if (hasSpeciesChanges) {
+        const newSpecies = includedSpecies.map(s => s.value as string);
+        const oldSet = new Set(oldSpecies);
+        const newSet = new Set(newSpecies);
+        const added = newSpecies.filter(s => !oldSet.has(s));
+        const removed = oldSpecies.filter(s => !newSet.has(s));
+
+        const fromLabel = oldSpecies.length === 0 ? 'All species' : `${oldSpecies.length} selected`;
+        const toLabel = newSpecies.length === 0 ? 'All species' : `${newSpecies.length} selected`;
+        changes.push({ label: 'Species filter', from: fromLabel, to: toLabel });
+        speciesChanges = { added, removed };
+      }
+
+      if (blurChanged) {
+        changes.push({
+          label: 'Blur people & vehicles',
+          from: oldBlur ? 'On' : 'Off',
+          to: blurPeopleVehicles ? 'On' : 'Off',
+        });
+      }
+
+      // Fetch impact data in parallel
+      const impactPromises: Promise<void>[] = [];
+
+      if (hasThresholdChanges) {
+        impactPromises.push(
+          Promise.all([
+            statisticsApi.getDetectionCount(currentProject.id, oldThreshold),
+            statisticsApi.getDetectionCount(currentProject.id, threshold),
+          ]).then(([oldResult, newResult]) => {
+            thresholdImpact = { oldCount: oldResult.total, newCount: newResult.total };
+          }).catch(() => {})
+        );
+      }
+
+      if (hasIntervalChanges && independenceInterval > 0) {
+        impactPromises.push(
+          statisticsApi.getIndependenceSummary(currentProject.id)
+            .then((summary) => { independenceImpact = summary; })
+            .catch(() => {})
+        );
+      }
+
+      await Promise.all(impactPromises);
+
+      setModalData({ changes, thresholdImpact, independenceImpact, speciesChanges, blurChanged });
       setShowToast(true);
       setTimeout(() => {
         setSaveStatus('idle');
@@ -174,6 +254,10 @@ export const ProjectSettingsPage: React.FC = () => {
   }));
 
   const isSaving = saveStatus === 'saving';
+  const hasImpactData = modalData && (
+    modalData.thresholdImpact || modalData.independenceImpact ||
+    modalData.speciesChanges || modalData.blurChanged
+  );
 
   return (
     <div>
@@ -327,7 +411,7 @@ export const ProjectSettingsPage: React.FC = () => {
           <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
           <span className="text-sm">
             Settings saved!
-            {independenceSummary && independenceSummary.raw_total > 0 && (
+            {modalData && modalData.changes.length > 0 && (
               <>
                 {' '}
                 <button
@@ -350,41 +434,129 @@ export const ProjectSettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Independence interval changes modal */}
+      {/* Settings changes modal */}
       <Dialog open={showChangesModal} onOpenChange={setShowChangesModal}>
         <DialogContent onClose={() => setShowChangesModal(false)}>
           <DialogHeader>
-            <DialogTitle>Independence interval impact</DialogTitle>
+            <DialogTitle>Settings updated</DialogTitle>
           </DialogHeader>
-          {independenceSummary && independenceSummary.raw_total > 0 ? (
-            <div>
-              <div className="flex justify-between items-baseline mb-4 pb-4 border-b">
-                <span className="text-sm text-muted-foreground">Total</span>
-                <span className="text-sm font-medium tabular-nums">
-                  {independenceSummary.raw_total.toLocaleString()} detections → {independenceSummary.independent_total.toLocaleString()} events
-                </span>
-              </div>
-              <div className="space-y-2 max-h-72 overflow-y-auto">
-                {independenceSummary.species.map((s) => {
-                  const reduction = s.raw_count > 0
-                    ? Math.round((1 - s.independent_count / s.raw_count) * 100)
-                    : 0;
-                  return (
-                    <div key={s.species} className="flex justify-between items-center text-sm">
-                      <span>{normalizeLabel(s.species)}</span>
-                      <span className="tabular-nums text-muted-foreground">
-                        {s.raw_count.toLocaleString()} → {s.independent_count.toLocaleString()}
-                        {reduction > 0 && (
-                          <span className="text-xs ml-2 text-green-600">-{reduction}%</span>
-                        )}
+
+          {modalData && (
+            <div className="space-y-6">
+              {/* Changes summary */}
+              <div>
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Changes</h3>
+                <div className="space-y-2">
+                  {modalData.changes.map((c) => (
+                    <div key={c.label} className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">{c.label}</span>
+                      <span className="tabular-nums">
+                        {c.from} <span className="text-muted-foreground mx-1">&rarr;</span> {c.to}
                       </span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
+
+              {/* Impact on results */}
+              {hasImpactData && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Impact on results</h3>
+                  <div className="space-y-4">
+
+                    {/* Threshold impact */}
+                    {modalData.thresholdImpact && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Detection threshold</p>
+                        <p className="text-sm text-muted-foreground">
+                          {modalData.thresholdImpact.oldCount.toLocaleString()} detections
+                          {' '}&rarr; {modalData.thresholdImpact.newCount.toLocaleString()} detections
+                          {modalData.thresholdImpact.oldCount > 0 && (() => {
+                            const pct = Math.round(
+                              ((modalData.thresholdImpact!.newCount - modalData.thresholdImpact!.oldCount)
+                              / modalData.thresholdImpact!.oldCount) * 100
+                            );
+                            if (pct === 0) return null;
+                            return (
+                              <span className={`text-xs ml-2 ${pct < 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                                {pct > 0 ? '+' : ''}{pct}%
+                              </span>
+                            );
+                          })()}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Independence interval impact */}
+                    {modalData.independenceImpact && modalData.independenceImpact.raw_total > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Independence interval</p>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {modalData.independenceImpact.raw_total.toLocaleString()} detections
+                          {' '}&rarr; {modalData.independenceImpact.independent_total.toLocaleString()} events
+                          {(() => {
+                            const pct = Math.round(
+                              (1 - modalData.independenceImpact!.independent_total / modalData.independenceImpact!.raw_total) * 100
+                            );
+                            return pct > 0 ? (
+                              <span className="text-xs ml-2 text-green-600">-{pct}%</span>
+                            ) : null;
+                          })()}
+                        </p>
+                        <div className="space-y-1 max-h-48 overflow-y-auto">
+                          {modalData.independenceImpact.species.map((s) => {
+                            const reduction = s.raw_count > 0
+                              ? Math.round((1 - s.independent_count / s.raw_count) * 100)
+                              : 0;
+                            return (
+                              <div key={s.species} className="flex justify-between text-xs text-muted-foreground">
+                                <span>{normalizeLabel(s.species)}</span>
+                                <span className="tabular-nums">
+                                  {s.raw_count.toLocaleString()} &rarr; {s.independent_count.toLocaleString()}
+                                  {reduction > 0 && (
+                                    <span className="ml-2 text-green-600">-{reduction}%</span>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Species filter impact */}
+                    {modalData.speciesChanges && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Species filter</p>
+                        {modalData.speciesChanges.added.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            Added: {modalData.speciesChanges.added.map(normalizeLabel).join(', ')}
+                          </p>
+                        )}
+                        {modalData.speciesChanges.removed.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            Removed: {modalData.speciesChanges.removed.map(normalizeLabel).join(', ')}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          Changes apply to future classifications only.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Blur impact */}
+                    {modalData.blurChanged && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Blur people & vehicles</p>
+                        <p className="text-sm text-muted-foreground">
+                          Now {blurPeopleVehicles ? 'enabled' : 'disabled'}. This is a visual change only.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No data available.</p>
           )}
         </DialogContent>
       </Dialog>
