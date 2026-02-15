@@ -213,83 +213,11 @@ export const ProjectSettingsPage: React.FC = () => {
     );
   };
 
-  // Restore defaults and save immediately
-  const handleRestoreDefaults = async () => {
-    const defaultThreshold = 0.5;
-    const defaultBlur = true;
-    const defaultInterval = 30;
-
-    setThreshold(defaultThreshold);
-    setBlurPeopleVehicles(defaultBlur);
-    setIndependenceInterval(defaultInterval);
-
-    setSaveStatus('saving');
-    setError(null);
-
-    const oldThreshold = currentProject.detection_threshold;
-    const oldInterval = currentProject.independence_interval_minutes ?? 0;
-
-    try {
-      const [beforeObservations, beforeEventsRaw] = await Promise.all([
-        statisticsApi.getDetectionCount(currentProject.id, oldThreshold),
-        oldInterval > 0
-          ? statisticsApi.getIndependenceSummary(currentProject.id, oldInterval)
-          : null,
-      ]);
-
-      const promises: Promise<any>[] = [];
-
-      if (defaultThreshold !== currentProject.detection_threshold) {
-        promises.push(updateThresholdMutation.mutateAsync(defaultThreshold));
-      }
-
-      const update: ProjectUpdate = {};
-      if (defaultBlur !== (currentProject.blur_people_vehicles ?? true)) {
-        update.blur_people_vehicles = defaultBlur;
-      }
-      if (defaultInterval !== (currentProject.independence_interval_minutes ?? 0)) {
-        update.independence_interval_minutes = defaultInterval;
-      }
-      if (Object.keys(update).length > 0) {
-        promises.push(updateSpeciesMutation.mutateAsync({ id: currentProject.id, update }));
-      }
-
-      if (promises.length > 0) {
-        await Promise.all(promises);
-      }
-      setSaveStatus('success');
-
-      const [afterObservations, afterEventsRaw] = await Promise.all([
-        statisticsApi.getDetectionCount(currentProject.id, defaultThreshold),
-        defaultInterval > 0
-          ? statisticsApi.getIndependenceSummary(currentProject.id, defaultInterval)
-          : null,
-      ]);
-
-      const eventsFallback = (obs: DetectionCountResponse): IndependenceSummaryResponse => ({
-        raw_total: obs.total,
-        independent_total: obs.total,
-        species: obs.species.map(s => ({ species: s.species, raw_count: s.count, independent_count: s.count })),
-      });
-
-      setModalData({
-        observations: { before: beforeObservations, after: afterObservations },
-        events: {
-          before: beforeEventsRaw ?? eventsFallback(beforeObservations),
-          after: afterEventsRaw ?? eventsFallback(afterObservations),
-        },
-      });
-
-      setShowToast(true);
-      setTimeout(() => {
-        setSaveStatus('idle');
-        setShowToast(false);
-      }, 5000);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Failed to restore defaults');
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    }
+  // Restore defaults (fill form only, user must save)
+  const handleRestoreDefaults = () => {
+    setThreshold(0.5);
+    setBlurPeopleVehicles(true);
+    setIndependenceInterval(30);
   };
 
   const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
