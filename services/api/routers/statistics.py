@@ -1121,6 +1121,62 @@ async def get_pipeline_status(
     )
 
 
+class DetectionCountResponse(BaseModel):
+    total: int
+
+
+@router.get(
+    "/detection-count",
+    response_model=DetectionCountResponse,
+)
+async def get_detection_count(
+    project_id: int = Query(..., description="Project ID (required)"),
+    threshold: float = Query(..., description="Confidence threshold (0-1)"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Count total detections at a given confidence threshold.
+
+    Verified images use human observation counts (unaffected by threshold).
+    Unverified images count AI classifications above the threshold.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+
+    # Verified: human observations (threshold doesn't apply)
+    verified_result = await db.execute(
+        select(func.coalesce(func.sum(HumanObservation.count), 0))
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Image.is_verified == True,
+                Camera.project_id.in_(accessible_project_ids),
+            )
+        )
+    )
+    verified_count = verified_result.scalar_one()
+
+    # Unverified: AI classifications above threshold
+    unverified_result = await db.execute(
+        select(func.count(Classification.id))
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Image.is_verified == False,
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.confidence >= threshold,
+            )
+        )
+    )
+    unverified_count = unverified_result.scalar_one()
+
+    return DetectionCountResponse(total=int(verified_count) + int(unverified_count))
+
+
 class IndependenceSummarySpecies(BaseModel):
     species: str
     raw_count: int

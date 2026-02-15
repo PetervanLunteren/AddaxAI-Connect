@@ -458,6 +458,11 @@ export interface PipelineStatusResponse {
   empty_count: number;
 }
 
+// Detection count at a given threshold
+export interface DetectionCountResponse {
+  total: number;
+}
+
 // Independence interval summary
 export interface IndependenceSummarySpecies {
   species: string;
