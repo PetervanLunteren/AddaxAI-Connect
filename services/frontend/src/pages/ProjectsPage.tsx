@@ -8,11 +8,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Camera, AlertCircle } from 'lucide-react';
+import { Loader2, Camera, AlertCircle, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
 import { UserMenu } from '../components/UserMenu';
@@ -53,7 +54,6 @@ export const ProjectsPage: React.FC = () => {
                 <UserMenu
                   user={user}
                   isServerAdmin={isServerAdmin}
-                  onCreateProject={() => setShowCreateModal(true)}
                   onLogout={handleLogout}
                 />
               )}
@@ -64,14 +64,22 @@ export const ProjectsPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold">Projects</h2>
-          <p className="text-muted-foreground mt-1">
-            {isServerAdmin
-              ? 'Manage wildlife monitoring projects'
-              : 'Your assigned projects'
-            }
-          </p>
+        <div className="mb-6 flex items-start justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Projects</h2>
+            <p className="text-muted-foreground mt-1">
+              {isServerAdmin
+                ? 'Manage wildlife monitoring projects'
+                : 'Your assigned projects'
+              }
+            </p>
+          </div>
+          {isServerAdmin && (
+            <Button size="sm" onClick={() => setShowCreateModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add project
+            </Button>
+          )}
         </div>
 
         {/* Timezone not configured banner (server admins only) */}
@@ -94,7 +102,7 @@ export const ProjectsPage: React.FC = () => {
           <CardContent className="py-12 text-center">
             <p className="text-muted-foreground">
               {isServerAdmin
-                ? 'No projects yet. Use the menu above to create your first project.'
+                ? 'No projects yet. Click "Add project" above to create your first project.'
                 : 'No projects assigned. Contact an administrator.'
               }
             </p>

@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Plus, Settings, Activity, LogOut, Info, KeyRound } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -15,11 +15,10 @@ import { ChangePasswordModal } from './ChangePasswordModal';
 interface UserMenuProps {
   user: User;
   isServerAdmin: boolean;
-  onCreateProject?: () => void;
   onLogout: () => void;
 }
 
-export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreateProject, onLogout }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogout }) => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -47,13 +46,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
     navigate(path);
   };
 
-  const handleCreateProject = () => {
-    setIsOpen(false);
-    if (onCreateProject) {
-      onCreateProject();
-    }
-  };
-
   const handleLogout = () => {
     setIsOpen(false);
     onLogout();
@@ -71,12 +63,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onCreat
 
   // Server admin items (only visible to server admins)
   const serverAdminItems = [
-    ...(onCreateProject ? [{
-      icon: Plus,
-      label: 'Create project',
-      onClick: handleCreateProject,
-      variant: 'default' as const,
-    }] : []),
     {
       icon: Activity,
       label: 'System health',
