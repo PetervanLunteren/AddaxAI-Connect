@@ -450,17 +450,6 @@ export const ProjectSettingsPage: React.FC = () => {
                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.observations.before.total.toLocaleString()}</code>
                     {' '}&rarr;{' '}
                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.observations.after.total.toLocaleString()}</code>
-                    {modalData.observations.before.total > 0 && (() => {
-                      const pct = Math.round(
-                        ((modalData.observations.after.total - modalData.observations.before.total)
-                        / modalData.observations.before.total) * 100
-                      );
-                      return (
-                        <span className="text-xs ml-2 text-muted-foreground">
-                          ({pct >= 0 ? '+' : ''}{pct}%)
-                        </span>
-                      );
-                    })()}
                   </p>
                   {(() => {
                     const oldMap = new Map(modalData.observations.before.species.map(s => [s.species, s.count]));
@@ -485,17 +474,11 @@ export const ProjectSettingsPage: React.FC = () => {
                             {changed.map((species) => {
                               const oldCount = oldMap.get(species) ?? 0;
                               const newCount = newMap.get(species) ?? 0;
-                              const pct = oldCount > 0
-                                ? Math.round(((newCount - oldCount) / oldCount) * 100)
-                                : 0;
                               return (
                                 <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
                                   <span>{normalizeLabel(species)}</span>
                                   <span className="tabular-nums">
                                     <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
-                                    <span className="ml-2 text-muted-foreground">
-                                      ({pct >= 0 ? '+' : ''}{pct}%)
-                                    </span>
                                   </span>
                                 </div>
                               );
@@ -521,17 +504,6 @@ export const ProjectSettingsPage: React.FC = () => {
                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.before.independent_total.toLocaleString()}</code>
                     {' '}&rarr;{' '}
                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.after.independent_total.toLocaleString()}</code>
-                    {modalData.events.before.independent_total > 0 && (() => {
-                      const pct = Math.round(
-                        ((modalData.events.after.independent_total - modalData.events.before.independent_total)
-                        / modalData.events.before.independent_total) * 100
-                      );
-                      return (
-                        <span className="text-xs ml-2 text-muted-foreground">
-                          ({pct >= 0 ? '+' : ''}{pct}%)
-                        </span>
-                      );
-                    })()}
                   </p>
                   {(() => {
                     const oldMap = new Map(modalData.events.before.species.map(s => [s.species, s.independent_count]));
@@ -556,17 +528,11 @@ export const ProjectSettingsPage: React.FC = () => {
                             {changed.map((species) => {
                               const oldCount = oldMap.get(species) ?? 0;
                               const newCount = newMap.get(species) ?? 0;
-                              const pct = oldCount > 0
-                                ? Math.round(((newCount - oldCount) / oldCount) * 100)
-                                : 0;
                               return (
                                 <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
                                   <span>{normalizeLabel(species)}</span>
                                   <span className="tabular-nums">
                                     <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
-                                    <span className="ml-2 text-muted-foreground">
-                                      ({pct >= 0 ? '+' : ''}{pct}%)
-                                    </span>
                                   </span>
                                 </div>
                               );
