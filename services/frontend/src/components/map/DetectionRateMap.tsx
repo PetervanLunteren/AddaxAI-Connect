@@ -3,7 +3,8 @@
  * Displays camera deployments with detection rates as colored markers or hexbins
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { latLngBounds } from 'leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
 import { useProject } from '../../contexts/ProjectContext';
@@ -89,6 +90,17 @@ function MapEventHandler({
     onBoundsChange(bounds);
   }, [map, onZoomChange, onBoundsChange]);
 
+  return null;
+}
+
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (points.length === 0 || fitted.current) return;
+    map.fitBounds(latLngBounds(points), { padding: [20, 20] });
+    fitted.current = true;
+  }, [points, map]);
   return null;
 }
 
@@ -201,6 +213,11 @@ export function DetectionRateMap() {
     return [avgLat, avgLon];
   }, [data]);
 
+  const fitBoundsPoints = useMemo<[number, number][]>(() => {
+    if (!data?.features || data.features.length === 0) return [];
+    return data.features.map((f) => [f.geometry.coordinates[1], f.geometry.coordinates[0]] as [number, number]);
+  }, [data]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[600px]">
@@ -289,6 +306,7 @@ export function DetectionRateMap() {
         />
 
         <MapEventHandler onZoomChange={handleZoomChange} onBoundsChange={handleBoundsChange} />
+        <FitBounds points={fitBoundsPoints} />
 
         {/* Render markers, clusters, or hexbin layer based on view mode */}
         {viewMode === 'points' ? (
