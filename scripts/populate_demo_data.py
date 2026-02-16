@@ -390,6 +390,13 @@ def generate_all_data(cameras: list, rng: Random):
             rate = IMAGES_PER_CAMERA_PER_DAY
             if season == "winter":
                 rate *= WINTER_GLOBAL_MULTIPLIER
+            # Spatial activity variation for heatmap
+            if "north" in cam_zones:
+                rate *= 1.8
+            elif "south_east" in cam_zones:
+                rate *= 1.5
+            elif "edges" in cam_zones:
+                rate *= 0.6
 
             # Poisson draw for number of images this camera-day
             num_images = rng.choices(
@@ -550,14 +557,16 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
     report_id = 1
 
     for cam in cameras:
-        battery = 100
+        battery = rng.uniform(85, 90)
         sd_util = 0.0
         total_images = 0
         sent_images = 0
         # Per-camera signal baseline
         signal_base = rng.randint(12, 22)
+        # Vary when cameras last reported (not all today)
+        days_short = rng.choices([0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 5], k=1)[0]
 
-        for day_offset in range(NUM_DAYS):
+        for day_offset in range(NUM_DAYS - days_short):
             current_date = DATE_START + timedelta(days=day_offset)
             season = get_season(current_date)
 
@@ -583,8 +592,8 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             daily_imgs = rng.randint(0, 3)
             total_images += daily_imgs
             sent_images += max(0, daily_imgs - rng.randint(0, 1))
-            sd_util += daily_imgs * 0.015  # ~1.5% per image
-            if sd_util > 85 or rng.random() < 0.005:
+            sd_util += daily_imgs * 0.005
+            if sd_util > 50 or rng.random() < 0.005:
                 sd_util = rng.uniform(0, 5)  # card swap or cleanup
             sd_util = min(sd_util, 99.0)
 
@@ -1125,6 +1134,46 @@ def insert_notification_preferences(session: Session, project_id: int, user_ids:
                 "channels": json.dumps(channels),
             },
         )
+
+    # Mock-link Telegram for the server admin if present on this instance
+    admin_row = session.execute(
+        text("SELECT id FROM users WHERE email = 'peter@addaxdatascience.com'"),
+    ).fetchone()
+    if admin_row:
+        admin_channels = {
+            "species_alert": {
+                "enabled": True,
+                "channels": ["telegram"],
+                "species": ["wolf", "wild_boar", "red_deer"],
+            },
+            "low_battery": {
+                "enabled": True,
+                "channels": ["telegram"],
+                "threshold": 20,
+            },
+        }
+        session.execute(
+            text("DELETE FROM project_notification_preferences WHERE user_id = :uid AND project_id = :pid"),
+            {"uid": admin_row[0], "pid": project_id},
+        )
+        session.execute(
+            text("""
+                INSERT INTO project_notification_preferences (
+                    user_id, project_id, enabled, telegram_chat_id,
+                    notification_channels
+                ) VALUES (
+                    :uid, :pid, true, :chat_id,
+                    CAST(:channels AS json)
+                )
+            """),
+            {
+                "uid": admin_row[0],
+                "pid": project_id,
+                "chat_id": "100000",
+                "channels": json.dumps(admin_channels),
+            },
+        )
+
     session.flush()
 
 
