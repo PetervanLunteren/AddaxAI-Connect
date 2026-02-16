@@ -119,7 +119,7 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
       {camerasWithLocation.length > 0 ? (
         <MapContainer
           center={mapCenter}
-          zoom={10}
+          zoom={12}
           style={{ height: '500px', width: '100%', zIndex: 0 }}
           className="rounded-lg border border-gray-200"
         >

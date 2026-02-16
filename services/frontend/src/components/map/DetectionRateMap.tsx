@@ -108,7 +108,7 @@ export function DetectionRateMap() {
     }
     return 'hexbins'; // Default to hexbins
   });
-  const [zoomLevel, setZoomLevel] = useState(10);
+  const [zoomLevel, setZoomLevel] = useState(12);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
   const [baseLayer, setBaseLayer] = useState(() => {
     // Restore baselayer preference from localStorage
@@ -278,7 +278,7 @@ export function DetectionRateMap() {
 
       <MapContainer
         center={mapCenter}
-        zoom={10}
+        zoom={12}
         style={{ height: '600px', width: '100%' }}
         className="rounded-lg border border-gray-200"
       >
