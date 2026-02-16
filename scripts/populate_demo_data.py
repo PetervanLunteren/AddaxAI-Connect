@@ -3,7 +3,7 @@
 Populate demo data for AddaxAI Connect.
 
 Creates a complete demo dataset for De Hoge Veluwe National Park (Netherlands)
-with 100 cameras, ~50,000 images, detections, classifications, health reports,
+with ~100 cameras, ~50,000 images, detections, classifications, health reports,
 and deployment periods spanning 2 years.
 
 Usage:
@@ -42,19 +42,42 @@ PROJECT_DESCRIPTION = (
     "sand drifts, monitoring large mammals and mesocarnivores."
 )
 
-# Park boundaries (camera grid area)
-LAT_MIN, LAT_MAX = 52.04, 52.12  # ~9 km north-south
-LON_MIN, LON_MAX = 5.75, 5.87    # ~8 km east-west
+# Real park boundary polygon (lon, lat) - approximate De Hoge Veluwe boundary
+PARK_BOUNDARY = [
+    (5.810, 52.120),  # North (Hoenderloo)
+    (5.835, 52.115),
+    (5.855, 52.105),
+    (5.868, 52.090),
+    (5.875, 52.075),
+    (5.870, 52.060),
+    (5.860, 52.048),
+    (5.845, 52.040),
+    (5.825, 52.035),
+    (5.808, 52.037),
+    (5.790, 52.042),
+    (5.778, 52.050),
+    (5.772, 52.062),
+    (5.770, 52.075),
+    (5.773, 52.088),
+    (5.780, 52.098),
+    (5.790, 52.107),
+    (5.800, 52.114),
+    (5.810, 52.120),  # Close polygon
+]
 
-# Date range: 2 years
-DATE_START = date(2024, 1, 1)
-DATE_END = date(2025, 12, 31)
-NUM_DAYS = (DATE_END - DATE_START).days + 1  # 731
+# Bounding box derived from park boundary
+LAT_MIN = min(p[1] for p in PARK_BOUNDARY)
+LAT_MAX = max(p[1] for p in PARK_BOUNDARY)
+LON_MIN = min(p[0] for p in PARK_BOUNDARY)
+LON_MAX = max(p[0] for p in PARK_BOUNDARY)
 
-# Camera grid
-GRID_ROWS = 10
-GRID_COLS = 10
-NUM_CAMERAS = GRID_ROWS * GRID_COLS
+# Date range: ~2 years ending today
+DATE_END = date.today()
+DATE_START = DATE_END - timedelta(days=729)
+NUM_DAYS = (DATE_END - DATE_START).days + 1
+
+# Target number of cameras
+NUM_CAMERAS_TARGET = 100
 
 # Image generation rate
 IMAGES_PER_CAMERA_PER_DAY = 0.7  # Poisson lambda
@@ -76,10 +99,25 @@ PLACEHOLDER_STORAGE_PATH = "demo/placeholder.jpg"
 PLACEHOLDER_THUMBNAIL_PATH = "demo/placeholder.jpg"
 
 # Demo users
-ADMIN_EMAIL = "admin@demo.addaxai.com"
-ADMIN_PASSWORD = "demo2024!"
-VIEWER_EMAIL = "viewer@demo.addaxai.com"
-VIEWER_PASSWORD = "demo2024!"
+DEMO_PASSWORD = "demo2024!"
+DEMO_USERS = [
+    {"email": "admin@demo.addaxai.com",   "is_superuser": True,  "is_verified": True,  "is_active": True,  "role": "server-admin"},
+    {"email": "j.devries@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
+    {"email": "m.bakker@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
+    {"email": "s.jansen@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "l.visser@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "p.deboer@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "a.mulder@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "k.devos@hogeveluwe.nl",    "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "r.hendriks@hogeveluwe.nl", "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "n.smit@uu.nl",            "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "t.dejong@wur.nl",          "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "d.meijer@sovon.nl",        "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
+    {"email": "e.vandenberg@gmail.com",   "is_superuser": False, "is_verified": False, "is_active": True,  "role": "project-viewer"},
+    {"email": "f.bos@outlook.com",        "is_superuser": False, "is_verified": False, "is_active": True,  "role": "project-viewer"},
+    {"email": "b.willems@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": False, "role": "project-viewer"},
+    {"email": "c.kuiper@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": False, "role": "project-viewer"},
+]
 
 # Species configuration
 SPECIES_CONFIG = {
@@ -186,16 +224,30 @@ def get_season(d: date) -> str:
         return "winter"
 
 
-def camera_zone(row: int, col: int) -> set:
-    """Return zone tags for a camera grid position."""
+def point_in_polygon(x: float, y: float, polygon: list) -> bool:
+    """Ray-casting point-in-polygon test. polygon is [(x, y), ...]."""
+    n = len(polygon)
+    inside = False
+    j = n - 1
+    for i in range(n):
+        xi, yi = polygon[i]
+        xj, yj = polygon[j]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def camera_zone(lat: float, lon: float) -> set:
+    """Return zone tags for a camera based on its lat/lon position."""
     zones = set()
-    if row <= 2:
+    if lat > 52.09:
         zones.add("north")
-    if row >= 7 and col >= 7:
+    if lat < 52.06 and lon > 5.83:
         zones.add("south_east")
-    if 3 <= row <= 6 and col <= 3:
+    if 52.06 <= lat <= 52.09 and lon < 5.81:
         zones.add("central_west")
-    if row == 0 or row == 9 or col == 0 or col == 9:
+    if lat > 52.11 or lat < 52.045 or lon > 5.865 or lon < 5.780:
         zones.add("edges")
     zones.add("everywhere")
     return zones
@@ -277,27 +329,38 @@ def generate_thumbnail(raw_bytes: bytes) -> bytes:
 # ---------------------------------------------------------------------------
 
 def generate_cameras() -> list:
-    """Generate 100 cameras on a 10x10 grid spanning the park."""
-    cameras = []
-    lat_step = (LAT_MAX - LAT_MIN) / (GRID_ROWS - 1)
-    lon_step = (LON_MAX - LON_MIN) / (GRID_COLS - 1)
+    """Generate ~100 cameras inside the real park boundary polygon."""
+    # Create a dense grid over the bounding box, filter points inside polygon
+    grid_density = 16
+    candidates = []
+    lat_step = (LAT_MAX - LAT_MIN) / (grid_density - 1)
+    lon_step = (LON_MAX - LON_MIN) / (grid_density - 1)
 
-    for row in range(GRID_ROWS):
-        for col in range(GRID_COLS):
-            idx = row * GRID_COLS + col
+    for row in range(grid_density):
+        for col in range(grid_density):
             lat = LAT_MIN + row * lat_step
             lon = LON_MIN + col * lon_step
-            imei = f"DHV{idx + 1:03d}"
-            cameras.append({
-                "index": idx,
-                "row": row,
-                "col": col,
-                "lat": round(lat, 6),
-                "lon": round(lon, 6),
-                "imei": imei,
-                "name": f"Camera {imei}",
-                "zones": camera_zone(row, col),
-            })
+            if point_in_polygon(lon, lat, PARK_BOUNDARY):
+                candidates.append((round(lat, 6), round(lon, 6)))
+
+    # Select evenly distributed subset to reach target count
+    if len(candidates) > NUM_CAMERAS_TARGET:
+        step = len(candidates) / NUM_CAMERAS_TARGET
+        selected = [candidates[int(i * step)] for i in range(NUM_CAMERAS_TARGET)]
+    else:
+        selected = candidates
+
+    cameras = []
+    for idx, (lat, lon) in enumerate(selected):
+        imei = f"DHV{idx + 1:03d}"
+        cameras.append({
+            "index": idx,
+            "lat": lat,
+            "lon": lon,
+            "imei": imei,
+            "name": f"Camera {imei}",
+            "zones": camera_zone(lat, lon),
+        })
     return cameras
 
 
@@ -318,7 +381,6 @@ def generate_all_data(cameras: list, rng: Random):
 
     for cam in cameras:
         cam_zones = cam["zones"]
-        cam_id_offset = cam["index"]  # will be replaced with actual DB id later
 
         for day_offset in range(NUM_DAYS):
             current_date = DATE_START + timedelta(days=day_offset)
@@ -569,73 +631,86 @@ def clean_demo_data(session: Session):
         {"name": PROJECT_NAME},
     ).fetchone()
 
-    if not project_row:
-        print("   No existing demo data found.")
-        return
+    if project_row:
+        project_id = project_row[0]
+        print(f"   Found existing project id={project_id}, cleaning...")
 
-    project_id = project_row[0]
-    print(f"   Found existing project id={project_id}, cleaning...")
-
-    # Get camera IDs for this project
-    cam_rows = session.execute(
-        text("SELECT id FROM cameras WHERE project_id = :pid"),
-        {"pid": project_id},
-    ).fetchall()
-    cam_ids = [r[0] for r in cam_rows]
-
-    if cam_ids:
-        cam_ids_str = ",".join(str(c) for c in cam_ids)
-
-        # Get image IDs
-        img_rows = session.execute(
-            text(f"SELECT id FROM images WHERE camera_id IN ({cam_ids_str})")
+        # Get camera IDs for this project
+        cam_rows = session.execute(
+            text("SELECT id FROM cameras WHERE project_id = :pid"),
+            {"pid": project_id},
         ).fetchall()
-        img_ids = [r[0] for r in img_rows]
+        cam_ids = [r[0] for r in cam_rows]
 
-        if img_ids:
-            # Delete in chunks to avoid huge queries
-            for i in range(0, len(img_ids), 5000):
-                chunk = img_ids[i:i + 5000]
-                chunk_str = ",".join(str(x) for x in chunk)
+        if cam_ids:
+            cam_ids_str = ",".join(str(c) for c in cam_ids)
 
-                # Get detection IDs for this chunk
-                det_rows = session.execute(
-                    text(f"SELECT id FROM detections WHERE image_id IN ({chunk_str})")
-                ).fetchall()
-                det_ids = [r[0] for r in det_rows]
+            # Get image IDs
+            img_rows = session.execute(
+                text(f"SELECT id FROM images WHERE camera_id IN ({cam_ids_str})")
+            ).fetchall()
+            img_ids = [r[0] for r in img_rows]
 
-                if det_ids:
-                    for j in range(0, len(det_ids), 5000):
-                        det_chunk = det_ids[j:j + 5000]
-                        det_chunk_str = ",".join(str(x) for x in det_chunk)
-                        session.execute(text(f"DELETE FROM classifications WHERE detection_id IN ({det_chunk_str})"))
-                        session.execute(text(f"DELETE FROM detections WHERE id IN ({det_chunk_str})"))
+            if img_ids:
+                # Delete in chunks to avoid huge queries
+                for i in range(0, len(img_ids), 5000):
+                    chunk = img_ids[i:i + 5000]
+                    chunk_str = ",".join(str(x) for x in chunk)
 
-                session.execute(text(f"DELETE FROM images WHERE id IN ({chunk_str})"))
+                    # Get detection IDs for this chunk
+                    det_rows = session.execute(
+                        text(f"SELECT id FROM detections WHERE image_id IN ({chunk_str})")
+                    ).fetchall()
+                    det_ids = [r[0] for r in det_rows]
 
-        # Delete camera-related data
-        session.execute(text(f"DELETE FROM camera_health_reports WHERE camera_id IN ({cam_ids_str})"))
-        session.execute(text(f"DELETE FROM camera_deployment_periods WHERE camera_id IN ({cam_ids_str})"))
-        session.execute(text(f"DELETE FROM cameras WHERE id IN ({cam_ids_str})"))
+                    if det_ids:
+                        for j in range(0, len(det_ids), 5000):
+                            det_chunk = det_ids[j:j + 5000]
+                            det_chunk_str = ",".join(str(x) for x in det_chunk)
+                            session.execute(text(f"DELETE FROM classifications WHERE detection_id IN ({det_chunk_str})"))
+                            session.execute(text(f"DELETE FROM detections WHERE id IN ({det_chunk_str})"))
 
-    # Delete project memberships and project
-    session.execute(text("DELETE FROM project_memberships WHERE project_id = :pid"), {"pid": project_id})
-    session.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": project_id})
+                    session.execute(text(f"DELETE FROM images WHERE id IN ({chunk_str})"))
 
-    # Delete demo users
-    for email in (ADMIN_EMAIL, VIEWER_EMAIL):
-        session.execute(text("DELETE FROM users WHERE email = :email"), {"email": email})
+            # Delete camera-related data
+            session.execute(text(f"DELETE FROM camera_health_reports WHERE camera_id IN ({cam_ids_str})"))
+            session.execute(text(f"DELETE FROM camera_deployment_periods WHERE camera_id IN ({cam_ids_str})"))
+            session.execute(text(f"DELETE FROM cameras WHERE id IN ({cam_ids_str})"))
+
+        # Delete notification preferences and project memberships
+        session.execute(text("DELETE FROM project_notification_preferences WHERE project_id = :pid"), {"pid": project_id})
+        session.execute(text("DELETE FROM project_memberships WHERE project_id = :pid"), {"pid": project_id})
+        session.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": project_id})
+    else:
+        print("   No existing demo project found.")
+
+    # Delete telegram config (global, not per-project)
+    session.execute(text("DELETE FROM telegram_config"))
+
+    # Delete demo users and their telegram linking tokens
+    for user_info in DEMO_USERS:
+        user_row = session.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": user_info["email"]},
+        ).fetchone()
+        if user_row:
+            session.execute(
+                text("DELETE FROM telegram_linking_tokens WHERE user_id = :uid"),
+                {"uid": user_row[0]},
+            )
+            session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_row[0]})
+
+    # Clean up legacy demo user from previous script version
+    session.execute(text("DELETE FROM users WHERE email = 'viewer@demo.addaxai.com'"))
 
     session.flush()
     print("   Cleanup complete.")
 
 
 def insert_project(session: Session) -> int:
-    """Create project with PostGIS polygon boundary."""
-    boundary_wkt = (
-        f"POLYGON(({LON_MIN} {LAT_MIN}, {LON_MAX} {LAT_MIN}, "
-        f"{LON_MAX} {LAT_MAX}, {LON_MIN} {LAT_MAX}, {LON_MIN} {LAT_MIN}))"
-    )
+    """Create project with PostGIS polygon boundary from real park shape."""
+    coords = ", ".join(f"{lon} {lat}" for lon, lat in PARK_BOUNDARY)
+    boundary_wkt = f"POLYGON(({coords}))"
     result = session.execute(
         text("""
             INSERT INTO projects (
@@ -662,41 +737,53 @@ def insert_project(session: Session) -> int:
     return project_id
 
 
-def insert_users(session: Session, project_id: int) -> tuple:
-    """Create demo users and project membership. Returns (admin_id, viewer_id)."""
-    admin_hash = pwd_context.hash(ADMIN_PASSWORD)
-    viewer_hash = pwd_context.hash(VIEWER_PASSWORD)
+def insert_users(session: Session, project_id: int) -> dict:
+    """Create 16 demo users and project memberships. Returns {email: user_id}."""
+    pw_hash = pwd_context.hash(DEMO_PASSWORD)
+    user_ids = {}
+    admin_id = None
 
-    admin_result = session.execute(
-        text("""
-            INSERT INTO users (email, hashed_password, is_active, is_superuser, is_verified)
-            VALUES (:email, :pw, true, true, true)
-            RETURNING id
-        """),
-        {"email": ADMIN_EMAIL, "pw": admin_hash},
-    )
-    admin_id = admin_result.fetchone()[0]
+    for user_info in DEMO_USERS:
+        result = session.execute(
+            text("""
+                INSERT INTO users (email, hashed_password, is_active, is_superuser, is_verified)
+                VALUES (:email, :pw, :active, :superuser, :verified)
+                RETURNING id
+            """),
+            {
+                "email": user_info["email"],
+                "pw": pw_hash,
+                "active": user_info["is_active"],
+                "superuser": user_info["is_superuser"],
+                "verified": user_info["is_verified"],
+            },
+        )
+        user_id = result.fetchone()[0]
+        user_ids[user_info["email"]] = user_id
+        if user_info["is_superuser"]:
+            admin_id = user_id
 
-    viewer_result = session.execute(
-        text("""
-            INSERT INTO users (email, hashed_password, is_active, is_superuser, is_verified)
-            VALUES (:email, :pw, true, false, true)
-            RETURNING id
-        """),
-        {"email": VIEWER_EMAIL, "pw": viewer_hash},
-    )
-    viewer_id = viewer_result.fetchone()[0]
+    # Create project memberships for active+verified non-superuser users
+    for user_info in DEMO_USERS:
+        if user_info["is_superuser"]:
+            continue
+        if not user_info["is_active"] or not user_info["is_verified"]:
+            continue
+        session.execute(
+            text("""
+                INSERT INTO project_memberships (user_id, project_id, role, added_by_user_id)
+                VALUES (:uid, :pid, :role, :admin_id)
+            """),
+            {
+                "uid": user_ids[user_info["email"]],
+                "pid": project_id,
+                "role": user_info["role"],
+                "admin_id": admin_id,
+            },
+        )
 
-    # Assign viewer to project
-    session.execute(
-        text("""
-            INSERT INTO project_memberships (user_id, project_id, role, added_by_user_id)
-            VALUES (:uid, :pid, 'project-viewer', :admin_id)
-        """),
-        {"uid": viewer_id, "pid": project_id, "admin_id": admin_id},
-    )
     session.flush()
-    return admin_id, viewer_id
+    return user_ids
 
 
 def insert_cameras(session: Session, cameras: list, project_id: int) -> dict:
@@ -891,9 +978,62 @@ def insert_deployment_periods(session: Session, periods: list, cam_index_to_id: 
     session.flush()
 
 
-def update_camera_latest_fields(session: Session, cam_index_to_id: dict):
-    """Update cameras with latest health/image data from generated records."""
+def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras: list):
+    """Update cameras with latest health/image data and config JSON."""
+    cam_by_index = {cam["index"]: cam for cam in cameras}
+
     for cam_index, cam_db_id in cam_index_to_id.items():
+        cam = cam_by_index[cam_index]
+
+        # Get latest health report for this camera
+        latest = session.execute(
+            text("""
+                SELECT battery_percent, signal_quality, temperature_c,
+                       sd_utilization_percent, total_images, sent_images,
+                       report_date
+                FROM camera_health_reports
+                WHERE camera_id = :cid
+                ORDER BY report_date DESC LIMIT 1
+            """),
+            {"cid": cam_db_id},
+        ).fetchone()
+
+        config = None
+        last_daily_report_at = None
+        battery = None
+        temp = None
+        signal = None
+
+        if latest:
+            battery = latest[0]
+            signal = latest[1]
+            temp = latest[2]
+
+            # Hour variation per camera (not all at midnight)
+            report_hour = (cam_index * 7 + 3) % 24
+            report_minute = (cam_index * 13) % 60
+            last_daily_report_at = datetime(
+                latest[6].year, latest[6].month, latest[6].day,
+                report_hour, report_minute, 0,
+                tzinfo=timezone.utc,
+            )
+
+            config = {
+                "last_health_report": {
+                    "signal_quality": signal,
+                    "temperature": temp,
+                    "battery_percentage": battery,
+                    "sd_utilization_percentage": latest[3],
+                    "total_images": latest[4],
+                    "sent_images": latest[5],
+                },
+                "last_report_timestamp": last_daily_report_at.isoformat(),
+                "gps_from_report": {
+                    "lat": cam["lat"],
+                    "lon": cam["lon"],
+                },
+            }
+
         session.execute(
             text("""
                 UPDATE cameras SET
@@ -903,25 +1043,87 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict):
                     last_seen = (
                         SELECT MAX(uploaded_at) FROM images WHERE camera_id = :cid
                     ),
-                    last_daily_report_at = (
-                        SELECT MAX(report_date)::timestamp with time zone
-                        FROM camera_health_reports WHERE camera_id = :cid
-                    ),
-                    battery_percent = (
-                        SELECT battery_percent FROM camera_health_reports
-                        WHERE camera_id = :cid ORDER BY report_date DESC LIMIT 1
-                    ),
-                    temperature_c = (
-                        SELECT temperature_c FROM camera_health_reports
-                        WHERE camera_id = :cid ORDER BY report_date DESC LIMIT 1
-                    ),
-                    signal_quality = (
-                        SELECT signal_quality FROM camera_health_reports
-                        WHERE camera_id = :cid ORDER BY report_date DESC LIMIT 1
-                    )
+                    last_daily_report_at = :last_report_at,
+                    battery_percent = :battery,
+                    temperature_c = :temp,
+                    signal_quality = :signal,
+                    config = CAST(:config AS json)
                 WHERE id = :cid
             """),
-            {"cid": cam_db_id},
+            {
+                "cid": cam_db_id,
+                "last_report_at": last_daily_report_at,
+                "battery": battery,
+                "temp": temp,
+                "signal": signal,
+                "config": json.dumps(config) if config else None,
+            },
+        )
+    session.flush()
+
+
+def insert_telegram_config(session: Session):
+    """Insert Telegram bot configuration for the demo."""
+    session.execute(
+        text("""
+            INSERT INTO telegram_config (
+                bot_token, bot_username, is_configured,
+                health_status, last_health_check
+            ) VALUES (
+                :token, :username, true, 'healthy', :last_check
+            )
+        """),
+        {
+            "token": "7483920156:AAH_demo_bot_token_not_real_k9x2m",
+            "username": "AddaxAI_HogeVeluwe_bot",
+            "last_check": datetime.now(timezone.utc) - timedelta(minutes=15),
+        },
+    )
+    session.flush()
+
+
+def insert_notification_preferences(session: Session, project_id: int, user_ids: dict):
+    """Insert notification preferences for a few demo users."""
+    notif_users = [
+        ("j.devries@hogeveluwe.nl", "100001"),
+        ("m.bakker@hogeveluwe.nl",  "100002"),
+        ("s.jansen@hogeveluwe.nl",  "100003"),
+        ("n.smit@uu.nl",            "100004"),
+    ]
+
+    for email, chat_id in notif_users:
+        if email not in user_ids:
+            continue
+
+        channels = {
+            "species_alert": {
+                "enabled": True,
+                "channels": ["telegram"],
+                "species": ["wolf", "wild_boar"],
+            },
+            "low_battery": {
+                "enabled": True,
+                "channels": ["telegram"],
+                "threshold": 20,
+            },
+        }
+
+        session.execute(
+            text("""
+                INSERT INTO project_notification_preferences (
+                    user_id, project_id, enabled, telegram_chat_id,
+                    notification_channels
+                ) VALUES (
+                    :uid, :pid, true, :chat_id,
+                    CAST(:channels AS json)
+                )
+            """),
+            {
+                "uid": user_ids[email],
+                "pid": project_id,
+                "chat_id": chat_id,
+                "channels": json.dumps(channels),
+            },
         )
     session.flush()
 
@@ -960,29 +1162,31 @@ def main():
     print()
 
     # Step 1: MinIO
-    print("[1/8] Uploading placeholder images to MinIO...")
+    print("[1/9] Uploading placeholder images to MinIO...")
     upload_placeholder_images()
     print("   Done.")
 
     with Session(engine) as session:
         # Step 2: Clean
-        print("[2/8] Cleaning existing demo data...")
+        print("[2/9] Cleaning existing demo data...")
         clean_demo_data(session)
         session.commit()
 
         # Step 3: Project
-        print("[3/8] Creating project...")
+        print("[3/9] Creating project...")
         project_id = insert_project(session)
         print(f"   Project '{PROJECT_NAME}' created (id={project_id}).")
 
         # Step 4: Users
-        print("[4/8] Creating users...")
-        admin_id, viewer_id = insert_users(session, project_id)
-        print(f"   Admin: {ADMIN_EMAIL} (id={admin_id})")
-        print(f"   Viewer: {VIEWER_EMAIL} (id={viewer_id})")
+        print("[4/9] Creating users...")
+        user_ids = insert_users(session, project_id)
+        print(f"   {len(user_ids)} users created.")
+        for u in DEMO_USERS[:3]:
+            print(f"   - {u['email']} ({u['role']})")
+        print(f"   - ... and {len(DEMO_USERS) - 3} more")
 
         # Step 5: Generate data in memory
-        print("[5/8] Generating all data in memory...")
+        print("[5/9] Generating all data in memory...")
         cameras = generate_cameras()
         print(f"   {len(cameras)} cameras defined.")
 
@@ -998,12 +1202,12 @@ def main():
         print(f"   {len(deployment_periods)} deployment periods generated.")
 
         # Step 6: Insert cameras
-        print("[6/8] Inserting cameras...")
+        print("[6/9] Inserting cameras...")
         cam_index_to_id = insert_cameras(session, cameras, project_id)
         print(f"   {len(cam_index_to_id)} cameras inserted.")
 
         # Step 7: Insert images, detections, classifications
-        print("[7/8] Inserting images, detections, classifications...")
+        print("[7/9] Inserting images, detections, classifications...")
         print(f"   Inserting {len(images)} images...")
         image_uuid_to_id = insert_images_batch(session, images, cam_index_to_id)
         print(f"   Inserting {len(detections)} detections...")
@@ -1012,13 +1216,19 @@ def main():
         insert_classifications_batch(session, classifications, old_to_new_det)
 
         # Step 8: Health reports and deployment periods
-        print("[8/8] Inserting health reports and deployment periods...")
+        print("[8/9] Inserting health reports and deployment periods...")
         insert_health_reports_batch(session, health_reports, cam_index_to_id)
         insert_deployment_periods(session, deployment_periods, cam_index_to_id)
 
-        # Update camera fields from generated data
-        print("   Updating camera latest fields...")
-        update_camera_latest_fields(session, cam_index_to_id)
+        # Update camera fields from generated data (including config JSON)
+        print("   Updating camera latest fields and config...")
+        update_camera_latest_fields(session, cam_index_to_id, cameras)
+
+        # Step 9: Telegram config and notification preferences
+        print("[9/9] Setting up Telegram and notification preferences...")
+        insert_telegram_config(session)
+        insert_notification_preferences(session, project_id, user_ids)
+        print("   Telegram configured, 4 users with notification preferences.")
 
         # Commit everything
         print("   Committing...")
@@ -1030,21 +1240,23 @@ def main():
     print("=" * 60)
     print()
     print(f"  Project: {PROJECT_NAME}")
-    print(f"  Cameras: {NUM_CAMERAS}")
+    print(f"  Date range: {DATE_START} to {DATE_END}")
+    print(f"  Cameras: {len(cameras)}")
+    print(f"  Users: {len(DEMO_USERS)}")
     print(f"  Images:  {len(images)}")
     print(f"  Detections: {len(detections)}")
     print(f"  Classifications: {len(classifications)}")
     print(f"  Health reports: {len(health_reports)}")
     print(f"  Deployment periods: {len(deployment_periods)}")
     total = (
-        1 + 2 + 1 + NUM_CAMERAS + len(images) + len(detections)
+        1 + len(DEMO_USERS) + 1 + len(cameras) + len(images) + len(detections)
         + len(classifications) + len(health_reports) + len(deployment_periods)
     )
     print(f"  Total DB rows: ~{total:,}")
     print()
-    print("  Login credentials:")
-    print(f"    Admin:  {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
-    print(f"    Viewer: {VIEWER_EMAIL} / {VIEWER_PASSWORD}")
+    print(f"  Login credentials (all users share password: {DEMO_PASSWORD}):")
+    print(f"    Admin: {DEMO_USERS[0]['email']}")
+    print(f"    + {len(DEMO_USERS) - 1} project members")
     print()
 
 
