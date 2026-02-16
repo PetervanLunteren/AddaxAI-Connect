@@ -52,7 +52,7 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
 
 ## Setup
 1. **Deploy a VM**  
-   You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
+   You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 (Premium Intel) - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
 
 2. **Clone this repo**  
    On your local machine
@@ -113,9 +113,9 @@ Multi-layered security with UFW firewall, TLS/SSL encryption, password authentic
    | `admin_email` | `"admin@example.com"` | Email address for initial server admin account. During deployment, a temporary password will be generated for this account. You can change it after first login. |
 
 8. **Add VM to known_hosts**  
-   Connect to the VM once to accept its SSH host key. When prompted, type `yes`. You'll see a `Permission denied` message, which is expected. This step only ensures the VM’s IP address is added to your `known_hosts` file.
+   Add the VM’s SSH host key to your known_hosts file.
     ```bash
-    ssh -i <your_ssh_key> root@<your_vm_ipv4>
+    ssh-keyscan -H <your_vm_ipv4> >> ~/.ssh/known_hosts
     ```
 
 9. **Test Ansible connection**  

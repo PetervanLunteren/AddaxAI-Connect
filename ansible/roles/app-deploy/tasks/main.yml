@@ -104,6 +104,10 @@
       {% endif %}
       ========================================
 
+- name: Notice - Docker build may take a while
+  debug:
+    msg: "Building and starting all containers. This can take 20-50 minutes on first deploy. The repeated ASYNC POLL lines below are normal."
+
 - name: Start Docker Compose services (force recreate to fix mount issues)
   command: docker compose up -d --force-recreate
   args:
