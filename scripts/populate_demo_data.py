@@ -742,7 +742,7 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict):
             values_parts.append(
                 f"(:uuid{key}, :filename{key}, :camera_id{key}, :uploaded_at{key}, "
                 f":storage_path{key}, :thumbnail_path{key}, :status{key}, "
-                f":metadata{key}::jsonb, false)"
+                f"CAST(:metadata{key} AS jsonb), false)"
             )
             params[f"uuid{key}"] = img["uuid"]
             params[f"filename{key}"] = img["filename"]
@@ -788,7 +788,7 @@ def insert_detections_batch(session: Session, detections: list, image_uuid_to_id
             img_uuid = old_img_id_to_uuid[det["image_id"]]
             db_image_id = image_uuid_to_id[img_uuid]
             values_parts.append(
-                f"(:image_id{key}, :category{key}, :bbox{key}::jsonb, :confidence{key})"
+                f"(:image_id{key}, :category{key}, CAST(:bbox{key} AS jsonb), :confidence{key})"
             )
             params[f"image_id{key}"] = db_image_id
             params[f"category{key}"] = det["category"]
