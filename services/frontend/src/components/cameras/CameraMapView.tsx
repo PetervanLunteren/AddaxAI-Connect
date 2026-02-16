@@ -2,8 +2,9 @@
  * Camera map view component
  * Displays cameras on a map with markers colored by status, battery, or signal
  */
-import { useState, useMemo, useEffect } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { latLngBounds } from 'leaflet';
 import type { Camera } from '../../api/types';
 import { type ColorByMetric } from '../../utils/camera-colors';
 import { SpiderfiedCameraLayer } from './SpiderfiedCameraLayer';
@@ -14,6 +15,17 @@ import 'leaflet/dist/leaflet.css';
 interface CameraMapViewProps {
   cameras: Camera[];
   onCameraClick: (camera: Camera) => void;
+}
+
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (points.length === 0 || fitted.current) return;
+    map.fitBounds(latLngBounds(points), { padding: [20, 20] });
+    fitted.current = true;
+  }, [points, map]);
+  return null;
 }
 
 export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
@@ -64,6 +76,10 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
     const avgLon = lons.reduce((sum, lon) => sum + lon, 0) / lons.length;
 
     return [avgLat, avgLon];
+  }, [camerasWithLocation]);
+
+  const fitBoundsPoints = useMemo<[number, number][]>(() => {
+    return camerasWithLocation.map((c) => [c.location!.lat, c.location!.lon] as [number, number]);
   }, [camerasWithLocation]);
 
   // Tile layer configuration
@@ -128,6 +144,7 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
             attribution={tileLayerConfig.attribution}
             url={tileLayerConfig.url}
           />
+          <FitBounds points={fitBoundsPoints} />
 
           <SpiderfiedCameraLayer
             cameras={camerasWithLocation}
