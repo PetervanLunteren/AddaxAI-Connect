@@ -99,8 +99,8 @@ async def upload_document(
         "Document uploaded",
         project_id=project_id,
         document_id=doc.id,
-        filename=original_filename,
-        size=len(content),
+        original_filename=original_filename,
+        file_size=len(content),
         user_id=user.id,
     )
 
@@ -192,7 +192,7 @@ async def delete_document(
         "Document deleted",
         project_id=project_id,
         document_id=document_id,
-        filename=doc.original_filename,
+        original_filename=doc.original_filename,
         user_id=user.id,
     )
 
