@@ -14,6 +14,7 @@ import json
 import math
 import os
 import sys
+import urllib.request
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -182,20 +183,96 @@ WINTER_GLOBAL_MULTIPLIER = 0.8
 
 # Classification confidence ranges (common species get higher confidence)
 CONFIDENCE_RANGES = {
-    "roe_deer":    (0.75, 0.99),
-    "fox":         (0.70, 0.98),
-    "wild_boar":   (0.72, 0.99),
-    "red_deer":    (0.73, 0.98),
-    "lagomorph":   (0.65, 0.95),
-    "fallow_deer": (0.68, 0.97),
-    "mouflon":     (0.60, 0.95),
-    "bird":        (0.55, 0.90),
-    "mustelid":    (0.58, 0.92),
-    "wolf":        (0.55, 0.90),
-    "hedgehog":    (0.60, 0.92),
-    "squirrel":    (0.62, 0.93),
-    "cat":         (0.60, 0.93),
-    "dog":         (0.65, 0.95),
+    "roe_deer":    (0.75, 0.95),
+    "fox":         (0.70, 0.94),
+    "wild_boar":   (0.72, 0.95),
+    "red_deer":    (0.73, 0.94),
+    "lagomorph":   (0.65, 0.91),
+    "fallow_deer": (0.68, 0.93),
+    "mouflon":     (0.60, 0.90),
+    "bird":        (0.55, 0.88),
+    "mustelid":    (0.58, 0.89),
+    "wolf":        (0.55, 0.88),
+    "hedgehog":    (0.60, 0.89),
+    "squirrel":    (0.62, 0.90),
+    "cat":         (0.60, 0.90),
+    "dog":         (0.65, 0.91),
+}
+
+# Real camera trap images from LILA BC (lila.science) public datasets.
+# One representative photo per species for the demo gallery.
+# bbox values are normalized [x_min, y_min, width, height] from MegaDetector v5a.
+SPECIES_IMAGES = {
+    "roe_deer": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/missouricameratraps/images/Set1/1.58-Roe_Deer/SEQ77011/SEQ77011_IMG_0003.JPG",
+        "source": "Missouri Camera Traps",
+        "bbox": [0.7954, 0.4342, 0.2016, 0.4296],
+    },
+    "fox": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/ena24/images/3254.jpg",
+        "source": "ENA24",
+        "bbox": [0.812, 0.7076, 0.1855, 0.2695],
+    },
+    "wild_boar": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/caltech-unzipped/cct_images/5971f933-23d2-11e8-a6a3-ec086b02610b.jpg",
+        "source": "Caltech Camera Traps",
+        "bbox": [0.5014, 0.3179, 0.4985, 0.6184],
+    },
+    "red_deer": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/missouricameratraps/images/Set1/1.57-Red_Deer/SEQ76971/SEQ76971_IMG_0005.JPG",
+        "source": "Missouri Camera Traps",
+        "bbox": [0.3339, 0.218, 0.2514, 0.3632],
+    },
+    "lagomorph": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/missouricameratraps/images/Set1/1.63-European_Hare/SEQ80662/SEQ80662_IMG_0005.JPG",
+        "source": "Missouri Camera Traps",
+        "bbox": [0.747, 0.4902, 0.07519, 0.04166],
+    },
+    "fallow_deer": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/snapshot-safari/CDB/CDB_public/CDB_S1/C05/C05_R1/CDB_S1_C05_R1_IMAG0190.JPG",
+        "source": "Snapshot Safari",
+        "bbox": [0.9517, 0.5054, 0.04822, 0.1145],
+    },
+    "mouflon": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/wcs-unzipped/animals/0002/0229.jpg",
+        "source": "WCS Camera Traps",
+        "bbox": [0.0, 0.0, 0.3007, 0.5214],
+    },
+    "bird": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/caltech-unzipped/cct_images/593bdc52-23d2-11e8-a6a3-ec086b02610b.jpg",
+        "source": "Caltech Camera Traps",
+        "bbox": [0.1416, 0.1519, 0.3876, 0.2757],
+    },
+    "mustelid": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/nacti-unzipped/part0/sub036/CA-03_08_13_2015_CA-03_0013883.jpg",
+        "source": "NACTI",
+        "bbox": [0.2011, 0.427, 0.2138, 0.1406],
+    },
+    "wolf": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/idaho-camera-traps/public/loc_0076/loc_0076_im_000336.jpg",
+        "source": "Idaho Camera Traps",
+        "bbox": [0.1481, 0.4735, 0.1192, 0.1171],
+    },
+    "hedgehog": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/nz-trailcams/CCP/hedgehog/106e5278-ea8b-41b3-aad9-7a1db0dd0e1f_000001.jpg",
+        "source": "NZ Trailcams",
+        "bbox": [0.5554, 0.4861, 0.1007, 0.2861],
+    },
+    "squirrel": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/caltech-unzipped/cct_images/5865e37e-23d2-11e8-a6a3-ec086b02610b.jpg",
+        "source": "Caltech Camera Traps",
+        "bbox": [0.3496, 0.3888, 0.0625, 0.06492],
+    },
+    "cat": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/caltech-unzipped/cct_images/58782b88-23d2-11e8-a6a3-ec086b02610b.jpg",
+        "source": "Caltech Camera Traps",
+        "bbox": [0.229, 0.3534, 0.06054, 0.1318],
+    },
+    "dog": {
+        "url": "https://storage.googleapis.com/public-datasets-lila/caltech-unzipped/cct_images/590ebc34-23d2-11e8-a6a3-ec086b02610b.jpg",
+        "source": "Caltech Camera Traps",
+        "bbox": [0.7207, 0.7583, 0.1816, 0.2402],
+    },
 }
 
 # Camera make/model
@@ -323,6 +400,51 @@ def generate_thumbnail(raw_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+def download_species_images(storage: "StorageClient") -> dict:
+    """Download one real camera trap image per species from LILA BC.
+
+    Uploads each image + thumbnail to MinIO under demo/{species}.jpg.
+    Returns {species: {width, height, storage_path, thumbnail_path, bbox}} or
+    {species: None} on download failure (caller falls back to placeholder).
+    """
+    from PIL import Image as PILImage
+
+    result = {}
+    for species, info in SPECIES_IMAGES.items():
+        try:
+            with urllib.request.urlopen(info["url"], timeout=30) as resp:
+                raw_bytes = resp.read()
+
+            img = PILImage.open(io.BytesIO(raw_bytes))
+            width, height = img.size
+
+            thumb_bytes = generate_thumbnail(raw_bytes)
+
+            sp_storage_path = f"demo/{species}.jpg"
+            sp_thumb_path = f"demo/{species}_thumb.jpg"
+
+            storage.upload_fileobj(
+                io.BytesIO(raw_bytes), BUCKET_RAW_IMAGES, sp_storage_path
+            )
+            storage.upload_fileobj(
+                io.BytesIO(thumb_bytes), BUCKET_THUMBNAILS, sp_thumb_path
+            )
+
+            result[species] = {
+                "width": width,
+                "height": height,
+                "storage_path": sp_storage_path,
+                "thumbnail_path": sp_thumb_path,
+                "bbox": info["bbox"],
+            }
+            print(f"      {species}: {width}x{height} ({len(raw_bytes) // 1024}KB)")
+        except Exception as e:
+            print(f"      {species}: download failed ({e}), using placeholder")
+            result[species] = None
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Data generation functions
 # ---------------------------------------------------------------------------
@@ -363,7 +485,7 @@ def generate_cameras() -> list:
     return cameras
 
 
-def generate_all_data(cameras: list, rng: Random):
+def generate_all_data(cameras: list, rng: Random, species_image_info: dict):
     """
     Generate all images, detections, classifications for all cameras.
 
@@ -456,11 +578,27 @@ def generate_all_data(cameras: list, rng: Random):
                 # Generate deterministic UUID from seed
                 img_uuid = str(uuid.UUID(int=rng.getrandbits(128), version=4))
 
+                # Resolve image path and dimensions per species
+                sp_info = None
+                if category == "animal" and species:
+                    sp_info = species_image_info.get(species)
+
+                if sp_info is not None:
+                    img_storage_path = sp_info["storage_path"]
+                    img_thumb_path = sp_info["thumbnail_path"]
+                    img_w = sp_info["width"]
+                    img_h = sp_info["height"]
+                else:
+                    img_storage_path = PLACEHOLDER_STORAGE_PATH
+                    img_thumb_path = PLACEHOLDER_THUMBNAIL_PATH
+                    img_w = IMG_WIDTH
+                    img_h = IMG_HEIGHT
+
                 # Image metadata (EXIF-like)
                 dt_original = capture_dt.strftime("%Y:%m:%d %H:%M:%S")
                 metadata = {
-                    "width": IMG_WIDTH,
-                    "height": IMG_HEIGHT,
+                    "width": img_w,
+                    "height": img_h,
                     "gps_decimal": [cam["lat"], cam["lon"]],
                     "DateTimeOriginal": dt_original,
                     "Make": CAMERA_MAKE,
@@ -474,8 +612,8 @@ def generate_all_data(cameras: list, rng: Random):
                     "filename": f"IMG_{img_counter:06d}.JPG",
                     "camera_index": cam["index"],
                     "uploaded_at": capture_dt,
-                    "storage_path": PLACEHOLDER_STORAGE_PATH,
-                    "thumbnail_path": PLACEHOLDER_THUMBNAIL_PATH,
+                    "storage_path": img_storage_path,
+                    "thumbnail_path": img_thumb_path,
                     "status": "classified",
                     "image_metadata": json.dumps(metadata),
                 }
@@ -485,8 +623,10 @@ def generate_all_data(cameras: list, rng: Random):
                 if category is not None:
                     det_confidence = round(rng.uniform(0.3, 0.985), 4)
 
-                    # Bbox size depends on category
-                    if category == "animal":
+                    if sp_info is not None:
+                        # Use real bbox from the species image
+                        x_norm, y_norm, w_frac, h_frac = sp_info["bbox"]
+                    elif category == "animal":
                         w_frac = rng.uniform(0.15, 0.40)
                         h_frac = rng.uniform(0.15, 0.40)
                     elif category == "person":
@@ -496,16 +636,17 @@ def generate_all_data(cameras: list, rng: Random):
                         w_frac = rng.uniform(0.20, 0.50)
                         h_frac = rng.uniform(0.15, 0.30)
 
-                    # Random position, clamped to image
-                    max_x = 1.0 - w_frac
-                    max_y = 1.0 - h_frac
-                    x_norm = rng.uniform(0.0, max(max_x, 0.01))
-                    y_norm = rng.uniform(0.0, max(max_y, 0.01))
+                    if sp_info is None:
+                        # Random position, clamped to image
+                        max_x = 1.0 - w_frac
+                        max_y = 1.0 - h_frac
+                        x_norm = rng.uniform(0.0, max(max_x, 0.01))
+                        y_norm = rng.uniform(0.0, max(max_y, 0.01))
 
-                    x_px = int(x_norm * IMG_WIDTH)
-                    y_px = int(y_norm * IMG_HEIGHT)
-                    w_px = int(w_frac * IMG_WIDTH)
-                    h_px = int(h_frac * IMG_HEIGHT)
+                    x_px = int(x_norm * img_w)
+                    y_px = int(y_norm * img_h)
+                    w_px = int(w_frac * img_w)
+                    h_px = int(h_frac * img_h)
 
                     bbox = {
                         "x_min": x_px,
@@ -859,8 +1000,7 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict):
 
     # Build image uuid -> db_id mapping
     rows = session.execute(
-        text("SELECT uuid, id FROM images WHERE storage_path = :path"),
-        {"path": PLACEHOLDER_STORAGE_PATH},
+        text("SELECT uuid, id FROM images WHERE storage_path LIKE 'demo/%'"),
     ).fetchall()
     uuid_to_id = {r[0]: r[1] for r in rows}
     return uuid_to_id
@@ -1180,19 +1320,30 @@ def insert_notification_preferences(session: Session, project_id: int, user_ids:
 # MinIO function
 # ---------------------------------------------------------------------------
 
-def upload_placeholder_images():
-    """Generate and upload 1 raw + 1 thumbnail placeholder to MinIO."""
+def upload_demo_images() -> dict:
+    """Upload placeholder + per-species real images to MinIO.
+
+    Returns species_image_info dict from download_species_images().
+    """
     storage = StorageClient()
 
+    # Placeholder (still used for person/vehicle/empty images)
     raw_bytes = generate_placeholder_image()
     thumb_bytes = generate_thumbnail(raw_bytes)
-
     storage.upload_fileobj(
         io.BytesIO(raw_bytes), BUCKET_RAW_IMAGES, PLACEHOLDER_STORAGE_PATH
     )
     storage.upload_fileobj(
         io.BytesIO(thumb_bytes), BUCKET_THUMBNAILS, PLACEHOLDER_THUMBNAIL_PATH
     )
+
+    # Real species images
+    print("   Downloading species images from LILA BC...")
+    species_image_info = download_species_images(storage)
+    downloaded = sum(1 for v in species_image_info.values() if v is not None)
+    print(f"   {downloaded}/{len(SPECIES_IMAGES)} species images downloaded.")
+
+    return species_image_info
 
 
 # ---------------------------------------------------------------------------
@@ -1210,8 +1361,8 @@ def main():
     print()
 
     # Step 1: MinIO
-    print("[1/9] Uploading placeholder images to MinIO...")
-    upload_placeholder_images()
+    print("[1/9] Uploading demo images to MinIO...")
+    species_image_info = upload_demo_images()
     print("   Done.")
 
     with Session(engine) as session:
@@ -1238,7 +1389,7 @@ def main():
         cameras = generate_cameras()
         print(f"   {len(cameras)} cameras defined.")
 
-        images, detections, classifications = generate_all_data(cameras, rng)
+        images, detections, classifications = generate_all_data(cameras, rng, species_image_info)
         print(f"   {len(images)} images generated.")
         print(f"   {len(detections)} detections generated.")
         print(f"   {len(classifications)} classifications generated.")
