@@ -71,6 +71,7 @@ services:
       /usr/bin/mc mb --ignore-existing minio/thumbnails;
       /usr/bin/mc mb --ignore-existing minio/models;
       /usr/bin/mc mb --ignore-existing minio/project-images;
+      /usr/bin/mc mb --ignore-existing minio/project-documents;
       echo 'MinIO buckets created successfully';
       "
     networks:

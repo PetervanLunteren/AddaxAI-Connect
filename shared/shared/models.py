@@ -365,6 +365,23 @@ class TelegramLinkingToken(Base):
     used = Column(Boolean, nullable=False, server_default="false")
 
 
+class ProjectDocument(Base):
+    """Project document/file uploaded by admin"""
+    __tablename__ = "project_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    original_filename = Column(String(255), nullable=False)
+    storage_path = Column(String(512), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    content_type = Column(String(100), nullable=True)
+    description = Column(Text, nullable=True)
+    uploaded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    uploaded_by = relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
 class SpeciesTaxonomy(Base):
     """
     Maps common species names (from classification models) to scientific names.

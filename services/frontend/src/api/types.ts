@@ -469,6 +469,17 @@ export interface DetectionCountResponse {
   species: DetectionCountSpecies[];
 }
 
+// Project documents
+export interface ProjectDocument {
+  id: number;
+  original_filename: string;
+  file_size: number;
+  content_type: string | null;
+  description: string | null;
+  uploaded_by_email: string | null;
+  uploaded_at: string;
+}
+
 // Independence interval summary
 export interface IndependenceSummarySpecies {
   species: string;
