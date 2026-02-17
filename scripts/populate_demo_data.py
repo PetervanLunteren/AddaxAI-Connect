@@ -98,8 +98,7 @@ THUMB_WIDTH, THUMB_HEIGHT = 300, 225
 PLACEHOLDER_STORAGE_PATH = "demo/placeholder.jpg"
 PLACEHOLDER_THUMBNAIL_PATH = "demo/placeholder.jpg"
 
-# Demo users
-DEMO_PASSWORD = "demo2024!"
+# Demo users (passwords are random - these accounts exist for realistic data only)
 DEMO_USERS = [
     {"email": "admin@demo.addaxai.com",   "is_superuser": True,  "is_verified": True,  "is_active": True,  "role": "server-admin"},
     {"email": "j.devries@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
@@ -748,7 +747,7 @@ def insert_project(session: Session) -> int:
 
 def insert_users(session: Session, project_id: int) -> dict:
     """Create 16 demo users and project memberships. Returns {email: user_id}."""
-    pw_hash = pwd_context.hash(DEMO_PASSWORD)
+    pw_hash = pwd_context.hash(str(uuid.uuid4()))
     user_ids = {}
     admin_id = None
 
@@ -1303,9 +1302,7 @@ def main():
     )
     print(f"  Total DB rows: ~{total:,}")
     print()
-    print(f"  Login credentials (all users share password: {DEMO_PASSWORD}):")
-    print(f"    Admin: {DEMO_USERS[0]['email']}")
-    print(f"    + {len(DEMO_USERS) - 1} project members")
+    print(f"  Users: {len(DEMO_USERS)} demo accounts (no login, data only)")
     print()
 
 
