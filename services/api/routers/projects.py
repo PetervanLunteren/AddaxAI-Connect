@@ -12,7 +12,7 @@ from pydantic import BaseModel, EmailStr
 from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation
 from shared.database import get_async_session
 from shared.config import get_settings
-from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
+from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS, BUCKET_PROJECT_DOCUMENTS
 from shared.logger import get_logger
 from auth.users import current_verified_user
 from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
@@ -474,6 +474,15 @@ async def delete_project(
 
     # Step 4: Delete project images from MinIO
     delete_project_images(project.image_path, project.thumbnail_path)
+
+    # Step 4b: Delete project documents from MinIO
+    try:
+        doc_objects = storage.list_objects(BUCKET_PROJECT_DOCUMENTS, prefix=f"{project_id}/")
+        for obj_name in doc_objects:
+            storage.delete_object(BUCKET_PROJECT_DOCUMENTS, obj_name)
+            deleted_minio_files += 1
+    except Exception as e:
+        logger.error("Failed to delete project documents from MinIO", project_id=project_id, error=str(e))
 
     # Step 5: Delete project
     await db.execute(sql_delete(Project).where(Project.id == project_id))
