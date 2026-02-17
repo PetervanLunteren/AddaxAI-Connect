@@ -14,6 +14,7 @@ import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
+import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
@@ -61,6 +62,7 @@ export const NotificationsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
   const { user } = useAuth();
+  const { selectedProject } = useProject();
 
   // Telegram channel state
   const [telegramEnabled, setTelegramEnabled] = useState(false);
@@ -108,11 +110,15 @@ export const NotificationsPage: React.FC = () => {
   const isTelegramConfigured = telegramConfig?.is_configured ?? false;
   const botUsername = telegramConfig?.bot_username ?? null;
 
-  // Create species options from hardcoded list with sentence case formatting
-  const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
-    label: normalizeLabel(species),
-    value: species
-  }));
+  // Use project's included species if configured, otherwise show all species
+  const availableSpecies = selectedProject?.included_species ?? DEEPFAUNE_SPECIES;
+  const speciesOptions: Option[] = availableSpecies
+    .slice()
+    .sort()
+    .map(species => ({
+      label: normalizeLabel(species),
+      value: species
+    }));
 
   // Update form when preferences load
   useEffect(() => {
@@ -141,8 +147,9 @@ export const NotificationsPage: React.FC = () => {
         setTelegramEnabled(telegramEnabledAny && hasTelegramChatId);
         setTelegramChatId((preferences as any).telegram_chat_id || '');
 
-        // Convert species to options
-        const telegramSpeciesValues = speciesConfig.notify_species || [];
+        // Convert species to options, filtering out species no longer in the project
+        const telegramSpeciesValues = (speciesConfig.notify_species || [])
+          .filter((species: string) => availableSpecies.includes(species));
         setTelegramNotifySpecies(telegramSpeciesValues.map((species: string) => ({
           label: normalizeLabel(species),
           value: species
@@ -159,10 +166,12 @@ export const NotificationsPage: React.FC = () => {
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
-        const speciesOptions = (preferences.notify_species || []).map(species => ({
-          label: normalizeLabel(species),
-          value: species
-        }));
+        const speciesOptions = (preferences.notify_species || [])
+          .filter(species => availableSpecies.includes(species))
+          .map(species => ({
+            label: normalizeLabel(species),
+            value: species
+          }));
 
         // Telegram - mark as enabled if chat ID exists and enabled
         setTelegramEnabled(hasTelegramChatId && preferences.enabled);
@@ -173,7 +182,7 @@ export const NotificationsPage: React.FC = () => {
         setTelegramNotifySystemHealth(preferences.notify_system_health);
       }
     }
-  }, [preferences]);
+  }, [preferences, availableSpecies]);
 
   // Update preferences mutation
   const updateMutation = useMutation({
