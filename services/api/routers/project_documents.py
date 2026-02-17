@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/projects/{project_id}/documents", tags=["project
 logger = get_logger("api.project_documents")
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_DESCRIPTION_LENGTH = 500
 
 
 @router.get("/")
@@ -65,6 +66,13 @@ async def upload_document(
     db: AsyncSession = Depends(get_async_session),
 ):
     """Upload a document to the project (admin only). Max 10 MB."""
+    # Validate description length
+    if description and len(description) > MAX_DESCRIPTION_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Description too long. Maximum length is {MAX_DESCRIPTION_LENGTH} characters.",
+        )
+
     # Read file content and check size
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:

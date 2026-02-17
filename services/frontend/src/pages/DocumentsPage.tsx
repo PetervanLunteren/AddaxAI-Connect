@@ -190,7 +190,10 @@ export const DocumentsPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-muted-foreground text-sm truncate max-w-[200px] block">
+                    <span
+                      className="text-muted-foreground text-sm truncate max-w-[200px] block"
+                      title={doc.description || undefined}
+                    >
                       {doc.description || '-'}
                     </span>
                   </TableCell>
@@ -289,6 +292,7 @@ export const DocumentsPage: React.FC = () => {
                 type="text"
                 value={uploadDescription}
                 onChange={(e) => setUploadDescription(e.target.value)}
+                maxLength={500}
                 placeholder="e.g., Research permit 2026"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
