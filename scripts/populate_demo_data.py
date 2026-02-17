@@ -231,7 +231,7 @@ SPECIES_IMAGES = {
     "fallow_deer": {
         "url": "https://storage.googleapis.com/public-datasets-lila/snapshot-safari/CDB/CDB_public/CDB_S1/C05/C05_R1/CDB_S1_C05_R1_IMAG0190.JPG",
         "source": "Snapshot Safari",
-        "bbox": [0.9517, 0.5054, 0.04822, 0.1145],
+        "bbox": [0.93, 0.42, 0.07, 0.22],
     },
     "mouflon": {
         "url": "https://storage.googleapis.com/public-datasets-lila/wcs-unzipped/animals/0002/0229.jpg",
@@ -583,6 +583,12 @@ def generate_all_data(cameras: list, rng: Random, species_image_info: dict):
                 if category == "animal" and species:
                     sp_info = species_image_info.get(species)
 
+                # For non-animal images, pick a random real species image
+                if sp_info is None:
+                    available = [v for v in species_image_info.values() if v is not None]
+                    if available:
+                        sp_info = rng.choice(available)
+
                 if sp_info is not None:
                     img_storage_path = sp_info["storage_path"]
                     img_thumb_path = sp_info["thumbnail_path"]
@@ -751,6 +757,86 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             report_id += 1
 
     return reports
+
+
+def curate_first_page(images, detections, classifications, species_image_info, rng):
+    """Ensure the first page (24 most recent images) shows all 14 species
+    with no two consecutive images having the same species."""
+    FRONT_PAGE_SIZE = 24
+
+    # Build lookups: image_id -> detection, detection_id -> classification
+    img_to_det = {}
+    for det in detections:
+        if det["category"] == "animal":
+            img_to_det[det["image_id"]] = det
+    det_to_cls = {}
+    for cls in classifications:
+        det_to_cls[cls["detection_id"]] = cls
+
+    # Find animal images that have classifications
+    animal_images = []
+    for img in images:
+        det = img_to_det.get(img["id"])
+        if det:
+            cls = det_to_cls.get(det["id"])
+            if cls:
+                animal_images.append((img, det, cls))
+
+    # Sort by uploaded_at desc and pick top candidates
+    animal_images.sort(key=lambda x: x[0]["uploaded_at"], reverse=True)
+    selected = animal_images[:FRONT_PAGE_SIZE]
+
+    # Build species sequence: all 14 species, then fill to 24, no consecutive dupes
+    all_sp = list(ALL_SPECIES)
+    rng.shuffle(all_sp)
+    sequence = list(all_sp)  # 14 unique species
+    while len(sequence) < FRONT_PAGE_SIZE:
+        candidates = [s for s in all_sp if s != sequence[-1]]
+        sequence.append(rng.choice(candidates))
+    # Fix any consecutive duplicates at the boundary
+    for i in range(1, len(sequence)):
+        if sequence[i] == sequence[i - 1]:
+            candidates = [s for s in all_sp if s != sequence[i - 1]]
+            if i + 1 < len(sequence):
+                candidates = [c for c in candidates if c != sequence[i + 1]]
+            sequence[i] = rng.choice(candidates)
+
+    # Make these 24 images the most recent by bumping their timestamps
+    max_ts = max(img["uploaded_at"] for img in images)
+    for i, ((img, det, cls), species) in enumerate(zip(selected, sequence)):
+        # Index 0 = most recent on the page (highest timestamp)
+        new_ts = max_ts + timedelta(minutes=FRONT_PAGE_SIZE - i)
+        img["uploaded_at"] = new_ts
+
+        # Update image paths and metadata for the new species
+        sp_info = species_image_info.get(species)
+        if sp_info:
+            img["storage_path"] = sp_info["storage_path"]
+            img["thumbnail_path"] = sp_info["thumbnail_path"]
+            meta = json.loads(img["image_metadata"])
+            meta["width"] = sp_info["width"]
+            meta["height"] = sp_info["height"]
+            meta["DateTimeOriginal"] = new_ts.strftime("%Y:%m:%d %H:%M:%S")
+            img["image_metadata"] = json.dumps(meta)
+
+            # Update detection bbox from the real species image
+            x_norm, y_norm, w_frac, h_frac = sp_info["bbox"]
+            bbox = {
+                "x_min": int(x_norm * sp_info["width"]),
+                "y_min": int(y_norm * sp_info["height"]),
+                "width": int(w_frac * sp_info["width"]),
+                "height": int(h_frac * sp_info["height"]),
+                "normalized": [
+                    round(x_norm, 4), round(y_norm, 4),
+                    round(w_frac, 4), round(h_frac, 4),
+                ],
+            }
+            det["bbox"] = json.dumps(bbox)
+
+        # Update classification species and confidence
+        conf_lo, conf_hi = CONFIDENCE_RANGES.get(species, (0.55, 0.90))
+        cls["species"] = species
+        cls["confidence"] = round(rng.uniform(conf_lo, conf_hi), 4)
 
 
 def generate_deployment_periods(cameras: list) -> list:
@@ -1393,6 +1479,10 @@ def main():
         print(f"   {len(images)} images generated.")
         print(f"   {len(detections)} detections generated.")
         print(f"   {len(classifications)} classifications generated.")
+
+        # Curate first page: all 14 species, no consecutive duplicates
+        print("   Curating first page (24 images, all species)...")
+        curate_first_page(images, detections, classifications, species_image_info, rng)
 
         health_reports = generate_health_reports(cameras, rng)
         print(f"   {len(health_reports)} health reports generated.")
