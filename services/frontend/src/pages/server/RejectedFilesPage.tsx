@@ -5,7 +5,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info } from 'lucide-react';
+import { RefreshCw, Loader2, AlertTriangle, FileX, Trash2, ArrowUpCircle, Info, FolderOpen } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import {
@@ -21,6 +21,7 @@ import {
   getRejectedFiles,
   deleteRejectedFiles,
   reprocessRejectedFiles,
+  getUploadFiles,
   type RejectedFile,
 } from '../../api/ingestion-monitoring';
 
@@ -45,11 +46,17 @@ export const RejectedFilesPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
 
-  // Query
+  // Queries
   const { data: rejectedFilesData, isLoading, refetch: refetchFiles } = useQuery({
     queryKey: ['rejected-files'],
     queryFn: getRejectedFiles,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
+  });
+
+  const { data: uploadFilesData, isLoading: isLoadingUploads, refetch: refetchUploads } = useQuery({
+    queryKey: ['upload-files'],
+    queryFn: getUploadFiles,
+    refetchInterval: 30000,
   });
 
   // Delete mutation
@@ -383,6 +390,72 @@ export const RejectedFilesPage: React.FC = () => {
           </Card>
         </>
       )}
+
+      {/* Uploads folder section */}
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5" />
+              Uploads folder
+            </CardTitle>
+            <Button onClick={() => refetchUploads()} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+          <CardDescription>
+            Files waiting to be picked up by the ingestion service. This folder should normally be empty.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingUploads ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !uploadFilesData || uploadFilesData.total_count === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              No files in uploads folder — the ingestion service is up to date.
+            </p>
+          ) : (
+            <div>
+              <div className="flex items-center gap-2 mb-3 p-2 rounded bg-amber-50 border border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {uploadFilesData.total_count} file{uploadFilesData.total_count !== 1 ? 's' : ''} waiting
+                  for processing. If these persist, the ingestion service may need attention.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2">Filename</th>
+                      <th className="text-left py-2 px-2 hidden md:table-cell">Size</th>
+                      <th className="text-left py-2 px-2 hidden sm:table-cell">Last modified</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadFilesData.files.map((file) => (
+                      <tr key={file.filepath} className="border-b last:border-0">
+                        <td className="py-2 px-2 font-mono text-xs break-all max-w-xs">
+                          {file.filename}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
+                          {formatFileSize(file.size_bytes)}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
+                          {formatTimestamp(file.timestamp)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* File Details Modal */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>

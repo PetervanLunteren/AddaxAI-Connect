@@ -57,3 +57,25 @@ export const reprocessRejectedFiles = async (filepaths: string[]): Promise<BulkA
   );
   return response.data;
 };
+
+export interface UploadFile {
+  filename: string;
+  filepath: string;
+  size_bytes: number;
+  timestamp: number;
+}
+
+export interface UploadFilesResponse {
+  total_count: number;
+  files: UploadFile[];
+}
+
+/**
+ * Get files currently in the uploads folder awaiting processing (server admin only)
+ */
+export const getUploadFiles = async (): Promise<UploadFilesResponse> => {
+  const response = await apiClient.get<UploadFilesResponse>(
+    '/api/ingestion-monitoring/upload-files'
+  );
+  return response.data;
+};

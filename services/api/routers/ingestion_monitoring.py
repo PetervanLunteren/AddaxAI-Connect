@@ -54,6 +54,20 @@ class BulkActionResponse(BaseModel):
     errors: List[str] = []
 
 
+class UploadFileResponse(BaseModel):
+    """A file currently in the uploads folder awaiting processing"""
+    filename: str
+    filepath: str
+    size_bytes: int
+    timestamp: float  # File modification time (Unix timestamp)
+
+
+class UploadFilesResponse(BaseModel):
+    """Response for uploads folder contents"""
+    total_count: int
+    files: List[UploadFileResponse]
+
+
 def extract_imei_from_file(file_path: Path) -> str | None:
     """
     Extract IMEI from a file using exiftool.
@@ -336,4 +350,92 @@ async def reprocess_rejected_files(
         success_count=success_count,
         failed_count=failed_count,
         errors=errors
+    )
+
+
+def scan_upload_files() -> List[UploadFileResponse]:
+    """
+    Scan uploads root directory for files awaiting processing.
+
+    Only includes regular files with expected extensions (.jpg, .jpeg, .txt).
+    Skips hidden files (e.g. .pureftpd-upload.*) and directories.
+
+    Returns:
+        List of files in the uploads root directory
+    """
+    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
+    upload_dir = Path(ftps_dir)
+
+    if not upload_dir.exists():
+        logger.warning("Upload directory does not exist", path=str(upload_dir))
+        return []
+
+    upload_files = []
+    allowed_extensions = {'jpg', 'jpeg', 'txt'}
+
+    for file_path in upload_dir.iterdir():
+        if not file_path.is_file():
+            continue
+
+        # Skip hidden files (Pure-FTPd temp uploads, etc.)
+        if file_path.name.startswith('.'):
+            continue
+
+        # Check file extension, handling AutoRename suffixes (.jpg.1, .txt.3)
+        # Uses same logic as ingestion service (services/ingestion/main.py lines 120-125)
+        parts = file_path.name.lower().split('.')
+        ext = parts[-1] if len(parts) > 1 else ''
+
+        # If extension is numeric (AutoRename suffix), use second-to-last part
+        if ext.isdigit() and len(parts) > 2:
+            ext = parts[-2]
+
+        if ext not in allowed_extensions:
+            continue
+
+        try:
+            stat = file_path.stat()
+            upload_files.append(UploadFileResponse(
+                filename=file_path.name,
+                filepath=str(file_path),
+                size_bytes=stat.st_size,
+                timestamp=stat.st_mtime,
+            ))
+        except Exception as e:
+            logger.error(
+                "Failed to stat upload file",
+                file_path=str(file_path),
+                error=str(e),
+            )
+
+    return upload_files
+
+
+@router.get(
+    "/upload-files",
+    response_model=UploadFilesResponse,
+)
+async def get_upload_files(
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Get files currently in the uploads folder awaiting processing (server admin only).
+
+    The uploads folder should normally be empty. Files lingering here
+    may indicate the ingestion service has crashed or stalled.
+
+    Args:
+        current_user: Current authenticated server admin
+
+    Returns:
+        List of files in uploads folder sorted by timestamp (oldest first)
+    """
+    upload_files = scan_upload_files()
+
+    # Sort by timestamp, oldest first (stuck files are most interesting)
+    upload_files.sort(key=lambda f: f.timestamp)
+
+    return UploadFilesResponse(
+        total_count=len(upload_files),
+        files=upload_files,
     )
