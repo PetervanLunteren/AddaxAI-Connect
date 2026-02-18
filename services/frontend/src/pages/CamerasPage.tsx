@@ -726,7 +726,7 @@ export const CamerasPage: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Import cameras from CSV</DialogTitle>
               <DialogDescription>
-                Import cameras from a CSV file into project: {currentProject?.name}
+                Upload a CSV file to register multiple cameras at once. See the format example below.
               </DialogDescription>
             </DialogHeader>
 
@@ -766,7 +766,7 @@ export const CamerasPage: React.FC = () => {
                     </div>
                     <p className="text-xs text-muted-foreground mt-3">
                       IMEI is required. FriendlyName and Notes headers are required but values can be empty.
-                      Add any extra columns you like — they're stored as additional fields. Delimiter auto-detected.
+                      Any extra columns you add will be stored as additional fields. Delimiter auto-detected.
                     </p>
                   </div>
                 </>
