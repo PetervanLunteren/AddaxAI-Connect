@@ -7,7 +7,7 @@ export interface Camera {
   id: number;
   name: string;
   imei?: string;
-  metadata?: Record<string, string> | null;
+  custom_fields?: Record<string, string> | null;
   // Health/operational data (visible to all)
   location: { lat: number; lon: number } | null;
   battery_percentage: number | null;

@@ -10,13 +10,13 @@ import type { Camera, HealthHistoryResponse, HealthHistoryFilters } from './type
 export interface CreateCameraRequest {
   imei: string;
   friendly_name?: string;
-  metadata?: Record<string, string>;
+  custom_fields?: Record<string, string>;
   project_id: number;
 }
 
 export interface UpdateCameraRequest {
   friendly_name?: string;
-  metadata?: Record<string, string>;
+  custom_fields?: Record<string, string>;
   notes?: string;
 }
 
