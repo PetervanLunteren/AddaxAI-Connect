@@ -550,7 +550,7 @@ async def export_camtrap_dp(
             cdp.id, cdp.camera_id, cdp.deployment_id, cdp.start_date, cdp.end_date,
             ST_Y(cdp.location::geometry) as latitude,
             ST_X(cdp.location::geometry) as longitude,
-            c.name as camera_name, c.serial_number, c.imei,
+            c.name as camera_name, c.imei,
             c.manufacturer, c.model as camera_model
         FROM camera_deployment_periods cdp
         JOIN cameras c ON cdp.camera_id = c.id
@@ -571,7 +571,7 @@ async def export_camtrap_dp(
     deployments_by_camera: Dict[int, list] = {}
 
     for row in dep_rows:
-        camera_identifier = row["serial_number"] or row["imei"] or row["camera_name"]
+        camera_identifier = row["imei"] or row["camera_name"]
         dep_data = {
             "deployment_id_str": f"dep-{row['camera_id']}-{row['deployment_id']}",
             "camera_id": row["camera_id"],

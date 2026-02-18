@@ -73,15 +73,7 @@ export const CamerasPage: React.FC = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newCameraIMEI, setNewCameraIMEI] = useState('');
   const [newCameraName, setNewCameraName] = useState('');
-  const [newCameraSerialNumber, setNewCameraSerialNumber] = useState('');
-  const [newCameraBox, setNewCameraBox] = useState('');
-  const [newCameraOrder, setNewCameraOrder] = useState('');
-  const [newCameraScannedDate, setNewCameraScannedDate] = useState('');
-  const [newCameraFirmware, setNewCameraFirmware] = useState('');
-  const [newCameraRemark, setNewCameraRemark] = useState('');
-  const [newCameraHasSim, setNewCameraHasSim] = useState(false);
-  const [newCameraImsi, setNewCameraImsi] = useState('');
-  const [newCameraIccid, setNewCameraIccid] = useState('');
+  const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
 
   // CSV Import state
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -125,15 +117,7 @@ export const CamerasPage: React.FC = () => {
   const resetAddForm = () => {
     setNewCameraIMEI('');
     setNewCameraName('');
-    setNewCameraSerialNumber('');
-    setNewCameraBox('');
-    setNewCameraOrder('');
-    setNewCameraScannedDate('');
-    setNewCameraFirmware('');
-    setNewCameraRemark('');
-    setNewCameraHasSim(false);
-    setNewCameraImsi('');
-    setNewCameraIccid('');
+    setCustomFields([]);
   };
 
   const handleAddCamera = () => {
@@ -146,18 +130,20 @@ export const CamerasPage: React.FC = () => {
       return;
     }
 
+    // Build metadata from custom fields (skip empty keys)
+    const metadata: Record<string, string> = {};
+    for (const field of customFields) {
+      const key = field.key.trim();
+      const value = field.value.trim();
+      if (key && value) {
+        metadata[key] = value;
+      }
+    }
+
     const data: CreateCameraRequest = {
       imei: newCameraIMEI.trim(),
       friendly_name: newCameraName.trim() || undefined,
-      serial_number: newCameraSerialNumber.trim() || undefined,
-      box: newCameraBox.trim() || undefined,
-      order: newCameraOrder.trim() || undefined,
-      scanned_date: newCameraScannedDate.trim() || undefined,
-      firmware: newCameraFirmware.trim() || undefined,
-      remark: newCameraRemark.trim() || undefined,
-      has_sim: newCameraHasSim || undefined,
-      imsi: newCameraImsi.trim() || undefined,
-      iccid: newCameraIccid.trim() || undefined,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       project_id: currentProject.id,
     };
 
@@ -624,7 +610,7 @@ export const CamerasPage: React.FC = () => {
 
               <div>
                 <label htmlFor="name" className="block text-sm font-medium mb-2">
-                  Friendly name (optional)
+                  Friendly name
                 </label>
                 <input
                   id="name"
@@ -639,131 +625,56 @@ export const CamerasPage: React.FC = () => {
                 </p>
               </div>
 
-              <div>
-                <label htmlFor="serial-number" className="block text-sm font-medium mb-2">
-                  Serial number (optional)
-                </label>
-                <input
-                  id="serial-number"
-                  type="text"
-                  value={newCameraSerialNumber}
-                  onChange={(e) => setNewCameraSerialNumber(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g., SN123456"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              {/* Custom key-value metadata fields */}
+              {customFields.length > 0 && (
                 <div>
-                  <label htmlFor="box" className="block text-sm font-medium mb-2">
-                    Box (optional)
-                  </label>
-                  <input
-                    id="box"
-                    type="text"
-                    value={newCameraBox}
-                    onChange={(e) => setNewCameraBox(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="e.g., Box-A"
-                  />
+                  <label className="block text-sm font-medium mb-2">Additional fields</label>
+                  <div className="space-y-2">
+                    {customFields.map((field, index) => (
+                      <div key={index} className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={field.key}
+                          onChange={(e) => {
+                            const updated = [...customFields];
+                            updated[index] = { ...updated[index], key: e.target.value };
+                            setCustomFields(updated);
+                          }}
+                          className="w-1/3 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          placeholder="Key"
+                        />
+                        <input
+                          type="text"
+                          value={field.value}
+                          onChange={(e) => {
+                            const updated = [...customFields];
+                            updated[index] = { ...updated[index], value: e.target.value };
+                            setCustomFields(updated);
+                          }}
+                          className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          placeholder="Value"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCustomFields(customFields.filter((_, i) => i !== index))}
+                          className="p-2 text-muted-foreground hover:text-destructive rounded-md hover:bg-accent"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="order" className="block text-sm font-medium mb-2">
-                    Order (optional)
-                  </label>
-                  <input
-                    id="order"
-                    type="text"
-                    value={newCameraOrder}
-                    onChange={(e) => setNewCameraOrder(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="e.g., Order-1"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="scanned-date" className="block text-sm font-medium mb-2">
-                  Scanned date (optional)
-                </label>
-                <input
-                  id="scanned-date"
-                  type="date"
-                  value={newCameraScannedDate}
-                  onChange={(e) => setNewCameraScannedDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="firmware" className="block text-sm font-medium mb-2">
-                  Firmware (optional)
-                </label>
-                <input
-                  id="firmware"
-                  type="text"
-                  value={newCameraFirmware}
-                  onChange={(e) => setNewCameraFirmware(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g., 4TR1SPrFB06"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="remark" className="block text-sm font-medium mb-2">
-                  Remark (optional)
-                </label>
-                <textarea
-                  id="remark"
-                  value={newCameraRemark}
-                  onChange={(e) => setNewCameraRemark(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Any additional notes"
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  id="has-sim"
-                  type="checkbox"
-                  checked={newCameraHasSim}
-                  onChange={(e) => setNewCameraHasSim(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-ring"
-                />
-                <label htmlFor="has-sim" className="text-sm font-medium">
-                  Has SIM card
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="imsi" className="block text-sm font-medium mb-2">
-                    IMSI (optional)
-                  </label>
-                  <input
-                    id="imsi"
-                    type="text"
-                    value={newCameraImsi}
-                    onChange={(e) => setNewCameraImsi(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="e.g., 204081234567890"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="iccid" className="block text-sm font-medium mb-2">
-                    ICCID (optional)
-                  </label>
-                  <input
-                    id="iccid"
-                    type="text"
-                    value={newCameraIccid}
-                    onChange={(e) => setNewCameraIccid(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="e.g., 8931085125056164008"
-                  />
-                </div>
-              </div>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setCustomFields([...customFields, { key: '', value: '' }])}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add field
+              </Button>
             </div>
 
             <DialogFooter>
@@ -798,9 +709,9 @@ export const CamerasPage: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Import cameras from CSV</DialogTitle>
               <DialogDescription>
-                Upload a CSV file with camera information. Required: IMEI. Optional: FriendlyName,
-                Serial, Box, Order, Scanned, Firmware, Remark, SIM, IMSI, ICCID. Date format:
-                DD-MM-YYYY or YYYY-MM-DD. Delimiter auto-detected (comma or semicolon).
+                Upload a CSV file with camera information. Required: IMEI. Optional: FriendlyName.
+                All other columns will be stored as metadata.
+                Delimiter auto-detected (comma or semicolon).
               </DialogDescription>
             </DialogHeader>
 
@@ -829,13 +740,13 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium mb-2">CSV format example:</p>
                     <div className="text-xs bg-background p-3 rounded overflow-x-auto max-h-32">
                       <pre className="whitespace-nowrap">
-                        IMEI;Serial;Order;Scanned;Firmware;Remark;SIM;IMSI;ICCID
+                        IMEI;FriendlyName;Box;Firmware;MyCustomField
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground mt-1">
-                        860946063660255;SY2511012122;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567890;893108512...
+                        860946063660255;Camera North;Box-A;4TR1SPrFB06;Some value
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground">
-                        860946063660256;SY2511012127;WF13051-2;19-12-2025;4TR1SPrFB06;;TRUE;204081234567891;893108512...
+                        860946063660256;;Box-B;4TR1SPrFB06;Another value
                       </pre>
                     </div>
                     <div className="mt-3 space-y-1">
@@ -843,13 +754,10 @@ export const CamerasPage: React.FC = () => {
                         Delimiter: Comma or semicolon (auto-detected)
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Date format: DD-MM-YYYY, YYYY-MM-DD, or Excel serial number
+                        Only IMEI is required. FriendlyName sets the display name (defaults to IMEI).
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        FriendlyName column optional (defaults to IMEI)
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Only IMEI is required, all other fields are optional
+                        All other columns are stored as metadata key-value pairs.
                       </p>
                     </div>
                   </div>

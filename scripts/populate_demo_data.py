@@ -1029,10 +1029,10 @@ def insert_cameras(session: Session, cameras: list, project_id: int) -> dict:
             text("""
                 INSERT INTO cameras (
                     name, imei, manufacturer, model, project_id,
-                    status, has_sim, location, installed_at
+                    status, location, installed_at
                 ) VALUES (
                     :name, :imei, :make, :model, :pid,
-                    'active', true,
+                    'active',
                     ST_GeogFromText(:loc), :installed
                 ) RETURNING id
             """),

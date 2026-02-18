@@ -50,24 +50,14 @@ class Camera(Base):
     installed_at = Column(DateTime(timezone=True), nullable=True)
     config = Column(JSON)
 
-    # Identifiers (from camera management migration)
-    serial_number = Column(String(50), nullable=True, index=True, unique=True)
+    # Identifiers
     imei = Column(String(50), nullable=True, index=True, unique=True)
     manufacturer = Column(String(100), nullable=True, index=True)
     model = Column(String(100), nullable=True, index=True)
     hardware_revision = Column(String(50), nullable=True)
 
-    # SIM card information
-    firmware = Column(String(100), nullable=True)
-    remark = Column(Text, nullable=True)
-    has_sim = Column(Boolean, nullable=True)
-    imsi = Column(String(50), nullable=True, index=True)
-    iccid = Column(String(50), nullable=True, index=True)
-
-    # Inventory tracking
-    box = Column(String(100), nullable=True)
-    order = Column(String(50), nullable=True)
-    scanned_date = Column(Date, nullable=True)
+    # Flexible key-value metadata (replaces fixed serial_number, box, order, etc.)
+    metadata = Column(JSON, nullable=True)
 
     # Project assignment
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
