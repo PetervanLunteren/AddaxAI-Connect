@@ -8,3 +8,4 @@ export { MapLegend } from './MapLegend';
 export { MapControls } from './MapControls';
 export { HexbinLayer } from './HexbinLayer';
 export { HexPopup } from './HexPopup';
+export { FullscreenControl } from './FullscreenControl';
