@@ -72,8 +72,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       setEditForm({
         friendly_name: camera.name,
       });
-      // Initialize metadata fields from camera.metadata
-      const meta = camera.metadata || {};
+      // Initialize metadata fields from camera.custom_fields
+      const meta = camera.custom_fields || {};
       setMetadataFields(
         Object.entries(meta).map(([key, value]) => ({ key, value: value || '' }))
       );
@@ -120,16 +120,16 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
     if (editForm.friendly_name) cleanedData.friendly_name = editForm.friendly_name;
 
-    // Build metadata from key-value fields
-    const metadata: Record<string, string> = {};
+    // Build custom_fields from key-value fields
+    const custom_fields: Record<string, string> = {};
     for (const field of metadataFields) {
       const key = field.key.trim();
       const value = field.value.trim();
       if (key && value) {
-        metadata[key] = value;
+        custom_fields[key] = value;
       }
     }
-    cleanedData.metadata = metadata;
+    cleanedData.custom_fields = custom_fields;
 
     updateMutation.mutate(cleanedData);
   };
@@ -355,8 +355,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       <span className="text-muted-foreground">IMEI</span>
                       <span className="font-mono text-xs">{camera.imei || '-'}</span>
                     </div>
-                    {camera.metadata && Object.keys(camera.metadata).length > 0 ? (
-                      Object.entries(camera.metadata).map(([key, value]) => (
+                    {camera.custom_fields && Object.keys(camera.custom_fields).length > 0 ? (
+                      Object.entries(camera.custom_fields).map(([key, value]) => (
                         <div key={key} className="flex justify-between">
                           <span className="text-muted-foreground">{key}</span>
                           <span>{value || '-'}</span>

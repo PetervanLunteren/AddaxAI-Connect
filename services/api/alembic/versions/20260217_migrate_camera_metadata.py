@@ -1,8 +1,8 @@
 """Migrate camera fixed metadata columns to JSON
 
-Simplifies camera registration to IMEI + name + flexible metadata.
+Simplifies camera registration to IMEI + name + flexible custom fields.
 Migrates 9 fixed columns (serial_number, box, order, scanned_date, firmware,
-remark, has_sim, imsi, iccid) into a single metadata JSON column.
+remark, has_sim, imsi, iccid) into a single custom_fields JSON column.
 
 Revision ID: 20260217_camera_metadata
 Revises: 20260217_add_project_docs
@@ -35,7 +35,7 @@ COLUMNS = [
 
 def upgrade():
     # 1. Add metadata column
-    op.add_column('cameras', sa.Column('metadata', sa.JSON(), nullable=True))
+    op.add_column('cameras', sa.Column('custom_fields', sa.JSON(), nullable=True))
 
     # 2. Migrate data from fixed columns to metadata JSON
     # Use raw SQL to build JSON from existing columns
@@ -47,41 +47,41 @@ def upgrade():
 
     for cam in cameras:
         cam_id = cam[0]
-        metadata = {}
+        fields = {}
 
         # serial_number
         if cam[1]:
-            metadata['Serial number'] = str(cam[1])
+            fields['Serial number'] = str(cam[1])
         # box
         if cam[2]:
-            metadata['Box'] = str(cam[2])
+            fields['Box'] = str(cam[2])
         # order
         if cam[3]:
-            metadata['Order'] = str(cam[3])
+            fields['Order'] = str(cam[3])
         # scanned_date
         if cam[4]:
-            metadata['Scanned date'] = cam[4].strftime('%Y-%m-%d') if hasattr(cam[4], 'strftime') else str(cam[4])
+            fields['Scanned date'] = cam[4].strftime('%Y-%m-%d') if hasattr(cam[4], 'strftime') else str(cam[4])
         # firmware
         if cam[5]:
-            metadata['Firmware'] = str(cam[5])
+            fields['Firmware'] = str(cam[5])
         # remark
         if cam[6]:
-            metadata['Remark'] = str(cam[6])
+            fields['Remark'] = str(cam[6])
         # has_sim
         if cam[7] is not None:
-            metadata['Has SIM'] = 'Yes' if cam[7] else 'No'
+            fields['Has SIM'] = 'Yes' if cam[7] else 'No'
         # imsi
         if cam[8]:
-            metadata['IMSI'] = str(cam[8])
+            fields['IMSI'] = str(cam[8])
         # iccid
         if cam[9]:
-            metadata['ICCID'] = str(cam[9])
+            fields['ICCID'] = str(cam[9])
 
-        if metadata:
+        if fields:
             import json
             conn.execute(
-                sa.text('UPDATE cameras SET metadata = CAST(:meta AS json) WHERE id = :id'),
-                {'meta': json.dumps(metadata), 'id': cam_id}
+                sa.text('UPDATE cameras SET custom_fields = CAST(:meta AS json) WHERE id = :id'),
+                {'meta': json.dumps(fields), 'id': cam_id}
             )
 
     # 3. Drop indexes first
@@ -119,9 +119,9 @@ def downgrade():
     op.add_column('cameras', sa.Column('imsi', sa.String(50), nullable=True))
     op.add_column('cameras', sa.Column('iccid', sa.String(50), nullable=True))
 
-    # 2. Migrate data back from metadata JSON
+    # 2. Migrate data back from custom_fields JSON
     conn = op.get_bind()
-    cameras = conn.execute(sa.text('SELECT id, metadata FROM cameras WHERE metadata IS NOT NULL')).fetchall()
+    cameras = conn.execute(sa.text('SELECT id, custom_fields FROM cameras WHERE custom_fields IS NOT NULL')).fetchall()
 
     from datetime import datetime
 
@@ -176,5 +176,5 @@ def downgrade():
     op.create_index('ix_cameras_imsi', 'cameras', ['imsi'])
     op.create_index('ix_cameras_iccid', 'cameras', ['iccid'])
 
-    # 4. Drop metadata column
-    op.drop_column('cameras', 'metadata')
+    # 4. Drop custom_fields column
+    op.drop_column('cameras', 'custom_fields')

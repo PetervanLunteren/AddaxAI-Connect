@@ -56,8 +56,8 @@ class Camera(Base):
     model = Column(String(100), nullable=True, index=True)
     hardware_revision = Column(String(50), nullable=True)
 
-    # Flexible key-value metadata (replaces fixed serial_number, box, order, etc.)
-    metadata = Column(JSON, nullable=True)
+    # Flexible key-value fields (replaces fixed serial_number, box, order, etc.)
+    custom_fields = Column(JSON, nullable=True)
 
     # Project assignment
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)

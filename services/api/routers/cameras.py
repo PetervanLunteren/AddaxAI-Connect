@@ -25,7 +25,7 @@ class CameraResponse(BaseModel):
     id: int
     name: str
     imei: Optional[str] = None
-    metadata: Optional[dict] = None
+    custom_fields: Optional[dict] = None
     location: Optional[dict] = None  # {lat, lon}
     battery_percentage: Optional[int] = None
     temperature: Optional[int] = None
@@ -45,14 +45,14 @@ class CreateCameraRequest(BaseModel):
     """Request model for creating a new camera"""
     imei: str
     friendly_name: Optional[str] = None  # Display name (optional, defaults to IMEI)
-    metadata: Optional[dict] = None
+    custom_fields: Optional[dict] = None
     project_id: int
 
 
 class UpdateCameraRequest(BaseModel):
     """Request model for updating camera"""
     friendly_name: Optional[str] = None
-    metadata: Optional[dict] = None
+    custom_fields: Optional[dict] = None
     notes: Optional[str] = None
 
 
@@ -140,7 +140,7 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
         id=camera.id,
         name=camera.name,
         imei=camera.imei,
-        metadata=camera.metadata,
+        custom_fields=camera.custom_fields,
         location=gps_data,
         battery_percentage=health_data.get('battery_percentage'),
         signal_quality=health_data.get('signal_quality'),
@@ -412,7 +412,7 @@ async def create_camera(
     camera = Camera(
         imei=request.imei,
         name=request.friendly_name if request.friendly_name else request.imei,  # Default name to IMEI
-        metadata=request.metadata or {},
+        custom_fields=request.custom_fields or {},
         project_id=request.project_id,
         status='inventory',
         config={}
@@ -471,8 +471,8 @@ async def update_camera(
     # Update fields if provided
     if request.friendly_name is not None:
         camera.name = request.friendly_name
-    if request.metadata is not None:
-        camera.metadata = request.metadata
+    if request.custom_fields is not None:
+        camera.custom_fields = request.custom_fields
     if request.notes is not None:
         camera.notes = request.notes
 
@@ -668,21 +668,21 @@ async def import_cameras_csv(
 
         friendly_name = (row.get('FriendlyName') or '').strip() or None
 
-        # Build metadata from all other columns
-        metadata = {}
+        # Build custom_fields from all other columns
+        custom_fields = {}
         for col_name, col_value in row.items():
             if col_name in reserved_columns:
                 continue
             value = (col_value or '').strip()
             if value:
-                metadata[col_name] = value
+                custom_fields[col_name] = value
 
         # Create camera
         try:
             camera = Camera(
                 imei=imei,
                 name=friendly_name if friendly_name else imei,
-                metadata=metadata if metadata else {},
+                custom_fields=custom_fields if custom_fields else {},
                 project_id=project_id,
                 status='inventory',
                 config={}

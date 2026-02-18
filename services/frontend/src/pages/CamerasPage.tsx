@@ -130,20 +130,20 @@ export const CamerasPage: React.FC = () => {
       return;
     }
 
-    // Build metadata from custom fields (skip empty keys)
-    const metadata: Record<string, string> = {};
+    // Build custom_fields from custom fields (skip empty keys)
+    const custom_fields: Record<string, string> = {};
     for (const field of customFields) {
       const key = field.key.trim();
       const value = field.value.trim();
       if (key && value) {
-        metadata[key] = value;
+        custom_fields[key] = value;
       }
     }
 
     const data: CreateCameraRequest = {
       imei: newCameraIMEI.trim(),
       friendly_name: newCameraName.trim() || undefined,
-      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      custom_fields: Object.keys(custom_fields).length > 0 ? custom_fields : undefined,
       project_id: currentProject.id,
     };
 
