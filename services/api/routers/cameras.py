@@ -26,6 +26,7 @@ class CameraResponse(BaseModel):
     name: str
     imei: Optional[str] = None
     custom_fields: Optional[dict] = None
+    notes: Optional[str] = None
     location: Optional[dict] = None  # {lat, lon}
     battery_percentage: Optional[int] = None
     temperature: Optional[int] = None
@@ -141,6 +142,7 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
         name=camera.name,
         imei=camera.imei,
         custom_fields=camera.custom_fields,
+        notes=camera.notes,
         location=gps_data,
         battery_percentage=health_data.get('battery_percentage'),
         signal_quality=health_data.get('signal_quality'),
