@@ -726,10 +726,7 @@ export const CamerasPage: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Import cameras from CSV</DialogTitle>
               <DialogDescription>
-                Upload a CSV file with camera information.
-                Required headers: IMEI, FriendlyName, Notes (values can be empty).
-                All other columns will be stored as additional fields.
-                Delimiter auto-detected (comma or semicolon).
+                Import cameras from a CSV file into project: {currentProject?.name}
               </DialogDescription>
             </DialogHeader>
 
@@ -758,26 +755,19 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium mb-2">CSV format example:</p>
                     <div className="text-xs bg-background p-3 rounded overflow-x-auto max-h-32">
                       <pre className="whitespace-nowrap">
-                        IMEI;FriendlyName;Notes;Box;Firmware
+                        IMEI;FriendlyName;Notes;My custom col;Another col
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground mt-1">
-                        860946063660255;Camera North;Oak tree, facing north;Box-A;4TR1SPrFB06
+                        860946063660255;Camera North;Oak tree, facing north;value 1;value 2
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground">
-                        860946063660256;;;Box-B;4TR1SPrFB06
+                        860946063660256;;;;value 3
                       </pre>
                     </div>
-                    <div className="mt-3 space-y-1">
-                      <p className="text-xs text-muted-foreground">
-                        Delimiter: Comma or semicolon (auto-detected)
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Headers IMEI, FriendlyName, and Notes are required (values can be empty).
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        All other columns are stored as additional key-value fields.
-                      </p>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      IMEI is required. FriendlyName and Notes headers are required but values can be empty.
+                      Add any extra columns you like — they're stored as additional fields. Delimiter auto-detected.
+                    </p>
                   </div>
                 </>
               ) : (
