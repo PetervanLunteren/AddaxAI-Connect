@@ -2,7 +2,7 @@
 Camera endpoints for viewing camera trap devices and their health status.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
