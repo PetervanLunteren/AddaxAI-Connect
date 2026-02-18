@@ -73,6 +73,7 @@ export const CamerasPage: React.FC = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newCameraIMEI, setNewCameraIMEI] = useState('');
   const [newCameraName, setNewCameraName] = useState('');
+  const [newCameraNotes, setNewCameraNotes] = useState('');
   const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
 
   // CSV Import state
@@ -117,6 +118,7 @@ export const CamerasPage: React.FC = () => {
   const resetAddForm = () => {
     setNewCameraIMEI('');
     setNewCameraName('');
+    setNewCameraNotes('');
     setCustomFields([]);
   };
 
@@ -143,6 +145,7 @@ export const CamerasPage: React.FC = () => {
     const data: CreateCameraRequest = {
       imei: newCameraIMEI.trim(),
       friendly_name: newCameraName.trim() || undefined,
+      notes: newCameraNotes.trim() || undefined,
       custom_fields: Object.keys(custom_fields).length > 0 ? custom_fields : undefined,
       project_id: currentProject.id,
     };
@@ -625,6 +628,20 @@ export const CamerasPage: React.FC = () => {
                 </p>
               </div>
 
+              <div>
+                <label htmlFor="notes" className="block text-sm font-medium mb-2">
+                  Remarks
+                </label>
+                <textarea
+                  id="notes"
+                  value={newCameraNotes}
+                  onChange={(e) => setNewCameraNotes(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g., Mounted on oak tree, facing north"
+                  rows={3}
+                />
+              </div>
+
               {/* Custom key-value metadata fields */}
               {customFields.length > 0 && (
                 <div>
@@ -709,8 +726,9 @@ export const CamerasPage: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Import cameras from CSV</DialogTitle>
               <DialogDescription>
-                Upload a CSV file with camera information. Required: IMEI. Optional: FriendlyName.
-                All other columns will be stored as metadata.
+                Upload a CSV file with camera information.
+                Required headers: IMEI, FriendlyName, Notes (values can be empty).
+                All other columns will be stored as additional fields.
                 Delimiter auto-detected (comma or semicolon).
               </DialogDescription>
             </DialogHeader>
@@ -740,13 +758,13 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium mb-2">CSV format example:</p>
                     <div className="text-xs bg-background p-3 rounded overflow-x-auto max-h-32">
                       <pre className="whitespace-nowrap">
-                        IMEI;FriendlyName;Box;Firmware;MyCustomField
+                        IMEI;FriendlyName;Notes;Box;Firmware
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground mt-1">
-                        860946063660255;Camera North;Box-A;4TR1SPrFB06;Some value
+                        860946063660255;Camera North;Oak tree, facing north;Box-A;4TR1SPrFB06
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground">
-                        860946063660256;;Box-B;4TR1SPrFB06;Another value
+                        860946063660256;;;Box-B;4TR1SPrFB06
                       </pre>
                     </div>
                     <div className="mt-3 space-y-1">
@@ -754,10 +772,10 @@ export const CamerasPage: React.FC = () => {
                         Delimiter: Comma or semicolon (auto-detected)
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Only IMEI is required. FriendlyName sets the display name (defaults to IMEI).
+                        Headers IMEI, FriendlyName, and Notes are required (values can be empty).
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        All other columns are stored as metadata key-value pairs.
+                        All other columns are stored as additional key-value fields.
                       </p>
                     </div>
                   </div>
