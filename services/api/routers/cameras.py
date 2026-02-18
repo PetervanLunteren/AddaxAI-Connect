@@ -46,6 +46,7 @@ class CreateCameraRequest(BaseModel):
     """Request model for creating a new camera"""
     imei: str
     friendly_name: Optional[str] = None  # Display name (optional, defaults to IMEI)
+    notes: Optional[str] = None
     custom_fields: Optional[dict] = None
     project_id: int
 
@@ -414,6 +415,7 @@ async def create_camera(
     camera = Camera(
         imei=request.imei,
         name=request.friendly_name if request.friendly_name else request.imei,  # Default name to IMEI
+        notes=request.notes or '',
         custom_fields=request.custom_fields or {},
         project_id=request.project_id,
         status='inventory',
@@ -613,10 +615,12 @@ async def import_cameras_csv(
     # Validate required headers
     actual_headers = set(rows[0].keys())
 
-    if 'IMEI' not in actual_headers:
+    required_headers = {'IMEI', 'FriendlyName', 'Notes'}
+    missing_headers = required_headers - actual_headers
+    if missing_headers:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing required CSV header: IMEI",
+            detail=f"Missing required CSV headers: {', '.join(sorted(missing_headers))}",
         )
 
     # Verify project exists
@@ -630,8 +634,8 @@ async def import_cameras_csv(
             detail=f"Project with ID {project_id} not found",
         )
 
-    # Columns that are not stored in metadata
-    reserved_columns = {'IMEI', 'FriendlyName'}
+    # Columns that are not stored in custom_fields
+    reserved_columns = {'IMEI', 'FriendlyName', 'Notes'}
 
     # Process rows
     results: List[CameraImportRow] = []
@@ -669,6 +673,7 @@ async def import_cameras_csv(
             continue
 
         friendly_name = (row.get('FriendlyName') or '').strip() or None
+        notes = (row.get('Notes') or '').strip()
 
         # Build custom_fields from all other columns
         custom_fields = {}
@@ -684,6 +689,7 @@ async def import_cameras_csv(
             camera = Camera(
                 imei=imei,
                 name=friendly_name if friendly_name else imei,
+                notes=notes,
                 custom_fields=custom_fields if custom_fields else {},
                 project_id=project_id,
                 status='inventory',
