@@ -71,6 +71,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     if (camera) {
       setEditForm({
         friendly_name: camera.name,
+        notes: camera.notes || '',
       });
       // Initialize metadata fields from camera.custom_fields
       const meta = camera.custom_fields || {};
@@ -84,7 +85,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
   // Check if notes have been modified
   const notesModified = camera && (
-    editForm.friendly_name !== camera.name
+    editForm.friendly_name !== camera.name ||
+    editForm.notes !== (camera.notes || '')
   );
 
   // Update mutation
@@ -119,6 +121,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     const cleanedData: UpdateCameraRequest = {};
 
     if (editForm.friendly_name) cleanedData.friendly_name = editForm.friendly_name;
+    if (editForm.notes !== undefined) cleanedData.notes = editForm.notes || '';
 
     // Build custom_fields from key-value fields
     const custom_fields: Record<string, string> = {};
@@ -381,6 +384,16 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
                     disabled={!canAdmin}
                     className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Remarks</label>
+                  <textarea
+                    value={editForm.notes || ''}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    disabled={!canAdmin}
+                    className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
+                    rows={4}
                   />
                 </div>
                 {notesModified && canAdmin && (

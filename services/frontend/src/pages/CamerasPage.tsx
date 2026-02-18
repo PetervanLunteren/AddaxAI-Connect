@@ -590,7 +590,7 @@ export const CamerasPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="space-y-4 py-4 px-1 -mx-1 max-h-[60vh] overflow-y-auto">
               <div>
                 <label htmlFor="imei" className="block text-sm font-medium mb-2">
                   IMEI <span className="text-destructive">*</span>
@@ -604,7 +604,7 @@ export const CamerasPage: React.FC = () => {
                   placeholder="e.g., 860946063660255"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  The camera's IMEI from EXIF SerialNumber field or daily report
+                  The camera's IMEI (unique device identifier)
                 </p>
               </div>
 

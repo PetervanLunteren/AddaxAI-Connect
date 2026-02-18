@@ -8,6 +8,7 @@ export interface Camera {
   name: string;
   imei?: string;
   custom_fields?: Record<string, string> | null;
+  notes?: string | null;
   // Health/operational data (visible to all)
   location: { lat: number; lon: number } | null;
   battery_percentage: number | null;
