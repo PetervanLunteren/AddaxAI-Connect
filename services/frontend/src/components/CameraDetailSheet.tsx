@@ -18,6 +18,8 @@ import {
   Camera as CameraIcon,
   Save,
   X,
+  Plus,
+  XCircle,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
@@ -62,22 +64,19 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
+  const [metadataFields, setMetadataFields] = useState<{key: string, value: string}[]>([]);
 
   // Reset editing state and tab when camera changes or sheet closes
   useEffect(() => {
     if (camera) {
       setEditForm({
         friendly_name: camera.name,
-        serial_number: camera.serial_number || '',
-        box: camera.box || '',
-        order: camera.order || '',
-        scanned_date: camera.scanned_date || '',
-        firmware: camera.firmware || '',
-        remark: camera.remark || '',
-        has_sim: camera.has_sim || false,
-        imsi: camera.imsi || '',
-        iccid: camera.iccid || '',
       });
+      // Initialize metadata fields from camera.metadata
+      const meta = camera.metadata || {};
+      setMetadataFields(
+        Object.entries(meta).map(([key, value]) => ({ key, value: value || '' }))
+      );
     }
     setIsEditing(false);
     setActiveTab('notes');
@@ -85,8 +84,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
   // Check if notes have been modified
   const notesModified = camera && (
-    editForm.friendly_name !== camera.name ||
-    editForm.remark !== (camera.remark || '')
+    editForm.friendly_name !== camera.name
   );
 
   // Update mutation
@@ -118,19 +116,20 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   if (!camera) return null;
 
   const handleSave = () => {
-    // Clean up empty strings - backend expects null/undefined, not empty strings
     const cleanedData: UpdateCameraRequest = {};
 
     if (editForm.friendly_name) cleanedData.friendly_name = editForm.friendly_name;
-    if (editForm.serial_number) cleanedData.serial_number = editForm.serial_number;
-    if (editForm.box) cleanedData.box = editForm.box;
-    if (editForm.order) cleanedData.order = editForm.order;
-    if (editForm.scanned_date) cleanedData.scanned_date = editForm.scanned_date;
-    if (editForm.firmware) cleanedData.firmware = editForm.firmware;
-    if (editForm.remark) cleanedData.remark = editForm.remark;
-    if (typeof editForm.has_sim === 'boolean') cleanedData.has_sim = editForm.has_sim;
-    if (editForm.imsi) cleanedData.imsi = editForm.imsi;
-    if (editForm.iccid) cleanedData.iccid = editForm.iccid;
+
+    // Build metadata from key-value fields
+    const metadata: Record<string, string> = {};
+    for (const field of metadataFields) {
+      const key = field.key.trim();
+      const value = field.value.trim();
+      if (key && value) {
+        metadata[key] = value;
+      }
+    }
+    cleanedData.metadata = metadata;
 
     updateMutation.mutate(cleanedData);
   };
@@ -301,83 +300,54 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       />
                       <p className="text-xs text-muted-foreground mt-1">IMEI cannot be changed</p>
                     </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Serial number</label>
-                      <input
-                        type="text"
-                        value={editForm.serial_number || ''}
-                        onChange={(e) => setEditForm({ ...editForm, serial_number: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Box</label>
-                        <input
-                          type="text"
-                          value={editForm.box || ''}
-                          onChange={(e) => setEditForm({ ...editForm, box: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md text-sm"
-                        />
+
+                    {/* Editable metadata key-value fields */}
+                    {metadataFields.length > 0 && (
+                      <div className="space-y-2">
+                        {metadataFields.map((field, index) => (
+                          <div key={index} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={field.key}
+                              onChange={(e) => {
+                                const updated = [...metadataFields];
+                                updated[index] = { ...updated[index], key: e.target.value };
+                                setMetadataFields(updated);
+                              }}
+                              className="w-1/3 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                              placeholder="Key"
+                            />
+                            <input
+                              type="text"
+                              value={field.value}
+                              onChange={(e) => {
+                                const updated = [...metadataFields];
+                                updated[index] = { ...updated[index], value: e.target.value };
+                                setMetadataFields(updated);
+                              }}
+                              className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                              placeholder="Value"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setMetadataFields(metadataFields.filter((_, i) => i !== index))}
+                              className="p-2 text-muted-foreground hover:text-destructive rounded-md hover:bg-accent"
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Order</label>
-                        <input
-                          type="text"
-                          value={editForm.order || ''}
-                          onChange={(e) => setEditForm({ ...editForm, order: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Scanned date</label>
-                      <input
-                        type="date"
-                        value={editForm.scanned_date || ''}
-                        onChange={(e) => setEditForm({ ...editForm, scanned_date: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Firmware</label>
-                      <input
-                        type="text"
-                        value={editForm.firmware || ''}
-                        onChange={(e) => setEditForm({ ...editForm, firmware: e.target.value })}
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="has-sim"
-                        checked={editForm.has_sim || false}
-                        onChange={(e) => setEditForm({ ...editForm, has_sim: e.target.checked })}
-                        className="h-4 w-4"
-                      />
-                      <label htmlFor="has-sim" className="text-sm">Has SIM card</label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground">IMSI</label>
-                        <input
-                          type="text"
-                          value={editForm.imsi || ''}
-                          onChange={(e) => setEditForm({ ...editForm, imsi: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md text-sm font-mono text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">ICCID</label>
-                        <input
-                          type="text"
-                          value={editForm.iccid || ''}
-                          onChange={(e) => setEditForm({ ...editForm, iccid: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md text-sm font-mono text-xs"
-                        />
-                      </div>
-                    </div>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setMetadataFields([...metadataFields, { key: '', value: '' }])}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add field
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-2 text-sm">
@@ -385,45 +355,15 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       <span className="text-muted-foreground">IMEI</span>
                       <span className="font-mono text-xs">{camera.imei || '-'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Serial number</span>
-                      <span>{camera.serial_number || '-'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Box</span>
-                      <span>{camera.box || '-'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Order</span>
-                      <span>{camera.order || '-'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Scanned date</span>
-                      <span>
-                        {camera.scanned_date
-                          ? new Date(camera.scanned_date).toLocaleDateString()
-                          : '-'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Firmware</span>
-                      <span>{camera.firmware || '-'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">SIM card</span>
-                      <span>{camera.has_sim ? 'Yes' : 'No'}</span>
-                    </div>
-                    {camera.has_sim && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">IMSI</span>
-                          <span className="font-mono text-xs">{camera.imsi || '-'}</span>
+                    {camera.metadata && Object.keys(camera.metadata).length > 0 ? (
+                      Object.entries(camera.metadata).map(([key, value]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="text-muted-foreground">{key}</span>
+                          <span>{value || '-'}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">ICCID</span>
-                          <span className="font-mono text-xs">{camera.iccid || '-'}</span>
-                        </div>
-                      </>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground text-sm mt-2">No additional details</p>
                     )}
                   </div>
                 )}
@@ -441,16 +381,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
                     disabled={!canAdmin}
                     className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Remarks</label>
-                  <textarea
-                    value={editForm.remark || ''}
-                    onChange={(e) => setEditForm({ ...editForm, remark: e.target.value })}
-                    disabled={!canAdmin}
-                    className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
-                    rows={4}
                   />
                 </div>
                 {notesModified && canAdmin && (

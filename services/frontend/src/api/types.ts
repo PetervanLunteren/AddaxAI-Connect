@@ -6,17 +6,8 @@
 export interface Camera {
   id: number;
   name: string;
-  // Administrative metadata (admin-only visibility)
   imei?: string;
-  serial_number?: string;
-  box?: string;
-  order?: string;
-  scanned_date?: string;  // ISO date string
-  firmware?: string;
-  remark?: string;
-  has_sim?: boolean;
-  imsi?: string;
-  iccid?: string;
+  metadata?: Record<string, string> | null;
   // Health/operational data (visible to all)
   location: { lat: number; lon: number } | null;
   battery_percentage: number | null;

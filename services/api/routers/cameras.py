@@ -2,7 +2,7 @@
 Camera endpoints for viewing camera trap devices and their health status.
 """
 from typing import List, Optional
-from datetime import datetime, timedelta, date, timezone
+from datetime import datetime, timedelta, timezone
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
@@ -25,15 +25,7 @@ class CameraResponse(BaseModel):
     id: int
     name: str
     imei: Optional[str] = None
-    serial_number: Optional[str] = None
-    box: Optional[str] = None
-    order: Optional[str] = None
-    scanned_date: Optional[date] = None
-    firmware: Optional[str] = None
-    remark: Optional[str] = None
-    has_sim: Optional[bool] = None
-    imsi: Optional[str] = None
-    iccid: Optional[str] = None
+    metadata: Optional[dict] = None
     location: Optional[dict] = None  # {lat, lon}
     battery_percentage: Optional[int] = None
     temperature: Optional[int] = None
@@ -53,30 +45,14 @@ class CreateCameraRequest(BaseModel):
     """Request model for creating a new camera"""
     imei: str
     friendly_name: Optional[str] = None  # Display name (optional, defaults to IMEI)
-    serial_number: Optional[str] = None
-    box: Optional[str] = None
-    order: Optional[str] = None
-    scanned_date: Optional[date] = None
-    firmware: Optional[str] = None
-    remark: Optional[str] = None
-    has_sim: Optional[bool] = None
-    imsi: Optional[str] = None
-    iccid: Optional[str] = None
+    metadata: Optional[dict] = None
     project_id: int
 
 
 class UpdateCameraRequest(BaseModel):
     """Request model for updating camera"""
     friendly_name: Optional[str] = None
-    serial_number: Optional[str] = None
-    box: Optional[str] = None
-    order: Optional[str] = None
-    scanned_date: Optional[date] = None
-    firmware: Optional[str] = None
-    remark: Optional[str] = None
-    has_sim: Optional[bool] = None
-    imsi: Optional[str] = None
-    iccid: Optional[str] = None
+    metadata: Optional[dict] = None
     notes: Optional[str] = None
 
 
@@ -164,15 +140,7 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
         id=camera.id,
         name=camera.name,
         imei=camera.imei,
-        serial_number=camera.serial_number,
-        box=camera.box,
-        order=camera.order,
-        scanned_date=camera.scanned_date,
-        firmware=camera.firmware,
-        remark=camera.remark,
-        has_sim=camera.has_sim,
-        imsi=camera.imsi,
-        iccid=camera.iccid,
+        metadata=camera.metadata,
         location=gps_data,
         battery_percentage=health_data.get('battery_percentage'),
         signal_quality=health_data.get('signal_quality'),
@@ -444,15 +412,7 @@ async def create_camera(
     camera = Camera(
         imei=request.imei,
         name=request.friendly_name if request.friendly_name else request.imei,  # Default name to IMEI
-        serial_number=request.serial_number,
-        box=request.box,
-        order=request.order,
-        scanned_date=request.scanned_date,
-        firmware=request.firmware,
-        remark=request.remark,
-        has_sim=request.has_sim,
-        imsi=request.imsi,
-        iccid=request.iccid,
+        metadata=request.metadata or {},
         project_id=request.project_id,
         status='inventory',
         config={}
@@ -511,24 +471,8 @@ async def update_camera(
     # Update fields if provided
     if request.friendly_name is not None:
         camera.name = request.friendly_name
-    if request.serial_number is not None:
-        camera.serial_number = request.serial_number
-    if request.box is not None:
-        camera.box = request.box
-    if request.order is not None:
-        camera.order = request.order
-    if request.scanned_date is not None:
-        camera.scanned_date = request.scanned_date
-    if request.firmware is not None:
-        camera.firmware = request.firmware
-    if request.remark is not None:
-        camera.remark = request.remark
-    if request.has_sim is not None:
-        camera.has_sim = request.has_sim
-    if request.imsi is not None:
-        camera.imsi = request.imsi
-    if request.iccid is not None:
-        camera.iccid = request.iccid
+    if request.metadata is not None:
+        camera.metadata = request.metadata
     if request.notes is not None:
         camera.notes = request.notes
 
@@ -602,13 +546,7 @@ async def import_cameras_csv(
     Bulk import cameras from CSV file (project admin or server admin)
 
     Expected CSV format with headers (delimiter auto-detected: comma or semicolon):
-    IMEI,Serial,Order,Scanned,Firmware,Remark,SIM,IMSI,ICCID
-    OR
-    IMEI,FriendlyName,SerialNumber,Box,Order,ScannedDate (backward compatible)
-
-    Only IMEI is required. All other fields are optional.
-    Date format: DD-MM-YYYY or YYYY-MM-DD
-    SIM field: TRUE/FALSE (case-insensitive)
+    Required: IMEI. Optional: FriendlyName. All other columns are stored as metadata.
 
     Args:
         file: CSV file upload
@@ -671,18 +609,12 @@ async def import_cameras_csv(
         )
 
     # Validate required headers
-    required_headers = {'IMEI'}
-    optional_headers = {'FriendlyName', 'Serial', 'SerialNumber', 'Box', 'Order', 'Scanned', 'ScannedDate',
-                       'Firmware', 'Remark', 'SIM', 'IMSI', 'ICCID'}
-    all_headers = required_headers | optional_headers
-
     actual_headers = set(rows[0].keys())
 
-    if not required_headers.issubset(actual_headers):
-        missing = required_headers - actual_headers
+    if 'IMEI' not in actual_headers:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required CSV headers: {', '.join(missing)}",
+            detail="Missing required CSV header: IMEI",
         )
 
     # Verify project exists
@@ -695,6 +627,9 @@ async def import_cameras_csv(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID {project_id} not found",
         )
+
+    # Columns that are not stored in metadata
+    reserved_columns = {'IMEI', 'FriendlyName'}
 
     # Process rows
     results: List[CameraImportRow] = []
@@ -731,70 +666,23 @@ async def import_cameras_csv(
             failed_count += 1
             continue
 
-        # Parse optional fields (handle None values from CSV)
-        # Support both old and new field names
         friendly_name = (row.get('FriendlyName') or '').strip() or None
-        serial_number = (row.get('Serial') or row.get('SerialNumber') or '').strip() or None
-        box = (row.get('Box') or '').strip() or None
-        order = (row.get('Order') or '').strip() or None
-        firmware = (row.get('Firmware') or '').strip() or None
-        remark = (row.get('Remark') or '').strip() or None
-        imsi = (row.get('IMSI') or '').strip() or None
-        iccid = (row.get('ICCID') or '').strip() or None
 
-        # Parse has_sim (boolean from TRUE/FALSE string)
-        has_sim = None
-        sim_str = (row.get('SIM') or '').strip().upper()
-        if sim_str == 'TRUE':
-            has_sim = True
-        elif sim_str == 'FALSE':
-            has_sim = False
-
-        # Parse scanned_date if present (try multiple formats)
-        scanned_date = None
-        scanned_date_str = (row.get('Scanned') or row.get('ScannedDate') or '').strip()
-        if scanned_date_str:
-            # Try DD-MM-YYYY format first (new format)
-            try:
-                scanned_date = datetime.strptime(scanned_date_str, '%d-%m-%Y').date()
-            except ValueError:
-                # Fall back to YYYY-MM-DD format (old format)
-                try:
-                    scanned_date = datetime.strptime(scanned_date_str, '%Y-%m-%d').date()
-                except ValueError:
-                    # Try Excel serial date format (number of days since 1900-01-01)
-                    try:
-                        excel_date = int(scanned_date_str)
-                        # Excel incorrectly treats 1900 as a leap year, so we adjust
-                        # Excel day 1 = 1900-01-01, but Python needs adjustment
-                        if excel_date > 59:  # After Feb 28, 1900 (Excel's leap year bug)
-                            excel_date -= 1
-                        scanned_date = datetime(1899, 12, 31) + timedelta(days=excel_date)
-                        scanned_date = scanned_date.date()
-                    except (ValueError, OverflowError):
-                        results.append(CameraImportRow(
-                            row_number=idx,
-                            imei=imei,
-                            success=False,
-                            error=f"Invalid date format '{scanned_date_str}'. Use DD-MM-YYYY, YYYY-MM-DD, or Excel date number"
-                        ))
-                        failed_count += 1
-                        continue
+        # Build metadata from all other columns
+        metadata = {}
+        for col_name, col_value in row.items():
+            if col_name in reserved_columns:
+                continue
+            value = (col_value or '').strip()
+            if value:
+                metadata[col_name] = value
 
         # Create camera
         try:
             camera = Camera(
                 imei=imei,
-                name=friendly_name if friendly_name else imei,  # Default to IMEI if no friendly name
-                serial_number=serial_number,
-                box=box,
-                order=order,
-                scanned_date=scanned_date,
-                firmware=firmware,
-                remark=remark,
-                has_sim=has_sim,
-                imsi=imsi,
-                iccid=iccid,
+                name=friendly_name if friendly_name else imei,
+                metadata=metadata if metadata else {},
                 project_id=project_id,
                 status='inventory',
                 config={}

@@ -10,29 +10,13 @@ import type { Camera, HealthHistoryResponse, HealthHistoryFilters } from './type
 export interface CreateCameraRequest {
   imei: string;
   friendly_name?: string;
-  serial_number?: string;
-  box?: string;
-  order?: string;
-  scanned_date?: string;  // ISO date string (YYYY-MM-DD)
-  firmware?: string;
-  remark?: string;
-  has_sim?: boolean;
-  imsi?: string;
-  iccid?: string;
+  metadata?: Record<string, string>;
   project_id: number;
 }
 
 export interface UpdateCameraRequest {
   friendly_name?: string;
-  serial_number?: string;
-  box?: string;
-  order?: string;
-  scanned_date?: string;  // ISO date string (YYYY-MM-DD)
-  firmware?: string;
-  remark?: string;
-  has_sim?: boolean;
-  imsi?: string;
-  iccid?: string;
+  metadata?: Record<string, string>;
   notes?: string;
 }
 
