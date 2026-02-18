@@ -60,7 +60,7 @@ export function SpiderfiedCameraLayer({
   onCameraClick,
 }: SpiderfiedCameraLayerProps) {
   const { spiderfiedCameras, spiderLegs } = useSpiderfiedCameras(cameras, {
-    proximityThresholdPixels: 15,
+    proximityThresholdPixels: 10,
     spreadRadiusPixels: 20,
   });
 
