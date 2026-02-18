@@ -10,6 +10,7 @@ import { type ColorByMetric } from '../../utils/camera-colors';
 import { SpiderfiedCameraLayer } from './SpiderfiedCameraLayer';
 import { CameraMapLegend } from './CameraMapLegend';
 import { CameraMapControls } from './CameraMapControls';
+import { FullscreenControl } from '../map/FullscreenControl';
 import 'leaflet/dist/leaflet.css';
 
 interface CameraMapViewProps {
@@ -153,6 +154,7 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
           />
 
           <CameraMapLegend colorBy={colorBy} />
+          <FullscreenControl />
         </MapContainer>
       ) : (
         <div className="flex items-center justify-center h-[500px] bg-gray-50 rounded-lg border border-gray-200">

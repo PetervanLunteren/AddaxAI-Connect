@@ -22,6 +22,7 @@ import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
 import { MapLegend } from './MapLegend';
 import { MapControls } from './MapControls';
+import { FullscreenControl } from './FullscreenControl';
 import 'leaflet/dist/leaflet.css';
 
 type ViewMode = 'points' | 'hexbins' | 'clusters';
@@ -349,6 +350,7 @@ export function DetectionRateMap() {
         )}
 
         <MapLegend domain={colorDomain} />
+        <FullscreenControl />
       </MapContainer>
 
       {/* View mode description */}
