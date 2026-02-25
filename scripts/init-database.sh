@@ -38,4 +38,8 @@ echo "✅ Database initialized! Checking tables..."
 docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
 
 echo ""
+echo "Backfilling deployment periods from image GPS data..."
+docker compose exec -T api python /app/scripts/backfill_deployment_periods.py
+
+echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
