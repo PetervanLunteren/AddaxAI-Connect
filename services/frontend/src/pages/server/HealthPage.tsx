@@ -293,7 +293,7 @@ export const HealthPage: React.FC = () => {
                       This applies any new Alembic migrations to the cloned database.
                       Watch the output carefully for errors. This is where most update issues surface.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        bash scripts/init-database.sh
+                        cd /opt/addaxai-connect && bash scripts/init-database.sh
                       </code>
                     </li>
                     <li>
