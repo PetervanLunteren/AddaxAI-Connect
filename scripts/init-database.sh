@@ -38,4 +38,4 @@ echo "✅ Database initialized! Checking tables..."
 docker exec addaxai-postgres psql -U addaxai -d addaxai_connect -c '\dt'
 
 echo ""
-echo "🎉 Done! Your database is ready."
+echo "Done! If you see this line, all migrations have been applied successfully without errors."
