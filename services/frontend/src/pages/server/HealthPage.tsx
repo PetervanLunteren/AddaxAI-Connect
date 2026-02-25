@@ -205,7 +205,7 @@ export const HealthPage: React.FC = () => {
                       This is your most important backup. It's portable
                       and fast to restore if anything goes wrong with the schema migration.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_$(date +%Y%m%d).sql
+                        cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup.sql
                       </code>
                     </li>
                     <li>
@@ -337,9 +337,9 @@ export const HealthPage: React.FC = () => {
                     <li>
                       <strong>Take a fresh database dump.</strong>{' '}
                       <span className="text-xs italic">(on the production server)</span>{' '}
-                      The earlier snapshot may be hours old by now, and new data may have come in.
+                      The earlier backup may be hours old by now, and new data may have come in. This overwrites the previous backup.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_pre_update.sql
+                        cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup.sql
                       </code>
                     </li>
                     <li>
@@ -402,7 +402,7 @@ export const HealthPage: React.FC = () => {
                   <span className="text-xs italic">(in the DigitalOcean dashboard)</span>.
                 </p>
                 <code className="block mt-2 px-2 py-1 bg-background rounded text-xs text-muted-foreground">
-                  cd /opt/addaxai-connect && docker compose down && cat backup_pre_update.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && docker compose up -d
+                  cd /opt/addaxai-connect && docker compose down && cat backup.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && docker compose up -d
                 </code>
               </div>
 
