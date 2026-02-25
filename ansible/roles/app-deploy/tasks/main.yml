@@ -147,7 +147,7 @@
   when: ftps_username is defined
 
 - name: Initialize database with Alembic migrations
-  command: bash scripts/init-database.sh
+  command: bash scripts/update-database.sh
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
