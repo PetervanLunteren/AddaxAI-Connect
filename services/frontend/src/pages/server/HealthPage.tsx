@@ -205,7 +205,7 @@ export const HealthPage: React.FC = () => {
                       This is your most important backup. It's portable
                       and fast to restore if anything goes wrong with the schema migration.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_$(date +%Y%m%d).sql
+                        cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_$(date +%Y%m%d).sql
                       </code>
                     </li>
                     <li>
@@ -214,7 +214,7 @@ export const HealthPage: React.FC = () => {
                       This ensures PostgreSQL isn't mid-write when you snapshot,
                       preventing WAL corruption. Brief downtime (1-2 minutes) is worth a clean backup.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        docker compose down
+                        cd /opt/addaxai-connect && docker compose down
                       </code>
                     </li>
                     <li>
@@ -229,7 +229,7 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(on the server)</span>{' '}
                       Production is back online while you test the update separately.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        docker compose up -d
+                        cd /opt/addaxai-connect && docker compose up -d
                       </code>
                     </li>
                   </ol>
@@ -268,7 +268,7 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(on the dev server)</span>{' '}
                       This rebuilds all service images with the new code.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        docker compose up -d --build --force-recreate
+                        cd /opt/addaxai-connect && docker compose up -d --build --force-recreate
                       </code>
                     </li>
                     <li>
@@ -310,7 +310,7 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(on the production server)</span>{' '}
                       right before updating. The earlier snapshot may be hours old by now, and new data may have come in.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_pre_update.sql
+                        cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_pre_update.sql
                       </code>
                     </li>
                     <li>
@@ -334,7 +334,7 @@ export const HealthPage: React.FC = () => {
                       Same checks as the dev server: frontend loads, data is
                       intact, services are healthy. Monitor the logs for a few minutes to catch any runtime errors.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        docker compose logs -f --tail 50
+                        cd /opt/addaxai-connect && docker compose logs -f --tail 50
                       </code>
                     </li>
                   </ol>
@@ -351,7 +351,7 @@ export const HealthPage: React.FC = () => {
                   <span className="text-xs italic">(in the DigitalOcean dashboard)</span>.
                 </p>
                 <code className="block mt-2 px-2 py-1 bg-background rounded text-xs text-muted-foreground">
-                  docker compose down && cat backup_pre_update.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && docker compose up -d
+                  cd /opt/addaxai-connect && docker compose down && cat backup_pre_update.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && docker compose up -d
                 </code>
               </div>
 
