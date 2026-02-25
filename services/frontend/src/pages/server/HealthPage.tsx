@@ -374,11 +374,20 @@ export const HealthPage: React.FC = () => {
                       </code>
                     </li>
                     <li>
-                      <strong>Re-run the Ansible playbook.</strong>{' '}
-                      <span className="text-xs italic">(on your local machine)</span>{' '}
-                      This handles everything: rebuilding containers, restarting services, running migrations, and updating configs.
+                      <strong>Rebuild and start containers.</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      This rebuilds all service images with the new code.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        cd ansible && ansible-playbook -i inventory.yml playbook.yml
+                        cd /opt/addaxai-connect && docker compose up -d --build --force-recreate
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Run database migrations.</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      This applies any new Alembic migrations and backfills derived data.
+                      Watch the output carefully for errors. This is where most update issues surface.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        cd /opt/addaxai-connect && bash scripts/update-database.sh
                       </code>
                     </li>
                     <li>
