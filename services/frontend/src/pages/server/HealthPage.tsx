@@ -186,6 +186,9 @@ export const HealthPage: React.FC = () => {
             <CardDescription>
               How to safely update a production server to the latest version.
               Always test on a dev clone first. Never update production directly.
+              These instructions are written for DigitalOcean droplets. The general
+              approach applies to other cloud providers too, but the snapshot steps
+              will differ.
             </CardDescription>
           </CardHeader>
           <CardContent>
