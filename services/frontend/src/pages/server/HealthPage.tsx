@@ -317,7 +317,7 @@ export const HealthPage: React.FC = () => {
                         <li>The frontend loads and you can log in</li>
                         <li>Existing images display correctly with detections</li>
                         <li>Camera list and health data are intact</li>
-                        <li>All services show as healthy on this page</li>
+                        <li>All services show as healthy on the /server/health page</li>
                       </ul>
                     </li>
                     <li>
