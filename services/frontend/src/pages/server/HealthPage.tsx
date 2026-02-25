@@ -185,7 +185,7 @@ export const HealthPage: React.FC = () => {
             </div>
             <CardDescription>
               How to safely update a production server to the latest version.
-              Always test on a dev clone first — never update production directly.
+              Always test on a dev clone first. Never update production directly.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -197,7 +197,7 @@ export const HealthPage: React.FC = () => {
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
-                      <strong>Create a database dump.</strong> This is your most important backup — it's portable
+                      <strong>Create a database dump.</strong> This is your most important backup. It's portable
                       and fast to restore if anything goes wrong with the schema migration.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_$(date +%Y%m%d).sql
@@ -212,8 +212,8 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Take a DigitalOcean snapshot.</strong> Go to your droplet in the DigitalOcean dashboard,
-                      click <em>Snapshots</em>, and create one. Wait for it to complete. This captures the full disk —
-                      database, MinIO files, uploads, configs — so you can restore the entire server if needed.
+                      click <em>Snapshots</em>, and create one. Wait for it to complete. This captures the full disk
+                      (database, MinIO files, uploads, configs) so you can restore the entire server if needed.
                     </li>
                     <li>
                       <strong>Restart services.</strong> Production is back online while you test the update separately.
@@ -256,7 +256,7 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Run database migrations.</strong> This applies any new Alembic migrations to the cloned database.
-                      Watch the output carefully for errors — this is where most update issues surface.
+                      Watch the output carefully for errors. This is where most update issues surface.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         bash scripts/init-database.sh
                       </code>
@@ -303,7 +303,7 @@ export const HealthPage: React.FC = () => {
                       </code>
                     </li>
                     <li>
-                      <strong>Verify on production.</strong> Same checks as the dev server — frontend loads, data is
+                      <strong>Verify on production.</strong> Same checks as the dev server: frontend loads, data is
                       intact, services are healthy. Monitor the logs for a few minutes to catch any runtime errors.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose logs -f --tail 50
