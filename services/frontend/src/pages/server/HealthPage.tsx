@@ -259,13 +259,14 @@ export const HealthPage: React.FC = () => {
                       click <em>Create</em>. This gives you an exact clone of production with real data.
                     </li>
                     <li>
-                      <strong>Disable notifications.</strong>{' '}
+                      <strong>Disable email notifications.</strong>{' '}
                       <span className="text-xs italic">(on the dev server)</span>{' '}
-                      Before starting services, edit the{' '}
-                      <code className="px-1 py-0.5 bg-background rounded text-xs">.env</code> file
-                      and clear or change the <code className="px-1 py-0.5 bg-background rounded text-xs">MAIL_*</code> and
-                      Telegram bot settings. The notification workers run scheduled jobs (daily, weekly, and monthly
-                      reports) that will send real emails to your users if the dev server is running during those windows.
+                      The notification workers run scheduled jobs (daily, weekly, and monthly
+                      reports) that will send real emails to your users if the dev server is running during
+                      those windows. Comment out the mail settings before starting services.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        cd /opt/addaxai-connect && sed -i 's/^MAIL_/#MAIL_/' .env
+                      </code>
                     </li>
                     <li>
                       <strong>Pull the latest code.</strong>{' '}
