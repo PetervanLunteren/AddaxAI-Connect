@@ -356,12 +356,14 @@ export const HealthPage: React.FC = () => {
                     <li>
                       <strong>Take a fresh DigitalOcean snapshot.</strong>{' '}
                       <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      Go to your droplet, click <em>Snapshots</em>, and create one. Wait for it to complete.
                       This is your rollback point if the update fails on production.
                     </li>
                     <li>
                       <strong>Power on the droplet.</strong>{' '}
                       <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
-                      Wait until the status shows it's running again before continuing.
+                      Go back to your droplet and click the power on button. Wait until the status shows
+                      it's running again before continuing.
                     </li>
                     <li>
                       <strong>Pull the latest code.</strong>{' '}
@@ -382,8 +384,9 @@ export const HealthPage: React.FC = () => {
                     <li>
                       <strong>Verify on production.</strong>{' '}
                       <span className="text-xs italic">(on the production server)</span>{' '}
-                      Same checks as the test server: frontend loads, data is
-                      intact, services are healthy. Monitor the logs for a few minutes to catch any runtime errors.
+                      Check that the frontend loads, you can log in, existing images display correctly,
+                      camera list and health data are intact, and all services show as healthy on
+                      the /server/health page. Monitor the logs for a few minutes to catch any runtime errors.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose logs -f --tail 50
                       </code>
@@ -398,7 +401,7 @@ export const HealthPage: React.FC = () => {
                   <strong>If something goes wrong:</strong> restore the database from
                   your SQL dump and redeploy the previous version{' '}
                   <span className="text-xs italic">(on the production server)</span>.
-                  For a full server rollback, create a new droplet from the snapshot you took in step 1{' '}
+                  For a full server rollback, create a new droplet from the snapshot you took before updating{' '}
                   <span className="text-xs italic">(in the DigitalOcean dashboard)</span>.
                 </p>
                 <code className="block mt-2 px-2 py-1 bg-background rounded text-xs text-muted-foreground">
