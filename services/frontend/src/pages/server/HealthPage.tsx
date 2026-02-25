@@ -228,9 +228,16 @@ export const HealthPage: React.FC = () => {
                       the entire server if needed.
                     </li>
                     <li>
-                      <strong>Power on and restart services.</strong>{' '}
-                      <span className="text-xs italic">(in the DigitalOcean dashboard, then on the production server)</span>{' '}
-                      Power on the droplet from the dashboard, SSH back in, and start the services.
+                      <strong>Power on the droplet.</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      Go back to your droplet and click the power on button. Wait until the status shows
+                      it's running again before continuing.
+                    </li>
+                    <li>
+                      <strong>Restart services.</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      SSH back in and start the services. Production is back online while you test the
+                      update separately.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose up -d
                       </code>
