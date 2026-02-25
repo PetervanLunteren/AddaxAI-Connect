@@ -200,26 +200,34 @@ export const HealthPage: React.FC = () => {
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
-                      <strong>Create a database dump.</strong> This is your most important backup. It's portable
+                      <strong>Create a database dump.</strong>{' '}
+                      <span className="text-xs italic">(on the server)</span>{' '}
+                      This is your most important backup. It's portable
                       and fast to restore if anything goes wrong with the schema migration.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_$(date +%Y%m%d).sql
                       </code>
                     </li>
                     <li>
-                      <strong>Stop all services.</strong> This ensures PostgreSQL isn't mid-write when you snapshot,
+                      <strong>Stop all services.</strong>{' '}
+                      <span className="text-xs italic">(on the server)</span>{' '}
+                      This ensures PostgreSQL isn't mid-write when you snapshot,
                       preventing WAL corruption. Brief downtime (1-2 minutes) is worth a clean backup.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose down
                       </code>
                     </li>
                     <li>
-                      <strong>Take a DigitalOcean snapshot.</strong> Go to your droplet in the DigitalOcean dashboard,
-                      click <em>Snapshots</em>, and create one. Wait for it to complete. This captures the full disk
-                      (database, MinIO files, uploads, configs) so you can restore the entire server if needed.
+                      <strong>Take a DigitalOcean snapshot.</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      Go to your droplet, click <em>Snapshots</em>, and create one. Wait for it to complete.
+                      This captures the full disk (database, MinIO files, uploads, configs) so you can restore
+                      the entire server if needed.
                     </li>
                     <li>
-                      <strong>Restart services.</strong> Production is back online while you test the update separately.
+                      <strong>Restart services.</strong>{' '}
+                      <span className="text-xs italic">(on the server)</span>{' '}
+                      Production is back online while you test the update separately.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose up -d
                       </code>
@@ -234,38 +242,48 @@ export const HealthPage: React.FC = () => {
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
-                      <strong>Create a new droplet from the snapshot.</strong> In DigitalOcean, go
-                      to <em>Images {'>'} Snapshots</em> and click <em>Create Droplet</em> from the snapshot you just
+                      <strong>Create a new droplet from the snapshot.</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      Go to <em>Images {'>'} Snapshots</em> and click <em>Create Droplet</em> from the snapshot you just
                       took. This gives you an exact clone of production with real data.
                     </li>
                     <li>
-                      <strong>Disable notifications.</strong> Before starting services, edit the{' '}
-                      <code className="px-1 py-0.5 bg-background rounded text-xs">.env</code> file on the dev server
+                      <strong>Disable notifications.</strong>{' '}
+                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      Before starting services, edit the{' '}
+                      <code className="px-1 py-0.5 bg-background rounded text-xs">.env</code> file
                       and clear or change the <code className="px-1 py-0.5 bg-background rounded text-xs">MAIL_*</code> and
                       Telegram bot settings. This prevents the dev clone from sending real emails or Telegram messages
                       to your users.
                     </li>
                     <li>
-                      <strong>Pull the latest code.</strong> SSH into the dev server and update the repository.
+                      <strong>Pull the latest code.</strong>{' '}
+                      <span className="text-xs italic">(on the dev server)</span>
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && git pull origin main
                       </code>
                     </li>
                     <li>
-                      <strong>Rebuild and start containers.</strong> This rebuilds all service images with the new code.
+                      <strong>Rebuild and start containers.</strong>{' '}
+                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      This rebuilds all service images with the new code.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose up -d --build --force-recreate
                       </code>
                     </li>
                     <li>
-                      <strong>Run database migrations.</strong> This applies any new Alembic migrations to the cloned database.
+                      <strong>Run database migrations.</strong>{' '}
+                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      This applies any new Alembic migrations to the cloned database.
                       Watch the output carefully for errors. This is where most update issues surface.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         bash scripts/init-database.sh
                       </code>
                     </li>
                     <li>
-                      <strong>Verify everything works.</strong> Check that:
+                      <strong>Verify everything works.</strong>{' '}
+                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      Check that:
                       <ul className="mt-1 ml-5 list-disc space-y-1">
                         <li>The frontend loads and you can log in</li>
                         <li>Existing images display correctly with detections</li>
@@ -274,7 +292,9 @@ export const HealthPage: React.FC = () => {
                       </ul>
                     </li>
                     <li>
-                      <strong>Destroy the dev droplet</strong> once you've confirmed the update works.
+                      <strong>Destroy the dev droplet</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      once you've confirmed the update works.
                     </li>
                   </ol>
                 </div>
@@ -286,27 +306,32 @@ export const HealthPage: React.FC = () => {
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
-                      <strong>Take a fresh database dump</strong> right before updating (the earlier snapshot may be
-                      hours old by now, and new data may have come in).
+                      <strong>Take a fresh database dump</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      right before updating. The earlier snapshot may be hours old by now, and new data may have come in.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_pre_update.sql
                       </code>
                     </li>
                     <li>
-                      <strong>Pull the latest code.</strong>
+                      <strong>Pull the latest code.</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && git pull origin main
                       </code>
                     </li>
                     <li>
-                      <strong>Re-run the Ansible playbook</strong> from your local machine. This handles everything:
-                      rebuilding containers, restarting services, running migrations, and updating configs.
+                      <strong>Re-run the Ansible playbook.</strong>{' '}
+                      <span className="text-xs italic">(on your local machine)</span>{' '}
+                      This handles everything: rebuilding containers, restarting services, running migrations, and updating configs.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd ansible && ansible-playbook -i inventory.yml playbook.yml
                       </code>
                     </li>
                     <li>
-                      <strong>Verify on production.</strong> Same checks as the dev server: frontend loads, data is
+                      <strong>Verify on production.</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      Same checks as the dev server: frontend loads, data is
                       intact, services are healthy. Monitor the logs for a few minutes to catch any runtime errors.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         docker compose logs -f --tail 50
@@ -320,8 +345,10 @@ export const HealthPage: React.FC = () => {
               <div className="bg-muted border border-border p-4 rounded-md">
                 <p className="text-sm text-muted-foreground">
                   <strong>If something goes wrong:</strong> restore the database from
-                  your SQL dump and redeploy the previous version. For a full server rollback, create a new droplet
-                  from the snapshot you took in step 1.
+                  your SQL dump and redeploy the previous version{' '}
+                  <span className="text-xs italic">(on the production server)</span>.
+                  For a full server rollback, create a new droplet from the snapshot you took in step 1{' '}
+                  <span className="text-xs italic">(in the DigitalOcean dashboard)</span>.
                 </p>
                 <code className="block mt-2 px-2 py-1 bg-background rounded text-xs text-muted-foreground">
                   docker compose down && cat backup_pre_update.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && docker compose up -d
