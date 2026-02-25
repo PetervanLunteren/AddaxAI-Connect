@@ -209,11 +209,12 @@ export const HealthPage: React.FC = () => {
                       </code>
                     </li>
                     <li>
-                      <strong>Stop all services.</strong>{' '}
+                      <strong>Power off the droplet.</strong>{' '}
                       <span className="text-xs italic">(on the server)</span>{' '}
-                      This ensures PostgreSQL isn't mid-write when you snapshot, preventing data corruption.
+                      DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency.
+                      This stops all services and the OS itself. You will lose your SSH session.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        cd /opt/addaxai-connect && docker compose down
+                        cd /opt/addaxai-connect && docker compose down && sudo shutdown -h now
                       </code>
                     </li>
                     <li>
@@ -221,12 +222,13 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
                       Go to your droplet, click <em>Snapshots</em>, and create one. Wait for it to complete.
                       This captures the full disk (database, MinIO files, uploads, configs) so you can restore
-                      the entire server if needed. The system is offline during this step (usually 1-2 minutes).
+                      the entire server if needed.
                     </li>
                     <li>
-                      <strong>Restart services.</strong>{' '}
-                      <span className="text-xs italic">(on the server)</span>{' '}
-                      Production is back online while you test the update separately.
+                      <strong>Power on and restart services.</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard, then on the server)</span>{' '}
+                      Power on the droplet from the dashboard, SSH back in, and start the services.
+                      The system is offline for about 3-5 minutes total.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose up -d
                       </code>
