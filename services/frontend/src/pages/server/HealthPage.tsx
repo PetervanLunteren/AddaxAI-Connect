@@ -322,16 +322,38 @@ export const HealthPage: React.FC = () => {
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
-                      <strong>Take a fresh database dump</strong>{' '}
+                      <strong>Take a fresh database dump.</strong>{' '}
                       <span className="text-xs italic">(on the production server)</span>{' '}
-                      right before updating. The earlier snapshot may be hours old by now, and new data may have come in.
+                      The earlier snapshot may be hours old by now, and new data may have come in.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_pre_update.sql
                       </code>
                     </li>
                     <li>
+                      <strong>Power off the droplet.</strong>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      Same as step 1: power off before taking a snapshot to ensure full disk consistency.
+                      When prompted for a password, enter
+                      the <code className="px-1 py-0.5 bg-background rounded text-xs">app_user_password</code> from{' '}
+                      <code className="px-1 py-0.5 bg-background rounded text-xs">ansible/group_vars/dev.yml</code>.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        cd /opt/addaxai-connect && docker compose down && sudo shutdown -h now
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Take a fresh DigitalOcean snapshot.</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      This is your rollback point if the update fails on production.
+                    </li>
+                    <li>
+                      <strong>Power on the droplet.</strong>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
+                      Wait until the status shows it's running again before continuing.
+                    </li>
+                    <li>
                       <strong>Pull the latest code.</strong>{' '}
-                      <span className="text-xs italic">(on the production server)</span>
+                      <span className="text-xs italic">(on the production server)</span>{' '}
+                      SSH back in and pull the new version.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && git pull origin main
                       </code>
