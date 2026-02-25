@@ -264,8 +264,8 @@ export const HealthPage: React.FC = () => {
                       Before starting services, edit the{' '}
                       <code className="px-1 py-0.5 bg-background rounded text-xs">.env</code> file
                       and clear or change the <code className="px-1 py-0.5 bg-background rounded text-xs">MAIL_*</code> and
-                      Telegram bot settings. This prevents the dev clone from sending real emails or Telegram messages
-                      to your users.
+                      Telegram bot settings. The notification workers run scheduled jobs (daily, weekly, and monthly
+                      reports) that will send real emails to your users if the dev server is running during those windows.
                     </li>
                     <li>
                       <strong>Pull the latest code.</strong>{' '}
