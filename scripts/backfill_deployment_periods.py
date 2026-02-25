@@ -336,6 +336,12 @@ def main() -> None:
     engine = create_engine(settings.database_url)
 
     with Session(engine) as session:
+        # Skip cameras that already have deployment records
+        existing = session.execute(
+            text("SELECT DISTINCT camera_id FROM camera_deployment_periods")
+        )
+        existing_camera_ids = {row[0] for row in existing}
+
         # Get all camera images with GPS
         camera_images = get_camera_images_with_gps(session)
 
@@ -343,10 +349,25 @@ def main() -> None:
             logger.warning("No cameras with GPS data found - nothing to backfill")
             return
 
+        # Filter out cameras that already have deployment records
+        cameras_to_process = {
+            cid: imgs for cid, imgs in camera_images.items()
+            if cid not in existing_camera_ids
+        }
+
+        if not cameras_to_process:
+            logger.info("All cameras already have deployment records - nothing to backfill")
+            return
+
+        if existing_camera_ids:
+            logger.info(
+                f"Skipping {len(existing_camera_ids)} cameras that already have deployment records"
+            )
+
         # Process each camera
         total_deployments = 0
 
-        for camera_id, images in camera_images.items():
+        for camera_id, images in cameras_to_process.items():
             logger.info(
                 f"Processing camera {camera_id}",
                 camera_id=camera_id,
@@ -366,7 +387,7 @@ def main() -> None:
 
         logger.info(
             "Deployment period backfill complete",
-            total_cameras=len(camera_images),
+            total_cameras=len(cameras_to_process),
             total_deployments=total_deployments
         )
 
