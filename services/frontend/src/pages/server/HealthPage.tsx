@@ -209,10 +209,13 @@ export const HealthPage: React.FC = () => {
                       </code>
                     </li>
                     <li>
+                      <strong>Prepare for brief downtime.</strong> The next step stops all services for 1-2
+                      minutes. This is necessary to ensure PostgreSQL isn't mid-write when you snapshot,
+                      preventing data corruption. Plan accordingly.
+                    </li>
+                    <li>
                       <strong>Stop all services.</strong>{' '}
-                      <span className="text-xs italic">(on the server)</span>{' '}
-                      This ensures PostgreSQL isn't mid-write when you snapshot,
-                      preventing WAL corruption. Brief downtime (1-2 minutes) is worth a clean backup.
+                      <span className="text-xs italic">(on the server)</span>
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose down
                       </code>
