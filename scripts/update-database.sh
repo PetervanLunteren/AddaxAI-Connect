@@ -1,7 +1,7 @@
 #!/bin/bash
-# Initialize database with Alembic migrations
-# This script applies existing migrations from version control to the database.
-# For development: Generate migrations locally, commit them, then deploy.
+# Update database with Alembic migrations and backfill data
+# This script applies migrations and populates derived tables (e.g. deployment periods).
+# Safe to run multiple times. For development: generate migrations locally, commit them, then deploy.
 
 set -e
 
