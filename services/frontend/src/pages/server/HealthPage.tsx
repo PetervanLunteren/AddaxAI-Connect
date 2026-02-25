@@ -254,8 +254,9 @@ export const HealthPage: React.FC = () => {
                     <li>
                       <strong>Create a new droplet from the snapshot.</strong>{' '}
                       <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
-                      Go to <em>Images {'>'} Snapshots</em> and click <em>Create Droplet</em> from the snapshot you just
-                      took. This gives you an exact clone of production with real data.
+                      Go to <em>Images {'>'} Snapshots</em>, click <em>More</em> on the snapshot you
+                      just took, then click <em>Create Droplet</em>. Review the settings and
+                      click <em>Create</em>. This gives you an exact clone of production with real data.
                     </li>
                     <li>
                       <strong>Disable notifications.</strong>{' '}
