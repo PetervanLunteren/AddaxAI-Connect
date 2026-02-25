@@ -300,6 +300,9 @@ export const HealthPage: React.FC = () => {
                       <strong>Verify everything works.</strong>{' '}
                       <span className="text-xs italic">(on the dev server)</span>{' '}
                       Check that:
+                      Your browser will show an SSL warning because the dev server
+                      has a different IP than the original domain. This is expected.
+                      Click through it to continue. Check that:
                       <ul className="mt-1 ml-5 list-disc space-y-1">
                         <li>The frontend loads and you can log in</li>
                         <li>Existing images display correctly with detections</li>
