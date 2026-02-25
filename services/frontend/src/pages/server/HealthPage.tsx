@@ -263,9 +263,13 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(on the dev server)</span>{' '}
                       The notification workers run scheduled jobs (daily, weekly, and monthly
                       reports) that will send real emails to your users if the dev server is running during
-                      those windows. Comment out the mail settings before starting services.
-                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
-                        cd /opt/addaxai-connect && sed -i 's/^MAIL_/#MAIL_/' .env
+                      those windows. Replace the mail settings with dummy values before starting services.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs whitespace-pre-wrap">
+{`cd /opt/addaxai-connect && sed -i \\
+  -e 's/^MAIL_SERVER=.*/MAIL_SERVER=disabled/' \\
+  -e 's/^MAIL_USERNAME=.*/MAIL_USERNAME=disabled/' \\
+  -e 's/^MAIL_PASSWORD=.*/MAIL_PASSWORD=disabled/' \\
+  -e 's/^MAIL_FROM=.*/MAIL_FROM=disabled@localhost/' .env`}
                       </code>
                     </li>
                     <li>
