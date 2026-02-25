@@ -345,7 +345,7 @@ export const HealthPage: React.FC = () => {
                     <li>
                       <strong>Power off the droplet.</strong>{' '}
                       <span className="text-xs italic">(on the production server)</span>{' '}
-                      Same as step 1: power off before taking a snapshot to ensure full disk consistency.
+                      Power off before taking a snapshot to ensure full disk consistency.
                       When prompted for a password, enter
                       the <code className="px-1 py-0.5 bg-background rounded text-xs">app_user_password</code> from{' '}
                       <code className="px-1 py-0.5 bg-background rounded text-xs">ansible/group_vars/dev.yml</code>.
