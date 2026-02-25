@@ -201,7 +201,7 @@ export const HealthPage: React.FC = () => {
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
                       <strong>Create a database dump.</strong>{' '}
-                      <span className="text-xs italic">(on the server)</span>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
                       This is your most important backup. It's portable
                       and fast to restore if anything goes wrong with the schema migration.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
@@ -210,7 +210,7 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Power off the droplet.</strong>{' '}
-                      <span className="text-xs italic">(on the server)</span>{' '}
+                      <span className="text-xs italic">(on the production server)</span>{' '}
                       DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency.
                       This stops all services and the OS itself. You will lose your SSH session.
                       When prompted for a password, enter
@@ -229,7 +229,7 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Power on and restart services.</strong>{' '}
-                      <span className="text-xs italic">(in the DigitalOcean dashboard, then on the server)</span>{' '}
+                      <span className="text-xs italic">(in the DigitalOcean dashboard, then on the production server)</span>{' '}
                       Power on the droplet from the dashboard, SSH back in, and start the services.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose up -d
