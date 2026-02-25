@@ -259,6 +259,16 @@ export const HealthPage: React.FC = () => {
                       click <em>Create</em>. This gives you an exact clone of production with real data.
                     </li>
                     <li>
+                      <strong>Create a DNS record for the dev server.</strong>{' '}
+                      <span className="text-xs italic">(at your DNS provider)</span>{' '}
+                      Add an A record pointing to the new droplet's IP address (e.g., dev.addaxai.com).
+                      Then SSH into the dev server and update the DOMAIN_NAME in the .env file so
+                      the app uses the correct domain for cookies and redirects.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs whitespace-pre-wrap">
+{`cd /opt/addaxai-connect && sed -i 's/^DOMAIN_NAME=.*/DOMAIN_NAME=dev.addaxai.com/' .env`}
+                      </code>
+                    </li>
+                    <li>
                       <strong>Disable email notifications.</strong>{' '}
                       <span className="text-xs italic">(on the dev server)</span>{' '}
                       The notification workers run scheduled jobs (daily, weekly, and monthly
