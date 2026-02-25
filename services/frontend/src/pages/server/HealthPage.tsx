@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Activity, RefreshCw, CheckCircle2, XCircle, Loader2, BookOpen } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
@@ -111,69 +111,224 @@ export const HealthPage: React.FC = () => {
       title="System health"
       description="Monitor the status of all system services"
     >
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Activity className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>System services</CardTitle>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-          {data && (
-            <CardDescription>
-              {allHealthy ? (
-                <span className="text-green-600 font-medium">
-                  All services are healthy ({healthyCount}/{totalCount})
-                </span>
-              ) : (
-                <span className="text-red-600 font-medium">
-                  {healthyCount} of {totalCount} services are healthy
-                </span>
-              )}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
-          {/* Loading State */}
-          {isLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-3 text-muted-foreground">Checking service health...</span>
-            </div>
-          )}
-
-          {/* Error State */}
-          {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <XCircle className="h-5 w-5 text-red-600" />
-                <span className="font-medium text-red-900">Failed to check service health</span>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Activity className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>System services</CardTitle>
               </div>
-              <p className="text-sm text-red-700">
-                {error instanceof Error ? error.message : 'Unknown error occurred'}
-              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
-          )}
+            {data && (
+              <CardDescription>
+                {allHealthy ? (
+                  <span className="text-green-600 font-medium">
+                    All services are healthy ({healthyCount}/{totalCount})
+                  </span>
+                ) : (
+                  <span className="text-red-600 font-medium">
+                    {healthyCount} of {totalCount} services are healthy
+                  </span>
+                )}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {/* Loading State */}
+            {isLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-muted-foreground">Checking service health...</span>
+              </div>
+            )}
 
-          {/* Services List */}
-          {allServices.length > 0 && (
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {allServices.map((service) => (
-                <ServiceStatusBadge key={service.name} status={service} />
-              ))}
+            {/* Error State */}
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <XCircle className="h-5 w-5 text-red-600" />
+                  <span className="font-medium text-red-900">Failed to check service health</span>
+                </div>
+                <p className="text-sm text-red-700">
+                  {error instanceof Error ? error.message : 'Unknown error occurred'}
+                </p>
+              </div>
+            )}
+
+            {/* Services List */}
+            {allServices.length > 0 && (
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {allServices.map((service) => (
+                  <ServiceStatusBadge key={service.name} status={service} />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Update guide */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center space-x-2">
+              <BookOpen className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Update guide</CardTitle>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <CardDescription>
+              How to safely update a production server to the latest version.
+              Always test on a dev clone first — never update production directly.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+
+              {/* Step 1: Back up production */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2">1. Back up production</h3>
+                <div className="bg-muted border border-border p-4 rounded-md">
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
+                    <li>
+                      <strong>Create a database dump.</strong> This is your most important backup — it's portable
+                      and fast to restore if anything goes wrong with the schema migration.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_$(date +%Y%m%d).sql
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Stop all services.</strong> This ensures PostgreSQL isn't mid-write when you snapshot,
+                      preventing WAL corruption. Brief downtime (1-2 minutes) is worth a clean backup.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        docker compose down
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Take a DigitalOcean snapshot.</strong> Go to your droplet in the DigitalOcean dashboard,
+                      click <em>Snapshots</em>, and create one. Wait for it to complete. This captures the full disk —
+                      database, MinIO files, uploads, configs — so you can restore the entire server if needed.
+                    </li>
+                    <li>
+                      <strong>Restart services.</strong> Production is back online while you test the update separately.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        docker compose up -d
+                      </code>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Step 2: Test on a dev server */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2">2. Test on a dev server</h3>
+                <div className="bg-muted border border-border p-4 rounded-md">
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
+                    <li>
+                      <strong>Create a new droplet from the snapshot.</strong> In DigitalOcean, go
+                      to <em>Images {'>'} Snapshots</em> and click <em>Create Droplet</em> from the snapshot you just
+                      took. This gives you an exact clone of production with real data.
+                    </li>
+                    <li>
+                      <strong>Disable notifications.</strong> Before starting services, edit the{' '}
+                      <code className="px-1 py-0.5 bg-background rounded text-xs">.env</code> file on the dev server
+                      and clear or change the <code className="px-1 py-0.5 bg-background rounded text-xs">MAIL_*</code> and
+                      Telegram bot settings. This prevents the dev clone from sending real emails or Telegram messages
+                      to your users.
+                    </li>
+                    <li>
+                      <strong>Pull the latest code.</strong> SSH into the dev server and update the repository.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        cd /opt/addaxai-connect && git pull origin main
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Rebuild and start containers.</strong> This rebuilds all service images with the new code.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        docker compose up -d --build --force-recreate
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Run database migrations.</strong> This applies any new Alembic migrations to the cloned database.
+                      Watch the output carefully for errors — this is where most update issues surface.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        bash scripts/init-database.sh
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Verify everything works.</strong> Check that:
+                      <ul className="mt-1 ml-5 list-disc space-y-1">
+                        <li>The frontend loads and you can log in</li>
+                        <li>Existing images display correctly with detections</li>
+                        <li>Camera list and health data are intact</li>
+                        <li>All services show as healthy on this page</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>Destroy the dev droplet</strong> once you've confirmed the update works.
+                    </li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Step 3: Update production */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2">3. Update production</h3>
+                <div className="bg-muted border border-border p-4 rounded-md">
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
+                    <li>
+                      <strong>Take a fresh database dump</strong> right before updating (the earlier snapshot may be
+                      hours old by now, and new data may have come in).
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        docker compose exec postgres pg_dump -U addaxai addaxai_connect {'>'} backup_pre_update.sql
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Pull the latest code.</strong>
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        cd /opt/addaxai-connect && git pull origin main
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Re-run the Ansible playbook</strong> from your local machine. This handles everything:
+                      rebuilding containers, restarting services, running migrations, and updating configs.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        cd ansible && ansible-playbook -i inventory.yml playbook.yml
+                      </code>
+                    </li>
+                    <li>
+                      <strong>Verify on production.</strong> Same checks as the dev server — frontend loads, data is
+                      intact, services are healthy. Monitor the logs for a few minutes to catch any runtime errors.
+                      <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
+                        docker compose logs -f --tail 50
+                      </code>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Rollback note */}
+              <div className="bg-muted border border-border p-4 rounded-md">
+                <p className="text-sm text-muted-foreground">
+                  <strong>If something goes wrong:</strong> restore the database from
+                  your SQL dump and redeploy the previous version. For a full server rollback, create a new droplet
+                  from the snapshot you took in step 1.
+                </p>
+                <code className="block mt-2 px-2 py-1 bg-background rounded text-xs text-muted-foreground">
+                  docker compose down && cat backup_pre_update.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && docker compose up -d
+                </code>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </ServerPageLayout>
   );
 };
