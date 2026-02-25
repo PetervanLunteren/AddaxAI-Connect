@@ -228,7 +228,6 @@ export const HealthPage: React.FC = () => {
                       <strong>Power on and restart services.</strong>{' '}
                       <span className="text-xs italic">(in the DigitalOcean dashboard, then on the server)</span>{' '}
                       Power on the droplet from the dashboard, SSH back in, and start the services.
-                      The system is offline for about 3-5 minutes total.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose up -d
                       </code>
