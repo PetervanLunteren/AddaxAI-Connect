@@ -185,7 +185,7 @@ export const HealthPage: React.FC = () => {
             </div>
             <CardDescription>
               How to safely update a production server to the latest version.
-              Always test on a dev clone first. Never update production directly.
+              Always test on a cloned test server first. Never update production directly.
               These instructions are written for DigitalOcean droplets. The general
               approach applies to other cloud providers too, but the snapshot steps
               will differ.
@@ -246,9 +246,9 @@ export const HealthPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Step 2: Test on a dev server */}
+              {/* Step 2: Test on a test server */}
               <div>
-                <h3 className="text-sm font-semibold mb-2">2. Test on a dev server</h3>
+                <h3 className="text-sm font-semibold mb-2">2. Test on a test server</h3>
                 <div className="bg-muted border border-border p-4 rounded-md">
                   <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-3">
                     <li>
@@ -259,20 +259,20 @@ export const HealthPage: React.FC = () => {
                       click <em>Create</em>. This gives you an exact clone of production with real data.
                     </li>
                     <li>
-                      <strong>Create a DNS record for the dev server.</strong>{' '}
+                      <strong>Create a DNS record for the test server.</strong>{' '}
                       <span className="text-xs italic">(at your DNS provider)</span>{' '}
-                      Add an A record pointing to the new droplet's IP address (e.g., dev.addaxai.com).
-                      Then SSH into the dev server and update the DOMAIN_NAME in the .env file so
+                      Add an A record pointing to the new droplet's IP address (e.g., test.addaxai.com).
+                      Then SSH into the test server and update the DOMAIN_NAME in the .env file so
                       the app uses the correct domain for cookies and redirects.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs whitespace-pre-wrap">
-{`cd /opt/addaxai-connect && sed -i 's/^DOMAIN_NAME=.*/DOMAIN_NAME=dev.addaxai.com/' .env`}
+{`cd /opt/addaxai-connect && sed -i 's/^DOMAIN_NAME=.*/DOMAIN_NAME=test.addaxai.com/' .env`}
                       </code>
                     </li>
                     <li>
                       <strong>Disable email notifications.</strong>{' '}
-                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      <span className="text-xs italic">(on the test server)</span>{' '}
                       The notification workers run scheduled jobs (daily, weekly, and monthly
-                      reports) that will send real emails to your users if the dev server is running during
+                      reports) that will send real emails to your users if the test server is running during
                       those windows. Replace the mail settings with dummy values before starting services.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs whitespace-pre-wrap">
 {`cd /opt/addaxai-connect && sed -i \\
@@ -284,14 +284,14 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Pull the latest code.</strong>{' '}
-                      <span className="text-xs italic">(on the dev server)</span>
+                      <span className="text-xs italic">(on the test server)</span>
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && git pull origin main
                       </code>
                     </li>
                     <li>
                       <strong>Rebuild and start containers.</strong>{' '}
-                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      <span className="text-xs italic">(on the test server)</span>{' '}
                       This rebuilds all service images with the new code.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose up -d --build --force-recreate
@@ -299,7 +299,7 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Run database migrations.</strong>{' '}
-                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      <span className="text-xs italic">(on the test server)</span>{' '}
                       This applies any new Alembic migrations to the cloned database.
                       Watch the output carefully for errors. This is where most update issues surface.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
@@ -308,9 +308,9 @@ export const HealthPage: React.FC = () => {
                     </li>
                     <li>
                       <strong>Verify everything works.</strong>{' '}
-                      <span className="text-xs italic">(on the dev server)</span>{' '}
+                      <span className="text-xs italic">(on the test server)</span>{' '}
                       Check that:
-                      Your browser will show an SSL warning because the dev server
+                      Your browser will show an SSL warning because the test server
                       has a different IP than the original domain. This is expected.
                       Click through it to continue. Check that:
                       <ul className="mt-1 ml-5 list-disc space-y-1">
@@ -321,7 +321,7 @@ export const HealthPage: React.FC = () => {
                       </ul>
                     </li>
                     <li>
-                      <strong>Destroy the dev droplet</strong>{' '}
+                      <strong>Destroy the test droplet</strong>{' '}
                       <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
                       once you've confirmed the update works.
                     </li>
@@ -382,7 +382,7 @@ export const HealthPage: React.FC = () => {
                     <li>
                       <strong>Verify on production.</strong>{' '}
                       <span className="text-xs italic">(on the production server)</span>{' '}
-                      Same checks as the dev server: frontend loads, data is
+                      Same checks as the test server: frontend loads, data is
                       intact, services are healthy. Monitor the logs for a few minutes to catch any runtime errors.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose logs -f --tail 50
