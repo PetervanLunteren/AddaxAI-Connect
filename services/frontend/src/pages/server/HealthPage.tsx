@@ -209,13 +209,9 @@ export const HealthPage: React.FC = () => {
                       </code>
                     </li>
                     <li>
-                      <strong>Prepare for brief downtime.</strong> The next step stops all services for 1-2
-                      minutes. This is necessary to ensure PostgreSQL isn't mid-write when you snapshot,
-                      preventing data corruption. Plan accordingly.
-                    </li>
-                    <li>
                       <strong>Stop all services.</strong>{' '}
-                      <span className="text-xs italic">(on the server)</span>
+                      <span className="text-xs italic">(on the server)</span>{' '}
+                      This ensures PostgreSQL isn't mid-write when you snapshot, preventing data corruption.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose down
                       </code>
@@ -225,7 +221,7 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(in the DigitalOcean dashboard)</span>{' '}
                       Go to your droplet, click <em>Snapshots</em>, and create one. Wait for it to complete.
                       This captures the full disk (database, MinIO files, uploads, configs) so you can restore
-                      the entire server if needed.
+                      the entire server if needed. The system is offline during this step (usually 1-2 minutes).
                     </li>
                     <li>
                       <strong>Restart services.</strong>{' '}
