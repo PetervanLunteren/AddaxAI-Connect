@@ -213,6 +213,9 @@ export const HealthPage: React.FC = () => {
                       <span className="text-xs italic">(on the server)</span>{' '}
                       DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency.
                       This stops all services and the OS itself. You will lose your SSH session.
+                      When prompted for a password, enter
+                      the <code className="px-1 py-0.5 bg-background rounded text-xs">app_user_password</code> from{' '}
+                      <code className="px-1 py-0.5 bg-background rounded text-xs">ansible/group_vars/dev.yml</code>.
                       <code className="block mt-1 px-2 py-1 bg-background rounded text-xs">
                         cd /opt/addaxai-connect && docker compose down && sudo shutdown -h now
                       </code>
