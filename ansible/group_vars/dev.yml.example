@@ -12,6 +12,9 @@ app_directory: /opt/addaxai-connect       # Where the repo will be cloned
 app_environment: development              # Environment (development/production)
 log_level: DEBUG                          # Log level (DEBUG/INFO/WARNING/ERROR)
 
+# Demo mode
+demo_mode: false                          # Enable daily demo data refresh (dedicated demo servers only)
+
 # Git Repository
 git_repo: https://github.com/PetervanLunteren/AddaxAI-Connect.git
 git_branch: main                          # Branch to clone

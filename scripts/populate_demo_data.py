@@ -8,6 +8,9 @@ and deployment periods spanning 2 years.
 
 Usage:
     docker exec addaxai-api python /app/scripts/populate_demo_data.py
+
+Set demo_mode: true in Ansible group_vars to auto-populate on deploy
+and refresh daily via cron.
 """
 import io
 import json
@@ -99,8 +102,9 @@ THUMB_WIDTH, THUMB_HEIGHT = 300, 225
 PLACEHOLDER_STORAGE_PATH = "demo/placeholder.jpg"
 PLACEHOLDER_THUMBNAIL_PATH = "demo/placeholder.jpg"
 
-# Demo users (passwords are random - these accounts exist for realistic data only)
+# Demo users (passwords are random unless specified - those accounts exist for realistic data only)
 DEMO_USERS = [
+    {"email": "demo@email.com",             "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin", "password": "demo"},
     {"email": "admin@demo.addaxai.com",   "is_superuser": True,  "is_verified": True,  "is_active": True,  "role": "server-admin"},
     {"email": "j.devries@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
     {"email": "m.bakker@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
@@ -734,14 +738,14 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             signal = signal_base + rng.randint(-3, 3)
             signal = max(5, min(31, signal))
 
-            # SD utilization: gradual increase, occasional reset
+            # SD utilization: gradual increase, frequent resets (card swaps)
             daily_imgs = rng.randint(0, 3)
             total_images += daily_imgs
             sent_images += max(0, daily_imgs - rng.randint(0, 1))
-            sd_util += daily_imgs * 0.005
-            if sd_util > 50 or rng.random() < 0.005:
-                sd_util = rng.uniform(0, 5)  # card swap or cleanup
-            sd_util = min(sd_util, 99.0)
+            sd_util += daily_imgs * 0.003
+            if sd_util > 8 or rng.random() < 0.03:
+                sd_util = rng.uniform(0, 1)  # card swap or cleanup
+            sd_util = min(sd_util, 15.0)
 
             reports.append({
                 "id": report_id,
@@ -974,11 +978,12 @@ def insert_project(session: Session) -> int:
 
 def insert_users(session: Session, project_id: int) -> dict:
     """Create 16 demo users and project memberships. Returns {email: user_id}."""
-    pw_hash = pwd_context.hash(str(uuid.uuid4()))
+    random_pw_hash = pwd_context.hash(str(uuid.uuid4()))
     user_ids = {}
     admin_id = None
 
     for user_info in DEMO_USERS:
+        pw_hash = pwd_context.hash(user_info["password"]) if "password" in user_info else random_pw_hash
         result = session.execute(
             text("""
                 INSERT INTO users (email, hashed_password, is_active, is_superuser, is_verified)
@@ -1543,7 +1548,7 @@ def main():
     )
     print(f"  Total DB rows: ~{total:,}")
     print()
-    print(f"  Users: {len(DEMO_USERS)} demo accounts (no login, data only)")
+    print(f"  Login: demo@email.com / demo (project-admin)")
     print()
 
 
