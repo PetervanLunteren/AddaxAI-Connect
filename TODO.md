@@ -1,7 +1,6 @@
 # TODO list
 
 ### Priority 1
-- [ ] get a a summary of the version contents for the new version. Which version should we update to? Major, minor or something else?
 - [ ] move the demo to a lightweight server and add a daily update so the numbers stay clean. Also add loging credentials like demo demo with project admin rights so people can login. 
 - [ ] what happens if we add a camera profile that doesnt send daily reports? Or daily reports with less information? Or not daily reports, but weekly reports, or hourly reports? Or variable duration reports? What breaks downstream? What features will not be used? That will ofcourse affect the information the user can find, but does it do it gracefully? 
 - [ ] If friendly name not supplied, make unique combination of adjective and animal. That is a nice wink to the app. What do you propose? 

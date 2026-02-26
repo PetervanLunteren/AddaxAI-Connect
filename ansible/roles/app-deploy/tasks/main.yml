@@ -3,6 +3,10 @@
 # Note: docker-compose.yml comes from git repository (single source of truth)
 # Only .env is templated to inject secrets and environment-specific values
 
+- name: Set Docker Compose files for demo mode
+  set_fact:
+    compose_files: "{{ '-f docker-compose.yml -f docker-compose.demo.yml' if (demo_mode | default(false)) else '' }}"
+
 - name: Create .env file from template
   template:
     src: .env.j2
@@ -21,7 +25,7 @@
     - promtail-config.yml
 
 - name: Stop Docker containers if monitoring configs are directories
-  command: docker compose down
+  command: docker compose {{ compose_files }} down
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -58,7 +62,7 @@
     mode: '0700'
 
 - name: Pull Docker images
-  command: docker compose pull
+  command: docker compose {{ compose_files }} pull
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -109,7 +113,7 @@
     msg: "Building and starting all containers. This can take 20-50 minutes on first deploy. The repeated ASYNC POLL lines below are normal."
 
 - name: Start Docker Compose services (force recreate to fix mount issues)
-  command: docker compose up -d --force-recreate
+  command: docker compose {{ compose_files }} up -d --force-recreate
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -119,7 +123,7 @@
   poll: 10
 
 - name: Wait for services to be healthy
-  command: docker compose ps --format json
+  command: docker compose {{ compose_files }} ps --format json
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -158,6 +162,23 @@
   debug:
     var: db_init.stdout_lines
   when: db_init is defined
+
+- name: Populate demo data
+  command: docker compose exec -T api python /app/scripts/populate_demo_data.py
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when: demo_mode | default(false)
+
+- name: Set up daily demo data refresh (cron)
+  cron:
+    name: "Refresh demo data"
+    minute: "0"
+    hour: "3"
+    user: "{{ app_user | default('ubuntu') }}"
+    job: "docker compose -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.yml -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.demo.yml exec -T api python /app/scripts/populate_demo_data.py >> /var/log/addaxai-demo-refresh.log 2>&1"
+    state: present
+  when: demo_mode | default(false)
 
 - name: Create admin invitation with registration URL
   command: >
