@@ -1,6 +1,14 @@
 /**
  * Main entry point
  */
+
+// Clean up old PWA service worker for existing users (can be removed after a few months)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    registrations.forEach(r => r.unregister());
+  });
+}
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
