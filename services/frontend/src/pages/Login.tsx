@@ -49,12 +49,12 @@ export const Login: React.FC = () => {
 
   const handleDemoLogin = async () => {
     setEmail('demo@email.com');
-    setPassword('demo');
+    setPassword('xK9#mW2$vQ7!bN4p');
     setError('');
     setLoading(true);
 
     try {
-      await login('demo@email.com', 'demo');
+      await login('demo@email.com', 'xK9#mW2$vQ7!bN4p');
       navigate('/dashboard');
     } catch {
       setError('Demo login failed. Please try again.');

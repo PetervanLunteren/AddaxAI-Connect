@@ -104,7 +104,7 @@ PLACEHOLDER_THUMBNAIL_PATH = "demo/placeholder.jpg"
 
 # Demo users (passwords are random unless specified - those accounts exist for realistic data only)
 DEMO_USERS = [
-    {"email": "demo@email.com",             "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin", "password": "demo"},
+    {"email": "demo@email.com",             "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin", "password": "xK9#mW2$vQ7!bN4p"},
     {"email": "admin@demo.addaxai.com",   "is_superuser": True,  "is_verified": True,  "is_active": True,  "role": "server-admin"},
     {"email": "j.devries@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
     {"email": "m.bakker@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
@@ -1599,7 +1599,7 @@ def main():
     )
     print(f"  Total DB rows: ~{total:,}")
     print()
-    print(f"  Login: demo@email.com / demo (project-admin)")
+    print(f"  Login: demo@email.com / xK9#mW2$vQ7!bN4p (project-admin)")
     print()
 
 
