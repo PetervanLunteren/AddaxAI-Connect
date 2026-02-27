@@ -101,6 +101,31 @@ def demo_mode():
     return {"demo_mode": settings.demo_mode}
 
 
+@app.post("/api/demo-login")
+async def demo_login():
+    """Issue a token for the demo user. Only works when DEMO_MODE is enabled."""
+    if not settings.demo_mode:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404)
+
+    from sqlalchemy import select
+    from shared.models import User
+    from auth.users import get_jwt_strategy
+
+    async for session in get_async_session():
+        result = await session.execute(
+            select(User).where(User.email == "demo@email.com")
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Demo user not found")
+
+        strategy = get_jwt_strategy()
+        token = await strategy.write_token(user)
+        return {"access_token": token, "token_type": "bearer"}
+
+
 # Include routers
 app.include_router(get_auth_router())
 app.include_router(admin.router)
