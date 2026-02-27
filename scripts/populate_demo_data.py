@@ -453,7 +453,7 @@ def download_species_images(storage: "StorageClient") -> dict:
 # Data generation functions
 # ---------------------------------------------------------------------------
 
-def generate_cameras() -> list:
+def generate_cameras(rng: Random) -> list:
     """Generate ~100 cameras inside the real park boundary polygon."""
     # Create a dense grid over the bounding box, filter points inside polygon
     grid_density = 16
@@ -461,10 +461,12 @@ def generate_cameras() -> list:
     lat_step = (LAT_MAX - LAT_MIN) / (grid_density - 1)
     lon_step = (LON_MAX - LON_MIN) / (grid_density - 1)
 
+    # At latitude ~52°N: 1° lat ≈ 111km, 1° lon ≈ 68km
+    # 100m jitter: ~0.0009° lat, ~0.00147° lon
     for row in range(grid_density):
         for col in range(grid_density):
-            lat = LAT_MIN + row * lat_step
-            lon = LON_MIN + col * lon_step
+            lat = LAT_MIN + row * lat_step + rng.uniform(-0.0009, 0.0009)
+            lon = LON_MIN + col * lon_step + rng.uniform(-0.00147, 0.00147)
             if point_in_polygon(lon, lat, PARK_BOUNDARY):
                 candidates.append((round(lat, 6), round(lon, 6)))
 
@@ -485,6 +487,8 @@ def generate_cameras() -> list:
             "imei": imei,
             "name": f"Camera {imei}",
             "zones": camera_zone(lat, lon),
+            # Camera 97 is inventory only — no location, deployment, or health reports
+            "never_deployed": idx == 97,
         })
     return cameras
 
@@ -505,6 +509,8 @@ def generate_all_data(cameras: list, rng: Random, species_image_info: dict):
     img_counter = 1
 
     for cam in cameras:
+        if cam.get("never_deployed"):
+            continue
         cam_zones = cam["zones"]
 
         for day_offset in range(NUM_DAYS):
@@ -707,14 +713,22 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
     report_id = 1
 
     for cam in cameras:
+        # Never-deployed cameras have no health reports at all
+        if cam.get("never_deployed"):
+            continue
+
         battery = rng.uniform(85, 90)
-        sd_util = 0.0
+        sd_remaining = rng.uniform(93, 98)
         total_images = 0
         sent_images = 0
         # Per-camera signal baseline
         signal_base = rng.randint(12, 22)
         # Vary when cameras last reported (not all today)
-        days_short = rng.choices([0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 5], k=1)[0]
+        # Cameras 42 and 78: last report >7 days ago → frontend shows "inactive"
+        if cam["index"] in (42, 78):
+            days_short = rng.randint(10, 14)
+        else:
+            days_short = rng.choices([0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 3, 5], k=1)[0]
 
         for day_offset in range(NUM_DAYS - days_short):
             current_date = DATE_START + timedelta(days=day_offset)
@@ -738,14 +752,15 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             signal = signal_base + rng.randint(-3, 3)
             signal = max(5, min(31, signal))
 
-            # SD utilization: gradual increase, frequent resets (card swaps)
+            # SD utilization: track "% space remaining" (frontend shows 100 - this as "used")
+            # Target: 5-10% used → store 90-95% remaining
             daily_imgs = rng.randint(0, 3)
             total_images += daily_imgs
             sent_images += max(0, daily_imgs - rng.randint(0, 1))
-            sd_util += daily_imgs * 0.003
-            if sd_util > 8 or rng.random() < 0.03:
-                sd_util = rng.uniform(0, 1)  # card swap or cleanup
-            sd_util = min(sd_util, 15.0)
+            sd_remaining -= daily_imgs * 0.003        # Each image uses ~0.3% of space
+            if sd_remaining < 85 or rng.random() < 0.03:
+                sd_remaining = rng.uniform(93, 98)    # Card swap → near-empty card
+            sd_remaining = max(sd_remaining, 80.0)    # Floor at 80% remaining (= 20% used)
 
             reports.append({
                 "id": report_id,
@@ -754,7 +769,7 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
                 "battery_percent": max(0, min(100, int(battery))),
                 "signal_quality": signal,
                 "temperature_c": int(round(temp)),
-                "sd_utilization_percent": round(sd_util, 1),
+                "sd_utilization_percent": round(sd_remaining, 1),
                 "total_images": total_images,
                 "sent_images": min(sent_images, total_images),
             })
@@ -844,9 +859,11 @@ def curate_first_page(images, detections, classifications, species_image_info, r
 
 
 def generate_deployment_periods(cameras: list) -> list:
-    """Generate one active deployment per camera."""
+    """Generate one active deployment per camera (skip never-deployed)."""
     periods = []
     for i, cam in enumerate(cameras):
+        if cam.get("never_deployed"):
+            continue
         periods.append({
             "id": i + 1,
             "camera_index": cam["index"],
@@ -1080,27 +1097,49 @@ def insert_cameras(session: Session, cameras: list, project_id: int) -> dict:
     """Bulk insert cameras. Returns {camera_index: db_id} mapping."""
     index_to_id = {}
     for cam in cameras:
-        result = session.execute(
-            text("""
-                INSERT INTO cameras (
-                    name, imei, manufacturer, model, project_id,
-                    status, location, installed_at
-                ) VALUES (
-                    :name, :imei, :make, :model, :pid,
-                    'active',
-                    ST_GeogFromText(:loc), :installed
-                ) RETURNING id
-            """),
-            {
-                "name": cam["name"],
-                "imei": cam["imei"],
-                "make": CAMERA_MAKE,
-                "model": CAMERA_MODEL,
-                "pid": project_id,
-                "loc": f"POINT({cam['lon']} {cam['lat']})",
-                "installed": datetime(DATE_START.year, DATE_START.month, DATE_START.day, tzinfo=timezone.utc),
-            },
-        )
+        if cam.get("never_deployed"):
+            # Inventory-only camera: no location, not yet deployed
+            result = session.execute(
+                text("""
+                    INSERT INTO cameras (
+                        name, imei, manufacturer, model, project_id,
+                        status, location, installed_at
+                    ) VALUES (
+                        :name, :imei, :make, :model, :pid,
+                        'inventory',
+                        NULL, NULL
+                    ) RETURNING id
+                """),
+                {
+                    "name": cam["name"],
+                    "imei": cam["imei"],
+                    "make": CAMERA_MAKE,
+                    "model": CAMERA_MODEL,
+                    "pid": project_id,
+                },
+            )
+        else:
+            result = session.execute(
+                text("""
+                    INSERT INTO cameras (
+                        name, imei, manufacturer, model, project_id,
+                        status, location, installed_at
+                    ) VALUES (
+                        :name, :imei, :make, :model, :pid,
+                        'active',
+                        ST_GeogFromText(:loc), :installed
+                    ) RETURNING id
+                """),
+                {
+                    "name": cam["name"],
+                    "imei": cam["imei"],
+                    "make": CAMERA_MAKE,
+                    "model": CAMERA_MODEL,
+                    "pid": project_id,
+                    "loc": f"POINT({cam['lon']} {cam['lat']})",
+                    "installed": datetime(DATE_START.year, DATE_START.month, DATE_START.day, tzinfo=timezone.utc),
+                },
+            )
         db_id = result.fetchone()[0]
         index_to_id[cam["index"]] = db_id
     session.flush()
@@ -1273,6 +1312,10 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
 
     for cam_index, cam_db_id in cam_index_to_id.items():
         cam = cam_by_index[cam_index]
+
+        # Never-deployed cameras stay as inventory with no config/location
+        if cam.get("never_deployed"):
+            continue
 
         # Get latest health report for this camera
         latest = session.execute(
@@ -1528,7 +1571,7 @@ def main():
 
         # Step 5: Generate data in memory
         print("[5/9] Generating all data in memory...")
-        cameras = generate_cameras()
+        cameras = generate_cameras(rng)
         print(f"   {len(cameras)} cameras defined.")
 
         images, detections, classifications = generate_all_data(cameras, rng, species_image_info)
