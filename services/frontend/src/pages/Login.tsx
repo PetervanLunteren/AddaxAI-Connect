@@ -1,10 +1,11 @@
 /**
  * Login page
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { AuthLayout } from '../components/AuthLayout';
+import apiClient from '../api/client';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -15,6 +16,13 @@ export const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  useEffect(() => {
+    apiClient.get('/api/demo-mode')
+      .then(res => setIsDemoMode(res.data.demo_mode))
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +42,22 @@ export const Login: React.FC = () => {
       } else {
         setError('Login failed. Please try again.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setEmail('demo@email.com');
+    setPassword('demo');
+    setError('');
+    setLoading(true);
+
+    try {
+      await login('demo@email.com', 'demo');
+      navigate('/dashboard');
+    } catch {
+      setError('Demo login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -117,6 +141,30 @@ export const Login: React.FC = () => {
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
             </div>
+
+            {isDemoMode && (
+              <>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">or</span>
+                  </div>
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleDemoLogin}
+                    disabled={loading}
+                    className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Log in as demo visitor
+                  </button>
+                </div>
+              </>
+            )}
           </form>
     </AuthLayout>
   );

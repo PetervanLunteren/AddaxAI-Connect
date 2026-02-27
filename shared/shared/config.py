@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     log_format: str = "json"  # "json" or "text" (text for human-readable dev logs)
     environment: str = "development"
 
+    # Demo
+    demo_mode: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = False
