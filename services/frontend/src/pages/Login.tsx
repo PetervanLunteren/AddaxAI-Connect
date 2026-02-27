@@ -48,14 +48,14 @@ export const Login: React.FC = () => {
   };
 
   const handleDemoLogin = async () => {
-    setEmail('demo@email.com');
-    setPassword('xK9#mW2$vQ7!bN4p');
     setError('');
     setLoading(true);
 
     try {
-      await login('demo@email.com', 'xK9#mW2$vQ7!bN4p');
+      const res = await apiClient.post('/api/demo-login');
+      localStorage.setItem('access_token', res.data.access_token);
       navigate('/dashboard');
+      window.location.reload();
     } catch {
       setError('Demo login failed. Please try again.');
     } finally {
