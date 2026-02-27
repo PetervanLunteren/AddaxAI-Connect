@@ -1000,10 +1000,20 @@ def set_project_image(
     with open(os.path.join(PROJECT_IMAGES_DIR, image_filename), "wb") as f:
         f.write(raw_bytes)
 
-    # Generate and save thumbnail (reuse existing helper)
-    thumb_bytes = generate_thumbnail(raw_bytes)
+    # Generate project thumbnail (512px max width, aspect-ratio preserving, 95% quality)
+    from PIL import Image as PILImage
+
+    img = PILImage.open(io.BytesIO(raw_bytes))
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+    max_width = 512
+    new_width = min(max_width, img.width)
+    new_height = int(new_width * (img.height / img.width))
+    img = img.resize((new_width, new_height), PILImage.LANCZOS)
+    thumb_buf = io.BytesIO()
+    img.save(thumb_buf, format="JPEG", quality=95, optimize=True)
     with open(os.path.join(PROJECT_IMAGES_DIR, thumbnail_filename), "wb") as f:
-        f.write(thumb_bytes)
+        f.write(thumb_buf.getvalue())
 
     # Update project row
     session.execute(
