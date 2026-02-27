@@ -96,6 +96,11 @@ def health():
     return {"status": "healthy"}
 
 
+@app.get("/api/demo-mode")
+def demo_mode():
+    return {"demo_mode": settings.demo_mode}
+
+
 # Include routers
 app.include_router(get_auth_router())
 app.include_router(admin.router)

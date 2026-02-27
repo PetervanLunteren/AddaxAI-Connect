@@ -1,6 +1,9 @@
 # Demo mode override — only run essential services (postgres, redis, minio, api, frontend)
 # Usage: docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
 services:
+  api:
+    environment:
+      DEMO_MODE: "true"
   ingestion:
     deploy:
       replicas: 0
