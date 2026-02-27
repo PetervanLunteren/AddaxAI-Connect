@@ -976,6 +976,46 @@ def insert_project(session: Session) -> int:
     return project_id
 
 
+def set_project_image(
+    session: Session, project_id: int, species_image_info: dict
+) -> None:
+    """Download roe deer image from MinIO and set it as the project image."""
+    roe_deer_info = species_image_info.get("roe_deer")
+    if roe_deer_info is None:
+        print("   Skipping project image (roe deer image not available).")
+        return
+
+    PROJECT_IMAGES_DIR = "/app/project-images"
+    os.makedirs(PROJECT_IMAGES_DIR, exist_ok=True)
+
+    storage = StorageClient()
+    raw_bytes = storage.download_fileobj(
+        BUCKET_RAW_IMAGES, roe_deer_info["storage_path"]
+    )
+
+    image_filename = f"project_{project_id}.jpg"
+    thumbnail_filename = f"project_{project_id}_thumb.jpg"
+
+    # Save original
+    with open(os.path.join(PROJECT_IMAGES_DIR, image_filename), "wb") as f:
+        f.write(raw_bytes)
+
+    # Generate and save thumbnail (reuse existing helper)
+    thumb_bytes = generate_thumbnail(raw_bytes)
+    with open(os.path.join(PROJECT_IMAGES_DIR, thumbnail_filename), "wb") as f:
+        f.write(thumb_bytes)
+
+    # Update project row
+    session.execute(
+        text(
+            "UPDATE projects SET image_path = :img, thumbnail_path = :thumb WHERE id = :id"
+        ),
+        {"img": image_filename, "thumb": thumbnail_filename, "id": project_id},
+    )
+    session.flush()
+    print(f"   Project image set ({image_filename}).")
+
+
 def insert_users(session: Session, project_id: int) -> dict:
     """Create 16 demo users and project memberships. Returns {email: user_id}."""
     random_pw_hash = pwd_context.hash(str(uuid.uuid4()))
@@ -1466,6 +1506,7 @@ def main():
         print("[3/9] Creating project...")
         project_id = insert_project(session)
         print(f"   Project '{PROJECT_NAME}' created (id={project_id}).")
+        set_project_image(session, project_id, species_image_info)
 
         # Step 4: Users
         print("[4/9] Creating users...")
