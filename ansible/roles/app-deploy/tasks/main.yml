@@ -176,7 +176,7 @@
     minute: "0"
     hour: "3"
     user: "{{ app_user | default('ubuntu') }}"
-    job: "docker compose -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.yml -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.demo.yml exec -T api python /app/scripts/populate_demo_data.py >> /var/log/addaxai-demo-refresh.log 2>&1"
+    job: "docker compose -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.yml -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.demo.yml exec -T api python /app/scripts/shift_demo_dates.py >> /var/log/addaxai-demo-refresh.log 2>&1"
     state: present
   when: demo_mode | default(false)
 
