@@ -107,15 +107,23 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         const year = date.getFullYear();
         key = `${year}-W${week.toString().padStart(2, '0')}`;
       } else {
-        key = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        // Month key: sortable YYYY-MM format
+        key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
       }
 
       groups.set(key, (groups.get(key) ?? 0) + point.count);
     });
 
     return Array.from(groups.entries())
-      .map(([label, count]) => ({ date: label, count }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, count]) => {
+        let label = key;
+        if (granularity === 'month') {
+          const [y, m] = key.split('-');
+          label = new Date(Number(y), Number(m) - 1).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        }
+        return { date: label, count };
+      });
   }, [rawData, granularity]);
 
   // Use species color if selected, otherwise teal
