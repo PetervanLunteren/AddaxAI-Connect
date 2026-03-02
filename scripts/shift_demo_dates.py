@@ -98,13 +98,25 @@ def main():
         )
 
         # 3) camera_health_reports.report_date  (date + integer in PostgreSQL)
+        #    Two-pass to avoid violating the unique (camera_id, report_date)
+        #    constraint: first move all dates to a far-future range where no
+        #    collisions are possible, then move back to the correct position.
+        temp_offset = 100000
         session.execute(
             text(f"""
                 UPDATE camera_health_reports
-                SET report_date = report_date + :delta
+                SET report_date = report_date + :offset
                 WHERE camera_id IN ({demo_cameras})
             """),
-            {"project": PROJECT_NAME, "delta": delta},
+            {"project": PROJECT_NAME, "offset": temp_offset},
+        )
+        session.execute(
+            text(f"""
+                UPDATE camera_health_reports
+                SET report_date = report_date - :offset + :delta
+                WHERE camera_id IN ({demo_cameras})
+            """),
+            {"project": PROJECT_NAME, "offset": temp_offset, "delta": delta},
         )
 
         # 4) cameras.last_seen, last_image_at, last_daily_report_at
