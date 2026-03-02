@@ -170,14 +170,16 @@ def generate_annotated_image(
                 fill=box_color, width=line_width
             )
 
-            # Prepare two-line label text (match frontend format)
-            # Line 1: detection category + confidence
-            detection_label = f"{detection.category} {int(classification.confidence * 100)}%"
-            # Line 2: species + confidence
-            species_display = classification.species.replace('_', ' ').title()
-            classification_label = f"{species_display} {int(classification.confidence * 100)}%"
-
-            labels = [detection_label, classification_label]
+            # Prepare label text
+            if detection.category in ('person', 'vehicle'):
+                # Single-line label for person/vehicle (no separate classification)
+                labels = [f"{detection.category.title()} {int(classification.confidence * 100)}%"]
+            else:
+                # Two-line label: detection category + species classification
+                detection_label = f"{detection.category} {int(classification.confidence * 100)}%"
+                species_display = classification.species.replace('_', ' ').title()
+                classification_label = f"{species_display} {int(classification.confidence * 100)}%"
+                labels = [detection_label, classification_label]
 
             # Calculate label dimensions (match frontend lines 342-348)
             # Frontend line 342: Math.round(12 * scaleFactor)

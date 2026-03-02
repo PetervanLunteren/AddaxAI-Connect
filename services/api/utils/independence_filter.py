@@ -36,6 +36,17 @@ WITH raw_obs AS (
     WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
       AND d.confidence >= p.detection_threshold
       {unverified_filters}
+    UNION ALL
+    -- Unverified: person/vehicle detections (no classification)
+    SELECT i.camera_id, d.category as species, i.uploaded_at as ts, 1 as cnt
+    FROM detections d
+    JOIN images i ON d.image_id = i.id
+    JOIN cameras c ON i.camera_id = c.id
+    JOIN projects p ON c.project_id = p.id
+    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
+      AND d.category IN ('person', 'vehicle')
+      AND d.confidence >= p.detection_threshold
+      {pv_filters}
 ),
 -- Per-image: sum all detections of same species in same image
 img_counts AS (
@@ -80,26 +91,31 @@ def _build_filters(
     """Build filter clauses and params for the CTE."""
     verified_parts = []
     unverified_parts = []
+    pv_parts = []
     params = {}
 
     if species_filter:
         verified_parts.append("AND LOWER(ho.species) = LOWER(:species_filter)")
         unverified_parts.append("AND LOWER(cl.species) = LOWER(:species_filter)")
+        pv_parts.append("AND LOWER(d.category) = LOWER(:species_filter)")
         params["species_filter"] = species_filter
 
     if start_date:
         verified_parts.append("AND i.uploaded_at >= :start_date")
         unverified_parts.append("AND i.uploaded_at >= :start_date")
+        pv_parts.append("AND i.uploaded_at >= :start_date")
         params["start_date"] = start_date
 
     if end_date:
         verified_parts.append("AND i.uploaded_at <= :end_date")
         unverified_parts.append("AND i.uploaded_at <= :end_date")
+        pv_parts.append("AND i.uploaded_at <= :end_date")
         params["end_date"] = end_date
 
     return (
         "\n      ".join(verified_parts),
         "\n      ".join(unverified_parts),
+        "\n      ".join(pv_parts),
         params,
     )
 
@@ -110,12 +126,13 @@ def _build_cte(
     end_date: Optional[datetime] = None,
 ) -> tuple:
     """Build the full CTE SQL and params dict."""
-    verified_filters, unverified_filters, params = _build_filters(
+    verified_filters, unverified_filters, pv_filters, params = _build_filters(
         species_filter, start_date, end_date,
     )
     cte_sql = _INDEPENDENCE_CTE.format(
         verified_filters=verified_filters,
         unverified_filters=unverified_filters,
+        pv_filters=pv_filters,
     )
     return cte_sql, params
 
@@ -306,7 +323,7 @@ async def compute_event_assignments(
 
     # Extended CTE that also returns per-image info needed for export
     query = f"""
-    {_INDEPENDENCE_CTE.format(verified_filters="", unverified_filters="")}
+    {_INDEPENDENCE_CTE.format(verified_filters="", unverified_filters="", pv_filters="")}
     , event_boundaries AS (
         SELECT camera_id, species, event_id,
                MIN(ts) as event_start,
