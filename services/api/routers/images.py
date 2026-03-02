@@ -206,8 +206,26 @@ async def get_species(
         .distinct()
     )
 
+    # Query 3: Person/vehicle from detection categories (unverified, above threshold)
+    pv_species = (
+        select(Detection.category.label('species'))
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Image.status == "classified",
+                Image.is_verified == False,
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.category.in_(['person', 'vehicle']),
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .distinct()
+    )
+
     # Combine and get unique species
-    combined = union_all(human_species, ai_species).subquery()
+    combined = union_all(human_species, ai_species, pv_species).subquery()
     final_query = select(combined.c.species).distinct().order_by(combined.c.species)
 
     result = await db.execute(final_query)
@@ -363,6 +381,23 @@ async def list_images(
                     select(Image.id)
                     .join(HumanObservation)
                     .where(HumanObservation.species.in_(species_filter))
+                )
+            ),
+            # Unverified images: match by person/vehicle Detection.category
+            and_(
+                Image.is_verified == False,
+                Image.id.in_(
+                    select(Image.id)
+                    .join(Detection)
+                    .join(Camera, Image.camera_id == Camera.id)
+                    .join(Project, Camera.project_id == Project.id)
+                    .where(
+                        and_(
+                            Detection.category.in_(species_filter),
+                            Detection.category.in_(['person', 'vehicle']),
+                            Detection.confidence >= Project.detection_threshold
+                        )
+                    )
                 )
             ),
         )

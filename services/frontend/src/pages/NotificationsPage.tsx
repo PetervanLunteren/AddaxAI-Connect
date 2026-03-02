@@ -111,7 +111,9 @@ export const NotificationsPage: React.FC = () => {
   const botUsername = telegramConfig?.bot_username ?? null;
 
   // Use project's included species if configured, otherwise show all species
-  const availableSpecies = selectedProject?.included_species ?? DEEPFAUNE_SPECIES;
+  // Always include person/vehicle as they are detection-level categories
+  const baseSpecies = selectedProject?.included_species ?? DEEPFAUNE_SPECIES;
+  const availableSpecies = [...new Set([...baseSpecies, 'person', 'vehicle'])];
   const speciesOptions: Option[] = availableSpecies
     .slice()
     .sort()

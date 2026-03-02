@@ -48,9 +48,23 @@ async def get_preferred_species_counts(
     if camera_id:
         verified_filters.append(Image.camera_id == camera_id)
         unverified_filters.append(Image.camera_id == camera_id)
+    # Person/vehicle filters (unverified images with detection category)
+    pv_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+        Detection.category.in_(['person', 'vehicle']),
+    ]
+
     if species_filter:
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
+        pv_filters.append(func.lower(Detection.category) == species_filter.lower())
+    if start_date:
+        pv_filters.append(Image.uploaded_at >= start_date)
+    if end_date:
+        pv_filters.append(Image.uploaded_at <= end_date)
+    if camera_id:
+        pv_filters.append(Image.camera_id == camera_id)
 
     # Query 1: Verified images - use HumanObservation
     verified_query = (
@@ -83,8 +97,26 @@ async def get_preferred_species_counts(
         .group_by(Classification.species)
     )
 
+    # Query 3: Unverified person/vehicle detections (no classification records)
+    pv_query = (
+        select(
+            Detection.category.label('species'),
+            func.count(Detection.id).label('count')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *pv_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(Detection.category)
+    )
+
     # Combine with UNION ALL and sum again to merge same species from both sources
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
 
     final_query = (
         select(
@@ -128,12 +160,20 @@ async def get_preferred_unique_species(
         Camera.project_id.in_(project_ids),
     ]
 
+    pv_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+        Detection.category.in_(['person', 'vehicle']),
+    ]
+
     if start_date:
         verified_filters.append(Image.uploaded_at >= start_date)
         unverified_filters.append(Image.uploaded_at >= start_date)
+        pv_filters.append(Image.uploaded_at >= start_date)
     if end_date:
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
+        pv_filters.append(Image.uploaded_at <= end_date)
 
     # Species from verified images (human observations)
     verified_species = (
@@ -160,8 +200,23 @@ async def get_preferred_unique_species(
         .distinct()
     )
 
+    # Person/vehicle categories from unverified images
+    pv_species = (
+        select(Detection.category.label('species'))
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *pv_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .distinct()
+    )
+
     # Combine and get unique
-    combined = union_all(verified_species, unverified_species).subquery()
+    combined = union_all(verified_species, unverified_species, pv_species).subquery()
     final_query = select(combined.c.species).distinct().order_by(combined.c.species)
 
     result = await db.execute(final_query)
@@ -207,15 +262,24 @@ async def get_preferred_hourly_activity(
         Camera.project_id.in_(project_ids),
     ]
 
+    pv_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+        Detection.category.in_(['person', 'vehicle']),
+    ]
+
     if start_date:
         verified_filters.append(Image.uploaded_at >= start_date)
         unverified_filters.append(Image.uploaded_at >= start_date)
+        pv_filters.append(Image.uploaded_at >= start_date)
     if end_date:
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
+        pv_filters.append(Image.uploaded_at <= end_date)
     if species_filter:
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
+        pv_filters.append(func.lower(Detection.category) == species_filter.lower())
 
     # Verified: group by hour, sum counts from HumanObservation
     verified_query = (
@@ -248,8 +312,26 @@ async def get_preferred_hourly_activity(
         .group_by(func.extract('hour', Image.uploaded_at))
     )
 
+    # Person/vehicle: group by hour, count detections
+    pv_query = (
+        select(
+            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.count(Detection.id).label('count')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *pv_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(func.extract('hour', Image.uploaded_at))
+    )
+
     # Combine and sum
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.hour,
@@ -289,12 +371,20 @@ async def get_preferred_species_first_dates(
         Camera.project_id.in_(project_ids),
     ]
 
+    pv_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+        Detection.category.in_(['person', 'vehicle']),
+    ]
+
     if start_date:
         verified_filters.append(Image.uploaded_at >= start_date)
         unverified_filters.append(Image.uploaded_at >= start_date)
+        pv_filters.append(Image.uploaded_at >= start_date)
     if end_date:
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
+        pv_filters.append(Image.uploaded_at <= end_date)
 
     # Verified: first date from human observations
     verified_query = (
@@ -327,8 +417,26 @@ async def get_preferred_species_first_dates(
         .group_by(Classification.species)
     )
 
+    # Person/vehicle: first date from detection category
+    pv_query = (
+        select(
+            Detection.category.label('species'),
+            func.min(func.date(Image.uploaded_at)).label('first_date')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *pv_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(Detection.category)
+    )
+
     # Combine and get min date per species (earliest across both sources)
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.species,
@@ -368,12 +476,20 @@ async def get_preferred_species_camera_matrix(
         Camera.project_id.in_(project_ids),
     ]
 
+    pv_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+        Detection.category.in_(['person', 'vehicle']),
+    ]
+
     if start_date:
         verified_filters.append(Image.uploaded_at >= start_date)
         unverified_filters.append(Image.uploaded_at >= start_date)
+        pv_filters.append(Image.uploaded_at >= start_date)
     if end_date:
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
+        pv_filters.append(Image.uploaded_at <= end_date)
 
     # Verified: group by camera and species, sum counts
     verified_query = (
@@ -408,8 +524,27 @@ async def get_preferred_species_camera_matrix(
         .group_by(Camera.name, Classification.species)
     )
 
+    # Person/vehicle: group by camera and detection category
+    pv_query = (
+        select(
+            Camera.name.label('camera_name'),
+            Detection.category.label('species'),
+            func.count(Detection.id).label('count')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *pv_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(Camera.name, Detection.category)
+    )
+
     # Combine and sum
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.camera_name,
@@ -453,15 +588,24 @@ async def get_preferred_daily_trend(
         Camera.project_id.in_(project_ids),
     ]
 
+    pv_filters = [
+        Image.is_verified == False,
+        Camera.project_id.in_(project_ids),
+        Detection.category.in_(['person', 'vehicle']),
+    ]
+
     if start_date:
         verified_filters.append(Image.uploaded_at >= start_date)
         unverified_filters.append(Image.uploaded_at >= start_date)
+        pv_filters.append(Image.uploaded_at >= start_date)
     if end_date:
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
+        pv_filters.append(Image.uploaded_at <= end_date)
     if species_filter:
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
+        pv_filters.append(func.lower(Detection.category) == species_filter.lower())
 
     # Verified: group by date, sum counts
     verified_query = (
@@ -494,8 +638,26 @@ async def get_preferred_daily_trend(
         .group_by(func.date(Image.uploaded_at))
     )
 
+    # Person/vehicle: group by date, count detections
+    pv_query = (
+        select(
+            func.date(Image.uploaded_at).label('date'),
+            func.count(Detection.id).label('count')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                *pv_filters,
+                Detection.confidence >= Project.detection_threshold
+            )
+        )
+        .group_by(func.date(Image.uploaded_at))
+    )
+
     # Combine and sum
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.date,

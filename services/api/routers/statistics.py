@@ -512,8 +512,32 @@ async def get_detection_rate_map(
             WHERE c.project_id = ANY(:project_ids)
             GROUP BY cdp.id
         ),
+        pv_counts AS (
+            -- Counts from person/vehicle detections (unverified images only)
+            SELECT
+                cdp.id as deployment_id,
+                COUNT(d.id) FILTER (WHERE
+                    d.id IS NOT NULL
+                    AND d.confidence >= p.detection_threshold
+                    AND d.category IN ('person', 'vehicle')
+                    AND (CAST(:species AS text) IS NULL OR LOWER(d.category) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
+                ) as detection_count
+            FROM camera_deployment_periods cdp
+            INNER JOIN cameras c ON cdp.camera_id = c.id
+            INNER JOIN projects p ON c.project_id = p.id
+            LEFT JOIN images i ON
+                i.camera_id = cdp.camera_id
+                AND i.is_verified = false
+                AND i.uploaded_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+            LEFT JOIN detections d ON d.image_id = i.id AND d.category IN ('person', 'vehicle')
+            WHERE c.project_id = ANY(:project_ids)
+            GROUP BY cdp.id
+        ),
         combined_counts AS (
-            -- Sum verified and unverified counts per deployment
+            -- Sum verified, unverified, and person/vehicle counts per deployment
             SELECT
                 deployment_id,
                 SUM(detection_count) as detection_count
@@ -521,6 +545,8 @@ async def get_detection_rate_map(
                 SELECT deployment_id, detection_count FROM verified_counts
                 UNION ALL
                 SELECT deployment_id, detection_count FROM unverified_counts
+                UNION ALL
+                SELECT deployment_id, detection_count FROM pv_counts
             ) combined
             GROUP BY deployment_id
         ),
@@ -1186,9 +1212,28 @@ async def get_detection_count(
         .group_by(Classification.species)
     )
 
+    # Person/vehicle: detections above threshold, grouped by category
+    pv_query = (
+        select(
+            Detection.category.label('species'),
+            func.count(Detection.id).label('count'),
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Image.is_verified == False,
+                Camera.project_id.in_(accessible_project_ids),
+                Detection.category.in_(['person', 'vehicle']),
+                Detection.confidence >= threshold,
+            )
+        )
+        .group_by(Detection.category)
+    )
+
     # Combine and sum per species
     from sqlalchemy import union_all
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.species,

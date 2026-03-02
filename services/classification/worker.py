@@ -90,6 +90,126 @@ def process_detection_complete(message: dict, classifier) -> None:
             )
             update_image_status(image_uuid, "classified")
 
+            # Check for above-threshold person/vehicle detections to send notifications
+            from shared.database import get_db_session
+            from shared.models import Image as ImageModel, Camera, Project, Detection as DetectionModel
+            with get_db_session() as db:
+                image_record = db.query(ImageModel).filter(ImageModel.uuid == image_uuid).first()
+                camera = db.query(Camera).filter(Camera.id == image_record.camera_id).first() if image_record else None
+                project = db.query(Project).filter(Project.id == camera.project_id).first() if camera else None
+
+                if image_record and camera and project:
+                    det_threshold = project.detection_threshold
+                    pv_dets = [d for d in detections
+                               if d.category in ('person', 'vehicle') and d.confidence >= det_threshold]
+
+                    if pv_dets:
+                        try:
+                            # Download image for annotation
+                            image_path = download_image_from_minio(image_record.storage_path)
+                            temp_files.append(image_path)
+
+                            # Apply privacy blur if enabled
+                            if project.blur_people_vehicles:
+                                from PIL import Image as PILImage
+                                from PIL import ImageFilter
+                                img = PILImage.open(image_path)
+                                if img.mode != 'RGB':
+                                    img = img.convert('RGB')
+                                img_w, img_h = img.size
+                                for det in pv_dets:
+                                    normalized = det.bbox_normalized
+                                    if not normalized or len(normalized) != 4:
+                                        continue
+                                    x_min_n, y_min_n, width_n, height_n = normalized
+                                    x1 = max(0, int(x_min_n * img_w))
+                                    y1 = max(0, int(y_min_n * img_h))
+                                    x2 = min(img_w, int((x_min_n + width_n) * img_w))
+                                    y2 = min(img_h, int((y_min_n + height_n) * img_h))
+                                    if x2 > x1 and y2 > y1:
+                                        region = img.crop((x1, y1, x2, y2))
+                                        region = region.filter(ImageFilter.GaussianBlur(radius=25))
+                                        img.paste(region, (x1, y1))
+                                img.save(image_path, format='JPEG', quality=90)
+
+                            # Generate annotated image with person/vehicle boxes
+                            annotated_minio_path = None
+                            try:
+                                detection_classification_pairs = []
+                                for det in pv_dets:
+                                    bbox_n = det.bbox_normalized
+                                    pixel_bbox = {
+                                        'x': int(bbox_n[0] * det.image_width),
+                                        'y': int(bbox_n[1] * det.image_height),
+                                        'width': int(bbox_n[2] * det.image_width),
+                                        'height': int(bbox_n[3] * det.image_height)
+                                    }
+                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category)
+                                    ann_class = AnnotatedClassification(
+                                        species=det.category, confidence=det.confidence
+                                    )
+                                    detection_classification_pairs.append((ann_det, ann_class))
+
+                                if detection_classification_pairs:
+                                    annotated_bytes = generate_annotated_image(
+                                        image_path=image_path,
+                                        detections=detection_classification_pairs
+                                    )
+                                    annotated_minio_path = upload_annotated_image_to_minio(
+                                        image_bytes=annotated_bytes,
+                                        image_uuid=image_uuid
+                                    )
+                            except Exception as e:
+                                logger.warning(
+                                    "Failed to generate annotated image for pv notifications",
+                                    error=str(e)
+                                )
+
+                            # Build location and timestamp
+                            location = None
+                            metadata = image_record.image_metadata or {}
+                            gps_decimal = metadata.get('gps_decimal')
+                            if gps_decimal and len(gps_decimal) == 2:
+                                location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
+                            elif camera.location:
+                                location = {
+                                    "lat": camera.location.coords[1],
+                                    "lon": camera.location.coords[0]
+                                }
+                            datetime_original = metadata.get('DateTimeOriginal')
+                            timestamp = datetime_original if datetime_original else message.get("timestamp")
+
+                            # Publish one notification per person/vehicle category
+                            notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
+                            pv_categories = set(d.category for d in pv_dets)
+                            for category in pv_categories:
+                                best_det = max(
+                                    (d for d in pv_dets if d.category == category),
+                                    key=lambda d: d.confidence
+                                )
+                                notification_queue.publish({
+                                    "event_type": "species_detection",
+                                    "project_id": camera.project_id,
+                                    "image_uuid": image_uuid,
+                                    "camera_id": camera.id,
+                                    "camera_name": camera.name,
+                                    "camera_location": location,
+                                    "species": category,
+                                    "confidence": best_det.confidence,
+                                    "detection_confidence": best_det.confidence,
+                                    "detection_count": len(pv_dets),
+                                    "annotated_minio_path": annotated_minio_path,
+                                    "timestamp": timestamp
+                                })
+                                logger.info(
+                                    "Published person/vehicle detection notification",
+                                    species=category,
+                                    confidence=best_det.confidence,
+                                    annotated_minio_path=annotated_minio_path
+                                )
+                        except Exception as e:
+                            logger.error("Failed to publish pv notification event", error=str(e))
+
             # Publish to next queue
             queue = RedisQueue(QUEUE_CLASSIFICATION_COMPLETE)
             queue.publish({
@@ -198,6 +318,10 @@ def process_detection_complete(message: dict, classifier) -> None:
                                     img.save(image_path, format='JPEG', quality=90)
                                     logger.info("Applied privacy blur", image_uuid=image_uuid, num_blurred=len(pv_dets))
 
+                            # Collect above-threshold person/vehicle detections for annotation + notification
+                            pv_above = [d for d in detections
+                                        if d.category in ('person', 'vehicle') and d.confidence >= det_threshold]
+
                             try:
                                 # Build detection/classification pairs for annotation
                                 # Only include detections above the detection threshold
@@ -226,6 +350,21 @@ def process_detection_complete(message: dict, classifier) -> None:
                                             confidence=classification.confidence
                                         )
                                         detection_classification_pairs.append((ann_det, ann_class))
+
+                                # Include person/vehicle detections in annotation
+                                for det in pv_above:
+                                    bbox_n = det.bbox_normalized
+                                    pixel_bbox = {
+                                        'x': int(bbox_n[0] * det.image_width),
+                                        'y': int(bbox_n[1] * det.image_height),
+                                        'width': int(bbox_n[2] * det.image_width),
+                                        'height': int(bbox_n[3] * det.image_height)
+                                    }
+                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category)
+                                    ann_class = AnnotatedClassification(
+                                        species=det.category, confidence=det.confidence
+                                    )
+                                    detection_classification_pairs.append((ann_det, ann_class))
 
                                 if detection_classification_pairs:
                                     # Generate and upload annotated image
@@ -297,6 +436,35 @@ def process_detection_complete(message: dict, classifier) -> None:
                                     total_species_count=len(species_map),
                                     annotated_minio_path=annotated_minio_path
                                 )
+
+                            # Also publish notifications for person/vehicle detections
+                            if pv_above:
+                                pv_categories = set(d.category for d in pv_above)
+                                for category in pv_categories:
+                                    best_det = max(
+                                        (d for d in pv_above if d.category == category),
+                                        key=lambda d: d.confidence
+                                    )
+                                    notification_queue.publish({
+                                        "event_type": "species_detection",
+                                        "project_id": camera.project_id,
+                                        "image_uuid": image_uuid,
+                                        "camera_id": camera.id,
+                                        "camera_name": camera.name,
+                                        "camera_location": location,
+                                        "species": category,
+                                        "confidence": best_det.confidence,
+                                        "detection_confidence": best_det.confidence,
+                                        "detection_count": len(pv_above),
+                                        "annotated_minio_path": annotated_minio_path,
+                                        "timestamp": timestamp
+                                    })
+                                    logger.info(
+                                        "Published person/vehicle detection notification",
+                                        species=category,
+                                        confidence=best_det.confidence,
+                                        annotated_minio_path=annotated_minio_path
+                                    )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))
 

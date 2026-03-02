@@ -105,7 +105,21 @@ def get_overview_stats(
         )
         .distinct()
     )
-    combined_species = union_all(verified_species_query, unverified_species_query).subquery()
+    pv_species_query = (
+        select(Detection.category.label('species'))
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == False,
+                Detection.category.in_(['person', 'vehicle']),
+                Detection.confidence >= detection_threshold
+            )
+        )
+        .distinct()
+    )
+    combined_species = union_all(verified_species_query, unverified_species_query, pv_species_query).subquery()
     total_species = db.execute(
         select(func.count(func.distinct(combined_species.c.species)))
     ).scalar_one()
@@ -144,7 +158,24 @@ def get_overview_stats(
         )
         .group_by(Classification.species)
     )
-    combined_first_seen = union_all(verified_first_seen, unverified_first_seen).subquery()
+    pv_first_seen = (
+        select(
+            Detection.category.label('species'),
+            func.min(Image.uploaded_at).label('first_seen')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == False,
+                Detection.category.in_(['person', 'vehicle']),
+                Detection.confidence >= detection_threshold
+            )
+        )
+        .group_by(Detection.category)
+    )
+    combined_first_seen = union_all(verified_first_seen, unverified_first_seen, pv_first_seen).subquery()
     all_species_first_seen = db.execute(
         select(
             combined_first_seen.c.species,
@@ -238,8 +269,29 @@ def get_species_distribution(
         .group_by(Classification.species)
     )
 
+    # Query 3: Person/vehicle detections (unverified images)
+    pv_query = (
+        select(
+            Detection.category.label('species'),
+            func.count(Detection.id).label('count')
+        )
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == False,
+                Detection.category.in_(['person', 'vehicle']),
+                Detection.confidence >= detection_threshold,
+                Image.uploaded_at >= start_dt,
+                Image.uploaded_at <= end_dt
+            )
+        )
+        .group_by(Detection.category)
+    )
+
     # Combine and aggregate
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.species,
@@ -520,8 +572,30 @@ def get_activity_summary(
         .group_by(func.extract('hour', Image.uploaded_at))
     )
 
+    # Query 3: Person/vehicle detections (unverified images)
+    pv_query = (
+        select(
+            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.count(Detection.id).label('count')
+        )
+        .select_from(Detection)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Camera.project_id == project_id,
+                Image.is_verified == False,
+                Detection.category.in_(['person', 'vehicle']),
+                Detection.confidence >= detection_threshold,
+                Image.uploaded_at >= start_dt,
+                Image.uploaded_at <= end_dt
+            )
+        )
+        .group_by(func.extract('hour', Image.uploaded_at))
+    )
+
     # Combine and aggregate by hour
-    combined = union_all(verified_query, unverified_query).subquery()
+    combined = union_all(verified_query, unverified_query, pv_query).subquery()
     final_query = (
         select(
             combined.c.hour,
