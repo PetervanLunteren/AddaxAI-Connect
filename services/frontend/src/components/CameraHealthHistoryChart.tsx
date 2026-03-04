@@ -19,12 +19,21 @@ import {
   ChartOptions,
 } from 'chart.js';
 import type { ChartData } from 'chart.js';
+import annotationPlugin from 'chartjs-plugin-annotation';
 import { Select, SelectItem } from './ui/Select';
 import { camerasApi } from '../api/cameras';
 import type { HealthReportPoint } from '../api/types';
 
 // Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler, annotationPlugin);
+
+const SIGNAL_QUALITY_BANDS = [
+  { label: 'Excellent', yMin: 20, yMax: 31, color: 'rgba(15, 96, 100, 0.10)' },
+  { label: 'Good', yMin: 15, yMax: 20, color: 'rgba(113, 183, 186, 0.10)' },
+  { label: 'Fair', yMin: 10, yMax: 15, color: 'rgba(255, 137, 69, 0.10)' },
+  { label: 'Poor', yMin: 2, yMax: 10, color: 'rgba(136, 32, 0, 0.10)' },
+  { label: 'No signal', yMin: 0, yMax: 2, color: 'rgba(136, 32, 0, 0.20)' },
+] as const;
 
 interface CameraHealthHistoryChartProps {
   cameraId: number;
@@ -122,6 +131,29 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
     };
   }, [data, config]);
 
+  const signalAnnotations = selectedMetric === 'signal'
+    ? Object.fromEntries(
+        SIGNAL_QUALITY_BANDS.map((band) => [
+          band.label,
+          {
+            type: 'box' as const,
+            yMin: band.yMin,
+            yMax: band.yMax,
+            backgroundColor: band.color,
+            borderWidth: 0,
+            label: {
+              display: true,
+              content: band.label,
+              position: { x: 'end' as const, y: 'center' as const },
+              color: '#888',
+              font: { size: 10 },
+              padding: 2,
+            },
+          },
+        ])
+      )
+    : {};
+
   const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -135,6 +167,9 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
             return `${config.label}: ${value}${config.unit}`;
           },
         },
+      },
+      annotation: {
+        annotations: signalAnnotations,
       },
     },
     scales: {
