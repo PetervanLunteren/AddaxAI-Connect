@@ -232,7 +232,7 @@ GPS:52.098737,5.125504
 | **Temp** | Integer | °C | **Temperature** inside camera housing | `24` |
 | **Date** | DateTime | - | Report generation timestamp | `05/12/2025 15:46:47` |
 | **Battery** | Integer | % | **Battery percentage** (0-100%) | `60` |
-| **SD** | String | MB | **SD card usage** in format `{used}M/{total}M` | `59405M/59628M` |
+| **SD** | String | MB | **SD card space remaining** in format `{remaining}M/{total}M` | `59405M/59628M` |
 | **Total** | Integer | count | Total images captured by camera since deployment | `159` |
 | **Send** | Integer | count | Total images successfully transmitted | `12` |
 | **GPS** | String | lat,lon | **GPS coordinates** in decimal degrees | `52.098737,5.125504` |
@@ -251,9 +251,9 @@ GPS:52.098737,5.125504
 - Parse as integer: `int(value.rstrip('%'))`
 
 **SD:**
-- Format: `{used}M/{total}M` where M = megabytes
+- Format: `{remaining}M/{total}M` where M = megabytes
 - Parse: Split on `/`, then strip `M` suffix
-- Calculate utilization: `(used / total) * 100`
+- Calculate utilization: `(1 - remaining / total) * 100`
 
 **Temperature:**
 - Always includes `℃` suffix
@@ -321,7 +321,7 @@ def parse_daily_report(filepath: str) -> Dict:
         # Parse SD usage
         if 'SD' in data:
             sd_parts = data['SD'].split('/')
-            parsed['sd_used_mb'] = int(sd_parts[0].rstrip('M'))
+            parsed['sd_remaining_mb'] = int(sd_parts[0].rstrip('M'))
             parsed['sd_total_mb'] = int(sd_parts[1].rstrip('M'))
 
         # Parse GPS
@@ -367,7 +367,7 @@ print(data)
 #     'temperature_c': 24,
 #     'signal_quality': 31,
 #     'timestamp': datetime(2025, 12, 5, 15, 46, 47),
-#     'sd_used_mb': 59405,
+#     'sd_remaining_mb': 59405,
 #     'sd_total_mb': 59628,
 #     'total_images': 159,
 #     'images_sent': 12,
@@ -376,8 +376,8 @@ print(data)
 # }
 
 # Calculate SD utilization percentage
-sd_percent = (data['sd_used_mb'] / data['sd_total_mb']) * 100
-print(f"SD Card: {sd_percent:.1f}% full")  # "SD Card: 99.6% full"
+sd_percent = (1 - data['sd_remaining_mb'] / data['sd_total_mb']) * 100
+print(f"SD Card: {sd_percent:.1f}% full")  # "SD Card: 0.4% full"
 ```
 
 ---

@@ -399,13 +399,11 @@ def get_camera_health_summary(
                 sd_percent = int(sd_percent)
 
         if sd_percent is not None:
-            # Invert: raw data is "space left", we want "space used"
-            sd_used = 100 - sd_percent
-            sd_values.append(sd_used)
-            if sd_used >= sd_threshold:
+            sd_values.append(sd_percent)
+            if sd_percent >= sd_threshold:
                 high_sd_cameras.append({
                     'name': camera.name,
-                    'sd_percent': sd_used
+                    'sd_percent': sd_percent
                 })
 
     # Calculate averages
