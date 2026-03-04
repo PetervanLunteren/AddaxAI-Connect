@@ -171,24 +171,24 @@ def parse_sd_card(sd_str: Optional[str]) -> Optional[float]:
     Parse SD card utilization field.
 
     Args:
-        sd_str: SD usage in format "used/total" (e.g., "59405M/59628M")
+        sd_str: SD usage in format "remaining/total" (e.g., "59405M/59628M")
 
     Returns:
-        Utilization percentage (0-100), or None if not parseable
+        Utilization percentage (0-100, where 100 = full), or None if not parseable
     """
     if not sd_str:
         return None
 
     try:
-        # Format: "59405M/59628M"
-        used_str, total_str = sd_str.split('/')
-        used = int(used_str.rstrip('M'))
+        # Format: "59405M/59628M" (remaining/total)
+        remaining_str, total_str = sd_str.split('/')
+        remaining = int(remaining_str.rstrip('M'))
         total = int(total_str.rstrip('M'))
 
         if total == 0:
             return 0.0
 
-        utilization = (used / total) * 100
+        utilization = (1 - remaining / total) * 100
         return round(utilization, 2)
 
     except (ValueError, IndexError) as e:

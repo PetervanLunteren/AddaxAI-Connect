@@ -246,11 +246,11 @@ def detect_deployment_periods(
             current_deployment['last_lat'] = lat
             current_deployment['last_lon'] = lon
 
-    # Add final deployment
+    # Add final deployment (end_date=None means still active)
     deployments.append({
         'deployment_id': current_deployment['deployment_id'],
         'start_date': current_deployment['start_date'],
-        'end_date': current_deployment['end_date'],
+        'end_date': None,
         'lat': current_deployment['lat_sum'] / current_deployment['count'],
         'lon': current_deployment['lon_sum'] / current_deployment['count'],
     })
@@ -318,13 +318,16 @@ def create_deployment_record(
     except Exception as e:
         raise RuntimeError(f"Failed to insert deployment: {str(e)}")
 
+    end_date = deployment['end_date']
+    trap_days = (end_date - deployment['start_date']).days + 1 if end_date else "active"
+
     logger.debug(
         f"Created deployment record",
         camera_id=camera_id,
         deployment_id=deployment['deployment_id'],
         start_date=str(deployment['start_date']),
-        end_date=str(deployment['end_date']),
-        trap_days=(deployment['end_date'] - deployment['start_date']).days + 1
+        end_date=str(end_date),
+        trap_days=trap_days
     )
 
 

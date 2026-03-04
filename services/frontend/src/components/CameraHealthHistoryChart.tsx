@@ -67,7 +67,7 @@ const METRIC_CONFIG: Record<Metric, {
     max: 31,
   },
   sd: {
-    label: 'SD utilization',
+    label: 'SD used',
     field: 'sd_utilization_percent',
     color: '#71b7ba',
     unit: '%',

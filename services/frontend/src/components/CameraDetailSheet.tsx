@@ -244,9 +244,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">SD used</span>
                   <span>
-                    {/* SD value is "space left", invert to show "space used" */}
                     {camera.sd_utilization_percentage !== null
-                      ? `${Math.round(100 - camera.sd_utilization_percentage)}%`
+                      ? `${Math.round(camera.sd_utilization_percentage)}%`
                       : 'N/A'}
                   </span>
                 </div>
