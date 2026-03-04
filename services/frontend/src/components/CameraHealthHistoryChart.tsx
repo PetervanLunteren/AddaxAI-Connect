@@ -178,6 +178,7 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
         min: config.min,
         max: config.max,
         ticks: { precision: 0 },
+        grid: { display: false },
       },
       x: {
         grid: { display: false },
