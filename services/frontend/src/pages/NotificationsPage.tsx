@@ -42,12 +42,10 @@ export const NotificationsPage: React.FC = () => {
   const [deepLink, setDeepLink] = useState<string | null>(null);
 
   // Email reports state
-  const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
-  const [reportFrequency, setReportFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [reportFrequency, setReportFrequency] = useState<'disabled' | 'daily' | 'weekly' | 'monthly'>('disabled');
 
   // Excessive image alerts state
-  const [excessiveImagesEnabled, setExcessiveImagesEnabled] = useState(false);
-  const [excessiveImagesThreshold, setExcessiveImagesThreshold] = useState(50);
+  const [excessiveImagesThreshold, setExcessiveImagesThreshold] = useState(0);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -99,13 +97,11 @@ export const NotificationsPage: React.FC = () => {
 
         // Email reports configuration
         const emailReportConfig = notificationChannels.email_report || {};
-        setEmailReportsEnabled(emailReportConfig.enabled || false);
-        setReportFrequency(emailReportConfig.frequency || 'weekly');
+        setReportFrequency(emailReportConfig.enabled ? (emailReportConfig.frequency || 'weekly') : 'disabled');
 
         // Excessive image alerts configuration
         const excessiveConfig = notificationChannels.excessive_images || {};
-        setExcessiveImagesEnabled(excessiveConfig.enabled || false);
-        setExcessiveImagesThreshold(excessiveConfig.threshold || 50);
+        setExcessiveImagesThreshold(excessiveConfig.enabled ? (excessiveConfig.threshold || 50) : 0);
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
@@ -199,12 +195,12 @@ export const NotificationsPage: React.FC = () => {
           : null
       },
       email_report: {
-        enabled: emailReportsEnabled,
-        frequency: reportFrequency
+        enabled: reportFrequency !== 'disabled',
+        frequency: reportFrequency !== 'disabled' ? reportFrequency : 'weekly'
       },
       excessive_images: {
-        enabled: excessiveImagesEnabled,
-        threshold: excessiveImagesThreshold
+        enabled: excessiveImagesThreshold > 0,
+        threshold: excessiveImagesThreshold > 0 ? excessiveImagesThreshold : 50
       }
     };
 
@@ -322,34 +318,12 @@ export const NotificationsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground mt-1">Scheduled email summaries with project statistics and insights</p>
                 </div>
                 <div className="flex-1">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={emailReportsEnabled}
-                    onClick={() => setEmailReportsEnabled(!emailReportsEnabled)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                      emailReportsEnabled ? 'bg-[#0f6064]' : 'bg-gray-300'
-                    } cursor-pointer`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      emailReportsEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Report frequency row */}
-              <div className={`flex items-center gap-8 mt-4 ${!emailReportsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                <div className="w-1/2 shrink-0">
-                  <label className="text-sm font-medium block">Report frequency</label>
-                  <p className="text-sm text-muted-foreground mt-1">How often to send email reports</p>
-                </div>
-                <div className="flex-1">
                   <select
                     value={reportFrequency}
-                    onChange={(e) => setReportFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                    onChange={(e) => setReportFrequency(e.target.value as 'disabled' | 'daily' | 'weekly' | 'monthly')}
                     className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
+                    <option value="disabled">Disabled</option>
                     <option value="daily">Daily (sent at 06:00 UTC)</option>
                     <option value="weekly">Weekly (sent every Monday)</option>
                     <option value="monthly">Monthly (sent on the 1st)</option>
@@ -367,37 +341,18 @@ export const NotificationsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground mt-1">Get an email when a camera sends too many images in a day</p>
                 </div>
                 <div className="flex-1">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={excessiveImagesEnabled}
-                    onClick={() => setExcessiveImagesEnabled(!excessiveImagesEnabled)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                      excessiveImagesEnabled ? 'bg-[#0f6064]' : 'bg-gray-300'
-                    } cursor-pointer`}
-                  >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      excessiveImagesEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Image threshold row */}
-              <div className={`flex items-center gap-8 mt-4 ${!excessiveImagesEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                <div className="w-1/2 shrink-0">
-                  <label className="text-sm font-medium block">Image threshold</label>
-                  <p className="text-sm text-muted-foreground mt-1">Alert when a camera exceeds this many images per day</p>
-                </div>
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    min={1}
-                    max={1000}
+                  <select
                     value={excessiveImagesThreshold}
-                    onChange={(e) => setExcessiveImagesThreshold(Math.max(1, Math.min(1000, Number(e.target.value) || 50)))}
+                    onChange={(e) => setExcessiveImagesThreshold(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
+                  >
+                    <option value={0}>Disabled</option>
+                    <option value={25}>25 images per day</option>
+                    <option value={50}>50 images per day</option>
+                    <option value={100}>100 images per day</option>
+                    <option value={200}>200 images per day</option>
+                    <option value={500}>500 images per day</option>
+                  </select>
                 </div>
               </div>
 
