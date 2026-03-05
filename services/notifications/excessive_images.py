@@ -197,7 +197,7 @@ def _get_cameras_over_threshold(
     db, project_id: int, start_of_day: datetime, end_of_day: datetime, threshold: int
 ) -> List[Dict[str, Any]]:
     """
-    Query cameras that received more than `threshold` images yesterday.
+    Query cameras that received `threshold` or more images yesterday.
 
     Returns list of dicts with camera details and image count.
     """
