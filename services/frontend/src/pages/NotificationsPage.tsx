@@ -68,9 +68,6 @@ export const NotificationsPage: React.FC = () => {
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [telegramChatId, setTelegramChatId] = useState('');
   const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
-  const [telegramNotifyLowBattery, setTelegramNotifyLowBattery] = useState(true);
-  const [telegramBatteryThreshold, setTelegramBatteryThreshold] = useState(30);
-  const [telegramNotifySystemHealth, setTelegramNotifySystemHealth] = useState(false);
   const [telegramTestStatus, setTelegramTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [telegramTestMessage, setTelegramTestMessage] = useState('');
 
@@ -142,20 +139,12 @@ export const NotificationsPage: React.FC = () => {
       // If notification_channels JSON exists, use it (new multi-channel format)
       if (notificationChannels) {
         const speciesConfig = notificationChannels.species_detection || {};
-        const batteryConfig = notificationChannels.battery_digest || {};
-        const healthConfig = notificationChannels.system_health || {};
-
         const speciesChannels = speciesConfig.channels || [];
-        const batteryChannels = batteryConfig.channels || [];
-        const healthChannels = healthConfig.channels || [];
 
         // Telegram configuration
         const telegramInSpecies = speciesChannels.includes('telegram');
-        const telegramInBattery = batteryChannels.includes('telegram');
-        const telegramInHealth = healthChannels.includes('telegram');
-        const telegramEnabledAny = telegramInSpecies || telegramInBattery || telegramInHealth;
 
-        setTelegramEnabled(telegramEnabledAny && hasTelegramChatId);
+        setTelegramEnabled(telegramInSpecies && hasTelegramChatId);
         setTelegramChatId((preferences as any).telegram_chat_id || '');
 
         // Convert species to options, filtering out species no longer in the project
@@ -165,10 +154,6 @@ export const NotificationsPage: React.FC = () => {
           label: normalizeLabel(species),
           value: species
         })));
-
-        setTelegramNotifyLowBattery(telegramInBattery);
-        setTelegramBatteryThreshold(batteryConfig.battery_threshold || 30);
-        setTelegramNotifySystemHealth(telegramInHealth);
 
         // Email reports configuration
         const emailReportConfig = notificationChannels.email_report || {};
@@ -193,9 +178,6 @@ export const NotificationsPage: React.FC = () => {
         setTelegramEnabled(hasTelegramChatId && preferences.enabled);
         setTelegramChatId((preferences as any).telegram_chat_id || '');
         setTelegramNotifySpecies(speciesOptions);
-        setTelegramNotifyLowBattery(preferences.notify_low_battery);
-        setTelegramBatteryThreshold(preferences.battery_threshold);
-        setTelegramNotifySystemHealth(preferences.notify_system_health);
       }
     }
   }, [preferences, availableSpecies]);
@@ -297,9 +279,6 @@ export const NotificationsPage: React.FC = () => {
 
     // Use Telegram settings for legacy fields
     const legacySpeciesValues = telegramEnabled ? telegramNotifySpecies.map(opt => opt.value) : [];
-    const legacyLowBattery = telegramEnabled && telegramNotifyLowBattery;
-    const legacyBatteryThreshold = telegramBatteryThreshold;
-    const legacySystemHealth = telegramEnabled && telegramNotifySystemHealth;
 
     // Build notification_channels JSON with per-channel configuration
     const notificationChannels = {
@@ -309,15 +288,6 @@ export const NotificationsPage: React.FC = () => {
         notify_species: telegramEnabled
           ? (telegramNotifySpecies.length > 0 ? telegramNotifySpecies.map(opt => opt.value) : null)
           : null
-      },
-      battery_digest: {
-        enabled: telegramEnabled && telegramNotifyLowBattery,
-        channels: telegramNotifyLowBattery ? channels : [],
-        battery_threshold: telegramBatteryThreshold
-      },
-      system_health: {
-        enabled: telegramEnabled && telegramNotifySystemHealth,
-        channels: telegramNotifySystemHealth ? channels : []
       },
       email_report: {
         enabled: emailReportsEnabled,
@@ -335,9 +305,9 @@ export const NotificationsPage: React.FC = () => {
       signal_phone: null,
       telegram_chat_id: telegramEnabled ? (cleanedChatId || null) : null,
       notify_species: legacySpeciesValues.length > 0 ? legacySpeciesValues : null,
-      notify_low_battery: legacyLowBattery,
-      battery_threshold: legacyBatteryThreshold,
-      notify_system_health: legacySystemHealth,
+      notify_low_battery: false,
+      battery_threshold: 30,
+      notify_system_health: false,
       // New multi-channel configuration
       notification_channels: notificationChannels,
     });
@@ -474,46 +444,6 @@ export const NotificationsPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Battery warnings */}
-                  <div>
-                    <Checkbox
-                      id="telegram-battery"
-                      checked={telegramNotifyLowBattery}
-                      onChange={setTelegramNotifyLowBattery}
-                      label="Battery warnings"
-                      className="mb-3"
-                    />
-
-                    {telegramNotifyLowBattery && (
-                      <div className="pl-8">
-                        <label className="block text-sm font-medium mb-2">
-                          Battery threshold (%)
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value={telegramBatteryThreshold}
-                            onChange={(e) => setTelegramBatteryThreshold(Number(e.target.value))}
-                            className="flex-1 accent-primary"
-                          />
-                          <span className="font-medium w-12 text-right">{telegramBatteryThreshold}%</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Notify when battery drops below this level
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* System health */}
-                  <Checkbox
-                    id="telegram-health"
-                    checked={telegramNotifySystemHealth}
-                    onChange={setTelegramNotifySystemHealth}
-                    label="System health alerts"
-                  />
                 </>
               )}
             </CardContent>
