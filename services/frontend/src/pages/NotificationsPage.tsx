@@ -314,7 +314,7 @@ export const NotificationsPage: React.FC = () => {
                   <select
                     value={reportFrequency}
                     onChange={(e) => setReportFrequency(e.target.value as 'disabled' | 'daily' | 'weekly' | 'monthly')}
-                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full h-10 px-3 text-sm border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value="disabled">Disabled</option>
                     <option value="daily">Daily (sent at 06:00 UTC)</option>
@@ -337,7 +337,7 @@ export const NotificationsPage: React.FC = () => {
                   <select
                     value={excessiveImagesThreshold}
                     onChange={(e) => setExcessiveImagesThreshold(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full h-10 px-3 text-sm border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value={0}>Disabled</option>
                     <option value={25}>25 images per day</option>
