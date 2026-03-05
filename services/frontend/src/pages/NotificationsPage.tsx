@@ -232,70 +232,66 @@ export const NotificationsPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
 
-              {/* Telegram status message */}
-              <p className="text-sm text-muted-foreground">
-                {isTelegramLinked ? (
-                  <>
-                    Your Telegram account is connected and ready to receive notifications.{' '}
-                    {unlinkMutation.isPending ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin inline" />
-                        <span className="text-primary">Unlinking...</span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleUnlink}
-                        className="text-primary hover:underline font-medium"
-                      >
-                        Click here to unlink
-                      </button>
-                    )}.
-                  </>
-                ) : isTelegramConfigured ? (
-                  <>
-                    Telegram not linked to your account.{' '}
-                    {generateTokenMutation.isPending ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin inline" />
-                        <span className="text-primary">Generating link...</span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={handleGenerateLink}
-                        className="text-primary hover:underline font-medium"
-                      >
-                        Click here to link
-                      </button>
-                    )}.
-                  </>
-                ) : (
-                  <>
-                    A Telegram bot has not been configured yet.{' '}
-                    {user?.is_superuser ? (
-                      <Link to="/server/settings" className="text-primary hover:underline font-medium">
-                        Click here to configure it
-                      </Link>
-                    ) : adminEmail ? (
-                      <a href={`mailto:${adminEmail}`} className="text-primary hover:underline font-medium">
-                        Click here to contact your server admin
-                      </a>
-                    ) : (
-                      <span>Contact your server admin to set it up</span>
-                    )}.
-                  </>
-                )}
-              </p>
-
               {/* Species alerts row */}
-              <div className={`flex items-center gap-8 mt-4 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`flex items-center gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="w-1/2 shrink-0">
                   <label className="text-sm font-medium block">Telegram species alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {telegramNotifySpecies.length === 0
-                      ? 'Leave empty to receive alerts for all species'
-                      : `Alerts enabled for ${telegramNotifySpecies.length} species`}
+                    {isTelegramLinked ? (
+                      <>
+                        {telegramNotifySpecies.length === 0
+                          ? 'Telegram connected. Receive a Telegram message with a photo each time a species is detected. Leave empty to get alerts for all species.'
+                          : `Telegram connected. Receive a Telegram message with a photo each time one of ${telegramNotifySpecies.length} selected species is detected.`}
+                        {' · '}
+                        {unlinkMutation.isPending ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin inline" />
+                            <span>Unlinking...</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleUnlink}
+                            className="text-muted-foreground hover:underline"
+                          >
+                            Unlink Telegram
+                          </button>
+                        )}
+                      </>
+                    ) : isTelegramConfigured ? (
+                      <>
+                        Receive a Telegram message with a photo each time a species is detected. Link your Telegram account to get started.{' '}
+                        {generateTokenMutation.isPending ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin inline" />
+                            <span className="text-primary">Generating link...</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleGenerateLink}
+                            className="text-primary hover:underline font-medium pointer-events-auto"
+                          >
+                            Click here to link
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        Receive a Telegram message with a photo each time a species is detected. A Telegram bot has not been configured for this server yet.{' '}
+                        {user?.is_superuser ? (
+                          <Link to="/server/settings" className="text-primary hover:underline font-medium pointer-events-auto">
+                            Click here to configure it
+                          </Link>
+                        ) : adminEmail ? (
+                          <a href={`mailto:${adminEmail}`} className="text-primary hover:underline font-medium pointer-events-auto">
+                            Click here to contact your server admin
+                          </a>
+                        ) : (
+                          <span>Contact your server admin to set it up</span>
+                        )}
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="flex-1">
@@ -314,8 +310,8 @@ export const NotificationsPage: React.FC = () => {
               {/* Email reports row */}
               <div className="flex items-center gap-8">
                 <div className="w-1/2 shrink-0">
-                  <label className="text-sm font-medium block">Email reports</label>
-                  <p className="text-sm text-muted-foreground mt-1">Scheduled email summaries with project statistics and insights</p>
+                  <label className="text-sm font-medium block">Project updates</label>
+                  <p className="text-sm text-muted-foreground mt-1">Receive a scheduled email with a summary of your project, including the number of new images, species detected, and camera activity since the last report.</p>
                 </div>
                 <div className="flex-1">
                   <select
@@ -338,7 +334,7 @@ export const NotificationsPage: React.FC = () => {
               <div className="flex items-center gap-8">
                 <div className="w-1/2 shrink-0">
                   <label className="text-sm font-medium block">Excessive image alerts</label>
-                  <p className="text-sm text-muted-foreground mt-1">Get an email when a camera sends too many images in a day</p>
+                  <p className="text-sm text-muted-foreground mt-1">Receive an email alert when a camera exceeds a daily image threshold. This usually indicates a problem like waving grass or direct sunlight triggering the sensor repeatedly.</p>
                 </div>
                 <div className="flex-1">
                   <select
