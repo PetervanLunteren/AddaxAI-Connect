@@ -192,8 +192,8 @@ def is_willfine_2024_daily_report(filepath: str) -> bool:
     """
     Check if daily report file is from Willfine-2024 camera.
 
-    Willfine-2024 reports have both IMEI and CamID fields.
-    Willfine-2025 reports have only IMEI field.
+    Willfine-2024 reports have both IMEI and CamID fields (CamID has a value).
+    Willfine-2025 reports have IMEI and may include an empty CamID field.
 
     Args:
         filepath: Path to daily report file
@@ -205,11 +205,16 @@ def is_willfine_2024_daily_report(filepath: str) -> bool:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
 
-        # Check for both IMEI and CamID fields
+        # Parse CamID value — Willfine-2024 has a non-empty CamID,
+        # Willfine-2025 may include CamID with an empty value
         has_imei = 'IMEI:' in content
-        has_camid = 'CamID:' in content
+        camid_value = ''
+        for line in content.strip().splitlines():
+            if line.strip().startswith('CamID:'):
+                camid_value = line.split(':', 1)[1].strip()
+                break
 
-        is_2024 = has_imei and has_camid
+        is_2024 = has_imei and bool(camid_value)
 
         if is_2024:
             logger.debug("Detected Willfine-2024 daily report", filepath=filepath)

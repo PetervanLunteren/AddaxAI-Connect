@@ -84,8 +84,8 @@ def parse_willfine_2025_report(filepath: str, raw_data: dict) -> dict:
         'battery_percentage': parse_battery(raw_data.get('Battery')),
         'sd_utilization_percentage': parse_sd_card(raw_data.get('SD')),
         'gps_location': parse_gps_decimal(raw_data.get('GPS')),
-        'total_images': int(raw_data.get('Total', 0)),
-        'sent_images': int(raw_data.get('Send', 0)),
+        'total_images': int(raw_data['Total']) if 'Total' in raw_data else None,
+        'sent_images': int(raw_data['Send']) if 'Send' in raw_data else None,
         'report_datetime': parse_report_datetime(raw_data.get('Date')),
     }
 

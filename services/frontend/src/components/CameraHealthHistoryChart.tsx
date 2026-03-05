@@ -40,7 +40,7 @@ interface CameraHealthHistoryChartProps {
 }
 
 type TimeRange = '7' | '30' | '90' | 'custom';
-type Metric = 'battery' | 'signal' | 'sd' | 'images';
+type Metric = 'battery' | 'signal' | 'sd' | 'total' | 'sent';
 
 const METRIC_CONFIG: Record<Metric, {
   label: string;
@@ -74,9 +74,16 @@ const METRIC_CONFIG: Record<Metric, {
     min: 0,
     max: 100,
   },
-  images: {
-    label: 'Images on SD',
+  total: {
+    label: 'Total images',
     field: 'total_images',
+    color: '#4a6741',
+    unit: '',
+    min: 0,
+  },
+  sent: {
+    label: 'Images sent',
+    field: 'sent_images',
     color: '#882000',
     unit: '',
     min: 0,
@@ -198,7 +205,8 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
           <SelectItem value="battery">Battery</SelectItem>
           <SelectItem value="signal">Signal</SelectItem>
           <SelectItem value="sd">SD used</SelectItem>
-          <SelectItem value="images">Images on SD</SelectItem>
+          <SelectItem value="total">Total images</SelectItem>
+          <SelectItem value="sent">Images sent</SelectItem>
         </Select>
 
         <Select
