@@ -204,13 +204,14 @@ def _get_cameras_over_threshold(
     result = db.execute(
         text("""
             SELECT c.id, c.name, c.imei, c.notes, COUNT(*) as image_count,
-                   ST_Y(c.location::geometry) as lat, ST_X(c.location::geometry) as lon
+                   (c.config->'gps_from_report'->>'lat')::float as lat,
+                   (c.config->'gps_from_report'->>'lon')::float as lon
             FROM images i
             JOIN cameras c ON i.camera_id = c.id
             WHERE c.project_id = :project_id
               AND i.uploaded_at >= :start_of_day
               AND i.uploaded_at < :end_of_day
-            GROUP BY c.id, c.name, c.imei, c.notes, c.location
+            GROUP BY c.id, c.name, c.imei, c.notes, c.config
             HAVING COUNT(*) >= :threshold
             ORDER BY COUNT(*) DESC
         """),
