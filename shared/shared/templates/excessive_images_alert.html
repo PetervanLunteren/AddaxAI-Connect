@@ -36,11 +36,10 @@
                         <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.imei }}</span>
                         {% endif %}
                     </p>
-                    <!-- Image count + view link -->
+                    <!-- Image count -->
                     <p style="font-size: 14px; margin: 4px 0 0 0;">
                         <span style="font-weight: 600; color: #882000;">{{ cam.image_count }} images</span>
                         <span style="color: #6b7280;"> received yesterday</span>
-                        &middot; <a href="{{ images_url }}?camera_id={{ cam.id }}&show_empty=true" style="color: #0f6064; text-decoration: none;">View images</a>
                     </p>
                     <!-- Location -->
                     {% if cam.lat is not none and cam.lon is not none %}
@@ -53,6 +52,14 @@
                     {% if cam.notes %}
                     <p style="font-size: 13px; color: #9ca3af; font-style: italic; margin: 4px 0 0 0;">{{ cam.notes }}</p>
                     {% endif %}
+                    <!-- Inspect button -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px;">
+                        <tr>
+                            <td style="background: rgba(15, 96, 100, 0.1); border-radius: 6px;">
+                                <a href="{{ images_url }}?camera_id={{ cam.id }}&show_empty=true" style="display: inline-block; padding: 6px 14px; font-size: 13px; font-weight: 600; color: #0f6064; text-decoration: none;">Inspect triggers</a>
+                            </td>
+                        </tr>
+                    </table>
                 </td>
             </tr>
             {% endfor %}
@@ -61,19 +68,7 @@
 </tr>
 {% endblock %}
 
-{% block cta %}
-<tr>
-    <td align="center" style="padding: 24px; border-top: 1px solid #e5e7eb;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-                <td style="background: #0f6064; border-radius: 8px;">
-                    <a href="{{ images_url }}?camera_id={{ cameras | map(attribute='id') | join(',') }}&show_empty=true" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">View all flagged images</a>
-                </td>
-            </tr>
-        </table>
-    </td>
-</tr>
-{% endblock %}
+{% block cta %}{% endblock %}
 
 {% block footer_link %}
 <p style="margin: 0;"><a href="{{ settings_url }}" style="color: #0f6064; text-decoration: none;">Manage notification settings</a></p>
