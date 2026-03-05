@@ -7,6 +7,7 @@ evaluates rules, and routes to appropriate channel queues.
 Also runs scheduled jobs:
 - Daily battery digest at 12:00 UTC
 - Email reports: daily at 06:00 UTC, weekly on Monday, monthly on 1st
+- Excessive image alerts at 06:30 UTC
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -19,6 +20,7 @@ from rule_engine import get_matching_users
 from event_handlers import handle_species_detection, handle_low_battery, handle_system_health
 from battery_digest import send_daily_battery_digest
 from email_report import send_daily_reports, send_weekly_reports, send_monthly_reports
+from excessive_images import send_excessive_image_alerts
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -129,10 +131,21 @@ def main() -> None:
         name='Send monthly email reports at 06:00 UTC on 1st'
     )
 
+    # Excessive image alerts - daily at 06:30 UTC
+    scheduler.add_job(
+        send_excessive_image_alerts,
+        'cron',
+        hour=6,
+        minute=30,
+        id='excessive_image_alerts',
+        name='Send excessive image alerts at 06:30 UTC'
+    )
+
     scheduler.start()
 
     logger.info("Scheduled daily battery digest at 12:00 UTC")
     logger.info("Scheduled email reports: daily 06:00, weekly Monday 06:00, monthly 1st 06:00 UTC")
+    logger.info("Scheduled excessive image alerts at 06:30 UTC")
 
     # Listen to notification events queue
     queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)

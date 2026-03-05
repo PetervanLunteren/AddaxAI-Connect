@@ -83,6 +83,10 @@ export const NotificationsPage: React.FC = () => {
   const [emailReportsEnabled, setEmailReportsEnabled] = useState(false);
   const [reportFrequency, setReportFrequency] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
 
+  // Excessive image alerts state
+  const [excessiveImagesEnabled, setExcessiveImagesEnabled] = useState(false);
+  const [excessiveImagesThreshold, setExcessiveImagesThreshold] = useState(50);
+
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['notification-preferences', projectIdNum],
@@ -165,6 +169,11 @@ export const NotificationsPage: React.FC = () => {
         const emailReportConfig = notificationChannels.email_report || {};
         setEmailReportsEnabled(emailReportConfig.enabled || false);
         setReportFrequency(emailReportConfig.frequency || 'weekly');
+
+        // Excessive image alerts configuration
+        const excessiveConfig = notificationChannels.excessive_images || {};
+        setExcessiveImagesEnabled(excessiveConfig.enabled || false);
+        setExcessiveImagesThreshold(excessiveConfig.threshold || 50);
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
@@ -308,6 +317,10 @@ export const NotificationsPage: React.FC = () => {
       email_report: {
         enabled: emailReportsEnabled,
         frequency: reportFrequency
+      },
+      excessive_images: {
+        enabled: excessiveImagesEnabled,
+        threshold: excessiveImagesThreshold
       }
     };
 
@@ -535,6 +548,33 @@ export const NotificationsPage: React.FC = () => {
                     <option value="weekly">Weekly (sent every Monday)</option>
                     <option value="monthly">Monthly (sent on the 1st)</option>
                   </select>
+                </div>
+              )}
+
+              <Checkbox
+                id="excessive-images"
+                checked={excessiveImagesEnabled}
+                onChange={setExcessiveImagesEnabled}
+                label="Excessive image alerts"
+              />
+
+              {excessiveImagesEnabled && (
+                <div className="pl-8">
+                  <label htmlFor="excessive-threshold" className="block text-sm font-medium mb-2">
+                    Image threshold per camera per day
+                  </label>
+                  <input
+                    id="excessive-threshold"
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={excessiveImagesThreshold}
+                    onChange={(e) => setExcessiveImagesThreshold(Math.max(1, Math.min(1000, Number(e.target.value) || 50)))}
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Get notified when a camera sends more than this many images in a day
+                  </p>
                 </div>
               )}
             </CardContent>
