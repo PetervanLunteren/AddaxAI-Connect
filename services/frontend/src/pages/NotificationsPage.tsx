@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, Save, X, MessageCircle } from 'lucide-react';
+import { Loader2, Save, X, MessageCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
@@ -310,17 +310,18 @@ export const NotificationsPage: React.FC = () => {
                   <label className="text-sm font-medium block">Project updates</label>
                   <p className="text-sm text-muted-foreground mt-1">Receive a scheduled email with a summary of your project, including the number of new images, species detected, and camera activity since the last report.</p>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <select
                     value={reportFrequency}
                     onChange={(e) => setReportFrequency(e.target.value as 'disabled' | 'daily' | 'weekly' | 'monthly')}
-                    className="w-full h-10 px-3 text-sm border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value="disabled">Disabled</option>
                     <option value="daily">Daily (sent at 06:00 UTC)</option>
                     <option value="weekly">Weekly (sent every Monday)</option>
                     <option value="monthly">Monthly (sent on the 1st)</option>
                   </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
               </div>
 
@@ -333,11 +334,11 @@ export const NotificationsPage: React.FC = () => {
                   <label className="text-sm font-medium block">Excessive image alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">Receive an email alert when a camera exceeds a daily image threshold. This usually indicates a problem like waving grass or direct sunlight triggering the sensor repeatedly.</p>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <select
                     value={excessiveImagesThreshold}
                     onChange={(e) => setExcessiveImagesThreshold(Number(e.target.value))}
-                    className="w-full h-10 px-3 text-sm border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value={0}>Disabled</option>
                     <option value={25}>25 images per day</option>
@@ -346,6 +347,7 @@ export const NotificationsPage: React.FC = () => {
                     <option value={200}>200 images per day</option>
                     <option value={500}>500 images per day</option>
                   </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
               </div>
 
