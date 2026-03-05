@@ -187,6 +187,18 @@ export const adminApi = {
   },
 
   /**
+   * Get Telegram status (any authenticated user)
+   */
+  getTelegramStatus: async (): Promise<{
+    is_configured: boolean;
+    bot_username: string | null;
+    admin_email: string | null;
+  }> => {
+    const response = await apiClient.get('/api/admin/telegram/status');
+    return response.data;
+  },
+
+  /**
    * Configure Telegram bot
    */
   configureTelegram: async (data: TelegramConfigureRequest): Promise<TelegramConfig> => {
