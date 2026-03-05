@@ -2,14 +2,16 @@
  * Login page
  */
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { AuthLayout } from '../components/AuthLayout';
 import apiClient from '../api/client';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
+  const returnTo = searchParams.get('from') || '/dashboard';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +33,7 @@ export const Login: React.FC = () => {
 
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate(returnTo);
     } catch (err: any) {
       if (err.response?.status === 400) {
         if (err.response?.data?.detail === 'LOGIN_USER_NOT_VERIFIED') {
@@ -54,7 +56,7 @@ export const Login: React.FC = () => {
     try {
       const res = await apiClient.post('/api/demo-login');
       localStorage.setItem('access_token', res.data.access_token);
-      navigate('/dashboard');
+      navigate(returnTo);
       window.location.reload();
     } catch {
       setError('Demo login failed. Please try again.');

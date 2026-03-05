@@ -49,7 +49,11 @@ apiClient.interceptors.response.use(
       // Token expired or invalid - clear and redirect to login
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      const currentPath = window.location.pathname + window.location.search;
+      const loginUrl = currentPath && currentPath !== '/'
+        ? `/login?from=${encodeURIComponent(currentPath)}`
+        : '/login';
+      window.location.href = loginUrl;
     }
 
     return Promise.reject(error);
