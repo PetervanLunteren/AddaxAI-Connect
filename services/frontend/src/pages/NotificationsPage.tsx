@@ -1,14 +1,13 @@
 /**
  * Notifications page for project-level notification preferences
  *
- * Multi-channel notification configuration with separate settings per channel
+ * Two-column layout matching ProjectSettingsPage pattern
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, Save, Check, X, MessageCircle, XCircle, Copy, Settings, Mail } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
-import { Checkbox } from '../components/ui/Checkbox';
+import { Loader2, Save, X, MessageCircle } from 'lucide-react';
+import { Card, CardContent } from '../components/ui/Card';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
@@ -27,36 +26,6 @@ const DEEPFAUNE_SPECIES = [
   'wild_boar', 'wolf', 'wolverine'
 ].sort();
 
-// Copy button component for inline code examples
-const CopyButton: React.FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex items-center justify-center p-1 ml-1 hover:bg-accent rounded transition-colors"
-      title="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-3 w-3 text-green-500" />
-      ) : (
-        <Copy className="h-3 w-3 text-muted-foreground" />
-      )}
-    </button>
-  );
-};
-
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { projectId } = useParams<{ projectId: string }>();
@@ -64,12 +33,8 @@ export const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedProject } = useProject();
 
-  // Telegram channel state
-  const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [telegramChatId, setTelegramChatId] = useState('');
+  // Telegram species state
   const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
-  const [telegramTestStatus, setTelegramTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [telegramTestMessage, setTelegramTestMessage] = useState('');
 
   // Telegram linking state
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -91,25 +56,13 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0,
   });
 
-  // Query Telegram configuration (to check if bot is set up)
-  const { data: telegramConfig } = useQuery({
-    queryKey: ['telegram-config'],
-    queryFn: async () => {
-      try {
-        return await adminApi.getTelegramConfig();
-      } catch (error: any) {
-        // 404 is expected when Telegram is not configured yet
-        if (error?.response?.status === 404) {
-          return { is_configured: false, bot_username: null };
-        }
-        throw error;
-      }
-    },
-    retry: false,
+  // Query Telegram status (any authenticated user)
+  const { data: telegramStatus } = useQuery({
+    queryKey: ['telegram-status'],
+    queryFn: () => adminApi.getTelegramStatus(),
   });
-
-  const isTelegramConfigured = telegramConfig?.is_configured ?? false;
-  const botUsername = telegramConfig?.bot_username ?? null;
+  const isTelegramConfigured = telegramStatus?.is_configured ?? false;
+  const adminEmail = telegramStatus?.admin_email ?? null;
 
   // Use project's included species if configured, otherwise show all species
   // Always include person/vehicle as they are detection-level categories
@@ -133,19 +86,8 @@ export const NotificationsPage: React.FC = () => {
     if (preferences) {
       const notificationChannels = (preferences as any).notification_channels;
 
-      // Check which channels have contact info configured
-      const hasTelegramChatId = !!(preferences as any).telegram_chat_id;
-
-      // If notification_channels JSON exists, use it (new multi-channel format)
       if (notificationChannels) {
         const speciesConfig = notificationChannels.species_detection || {};
-        const speciesChannels = speciesConfig.channels || [];
-
-        // Telegram configuration
-        const telegramInSpecies = speciesChannels.includes('telegram');
-
-        setTelegramEnabled(telegramInSpecies && hasTelegramChatId);
-        setTelegramChatId((preferences as any).telegram_chat_id || '');
 
         // Convert species to options, filtering out species no longer in the project
         const telegramSpeciesValues = (speciesConfig.notify_species || [])
@@ -167,17 +109,13 @@ export const NotificationsPage: React.FC = () => {
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
-        const speciesOptions = (preferences.notify_species || [])
+        const speciesOpts = (preferences.notify_species || [])
           .filter(species => availableSpecies.includes(species))
           .map(species => ({
             label: normalizeLabel(species),
             value: species
           }));
-
-        // Telegram - mark as enabled if chat ID exists and enabled
-        setTelegramEnabled(hasTelegramChatId && preferences.enabled);
-        setTelegramChatId((preferences as any).telegram_chat_id || '');
-        setTelegramNotifySpecies(speciesOptions);
+        setTelegramNotifySpecies(speciesOpts);
       }
     }
   }, [preferences, availableSpecies]);
@@ -194,31 +132,6 @@ export const NotificationsPage: React.FC = () => {
     },
   });
 
-  // Test Telegram message mutation
-  const testTelegramMutation = useMutation({
-    mutationFn: () => adminApi.sendTestTelegramMessage(telegramChatId.trim(), 'Test from AddaxAI Connect!'),
-    onSuccess: () => {
-      setTelegramTestStatus('success');
-      setTelegramTestMessage('Test message sent!');
-      setTimeout(() => { setTelegramTestStatus('idle'); setTelegramTestMessage(''); }, 5000);
-    },
-    onError: (error: any) => {
-      setTelegramTestStatus('error');
-      setTelegramTestMessage(error.response?.data?.detail || 'Failed to send');
-      setTimeout(() => { setTelegramTestStatus('idle'); setTelegramTestMessage(''); }, 5000);
-    },
-  });
-
-  const handleTestTelegram = () => {
-    if (!telegramChatId.trim()) {
-      setTelegramTestStatus('error');
-      setTelegramTestMessage('Enter chat ID first');
-      setTimeout(() => { setTelegramTestStatus('idle'); setTelegramTestMessage(''); }, 3000);
-      return;
-    }
-    testTelegramMutation.mutate();
-  };
-
   // Query Telegram link status
   const { data: linkStatus, refetch: refetchLinkStatus } = useQuery({
     queryKey: ['telegram-link-status', projectIdNum],
@@ -226,6 +139,9 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0 && isTelegramConfigured,
     refetchInterval: false,
   });
+
+  const isTelegramLinked = linkStatus?.linked ?? false;
+  const isTelegramUsable = isTelegramConfigured && isTelegramLinked;
 
   // Generate Telegram link token mutation
   const generateTokenMutation = useMutation({
@@ -242,10 +158,6 @@ export const NotificationsPage: React.FC = () => {
 
   const handleGenerateLink = () => {
     generateTokenMutation.mutate();
-  };
-
-  const handleCheckStatus = () => {
-    refetchLinkStatus();
   };
 
   // Unlink Telegram mutation
@@ -270,22 +182,19 @@ export const NotificationsPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Clean inputs
-    const cleanedChatId = telegramChatId.trim();
-
     // Build notification_channels JSON structure
     const channels: string[] = [];
-    if (telegramEnabled) channels.push('telegram');
+    if (isTelegramLinked) channels.push('telegram');
 
     // Use Telegram settings for legacy fields
-    const legacySpeciesValues = telegramEnabled ? telegramNotifySpecies.map(opt => opt.value) : [];
+    const legacySpeciesValues = isTelegramLinked ? telegramNotifySpecies.map(opt => opt.value) : [];
 
     // Build notification_channels JSON with per-channel configuration
     const notificationChannels = {
       species_detection: {
-        enabled: telegramEnabled,
+        enabled: isTelegramLinked,
         channels: channels,
-        notify_species: telegramEnabled
+        notify_species: isTelegramLinked
           ? (telegramNotifySpecies.length > 0 ? telegramNotifySpecies.map(opt => opt.value) : null)
           : null
       },
@@ -301,9 +210,9 @@ export const NotificationsPage: React.FC = () => {
 
     updateMutation.mutate({
       // Legacy fields (for backward compatibility)
-      enabled: telegramEnabled,
+      enabled: isTelegramLinked,
       signal_phone: null,
-      telegram_chat_id: telegramEnabled ? (cleanedChatId || null) : null,
+      telegram_chat_id: isTelegramLinked ? (linkStatus?.chat_id || null) : null,
       notify_species: legacySpeciesValues.length > 0 ? legacySpeciesValues : null,
       notify_low_battery: false,
       battery_threshold: 30,
@@ -323,158 +232,126 @@ export const NotificationsPage: React.FC = () => {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Telegram notifications card */}
+        <form onSubmit={handleSubmit}>
           <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                <CardTitle>Telegram notifications</CardTitle>
-              </div>
-              <CardDescription>
-                Receive notifications via Telegram messenger
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Checkbox
-                id="telegram-enabled"
-                checked={telegramEnabled}
-                onChange={setTelegramEnabled}
-                label="Enable Telegram notifications"
-                disabled={!isTelegramConfigured}
-              />
+            <CardContent className="pt-6">
 
-              {/* Link status - when Telegram configured and enabled */}
-              {isTelegramConfigured && telegramEnabled && (
-                <div className="mt-3 mb-4">
-                  {linkStatus?.linked ? (
-                    // Linked - show simple caption with unlink
-                    <div className="mt-3">
-                      <p className="text-sm text-muted-foreground">
-                        Your Telegram account is connected and ready to receive notifications.{' '}
-                        {unlinkMutation.isPending ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin inline" />
-                            <span className="text-primary">Unlinking...</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleUnlink}
-                            className="text-primary hover:underline font-medium"
-                          >
-                            Click here to unlink
-                          </button>
-                        )}.
-                      </p>
-                    </div>
-                  ) : (
-                    // Not linked - show simple caption with link
-                    <div className="mt-3">
-                      <p className="text-sm text-muted-foreground">
-                        Telegram not linked to your account.{' '}
-                        {generateTokenMutation.isPending ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin inline" />
-                            <span className="text-primary">Generating link...</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleGenerateLink}
-                            className="text-primary hover:underline font-medium"
-                          >
-                            Click here to link
-                          </button>
-                        )}.
-                      </p>
-                    </div>
-                  )}
+              {/* Telegram section */}
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Telegram</h3>
+
+              {/* Telegram status message */}
+              <p className="text-sm text-muted-foreground mt-3">
+                {isTelegramLinked ? (
+                  <>
+                    Your Telegram account is connected and ready to receive notifications.{' '}
+                    {unlinkMutation.isPending ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin inline" />
+                        <span className="text-primary">Unlinking...</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleUnlink}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Click here to unlink
+                      </button>
+                    )}.
+                  </>
+                ) : isTelegramConfigured ? (
+                  <>
+                    Telegram not linked to your account.{' '}
+                    {generateTokenMutation.isPending ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin inline" />
+                        <span className="text-primary">Generating link...</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleGenerateLink}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Click here to link
+                      </button>
+                    )}.
+                  </>
+                ) : (
+                  <>
+                    A Telegram bot has not been configured yet.{' '}
+                    {user?.is_superuser ? (
+                      <Link to="/server/settings" className="text-primary hover:underline font-medium">
+                        Click here to configure it
+                      </Link>
+                    ) : adminEmail ? (
+                      <a href={`mailto:${adminEmail}`} className="text-primary hover:underline font-medium">
+                        Click here to contact your server admin
+                      </a>
+                    ) : (
+                      <span>Contact your server admin to set it up</span>
+                    )}.
+                  </>
+                )}
+              </p>
+
+              {/* Species alerts row */}
+              <div className={`flex items-center gap-8 mt-4 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">Species alerts</label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {telegramNotifySpecies.length === 0
+                      ? 'Leave empty to receive notifications for all species'
+                      : `Notifications enabled for ${telegramNotifySpecies.length} species`}
+                  </p>
                 </div>
-              )}
-
-              {/* Warning banner - when Telegram not configured */}
-              {telegramEnabled && !isTelegramConfigured && (
-                <div className="mb-4 p-4 border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 rounded-md">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 mt-1">
-                      <XCircle className="h-8 w-8 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold mb-2 text-amber-900 dark:text-amber-100">Telegram not configured</h3>
-                      <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                        Telegram notifications are not available because the bot has not been set up yet.
-                      </p>
-                      {user?.is_superuser ? (
-                        <Link
-                          to="/server/settings"
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium text-sm"
-                        >
-                          <Settings className="h-4 w-4" />
-                          Configure Telegram
-                        </Link>
-                      ) : (
-                        <p className="text-sm text-amber-800 dark:text-amber-200">
-                          Please contact your administrator to set up Telegram notifications.
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                <div className="flex-1">
+                  <MultiSelect
+                    options={speciesOptions}
+                    value={telegramNotifySpecies}
+                    onChange={setTelegramNotifySpecies}
+                    placeholder="Select species to notify about..."
+                  />
                 </div>
-              )}
-
-              {/* Notification options - only show if enabled and linked */}
-              {telegramEnabled && linkStatus?.linked && (
-                <>
-                  {/* Species alerts */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Species alerts
-                    </label>
-                    <MultiSelect
-                      options={speciesOptions}
-                      value={telegramNotifySpecies}
-                      onChange={setTelegramNotifySpecies}
-                      placeholder="Select species to notify about..."
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {telegramNotifySpecies.length === 0
-                        ? 'Leave empty to receive notifications for all species'
-                        : `Notifications enabled for ${telegramNotifySpecies.length} ${telegramNotifySpecies.length === 1 ? 'species' : 'species'}`}
-                    </p>
-                  </div>
-
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Email reports card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                <CardTitle>Email reports</CardTitle>
               </div>
-              <CardDescription>
-                Receive scheduled email summaries with project statistics and insights
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Checkbox
-                id="email-reports-enabled"
-                checked={emailReportsEnabled}
-                onChange={setEmailReportsEnabled}
-                label="Enable email reports"
-              />
 
-              {emailReportsEnabled && (
-                <div>
-                  <label htmlFor="report-frequency" className="block text-sm font-medium mb-2">
-                    Report frequency
-                  </label>
+              {/* Divider */}
+              <div className="border-t my-6" />
+
+              {/* Email section */}
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Email</h3>
+
+              {/* Email reports row */}
+              <div className="flex items-center gap-8 mt-4">
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">Email reports</label>
+                  <p className="text-sm text-muted-foreground mt-1">Scheduled summaries with project statistics and insights</p>
+                </div>
+                <div className="flex-1">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={emailReportsEnabled}
+                    onClick={() => setEmailReportsEnabled(!emailReportsEnabled)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      emailReportsEnabled ? 'bg-[#0f6064]' : 'bg-gray-300'
+                    } cursor-pointer`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      emailReportsEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Report frequency row */}
+              <div className={`flex items-center gap-8 mt-4 ${!emailReportsEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">Report frequency</label>
+                  <p className="text-sm text-muted-foreground mt-1">How often to send email reports</p>
+                </div>
+                <div className="flex-1">
                   <select
-                    id="report-frequency"
                     value={reportFrequency}
                     onChange={(e) => setReportFrequency(e.target.value as 'daily' | 'weekly' | 'monthly')}
                     className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -484,22 +361,42 @@ export const NotificationsPage: React.FC = () => {
                     <option value="monthly">Monthly (sent on the 1st)</option>
                   </select>
                 </div>
-              )}
+              </div>
 
-              <Checkbox
-                id="excessive-images"
-                checked={excessiveImagesEnabled}
-                onChange={setExcessiveImagesEnabled}
-                label="Excessive image alerts"
-              />
+              {/* Divider */}
+              <div className="border-t my-6" />
 
-              {excessiveImagesEnabled && (
-                <div className="pl-8">
-                  <label htmlFor="excessive-threshold" className="block text-sm font-medium mb-2">
-                    Image threshold per camera per day
-                  </label>
+              {/* Excessive image alerts row */}
+              <div className="flex items-center gap-8">
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">Excessive image alerts</label>
+                  <p className="text-sm text-muted-foreground mt-1">Get notified when a camera sends too many images in a day</p>
+                </div>
+                <div className="flex-1">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={excessiveImagesEnabled}
+                    onClick={() => setExcessiveImagesEnabled(!excessiveImagesEnabled)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                      excessiveImagesEnabled ? 'bg-[#0f6064]' : 'bg-gray-300'
+                    } cursor-pointer`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      excessiveImagesEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Image threshold row */}
+              <div className={`flex items-center gap-8 mt-4 ${!excessiveImagesEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">Image threshold</label>
+                  <p className="text-sm text-muted-foreground mt-1">Alert when a camera exceeds this many images per day</p>
+                </div>
+                <div className="flex-1">
                   <input
-                    id="excessive-threshold"
                     type="number"
                     min={1}
                     max={1000}
@@ -507,34 +404,35 @@ export const NotificationsPage: React.FC = () => {
                     onChange={(e) => setExcessiveImagesThreshold(Math.max(1, Math.min(1000, Number(e.target.value) || 50)))}
                     className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Get notified when a camera sends more than this many images in a day
-                  </p>
                 </div>
-              )}
+              </div>
+
+              {/* Divider */}
+              <div className="border-t my-6" />
+
+              {/* Save button */}
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                >
+                  {updateMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save preferences
+                    </>
+                  )}
+                </button>
+              </div>
+
             </CardContent>
           </Card>
-
-          {/* Save button */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={updateMutation.isPending}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-            >
-              {updateMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Save preferences
-                </>
-              )}
-            </button>
-          </div>
         </form>
       )}
 

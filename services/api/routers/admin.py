@@ -937,6 +937,40 @@ async def get_telegram_config(
     return config
 
 
+class TelegramStatusResponse(BaseModel):
+    """Public Telegram status (no secrets)."""
+    is_configured: bool
+    bot_username: Optional[str] = None
+    admin_email: Optional[str] = None
+
+
+@router.get("/telegram/status", response_model=TelegramStatusResponse)
+async def get_telegram_status(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Check whether a Telegram bot is configured (any authenticated user).
+
+    Returns configuration status, bot username, and admin contact email.
+    Never exposes the bot token.
+    """
+    result = await db.execute(select(TelegramConfig))
+    config = result.scalar_one_or_none()
+
+    # Find first active superuser email for contact info
+    admin_result = await db.execute(
+        select(User).where(User.is_superuser == True, User.is_active == True).limit(1)
+    )
+    admin = admin_result.scalar_one_or_none()
+
+    return TelegramStatusResponse(
+        is_configured=bool(config and config.is_configured),
+        bot_username=config.bot_username if config and config.is_configured else None,
+        admin_email=admin.email if admin else None,
+    )
+
+
 @router.post(
     "/telegram/configure",
     response_model=TelegramConfigResponse,
