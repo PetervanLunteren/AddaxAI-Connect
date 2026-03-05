@@ -3,7 +3,7 @@
  * Provides filters for species and date range, and view mode selection
  */
 import { useQuery } from '@tanstack/react-query';
-import { Circle, Hexagon, Group, Map, Satellite, Navigation } from 'lucide-react';
+import { Circle, Hexagon, Group, Map, Satellite, Navigation, ChevronDown } from 'lucide-react';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
 import { imagesApi } from '../../api/images';
@@ -106,20 +106,23 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
           <label htmlFor="species-filter" className="block text-sm font-medium text-gray-700 mb-1">
             Species
           </label>
-          <select
-            id="species-filter"
-            value={species}
-            onChange={(e) => handleSpeciesChange(e.target.value)}
-            disabled={speciesLoading}
-            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
-          >
-            <option value="">All species</option>
-            {speciesOptions?.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="species-filter"
+              value={species}
+              onChange={(e) => handleSpeciesChange(e.target.value)}
+              disabled={speciesLoading}
+              className="w-full h-10 px-3 pr-8 border border-gray-300 rounded-md text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100"
+            >
+              <option value="">All species</option>
+              {speciesOptions?.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
         </div>
 
         <div>
