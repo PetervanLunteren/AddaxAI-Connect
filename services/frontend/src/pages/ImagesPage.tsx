@@ -3,6 +3,7 @@
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal, Check } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -22,6 +23,7 @@ export const ImagesPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
   const [pendingFirstImage, setPendingFirstImage] = useState(false);
@@ -74,6 +76,40 @@ export const ImagesPage: React.FC = () => {
     queryFn: () => camerasApi.getAll(projectId),
     enabled: projectId !== undefined,
   });
+
+  // Initialize filters from URL query params (e.g. ?camera_id=5&show_empty=true)
+  useEffect(() => {
+    if (!cameras) return;
+    const cameraIdParam = searchParams.get('camera_id');
+    const showEmptyParam = searchParams.get('show_empty');
+    if (!cameraIdParam && !showEmptyParam) return;
+
+    const updates: Partial<typeof filters> = {};
+
+    if (cameraIdParam) {
+      const ids = cameraIdParam.split(',');
+      const matched = cameras
+        .filter(c => ids.includes(String(c.id)))
+        .map(c => ({ label: c.name, value: c.id }));
+      if (matched.length > 0) {
+        updates.camera_ids = matched;
+      }
+    }
+
+    if (showEmptyParam === 'true') {
+      updates.show_empty = true;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setFilters(prev => ({ ...prev, ...updates }));
+      setShowFilters(true);
+      setPage(1);
+      // Clear params from URL so they don't stick around
+      searchParams.delete('camera_id');
+      searchParams.delete('show_empty');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [cameras]);
 
   // Fetch species for filter dropdown
   const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
