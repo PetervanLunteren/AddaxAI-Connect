@@ -235,14 +235,11 @@ export const NotificationsPage: React.FC = () => {
               {/* Species alerts row */}
               <div className={`flex items-center gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="w-1/2 shrink-0">
-                  <label className="text-sm font-medium block">Telegram species alerts</label>
+                  <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked ? (
                       <>
-                        {telegramNotifySpecies.length === 0
-                          ? 'Telegram connected. Receive a Telegram message with a photo each time a species is detected. Leave empty to get alerts for all species.'
-                          : `Telegram connected. Receive a Telegram message with a photo each time one of ${telegramNotifySpecies.length} selected species is detected.`}
-                        {' · '}
+                        {'Receive an instant Telegram message with a photo each time a species is detected. Leave empty to get alerts for all species. '}
                         {unlinkMutation.isPending ? (
                           <span className="inline-flex items-center gap-1">
                             <Loader2 className="h-3 w-3 animate-spin inline" />
@@ -260,7 +257,7 @@ export const NotificationsPage: React.FC = () => {
                       </>
                     ) : isTelegramConfigured ? (
                       <>
-                        Receive a Telegram message with a photo each time a species is detected. Link your Telegram account to get started.{' '}
+                        Receive an instant Telegram message with a photo each time a species is detected. Link your Telegram account to get started.{' '}
                         {generateTokenMutation.isPending ? (
                           <span className="inline-flex items-center gap-1">
                             <Loader2 className="h-3 w-3 animate-spin inline" />
@@ -278,7 +275,7 @@ export const NotificationsPage: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        Receive a Telegram message with a photo each time a species is detected. A Telegram bot has not been configured for this server yet.{' '}
+                        Receive an instant Telegram message with a photo each time a species is detected. A Telegram bot has not been configured for this server yet.{' '}
                         {user?.is_superuser ? (
                           <Link to="/server/settings" className="text-primary hover:underline font-medium pointer-events-auto">
                             Click here to configure it
