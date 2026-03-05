@@ -3,7 +3,7 @@
  *
  * Multi-channel notification configuration with separate settings per channel
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, Save, Check, X, MessageCircle, XCircle, Copy, Settings, Mail } from 'lucide-react';
@@ -116,15 +116,20 @@ export const NotificationsPage: React.FC = () => {
 
   // Use project's included species if configured, otherwise show all species
   // Always include person/vehicle as they are detection-level categories
-  const baseSpecies = selectedProject?.included_species ?? DEEPFAUNE_SPECIES;
-  const availableSpecies = [...new Set([...baseSpecies, 'person', 'vehicle'])];
-  const speciesOptions: Option[] = availableSpecies
-    .slice()
-    .sort()
-    .map(species => ({
-      label: normalizeLabel(species),
-      value: species
-    }));
+  const availableSpecies = useMemo(() => {
+    const baseSpecies = selectedProject?.included_species ?? DEEPFAUNE_SPECIES;
+    return [...new Set([...baseSpecies, 'person', 'vehicle'])];
+  }, [selectedProject?.included_species]);
+  const speciesOptions: Option[] = useMemo(() =>
+    availableSpecies
+      .slice()
+      .sort()
+      .map(species => ({
+        label: normalizeLabel(species),
+        value: species
+      })),
+    [availableSpecies]
+  );
 
   // Update form when preferences load
   useEffect(() => {
