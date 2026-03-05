@@ -250,16 +250,20 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total images</span>
+                  <span>{camera.total_images ?? 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Images sent today</span>
+                  <span>{camera.sent_images ?? 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Last report</span>
                   <span>{formatTimestamp(camera.last_report_timestamp)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Last image</span>
                   <span>{formatTimestamp(camera.last_image_timestamp)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Images on SD card</span>
-                  <span>{camera.total_images ?? 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Location</span>
