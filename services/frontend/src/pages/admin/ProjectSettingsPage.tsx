@@ -340,12 +340,12 @@ export const ProjectSettingsPage: React.FC = () => {
                 Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event is the maximum individuals seen in any single image. Affects all statistics retroactively.
               </p>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 relative">
               <select
                 value={independenceInterval}
                 onChange={(e) => setIndependenceInterval(parseInt(e.target.value, 10))}
                 disabled={isSaving}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0f6064] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 pr-8 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {INDEPENDENCE_INTERVAL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -353,6 +353,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             </div>
           </div>
 

@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, SlidersHorizontal, Check } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal, Check } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
@@ -331,15 +331,18 @@ export const ImagesPage: React.FC = () => {
               />
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium">Verification:</label>
-                <select
-                  className="h-9 px-3 border border-input rounded-md bg-background text-sm"
-                  value={filters.verified}
-                  onChange={(e) => handleFilterChange('verified', e.target.value)}
-                >
-                  <option value="">All</option>
-                  <option value="false">Unverified</option>
-                  <option value="true">Verified</option>
-                </select>
+                <div className="relative">
+                  <select
+                    className="h-9 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none"
+                    value={filters.verified}
+                    onChange={(e) => handleFilterChange('verified', e.target.value)}
+                  >
+                    <option value="">All</option>
+                    <option value="false">Unverified</option>
+                    <option value="true">Verified</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
               </div>
             </div>
 
