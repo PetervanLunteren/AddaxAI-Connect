@@ -236,11 +236,8 @@ export const NotificationsPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
 
-              {/* Telegram section */}
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Telegram</h3>
-
               {/* Telegram status message */}
-              <p className="text-sm text-muted-foreground mt-3">
+              <p className="text-sm text-muted-foreground">
                 {isTelegramLinked ? (
                   <>
                     Your Telegram account is connected and ready to receive notifications.{' '}
@@ -298,11 +295,11 @@ export const NotificationsPage: React.FC = () => {
               {/* Species alerts row */}
               <div className={`flex items-center gap-8 mt-4 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="w-1/2 shrink-0">
-                  <label className="text-sm font-medium block">Species alerts</label>
+                  <label className="text-sm font-medium block">Telegram species alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {telegramNotifySpecies.length === 0
-                      ? 'Leave empty to receive notifications for all species'
-                      : `Notifications enabled for ${telegramNotifySpecies.length} species`}
+                      ? 'Leave empty to receive alerts for all species'
+                      : `Alerts enabled for ${telegramNotifySpecies.length} species`}
                   </p>
                 </div>
                 <div className="flex-1">
@@ -318,14 +315,11 @@ export const NotificationsPage: React.FC = () => {
               {/* Divider */}
               <div className="border-t my-6" />
 
-              {/* Email section */}
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Email</h3>
-
               {/* Email reports row */}
-              <div className="flex items-center gap-8 mt-4">
+              <div className="flex items-center gap-8">
                 <div className="w-1/2 shrink-0">
                   <label className="text-sm font-medium block">Email reports</label>
-                  <p className="text-sm text-muted-foreground mt-1">Scheduled summaries with project statistics and insights</p>
+                  <p className="text-sm text-muted-foreground mt-1">Scheduled email summaries with project statistics and insights</p>
                 </div>
                 <div className="flex-1">
                   <button
@@ -370,7 +364,7 @@ export const NotificationsPage: React.FC = () => {
               <div className="flex items-center gap-8">
                 <div className="w-1/2 shrink-0">
                   <label className="text-sm font-medium block">Excessive image alerts</label>
-                  <p className="text-sm text-muted-foreground mt-1">Get notified when a camera sends too many images in a day</p>
+                  <p className="text-sm text-muted-foreground mt-1">Get an email when a camera sends too many images in a day</p>
                 </div>
                 <div className="flex-1">
                   <button
