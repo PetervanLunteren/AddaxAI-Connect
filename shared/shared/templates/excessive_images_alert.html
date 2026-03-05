@@ -36,10 +36,11 @@
                         <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.imei }}</span>
                         {% endif %}
                     </p>
-                    <!-- Image count -->
+                    <!-- Image count + view link -->
                     <p style="font-size: 14px; margin: 4px 0 0 0;">
                         <span style="font-weight: 600; color: #882000;">{{ cam.image_count }} images</span>
                         <span style="color: #6b7280;"> received yesterday</span>
+                        &middot; <a href="{{ images_url }}?camera_id={{ cam.id }}&show_empty=true" style="color: #0f6064; text-decoration: none;">View images</a>
                     </p>
                     <!-- Location -->
                     {% if cam.lat is not none and cam.lon is not none %}
@@ -66,7 +67,7 @@
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
             <tr>
                 <td style="background: #0f6064; border-radius: 8px;">
-                    <a href="{{ images_url }}" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">View images</a>
+                    <a href="{{ images_url }}?camera_id={{ cameras | map(attribute='id') | join(',') }}&show_empty=true" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">View all flagged images</a>
                 </td>
             </tr>
         </table>

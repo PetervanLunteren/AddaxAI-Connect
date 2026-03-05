@@ -260,6 +260,7 @@ def _generate_text_content(
         if cam['imei']:
             lines.append(f"    IMEI: {cam['imei']}")
         lines.append(f"    Images: {cam['image_count']}")
+        lines.append(f"    View: {images_url}?camera_id={cam['id']}&show_empty=true")
         if cam['lat'] is not None and cam['lon'] is not None:
             lines.append(f"    Location: {cam['lat']:.6f}, {cam['lon']:.6f}")
             lines.append(f"    Map: https://www.google.com/maps?q={cam['lat']},{cam['lon']}")
