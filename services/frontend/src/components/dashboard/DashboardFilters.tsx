@@ -1,21 +1,30 @@
 /**
- * Dashboard filters popover with camera tag selection
+ * Dashboard filters popover with camera tags and date range
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { MultiSelect, Option } from '../ui/MultiSelect';
+import type { DateRange } from './DateRangeFilter';
 
 interface DashboardFiltersProps {
   tags: Option[];
   onTagsChange: (tags: Option[]) => void;
   tagOptions: string[];
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
+  minDate?: string | null;
+  maxDate?: string | null;
 }
 
 export const DashboardFilters: React.FC<DashboardFiltersProps> = ({
   tags,
   onTagsChange,
   tagOptions,
+  dateRange,
+  onDateRangeChange,
+  minDate,
+  maxDate,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,8 +40,17 @@ export const DashboardFilters: React.FC<DashboardFiltersProps> = ({
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, []);
 
-  const activeCount = tags.length;
+  const activeCount =
+    tags.length +
+    (dateRange.startDate ? 1 : 0) +
+    (dateRange.endDate ? 1 : 0);
+
   const options: Option[] = tagOptions.map((t) => ({ label: t, value: t }));
+
+  const clearAll = () => {
+    onTagsChange([]);
+    onDateRangeChange({ startDate: null, endDate: null });
+  };
 
   return (
     <div ref={containerRef} className="relative">
@@ -52,25 +70,52 @@ export const DashboardFilters: React.FC<DashboardFiltersProps> = ({
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 border rounded-md bg-background shadow-lg z-50 p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="absolute right-0 mt-2 w-80 border rounded-md bg-background shadow-lg z-50 p-4 space-y-4">
+          {/* Camera tags */}
+          <div className="space-y-2">
             <label className="text-sm font-medium">Camera tags</label>
-            {tags.length > 0 && (
-              <button
-                type="button"
-                onClick={() => onTagsChange([])}
-                className="text-xs text-muted-foreground hover:underline"
-              >
-                Clear
-              </button>
-            )}
+            <MultiSelect
+              options={options}
+              value={tags}
+              onChange={onTagsChange}
+              placeholder="Select tags..."
+            />
           </div>
-          <MultiSelect
-            options={options}
-            value={tags}
-            onChange={onTagsChange}
-            placeholder="Select tags..."
-          />
+
+          {/* Date range */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Date range</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateRange.startDate || ''}
+                onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value || null })}
+                min={minDate || undefined}
+                max={maxDate || undefined}
+                className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={dateRange.endDate || ''}
+                onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value || null })}
+                min={minDate || undefined}
+                max={maxDate || undefined}
+                className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+
+          {/* Clear all */}
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
       )}
     </div>
