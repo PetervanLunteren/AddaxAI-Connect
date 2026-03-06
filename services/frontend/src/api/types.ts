@@ -476,6 +476,14 @@ export interface ProjectDocument {
   uploaded_at: string;
 }
 
+// Camera groups
+export interface CameraGroup {
+  id: number;
+  name: string;
+  camera_ids: number[];
+  created_at: string;
+}
+
 // Independence interval summary
 export interface IndependenceSummarySpecies {
   species: string;

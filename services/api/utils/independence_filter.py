@@ -53,12 +53,19 @@ img_counts AS (
     SELECT camera_id, species, ts, SUM(cnt) as img_count
     FROM raw_obs GROUP BY camera_id, species, ts
 ),
--- Compute time gap from previous same-species same-camera observation
+-- Pool ID: cameras in the same group share a pool; ungrouped cameras use their own ID.
+-- Negate group IDs so they never collide with positive camera IDs.
+with_pool AS (
+    SELECT ic.*, COALESCE(c.camera_group_id * -1, ic.camera_id) as pool_id
+    FROM img_counts ic
+    JOIN cameras c ON ic.camera_id = c.id
+),
+-- Compute time gap from previous same-species same-pool observation
 with_gaps AS (
     SELECT *, EXTRACT(EPOCH FROM (ts - LAG(ts) OVER (
-        PARTITION BY camera_id, species ORDER BY ts
+        PARTITION BY pool_id, species ORDER BY ts
     ))) / 60.0 as gap_min
-    FROM img_counts
+    FROM with_pool
 ),
 -- Flag new independent events
 with_flags AS (
@@ -69,16 +76,18 @@ with_flags AS (
 -- Assign event IDs via cumulative sum
 with_events AS (
     SELECT *, SUM(new_event) OVER (
-        PARTITION BY camera_id, species ORDER BY ts
+        PARTITION BY pool_id, species ORDER BY ts
     ) as event_id
     FROM with_flags
 ),
 -- Per event: take MAX individuals (same group seen multiple times)
+-- For grouped cameras, attribute event to the camera of the earliest detection.
 events AS (
-    SELECT camera_id, species, event_id,
+    SELECT (ARRAY_AGG(camera_id ORDER BY ts))[1] as camera_id,
+           pool_id, species, event_id,
            MIN(ts) as event_start, MAX(img_count) as event_count
     FROM with_events
-    GROUP BY camera_id, species, event_id
+    GROUP BY pool_id, species, event_id
 )
 """
 
@@ -338,27 +347,27 @@ async def compute_event_assignments(
     query = f"""
     {_INDEPENDENCE_CTE.format(verified_filters="", unverified_filters="", pv_filters="")}
     , event_boundaries AS (
-        SELECT camera_id, species, event_id,
+        SELECT pool_id, species, event_id,
                MIN(ts) as event_start,
                MAX(ts) as event_end,
                MAX(img_count) as event_count
         FROM with_events
-        GROUP BY camera_id, species, event_id
+        GROUP BY pool_id, species, event_id
     ),
     image_events AS (
-        SELECT we.camera_id, we.species, we.ts, we.event_id,
+        SELECT we.camera_id, we.pool_id, we.species, we.ts, we.event_id,
                eb.event_start, eb.event_end, eb.event_count,
                i.uuid as image_uuid
         FROM with_events we
         JOIN img_counts ic ON we.camera_id = ic.camera_id
             AND we.species = ic.species AND we.ts = ic.ts
-        JOIN event_boundaries eb ON we.camera_id = eb.camera_id
+        JOIN event_boundaries eb ON we.pool_id = eb.pool_id
             AND we.species = eb.species AND we.event_id = eb.event_id
         JOIN images i ON i.camera_id = we.camera_id AND i.uploaded_at = we.ts
         JOIN cameras c ON i.camera_id = c.id
         WHERE c.project_id = ANY(:project_ids)
     )
-    SELECT DISTINCT image_uuid, camera_id, species, event_id,
+    SELECT DISTINCT image_uuid, camera_id, pool_id, species, event_id,
            event_start, event_end, event_count
     FROM image_events
     """
@@ -369,7 +378,7 @@ async def compute_event_assignments(
     assignments = {}
     for row in rows:
         key = (row.image_uuid, row.species)
-        event_id_str = f"evt-{row.camera_id}-{row.species}-{row.event_id}"
+        event_id_str = f"evt-pool{row.pool_id}-{row.species}-{row.event_id}"
         assignments[key] = {
             "event_id": event_id_str,
             "event_start": row.event_start,
