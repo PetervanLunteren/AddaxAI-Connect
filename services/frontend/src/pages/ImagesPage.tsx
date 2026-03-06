@@ -4,11 +4,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal, Check } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { MultiSelect, Option } from '../components/ui/MultiSelect';
-import { Checkbox } from '../components/ui/Checkbox';
+import type { Option } from '../components/ui/MultiSelect';
+import { ImageFilters } from '../components/ImageFilters';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
 import { statisticsApi } from '../api/statistics';
@@ -40,7 +40,6 @@ export const ImagesPage: React.FC = () => {
     show_empty: false, // Default: hide empty images
     verified: '' as '' | 'true' | 'false',  // '' = all
   });
-  const [showFilters, setShowFilters] = useState(false);
 
   const limit = 24; // Images per page
 
@@ -113,7 +112,6 @@ export const ImagesPage: React.FC = () => {
 
     if (Object.keys(updates).length > 0) {
       setFilters(prev => ({ ...prev, ...updates }));
-      setShowFilters(true);
       setPage(1);
       // Clear params from URL so they don't stick around
       searchParams.delete('camera_id');
@@ -256,132 +254,25 @@ export const ImagesPage: React.FC = () => {
   }, [selectedImageUuid, imagesData, page, filters, queryClient]);
 
   return (
-    <div>
-      <div className="relative">
-        <h1 className="text-2xl font-bold mb-0">Images</h1>
-        <p className="text-sm text-gray-600 mt-1 mb-6">Browse and filter captured wildlife images</p>
-        <div className="absolute top-0 right-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
-            {hasActiveFilters && (
-              <span className="px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                {filters.camera_ids.length + filters.tags.length + filters.species.length +
-                 (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
-                 (filters.show_empty ? 1 : 0) + (filters.verified ? 1 : 0)}
-              </span>
-            )}
-          </Button>
+    <div className="space-y-6">
+      {/* Header with filter popover */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold mb-0">Images</h1>
+          <p className="text-sm text-gray-600 mt-1">Browse and filter captured wildlife images</p>
         </div>
+        <ImageFilters
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearAll={clearFilters}
+          cameraOptions={cameras?.map(c => ({ label: c.name, value: c.id })) || []}
+          tagOptions={tagOptions?.map(t => ({ label: t, value: t })) || []}
+          speciesOptions={speciesOptions || []}
+          speciesLoading={speciesLoading}
+          minDate={overview?.first_image_date}
+          maxDate={overview?.last_image_date}
+        />
       </div>
-
-      {/* Filters */}
-      {showFilters && (
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Cameras</label>
-                <MultiSelect
-                  options={cameras?.map(camera => ({
-                    label: camera.name,
-                    value: camera.id,
-                  })) || []}
-                  value={filters.camera_ids}
-                  onChange={(selected) => handleFilterChange('camera_ids', selected)}
-                  placeholder="Select cameras..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Camera tags</label>
-                <MultiSelect
-                  options={tagOptions?.map(tag => ({
-                    label: tag,
-                    value: tag,
-                  })) || []}
-                  value={filters.tags}
-                  onChange={(selected) => handleFilterChange('tags', selected)}
-                  placeholder="Select tags..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Start date</label>
-                <input
-                  type="date"
-                  className="w-full h-10 px-3 border border-input rounded-md bg-background"
-                  value={filters.start_date}
-                  onChange={(e) => handleFilterChange('start_date', e.target.value)}
-                  min={overview?.first_image_date || undefined}
-                  max={overview?.last_image_date || undefined}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">End date</label>
-                <input
-                  type="date"
-                  className="w-full h-10 px-3 border border-input rounded-md bg-background"
-                  value={filters.end_date}
-                  onChange={(e) => handleFilterChange('end_date', e.target.value)}
-                  min={overview?.first_image_date || undefined}
-                  max={overview?.last_image_date || undefined}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Species</label>
-                <MultiSelect
-                  options={speciesOptions || []}
-                  value={filters.species}
-                  onChange={(selected) => handleFilterChange('species', selected)}
-                  placeholder="Select species..."
-                  isLoading={speciesLoading}
-                />
-              </div>
-            </div>
-
-            {/* Show Empty Images Toggle and Verification Filter */}
-            <div className="mt-4 flex flex-wrap items-center gap-6">
-              <Checkbox
-                id="show-empty"
-                checked={filters.show_empty}
-                onChange={(checked) => handleFilterChange('show_empty', checked)}
-                label="Show images without detections"
-              />
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium">Verification:</label>
-                <div className="relative">
-                  <select
-                    className="h-9 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none"
-                    value={filters.verified}
-                    onChange={(e) => handleFilterChange('verified', e.target.value)}
-                  >
-                    <option value="">All</option>
-                    <option value="false">Unverified</option>
-                    <option value="true">Verified</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
-            {hasActiveFilters && (
-              <div className="mt-4">
-                <Button variant="outline" size="sm" onClick={clearFilters}>
-                  Clear All Filters
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
 
       {/* Image Grid */}
