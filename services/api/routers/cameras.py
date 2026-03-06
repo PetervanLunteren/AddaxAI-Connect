@@ -605,7 +605,7 @@ async def import_cameras_csv(
     Bulk import cameras from CSV file (project admin or server admin)
 
     Expected CSV format with headers (delimiter auto-detected: comma or semicolon):
-    Required: IMEI. Optional: FriendlyName. All other columns are stored as metadata.
+    Required: IMEI. Optional: Name, Notes. All other columns are stored as custom fields.
 
     Args:
         file: CSV file upload
@@ -670,7 +670,7 @@ async def import_cameras_csv(
     # Validate required headers
     actual_headers = set(rows[0].keys())
 
-    required_headers = {'IMEI', 'FriendlyName', 'Notes'}
+    required_headers = {'IMEI'}
     missing_headers = required_headers - actual_headers
     if missing_headers:
         raise HTTPException(
@@ -690,7 +690,7 @@ async def import_cameras_csv(
         )
 
     # Columns that are not stored in custom_fields
-    reserved_columns = {'IMEI', 'FriendlyName', 'Notes'}
+    reserved_columns = {'IMEI', 'Name', 'FriendlyName', 'Notes'}
 
     # Process rows
     results: List[CameraImportRow] = []
@@ -727,7 +727,7 @@ async def import_cameras_csv(
             failed_count += 1
             continue
 
-        friendly_name = (row.get('FriendlyName') or '').strip() or None
+        friendly_name = (row.get('Name') or row.get('FriendlyName') or '').strip() or None
         notes = (row.get('Notes') or '').strip()
 
         # Build custom_fields from all other columns

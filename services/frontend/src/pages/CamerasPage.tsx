@@ -775,18 +775,21 @@ export const CamerasPage: React.FC = () => {
                     <p className="text-sm font-medium mb-2">CSV format example:</p>
                     <div className="text-xs bg-background p-3 rounded overflow-x-auto max-h-32">
                       <pre className="whitespace-nowrap">
-                        IMEI;FriendlyName;Notes;My custom col;Another col
+                        IMEI,Name,Notes,Location,Habitat
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground mt-1">
-                        860946063660255;Camera North;Oak tree, facing north;value 1;value 2
+                        860946063660255,,,,
                       </pre>
                       <pre className="whitespace-nowrap text-muted-foreground">
-                        860946063660256;;;;value 3
+                        860946063660256,Camera north,Oak tree facing north,,
+                      </pre>
+                      <pre className="whitespace-nowrap text-muted-foreground">
+                        860946063660257,Camera south,Near stream,52.09;5.12,Wetland
                       </pre>
                     </div>
                     <p className="text-xs text-muted-foreground mt-3">
-                      IMEI is required. FriendlyName and Notes headers are required but values can be empty.
-                      Any extra columns you add will be stored as additional fields. Delimiter auto-detected.
+                      Only the IMEI column is required. Name, Notes, and any extra columns are optional.
+                      Extra columns are stored as custom fields. Delimiter is auto-detected.
                     </p>
                   </div>
                 </>
