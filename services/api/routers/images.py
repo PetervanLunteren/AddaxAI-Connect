@@ -308,14 +308,14 @@ async def list_images(
     if tags:
         tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
         if tag_list:
-            from sqlalchemy import cast, type_coerce
+            from sqlalchemy import cast
             from sqlalchemy.dialects.postgresql import JSONB, ARRAY, TEXT as PG_TEXT
             tag_camera_query = (
                 select(Camera.id)
                 .where(
                     Camera.project_id.in_(accessible_project_ids),
                     Camera.tags.isnot(None),
-                    type_coerce(Camera.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
+                    cast(Camera.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
                 )
             )
             tag_camera_result = await db.execute(tag_camera_query)
