@@ -4,10 +4,11 @@
  * Operates on local state only — changes are committed by the parent
  * component when the user clicks "Save changes" on the settings page.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Button } from './ui/Button';
+import { MultiSelect, Option } from './ui/MultiSelect';
 import type { CameraGroup, Camera } from '../api/types';
 
 interface Props {
@@ -66,11 +67,15 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
     setEditingGroupId(null);
   };
 
-  const toggleCamera = (cameraId: number) => {
-    setEditingCameraIds(prev =>
-      prev.includes(cameraId) ? prev.filter(id => id !== cameraId) : [...prev, cameraId]
-    );
-  };
+  // Convert available cameras to MultiSelect options for the editing group
+  const cameraOptionsForEdit = useMemo(() => {
+    if (editingGroupId === null) return [];
+    return availableCamerasForEdit(editingGroupId).map(c => ({ label: c.name, value: c.id }));
+  }, [editingGroupId, cameras, groups]);
+
+  const selectedCameraOptions = useMemo(() => {
+    return cameraOptionsForEdit.filter(opt => editingCameraIds.includes(opt.value as number));
+  }, [cameraOptionsForEdit, editingCameraIds]);
 
   const handleCreate = () => {
     const name = newGroupName.trim();
@@ -136,23 +141,13 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
                     </Button>
                   </div>
 
-                  {/* Camera checklist */}
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {availableCamerasForEdit(group.id).map(cam => (
-                      <label key={cam.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
-                        <input
-                          type="checkbox"
-                          checked={editingCameraIds.includes(cam.id)}
-                          onChange={() => toggleCamera(cam.id)}
-                          className="rounded"
-                        />
-                        {cam.name}
-                      </label>
-                    ))}
-                    {availableCamerasForEdit(group.id).length === 0 && (
-                      <p className="text-xs text-muted-foreground italic">No cameras available</p>
-                    )}
-                  </div>
+                  {/* Camera multi-select */}
+                  <MultiSelect
+                    options={cameraOptionsForEdit}
+                    value={selectedCameraOptions}
+                    onChange={(selected: Option[]) => setEditingCameraIds(selected.map(s => s.value as number))}
+                    placeholder="Select cameras..."
+                  />
                 </div>
               ) : (
                 /* Display mode */
