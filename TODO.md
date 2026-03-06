@@ -25,7 +25,7 @@
 
 
 ### Priority 1
-- [ ]  I'm looking to implement a proper testing system into this repo. I will add much more features and I would like  
+- [x]  I'm looking to implement a proper testing system into this repo. I will add much more features and I would like  
   to have a well established testing system, where we can add tests to as we increase the number of features. What  
   would something like this look like? I would like to have something well establiched, battle tested, commonly     
   used, following conventions, simple, etc. In the end I want these tests to run on github actions too, after       
@@ -35,7 +35,7 @@
 - [ ] for the CSV camera import, do not require any cols except IMEI. Only IMEI should be sufficient. If friendly name and notes are not present, add them as empty cols. Or just fill in wioth the current logic....
 - [ ] what happens if we add a camera profile that doesnt send daily reports? Or daily reports with less information? Or not daily reports, but weekly reports, or hourly reports? Or variable duration reports? What breaks downstream? What features will not be used? That will ofcourse affect the information the user can find, but does it do it gracefully? 
 - [ ] If friendly name not supplied, make unique combination of adjective and animal. That is a nice wink to the app. What do you propose? 
-- [ ] build a proper test infrascturture where we can keep adding tests. Add some basic ones to fill the test suite. 
+- [x] build a proper test infrascturture where we can keep adding tests. Add some basic ones to fill the test suite. 
 - [ ] add filter and sort options to the cameras table. How difficult would that be? 
 - [ ] add a search bar above the cameras table that also searches the metadata key values pairs. 
 - [ ] I cant remove a camera form the list (try SPW camera IMEI "8,61943E+14"). Its probabaly an issue wit the IMEI being weird. This also avoids the delete all data option. We need to make this possible. The IMEI can also be some weird unique ID. 
