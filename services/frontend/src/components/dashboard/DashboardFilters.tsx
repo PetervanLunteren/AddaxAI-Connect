@@ -70,7 +70,7 @@ export const DashboardFilters: React.FC<DashboardFiltersProps> = ({
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 border rounded-md bg-background shadow-lg z-50 p-4 space-y-4">
+        <div className="absolute right-0 mt-2 w-96 border rounded-md bg-background shadow-lg z-50 p-4 space-y-4">
           {/* Camera tags */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Camera tags</label>
