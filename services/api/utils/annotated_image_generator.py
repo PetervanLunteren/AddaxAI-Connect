@@ -1,8 +1,8 @@
 """
 Generate annotated images using Playwright headless browser.
 
-Uses the exact same Canvas rendering code as the frontend ImageDetailModal
-to ensure pixel-perfect matching between downloads and Telegram notifications.
+Uses the exact same Canvas rendering code as the frontend detection-overlay.ts
+to ensure pixel-perfect matching between downloads and API-generated images.
 """
 import asyncio
 import base64
@@ -37,7 +37,6 @@ async def generate_annotated_image(
         Annotated image bytes (JPEG format)
     """
     try:
-        # Log detection data for debugging
         import json as json_module
         logger.info(
             "Generating annotated image with detection data",
@@ -50,7 +49,7 @@ async def generate_annotated_image(
         image_b64 = base64.b64encode(image_bytes).decode('utf-8')
         image_data_url = f"data:image/jpeg;base64,{image_b64}"
 
-        # Create HTML with Canvas rendering code (copied from ImageDetailModal download logic)
+        # Create HTML with Canvas rendering code matching detection-overlay.ts
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -60,120 +59,194 @@ async def generate_annotated_image(
         <body>
             <canvas id="canvas"></canvas>
             <script>
+                // --- Constants (matching detection-overlay.ts) ---
+                const BBOX_STROKE_WIDTH = 2;
+                const BBOX_OPACITY = 0.5;
+                const BBOX_CORNER_RADIUS = 4;
+                const DIM_FILL = 'rgba(0, 0, 0, 0.35)';
+                const PILL_BG = 'rgba(0, 0, 0, 0.5)';
+                const PILL_PAD_X = 6;
+                const PILL_PAD_Y = 4;
+                const DOT_R = 4;
+                const DOT_GAP = 5;
+                const LINE_GAP = 2;
+                const FONT_SM = 10;
+                const FONT_LG = 12;
+                const TEXT_START_X = PILL_PAD_X + DOT_R * 2 + DOT_GAP;
+                const PILL_CORNER_R_EXTRA = 1;
+
+                const CATEGORY_COLORS = {{
+                    animal: '#0f6064',
+                    person: '#ff8945',
+                    vehicle: '#71b7ba',
+                }};
+                const DEFAULT_COLOR = '#882000';
+
+                function getCategoryColor(category) {{
+                    return CATEGORY_COLORS[category] || DEFAULT_COLOR;
+                }}
+
+                function normalizeLabel(label) {{
+                    const s = label.replace(/_/g, ' ');
+                    return s.charAt(0).toUpperCase() + s.slice(1);
+                }}
+
+                function roundedRectPath(ctx, x, y, w, h, r) {{
+                    const cr = Math.min(r, w / 2, h / 2);
+                    ctx.moveTo(x + cr, y);
+                    ctx.lineTo(x + w - cr, y);
+                    ctx.arcTo(x + w, y, x + w, y + cr, cr);
+                    ctx.lineTo(x + w, y + h - cr);
+                    ctx.arcTo(x + w, y + h, x + w - cr, y + h, cr);
+                    ctx.lineTo(x + cr, y + h);
+                    ctx.arcTo(x, y + h, x, y + h - cr, cr);
+                    ctx.lineTo(x, y + cr);
+                    ctx.arcTo(x, y, x + cr, y, cr);
+                    ctx.closePath();
+                }}
+
                 const canvas = document.getElementById('canvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
 
                 img.onload = function() {{
-                    // Set canvas to natural image size
                     canvas.width = {natural_width};
                     canvas.height = {natural_height};
-
-                    // Draw the image
                     ctx.drawImage(img, 0, 0);
 
-                    // Draw bounding boxes
                     const detections = {detections};
-                    document.title = `Detections: ${{detections.length}}, First bbox: ${{JSON.stringify(detections[0]?.bbox || 'none')}}`;
-                    const scaleFactor = canvas.width / 1000;  // Reference display width
+                    const scale = canvas.width / 1000;
+                    const cornerR = BBOX_CORNER_RADIUS * scale;
 
-                    detections.forEach((detection, idx) => {{
-                        console.log(`Drawing detection ${{idx}}:`, detection.bbox);
-                        const bbox = detection.bbox;
-                        const x = bbox.x;
-                        const y = bbox.y;
-                        const width = bbox.width;
-                        const height = bbox.height;
+                    // Pre-compute rects
+                    const rects = detections.map(d => ({{
+                        x: d.bbox.x,
+                        y: d.bbox.y,
+                        w: d.bbox.width,
+                        h: d.bbox.height,
+                    }}));
 
-                        const bboxPadding = Math.round(8 * scaleFactor);
-                        const paddedX = x - bboxPadding;
-                        const paddedY = y - bboxPadding;
-                        const paddedWidth = width + (bboxPadding * 2);
-                        const paddedHeight = height + (bboxPadding * 2);
+                    // 1. Spotlight dim overlay
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(0, 0, canvas.width, canvas.height);
+                    for (const r of rects) {{
+                        roundedRectPath(ctx, r.x, r.y, r.w, r.h, cornerR);
+                    }}
+                    ctx.fillStyle = DIM_FILL;
+                    ctx.fill('evenodd');
+                    ctx.restore();
 
-                        // Draw corner brackets
-                        ctx.strokeStyle = '#ef4444';
-                        ctx.lineWidth = Math.round(4 * scaleFactor);
-                        ctx.lineCap = 'round';
-
-                        const bracketLength = Math.round(12 * scaleFactor);
-                        const cornerRadius = Math.round(4 * scaleFactor);
-
-                        // Top-left
+                    // 2. Bounding box outlines
+                    const strokeW = BBOX_STROKE_WIDTH * scale;
+                    detections.forEach((detection, i) => {{
+                        const r = rects[i];
+                        const color = getCategoryColor(detection.category);
+                        ctx.save();
+                        ctx.globalAlpha = BBOX_OPACITY;
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = strokeW;
                         ctx.beginPath();
-                        ctx.moveTo(paddedX, paddedY + bracketLength);
-                        ctx.arcTo(paddedX, paddedY, paddedX + bracketLength, paddedY, cornerRadius);
-                        ctx.lineTo(paddedX + bracketLength, paddedY);
+                        roundedRectPath(ctx, r.x, r.y, r.w, r.h, cornerR);
                         ctx.stroke();
-
-                        // Top-right
-                        ctx.beginPath();
-                        ctx.moveTo(paddedX + paddedWidth - bracketLength, paddedY);
-                        ctx.arcTo(paddedX + paddedWidth, paddedY, paddedX + paddedWidth, paddedY + bracketLength, cornerRadius);
-                        ctx.lineTo(paddedX + paddedWidth, paddedY + bracketLength);
-                        ctx.stroke();
-
-                        // Bottom-left
-                        ctx.beginPath();
-                        ctx.moveTo(paddedX + bracketLength, paddedY + paddedHeight);
-                        ctx.arcTo(paddedX, paddedY + paddedHeight, paddedX, paddedY + paddedHeight - bracketLength, cornerRadius);
-                        ctx.lineTo(paddedX, paddedY + paddedHeight - bracketLength);
-                        ctx.stroke();
-
-                        // Bottom-right
-                        ctx.beginPath();
-                        ctx.moveTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength);
-                        ctx.arcTo(paddedX + paddedWidth, paddedY + paddedHeight, paddedX + paddedWidth - bracketLength, paddedY + paddedHeight, cornerRadius);
-                        ctx.lineTo(paddedX + paddedWidth - bracketLength, paddedY + paddedHeight);
-                        ctx.stroke();
-
-                        // Draw labels
-                        // Capitalize first letter of category
-                        const categoryName = detection.category.charAt(0).toUpperCase() + detection.category.slice(1);
-                        const detectionLabel = `${{categoryName}} ${{Math.round(detection.confidence * 100)}}%`;
-                        let labels = [detectionLabel];
-
-                        if (detection.classifications.length > 0) {{
-                            const topClassification = detection.classifications[0];
-                            // Normalize species name: replace underscores with spaces and capitalize first letter
-                            const speciesName = topClassification.species.replace(/_/g, ' ').charAt(0).toUpperCase() + topClassification.species.replace(/_/g, ' ').slice(1);
-                            const classificationLabel = `${{speciesName}} ${{Math.round(topClassification.confidence * 100)}}%`;
-                            labels.push(classificationLabel);
-                        }}
-
-                        const fontSize = Math.round(9 * scaleFactor);
-                        ctx.font = `bold ${{fontSize}}px sans-serif`;
-
-                        const labelWidths = labels.map(label => ctx.measureText(label).width);
-                        const maxLabelWidth = Math.max(...labelWidths);
-                        const lineHeight = Math.round(12 * scaleFactor);
-                        const labelPaddingX = Math.round(4 * scaleFactor);
-                        const labelPaddingY = Math.round(3 * scaleFactor);
-                        const labelBoxWidth = maxLabelWidth + (labelPaddingX * 2);
-                        const labelBoxHeight = (labels.length * lineHeight) + (labelPaddingY * 2);
-                        const margin = Math.round(4 * scaleFactor);
-                        const borderRadius = Math.round(3 * scaleFactor);
-
-                        let labelY = Math.max(margin, paddedY - labelBoxHeight - margin);
-                        if (labelY < margin) {{
-                            labelY = Math.min(paddedY + paddedHeight + margin, canvas.height - labelBoxHeight - margin);
-                        }}
-                        const labelX = Math.min(paddedX, canvas.width - labelBoxWidth - margin);
-
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                        ctx.beginPath();
-                        ctx.roundRect(labelX, labelY, labelBoxWidth, labelBoxHeight, borderRadius);
-                        ctx.fill();
-
-                        ctx.fillStyle = 'white';
-                        ctx.textBaseline = 'middle';
-                        labels.forEach((label, idx) => {{
-                            const textY = labelY + labelPaddingY + (idx + 0.5) * lineHeight;
-                            ctx.fillText(label, labelX + labelPaddingX, textY);
-                        }});
+                        ctx.restore();
                     }});
 
-                    // Mark as complete
+                    // 3. Label pills
+                    const fontSm = FONT_SM * scale;
+                    const fontLg = FONT_LG * scale;
+                    const padX = PILL_PAD_X * scale;
+                    const padY = PILL_PAD_Y * scale;
+                    const dotR = DOT_R * scale;
+                    const dotGap = DOT_GAP * scale;
+                    const lineGap = LINE_GAP * scale;
+                    const textStartX = TEXT_START_X * scale;
+                    const pillCornerR = (BBOX_CORNER_RADIUS + PILL_CORNER_R_EXTRA) * scale;
+                    const margin = 4 * scale;
+
+                    detections.forEach((detection, i) => {{
+                        const r = rects[i];
+                        const color = getCategoryColor(detection.category);
+
+                        const categoryText = normalizeLabel(detection.category) + ' ' + Math.round(detection.confidence * 100) + '%';
+                        let speciesText = null;
+                        if (detection.classifications && detection.classifications.length > 0) {{
+                            const top = detection.classifications[0];
+                            speciesText = normalizeLabel(top.species) + ' ' + Math.round(top.confidence * 100) + '%';
+                        }}
+
+                        // Measure text
+                        ctx.font = fontSm + 'px sans-serif';
+                        const catW = ctx.measureText(categoryText).width;
+                        ctx.font = 'bold ' + fontLg + 'px sans-serif';
+                        const specW = speciesText ? ctx.measureText(speciesText).width : 0;
+
+                        const contentW = Math.max(catW, specW);
+                        const pillW = textStartX + contentW + padX;
+                        let pillH;
+                        if (speciesText) {{
+                            pillH = padY + fontSm + lineGap + fontLg + padY;
+                        }} else {{
+                            pillH = padY + fontLg + padY;
+                        }}
+
+                        // Position pill
+                        let pillY = r.y - pillH - margin;
+                        if (pillY < margin) {{
+                            pillY = r.y + r.h + margin;
+                            if (pillY + pillH > canvas.height - margin) {{
+                                pillY = Math.max(margin, r.y);
+                            }}
+                        }}
+                        let pillX = Math.max(margin, Math.min(r.x, canvas.width - pillW - margin));
+
+                        // Pill background
+                        ctx.save();
+                        ctx.beginPath();
+                        roundedRectPath(ctx, pillX, pillY, pillW, pillH, pillCornerR);
+                        ctx.fillStyle = PILL_BG;
+                        ctx.fill();
+                        ctx.restore();
+
+                        // Color dot
+                        const dotCx = pillX + padX + dotR;
+                        const dotCy = pillY + pillH / 2;
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(dotCx, dotCy, dotR, 0, Math.PI * 2);
+                        ctx.fillStyle = color;
+                        ctx.fill();
+                        ctx.restore();
+
+                        const textX = pillX + textStartX;
+
+                        if (speciesText) {{
+                            // Category (small, dimmed)
+                            ctx.save();
+                            ctx.font = fontSm + 'px sans-serif';
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                            ctx.textBaseline = 'top';
+                            ctx.fillText(categoryText, textX, pillY + padY);
+                            ctx.restore();
+
+                            // Species (large, bold, white)
+                            ctx.save();
+                            ctx.font = 'bold ' + fontLg + 'px sans-serif';
+                            ctx.fillStyle = 'white';
+                            ctx.textBaseline = 'top';
+                            ctx.fillText(speciesText, textX, pillY + padY + fontSm + lineGap);
+                            ctx.restore();
+                        }} else {{
+                            // Single line (large, bold, centered)
+                            ctx.save();
+                            ctx.font = 'bold ' + fontLg + 'px sans-serif';
+                            ctx.fillStyle = 'white';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(categoryText, textX, pillY + pillH / 2);
+                            ctx.restore();
+                        }}
+                    }});
+
                     document.body.setAttribute('data-render-complete', 'true');
                 }};
 
@@ -187,11 +260,9 @@ async def generate_annotated_image(
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
 
-            # Set content and wait for rendering
             await page.set_content(html_content)
             await page.wait_for_selector('[data-render-complete="true"]', timeout=10000)
 
-            # Get canvas as PNG
             canvas = await page.query_selector('#canvas')
             screenshot_bytes = await canvas.screenshot(type='jpeg', quality=95)
 
