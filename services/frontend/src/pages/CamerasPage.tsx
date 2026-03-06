@@ -5,7 +5,7 @@
  * Server admins can add, delete cameras and import from CSV.
  * Project admins can edit camera notes (friendly name, remarks).
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Battery,
@@ -49,6 +49,7 @@ import {
 import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
 import { cn } from '../lib/utils';
+import { useDropzone } from 'react-dropzone';
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -165,13 +166,18 @@ export const CamerasPage: React.FC = () => {
     importMutation.mutate({ file: csvFile, projectId: currentProject.id });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCsvFile(file);
+  const onDropCsv = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      setCsvFile(acceptedFiles[0]);
       setImportResults(null);
     }
-  };
+  }, []);
+
+  const { getRootProps: getCsvRootProps, getInputProps: getCsvInputProps, isDragActive: isCsvDragActive } = useDropzone({
+    onDrop: onDropCsv,
+    accept: { 'text/csv': ['.csv'] },
+    multiple: false,
+  });
 
   const openImportDialog = () => {
     setCsvFile(null);
@@ -746,51 +752,79 @@ export const CamerasPage: React.FC = () => {
             <DialogHeader>
               <DialogTitle>Import cameras from CSV</DialogTitle>
               <DialogDescription>
-                Upload a CSV file to register multiple cameras at once. See the format example below.
+                Upload a CSV file to register multiple cameras at once.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
               {!importResults ? (
                 <>
-                  <div>
-                    <label htmlFor="csv-file" className="block text-sm font-medium mb-2">
-                      CSV file
-                    </label>
-                    <input
-                      id="csv-file"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleFileChange}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {csvFile && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Selected: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
+                  <div className="bg-accent/50 p-4 rounded-md space-y-4">
+                    <div>
+                      <p className="text-sm font-medium mb-1">All you need is a list of IMEIs</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        The simplest CSV has just one column.
                       </p>
-                    )}
-                  </div>
-
-                  <div className="bg-accent/50 p-4 rounded-md">
-                    <p className="text-sm font-medium mb-2">CSV format example:</p>
-                    <div className="text-xs bg-background p-3 rounded overflow-x-auto max-h-32">
-                      <pre className="whitespace-nowrap">
-                        IMEI,Name,Notes,Location,Habitat
-                      </pre>
-                      <pre className="whitespace-nowrap text-muted-foreground mt-1">
-                        860946063660255,,,,
-                      </pre>
-                      <pre className="whitespace-nowrap text-muted-foreground">
-                        860946063660256,Camera north,Oak tree facing north,,
-                      </pre>
-                      <pre className="whitespace-nowrap text-muted-foreground">
-                        860946063660257,Camera south,Near stream,52.09;5.12,Wetland
+                      <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+{`IMEI
+860946063660255
+860946063660256
+860946063660257`}
                       </pre>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Only the IMEI column is required. Name, Notes, and any extra columns are optional.
-                      Extra columns are stored as custom fields. Delimiter is auto-detected.
-                    </p>
+
+                    <div>
+                      <p className="text-sm font-medium mb-1">Optionally add a name and notes</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns if you want. Empty values are fine.
+                      </p>
+                      <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+{`IMEI,Name,Notes
+860946063660255,,
+860946063660256,Camera north,Oak tree facing north
+860946063660257,Camera south,Near stream`}
+                      </pre>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-medium mb-1">Add any extra columns you like</p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Extra columns are stored as custom fields. They are not used by the system but are searchable. The delimiter (comma or semicolon) is auto-detected.
+                      </p>
+                      <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+{`IMEI,Name,Notes,Location,Habitat
+860946063660255,,,,
+860946063660256,Camera north,Oak tree facing north,,
+860946063660257,Camera south,Near stream,52.09;5.12,Wetland`}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div
+                    {...getCsvRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                      isCsvDragActive
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                    }`}
+                  >
+                    <input {...getCsvInputProps()} />
+                    {csvFile ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Upload className="h-5 w-5 text-primary" />
+                        <span className="text-sm font-medium">{csvFile.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({(csvFile.size / 1024).toFixed(1)} KB)
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          {isCsvDragActive ? 'Drop CSV file here...' : 'Drag and drop a CSV file here, or click to browse'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
