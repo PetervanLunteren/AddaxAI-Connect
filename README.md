@@ -4,8 +4,6 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 **A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
 
 ## Roadmap
-*This repo is in development! It doesn't work yet...*
-
 See [PROJECT_PLAN.md](PROJECT_PLAN.md) for a more finegrained plan.
 - [x] **Infrastructure** - Ansible automation, Docker configs, security hardening
 - [x] **Database setup** - SQLAlchemy models, Alembic migrations, PostGIS integration
