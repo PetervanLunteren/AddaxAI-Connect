@@ -759,13 +759,13 @@ export const CamerasPage: React.FC = () => {
             <div className="space-y-4 py-4">
               {!importResults ? (
                 <>
-                  <div className="bg-accent/50 p-4 rounded-md space-y-4">
-                    <div>
-                      <p className="text-sm font-medium mb-1">All you need is a list of IMEIs</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        The simplest CSV has just one column.
-                      </p>
-                      <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+                  <div className="bg-accent/50 p-4 rounded-md space-y-3">
+                    <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
+                      <div>
+                        <p className="text-sm font-medium">All you need is a list of IMEIs</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">The simplest CSV has just one column.</p>
+                      </div>
+                      <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
 {`IMEI
 860946063660255
 860946063660256
@@ -773,29 +773,35 @@ export const CamerasPage: React.FC = () => {
                       </pre>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-medium mb-1">Optionally add a name and notes</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns if you want. Empty values are fine.
-                      </p>
-                      <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+                    <div className="border-t border-border/50" />
+
+                    <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
+                      <div>
+                        <p className="text-sm font-medium">Optionally add a name and notes</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty values are fine.
+                        </p>
+                      </div>
+                      <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
 {`IMEI,Name,Notes
 860946063660255,,
-860946063660256,Camera north,Oak tree facing north
+860946063660256,Camera north,Oak tree
 860946063660257,Camera south,Near stream`}
                       </pre>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-medium mb-1">Add any extra columns you like</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Extra columns are stored as custom fields. They are not used by the system but are searchable. The delimiter (comma or semicolon) is auto-detected.
-                      </p>
-                      <pre className="text-xs bg-background p-3 rounded overflow-x-auto">
+                    <div className="border-t border-border/50" />
+
+                    <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
+                      <div>
+                        <p className="text-sm font-medium">Add any extra columns you like</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Extra columns are stored as custom fields. Not used by the system but searchable.</p>
+                      </div>
+                      <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
 {`IMEI,Name,Notes,Location,Habitat
 860946063660255,,,,
-860946063660256,Camera north,Oak tree facing north,,
-860946063660257,Camera south,Near stream,52.09;5.12,Wetland`}
+860946063660256,Camera north,,...,
+860946063660257,Camera south,,52.09;5.12,Wetland`}
                       </pre>
                     </div>
                   </div>
