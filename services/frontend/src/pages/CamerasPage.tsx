@@ -756,7 +756,7 @@ export const CamerasPage: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 pt-1 pb-4">
               {!importResults ? (
                 <>
                   <div className="bg-accent/50 p-4 rounded-md space-y-3">
@@ -779,7 +779,7 @@ export const CamerasPage: React.FC = () => {
                       <div>
                         <p className="text-sm font-medium">Optionally add a name and notes</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty values are fine.
+                          Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty names default to the IMEI.
                         </p>
                       </div>
                       <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
@@ -798,10 +798,10 @@ export const CamerasPage: React.FC = () => {
                         <p className="text-xs text-muted-foreground mt-0.5">Extra columns are stored as custom fields. Not used by the system but searchable.</p>
                       </div>
                       <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
-{`IMEI,Name,Notes,Location,Habitat
+{`IMEI,Name,Notes,Habitat,Mounted on
 860946063660255,,,,
-860946063660256,Camera north,,...,
-860946063660257,Camera south,,52.09;5.12,Wetland`}
+860946063660256,Camera north,,,Oak tree
+860946063660257,Camera south,,Wetland,Pole`}
                       </pre>
                     </div>
                   </div>
