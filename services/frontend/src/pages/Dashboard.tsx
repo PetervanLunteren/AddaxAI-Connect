@@ -25,7 +25,6 @@ import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
 import {
-  DateRangeFilter,
   DateRange,
   ActivityPatternChart,
   DetectionTrendChart,
@@ -51,8 +50,8 @@ export const Dashboard: React.FC = () => {
 
   // Global date range filter
   const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: '',
-    endDate: '',
+    startDate: null,
+    endDate: null,
   });
 
   // Camera tag filters
@@ -223,19 +222,15 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
           <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends</p>
         </div>
-        <div className="flex items-center gap-2">
-          <DashboardFilters
-            tags={selectedTags}
-            onTagsChange={setSelectedTags}
-            tagOptions={tagOptions ?? []}
-          />
-          <DateRangeFilter
-            value={dateRange}
-            onChange={setDateRange}
-            minDate={overview?.first_image_date}
-            maxDate={overview?.last_image_date}
-          />
-        </div>
+        <DashboardFilters
+          tags={selectedTags}
+          onTagsChange={setSelectedTags}
+          tagOptions={tagOptions ?? []}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          minDate={overview?.first_image_date}
+          maxDate={overview?.last_image_date}
+        />
       </div>
 
       {/* Summary Cards */}
