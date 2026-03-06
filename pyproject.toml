@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "ml: tests requiring ML dependencies (torch, megadetector, timm)",
+]

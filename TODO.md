@@ -29,13 +29,7 @@
   to have a well established testing system, where we can add tests to as we increase the number of features. What  
   would something like this look like? I would like to have something well establiched, battle tested, commonly     
   used, following conventions, simple, etc. In the end I want these tests to run on github actions too, after       
-  every PR and commit. Instructions:
-* Read all MD file in root to get a understanding of the project. 
-* If something is unclear at any point, stop and ask before continuing.
-* Prioritize simplicity and clarity over perfection. The code must be clean, easy to read, and understandable for collaborators. Avoid unnecessary complexity.
-* I'm not in a rush. Please be precise and do the task thoroughly. 
-* Please ask me any question for clarification. I would rather that you ask too many questions than assume certain details. 
-* Ask at least 3 clarifying questions before beginning. Based on the conventions set out in CONVENTIONS.md and your knowledge, give your recommended solution to each questions you ask me. 
+  every PR and commit. 
 
 - [ ] make the "Import cameras from CSV" modal clearer that it only needs IMEI. Give some more examples, one only IMEI, one with IMEI, notes, friendly_name, and one with additional key:value pairs. 
 - [ ] for the CSV camera import, do not require any cols except IMEI. Only IMEI should be sufficient. If friendly name and notes are not present, add them as empty cols. Or just fill in wioth the current logic....

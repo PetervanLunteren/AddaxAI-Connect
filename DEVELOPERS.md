@@ -272,6 +272,22 @@ docker compose logs -f api  # Follow
 
 **Full guide:** See [docs/logging.md](docs/logging.md) for LogQL queries, best practices, and debugging workflows.
 
+## Running tests
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run tests for one service
+pytest tests/ingestion/ -v
+
+# Run a specific test file
+pytest tests/ingestion/test_daily_report_parser.py -v
+
+# Skip ML-dependent tests (used in CI)
+pytest tests/ -m "not ml"
+```
+
 # Git commit messages
 Do NOT add these lines to the git commit messages. there should not be any trace of Claude Code in the git history. 
 ```
