@@ -108,6 +108,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     mutationFn: (data: UpdateCameraRequest) => camerasApi.update(camera!.id, data),
     onSuccess: (updatedCamera) => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      queryClient.invalidateQueries({ queryKey: ['camera-tags'] });
       setIsEditing(false);
       onUpdate?.(updatedCamera);
     },
