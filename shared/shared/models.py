@@ -61,6 +61,7 @@ class Camera(Base):
 
     # Project assignment
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
+    camera_group_id = Column(Integer, ForeignKey("camera_groups.id", ondelete="SET NULL"), nullable=True, index=True)
     status = Column(String(50), nullable=False, server_default='inventory', index=True)
 
     # Health metrics (from daily reports)
@@ -84,6 +85,24 @@ class Camera(Base):
 
     # Relationships
     images = relationship("Image", back_populates="camera")
+    camera_group = relationship("CameraGroup", back_populates="cameras")
+
+
+class CameraGroup(Base):
+    """Group of cameras that share a field of view for independence interval merging"""
+    __tablename__ = "camera_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    cameras = relationship("Camera", back_populates="camera_group")
+
+    __table_args__ = (
+        UniqueConstraint('project_id', 'name', name='uq_camera_group_project_name'),
+    )
 
 
 class CameraDeploymentPeriod(Base):

@@ -12,7 +12,7 @@ from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
 from auth.routes import get_auth_router
-from routers import admin, logs, cameras, images, statistics, projects, devtools, ingestion_monitoring, project_images, project_documents, notifications, users, export
+from routers import admin, logs, cameras, camera_groups, images, statistics, projects, devtools, ingestion_monitoring, project_images, project_documents, notifications, users, export
 from routers import health as health_router
 from middleware.logging import RequestLoggingMiddleware
 
@@ -133,6 +133,7 @@ app.include_router(users.router)
 app.include_router(notifications.router)
 app.include_router(logs.router, prefix="/api", tags=["logs"])
 app.include_router(cameras.router)
+app.include_router(camera_groups.router)
 app.include_router(images.router)
 app.include_router(statistics.router)
 app.include_router(projects.router)

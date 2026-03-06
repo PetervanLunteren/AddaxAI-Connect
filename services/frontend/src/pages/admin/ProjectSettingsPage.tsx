@@ -6,16 +6,18 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, AlertCircle, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
+import { CameraGroupsModal } from '../../components/CameraGroupsModal';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
 import { statisticsApi } from '../../api/statistics';
+import { cameraGroupsApi } from '../../api/cameraGroups';
 import { normalizeLabel } from '../../utils/labels';
 import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse } from '../../api/types';
 
@@ -55,6 +57,9 @@ export const ProjectSettingsPage: React.FC = () => {
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 0);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  // Camera groups state
+  const [showCameraGroups, setShowCameraGroups] = useState(false);
 
   // Toast + modal state
   const [showToast, setShowToast] = useState(false);
@@ -98,6 +103,13 @@ export const ProjectSettingsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['user-projects'] });
       refreshProjects();
     },
+  });
+
+  // Camera groups query
+  const { data: cameraGroups = [] } = useQuery({
+    queryKey: ['camera-groups', currentProject?.id],
+    queryFn: () => cameraGroupsApi.list(currentProject!.id),
+    enabled: !!currentProject && (currentProject.independence_interval_minutes ?? 0) > 0,
   });
 
   // Redirect if user doesn't have admin access (after all hooks)
@@ -357,6 +369,38 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Camera groups (only when independence interval is enabled) */}
+          {independenceInterval > 0 && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex items-center gap-8">
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">
+                    Camera groups
+                  </label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Group cameras that share a field of view so the independence interval merges detections across all cameras in the group.
+                  </p>
+                </div>
+                <div className="flex-1 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    {cameraGroups.length > 0
+                      ? `${cameraGroups.length} group${cameraGroups.length !== 1 ? 's' : ''}, ${cameraGroups.reduce((sum, g) => sum + g.camera_ids.length, 0)} cameras grouped`
+                      : 'No groups configured'}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowCameraGroups(true)}
+                    disabled={isSaving}
+                  >
+                    Manage groups
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Action buttons */}
           <div className="mt-6 pt-4 border-t flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -431,6 +475,15 @@ export const ProjectSettingsPage: React.FC = () => {
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
+      )}
+
+      {/* Camera groups modal */}
+      {currentProject && (
+        <CameraGroupsModal
+          projectId={currentProject.id}
+          open={showCameraGroups}
+          onOpenChange={setShowCameraGroups}
+        />
       )}
 
       {/* Effect on statistics modal */}
