@@ -446,7 +446,7 @@ export const ProjectSettingsPage: React.FC = () => {
                     Camera groups
                   </label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Group cameras with overlapping fields of view. Detections of the same species within the interval are merged into a single event.
+                    Cameras in a group are treated as one location for the independence interval, preventing double counts from overlapping views or both ends of a wildlife crossing.
                   </p>
                 </div>
                 <div className="flex-1 flex items-center justify-between">
