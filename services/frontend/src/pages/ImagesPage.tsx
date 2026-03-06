@@ -33,6 +33,7 @@ export const ImagesPage: React.FC = () => {
 
   const [filters, setFilters] = useState({
     camera_ids: [] as Option[],
+    tags: [] as Option[],
     start_date: '',
     end_date: '',
     species: [] as Option[],
@@ -59,6 +60,9 @@ export const ImagesPage: React.FC = () => {
         camera_id: filters.camera_ids.length > 0
           ? filters.camera_ids.map(c => c.value).join(',')
           : undefined,
+        tags: filters.tags.length > 0
+          ? filters.tags.map(t => t.value).join(',')
+          : undefined,
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
         species: filters.species.length > 0
@@ -74,6 +78,13 @@ export const ImagesPage: React.FC = () => {
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Fetch tag options for filter dropdown
+  const { data: tagOptions } = useQuery({
+    queryKey: ['camera-tags', projectId],
+    queryFn: () => camerasApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
 
@@ -133,6 +144,7 @@ export const ImagesPage: React.FC = () => {
   const clearFilters = () => {
     setFilters({
       camera_ids: [],
+      tags: [],
       start_date: '',
       end_date: '',
       species: [],
@@ -144,6 +156,7 @@ export const ImagesPage: React.FC = () => {
 
   const hasActiveFilters =
     filters.camera_ids.length > 0 ||
+    filters.tags.length > 0 ||
     filters.start_date !== '' ||
     filters.end_date !== '' ||
     filters.species.length > 0 ||
@@ -258,7 +271,7 @@ export const ImagesPage: React.FC = () => {
             {showFilters ? 'Hide Filters' : 'Show Filters'}
             {hasActiveFilters && (
               <span className="px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                {filters.camera_ids.length + filters.species.length +
+                {filters.camera_ids.length + filters.tags.length + filters.species.length +
                  (filters.start_date ? 1 : 0) + (filters.end_date ? 1 : 0) +
                  (filters.show_empty ? 1 : 0) + (filters.verified ? 1 : 0)}
               </span>
@@ -282,6 +295,19 @@ export const ImagesPage: React.FC = () => {
                   value={filters.camera_ids}
                   onChange={(selected) => handleFilterChange('camera_ids', selected)}
                   placeholder="Select cameras..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Camera tags</label>
+                <MultiSelect
+                  options={tagOptions?.map(tag => ({
+                    label: tag,
+                    value: tag,
+                  })) || []}
+                  value={filters.tags}
+                  onChange={(selected) => handleFilterChange('tags', selected)}
+                  placeholder="Select tags..."
                 />
               </div>
 

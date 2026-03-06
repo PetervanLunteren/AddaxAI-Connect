@@ -29,9 +29,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 interface SpeciesComparisonChartProps {
   dateRange: DateRange;
   projectId?: number;
+  cameraIds?: string;
 }
 
-export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ dateRange, projectId }) => {
+export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ dateRange, projectId, cameraIds }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string[]>([]);
 
   // Fetch species list
@@ -88,12 +89,13 @@ export const SpeciesComparisonChart: React.FC<SpeciesComparisonChartProps> = ({ 
   // Fetch activity patterns for each selected species
   const activityQueries = useQueries({
     queries: selectedSpecies.map((species) => ({
-      queryKey: ['statistics', 'activity-pattern', projectId, species, dateRange.startDate, dateRange.endDate],
+      queryKey: ['statistics', 'activity-pattern', projectId, species, dateRange.startDate, dateRange.endDate, cameraIds],
       queryFn: () =>
         statisticsApi.getActivityPattern(projectId, {
           species,
           start_date: dateRange.startDate || undefined,
           end_date: dateRange.endDate || undefined,
+          camera_ids: cameraIds,
         }),
       enabled: projectId !== undefined && selectedSpecies.length > 0,
     })),

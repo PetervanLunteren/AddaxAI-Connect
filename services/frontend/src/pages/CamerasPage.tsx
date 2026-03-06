@@ -452,6 +452,7 @@ export const CamerasPage: React.FC = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Tags</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Battery</TableHead>
                     <TableHead>Signal</TableHead>
@@ -472,6 +473,27 @@ export const CamerasPage: React.FC = () => {
                       onClick={() => handleRowClick(camera)}
                     >
                       <TableCell className="font-medium">{camera.name}</TableCell>
+                      <TableCell>
+                        {camera.tags && camera.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {camera.tags.slice(0, 2).map((tag) => (
+                              <span
+                                key={tag}
+                                className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                            {camera.tags.length > 2 && (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                                +{camera.tags.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>{getStatusBadge(camera.status)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">

@@ -24,9 +24,10 @@ export const statisticsApi = {
   /**
    * Get dashboard overview statistics
    */
-  getOverview: async (projectId?: number): Promise<StatisticsOverview> => {
+  getOverview: async (projectId?: number, cameraIds?: string): Promise<StatisticsOverview> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
+    if (cameraIds) params.camera_ids = cameraIds;
     const response = await apiClient.get<StatisticsOverview>('/api/statistics/overview', { params });
     return response.data;
   },
@@ -49,9 +50,10 @@ export const statisticsApi = {
   /**
    * Get species distribution (top 10)
    */
-  getSpeciesDistribution: async (projectId?: number): Promise<SpeciesCount[]> => {
+  getSpeciesDistribution: async (projectId?: number, cameraIds?: string): Promise<SpeciesCount[]> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
+    if (cameraIds) params.camera_ids = cameraIds;
     const response = await apiClient.get<SpeciesCount[]>('/api/statistics/species-distribution', { params });
     return response.data;
   },
@@ -59,9 +61,10 @@ export const statisticsApi = {
   /**
    * Get camera activity summary
    */
-  getCameraActivity: async (projectId?: number): Promise<CameraActivitySummary> => {
+  getCameraActivity: async (projectId?: number, cameraIds?: string): Promise<CameraActivitySummary> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
+    if (cameraIds) params.camera_ids = cameraIds;
     const response = await apiClient.get<CameraActivitySummary>('/api/statistics/camera-activity', { params });
     return response.data;
   },
@@ -108,6 +111,7 @@ export const statisticsApi = {
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
 
     const queryString = params.toString();
     const url = queryString
@@ -127,6 +131,7 @@ export const statisticsApi = {
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
 
     const queryString = params.toString();
     const url = queryString
@@ -140,9 +145,10 @@ export const statisticsApi = {
   /**
    * Get pipeline status (pending/classified counts)
    */
-  getPipelineStatus: async (projectId?: number): Promise<PipelineStatusResponse> => {
+  getPipelineStatus: async (projectId?: number, cameraIds?: string): Promise<PipelineStatusResponse> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
+    if (cameraIds) params.camera_ids = cameraIds;
     const response = await apiClient.get<PipelineStatusResponse>('/api/statistics/pipeline-status', { params });
     return response.data;
   },

@@ -13,6 +13,7 @@ export interface ImageFilters {
   species?: string;
   show_empty?: boolean;
   verified?: string;  // "true", "false", or undefined for all
+  tags?: string;  // Comma-separated camera tags
   project_id?: number;
 }
 

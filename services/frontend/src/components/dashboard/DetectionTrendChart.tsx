@@ -29,6 +29,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 interface DetectionTrendChartProps {
   dateRange: DateRange;
   projectId?: number;
+  cameraIds?: string;
 }
 
 type Granularity = 'day' | 'week' | 'month';
@@ -54,7 +55,7 @@ function getWeekNumber(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
-export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRange, projectId }) => {
+export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRange, projectId, cameraIds }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [granularity, setGranularity] = useState<Granularity>(() =>
     getOptimalGranularity(dateRange.startDate, dateRange.endDate)
@@ -81,12 +82,13 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
 
   // Fetch detection trend data
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ['statistics', 'detection-trend', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate],
+    queryKey: ['statistics', 'detection-trend', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, cameraIds],
     queryFn: () =>
       statisticsApi.getDetectionTrend(projectId, {
         species: selectedSpecies === 'all' || !selectedSpecies ? undefined : selectedSpecies,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
+        camera_ids: cameraIds,
       }),
     enabled: projectId !== undefined && selectedSpecies !== null,
   });

@@ -263,6 +263,7 @@ async def list_images(
     species: Optional[str] = None,
     show_empty: bool = Query(False),
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
+    tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
@@ -302,6 +303,24 @@ async def list_images(
         camera_ids = [int(id.strip()) for id in camera_id.split(',') if id.strip()]
         if camera_ids:
             filters.append(Image.camera_id.in_(camera_ids))
+
+    # Handle tags filter: find cameras matching any tag, then filter images
+    if tags:
+        tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
+        if tag_list:
+            from sqlalchemy import cast
+            from sqlalchemy.dialects.postgresql import ARRAY, TEXT as PG_TEXT
+            tag_camera_query = (
+                select(Camera.id)
+                .where(
+                    Camera.project_id.in_(accessible_project_ids),
+                    Camera.tags.isnot(None),
+                    cast(Camera.tags, ARRAY(PG_TEXT)).overlap(cast(tag_list, ARRAY(PG_TEXT))),
+                )
+            )
+            tag_camera_result = await db.execute(tag_camera_query)
+            matching_camera_ids = [row[0] for row in tag_camera_result.all()]
+            filters.append(Image.camera_id.in_(matching_camera_ids))
 
     if start_date:
         try:

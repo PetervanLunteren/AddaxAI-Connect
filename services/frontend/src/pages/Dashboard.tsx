@@ -3,6 +3,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { Option } from '../components/ui/MultiSelect';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -19,6 +20,7 @@ import { Camera, Images, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { statisticsApi } from '../api/statistics';
 import { imagesApi } from '../api/images';
+import { camerasApi } from '../api/cameras';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
@@ -29,6 +31,7 @@ import {
   DetectionTrendChart,
   AlertCounters,
   SpeciesComparisonChart,
+  DashboardFilters,
 } from '../components/dashboard';
 
 // Register ChartJS components
@@ -52,22 +55,49 @@ export const Dashboard: React.FC = () => {
     endDate: '',
   });
 
+  // Camera tag filters
+  const [selectedTags, setSelectedTags] = useState<Option[]>([]);
+
+  // Fetch cameras for tag-to-cameraId mapping
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Fetch tag options
+  const { data: tagOptions } = useQuery({
+    queryKey: ['camera-tags', projectId],
+    queryFn: () => camerasApi.getTags(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Derive camera IDs from selected tags
+  const cameraIdsFromTags = useMemo(() => {
+    if (selectedTags.length === 0 || !cameras) return undefined;
+    const tagValues = new Set(selectedTags.map((t) => t.value as string));
+    const matchingIds = cameras
+      .filter((c) => c.tags?.some((tag) => tagValues.has(tag)))
+      .map((c) => c.id);
+    return matchingIds.join(',') || '0'; // '0' = no match, ensures empty results
+  }, [selectedTags, cameras]);
+
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['statistics', 'overview', projectId],
-    queryFn: () => statisticsApi.getOverview(projectId),
+    queryKey: ['statistics', 'overview', projectId, cameraIdsFromTags],
+    queryFn: () => statisticsApi.getOverview(projectId, cameraIdsFromTags),
     enabled: projectId !== undefined,
   });
 
   const { data: species, isLoading: speciesLoading } = useQuery({
-    queryKey: ['statistics', 'species', projectId],
-    queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
+    queryKey: ['statistics', 'species', projectId, cameraIdsFromTags],
+    queryFn: () => statisticsApi.getSpeciesDistribution(projectId, cameraIdsFromTags),
     enabled: projectId !== undefined,
   });
 
   const { data: cameraActivity, isLoading: activityLoading } = useQuery({
-    queryKey: ['statistics', 'activity', projectId],
-    queryFn: () => statisticsApi.getCameraActivity(projectId),
+    queryKey: ['statistics', 'activity', projectId, cameraIdsFromTags],
+    queryFn: () => statisticsApi.getCameraActivity(projectId, cameraIdsFromTags),
     enabled: projectId !== undefined,
   });
 
@@ -193,12 +223,19 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
           <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends</p>
         </div>
-        <DateRangeFilter
-          value={dateRange}
-          onChange={setDateRange}
-          minDate={overview?.first_image_date}
-          maxDate={overview?.last_image_date}
-        />
+        <div className="flex items-center gap-2">
+          <DashboardFilters
+            tags={selectedTags}
+            onTagsChange={setSelectedTags}
+            tagOptions={tagOptions ?? []}
+          />
+          <DateRangeFilter
+            value={dateRange}
+            onChange={setDateRange}
+            minDate={overview?.first_image_date}
+            maxDate={overview?.last_image_date}
+          />
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -248,13 +285,13 @@ export const Dashboard: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        <DetectionTrendChart dateRange={dateRange} projectId={projectId} />
+        <DetectionTrendChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
       </div>
 
       {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <ActivityPatternChart dateRange={dateRange} projectId={projectId} />
-        <AlertCounters projectId={projectId} />
+        <ActivityPatternChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
+        <AlertCounters projectId={projectId} cameraIds={cameraIdsFromTags} />
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Camera activity status</CardTitle>
@@ -279,7 +316,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Row 3: Species activity comparison (full width) */}
-      <SpeciesComparisonChart dateRange={dateRange} projectId={projectId} />
+      <SpeciesComparisonChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
     </div>
   );
 };

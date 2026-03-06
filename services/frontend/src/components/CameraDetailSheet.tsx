@@ -9,7 +9,7 @@
  * - Actions: Delete camera and other admin actions (server admins only)
  */
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Edit,
   Trash2,
@@ -32,6 +32,7 @@ import {
   DialogFooter,
 } from './ui/Dialog';
 import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
+import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { cn } from '../lib/utils';
@@ -65,6 +66,14 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
   const [metadataFields, setMetadataFields] = useState<{key: string, value: string}[]>([]);
+  const [editTags, setEditTags] = useState<string[]>([]);
+
+  // Fetch tag suggestions for autocomplete
+  const { data: tagSuggestions } = useQuery({
+    queryKey: ['camera-tags', projectId],
+    queryFn: () => camerasApi.getTags(projectId),
+    enabled: isOpen && projectId !== undefined,
+  });
 
   // Reset editing state and tab when camera changes or sheet closes
   useEffect(() => {
@@ -78,15 +87,20 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       setMetadataFields(
         Object.entries(meta).map(([key, value]) => ({ key, value: value || '' }))
       );
+      setEditTags(camera.tags || []);
     }
     setIsEditing(false);
     setActiveTab('notes');
   }, [camera]);
 
   // Check if notes have been modified
+  const tagsChanged = camera && (
+    JSON.stringify(editTags) !== JSON.stringify(camera.tags || [])
+  );
   const notesModified = camera && (
     editForm.friendly_name !== camera.name ||
-    editForm.notes !== (camera.notes || '')
+    editForm.notes !== (camera.notes || '') ||
+    tagsChanged
   );
 
   // Update mutation
@@ -133,6 +147,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       }
     }
     cleanedData.custom_fields = custom_fields;
+    cleanedData.tags = editTags;
 
     updateMutation.mutate(cleanedData);
   };
@@ -398,6 +413,29 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
                     rows={4}
                   />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Tags</label>
+                  {canAdmin ? (
+                    <TagInput
+                      value={editTags}
+                      onChange={setEditTags}
+                      suggestions={tagSuggestions ?? []}
+                    />
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
+                      {editTags.length > 0 ? editTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
+                        >
+                          {tag}
+                        </span>
+                      )) : (
+                        <span className="text-sm text-muted-foreground">No tags</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {notesModified && canAdmin && (
                   <Button
