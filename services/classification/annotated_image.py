@@ -41,7 +41,7 @@ def generate_annotated_image(
     Args:
         image_path: Path to local image file
         detections: List of (detection, classification) tuples
-        max_width: Not used - we use full resolution like the frontend
+        max_width: Deprecated, not used (images are resized to 1280px internally)
 
     Returns:
         Image bytes (JPEG format)
@@ -50,30 +50,32 @@ def generate_annotated_image(
         Exception: If image generation fails
     """
     try:
-        # Load image at full resolution (match frontend: uses naturalWidth/naturalHeight)
-        img = Image.open(image_path)
+        MAX_WIDTH = 1280
 
-        # Convert to RGB if necessary
+        img = Image.open(image_path)
         if img.mode != 'RGB':
             img = img.convert('RGB')
 
-        # Use full natural size (no resizing, match frontend behavior)
         natural_width, natural_height = img.size
 
-        # Calculate scale factor based on a reference display size
-        # Frontend calculates: downloadCanvas.width / canvasRef.current.width
-        # Using a smaller reference size makes annotations larger
-        # 300px reference gives much larger, more visible annotations
-        display_width = 300
-        scale_factor = natural_width / display_width
+        # Resize for Telegram — reduces compression artifacts and speeds up upload
+        resize_ratio = 1.0
+        if natural_width > MAX_WIDTH:
+            resize_ratio = MAX_WIDTH / natural_width
+            new_height = round(natural_height * resize_ratio)
+            img = img.resize((MAX_WIDTH, new_height), Image.LANCZOS)
+
+        # Scale factor matching annotated_image_generator.py (display_width=1000)
+        display_width = 1000
+        scale_factor = img.width / display_width
 
         logger.debug(
-            "Using full resolution for annotation",
+            "Generating annotated image",
             natural_size=f"{natural_width}x{natural_height}",
+            output_size=f"{img.width}x{img.height}",
             scale_factor=scale_factor
         )
 
-        # Create drawing context
         draw = ImageDraw.Draw(img)
 
         # Try to load a font, fall back to default if not available
@@ -86,88 +88,29 @@ def generate_annotated_image(
             font = ImageFont.load_default()
             logger.debug("Using default font for annotations")
 
-        # Draw each detection with label
         for detection, classification in detections:
-            # Use bbox coordinates directly (they're already in natural image size)
-            # Frontend: const x = bbox.x; (line 274)
             bbox = detection.bbox
-            x = bbox['x']
-            y = bbox['y']
-            width = bbox['width']
-            height = bbox['height']
+            x = bbox['x'] * resize_ratio
+            y = bbox['y'] * resize_ratio
+            width = bbox['width'] * resize_ratio
+            height = bbox['height'] * resize_ratio
 
-            # Add padding around bbox (match frontend line 283: Math.round(8 * scaleFactor))
             bbox_padding = round(8 * scale_factor)
             padded_x = x - bbox_padding
             padded_y = y - bbox_padding
             padded_width = width + (bbox_padding * 2)
             padded_height = height + (bbox_padding * 2)
 
-            # Draw corner brackets instead of full rectangle (match frontend style)
-            box_color = '#ef4444'  # Red
-            # Make corners wider and longer than frontend default
-            line_width = round(6 * scale_factor)  # Increased from 4
-            bracket_length = round(20 * scale_factor)  # Increased from 12
-            corner_radius = round(6 * scale_factor)  # Increased from 4
+            # Draw rounded rectangle bounding box
+            box_color = '#ef4444'
+            line_width = round(4 * scale_factor)
+            corner_radius = round(4 * scale_factor)
 
-            # Draw corner brackets exactly like Canvas API
-            # Match the exact Canvas code from lines 297-323
-
-            # Set up for drawing (PIL uses different line cap than Canvas)
-            # Top-left corner: moveTo(paddedX, paddedY + bracketLength) -> arcTo -> lineTo(paddedX + bracketLength, paddedY)
-            draw.line(
-                [(padded_x, padded_y + bracket_length), (padded_x, padded_y + corner_radius)],
-                fill=box_color, width=line_width
-            )
-            draw.arc(
-                [padded_x, padded_y, padded_x + corner_radius*2, padded_y + corner_radius*2],
-                180, 270, fill=box_color, width=line_width
-            )
-            draw.line(
-                [(padded_x + corner_radius, padded_y), (padded_x + bracket_length, padded_y)],
-                fill=box_color, width=line_width
-            )
-
-            # Top-right corner: moveTo(paddedX + paddedWidth - bracketLength, paddedY) -> arcTo -> lineTo(paddedX + paddedWidth, paddedY + bracketLength)
-            draw.line(
-                [(padded_x + padded_width - bracket_length, padded_y), (padded_x + padded_width - corner_radius, padded_y)],
-                fill=box_color, width=line_width
-            )
-            draw.arc(
-                [padded_x + padded_width - corner_radius*2, padded_y, padded_x + padded_width, padded_y + corner_radius*2],
-                270, 360, fill=box_color, width=line_width
-            )
-            draw.line(
-                [(padded_x + padded_width, padded_y + corner_radius), (padded_x + padded_width, padded_y + bracket_length)],
-                fill=box_color, width=line_width
-            )
-
-            # Bottom-left corner: moveTo(paddedX + bracketLength, paddedY + paddedHeight) -> arcTo -> lineTo(paddedX, paddedY + paddedHeight - bracketLength)
-            draw.line(
-                [(padded_x + bracket_length, padded_y + padded_height), (padded_x + corner_radius, padded_y + padded_height)],
-                fill=box_color, width=line_width
-            )
-            draw.arc(
-                [padded_x, padded_y + padded_height - corner_radius*2, padded_x + corner_radius*2, padded_y + padded_height],
-                90, 180, fill=box_color, width=line_width
-            )
-            draw.line(
-                [(padded_x, padded_y + padded_height - corner_radius), (padded_x, padded_y + padded_height - bracket_length)],
-                fill=box_color, width=line_width
-            )
-
-            # Bottom-right corner: moveTo(paddedX + paddedWidth, paddedY + paddedHeight - bracketLength) -> arcTo -> lineTo(paddedX + paddedWidth - bracketLength, paddedY + paddedHeight)
-            draw.line(
-                [(padded_x + padded_width, padded_y + padded_height - bracket_length), (padded_x + padded_width, padded_y + padded_height - corner_radius)],
-                fill=box_color, width=line_width
-            )
-            draw.arc(
-                [padded_x + padded_width - corner_radius*2, padded_y + padded_height - corner_radius*2, padded_x + padded_width, padded_y + padded_height],
-                0, 90, fill=box_color, width=line_width
-            )
-            draw.line(
-                [(padded_x + padded_width - corner_radius, padded_y + padded_height), (padded_x + padded_width - bracket_length, padded_y + padded_height)],
-                fill=box_color, width=line_width
+            draw.rounded_rectangle(
+                [padded_x, padded_y, padded_x + padded_width, padded_y + padded_height],
+                radius=corner_radius,
+                outline=box_color,
+                width=line_width
             )
 
             # Prepare label text
@@ -210,29 +153,29 @@ def generate_annotated_image(
             # Frontend line 351: Math.max(margin, paddedY - labelBoxHeight - margin)
             label_y = max(margin, padded_y - label_box_height - margin)
 
-            # If cut off at top, place below bbox
-            # Frontend line 352-353
             if label_y < margin:
-                label_y = min(padded_y + padded_height + margin, natural_height - label_box_height - margin)
+                label_y = min(padded_y + padded_height + margin, img.height - label_box_height - margin)
 
-            # Ensure doesn't go off right edge
-            # Frontend line 355: Math.min(paddedX, downloadCanvas.width - labelBoxWidth - margin)
-            label_x = min(padded_x, natural_width - label_box_width - margin)
+            label_x = min(padded_x, img.width - label_box_width - margin)
 
-            # Draw label background with semi-transparent black (match frontend: rgba(0, 0, 0, 0.5))
-            # Create a semi-transparent overlay
-            overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            # Draw semi-transparent label background using a small overlay
+            lx, ly = round(label_x), round(label_y)
+            lw = round(label_box_width)
+            lh = round(label_box_height)
+            overlay = Image.new('RGBA', (lw, lh), (0, 0, 0, 0))
             overlay_draw = ImageDraw.Draw(overlay)
-
-            # Draw rounded rectangle on overlay
             overlay_draw.rounded_rectangle(
-                [label_x, label_y, label_x + label_box_width, label_y + label_box_height],
+                [0, 0, lw, lh],
                 radius=border_radius,
-                fill=(0, 0, 0, 128)  # 128 = 50% opacity
+                fill=(0, 0, 0, 128)
             )
-
-            # Composite the overlay onto the main image
-            img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
+            img.paste(
+                Image.alpha_composite(
+                    img.crop((lx, ly, lx + lw, ly + lh)).convert('RGBA'),
+                    overlay
+                ).convert('RGB'),
+                (lx, ly)
+            )
             draw = ImageDraw.Draw(img)
 
             # Draw label text (white, vertically centered in each line)
