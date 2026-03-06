@@ -18,8 +18,9 @@ import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
 import { statisticsApi } from '../../api/statistics';
 import { cameraGroupsApi } from '../../api/cameraGroups';
+import { camerasApi } from '../../api/cameras';
 import { normalizeLabel } from '../../utils/labels';
-import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse } from '../../api/types';
+import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, CameraGroup } from '../../api/types';
 
 // DeepFaune v1.4 species list (38 European wildlife species)
 const DEEPFAUNE_SPECIES = [
@@ -60,6 +61,7 @@ export const ProjectSettingsPage: React.FC = () => {
 
   // Camera groups state
   const [showCameraGroups, setShowCameraGroups] = useState(false);
+  const [pendingGroups, setPendingGroups] = useState<CameraGroup[]>([]);
 
   // Toast + modal state
   const [showToast, setShowToast] = useState(false);
@@ -109,8 +111,20 @@ export const ProjectSettingsPage: React.FC = () => {
   const { data: cameraGroups = [] } = useQuery({
     queryKey: ['camera-groups', currentProject?.id],
     queryFn: () => cameraGroupsApi.list(currentProject!.id),
-    enabled: !!currentProject && (currentProject.independence_interval_minutes ?? 0) > 0,
+    enabled: !!currentProject,
   });
+
+  // Cameras query (for the groups modal)
+  const { data: cameras = [] } = useQuery({
+    queryKey: ['cameras', currentProject?.id],
+    queryFn: () => camerasApi.getAll(currentProject!.id),
+    enabled: !!currentProject,
+  });
+
+  // Sync fetched groups into pending state
+  useEffect(() => {
+    setPendingGroups(cameraGroups);
+  }, [cameraGroups]);
 
   // Redirect if user doesn't have admin access (after all hooks)
   if (!canAdminCurrentProject) {
@@ -132,7 +146,23 @@ export const ProjectSettingsPage: React.FC = () => {
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
   const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 0);
-  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasBlurChanges || hasIntervalChanges;
+
+  // Compare pending groups against saved groups
+  const hasGroupChanges = (() => {
+    if (pendingGroups.length !== cameraGroups.length) return true;
+    const savedMap = new Map(cameraGroups.map(g => [g.id, g]));
+    return pendingGroups.some(pg => {
+      if (pg.id < 0) return true; // new group (temp ID)
+      const saved = savedMap.get(pg.id);
+      if (!saved) return true; // deleted and re-added? shouldn't happen
+      if (pg.name !== saved.name) return true;
+      const oldIds = [...saved.camera_ids].sort().join(',');
+      const newIds = [...pg.camera_ids].sort().join(',');
+      return oldIds !== newIds;
+    }) || cameraGroups.some(sg => !pendingGroups.find(pg => pg.id === sg.id)); // deleted group
+  })();
+
+  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasBlurChanges || hasIntervalChanges || hasGroupChanges;
 
   // Unified save handler
   const handleSave = async () => {
@@ -177,6 +207,42 @@ export const ProjectSettingsPage: React.FC = () => {
       }
 
       await Promise.all(promises);
+
+      // Save camera group changes
+      if (hasGroupChanges) {
+        const savedMap = new Map(cameraGroups.map(g => [g.id, g]));
+
+        // Delete removed groups
+        for (const saved of cameraGroups) {
+          if (!pendingGroups.find(pg => pg.id === saved.id)) {
+            await cameraGroupsApi.delete(currentProject.id, saved.id);
+          }
+        }
+
+        // Create new groups (negative temp IDs) and update existing
+        for (const pg of pendingGroups) {
+          if (pg.id < 0) {
+            // New group
+            const created = await cameraGroupsApi.create(currentProject.id, pg.name, pg.camera_ids.length > 0 ? pg.camera_ids : undefined);
+            if (pg.camera_ids.length > 0) {
+              await cameraGroupsApi.setCameras(currentProject.id, created.id, pg.camera_ids);
+            }
+          } else {
+            const saved = savedMap.get(pg.id);
+            if (!saved) continue;
+            if (pg.name !== saved.name) {
+              await cameraGroupsApi.rename(currentProject.id, pg.id, pg.name);
+            }
+            const oldIds = [...saved.camera_ids].sort().join(',');
+            const newIds = [...pg.camera_ids].sort().join(',');
+            if (oldIds !== newIds) {
+              await cameraGroupsApi.setCameras(currentProject.id, pg.id, pg.camera_ids);
+            }
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['camera-groups', currentProject.id] });
+      }
       setSaveStatus('success');
 
       // 3. Fetch "after" stats (new settings now in DB)
@@ -223,6 +289,7 @@ export const ProjectSettingsPage: React.FC = () => {
     setIncludedSpecies(
       included.map(species => ({ label: normalizeLabel(species), value: species }))
     );
+    setPendingGroups(cameraGroups);
   };
 
   // Restore defaults (fill form only, user must save)
@@ -384,8 +451,8 @@ export const ProjectSettingsPage: React.FC = () => {
                 </div>
                 <div className="flex-1 flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {cameraGroups.length > 0
-                      ? `${cameraGroups.length} group${cameraGroups.length !== 1 ? 's' : ''}, ${cameraGroups.reduce((sum, g) => sum + g.camera_ids.length, 0)} cameras grouped`
+                    {pendingGroups.length > 0
+                      ? `${pendingGroups.length} group${pendingGroups.length !== 1 ? 's' : ''}, ${pendingGroups.reduce((sum, g) => sum + g.camera_ids.length, 0)} cameras grouped`
                       : 'No groups configured'}
                   </span>
                   <Button
@@ -478,13 +545,13 @@ export const ProjectSettingsPage: React.FC = () => {
       )}
 
       {/* Camera groups modal */}
-      {currentProject && (
-        <CameraGroupsModal
-          projectId={currentProject.id}
-          open={showCameraGroups}
-          onOpenChange={setShowCameraGroups}
-        />
-      )}
+      <CameraGroupsModal
+        groups={pendingGroups}
+        cameras={cameras}
+        open={showCameraGroups}
+        onOpenChange={setShowCameraGroups}
+        onGroupsChange={setPendingGroups}
+      />
 
       {/* Effect on statistics modal */}
       <Dialog open={showChangesModal} onOpenChange={setShowChangesModal}>
