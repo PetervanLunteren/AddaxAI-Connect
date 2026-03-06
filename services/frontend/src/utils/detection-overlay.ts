@@ -71,8 +71,8 @@ interface PillLayout {
   categoryText: string;
   speciesText: string | null;
   hasSpecies: boolean;
-  pillWidth: number;
-  pillHeight: number;
+  width: number;
+  height: number;
   color: string;
   x: number;
   y: number;
@@ -133,8 +133,8 @@ function computePillLayout(
     categoryText,
     speciesText,
     hasSpecies: !!speciesText,
-    pillWidth,
-    pillHeight,
+    width: pillWidth,
+    height: pillHeight,
     color,
     x: pillX,
     y: pillY,
