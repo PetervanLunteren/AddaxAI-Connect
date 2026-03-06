@@ -116,6 +116,23 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
             />
           </div>
 
+          {/* Verification */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Verification</label>
+            <div className="relative">
+              <select
+                className="w-full h-9 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                value={filters.verified}
+                onChange={(e) => onFilterChange('verified', e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="false">Unverified</option>
+                <option value="true">Verified</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+
           {/* Date range */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Date range</label>
@@ -140,30 +157,13 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
             </div>
           </div>
 
-          {/* Show empty + Verification */}
-          <div className="space-y-3">
-            <Checkbox
-              id="show-empty"
-              checked={filters.show_empty}
-              onChange={(checked) => onFilterChange('show_empty', checked)}
-              label="Show images without detections"
-            />
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Verification:</label>
-              <div className="relative">
-                <select
-                  className="h-9 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none"
-                  value={filters.verified}
-                  onChange={(e) => onFilterChange('verified', e.target.value)}
-                >
-                  <option value="">All</option>
-                  <option value="false">Unverified</option>
-                  <option value="true">Verified</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              </div>
-            </div>
-          </div>
+          {/* Show empty */}
+          <Checkbox
+            id="show-empty"
+            checked={filters.show_empty}
+            onChange={(checked) => onFilterChange('show_empty', checked)}
+            label="Show images without detections"
+          />
 
           {/* Clear all */}
           {activeCount > 0 && (
