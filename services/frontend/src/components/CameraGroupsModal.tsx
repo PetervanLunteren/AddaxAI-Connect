@@ -105,7 +105,7 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
         <DialogHeader>
           <DialogTitle>Camera groups</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Cameras in the same group share an independence interval, merging detections of the same species across all cameras in the group.
+            Cameras in a group are treated as one location for the independence interval.
           </p>
         </DialogHeader>
 
