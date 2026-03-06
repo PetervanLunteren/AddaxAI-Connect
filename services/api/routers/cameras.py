@@ -26,6 +26,7 @@ class CameraResponse(BaseModel):
     name: str
     imei: Optional[str] = None
     custom_fields: Optional[dict] = None
+    tags: Optional[List[str]] = None
     notes: Optional[str] = None
     location: Optional[dict] = None  # {lat, lon}
     battery_percentage: Optional[int] = None
@@ -48,6 +49,7 @@ class CreateCameraRequest(BaseModel):
     friendly_name: Optional[str] = None  # Display name (optional, defaults to IMEI)
     notes: Optional[str] = None
     custom_fields: Optional[dict] = None
+    tags: Optional[List[str]] = None
     project_id: int
 
 
@@ -56,6 +58,7 @@ class UpdateCameraRequest(BaseModel):
     friendly_name: Optional[str] = None
     custom_fields: Optional[dict] = None
     notes: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class CameraImportRow(BaseModel):
@@ -93,6 +96,20 @@ class HealthHistoryResponse(BaseModel):
     camera_id: int
     camera_name: str
     reports: List[HealthReportPoint]
+
+
+def normalize_tags(tags: Optional[List[str]]) -> List[str]:
+    """Normalize tags: lowercase, strip, deduplicate, remove empties and commas."""
+    if not tags:
+        return []
+    seen = set()
+    result = []
+    for tag in tags:
+        tag = tag.strip().lower().replace(',', '')
+        if tag and tag not in seen:
+            seen.add(tag)
+            result.append(tag)
+    return result
 
 
 def parse_camera_status(camera: Camera) -> str:
@@ -143,6 +160,7 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
         name=camera.name,
         imei=camera.imei,
         custom_fields=camera.custom_fields,
+        tags=camera.tags or [],
         notes=camera.notes,
         location=gps_data,
         battery_percentage=health_data.get('battery_percentage'),
@@ -203,6 +221,40 @@ async def list_cameras(
         last_image_map = {}
 
     return [camera_to_response(camera, last_image_map.get(camera.id)) for camera in cameras]
+
+
+@router.get(
+    "/tags",
+    response_model=List[str],
+)
+async def get_camera_tags(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get all unique tags across cameras in accessible projects.
+
+    Returns sorted list of unique tags for autocomplete.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+
+    result = await db.execute(
+        select(Camera.tags).where(
+            Camera.project_id.in_(accessible_project_ids),
+            Camera.tags.isnot(None),
+        )
+    )
+
+    all_tags = set()
+    for (tags,) in result.all():
+        if tags:
+            for tag in tags:
+                if tag and isinstance(tag, str):
+                    all_tags.add(tag.strip().lower())
+
+    return sorted(all_tags)
 
 
 @router.get(
@@ -417,6 +469,7 @@ async def create_camera(
         name=request.friendly_name if request.friendly_name else request.imei,  # Default name to IMEI
         notes=request.notes or '',
         custom_fields=request.custom_fields or {},
+        tags=normalize_tags(request.tags) if request.tags else [],
         project_id=request.project_id,
         status='inventory',
         config={}
@@ -479,6 +532,8 @@ async def update_camera(
         camera.custom_fields = request.custom_fields
     if request.notes is not None:
         camera.notes = request.notes
+    if request.tags is not None:
+        camera.tags = normalize_tags(request.tags)
 
     await db.commit()
     await db.refresh(camera)

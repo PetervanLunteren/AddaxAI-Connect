@@ -12,6 +12,7 @@ export interface CreateCameraRequest {
   friendly_name?: string;
   notes?: string;
   custom_fields?: Record<string, string>;
+  tags?: string[];
   project_id: number;
 }
 
@@ -19,6 +20,7 @@ export interface UpdateCameraRequest {
   friendly_name?: string;
   custom_fields?: Record<string, string>;
   notes?: string;
+  tags?: string[];
 }
 
 export interface CameraImportRow {
@@ -91,6 +93,16 @@ export const camerasApi = {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  },
+
+  /**
+   * Get all unique tags across cameras in a project
+   */
+  getTags: async (projectId?: number): Promise<string[]> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<string[]>('/api/cameras/tags', { params });
     return response.data;
   },
 

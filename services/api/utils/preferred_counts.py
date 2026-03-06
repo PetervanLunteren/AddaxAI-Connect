@@ -15,7 +15,7 @@ async def get_preferred_species_counts(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_id: Optional[int] = None,
+    camera_ids: Optional[List[int]] = None,
     species_filter: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[dict]:
@@ -45,9 +45,9 @@ async def get_preferred_species_counts(
     if end_date:
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
-    if camera_id:
-        verified_filters.append(Image.camera_id == camera_id)
-        unverified_filters.append(Image.camera_id == camera_id)
+    if camera_ids:
+        verified_filters.append(Image.camera_id.in_(camera_ids))
+        unverified_filters.append(Image.camera_id.in_(camera_ids))
     # Person/vehicle filters (unverified images with detection category)
     pv_filters = [
         Image.is_verified == False,
@@ -63,8 +63,8 @@ async def get_preferred_species_counts(
         pv_filters.append(Image.uploaded_at >= start_date)
     if end_date:
         pv_filters.append(Image.uploaded_at <= end_date)
-    if camera_id:
-        pv_filters.append(Image.camera_id == camera_id)
+    if camera_ids:
+        pv_filters.append(Image.camera_id.in_(camera_ids))
 
     # Query 1: Verified images - use HumanObservation
     verified_query = (
@@ -141,6 +141,7 @@ async def get_preferred_unique_species(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    camera_ids: Optional[List[int]] = None,
 ) -> List[str]:
     """
     Get list of unique species from preferred data source.
@@ -174,6 +175,10 @@ async def get_preferred_unique_species(
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
         pv_filters.append(Image.uploaded_at <= end_date)
+    if camera_ids:
+        verified_filters.append(Image.camera_id.in_(camera_ids))
+        unverified_filters.append(Image.camera_id.in_(camera_ids))
+        pv_filters.append(Image.camera_id.in_(camera_ids))
 
     # Species from verified images (human observations)
     verified_species = (
@@ -226,11 +231,12 @@ async def get_preferred_unique_species(
 async def get_preferred_total_species_count(
     db: AsyncSession,
     project_ids: List[int],
+    camera_ids: Optional[List[int]] = None,
 ) -> int:
     """
     Get total unique species count from preferred data source.
     """
-    species_list = await get_preferred_unique_species(db, project_ids)
+    species_list = await get_preferred_unique_species(db, project_ids, camera_ids=camera_ids)
     return len(species_list)
 
 
@@ -240,6 +246,7 @@ async def get_preferred_hourly_activity(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    camera_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get hourly activity counts (0-23) from preferred data source.
@@ -280,6 +287,10 @@ async def get_preferred_hourly_activity(
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
         pv_filters.append(func.lower(Detection.category) == species_filter.lower())
+    if camera_ids:
+        verified_filters.append(Image.camera_id.in_(camera_ids))
+        unverified_filters.append(Image.camera_id.in_(camera_ids))
+        pv_filters.append(Image.camera_id.in_(camera_ids))
 
     # Verified: group by hour, sum counts from HumanObservation
     verified_query = (
@@ -350,6 +361,7 @@ async def get_preferred_species_first_dates(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    camera_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get the first observation date for each species from preferred data source.
@@ -385,6 +397,10 @@ async def get_preferred_species_first_dates(
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
         pv_filters.append(Image.uploaded_at <= end_date)
+    if camera_ids:
+        verified_filters.append(Image.camera_id.in_(camera_ids))
+        unverified_filters.append(Image.camera_id.in_(camera_ids))
+        pv_filters.append(Image.camera_id.in_(camera_ids))
 
     # Verified: first date from human observations
     verified_query = (
@@ -455,6 +471,7 @@ async def get_preferred_species_camera_matrix(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    camera_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get species counts per camera from preferred data source.
@@ -490,6 +507,10 @@ async def get_preferred_species_camera_matrix(
         verified_filters.append(Image.uploaded_at <= end_date)
         unverified_filters.append(Image.uploaded_at <= end_date)
         pv_filters.append(Image.uploaded_at <= end_date)
+    if camera_ids:
+        verified_filters.append(Image.camera_id.in_(camera_ids))
+        unverified_filters.append(Image.camera_id.in_(camera_ids))
+        pv_filters.append(Image.camera_id.in_(camera_ids))
 
     # Verified: group by camera and species, sum counts
     verified_query = (
@@ -567,6 +588,7 @@ async def get_preferred_daily_trend(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    camera_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get daily detection counts from preferred data source.
@@ -606,6 +628,10 @@ async def get_preferred_daily_trend(
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
         pv_filters.append(func.lower(Detection.category) == species_filter.lower())
+    if camera_ids:
+        verified_filters.append(Image.camera_id.in_(camera_ids))
+        unverified_filters.append(Image.camera_id.in_(camera_ids))
+        pv_filters.append(Image.camera_id.in_(camera_ids))
 
     # Verified: group by date, sum counts
     verified_query = (

@@ -8,6 +8,7 @@ export interface Camera {
   name: string;
   imei?: string;
   custom_fields?: Record<string, string> | null;
+  tags?: string[];
   notes?: string | null;
   // Health/operational data (visible to all)
   location: { lat: number; lon: number } | null;
@@ -420,11 +421,13 @@ export interface ActivityPatternFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
+  camera_ids?: string;  // Comma-separated camera IDs
 }
 
 export interface DateRangeFilters {
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
+  camera_ids?: string;  // Comma-separated camera IDs
 }
 
 // Detection trend (daily counts)
@@ -437,6 +440,7 @@ export interface DetectionTrendFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
+  camera_ids?: string;  // Comma-separated camera IDs
 }
 
 // Pipeline status

@@ -24,6 +24,7 @@ ChartJS.register(RadialLinearScale, ArcElement, Tooltip, Legend);
 interface ActivityPatternChartProps {
   dateRange: DateRange;
   projectId?: number;
+  cameraIds?: string;
 }
 
 // Generate colors for 24 hours based on time of day (colors from FRONTEND_CONVENTIONS.md palette)
@@ -56,7 +57,7 @@ function getHourColors(): { background: string[]; border: string[] } {
   return { background, border };
 }
 
-export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId }) => {
+export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, cameraIds }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
 
   // Fetch species list for the selector
@@ -68,12 +69,13 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
 
   // Fetch activity pattern data
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'activity-pattern', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate],
+    queryKey: ['statistics', 'activity-pattern', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, cameraIds],
     queryFn: () =>
       statisticsApi.getActivityPattern(projectId, {
         species: selectedSpecies === 'all' ? undefined : selectedSpecies,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
+        camera_ids: cameraIds,
       }),
     enabled: projectId !== undefined,
   });
