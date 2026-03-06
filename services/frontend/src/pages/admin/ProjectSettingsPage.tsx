@@ -446,7 +446,7 @@ export const ProjectSettingsPage: React.FC = () => {
                     Camera groups
                   </label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Group cameras that share a field of view so the independence interval merges detections across all cameras in the group.
+                    Group cameras with overlapping fields of view. Detections of the same species within the interval are merged into a single event.
                   </p>
                 </div>
                 <div className="flex-1 flex items-center justify-between">
