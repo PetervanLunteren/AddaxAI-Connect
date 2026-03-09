@@ -429,7 +429,7 @@ export const ManageImagesPage: React.FC = () => {
             {imagesData.items.map((image) => (
               <TableRow
                 key={image.uuid}
-                className={`cursor-pointer ${image.is_hidden ? 'opacity-60 bg-amber-50/50' : ''}`}
+                className={`cursor-pointer ${image.is_hidden ? 'opacity-50 bg-muted/50' : ''}`}
                 onClick={(e) => {
                   // Don't open modal if clicking checkbox
                   if ((e.target as HTMLElement).closest('input[type="checkbox"]')) return;
