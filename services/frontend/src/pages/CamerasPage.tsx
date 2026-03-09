@@ -506,8 +506,8 @@ export const CamerasPage: React.FC = () => {
 
       {/* Search + filters toolbar */}
       {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative max-w-sm flex-1">
+        <div className="flex items-center gap-3 mb-4 justify-end">
+          <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
