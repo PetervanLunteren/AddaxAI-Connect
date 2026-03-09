@@ -41,7 +41,7 @@ Event structure:
     'type': 'low_battery',
     'camera_id': int,
     'camera_name': str,
-    'imei': str,
+    'device_id': str,
     'battery_percentage': int,
     'location': {'lat': float, 'lon': float} or None,
     'timestamp': str (ISO 8601)

@@ -25,7 +25,7 @@ import {
   type RejectedFile,
 } from '../../api/ingestion-monitoring';
 
-type SortField = 'filename' | 'reason' | 'imei' | 'size_bytes' | 'timestamp';
+type SortField = 'filename' | 'reason' | 'device_id' | 'size_bytes' | 'timestamp';
 type SortDirection = 'asc' | 'desc';
 
 export const RejectedFilesPage: React.FC = () => {
@@ -174,7 +174,8 @@ export const RejectedFilesPage: React.FC = () => {
     unknown_camera: 'Unknown Camera',
     no_camera_exif: 'No Camera EXIF Data',
     unsupported_camera: 'Unsupported Camera',
-    missing_imei: 'Missing IMEI',
+    missing_device_id: 'Missing camera ID',
+    missing_imei: 'Missing camera ID',
     missing_datetime: 'Missing DateTime',
     validation_failed: 'Validation Failed',
     duplicate: 'Duplicate',
@@ -331,9 +332,9 @@ export const RejectedFilesPage: React.FC = () => {
                       </th>
                       <th
                         className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden sm:table-cell"
-                        onClick={() => handleSort('imei')}
+                        onClick={() => handleSort('device_id')}
                       >
-                        IMEI {sortField === 'imei' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        Camera ID {sortField === 'device_id' && (sortDirection === 'asc' ? '↑' : '↓')}
                       </th>
                       <th
                         className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden md:table-cell"
@@ -373,7 +374,7 @@ export const RejectedFilesPage: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-2 px-2 font-mono text-xs hidden sm:table-cell">
-                          {file.imei || <span className="text-muted-foreground">-</span>}
+                          {file.device_id || <span className="text-muted-foreground">-</span>}
                         </td>
                         <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
                           {formatFileSize(file.size_bytes)}
@@ -483,10 +484,10 @@ export const RejectedFilesPage: React.FC = () => {
                 </p>
               </div>
 
-              {selectedFile.imei && (
+              {selectedFile.device_id && (
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">IMEI</label>
-                  <p className="font-mono text-sm mt-1">{selectedFile.imei}</p>
+                  <label className="text-sm font-medium text-muted-foreground">Camera ID</label>
+                  <p className="font-mono text-sm mt-1">{selectedFile.device_id}</p>
                 </div>
               )}
 

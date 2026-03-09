@@ -30,7 +30,7 @@ class RejectedFileResponse(BaseModel):
     filepath: str
     timestamp: float  # File modification time (Unix timestamp)
     size_bytes: int
-    imei: str | None = None  # Extracted IMEI if available
+    device_id: str | None = None  # Extracted device ID if available
     error_details: str | None = None  # Details from .error.json if available
     rejected_at: str | None = None  # ISO timestamp from .error.json
     exif_metadata: dict | None = None  # EXIF metadata from .error.json if available
@@ -68,18 +68,18 @@ class UploadFilesResponse(BaseModel):
     files: List[UploadFileResponse]
 
 
-def extract_imei_from_file(file_path: Path) -> str | None:
+def extract_device_id_from_file(file_path: Path) -> str | None:
     """
-    Extract IMEI from a file using exiftool.
+    Extract device ID from a file using exiftool.
 
     Args:
         file_path: Path to the file
 
     Returns:
-        IMEI string if found, None otherwise
+        Device ID string if found, None otherwise
     """
     try:
-        # Use exiftool to extract SerialNumber (IMEI) from image files
+        # Use exiftool to extract SerialNumber (device ID) from image files
         result = subprocess.run(
             ["exiftool", "-SerialNumber", "-s3", str(file_path)],
             capture_output=True,
@@ -91,7 +91,7 @@ def extract_imei_from_file(file_path: Path) -> str | None:
             return result.stdout.strip()
     except Exception as e:
         logger.debug(
-            "Failed to extract IMEI from file",
+            "Failed to extract device ID from file",
             file_path=str(file_path),
             error=str(e)
         )
@@ -133,11 +133,11 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                     stat = file_path.stat()
                     filename = file_path.name
 
-                    # Extract IMEI from file EXIF data
+                    # Extract device ID from file EXIF data
                     # Only attempt for image files to avoid processing daily reports unnecessarily
-                    imei = None
+                    device_id = None
                     if file_path.suffix.lower() in ['.jpg', '.jpeg']:
-                        imei = extract_imei_from_file(file_path)
+                        device_id = extract_device_id_from_file(file_path)
 
                     # Try to read error details from corresponding .error.json file
                     error_details = None
@@ -151,13 +151,13 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                                 error_details = error_data.get('details')
                                 rejected_at = error_data.get('rejected_at')
                                 exif_metadata = error_data.get('exif_metadata')
-                                # If IMEI wasn't extracted from EXIF, try to get it from error details
-                                if not imei and error_details:
-                                    # Extract IMEI from details like "Camera not registered. IMEI: 860946063337391..."
+                                # If device ID wasn't extracted from EXIF, try to get it from error details
+                                if not device_id and error_details:
+                                    # Match both old "IMEI:" and new "Device ID:" formats
                                     import re
-                                    match = re.search(r'IMEI:\s*(\d+)', error_details)
+                                    match = re.search(r'(?:IMEI|Device ID):\s*(\S+)', error_details)
                                     if match:
-                                        imei = match.group(1)
+                                        device_id = match.group(1)
                         except Exception as e:
                             logger.debug(
                                 "Failed to read error JSON",
@@ -171,7 +171,7 @@ def scan_rejected_files() -> List[RejectedFileResponse]:
                         filepath=str(file_path),
                         timestamp=stat.st_mtime,
                         size_bytes=stat.st_size,
-                        imei=imei,
+                        device_id=device_id,
                         error_details=error_details,
                         rejected_at=rejected_at,
                         exif_metadata=exif_metadata

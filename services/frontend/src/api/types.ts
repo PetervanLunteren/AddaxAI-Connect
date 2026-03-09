@@ -6,7 +6,7 @@
 export interface Camera {
   id: number;
   name: string;
-  imei?: string;
+  device_id?: string;
   custom_fields?: Record<string, string> | null;
   tags?: string[];
   notes?: string | null;

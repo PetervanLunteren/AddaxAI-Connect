@@ -29,11 +29,11 @@
             {% for cam in cameras %}
             <tr>
                 <td style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
-                    <!-- Camera name + IMEI -->
+                    <!-- Camera name + ID -->
                     <p style="font-size: 15px; font-weight: 600; color: #1f2937; margin: 0;">
                         {{ cam.name }}
-                        {% if cam.imei %}
-                        <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.imei }}</span>
+                        {% if cam.device_id %}
+                        <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.device_id }}</span>
                         {% endif %}
                     </p>
                     <!-- Image count -->

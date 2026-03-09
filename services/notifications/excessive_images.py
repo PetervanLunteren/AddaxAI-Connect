@@ -203,7 +203,7 @@ def _get_cameras_over_threshold(
     """
     result = db.execute(
         text("""
-            SELECT c.id, c.name, c.imei, c.notes, COUNT(*) as image_count,
+            SELECT c.id, c.name, c.device_id, c.notes, COUNT(*) as image_count,
                    (c.config->'gps_from_report'->>'lat')::float as lat,
                    (c.config->'gps_from_report'->>'lon')::float as lon
             FROM images i
@@ -211,7 +211,7 @@ def _get_cameras_over_threshold(
             WHERE c.project_id = :project_id
               AND i.uploaded_at >= :start_of_day
               AND i.uploaded_at < :end_of_day
-            GROUP BY c.id, c.name, c.imei, c.notes, c.config
+            GROUP BY c.id, c.name, c.device_id, c.notes, c.config
             HAVING COUNT(*) >= :threshold
             ORDER BY COUNT(*) DESC
         """),
@@ -228,7 +228,7 @@ def _get_cameras_over_threshold(
         cameras.append({
             'id': row.id,
             'name': row.name,
-            'imei': row.imei,
+            'device_id': row.device_id,
             'notes': row.notes,
             'image_count': row.image_count,
             'lat': float(row.lat) if row.lat is not None else None,
@@ -258,8 +258,8 @@ def _generate_text_content(
 
     for cam in cameras:
         lines.append(f"  {cam['name']}")
-        if cam['imei']:
-            lines.append(f"    IMEI: {cam['imei']}")
+        if cam['device_id']:
+            lines.append(f"    Camera ID: {cam['device_id']}")
         lines.append(f"    Images: {cam['image_count']}")
         lines.append(f"    View: {images_url}?camera_id={cam['id']}&show_empty=true")
         if cam['lat'] is not None and cam['lon'] is not None:

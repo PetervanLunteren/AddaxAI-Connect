@@ -479,13 +479,13 @@ def generate_cameras(rng: Random) -> list:
 
     cameras = []
     for idx, (lat, lon) in enumerate(selected):
-        imei = f"DHV{idx + 1:03d}"
+        device_id = f"DHV{idx + 1:03d}"
         cameras.append({
             "index": idx,
             "lat": lat,
             "lon": lon,
-            "imei": imei,
-            "name": f"Camera {imei}",
+            "device_id": device_id,
+            "name": f"Camera {device_id}",
             "zones": camera_zone(lat, lon),
             # Camera 97 is inventory only — no location, deployment, or health reports
             "never_deployed": idx == 97,
@@ -619,7 +619,7 @@ def generate_all_data(cameras: list, rng: Random, species_image_info: dict):
                     "DateTimeOriginal": dt_original,
                     "Make": CAMERA_MAKE,
                     "Model": CAMERA_MODEL,
-                    "SerialNumber": cam["imei"],
+                    "SerialNumber": cam["device_id"],
                 }
 
                 image_rec = {
@@ -1102,17 +1102,17 @@ def insert_cameras(session: Session, cameras: list, project_id: int) -> dict:
             result = session.execute(
                 text("""
                     INSERT INTO cameras (
-                        name, imei, manufacturer, model, project_id,
+                        name, device_id, manufacturer, model, project_id,
                         status, location, installed_at
                     ) VALUES (
-                        :name, :imei, :make, :model, :pid,
+                        :name, :device_id, :make, :model, :pid,
                         'inventory',
                         NULL, NULL
                     ) RETURNING id
                 """),
                 {
                     "name": cam["name"],
-                    "imei": cam["imei"],
+                    "device_id": cam["device_id"],
                     "make": CAMERA_MAKE,
                     "model": CAMERA_MODEL,
                     "pid": project_id,
@@ -1122,17 +1122,17 @@ def insert_cameras(session: Session, cameras: list, project_id: int) -> dict:
             result = session.execute(
                 text("""
                     INSERT INTO cameras (
-                        name, imei, manufacturer, model, project_id,
+                        name, device_id, manufacturer, model, project_id,
                         status, location, installed_at
                     ) VALUES (
-                        :name, :imei, :make, :model, :pid,
+                        :name, :device_id, :make, :model, :pid,
                         'active',
                         ST_GeogFromText(:loc), :installed
                     ) RETURNING id
                 """),
                 {
                     "name": cam["name"],
-                    "imei": cam["imei"],
+                    "device_id": cam["device_id"],
                     "make": CAMERA_MAKE,
                     "model": CAMERA_MODEL,
                     "pid": project_id,

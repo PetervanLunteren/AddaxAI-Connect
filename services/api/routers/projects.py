@@ -400,7 +400,7 @@ async def delete_project(
 
     # Step 2: For each camera, cascade delete all data
     for camera in cameras:
-        camera_imei = camera.imei or str(camera.id)
+        camera_device_id = camera.device_id or str(camera.id)
 
         # Get all images for this camera
         images_query = select(Image).where(Image.camera_id == camera.id)
@@ -432,22 +432,22 @@ async def delete_project(
         )
         deleted_images += images_result.rowcount
 
-        # Delete MinIO files for this camera (raw-images, crops, thumbnails by IMEI)
+        # Delete MinIO files for this camera (raw-images, crops, thumbnails by device ID)
         try:
             # List and delete objects in raw-images bucket
-            raw_objects = storage.list_objects(BUCKET_RAW_IMAGES, prefix=f"{camera_imei}/")
+            raw_objects = storage.list_objects(BUCKET_RAW_IMAGES, prefix=f"{camera_device_id}/")
             for obj_name in raw_objects:
                 storage.delete_object(BUCKET_RAW_IMAGES, obj_name)
                 deleted_minio_files += 1
 
             # List and delete objects in crops bucket
-            crop_objects = storage.list_objects(BUCKET_CROPS, prefix=f"{camera_imei}/")
+            crop_objects = storage.list_objects(BUCKET_CROPS, prefix=f"{camera_device_id}/")
             for obj_name in crop_objects:
                 storage.delete_object(BUCKET_CROPS, obj_name)
                 deleted_minio_files += 1
 
             # List and delete objects in thumbnails bucket
-            thumb_objects = storage.list_objects(BUCKET_THUMBNAILS, prefix=f"{camera_imei}/")
+            thumb_objects = storage.list_objects(BUCKET_THUMBNAILS, prefix=f"{camera_device_id}/")
             for obj_name in thumb_objects:
                 storage.delete_object(BUCKET_THUMBNAILS, obj_name)
                 deleted_minio_files += 1
@@ -455,14 +455,14 @@ async def delete_project(
             logger.debug(
                 "Deleted MinIO files for camera",
                 camera_id=camera.id,
-                imei=camera_imei,
+                device_id=camera_device_id,
                 file_count=len(raw_objects) + len(crop_objects) + len(thumb_objects)
             )
         except Exception as e:
             logger.error(
                 "Failed to delete some MinIO files",
                 camera_id=camera.id,
-                imei=camera_imei,
+                device_id=camera_device_id,
                 error=str(e)
             )
             # Continue deletion even if MinIO cleanup fails
