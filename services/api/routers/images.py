@@ -182,6 +182,7 @@ async def get_species(
         .where(
             and_(
                 Image.status == "classified",
+                Image.is_hidden == False,
                 Image.is_verified == True,
                 Camera.project_id.in_(accessible_project_ids),
             )
@@ -199,6 +200,7 @@ async def get_species(
         .where(
             and_(
                 Image.status == "classified",
+                Image.is_hidden == False,
                 Image.is_verified == False,
                 Camera.project_id.in_(accessible_project_ids),
                 Detection.confidence >= Project.detection_threshold
@@ -216,6 +218,7 @@ async def get_species(
         .where(
             and_(
                 Image.status == "classified",
+                Image.is_hidden == False,
                 Image.is_verified == False,
                 Camera.project_id.in_(accessible_project_ids),
                 Detection.category.in_(['person', 'vehicle']),
@@ -293,7 +296,9 @@ async def list_images(
     # Build query filters
     filters = [
         # Only show images that have completed ML processing
-        Image.status == "classified"
+        Image.status == "classified",
+        # Exclude hidden images from regular views
+        Image.is_hidden == False,
     ]
 
     # Filter by accessible projects (via camera.project_id)

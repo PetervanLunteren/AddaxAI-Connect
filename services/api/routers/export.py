@@ -597,6 +597,7 @@ async def export_camtrap_dp(
             and_(
                 Camera.project_id == project_id,
                 Image.status == "classified",
+                Image.is_hidden == False,
             )
         )
         .options(
@@ -884,6 +885,7 @@ async def export_observations(
             and_(
                 Camera.project_id == project_id,
                 Image.status == "classified",
+                Image.is_hidden == False,
             )
         )
         .options(
@@ -1440,6 +1442,7 @@ async def export_spatial(
             and_(
                 Camera.project_id == project_id,
                 Image.status == "classified",
+                Image.is_hidden == False,
             )
         )
         .options(

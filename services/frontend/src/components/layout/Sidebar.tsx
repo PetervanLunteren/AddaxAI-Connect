@@ -18,7 +18,8 @@ import {
   ShieldAlert,
   Users,
   Settings,
-  Map
+  Map,
+  ListChecks
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const adminTools = [
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
+    { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Image management' },
   ];
 
   return (
