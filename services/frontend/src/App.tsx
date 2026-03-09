@@ -32,6 +32,7 @@ import { ServerSettingsPage } from './pages/server/ServerSettingsPage';
 import { HealthPage } from './pages/server/HealthPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
+import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { DetectionRateMapPage } from './pages/DetectionRateMapPage';
 
 function App() {
@@ -152,6 +153,7 @@ function App() {
                 <Route path="documents" element={<DocumentsPage />} />
                 <Route path="settings" element={<ProjectSettingsPage />} />
                 <Route path="users" element={<ProjectUsersPage />} />
+                <Route path="manage-images" element={<ManageImagesPage />} />
               </Route>
 
               {/* Redirect root to projects */}

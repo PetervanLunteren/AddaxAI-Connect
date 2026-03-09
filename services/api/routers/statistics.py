@@ -103,8 +103,8 @@ async def get_overview(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
 
-    # Total images (filtered by project via camera)
-    img_conditions = [Camera.project_id.in_(accessible_project_ids)]
+    # Total images (filtered by project via camera, excluding hidden)
+    img_conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
     if camera_id_list:
         img_conditions.append(Image.camera_id.in_(camera_id_list))
     total_images_result = await db.execute(
@@ -132,6 +132,7 @@ async def get_overview(
     today_conditions = [
         Image.uploaded_at >= today_start,
         Camera.project_id.in_(accessible_project_ids),
+        Image.is_hidden == False,
     ]
     if camera_id_list:
         today_conditions.append(Image.camera_id.in_(camera_id_list))
@@ -143,7 +144,7 @@ async def get_overview(
     images_today = images_today_result.scalar_one()
 
     # First and last image dates (for date picker bounds)
-    date_conditions = [Camera.project_id.in_(accessible_project_ids)]
+    date_conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
     if camera_id_list:
         date_conditions.append(Image.camera_id.in_(camera_id_list))
     first_image_result = await db.execute(
@@ -200,7 +201,7 @@ async def get_images_timeline(
     start_date = end_date - timedelta(days=num_days) if num_days > 0 else None
 
     # Query images grouped by date (filtered by project via camera)
-    conditions = [Camera.project_id.in_(accessible_project_ids)]
+    conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
     if start_date is not None:
         conditions.append(Image.uploaded_at >= start_date)
 
@@ -379,6 +380,7 @@ async def get_last_update(
         .where(
             and_(
                 Image.status == "classified",
+                Image.is_hidden == False,
                 Camera.project_id.in_(accessible_project_ids)
             )
         )
@@ -1072,6 +1074,7 @@ async def get_pipeline_status(
     classified_conditions = [
         Camera.project_id.in_(accessible_project_ids),
         Image.status == "classified",
+        Image.is_hidden == False,
     ]
     if camera_id_list:
         classified_conditions.append(Image.camera_id.in_(camera_id_list))
@@ -1086,6 +1089,7 @@ async def get_pipeline_status(
     # Verified images use human observations, not AI detections
     cat_conditions = [
         Camera.project_id.in_(accessible_project_ids),
+        Image.is_hidden == False,
         Image.is_verified == False,
         Detection.confidence >= Project.detection_threshold,
     ]
@@ -1113,6 +1117,7 @@ async def get_pipeline_status(
     # Verified images with observations
     vo_conditions = [
         Camera.project_id.in_(accessible_project_ids),
+        Image.is_hidden == False,
         Image.is_verified == True,
     ]
     if camera_id_list:
@@ -1128,6 +1133,7 @@ async def get_pipeline_status(
     # Count verified empty (verified but no observations)
     ve_conditions = [
         Camera.project_id.in_(accessible_project_ids),
+        Image.is_hidden == False,
         Image.is_verified == True,
         ~Image.id.in_(verified_with_observations),
     ]
@@ -1145,6 +1151,7 @@ async def get_pipeline_status(
         Camera.project_id.in_(accessible_project_ids),
         Image.is_verified == False,
         Image.status == "classified",
+        Image.is_hidden == False,
         Detection.confidence >= Project.detection_threshold,
     ]
     if camera_id_list:
@@ -1162,6 +1169,7 @@ async def get_pipeline_status(
     ue_conditions = [
         Camera.project_id.in_(accessible_project_ids),
         Image.status == "classified",
+        Image.is_hidden == False,
         Image.is_verified == False,
         ~Image.id.in_(unverified_with_detections),
     ]

@@ -62,6 +62,7 @@ export interface ImageListItem {
   image_width: number | null;
   image_height: number | null;
   is_verified: boolean;
+  is_hidden: boolean;
   observed_species: string[];  // Human observations for verified images
 }
 
