@@ -30,10 +30,9 @@ import { useProject } from '../../contexts/ProjectContext';
 import { imageAdminApi } from '../../api/imageAdmin';
 import { camerasApi } from '../../api/cameras';
 import { imagesApi } from '../../api/images';
-import { normalizeLabel } from '../../utils/labels';
 import type { ImageListItem } from '../../api/types';
 
-type SortColumn = 'filename' | 'camera_name' | 'uploaded_at' | 'max_confidence';
+type SortColumn = 'filename' | 'camera_name' | 'uploaded_at';
 
 const SortableHeader: React.FC<{
   label: string;
@@ -111,7 +110,6 @@ export const ManageImagesPage: React.FC = () => {
     filename: 'filename',
     camera_name: 'camera_name',
     uploaded_at: 'uploaded_at',
-    max_confidence: 'uploaded_at', // confidence sorting not supported server-side, fallback
   };
 
   // Fetch images
@@ -423,10 +421,6 @@ export const ManageImagesPage: React.FC = () => {
               <TableHead>
                 <SortableHeader label="Date" column="uploaded_at" sort={sort} onSort={handleSort} />
               </TableHead>
-              <TableHead>Species</TableHead>
-              <TableHead>
-                <SortableHeader label="Confidence" column="max_confidence" sort={sort} onSort={handleSort} />
-              </TableHead>
               <TableHead className="w-12">Verified</TableHead>
               <TableHead className="w-12">Hidden</TableHead>
             </TableRow>
@@ -470,14 +464,6 @@ export const ManageImagesPage: React.FC = () => {
                   {image.datetime_captured
                     ? formatTimestamp(image.datetime_captured)
                     : formatTimestamp(image.uploaded_at)}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {image.top_species ? normalizeLabel(image.top_species) : '-'}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {image.max_confidence != null
-                    ? `${Math.round(image.max_confidence * 100)}%`
-                    : '-'}
                 </TableCell>
                 <TableCell>
                   {image.is_verified && (
