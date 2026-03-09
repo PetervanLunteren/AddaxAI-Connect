@@ -642,8 +642,13 @@ export const CamerasPage: React.FC = () => {
 
       {/* Search + filters toolbar */}
       {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-4 justify-end">
-          <div className="relative max-w-sm">
+        <div className="flex items-center gap-3 mb-4">
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredCameras.length} of {cameras.length} cameras
+            </span>
+          )}
+          <div className="relative max-w-sm ml-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
@@ -659,11 +664,6 @@ export const CamerasPage: React.FC = () => {
             onClearAll={handleClearFilters}
             tagOptions={tagOptions}
           />
-          {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredCameras.length} of {cameras.length} cameras
-            </span>
-          )}
         </div>
       )}
 
