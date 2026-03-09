@@ -765,7 +765,7 @@ export const CamerasPage: React.FC = () => {
                         <p className="text-sm font-medium">All you need is a list of IMEIs</p>
                         <p className="text-xs text-muted-foreground mt-0.5">The simplest CSV has just one column.</p>
                       </div>
-                      <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
+                      <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`IMEI
 860946063660255
 860946063660256
@@ -782,7 +782,7 @@ export const CamerasPage: React.FC = () => {
                           Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty names default to the IMEI.
                         </p>
                       </div>
-                      <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
+                      <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`IMEI,Name,Notes
 860946063660255,,
 860946063660256,Camera north,Oak tree
@@ -797,11 +797,11 @@ export const CamerasPage: React.FC = () => {
                         <p className="text-sm font-medium">Add any extra columns you like</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Extra columns are stored as custom fields. Not used by the system but searchable.</p>
                       </div>
-                      <pre className="text-xs bg-background p-2.5 rounded overflow-x-auto">
+                      <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`IMEI,Name,Notes,Habitat,Mounted on
 860946063660255,,,,
 860946063660256,Camera north,,,Oak tree
-860946063660257,Camera south,,Wetland,Pole`}
+860946063660257,Camera south,Near stream,Wetland,Pole`}
                       </pre>
                     </div>
                   </div>
