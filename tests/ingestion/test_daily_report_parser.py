@@ -5,6 +5,7 @@ from daily_report_parser import (
     parse_temperature,
     parse_battery,
     parse_sd_card,
+    parse_image_count,
     parse_gps_decimal,
     parse_report_datetime,
 )
@@ -68,6 +69,26 @@ class TestParseSdCard:
 
     def test_none_input(self):
         assert parse_sd_card(None) is None
+
+
+class TestParseImageCount:
+    def test_valid_value(self):
+        assert parse_image_count("8932") == 8932
+
+    def test_zero(self):
+        assert parse_image_count("0") == 0
+
+    def test_none_input(self):
+        assert parse_image_count(None) is None
+
+    def test_empty_string(self):
+        assert parse_image_count("") is None
+
+    def test_non_numeric(self):
+        assert parse_image_count("abc") is None
+
+    def test_float_string(self):
+        assert parse_image_count("89.5") is None
 
 
 class TestParseGpsDecimal:

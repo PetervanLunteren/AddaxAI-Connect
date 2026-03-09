@@ -28,7 +28,7 @@
 - [x] make the "Import cameras from CSV" modal clearer that it only needs a camera ID. Give some more examples, one only CameraID, one with CameraID, notes, friendly_name, and one with additional key:value pairs.
 - [x] Rename IMEI to generic device_id/CameraID throughout the project to support cameras without IMEIs.
 - [x] for the CSV camera import, do not require any cols except CameraID. Only CameraID should be sufficient. If friendly name and notes are not present, add them as empty cols. Or just fill in with the current logic....
-- [ ] what happens if we add a camera profile that doesnt send daily reports? Or daily reports with less information? Or not daily reports, but weekly reports, or hourly reports? Or variable duration reports? What breaks downstream? What features will not be used? That will ofcourse affect the information the user can find, but does it do it gracefully? 
+- [x] what happens if we add a camera profile that doesnt send daily reports? Or daily reports with less information? Or not daily reports, but weekly reports, or hourly reports? Or variable duration reports? What breaks downstream? What features will not be used? That will ofcourse affect the information the user can find, but does it do it gracefully? 
 - [x] build a proper test infrascturture where we can keep adding tests. Add some basic ones to fill the test suite. 
 - [ ] add filter and sort options to the cameras table. How difficult would that be? 
 - [ ] add a search bar above the cameras table that also searches the metadata key values pairs. 

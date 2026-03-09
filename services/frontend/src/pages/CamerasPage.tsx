@@ -763,7 +763,7 @@ export const CamerasPage: React.FC = () => {
                     <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
                       <div>
                         <p className="text-sm font-medium">All you need is a list of camera IDs</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">The simplest CSV has just one column.</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">A camera ID is any unique identifier per camera (e.g. IMEI, serial number, or custom label).</p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`CameraID
