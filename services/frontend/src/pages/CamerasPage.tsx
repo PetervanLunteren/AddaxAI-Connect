@@ -5,7 +5,7 @@
  * Server admins can add, delete cameras and import from CSV.
  * Project admins can edit camera notes (friendly name, remarks).
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Battery,
@@ -20,6 +20,10 @@ import {
   XCircle,
   Map as MapIcon,
   Table as TableIcon,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -48,8 +52,37 @@ import {
 } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
+import { CameraFilters, defaultCameraFilters, type CameraFilterState } from '../components/CameraFilters';
+import type { Option } from '../components/ui/MultiSelect';
 import { cn } from '../lib/utils';
 import { useDropzone } from 'react-dropzone';
+
+type SortColumn = 'name' | 'tags' | 'status' | 'battery' | 'signal' | 'sd_used' | 'last_report' | 'last_image' | 'location' | 'device_id';
+
+const SortableHeader: React.FC<{
+  label: string;
+  column: SortColumn;
+  sort: { column: SortColumn | null; direction: 'asc' | 'desc' };
+  onSort: (column: SortColumn) => void;
+}> = ({ label, column, sort, onSort }) => {
+  const isActive = sort.column === column;
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 hover:text-foreground transition-colors -my-1"
+      onClick={() => onSort(column)}
+    >
+      {label}
+      {isActive ? (
+        sort.direction === 'asc'
+          ? <ArrowUp className="h-3.5 w-3.5" />
+          : <ArrowDown className="h-3.5 w-3.5" />
+      ) : (
+        <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
+      )}
+    </button>
+  );
+};
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -81,6 +114,14 @@ export const CamerasPage: React.FC = () => {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importResults, setImportResults] = useState<BulkImportResponse | null>(null);
+
+  // Filter/sort state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<CameraFilterState>(defaultCameraFilters);
+  const [sort, setSort] = useState<{ column: SortColumn | null; direction: 'asc' | 'desc' }>({
+    column: null,
+    direction: 'asc',
+  });
 
   // Fetch cameras for current project
   const { data: cameras, isLoading } = useQuery({
@@ -190,6 +231,28 @@ export const CamerasPage: React.FC = () => {
     setShowDetailSheet(true);
   };
 
+  // Tag options for filter popover
+  const { data: allTags } = useQuery({
+    queryKey: ['camera-tags', currentProject?.id],
+    queryFn: () => camerasApi.getTags(currentProject?.id),
+    enabled: !!currentProject,
+  });
+  const tagOptions: Option[] = (allTags || []).map((t) => ({ label: t, value: t }));
+
+  const handleFilterChange = (key: keyof CameraFilterState, value: any) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleClearFilters = () => setFilters(defaultCameraFilters);
+
+  const handleSort = (column: SortColumn) => {
+    setSort((prev) =>
+      prev.column === column
+        ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' }
+    );
+  };
+
   // Helper functions for formatting
   const getStatusBadge = (status: string) => {
     const colors = {
@@ -270,6 +333,117 @@ export const CamerasPage: React.FC = () => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
 
+  // Filter + sort pipeline
+  const filteredCameras = useMemo(() => {
+    if (!cameras) return [];
+    let result = [...cameras];
+
+    // Text search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((c) => {
+        const fields = [
+          c.name,
+          c.device_id,
+          c.status,
+          c.notes,
+          ...(c.tags || []),
+          ...(c.custom_fields ? Object.keys(c.custom_fields).concat(Object.values(c.custom_fields)) : []),
+          getSignalLabel(c.signal_quality),
+          formatTimestamp(c.last_report_timestamp),
+          formatTimestamp(c.last_image_timestamp),
+          c.location ? 'known' : 'unknown',
+          c.battery_percentage !== null ? `${c.battery_percentage}%` : 'N/A',
+          c.sd_utilization_percentage !== null ? `${Math.round(c.sd_utilization_percentage)}%` : 'N/A',
+        ];
+        return fields.some((f) => f && f.toLowerCase().includes(q));
+      });
+    }
+
+    // Structured filters
+    if (filters.status.length > 0) {
+      const vals = new Set(filters.status.map((o) => o.value));
+      result = result.filter((c) => vals.has(c.status));
+    }
+    if (filters.tags.length > 0) {
+      const vals = new Set(filters.tags.map((o) => o.value));
+      result = result.filter((c) => c.tags?.some((t) => vals.has(t)));
+    }
+    if (filters.battery) {
+      result = result.filter((c) => {
+        const b = c.battery_percentage;
+        if (filters.battery === 'unknown') return b === null;
+        if (b === null) return false;
+        if (filters.battery === 'low') return b < 30;
+        if (filters.battery === 'medium') return b >= 30 && b <= 70;
+        return b > 70; // high
+      });
+    }
+    if (filters.signal) {
+      result = result.filter((c) => {
+        const s = c.signal_quality;
+        if (filters.signal === 'unknown') return s === null;
+        if (s === null) return false;
+        if (filters.signal === 'excellent') return s >= 20;
+        if (filters.signal === 'good') return s >= 15 && s <= 19;
+        if (filters.signal === 'fair') return s >= 10 && s <= 14;
+        if (filters.signal === 'poor') return s >= 2 && s <= 9;
+        return s <= 1; // no_signal
+      });
+    }
+    if (filters.sd_usage) {
+      result = result.filter((c) => {
+        const sd = c.sd_utilization_percentage;
+        if (filters.sd_usage === 'unknown') return sd === null;
+        if (sd === null) return false;
+        if (filters.sd_usage === 'low') return sd < 50;
+        if (filters.sd_usage === 'medium') return sd >= 50 && sd <= 80;
+        return sd > 80; // high
+      });
+    }
+    if (filters.location) {
+      result = result.filter((c) =>
+        filters.location === 'known' ? c.location !== null : c.location === null
+      );
+    }
+
+    // Sort (nulls last)
+    if (sort.column) {
+      const dir = sort.direction === 'asc' ? 1 : -1;
+      result.sort((a, b) => {
+        const getValue = (c: Camera): string | number | null => {
+          switch (sort.column) {
+            case 'name': return c.name.toLowerCase();
+            case 'tags': return (c.tags || []).join(', ').toLowerCase() || null;
+            case 'status': return c.status;
+            case 'battery': return c.battery_percentage;
+            case 'signal': return c.signal_quality;
+            case 'sd_used': return c.sd_utilization_percentage;
+            case 'last_report': return c.last_report_timestamp;
+            case 'last_image': return c.last_image_timestamp;
+            case 'location': return c.location ? 1 : 0;
+            case 'device_id': return c.device_id?.toLowerCase() ?? null;
+            default: return null;
+          }
+        };
+        const va = getValue(a);
+        const vb = getValue(b);
+        if (va === null && vb === null) return 0;
+        if (va === null) return 1;
+        if (vb === null) return -1;
+        if (va < vb) return -dir;
+        if (va > vb) return dir;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [cameras, searchQuery, filters, sort]);
+
+  const isFiltered = searchQuery.trim() !== '' ||
+    filters.status.length > 0 || filters.tags.length > 0 ||
+    !!filters.battery || !!filters.signal || !!filters.sd_usage || !!filters.location;
+
   if (!currentProject) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -330,9 +504,36 @@ export const CamerasPage: React.FC = () => {
         </button>
       </div>
 
+      {/* Search + filters toolbar */}
+      {cameras && cameras.length > 0 && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search cameras..."
+              className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <CameraFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearAll={handleClearFilters}
+            tagOptions={tagOptions}
+          />
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredCameras.length} of {cameras.length} cameras
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Map view */}
       {viewMode === 'map' && cameras && (
-        <CameraMapView cameras={cameras} onCameraClick={handleRowClick} />
+        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
       )}
 
       {/* Table view content */}
@@ -340,20 +541,20 @@ export const CamerasPage: React.FC = () => {
         <>
           {/* Summary Statistics */}
           {cameras && cameras.length > 0 && (() => {
-        const activeCount = cameras.filter((c: Camera) => c.status === 'active').length;
-        const inactiveCount = cameras.filter((c: Camera) => c.status === 'inactive').length;
-        const neverReportedCount = cameras.filter((c: Camera) => c.status === 'never_reported').length;
-        const total = cameras.length;
-        const activePercent = (activeCount / total) * 100;
-        const inactivePercent = (inactiveCount / total) * 100;
-        const neverReportedPercent = (neverReportedCount / total) * 100;
+        const activeCount = filteredCameras.filter((c: Camera) => c.status === 'active').length;
+        const inactiveCount = filteredCameras.filter((c: Camera) => c.status === 'inactive').length;
+        const neverReportedCount = filteredCameras.filter((c: Camera) => c.status === 'never_reported').length;
+        const total = filteredCameras.length;
+        const activePercent = total > 0 ? (activeCount / total) * 100 : 0;
+        const inactivePercent = total > 0 ? (inactiveCount / total) * 100 : 0;
+        const neverReportedPercent = total > 0 ? (neverReportedCount / total) * 100 : 0;
 
-        const camerasWithBattery = cameras.filter((c: Camera) => c.battery_percentage !== null);
+        const camerasWithBattery = filteredCameras.filter((c: Camera) => c.battery_percentage !== null);
         const avgBattery = camerasWithBattery.length > 0
           ? Math.round(camerasWithBattery.reduce((sum: number, c: Camera) => sum + (c.battery_percentage || 0), 0) / camerasWithBattery.length)
           : 0;
 
-        const camerasWithSD = cameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
+        const camerasWithSD = filteredCameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
         const avgSD = camerasWithSD.length > 0
           ? Math.round(camerasWithSD.reduce((sum: number, c: Camera) => sum + (c.sd_utilization_percentage || 0), 0) / camerasWithSD.length)
           : 0;
@@ -457,22 +658,29 @@ export const CamerasPage: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Tags</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Battery</TableHead>
-                    <TableHead>Signal</TableHead>
-                    <TableHead>SD used</TableHead>
-                    <TableHead>Last report</TableHead>
-                    <TableHead>Last image</TableHead>
-                    <TableHead>Location</TableHead>
+                    <TableHead><SortableHeader label="Name" column="name" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Tags" column="tags" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Status" column="status" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Battery" column="battery" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Signal" column="signal" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="SD used" column="sd_used" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Last report" column="last_report" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Last image" column="last_image" sort={sort} onSort={handleSort} /></TableHead>
+                    <TableHead><SortableHeader label="Location" column="location" sort={sort} onSort={handleSort} /></TableHead>
                     {canAdminCurrentProject && (
-                      <TableHead>Camera ID</TableHead>
+                      <TableHead><SortableHeader label="Camera ID" column="device_id" sort={sort} onSort={handleSort} /></TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {cameras.map((camera: Camera) => (
+                  {filteredCameras.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={canAdminCurrentProject ? 10 : 9} className="text-center py-8 text-muted-foreground">
+                        No cameras match your filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {filteredCameras.map((camera: Camera) => (
                     <TableRow
                       key={camera.id}
                       className="cursor-pointer"
