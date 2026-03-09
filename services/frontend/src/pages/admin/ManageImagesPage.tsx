@@ -25,6 +25,7 @@ import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '../../components/ui/Table';
 import { ImageDetailModal } from '../../components/ImageDetailModal';
+import { AuthenticatedImage } from '../../components/AuthenticatedImage';
 import { useProject } from '../../contexts/ProjectContext';
 import { imageAdminApi } from '../../api/imageAdmin';
 import { camerasApi } from '../../api/cameras';
@@ -451,10 +452,11 @@ export const ManageImagesPage: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   {image.thumbnail_url ? (
-                    <img
+                    <AuthenticatedImage
                       src={image.thumbnail_url}
                       alt=""
                       className="h-10 w-14 object-cover rounded"
+                      fallback={<div className="h-10 w-14 bg-muted rounded" />}
                     />
                   ) : (
                     <div className="h-10 w-14 bg-muted rounded" />
