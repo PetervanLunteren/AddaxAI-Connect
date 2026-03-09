@@ -4,11 +4,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
-import { MultiSelect, Option } from './ui/MultiSelect';
 
 export interface CameraFilterState {
-  status: Option[];
-  tags: Option[];
+  status: string;
+  tag: string;
   battery: string;
   signal: string;
   sd_usage: string;
@@ -16,8 +15,8 @@ export interface CameraFilterState {
 }
 
 export const defaultCameraFilters: CameraFilterState = {
-  status: [],
-  tags: [],
+  status: '',
+  tag: '',
   battery: '',
   signal: '',
   sd_usage: '',
@@ -26,16 +25,10 @@ export const defaultCameraFilters: CameraFilterState = {
 
 interface CameraFiltersProps {
   filters: CameraFilterState;
-  onFilterChange: (key: keyof CameraFilterState, value: any) => void;
+  onFilterChange: (key: keyof CameraFilterState, value: string) => void;
   onClearAll: () => void;
-  tagOptions: Option[];
+  tagOptions: string[];
 }
-
-const statusOptions: Option[] = [
-  { label: 'Active', value: 'active' },
-  { label: 'Inactive', value: 'inactive' },
-  { label: 'Never reported', value: 'never_reported' },
-];
 
 const SelectDropdown: React.FC<{
   label: string;
@@ -82,8 +75,8 @@ export const CameraFilters: React.FC<CameraFiltersProps> = ({
   }, []);
 
   const activeCount =
-    filters.status.length +
-    filters.tags.length +
+    (filters.status ? 1 : 0) +
+    (filters.tag ? 1 : 0) +
     (filters.battery ? 1 : 0) +
     (filters.signal ? 1 : 0) +
     (filters.sd_usage ? 1 : 0) +
@@ -109,26 +102,24 @@ export const CameraFilters: React.FC<CameraFiltersProps> = ({
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 border rounded-md bg-background shadow-lg z-50 p-4 space-y-4">
           {/* Status */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Status</label>
-            <MultiSelect
-              options={statusOptions}
-              value={filters.status}
-              onChange={(selected) => onFilterChange('status', selected)}
-              placeholder="Select status..."
-            />
-          </div>
+          <SelectDropdown
+            label="Status"
+            value={filters.status}
+            onChange={(v) => onFilterChange('status', v)}
+            options={[
+              { label: 'Active', value: 'active' },
+              { label: 'Inactive', value: 'inactive' },
+              { label: 'Never reported', value: 'never_reported' },
+            ]}
+          />
 
           {/* Tags */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tags</label>
-            <MultiSelect
-              options={tagOptions}
-              value={filters.tags}
-              onChange={(selected) => onFilterChange('tags', selected)}
-              placeholder="Select tags..."
-            />
-          </div>
+          <SelectDropdown
+            label="Tag"
+            value={filters.tag}
+            onChange={(v) => onFilterChange('tag', v)}
+            options={tagOptions.map((t) => ({ label: t, value: t }))}
+          />
 
           {/* Battery */}
           <SelectDropdown

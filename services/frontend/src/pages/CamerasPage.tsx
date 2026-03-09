@@ -53,11 +53,10 @@ import {
 import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
 import { CameraFilters, defaultCameraFilters, type CameraFilterState } from '../components/CameraFilters';
-import type { Option } from '../components/ui/MultiSelect';
 import { cn } from '../lib/utils';
 import { useDropzone } from 'react-dropzone';
 
-type SortColumn = 'name' | 'tags' | 'status' | 'battery' | 'signal' | 'sd_used' | 'last_report' | 'last_image' | 'location' | 'device_id';
+type SortColumn = 'name' | 'tags' | 'status' | 'battery' | 'signal' | 'sd_used' | 'last_report' | 'last_image' | 'location';
 
 const SortableHeader: React.FC<{
   label: string;
@@ -237,7 +236,7 @@ export const CamerasPage: React.FC = () => {
     queryFn: () => camerasApi.getTags(currentProject?.id),
     enabled: !!currentProject,
   });
-  const tagOptions: Option[] = (allTags || []).map((t) => ({ label: t, value: t }));
+  const tagOptions = allTags || [];
 
   const handleFilterChange = (key: keyof CameraFilterState, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -361,13 +360,11 @@ export const CamerasPage: React.FC = () => {
     }
 
     // Structured filters
-    if (filters.status.length > 0) {
-      const vals = new Set(filters.status.map((o) => o.value));
-      result = result.filter((c) => vals.has(c.status));
+    if (filters.status) {
+      result = result.filter((c) => c.status === filters.status);
     }
-    if (filters.tags.length > 0) {
-      const vals = new Set(filters.tags.map((o) => o.value));
-      result = result.filter((c) => c.tags?.some((t) => vals.has(t)));
+    if (filters.tag) {
+      result = result.filter((c) => c.tags?.includes(filters.tag));
     }
     if (filters.battery) {
       result = result.filter((c) => {
@@ -422,7 +419,6 @@ export const CamerasPage: React.FC = () => {
             case 'last_report': return c.last_report_timestamp;
             case 'last_image': return c.last_image_timestamp;
             case 'location': return c.location ? 1 : 0;
-            case 'device_id': return c.device_id?.toLowerCase() ?? null;
             default: return null;
           }
         };
@@ -441,7 +437,7 @@ export const CamerasPage: React.FC = () => {
   }, [cameras, searchQuery, filters, sort]);
 
   const isFiltered = searchQuery.trim() !== '' ||
-    filters.status.length > 0 || filters.tags.length > 0 ||
+    !!filters.status || !!filters.tag ||
     !!filters.battery || !!filters.signal || !!filters.sd_usage || !!filters.location;
 
   if (!currentProject) {
@@ -504,36 +500,34 @@ export const CamerasPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Search + filters toolbar */}
-      {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-4 justify-end">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search cameras..."
-              className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      {/* Map view */}
+      {viewMode === 'map' && cameras && cameras.length > 0 && (
+        <>
+          <div className="flex items-center gap-3 mb-4">
+            {isFiltered && (
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {filteredCameras.length} of {cameras.length} cameras
+              </span>
+            )}
+            <div className="relative max-w-sm ml-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search cameras..."
+                className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <CameraFilters
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              onClearAll={handleClearFilters}
+              tagOptions={tagOptions}
             />
           </div>
-          <CameraFilters
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onClearAll={handleClearFilters}
-            tagOptions={tagOptions}
-          />
-          {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredCameras.length} of {cameras.length} cameras
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Map view */}
-      {viewMode === 'map' && cameras && (
-        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
+          <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
+        </>
       )}
 
       {/* Table view content */}
@@ -541,20 +535,20 @@ export const CamerasPage: React.FC = () => {
         <>
           {/* Summary Statistics */}
           {cameras && cameras.length > 0 && (() => {
-        const activeCount = filteredCameras.filter((c: Camera) => c.status === 'active').length;
-        const inactiveCount = filteredCameras.filter((c: Camera) => c.status === 'inactive').length;
-        const neverReportedCount = filteredCameras.filter((c: Camera) => c.status === 'never_reported').length;
-        const total = filteredCameras.length;
-        const activePercent = total > 0 ? (activeCount / total) * 100 : 0;
-        const inactivePercent = total > 0 ? (inactiveCount / total) * 100 : 0;
-        const neverReportedPercent = total > 0 ? (neverReportedCount / total) * 100 : 0;
+        const activeCount = cameras.filter((c: Camera) => c.status === 'active').length;
+        const inactiveCount = cameras.filter((c: Camera) => c.status === 'inactive').length;
+        const neverReportedCount = cameras.filter((c: Camera) => c.status === 'never_reported').length;
+        const total = cameras.length;
+        const activePercent = (activeCount / total) * 100;
+        const inactivePercent = (inactiveCount / total) * 100;
+        const neverReportedPercent = (neverReportedCount / total) * 100;
 
-        const camerasWithBattery = filteredCameras.filter((c: Camera) => c.battery_percentage !== null);
+        const camerasWithBattery = cameras.filter((c: Camera) => c.battery_percentage !== null);
         const avgBattery = camerasWithBattery.length > 0
           ? Math.round(camerasWithBattery.reduce((sum: number, c: Camera) => sum + (c.battery_percentage || 0), 0) / camerasWithBattery.length)
           : 0;
 
-        const camerasWithSD = filteredCameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
+        const camerasWithSD = cameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
         const avgSD = camerasWithSD.length > 0
           ? Math.round(camerasWithSD.reduce((sum: number, c: Camera) => sum + (c.sd_utilization_percentage || 0), 0) / camerasWithSD.length)
           : 0;
@@ -646,6 +640,33 @@ export const CamerasPage: React.FC = () => {
         );
       })()}
 
+      {/* Search + filters toolbar */}
+      {cameras && cameras.length > 0 && (
+        <div className="flex items-center gap-3 mb-4 justify-end">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search cameras..."
+              className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <CameraFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearAll={handleClearFilters}
+            tagOptions={tagOptions}
+          />
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredCameras.length} of {cameras.length} cameras
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Camera table */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
@@ -667,15 +688,12 @@ export const CamerasPage: React.FC = () => {
                     <TableHead><SortableHeader label="Last report" column="last_report" sort={sort} onSort={handleSort} /></TableHead>
                     <TableHead><SortableHeader label="Last image" column="last_image" sort={sort} onSort={handleSort} /></TableHead>
                     <TableHead><SortableHeader label="Location" column="location" sort={sort} onSort={handleSort} /></TableHead>
-                    {canAdminCurrentProject && (
-                      <TableHead><SortableHeader label="Camera ID" column="device_id" sort={sort} onSort={handleSort} /></TableHead>
-                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCameras.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={canAdminCurrentProject ? 10 : 9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No cameras match your filters.
                       </TableCell>
                     </TableRow>
@@ -782,11 +800,6 @@ export const CamerasPage: React.FC = () => {
                           )}
                         </div>
                       </TableCell>
-                      {canAdminCurrentProject && (
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {camera.device_id || '-'}
-                        </TableCell>
-                      )}
                     </TableRow>
                   ))}
                 </TableBody>
