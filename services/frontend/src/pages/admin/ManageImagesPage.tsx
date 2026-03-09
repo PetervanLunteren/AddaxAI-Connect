@@ -421,8 +421,8 @@ export const ManageImagesPage: React.FC = () => {
               <TableHead>
                 <SortableHeader label="Date" column="uploaded_at" sort={sort} onSort={handleSort} />
               </TableHead>
-              <TableHead className="w-12">Verified</TableHead>
-              <TableHead className="w-12">Hidden</TableHead>
+              <TableHead className="w-12 text-center">Verified</TableHead>
+              <TableHead className="w-12 text-center">Hidden</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -465,14 +465,14 @@ export const ManageImagesPage: React.FC = () => {
                     ? formatTimestamp(image.datetime_captured)
                     : formatTimestamp(image.uploaded_at)}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   {image.is_verified && (
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-4 w-4 inline-block" style={{ color: '#0f6064' }} />
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   {image.is_hidden && (
-                    <EyeOff className="h-4 w-4 text-amber-500" />
+                    <EyeOff className="h-4 w-4 inline-block" style={{ color: '#0f6064' }} />
                   )}
                 </TableCell>
               </TableRow>
