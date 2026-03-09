@@ -255,9 +255,9 @@ export const ManageImagesPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Image management</h1>
+        <h1 className="text-2xl font-bold">Curation</h1>
         <p className="text-muted-foreground mt-1">
-          Manage, hide, or delete images in this project
+          Hide or delete images from this project
         </p>
       </div>
 
