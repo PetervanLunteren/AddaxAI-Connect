@@ -1,30 +1,18 @@
-# Classification Worker
+# Classification worker
 
-ML worker that classifies detected animals into species.
+Classifies detected animals into species using DeepFaune.
 
 ## Responsibilities
 
 - Consume messages from `detection-complete` Redis queue
-- Download animal crops from MinIO
-- Run classification model (ResNet, EfficientNet, etc.)
-- Predict species and confidence scores
+- Download raw images from MinIO
+- Run DeepFaune v1.4 (ViT-Large + DINOv2) on animal detections
+- Predict species (38 European wildlife classes) with confidence scores
 - Insert classification records into database
-- Generate thumbnails for web UI
-- Save thumbnails to MinIO (`thumbnails` bucket)
+- Generate annotated images and thumbnails
+- Apply privacy blur to person/vehicle detections when enabled
+- Publish person/vehicle detection events to `notification-events` queue
 - Publish to `classification-complete` queue
-
-## Model Loading
-
-Models are loaded from `/models/classification.pt` or downloaded from Hugging Face:
-
-```python
-from huggingface_hub import hf_hub_download
-
-model_path = hf_hub_download(
-    repo_id="your-org/classification-model",
-    filename="model.pt"
-)
-```
 
 ## Configuration
 
@@ -35,7 +23,7 @@ Environment variables:
 - `REDIS_URL` - Redis connection
 - `MINIO_ENDPOINT` - MinIO endpoint
 
-## Running Locally
+## Running locally
 
 ```bash
 docker compose up classification

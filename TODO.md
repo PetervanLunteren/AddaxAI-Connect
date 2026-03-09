@@ -33,15 +33,20 @@
 - [x] add filter and sort options to the cameras table. How difficult would that be? 
 - [x] add a search bar above the cameras table that also searches the metadata key values pairs. 
 - [x] I cant remove a camera from the list (try SPW camera ID "8,61943E+14"). Its probably an issue with the ID being weird. This also avoids the delete all data option. We need to make this possible. The camera ID can be any unique string. 
-- [ ] Add link to location google maps from ImageModal. For quick check for image location. 
-- [ ] Add a page where project admins can see all the images (add it under the "Admin tools" section) in a simple table with column sorting, filtering, etc. The idea here is that admins can select one or mulitple images and choose to hide them from the analysis, or remove them from the database all together (like test images or private images, etc).  
+- [x] Add link to location google maps from ImageModal. For quick check for image location. 
+- [x] Add a page where project admins can see all the images of the project (add it under the "Admin tools" section) in a simple table with column sorting, filtering, etc. The idea here is that admins can select one or mulitple images and choose to hide them from the analysis, or remove them from the database all together (like test images or private images, etc). It should handle multi-select and multi-actions. 
 
 ### Priority 2
 - [ ] SPECIESNET ADDITION - Make the whole system be able to use SpeciesNet as well as DeepFaune. (this will probably take a day or so, so make sure to write an elaborate prompt for this). 
+- [x] CLEAN REPO - Clean unnecessary MD files, unused scripts etc.
+- [x] DOC - Add the server stuff to a separate MD file in /docs/. That gets a link from the main README for developers that want to run this project on their own servers. 
+- [ ] IMPROVE README - Improve the README so that it reflects a good, working repo. Make it consice, and refer to other specialised MD files if people want more info, or step-by-step instructions. 
+- [ ] SETUP GUIDE - add a full step - by - step setup guide, including screenshots, etc. This goes past the server setup, and also handles user managment, timezone settings, testing via FTPS, etc. 
+
 
 ### Priority 3
 - [ ] EXLUCDE IMGS PAGE - Make a page for project admins where we can include/exclude images from the view and statistics. That way we can exclude test images for example.
-- [ ] CLEAN REPO - Find all the MD files in the repo and check if they are old and redundant, or usefull to keep. Make a list, show me what they contain in one sentence, recommend to keep or remove, and ask me what to do with them for each file separately. 
+- [x] CLEAN REPO - Find all the MD files in the repo and check if they are old and redundant, or useful to keep.
 
 **SPW server**
 - [ ] NEW server spw.addaxai.com project namne: ANLIER NORD
