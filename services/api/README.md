@@ -1,21 +1,18 @@
-# API Service
+# API service
 
-FastAPI backend providing REST API and WebSocket endpoints.
+FastAPI backend providing the REST API for the platform.
 
 ## Responsibilities
 
 - **Authentication** - FastAPI-Users with email verification and JWT
-- **REST API** - Images, cameras, detections, classifications, statistics
-- **WebSocket** - Real-time updates for new images and classifications
-- **Database Migrations** - Alembic schema management
+- **REST API** - Images, cameras, detections, classifications, statistics, notifications, exports
+- **Database migrations** - Alembic schema management
 
-## API Endpoints
+## Key endpoints
 
 ### Authentication
-- `POST /auth/register` - Register new user (requires email allowlist)
+- `POST /auth/register` - Register new user (requires invitation)
 - `POST /auth/login` - Login with email/password
-- `POST /auth/logout` - Logout
-- `GET /auth/verify` - Verify email
 - `POST /auth/forgot-password` - Request password reset
 - `POST /auth/reset-password` - Reset password
 
@@ -26,17 +23,14 @@ FastAPI backend providing REST API and WebSocket endpoints.
 ### Cameras
 - `GET /api/cameras` - List all cameras
 - `GET /api/cameras/{id}` - Get camera details
-- `POST /api/cameras` - Create camera (Admin only)
+- `POST /api/cameras` - Create camera
 
 ### Statistics
 - `GET /api/stats/species` - Species distribution
 - `GET /api/stats/timeline` - Image timeline
 - `GET /api/stats/cameras` - Per-camera statistics
 
-### WebSocket
-- `ws://api/updates` - Real-time event stream
-
-## Database Migrations
+## Database migrations
 
 ```bash
 # Create migration
@@ -58,7 +52,7 @@ Environment variables:
 - `JWT_SECRET` - JWT signing secret
 - `CORS_ORIGINS` - Allowed CORS origins
 
-## Running Locally
+## Running locally
 
 ```bash
 docker compose up api

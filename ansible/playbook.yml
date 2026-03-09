@@ -82,5 +82,5 @@
           3. View logs: docker compose logs -f
           4. Start building your application!
 
-          Documentation: See README.md and PROJECT_PLAN.md
+          Documentation: See README.md and DEVELOPERS.md
           ========================================

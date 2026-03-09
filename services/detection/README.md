@@ -1,30 +1,16 @@
-# Detection Worker
+# Detection worker
 
-ML worker that runs object detection on camera trap images.
+Runs MegaDetector object detection on camera trap images.
 
 ## Responsibilities
 
 - Consume messages from `image-ingested` Redis queue
 - Download raw images from MinIO
-- Run detection model (YOLO, Faster R-CNN, etc.)
-- Extract bounding boxes and confidence scores
-- Crop detected animals from images
-- Save crops to MinIO (`crops` bucket)
+- Run MegaDetector (md_v1000.0.0-redwood) for object detection
+- Detect animals, persons, and vehicles with bounding boxes and confidence scores
 - Insert detection records into database
+- Update image status (processing → detected / failed)
 - Publish to `detection-complete` queue
-
-## Model Loading
-
-Models are loaded from `/models/detection.pt` or downloaded from Hugging Face on startup:
-
-```python
-from huggingface_hub import hf_hub_download
-
-model_path = hf_hub_download(
-    repo_id="your-org/detection-model",
-    filename="model.pt"
-)
-```
 
 ## Configuration
 
@@ -35,7 +21,7 @@ Environment variables:
 - `REDIS_URL` - Redis connection
 - `MINIO_ENDPOINT` - MinIO endpoint
 
-## Running Locally
+## Running locally
 
 ```bash
 docker compose up detection

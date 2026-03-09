@@ -1,11 +1,11 @@
-# Telegram Notifications Worker
+# Telegram notifications worker
 
-Consumes messages from `QUEUE_NOTIFICATION_TELEGRAM` and sends them via Telegram Bot API.
+Consumes messages from `notification-telegram` Redis queue and sends them via Telegram Bot API.
 
 ## Features
 
 - Sends text messages with optional photo attachments
-- Handles /start command to provide chat IDs to users
+- Handles `/start` command with linking token for account connection
 - Polls Telegram API for updates (getUpdates)
 - Updates notification_logs with sent/failed status
 - Privacy-conscious logging (masks chat IDs)
@@ -21,13 +21,13 @@ Consumes messages from `QUEUE_NOTIFICATION_TELEGRAM` and sends them via Telegram
 5. Copy the bot username (e.g., `AddaxAI_bot`)
 6. Configure via API: `POST /api/admin/telegram/configure`
 
-### User Configuration
+### User linking
 
-1. Search for your bot in Telegram (e.g., `@AddaxAI_bot`)
-2. Send `/start` to the bot
-3. Bot replies with your chat ID
-4. Copy the chat ID
-5. Paste into notification preferences: Project Settings → Notifications → Telegram Chat ID
+1. Go to notification settings in the web UI and click "Link Telegram"
+2. A unique linking token is generated
+3. Click the link to open the bot in Telegram
+4. Send `/start <token>` to link your account
+5. Bot confirms the link and your chat ID is stored
 
 ## Environment Variables
 
@@ -49,7 +49,7 @@ Message published to `QUEUE_NOTIFICATION_TELEGRAM`:
   "notification_log_id": 123,
   "chat_id": "987654321",
   "message_text": "Wolf (94%) detected at Camera-GK123",
-  "attachment_path": "thumbnails/abc-123.jpg"
+  "annotated_minio_path": "thumbnails/abc-123.jpg"
 }
 ```
 
