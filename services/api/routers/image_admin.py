@@ -231,7 +231,7 @@ async def list_all_images(
             datetime_captured = image.image_metadata["DateTimeOriginal"]
 
         thumbnail_url = None
-        if image.thumbnail_path:
+        if image.storage_path:
             thumbnail_url = f"/api/images/{image.uuid}/thumbnail"
 
         items.append(AdminImageListItemResponse(
