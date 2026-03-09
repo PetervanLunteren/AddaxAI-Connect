@@ -768,8 +768,7 @@ export const CamerasPage: React.FC = () => {
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`IMEI
 860946063660255
-860946063660256
-860946063660257`}
+860946063660256`}
                       </pre>
                     </div>
 
@@ -785,8 +784,7 @@ export const CamerasPage: React.FC = () => {
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`IMEI,Name,Notes
 860946063660255,,
-860946063660256,Camera north,Oak tree
-860946063660257,Camera south,Near stream`}
+860946063660256,Camera north,Oak tree`}
                       </pre>
                     </div>
 
@@ -800,8 +798,7 @@ export const CamerasPage: React.FC = () => {
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
 {`IMEI,Name,Notes,Habitat,Mounted on
 860946063660255,,,,
-860946063660256,Camera north,,,Oak tree
-860946063660257,Camera south,Near stream,Wetland,Pole`}
+860946063660256,Camera north,Near stream,Wetland,Pole`}
                       </pre>
                     </div>
                   </div>
