@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera, ExternalLink } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -394,6 +394,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   >
                     <Camera className="h-3 w-3" />
                     {imageDetail.camera_name}
+                    {imageDetail.camera_location && (
+                      <a
+                        href={`https://www.google.com/maps?q=${imageDetail.camera_location.lat},${imageDetail.camera_location.lon}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-0.5 p-0.5 rounded hover:bg-white/20"
+                        title="Open in Google Maps"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                 </>
               ) : (

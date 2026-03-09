@@ -111,6 +111,7 @@ class ImageDetailResponse(BaseModel):
     status: str
     image_metadata: dict
     full_image_url: str
+    camera_location: Optional[dict] = None
     detections: List[DetectionResponse]
     verification: VerificationInfo
     human_observations: List[HumanObservationResponse]
@@ -689,6 +690,8 @@ async def get_image(
         for obs in image.human_observations
     ]
 
+    gps_data = camera.config.get('gps_from_report') if camera.config else None
+
     return ImageDetailResponse(
         id=image.id,
         uuid=image.uuid,
@@ -699,6 +702,7 @@ async def get_image(
         storage_path=image.storage_path,
         status=image.status,
         image_metadata=image.image_metadata or {},
+        camera_location=gps_data,
         full_image_url=full_image_url,
         detections=detections_response,
         verification=verification,

@@ -128,6 +128,7 @@ export interface ImageDetail {
   filename: string;
   camera_id: number;
   camera_name: string;
+  camera_location: { lat: number; lon: number } | null;
   uploaded_at: string;
   storage_path: string;
   status: string;
