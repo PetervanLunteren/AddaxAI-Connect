@@ -72,7 +72,7 @@ export const CamerasPage: React.FC = () => {
 
   // Add camera dialog state
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [newCameraIMEI, setNewCameraIMEI] = useState('');
+  const [newCameraDeviceId, setNewCameraDeviceId] = useState('');
   const [newCameraName, setNewCameraName] = useState('');
   const [newCameraNotes, setNewCameraNotes] = useState('');
   const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
@@ -117,15 +117,15 @@ export const CamerasPage: React.FC = () => {
   });
 
   const resetAddForm = () => {
-    setNewCameraIMEI('');
+    setNewCameraDeviceId('');
     setNewCameraName('');
     setNewCameraNotes('');
     setCustomFields([]);
   };
 
   const handleAddCamera = () => {
-    if (!newCameraIMEI.trim()) {
-      alert('IMEI is required');
+    if (!newCameraDeviceId.trim()) {
+      alert('Camera ID is required');
       return;
     }
     if (!currentProject) {
@@ -144,7 +144,7 @@ export const CamerasPage: React.FC = () => {
     }
 
     const data: CreateCameraRequest = {
-      imei: newCameraIMEI.trim(),
+      device_id: newCameraDeviceId.trim(),
       friendly_name: newCameraName.trim() || undefined,
       notes: newCameraNotes.trim() || undefined,
       custom_fields: Object.keys(custom_fields).length > 0 ? custom_fields : undefined,
@@ -467,7 +467,7 @@ export const CamerasPage: React.FC = () => {
                     <TableHead>Last image</TableHead>
                     <TableHead>Location</TableHead>
                     {canAdminCurrentProject && (
-                      <TableHead>IMEI</TableHead>
+                      <TableHead>Camera ID</TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
@@ -576,7 +576,7 @@ export const CamerasPage: React.FC = () => {
                       </TableCell>
                       {canAdminCurrentProject && (
                         <TableCell className="font-mono text-xs text-muted-foreground">
-                          {camera.imei || '-'}
+                          {camera.device_id || '-'}
                         </TableCell>
                       )}
                     </TableRow>
@@ -621,19 +621,19 @@ export const CamerasPage: React.FC = () => {
 
             <div className="space-y-4 py-4 px-1 -mx-1 max-h-[60vh] overflow-y-auto">
               <div>
-                <label htmlFor="imei" className="block text-sm font-medium mb-2">
-                  IMEI <span className="text-destructive">*</span>
+                <label htmlFor="device-id" className="block text-sm font-medium mb-2">
+                  Camera ID <span className="text-destructive">*</span>
                 </label>
                 <input
-                  id="imei"
+                  id="device-id"
                   type="text"
-                  value={newCameraIMEI}
-                  onChange={(e) => setNewCameraIMEI(e.target.value)}
+                  value={newCameraDeviceId}
+                  onChange={(e) => setNewCameraDeviceId(e.target.value)}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="e.g., 860946063660255"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  The camera's IMEI (unique device identifier)
+                  Unique camera identifier (IMEI, serial number, or custom ID)
                 </p>
               </div>
 
@@ -650,7 +650,7 @@ export const CamerasPage: React.FC = () => {
                   placeholder="e.g., Camera A - North Ridge"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Leave empty to use IMEI as the display name
+                  Leave empty to use the camera ID as the display name
                 </p>
               </div>
 
@@ -726,7 +726,7 @@ export const CamerasPage: React.FC = () => {
               </Button>
               <Button
                 onClick={handleAddCamera}
-                disabled={createMutation.isPending || !newCameraIMEI.trim()}
+                disabled={createMutation.isPending || !newCameraDeviceId.trim()}
               >
                 {createMutation.isPending ? (
                   <>
@@ -762,11 +762,11 @@ export const CamerasPage: React.FC = () => {
                   <div className="bg-accent/50 p-4 rounded-md space-y-3">
                     <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
                       <div>
-                        <p className="text-sm font-medium">All you need is a list of IMEIs</p>
+                        <p className="text-sm font-medium">All you need is a list of camera IDs</p>
                         <p className="text-xs text-muted-foreground mt-0.5">The simplest CSV has just one column.</p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`IMEI
+{`CameraID
 860946063660255
 860946063660256`}
                       </pre>
@@ -778,11 +778,11 @@ export const CamerasPage: React.FC = () => {
                       <div>
                         <p className="text-sm font-medium">Optionally add a name and notes</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty names default to the IMEI.
+                          Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty names default to the camera ID.
                         </p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`IMEI,Name,Notes
+{`CameraID,Name,Notes
 860946063660255,,
 860946063660256,Camera north,Oak tree`}
                       </pre>
@@ -796,7 +796,7 @@ export const CamerasPage: React.FC = () => {
                         <p className="text-xs text-muted-foreground mt-0.5">Extra columns are stored as custom fields. Not used by the system but searchable.</p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`IMEI,Name,Notes,Habitat,Mounted on
+{`CameraID,Name,Notes,Habitat,Mounted on
 860946063660255,,,,
 860946063660256,Camera north,Near stream,Wetland,Pole`}
                       </pre>
@@ -850,7 +850,7 @@ export const CamerasPage: React.FC = () => {
                       <thead className="sticky top-0 bg-accent border-b">
                         <tr>
                           <th className="text-left py-2 px-3">Row</th>
-                          <th className="text-left py-2 px-3">IMEI</th>
+                          <th className="text-left py-2 px-3">Camera ID</th>
                           <th className="text-left py-2 px-3">Status</th>
                           <th className="text-left py-2 px-3">Message</th>
                         </tr>
@@ -859,7 +859,7 @@ export const CamerasPage: React.FC = () => {
                         {importResults.results.map((result) => (
                           <tr key={result.row_number} className="border-b hover:bg-accent/50">
                             <td className="py-2 px-3">{result.row_number}</td>
-                            <td className="py-2 px-3 font-mono text-xs">{result.imei}</td>
+                            <td className="py-2 px-3 font-mono text-xs">{result.device_id}</td>
                             <td className="py-2 px-3">
                               {result.success ? (
                                 <span className="inline-flex items-center gap-1 text-green-600">

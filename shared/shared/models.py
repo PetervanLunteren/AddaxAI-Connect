@@ -51,7 +51,7 @@ class Camera(Base):
     config = Column(JSON)
 
     # Identifiers
-    imei = Column(String(50), nullable=True, index=True, unique=True)
+    device_id = Column(String(50), nullable=True, index=True, unique=True)
     manufacturer = Column(String(100), nullable=True, index=True)
     model = Column(String(100), nullable=True, index=True)
     hardware_revision = Column(String(50), nullable=True)

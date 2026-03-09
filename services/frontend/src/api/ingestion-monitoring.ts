@@ -9,7 +9,7 @@ export interface RejectedFile {
   filepath: string;
   timestamp: number;
   size_bytes: number;
-  imei: string | null;
+  device_id: string | null;
   error_details: string | null;
   rejected_at: string | null;
   exif_metadata: Record<string, any> | null;

@@ -20,25 +20,24 @@ logger = get_logger("ingestion")
 RELOCATION_THRESHOLD_METERS = 100.0  # GPS change >100m = new deployment
 
 
-def get_camera_by_imei(imei: str) -> Optional[int]:
+def get_camera_by_device_id(device_id: str) -> Optional[int]:
     """
-    Get camera by IMEI.
+    Get camera by device ID.
 
     Args:
-        imei: Camera IMEI (from EXIF SerialNumber or daily report IMEI field)
+        device_id: Camera device ID (from EXIF SerialNumber or daily report IMEI field)
 
     Returns:
         Database ID of camera (integer) if found, None otherwise
     """
     with get_db_session() as session:
-        # Look up camera by IMEI
-        camera = session.query(Camera).filter_by(imei=imei).first()
+        camera = session.query(Camera).filter_by(device_id=device_id).first()
 
         if camera:
             db_id = camera.id  # Access ID before session closes
             logger.debug(
                 "Found existing camera",
-                imei=imei,
+                device_id=device_id,
                 camera_name=camera.name,
                 db_id=db_id
             )
@@ -46,7 +45,7 @@ def get_camera_by_imei(imei: str) -> Optional[int]:
 
         logger.debug(
             "Camera not found",
-            imei=imei
+            device_id=device_id
         )
         return None
 
@@ -336,7 +335,7 @@ def create_image_record(
     return image_uuid
 
 
-def update_camera_health(imei: str, health_data: dict) -> bool:
+def update_camera_health(device_id: str, health_data: dict) -> bool:
     """
     Update camera record with health data from daily report.
 
@@ -345,20 +344,19 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
     2. camera_health_reports table (for historical tracking)
 
     Args:
-        imei: Camera IMEI
+        device_id: Camera device ID
         health_data: Parsed daily report data
 
     Returns:
         True if camera found and updated, False if camera not found
     """
     with get_db_session() as session:
-        # Look up camera by IMEI
-        camera = session.query(Camera).filter_by(imei=imei).first()
+        camera = session.query(Camera).filter_by(device_id=device_id).first()
 
         if not camera:
             logger.warning(
                 "Daily report for unknown camera",
-                imei=imei
+                device_id=device_id
             )
             return False
 
@@ -423,7 +421,7 @@ def update_camera_health(imei: str, health_data: dict) -> bool:
 
         logger.info(
             "Updated camera health",
-            imei=imei,
+            device_id=device_id,
             camera_name=camera.name,
             battery=health_data.get('battery_percentage'),
             temperature=health_data.get('temperature'),

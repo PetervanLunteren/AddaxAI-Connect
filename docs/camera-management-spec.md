@@ -45,10 +45,10 @@ The Camera Management Module extends AddaxAI Connect with complete field operati
 - Users, cameras, SIMs, settings, firmware all project-scoped
 
 **3. Identifier Strategy**
-- **Primary identifier:** `cameras.serial_number` (equals IMEI from camera hardware)
+- **Primary identifier:** `cameras.device_id` (IMEI, serial number, or custom ID)
 - Found in EXIF `Serial Number` field for images
-- Found in daily report `IMEI:` field
-- No separate "printed camera ID" field needed (simplified vs original spec)
+- Found in daily report `IMEI:` field (for Willfine cameras)
+- Generic enough to support any camera type
 
 **4. Health Monitoring via Ingestion**
 - Camera health auto-updated from daily reports (battery, SD, temperature, signal)
@@ -214,8 +214,7 @@ cameras:
   config                          JSON
 
   # NEW: Identifiers
-  serial_number                   VARCHAR(50) UNIQUE NOT NULL  ← Primary identifier (IMEI)
-  imei                            VARCHAR(50) UNIQUE
+  device_id                       VARCHAR(50) UNIQUE  ← Primary identifier (IMEI, serial number, or custom ID)
   manufacturer                    VARCHAR(100)
   model                           VARCHAR(100)
   hardware_revision               VARCHAR(50)
@@ -300,7 +299,7 @@ Parse TXT file → extract key:value pairs
   ...
 }
          ↓
-Match camera by serial_number == IMEI
+Match camera by device_id == IMEI
          ↓
 ┌─────────────────┬─────────────────────┐
 │ FOUND           │ NOT FOUND           │

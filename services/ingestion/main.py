@@ -21,7 +21,7 @@ from validators import validate_image, validate_daily_report
 from exif_parser import extract_exif, get_datetime_original
 from camera_profiles import identify_camera_profile
 from db_operations import (
-    get_camera_by_imei,
+    get_camera_by_device_id,
     create_image_record,
     update_camera_health
 )
@@ -232,19 +232,19 @@ def process_image(filepath: str) -> None:
 
         logger.info("Camera profile identified", file_name=filename, profile=profile.name)
 
-        # Step 4: Extract IMEI (from SerialNumber EXIF field)
-        imei = exif.get('SerialNumber')
-        if not imei:
+        # Step 4: Extract device ID (from SerialNumber EXIF field)
+        device_id = exif.get('SerialNumber')
+        if not device_id:
             reject_file(
                 filepath,
-                "missing_imei",
-                f"Could not extract IMEI (SerialNumber field) for profile {profile.name}",
+                "missing_device_id",
+                f"Could not extract device ID (SerialNumber field) for profile {profile.name}",
                 exif_metadata=exif
             )
             return
 
         # Convert to string to ensure consistent type
-        imei = str(imei)
+        device_id = str(device_id)
 
         # Step 5: Get datetime
         try:
@@ -258,12 +258,12 @@ def process_image(filepath: str) -> None:
             return
 
         # Step 6: Look up camera (returns database ID or None)
-        camera_db_id = get_camera_by_imei(imei)
+        camera_db_id = get_camera_by_device_id(device_id)
         if camera_db_id is None:
             reject_file(
                 filepath,
                 "unknown_camera",
-                f"Camera not registered. IMEI: {imei}. Please create camera in Camera Management before uploading files."
+                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files."
             )
             return
 
@@ -282,14 +282,14 @@ def process_image(filepath: str) -> None:
             )
             return
 
-        # Step 9: Upload to MinIO (using cleaned filename, IMEI as folder, UUID for uniqueness)
-        storage_path = upload_image_to_minio(filepath, imei, image_uuid, clean_filename)
+        # Step 9: Upload to MinIO (using cleaned filename, device ID as folder, UUID for uniqueness)
+        storage_path = upload_image_to_minio(filepath, device_id, image_uuid, clean_filename)
 
         # Step 10: Generate and upload thumbnail
         # Note: thumbnail generation may fail for severely corrupted images, but we
         # continue processing since the full image is already uploaded to MinIO
         try:
-            thumbnail_path = generate_and_upload_thumbnail(filepath, imei, image_uuid, clean_filename)
+            thumbnail_path = generate_and_upload_thumbnail(filepath, device_id, image_uuid, clean_filename)
         except Exception as e:
             logger.warning(
                 "Failed to generate thumbnail, continuing without it",
@@ -325,7 +325,7 @@ def process_image(filepath: str) -> None:
         logger.info(
             "Image ingestion complete",
             image_uuid=image_uuid,
-            imei=imei,
+            device_id=device_id,
             file_name=clean_filename,
             queued=True
         )
@@ -391,23 +391,23 @@ def process_daily_report(filepath: str) -> None:
             reject_file(filepath, "parse_failed", str(e))
             return
 
-        # Step 3: Extract IMEI (camera_id field from daily report is the IMEI)
-        imei = health_data['camera_id']
+        # Step 3: Extract device ID (camera_id field from daily report is the device ID)
+        device_id = health_data['camera_id']
 
         # Step 4: Update camera health (only if camera exists)
-        camera_updated = update_camera_health(imei, health_data)
+        camera_updated = update_camera_health(device_id, health_data)
 
         if not camera_updated:
             reject_file(
                 filepath,
                 "unknown_camera",
-                f"Camera not registered. IMEI: {imei}. Please create camera in Camera Management before uploading files."
+                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files."
             )
             return
 
         logger.info(
             "Daily report processed",
-            imei=imei,
+            device_id=device_id,
             battery=health_data.get('battery_percentage'),
             temperature=health_data.get('temperature')
         )
@@ -516,7 +516,7 @@ def main():
         "file_size",
         "no_camera_exif",
         "unsupported_camera",
-        "missing_camera_id",
+        "missing_device_id",
         "missing_datetime",
         "missing_gps",
         "validation_failed",

@@ -8,7 +8,7 @@ import type { Camera, HealthHistoryResponse, HealthHistoryFilters } from './type
 
 // Request types for camera management
 export interface CreateCameraRequest {
-  imei: string;
+  device_id: string;
   friendly_name?: string;
   notes?: string;
   custom_fields?: Record<string, string>;
@@ -25,7 +25,7 @@ export interface UpdateCameraRequest {
 
 export interface CameraImportRow {
   row_number: number;
-  imei: string;
+  device_id: string;
   success: boolean;
   error?: string;
   camera_id?: number;

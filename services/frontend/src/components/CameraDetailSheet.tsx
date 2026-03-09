@@ -5,7 +5,7 @@
  * - Notes: Friendly name and remarks (all users, editable by admins)
  * - Overview: Status, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
- * - Details: Administrative info like IMEI, serial, SIM (admins only)
+ * - Details: Administrative info like camera ID, serial, SIM (admins only)
  * - Actions: Delete camera and other admin actions (server admins only)
  */
 import React, { useState, useEffect } from 'react';
@@ -313,14 +313,14 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 {isEditing && isServerAdmin ? (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-muted-foreground">IMEI</label>
+                      <label className="text-xs text-muted-foreground">Camera ID</label>
                       <input
                         type="text"
-                        value={camera.imei || ''}
+                        value={camera.device_id || ''}
                         disabled
                         className="w-full px-3 py-2 border rounded-md text-sm bg-muted"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">IMEI cannot be changed</p>
+                      <p className="text-xs text-muted-foreground mt-1">Camera ID cannot be changed</p>
                     </div>
 
                     {/* Editable metadata key-value fields */}
@@ -374,8 +374,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 ) : (
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">IMEI</span>
-                      <span className="font-mono text-xs">{camera.imei || '-'}</span>
+                      <span className="text-muted-foreground">Camera ID</span>
+                      <span className="font-mono text-xs">{camera.device_id || '-'}</span>
                     </div>
                     {camera.custom_fields && Object.keys(camera.custom_fields).length > 0 ? (
                       Object.entries(camera.custom_fields).map(([key, value]) => (

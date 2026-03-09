@@ -186,30 +186,30 @@ def handle_low_battery(
         'type': 'low_battery',
         'camera_id': int,
         'camera_name': str,
-        'imei': str,
+        'device_id': str,
         'battery_percentage': int,
         'location': {'lat': float, 'lon': float} or None,
         'timestamp': str (ISO 8601)
     }
 
     Message format:
-    "Low battery alert: Camera-GK123 (IMEI: 123456789)
+    "Low battery alert: Camera-GK123 (Camera ID: 123456789)
     Battery: 25%
     Location: 51.5074, -0.1278"
     """
     camera_name = event.get('camera_name')
-    imei = event.get('imei')
+    device_id = event.get('device_id')
     battery_percentage = event.get('battery_percentage')
     location = event.get('location')
 
     # Validate required fields
-    if not all([camera_name, imei, battery_percentage is not None]):
+    if not all([camera_name, device_id, battery_percentage is not None]):
         logger.error("Missing required fields in low_battery event", event=event)
         return
 
     # Build message text
     message_lines = [
-        f"Low battery alert: {camera_name} (IMEI: {imei})",
+        f"Low battery alert: {camera_name} (Camera ID: {device_id})",
         f"Battery: {battery_percentage}%"
     ]
 

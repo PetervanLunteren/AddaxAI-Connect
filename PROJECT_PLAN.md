@@ -846,12 +846,12 @@ docker compose up -d --build
   - Maintenance thresholds (battery_low_threshold, sd_high_threshold, silence_threshold_hours)
   - Default placement values (FOV, range)
 - [ ] Extend `cameras` table with camera management fields - BASIC SCHEMA EXISTS but needs extension
-  - **Identifiers:** `serial_number` (IMEI), `imei`, `manufacturer`, `model`, `hardware_revision`
+  - **Identifiers:** `device_id` (IMEI/serial/custom), `manufacturer`, `model`, `hardware_revision`
   - **Assignment:** `project_id` (FK), `status` (inventory/assigned/deployed/suspended/retired)
   - **Health metrics:** `battery_percent`, `sd_used_mb`, `sd_total_mb`, `temperature_c`, `signal_quality`
   - **Timestamps:** `last_seen`, `last_daily_report_at`, `last_image_at`, `last_maintenance_at`
   - **Metadata:** `tags` (JSON), `notes` (text), `created_at`, `updated_at`
-  - **Indexes:** serial_number (unique), imei (unique), project_id, status, last_seen, manufacturer, model
+  - **Indexes:** device_id (unique), project_id, status, last_seen, manufacturer, model
 - [ ] Add `project_id` to existing tables:
   - [ ] Add `users.project_id` with FK and index (schema has field, not FK)
   - [ ] Add `images.project_id` with FK and index
@@ -1371,7 +1371,7 @@ docker compose up -d --build
 #### 3.9.1 Camera Registry Page
 - [ ] Searchable camera list DataTable (columns: Serial #, Name, Project, Status, Battery %, SD %, Last Seen, Location)
 - [ ] Filters: project, status, manufacturer, model, last-seen date range, battery range, SD range
-- [ ] Search by serial number, name, IMEI
+- [ ] Search by device ID, name
 - [ ] Bulk actions: Assign to project, change status, export CSV
 - [ ] Import Cameras CSV button with validation
 - [ ] Create Camera button (modal form)
@@ -1380,7 +1380,7 @@ docker compose up -d --build
 **Estimated Time:** 2 days
 
 #### 3.9.2 Camera Detail Page
-- [ ] Section: Identifiers (Serial #, IMEI, Make, Model, Hardware Rev) with edit
+- [ ] Section: Identifiers (Camera ID, Make, Model, Hardware Rev) with edit
 - [ ] Section: Assignment & Status (Project link, status badge, dates) with actions
 - [ ] Section: Health Metrics (Battery gauge, SD progress bar, Temp, Signal) with charts over time
 - [ ] Section: Location & Map (Leaflet map with marker, lat/lon display)

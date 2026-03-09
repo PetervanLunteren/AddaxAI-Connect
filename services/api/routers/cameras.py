@@ -24,7 +24,7 @@ class CameraResponse(BaseModel):
     """Camera response with health status"""
     id: int
     name: str
-    imei: Optional[str] = None
+    device_id: Optional[str] = None
     custom_fields: Optional[dict] = None
     tags: Optional[List[str]] = None
     notes: Optional[str] = None
@@ -45,8 +45,8 @@ class CameraResponse(BaseModel):
 
 class CreateCameraRequest(BaseModel):
     """Request model for creating a new camera"""
-    imei: str
-    friendly_name: Optional[str] = None  # Display name (optional, defaults to IMEI)
+    device_id: str
+    friendly_name: Optional[str] = None  # Display name (optional, defaults to device ID)
     notes: Optional[str] = None
     custom_fields: Optional[dict] = None
     tags: Optional[List[str]] = None
@@ -64,7 +64,7 @@ class UpdateCameraRequest(BaseModel):
 class CameraImportRow(BaseModel):
     """Result for a single CSV import row"""
     row_number: int
-    imei: str
+    device_id: str
     success: bool
     error: Optional[str] = None
     camera_id: Optional[int] = None
@@ -158,7 +158,7 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
     return CameraResponse(
         id=camera.id,
         name=camera.name,
-        imei=camera.imei,
+        device_id=camera.device_id,
         custom_fields=camera.custom_fields,
         tags=camera.tags or [],
         notes=camera.notes,
@@ -422,7 +422,7 @@ async def create_camera(
     Create a new camera (project admin or server admin)
 
     Args:
-        request: Camera creation data (IMEI required, name optional)
+        request: Camera creation data (device_id required, name optional)
         db: Database session
         current_user: Current authenticated user
 
@@ -430,7 +430,7 @@ async def create_camera(
         Created camera
 
     Raises:
-        HTTPException: If IMEI already exists, project not found, or insufficient permissions
+        HTTPException: If device_id already exists, project not found, or insufficient permissions
     """
     # Check project admin access
     if not await can_admin_project(current_user, request.project_id, db):
@@ -439,16 +439,16 @@ async def create_camera(
             detail=f"Project admin access required for project {request.project_id}",
         )
 
-    # Check if IMEI already exists
+    # Check if device ID already exists
     result = await db.execute(
-        select(Camera).where(Camera.imei == request.imei)
+        select(Camera).where(Camera.device_id == request.device_id)
     )
     existing_camera = result.scalar_one_or_none()
 
     if existing_camera:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Camera with IMEI {request.imei} already exists",
+            detail=f"Camera with ID {request.device_id} already exists",
         )
 
     # Verify project exists
@@ -465,8 +465,8 @@ async def create_camera(
 
     # Create camera
     camera = Camera(
-        imei=request.imei,
-        name=request.friendly_name if request.friendly_name else request.imei,  # Default name to IMEI
+        device_id=request.device_id,
+        name=request.friendly_name if request.friendly_name else request.device_id,  # Default name to device ID
         notes=request.notes or '',
         custom_fields=request.custom_fields or {},
         tags=normalize_tags(request.tags) if request.tags else [],
@@ -605,7 +605,7 @@ async def import_cameras_csv(
     Bulk import cameras from CSV file (project admin or server admin)
 
     Expected CSV format with headers (delimiter auto-detected: comma or semicolon):
-    Required: IMEI. Optional: Name, Notes. All other columns are stored as custom fields.
+    Required: CameraID. Optional: Name, Notes. All other columns are stored as custom fields.
 
     Args:
         file: CSV file upload
@@ -670,7 +670,7 @@ async def import_cameras_csv(
     # Validate required headers
     actual_headers = set(rows[0].keys())
 
-    required_headers = {'IMEI'}
+    required_headers = {'CameraID'}
     missing_headers = required_headers - actual_headers
     if missing_headers:
         raise HTTPException(
@@ -690,7 +690,7 @@ async def import_cameras_csv(
         )
 
     # Columns that are not stored in custom_fields
-    reserved_columns = {'IMEI', 'Name', 'FriendlyName', 'Notes'}
+    reserved_columns = {'CameraID', 'Name', 'FriendlyName', 'Notes'}
 
     # Process rows
     results: List[CameraImportRow] = []
@@ -698,31 +698,31 @@ async def import_cameras_csv(
     failed_count = 0
 
     for idx, row in enumerate(rows, start=2):  # Start at 2 (1 for header + 1-indexed)
-        imei = (row.get('IMEI') or '').strip()
+        device_id = (row.get('CameraID') or '').strip()
 
-        # Validate IMEI is present
-        if not imei:
+        # Validate camera ID is present
+        if not device_id:
             results.append(CameraImportRow(
                 row_number=idx,
-                imei='',
+                device_id='',
                 success=False,
-                error="IMEI is required"
+                error="CameraID is required"
             ))
             failed_count += 1
             continue
 
-        # Check if IMEI already exists
+        # Check if device ID already exists
         result = await db.execute(
-            select(Camera).where(Camera.imei == imei)
+            select(Camera).where(Camera.device_id == device_id)
         )
         existing_camera = result.scalar_one_or_none()
 
         if existing_camera:
             results.append(CameraImportRow(
                 row_number=idx,
-                imei=imei,
+                device_id=device_id,
                 success=False,
-                error=f"Camera with IMEI {imei} already exists"
+                error=f"Camera with ID {device_id} already exists"
             ))
             failed_count += 1
             continue
@@ -742,8 +742,8 @@ async def import_cameras_csv(
         # Create camera
         try:
             camera = Camera(
-                imei=imei,
-                name=friendly_name if friendly_name else imei,
+                device_id=device_id,
+                name=friendly_name if friendly_name else device_id,
                 notes=notes,
                 custom_fields=custom_fields if custom_fields else {},
                 project_id=project_id,
@@ -756,7 +756,7 @@ async def import_cameras_csv(
 
             results.append(CameraImportRow(
                 row_number=idx,
-                imei=imei,
+                device_id=device_id,
                 success=True,
                 camera_id=camera.id
             ))
@@ -765,7 +765,7 @@ async def import_cameras_csv(
         except Exception as e:
             results.append(CameraImportRow(
                 row_number=idx,
-                imei=imei,
+                device_id=device_id,
                 success=False,
                 error=f"Database error: {str(e)}"
             ))

@@ -24,7 +24,7 @@ AddaxAI Connect receives two types of files from 4G camera traps via FTPS:
 1. **Images** (JPEG files with EXIF metadata)
 2. **Daily Reports** (TXT files with key:value health data)
 
-Both file types contain a camera identifier (Serial Number/IMEI) used to link data to the correct camera record.
+Both file types contain a camera identifier (Serial Number / device ID) used to link data to the correct camera record.
 
 ---
 
@@ -74,7 +74,7 @@ Image Height                    : 960
 
 | Field | Type | Purpose | Example |
 |-------|------|---------|---------|
-| **Serial Number** | String | **Primary camera identifier** (equals IMEI) | `861943070068027` |
+| **Serial Number** | String | **Primary camera identifier** (stored as `device_id`) | `861943070068027` |
 | **Make** | String | Camera manufacturer | `Willfine` |
 | **Camera Model Name** | String | Camera model | `4.0T CG Regular lens` |
 | **Date/Time Original** | DateTime | Image capture timestamp | `2025:12:05 15:46:07` |
@@ -309,7 +309,7 @@ def parse_daily_report(filepath: str) -> Dict:
     # Parse and convert values
     try:
         parsed = {
-            'imei': data['IMEI'],
+            'camera_id': data['IMEI'],
             'battery_percent': int(data['Battery'].rstrip('%')),
             'temperature_c': int(data['Temp'].rstrip('℃ ').strip()) if 'Temp' in data else None,
             'signal_quality': int(data['CSQ']) if 'CSQ' in data else None,
@@ -362,7 +362,7 @@ data = parse_daily_report('test-ftps-files/861943070068027-05122025154647-dr.txt
 print(data)
 # Output:
 # {
-#     'imei': '861943070068027',
+#     'camera_id': '861943070068027',
 #     'battery_percent': 60,
 #     'temperature_c': 24,
 #     'signal_quality': 31,
@@ -475,9 +475,9 @@ def process_daily_report(filepath: str):
     if not data:
         return  # Parsing failed
 
-    # Find camera by IMEI
+    # Find camera by device ID
     camera = db.query(Camera).filter(
-        Camera.serial_number == data['imei']
+        Camera.device_id == data['camera_id']
     ).first()
 
     if not camera:
@@ -582,7 +582,7 @@ def process_image(filepath: str):
 
 def handle_unknown_device(data: dict, source: str):
     """Handle unknown device detection"""
-    serial_number = data.get('imei') or data.get('serial_number')
+    serial_number = data.get('camera_id') or data.get('serial_number')
 
     # Check if already in queue
     unknown = db.query(UnknownDevice).filter(
