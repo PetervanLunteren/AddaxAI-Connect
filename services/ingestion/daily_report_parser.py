@@ -84,8 +84,8 @@ def parse_willfine_2025_report(filepath: str, raw_data: dict) -> dict:
         'battery_percentage': parse_battery(raw_data.get('Battery')),
         'sd_utilization_percentage': parse_sd_card(raw_data.get('SD')),
         'gps_location': parse_gps_decimal(raw_data.get('GPS')),
-        'total_images': int(raw_data['Total']) if 'Total' in raw_data else None,
-        'sent_images': int(raw_data['Send']) if 'Send' in raw_data else None,
+        'total_images': parse_image_count(raw_data.get('Total')),
+        'sent_images': parse_image_count(raw_data.get('Send')),
         'report_datetime': parse_report_datetime(raw_data.get('Date')),
     }
 
@@ -193,6 +193,26 @@ def parse_sd_card(sd_str: Optional[str]) -> Optional[float]:
 
     except (ValueError, IndexError) as e:
         logger.warning("Failed to parse SD card", sd_str=sd_str, error=str(e))
+        return None
+
+
+def parse_image_count(count_str: Optional[str]) -> Optional[int]:
+    """
+    Parse image count field (Total or Send).
+
+    Args:
+        count_str: Image count as string (e.g., "8932")
+
+    Returns:
+        Integer count, or None if not parseable
+    """
+    if not count_str:
+        return None
+
+    try:
+        return int(count_str)
+    except ValueError:
+        logger.warning("Failed to parse image count", count_str=count_str)
         return None
 
 
