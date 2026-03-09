@@ -7,15 +7,18 @@ import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete as sql_delete
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project, Image, CameraHealthReport
+from shared.models import User, Camera, Project, Image, CameraHealthReport, Detection, Classification
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
 from auth.project_access import get_accessible_project_ids, narrow_to_project
+from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
+from shared.logger import get_logger
 
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
 
@@ -579,11 +582,41 @@ async def delete_camera(
             detail=f"Project admin access required for project {camera.project_id}",
         )
 
-    # Check if camera has associated images
-    if camera.images:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot delete camera with {len(camera.images)} associated images. Delete images first.",
+    # Cascade delete all associated data
+    camera_device_id = camera.device_id or str(camera.id)
+
+    images_query = select(Image).where(Image.camera_id == camera.id)
+    images_result = await db.execute(images_query)
+    images = images_result.scalars().all()
+
+    for image in images:
+        detections_query = select(Detection).where(Detection.image_id == image.id)
+        detections_result = await db.execute(detections_query)
+        detections = detections_result.scalars().all()
+
+        for detection in detections:
+            await db.execute(
+                sql_delete(Classification).where(Classification.detection_id == detection.id)
+            )
+
+        await db.execute(
+            sql_delete(Detection).where(Detection.image_id == image.id)
+        )
+
+    await db.execute(sql_delete(Image).where(Image.camera_id == camera.id))
+
+    # Delete MinIO files
+    try:
+        storage = StorageClient()
+        for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
+            for obj_name in storage.list_objects(bucket, prefix=f"{camera_device_id}/"):
+                storage.delete_object(bucket, obj_name)
+    except Exception as e:
+        logger.error(
+            "Failed to delete some MinIO files",
+            camera_id=camera.id,
+            device_id=camera_device_id,
+            error=str(e),
         )
 
     await db.delete(camera)
