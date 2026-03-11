@@ -12,7 +12,7 @@ from sqlalchemy import select, func, and_, or_, desc, asc, update, delete as sql
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, CameraDeploymentPeriod
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
@@ -21,6 +21,48 @@ from auth.permissions import can_admin_project
 
 router = APIRouter(prefix="/api/admin/images", tags=["image-admin"])
 logger = get_logger("api.image_admin")
+
+
+async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
+    """Delete deployment periods that have no visible images (not hidden, not deleted)."""
+    if not camera_ids:
+        return
+
+    for camera_id in camera_ids:
+        # Find deployments for this camera that have zero non-hidden images
+        deployments_query = (
+            select(CameraDeploymentPeriod)
+            .where(CameraDeploymentPeriod.camera_id == camera_id)
+        )
+        result = await db.execute(deployments_query)
+        deployments = result.scalars().all()
+
+        for dep in deployments:
+            # Count non-hidden images within this deployment's date range
+            count_query = (
+                select(func.count(Image.id))
+                .where(
+                    and_(
+                        Image.camera_id == camera_id,
+                        Image.is_hidden == False,
+                        Image.uploaded_at >= dep.start_date,
+                        or_(
+                            dep.end_date == None,
+                            Image.uploaded_at <= dep.end_date,
+                        ),
+                    )
+                )
+            )
+            count_result = await db.execute(count_query)
+            image_count = count_result.scalar_one()
+
+            if image_count == 0:
+                logger.info(
+                    "Deleting empty deployment period",
+                    camera_id=camera_id,
+                    deployment_id=dep.deployment_id,
+                )
+                await db.delete(dep)
 
 
 class AdminImageListItemResponse(BaseModel):
@@ -295,11 +337,21 @@ async def bulk_hide_images(
             errors.append(f"Image {uuid} not found in project")
 
     if valid_uuids:
+        # Get camera IDs for affected images before hiding
+        camera_query = (
+            select(Image.camera_id)
+            .where(Image.uuid.in_(valid_uuids))
+            .distinct()
+        )
+        cam_result = await db.execute(camera_query)
+        affected_camera_ids = {row[0] for row in cam_result.all()}
+
         await db.execute(
             update(Image)
             .where(Image.uuid.in_(valid_uuids))
             .values(is_hidden=True)
         )
+        await cleanup_empty_deployments(db, affected_camera_ids)
         await db.commit()
 
     return BulkImageActionResponse(
@@ -385,6 +437,7 @@ async def bulk_delete_images(
     images = result.scalars().all()
 
     valid_uuids = {img.uuid for img in images}
+    affected_camera_ids = {img.camera_id for img in images}
     errors = []
     for uuid in body.image_uuids:
         if uuid not in valid_uuids:
@@ -440,6 +493,7 @@ async def bulk_delete_images(
             errors.append(f"Failed to delete image {image.uuid}: {str(e)}")
             logger.error("Failed to delete image", image_uuid=image.uuid, error=str(e))
 
+    await cleanup_empty_deployments(db, affected_camera_ids)
     await db.commit()
 
     return BulkImageActionResponse(
