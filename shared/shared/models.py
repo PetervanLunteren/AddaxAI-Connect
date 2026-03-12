@@ -193,6 +193,8 @@ class Classification(Base):
     detection_id = Column(Integer, ForeignKey("detections.id"), nullable=False, index=True)
     species = Column(String(255), nullable=False, index=True)  # Top-1 species
     confidence = Column(Float, nullable=False)  # Top-1 confidence
+    raw_prediction = Column(String(512), nullable=True)  # Full SpeciesNet label (semicolon-delimited)
+    raw_confidence = Column(Float, nullable=True)  # Raw model confidence before any mapping
 
     # Relationships
     detection = relationship("Detection", back_populates="classifications")

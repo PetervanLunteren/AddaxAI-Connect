@@ -1,0 +1,35 @@
+# SpeciesNet classification override — replaces DeepFaune with SpeciesNet
+# Usage: docker compose -f docker-compose.yml -f docker-compose.speciesnet.yml up -d
+services:
+  classification:
+    deploy:
+      replicas: 0
+  classification-speciesnet:
+    build:
+      context: .
+      dockerfile: services/classification-speciesnet/Dockerfile
+    container_name: addaxai-classification-speciesnet
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SPECIESNET_MODEL_DIR: /models/classification-speciesnet
+      SPECIESNET_HF_REPO: Addax-Data-Science/SPECIESNET-v4-0-1-A-v1
+      CONFIDENCE_THRESHOLD: 0.0
+      TOP_N_PREDICTIONS: 1
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    volumes:
+      - ./models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network

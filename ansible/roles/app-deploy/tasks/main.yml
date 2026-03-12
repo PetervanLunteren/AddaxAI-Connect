@@ -3,9 +3,17 @@
 # Note: docker-compose.yml comes from git repository (single source of truth)
 # Only .env is templated to inject secrets and environment-specific values
 
-- name: Set Docker Compose files for demo mode
+- name: Set Docker Compose files based on configuration
   set_fact:
-    compose_files: "{{ '-f docker-compose.yml -f docker-compose.demo.yml' if (demo_mode | default(false)) else '' }}"
+    compose_files: >-
+      {%- set files = ['-f docker-compose.yml'] -%}
+      {%- if demo_mode | default(false) -%}
+        {%- set _ = files.append('-f docker-compose.demo.yml') -%}
+      {%- endif -%}
+      {%- if classification_model == 'speciesnet' -%}
+        {%- set _ = files.append('-f docker-compose.speciesnet.yml') -%}
+      {%- endif -%}
+      {{ files | join(' ') }}
 
 - name: Create .env file from template
   template:
