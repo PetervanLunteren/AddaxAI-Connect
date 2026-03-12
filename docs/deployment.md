@@ -42,7 +42,14 @@
    | `monitoring_password` | `"securepassword"` | Password you define for accessing monitoring tools. |
 
 
-6. **Set domain and TLS settings**
+6. **Configure classification model**
+   Still in `group_vars/dev.yml`.
+
+   | Variable | Example | Description |
+   |---------|---------|-------------|
+   | `classification_model` | `"deepfaune"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,498 global species). |
+
+7. **Set domain and TLS settings**
    Still in `group_vars/dev.yml`.
 
    | Variable | Example | Description |
@@ -51,7 +58,7 @@
    | `letsencrypt_email` | `"you@example.com"` | Email address used for Letsencrypt SSL certificate registration. |
    | `letsencrypt_staging` | `false` | When set to `true`, it uses Let's Encrypt's staging environment with test certificates. This helps avoid rate limits during testing. Set it to `false` to request real, trusted certificates. |
 
-7. **Configure email and server admin**
+8. **Configure email and server admin**
    Still in `group_vars/dev.yml`.
 
    | Variable | Example | Description |
@@ -63,28 +70,28 @@
    | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
    | `admin_email` | `"admin@example.com"` | Email address for initial server admin account. During deployment, a temporary password will be generated for this account. You can change it after first login. |
 
-8. **Add VM to known_hosts**
+9. **Add VM to known_hosts**
    Add the VM's SSH host key to your known_hosts file.
     ```bash
     ssh-keyscan -H <your_vm_ipv4> >> ~/.ssh/known_hosts
     ```
 
-9. **Test Ansible connection**
+10. **Test Ansible connection**
    Should return `pong` if successful.
     ```bash
     ansible -i inventory.yml dev -m ping
     ```
 
-10. **Run playbook**
+11. **Run playbook**
    Deploys entire infrastructure automatically. It will prompt you to do some manual tasks, like DNS record creation.
     ```bash
     ansible-playbook -i inventory.yml playbook.yml
     ```
 
-11. **Register your admin account**
+12. **Register your admin account**
     When the deployment finishes, a registration URL will be displayed in the Ansible output. Copy this URL and open it in a browser. You'll be directed to a registration page where you can set your password for the `admin_email` you configured. After registration, you're automatically assigned the 'server admin' role with full control. The registration URL expires in 7 days and can only be used once.
 
-12. **Configure camera traps**
+13. **Configure camera traps**
     Set up your camera traps to upload via FTPS.
 
     | Setting | Value |
@@ -95,7 +102,7 @@
     | Password | `<ftps_password>` |
     | Protocol | FTPS (explicit TLS) |
 
-13. **Finish and manage your system**
+14. **Finish and manage your system**
     After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
 
 ## Selective deployment
