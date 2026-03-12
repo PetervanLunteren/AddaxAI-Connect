@@ -118,17 +118,39 @@
 
 - name: Notice - Docker build may take a while
   debug:
-    msg: "Building and starting all containers. This can take 20-50 minutes on first deploy. The repeated ASYNC POLL lines below are normal."
+    msg: "Building Docker images. This can take 20-50 minutes on first deploy."
 
-- name: Start Docker Compose services (force recreate to fix mount issues)
+- name: Build Docker images one by one
+  command: docker compose {{ compose_files }} build {{ item.service }}
+  args:
+    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
+  become_user: "{{ app_user | default('ubuntu') }}"
+  when: item.when | default(true)
+  loop:
+    - service: api
+    - service: frontend
+    - service: ingestion
+      when: "{{ not (demo_mode | default(false)) }}"
+    - service: detection
+      when: "{{ not (demo_mode | default(false)) }}"
+    - service: "{{ 'classification-speciesnet' if classification_model == 'speciesnet' else 'classification' }}"
+      when: "{{ not (demo_mode | default(false)) }}"
+    - service: notifications
+      when: "{{ not (demo_mode | default(false)) }}"
+    - service: notifications-telegram
+      when: "{{ not (demo_mode | default(false)) }}"
+    - service: notifications-email
+      when: "{{ not (demo_mode | default(false)) }}"
+  async: 1800  # 30 minutes per service (first build downloads base images + deps)
+  poll: 10
+
+- name: Start Docker Compose services
   command: docker compose {{ compose_files }} up -d --force-recreate
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
   register: docker_up
   changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
-  async: 2700  # 45 minutes for initial build (7 service images, ~14GB total)
-  poll: 10
 
 - name: Wait for services to be healthy
   command: docker compose {{ compose_files }} ps --format json
