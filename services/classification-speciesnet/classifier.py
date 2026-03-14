@@ -137,11 +137,11 @@ def run_classification(
             preprocessed = classifier.preprocess(pil_image, bboxes=[bbox])
             result = classifier.predict(image_path, preprocessed)
 
-            # Extract top-1 prediction
-            if result and len(result) > 0:
-                top_prediction = result[0]
-                label = top_prediction.get("label", "unknown")
-                score = top_prediction.get("score", 0.0)
+            # Extract top-1 prediction (predict returns {filepath: {label, score}})
+            prediction = result.get(image_path, {}) if result else {}
+            if prediction:
+                label = prediction.get("label", "unknown")
+                score = prediction.get("score", 0.0)
 
                 common_name, full_label = parse_speciesnet_label(label)
 
