@@ -133,9 +133,9 @@ def run_classification(
                 height=detection.bbox_normalized[3]
             )
 
-            # Preprocess and predict
+            # preprocess() expects PIL Image, predict() expects file path string
             preprocessed = classifier.preprocess(pil_image, bboxes=[bbox])
-            result = classifier.predict(pil_image, preprocessed)
+            result = classifier.predict(image_path, preprocessed)
 
             # Extract top-1 prediction
             if result and len(result) > 0:
