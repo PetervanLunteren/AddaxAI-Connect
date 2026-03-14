@@ -12,7 +12,7 @@ import { normalizeLabel } from './labels';
 const BBOX_STROKE_WIDTH = 5;
 const BBOX_OPACITY = 1.0;
 const BBOX_CORNER_RADIUS = 4;
-const DIM_FILL = 'rgba(0, 0, 0, 0.7)';
+const DIM_FILL = 'rgba(0, 0, 0, 0.55)';
 const PILL_BG = 'rgba(0, 0, 0, 0.5)';
 const PILL_PAD_X = 6;
 const PILL_PAD_Y = 4;
