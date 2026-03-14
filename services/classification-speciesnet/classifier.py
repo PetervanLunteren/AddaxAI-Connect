@@ -118,6 +118,9 @@ def run_classification(
 
         from speciesnet import BBox
 
+        # Open image once for all detections (SpeciesNet expects PIL Image)
+        pil_image = Image.open(image_path)
+
         classifications = []
 
         for detection in animal_detections:
@@ -131,8 +134,8 @@ def run_classification(
             )
 
             # Preprocess and predict
-            preprocessed = classifier.preprocess(image_path, bboxes=[bbox])
-            result = classifier.predict(image_path, preprocessed)
+            preprocessed = classifier.preprocess(pil_image, bboxes=[bbox])
+            result = classifier.predict(pil_image, preprocessed)
 
             # Extract top-1 prediction
             if result and len(result) > 0:
