@@ -39,19 +39,17 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
 
         for dep in deployments:
             # Count non-hidden images within this deployment's date range
+            date_filters = [
+                Image.camera_id == camera_id,
+                Image.is_hidden == False,
+                Image.uploaded_at >= dep.start_date,
+            ]
+            if dep.end_date is not None:
+                date_filters.append(Image.uploaded_at <= dep.end_date)
+
             count_query = (
                 select(func.count(Image.id))
-                .where(
-                    and_(
-                        Image.camera_id == camera_id,
-                        Image.is_hidden == False,
-                        Image.uploaded_at >= dep.start_date,
-                        or_(
-                            dep.end_date == None,
-                            Image.uploaded_at <= dep.end_date,
-                        ),
-                    )
-                )
+                .where(and_(*date_filters))
             )
             count_result = await db.execute(count_query)
             image_count = count_result.scalar_one()
