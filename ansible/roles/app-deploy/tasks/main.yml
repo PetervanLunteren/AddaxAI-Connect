@@ -3,18 +3,6 @@
 # Note: docker-compose.yml comes from git repository (single source of truth)
 # Only .env is templated to inject secrets and environment-specific values
 
-- name: Set Docker Compose files based on configuration
-  set_fact:
-    compose_files: >-
-      {%- set files = ['-f docker-compose.yml'] -%}
-      {%- if demo_mode | default(false) -%}
-        {%- set _ = files.append('-f docker-compose.demo.yml') -%}
-      {%- endif -%}
-      {%- if classification_model == 'speciesnet' -%}
-        {%- set _ = files.append('-f docker-compose.speciesnet.yml') -%}
-      {%- endif -%}
-      {{ files | join(' ') }}
-
 - name: Create .env file from template
   template:
     src: .env.j2
@@ -33,7 +21,7 @@
     - promtail-config.yml
 
 - name: Stop Docker containers if monitoring configs are directories
-  command: docker compose {{ compose_files }} down
+  command: docker compose down
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -70,7 +58,7 @@
     mode: '0700'
 
 - name: Pull Docker images
-  command: docker compose {{ compose_files }} pull
+  command: docker compose pull
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -121,7 +109,7 @@
     msg: "Building Docker images. This can take 20-50 minutes on first deploy."
 
 - name: Build Docker images one by one
-  command: docker compose {{ compose_files }} build {{ item.service }}
+  command: docker compose build {{ item.service }}
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -133,7 +121,7 @@
       when: "{{ not (demo_mode | default(false)) }}"
     - service: detection
       when: "{{ not (demo_mode | default(false)) }}"
-    - service: "{{ 'classification-speciesnet' if classification_model == 'speciesnet' else 'classification' }}"
+    - service: "{{ 'classification-speciesnet' if classification_model == 'speciesnet' else 'classification-deepfaune' }}"
       when: "{{ not (demo_mode | default(false)) }}"
     - service: notifications
       when: "{{ not (demo_mode | default(false)) }}"
@@ -145,7 +133,7 @@
   poll: 10
 
 - name: Start Docker Compose services
-  command: docker compose {{ compose_files }} up -d --force-recreate
+  command: docker compose up -d --force-recreate
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -153,7 +141,7 @@
   changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
 
 - name: Wait for services to be healthy
-  command: docker compose {{ compose_files }} ps --format json
+  command: docker compose ps --format json
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
@@ -206,7 +194,7 @@
     minute: "0"
     hour: "3"
     user: "{{ app_user | default('ubuntu') }}"
-    job: "docker compose -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.yml -f {{ app_directory | default('/opt/addaxai-connect') }}/docker-compose.demo.yml exec -T api python /app/scripts/shift_demo_dates.py >> /var/log/addaxai-demo-refresh.log 2>&1"
+    job: "cd {{ app_directory | default('/opt/addaxai-connect') }} && docker compose exec -T api python /app/scripts/shift_demo_dates.py >> /var/log/addaxai-demo-refresh.log 2>&1"
     state: present
   when: demo_mode | default(false)
 

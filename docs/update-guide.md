@@ -30,14 +30,10 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
    cd /opt/addaxai-connect && git pull origin main
    ```
 
-2. **Rebuild and start containers.** *(on the production server)* This rebuilds all service images with the new code. Use the command that matches your server's classification model. Demo servers add the demo overlay on top.
+2. **Rebuild and start containers.** *(on the production server)* This rebuilds all service images with the new code. The correct services are selected automatically based on the `COMPOSE_PROFILES` variable in `.env`.
 
    ```
-   # DeepFaune
    cd /opt/addaxai-connect && docker compose up -d --build --force-recreate
-
-   # SpeciesNet
-   cd /opt/addaxai-connect && docker compose -f docker-compose.yml -f docker-compose.speciesnet.yml up -d --build --force-recreate
    ```
 
 3. **Run database migrations.** *(on the production server)* This applies any new Alembic migrations and backfills derived data. Watch the output carefully for errors. This is where most update issues surface.
