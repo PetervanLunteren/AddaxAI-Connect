@@ -9,12 +9,12 @@ import secrets
 import httpx
 import base64
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation, ServerSettings
+from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Classification as ClassificationModel
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -1420,3 +1420,189 @@ async def is_timezone_configured(
     configured = settings is not None and settings.timezone is not None
 
     return {"configured": configured}
+
+
+# ============================================================================
+# Taxonomy Mapping
+# ============================================================================
+
+
+class TaxonomyMappingEntry(BaseModel):
+    id: int
+    latin: str
+    common: str
+
+    class Config:
+        from_attributes = True
+
+
+class TaxonomyMappingResponse(BaseModel):
+    count: int
+    entries: list[TaxonomyMappingEntry]
+    reprocessed_count: int | None = None
+
+
+@router.get("/taxonomy", response_model=TaxonomyMappingResponse)
+async def get_taxonomy_mapping(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """List all taxonomy mapping entries, ordered by latin name."""
+    result = await db.execute(
+        select(TaxonomyMapping).order_by(TaxonomyMapping.latin)
+    )
+    entries = result.scalars().all()
+
+    return TaxonomyMappingResponse(
+        count=len(entries),
+        entries=[TaxonomyMappingEntry.model_validate(e) for e in entries],
+    )
+
+
+@router.post("/taxonomy/upload", response_model=TaxonomyMappingResponse)
+async def upload_taxonomy_mapping(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Upload a taxonomy mapping CSV (replaces all existing rows).
+
+    CSV must have 'latin' and 'common' columns. Extra columns are ignored.
+    After inserting, reprocesses all existing classifications that have a raw_prediction.
+    """
+    import csv
+    import io
+
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be a .csv file",
+        )
+
+    # Read and parse CSV
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")  # Handle BOM
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be UTF-8 encoded",
+        )
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    if not reader.fieldnames:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSV file is empty or has no header row",
+        )
+
+    # Check required columns
+    fieldnames_lower = [f.lower().strip() for f in reader.fieldnames]
+    if "latin" not in fieldnames_lower or "common" not in fieldnames_lower:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"CSV must have 'latin' and 'common' columns. Found: {', '.join(reader.fieldnames)}",
+        )
+
+    # Parse rows
+    rows = []
+    seen_latin: set[str] = set()
+    for i, row in enumerate(reader, start=2):  # start=2 because row 1 is header
+        # Normalize keys to lowercase
+        normalized = {k.lower().strip(): v for k, v in row.items()}
+        latin = (normalized.get("latin") or "").strip().lower()
+        common = (normalized.get("common") or "").strip()
+
+        if not latin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Row {i}: empty 'latin' value",
+            )
+        if not common:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Row {i}: empty 'common' value",
+            )
+        if latin in seen_latin:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Row {i}: duplicate latin value '{latin}'",
+            )
+
+        seen_latin.add(latin)
+        rows.append({"latin": latin, "common": common})
+
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSV has no data rows",
+        )
+
+    # Replace all existing rows
+    await db.execute(delete(TaxonomyMapping))
+
+    new_entries = []
+    for row in rows:
+        entry = TaxonomyMapping(latin=row["latin"], common=row["common"])
+        db.add(entry)
+        new_entries.append(entry)
+
+    await db.flush()
+
+    # Reprocess existing classifications with new mapping
+    from shared.taxonomy import apply_taxonomy_walkup
+
+    taxonomy_map = {row["latin"]: row["common"] for row in rows}
+
+    result = await db.execute(
+        select(ClassificationModel).where(ClassificationModel.raw_prediction.isnot(None))
+    )
+    classifications = result.scalars().all()
+
+    reprocessed_count = 0
+    for classification in classifications:
+        new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
+        if classification.species != new_species:
+            classification.species = new_species
+            reprocessed_count += 1
+
+    await db.commit()
+
+    # Refresh entries to get IDs
+    result = await db.execute(
+        select(TaxonomyMapping).order_by(TaxonomyMapping.latin)
+    )
+    entries = result.scalars().all()
+
+    logger.info(
+        "Taxonomy mapping uploaded",
+        count=len(entries),
+        reprocessed_count=reprocessed_count,
+        uploaded_by=current_user.email,
+    )
+
+    return TaxonomyMappingResponse(
+        count=len(entries),
+        entries=[TaxonomyMappingEntry.model_validate(e) for e in entries],
+        reprocessed_count=reprocessed_count,
+    )
+
+
+@router.delete("/taxonomy")
+async def clear_taxonomy_mapping(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """Clear all taxonomy mapping entries."""
+    result = await db.execute(select(TaxonomyMapping))
+    count = len(result.scalars().all())
+
+    await db.execute(delete(TaxonomyMapping))
+    await db.commit()
+
+    logger.info("Taxonomy mapping cleared", deleted_count=count, cleared_by=current_user.email)
+
+    return {"deleted_count": count}

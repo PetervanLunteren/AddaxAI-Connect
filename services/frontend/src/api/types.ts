@@ -498,3 +498,16 @@ export interface IndependenceSummaryResponse {
   independent_total: number;
   species: IndependenceSummarySpecies[];
 }
+
+// Taxonomy mapping
+export interface TaxonomyMappingEntry {
+  id: number;
+  latin: string;
+  common: string;
+}
+
+export interface TaxonomyMappingResponse {
+  count: number;
+  entries: TaxonomyMappingEntry[];
+  reprocessed_count?: number;
+}

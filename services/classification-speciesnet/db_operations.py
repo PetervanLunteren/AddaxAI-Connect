@@ -7,11 +7,28 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from shared.database import get_db_session
-from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project
+from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project, TaxonomyMapping
 from shared.logger import get_logger
 from classifier import Classification, DetectionInfo
 
 logger = get_logger("classification-speciesnet.db_operations")
+
+
+def get_taxonomy_mapping() -> dict[str, str]:
+    """
+    Fetch all taxonomy mapping rows and return as {latin: common} dict.
+
+    Returns:
+        Dict mapping lowercase latin names to common names.
+        Empty dict if no mapping is configured.
+    """
+    try:
+        with get_db_session() as db:
+            rows = db.query(TaxonomyMapping).all()
+            return {row.latin: row.common for row in rows}
+    except Exception as e:
+        logger.error("Failed to fetch taxonomy mapping", error=str(e), exc_info=True)
+        raise
 
 
 def get_detections_for_image(image_uuid: str) -> tuple[int, int, int, List[DetectionInfo], List[str] | None]:

@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound, List } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -79,6 +79,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       icon: Settings,
       label: 'Server settings',
       onClick: () => handleNavigate('/server/settings'),
+      variant: 'default' as const,
+    },
+    {
+      icon: List,
+      label: 'Taxonomy mapping',
+      onClick: () => handleNavigate('/server/taxonomy'),
       variant: 'default' as const,
     },
     {
