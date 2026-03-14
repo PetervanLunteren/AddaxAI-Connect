@@ -299,7 +299,7 @@ export const ImagesPage: React.FC = () => {
                     <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
                   </div>
                 )}
-                <div className="aspect-[4/3] bg-muted relative overflow-hidden rounded-t-lg">
+                <div className="relative overflow-hidden rounded-t-lg">
                   {image.thumbnail_url ? (
                     <ImageThumbnailWithBoxes
                       thumbnailUrl={image.thumbnail_url}
@@ -309,13 +309,13 @@ export const ImagesPage: React.FC = () => {
                       imageHeight={image.image_height}
                       className="w-full object-contain rounded-t-lg"
                       fallback={
-                        <div className="flex items-center justify-center h-full">
+                        <div className="flex items-center justify-center h-32 bg-muted">
                           <Grid3x3 className="h-12 w-12 text-muted-foreground" />
                         </div>
                       }
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center justify-center h-32 bg-muted">
                       <Grid3x3 className="h-12 w-12 text-muted-foreground" />
                     </div>
                   )}
