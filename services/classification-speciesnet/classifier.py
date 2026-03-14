@@ -7,6 +7,7 @@ from PIL import Image
 from typing import Any, List, Optional
 
 from shared.logger import get_logger
+from shared.taxonomy import apply_taxonomy_walkup
 from config import get_settings
 
 logger = get_logger("classification-speciesnet.classifier")
@@ -71,7 +72,8 @@ def run_classification(
     classifier: Any,
     image_path: str,
     detections: List[DetectionInfo],
-    included_species: Optional[List[str]] = None
+    included_species: Optional[List[str]] = None,
+    taxonomy_map: Optional[dict[str, str]] = None
 ) -> List[Classification]:
     """
     Run SpeciesNet classification on animal detections.
@@ -149,9 +151,15 @@ def run_classification(
 
                 common_name, full_label = parse_speciesnet_label(label)
 
+                # Apply taxonomy walk-up if mapping is available
+                if taxonomy_map:
+                    species = apply_taxonomy_walkup(full_label, taxonomy_map)
+                else:
+                    species = common_name
+
                 classification = Classification(
                     detection_id=detection.detection_id,
-                    species=common_name,
+                    species=species,
                     confidence=score,
                     raw_prediction=full_label,
                     raw_confidence=score

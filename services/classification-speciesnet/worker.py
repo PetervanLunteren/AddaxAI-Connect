@@ -11,7 +11,7 @@ from config import get_settings
 from model_loader import load_model
 from classifier import run_classification
 from storage_operations import download_image_from_minio
-from db_operations import get_detections_for_image, insert_classifications, update_image_status
+from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping
 from annotated_image import (
     generate_annotated_image,
     upload_annotated_image_to_minio,
@@ -27,7 +27,7 @@ logger = get_logger("classification-speciesnet")
 settings = get_settings()
 
 
-def process_detection_complete(message: dict, classifier) -> None:
+def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str]) -> None:
     """
     Process detection-complete message through classification pipeline.
 
@@ -235,8 +235,8 @@ def process_detection_complete(message: dict, classifier) -> None:
         temp_files.append(image_path)
 
         # Step 4: Run classification on animal detections
-        # SpeciesNet ignores included_species (no filtering — deferred to taxonomy mapping)
-        classifications = run_classification(classifier, image_path, detections, None)
+        # SpeciesNet ignores included_species (no filtering — taxonomy mapping handles it)
+        classifications = run_classification(classifier, image_path, detections, None, taxonomy_map)
 
         logger.info(
             "Classifications generated",
@@ -510,6 +510,8 @@ def process_detection_complete(message: dict, classifier) -> None:
 
 def main():
     """Main entry point for SpeciesNet classification worker"""
+    import time
+
     logger.info("SpeciesNet classification worker starting", log_level=settings.log_level)
 
     # Load model on startup
@@ -517,12 +519,25 @@ def main():
     classifier = load_model()
     logger.info("Model loaded successfully")
 
+    # Wait for taxonomy mapping to be configured
+    taxonomy_map = get_taxonomy_mapping()
+    while not taxonomy_map:
+        logger.warning("Taxonomy mapping not configured, waiting 30s...")
+        time.sleep(30)
+        taxonomy_map = get_taxonomy_mapping()
+
+    logger.info("Taxonomy mapping loaded", num_entries=len(taxonomy_map))
+
     # Initialize queue consumer
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
 
-    # Process messages forever
+    # Process messages forever — refresh taxonomy map on each message
+    def handle_message(msg):
+        current_map = get_taxonomy_mapping()
+        process_detection_complete(msg, classifier, current_map)
+
     logger.info("Listening for messages", queue=QUEUE_DETECTION_COMPLETE)
-    queue.consume_forever(lambda msg: process_detection_complete(msg, classifier))
+    queue.consume_forever(handle_message)
 
 
 if __name__ == "__main__":

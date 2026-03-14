@@ -30,6 +30,7 @@ import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { ServerSettingsPage } from './pages/server/ServerSettingsPage';
 import { HealthPage } from './pages/server/HealthPage';
+import { TaxonomyMappingPage } from './pages/server/TaxonomyMappingPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
@@ -114,6 +115,14 @@ function App() {
               <Route
                 path="/server/telegram-config"
                 element={<Navigate to="/server/settings" replace />}
+              />
+              <Route
+                path="/server/taxonomy"
+                element={
+                  <ProtectedRoute>
+                    <TaxonomyMappingPage />
+                  </ProtectedRoute>
+                }
               />
               <Route
                 path="/server/health"
