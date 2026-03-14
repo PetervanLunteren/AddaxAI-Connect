@@ -138,11 +138,10 @@ def run_classification(
             result = classifier.predict(image_path, preprocessed)
 
             # Extract top-1 prediction (predict returns {filepath: {label, score}})
-            logger.debug(
+            logger.info(
                 "Raw predict result",
-                result_keys=list(result.keys()) if result else [],
-                image_path=image_path,
-                result_type=type(result).__name__
+                result=str(result)[:500],
+                image_path=image_path
             )
             prediction = result.get(image_path, {}) if result else {}
             if prediction:
