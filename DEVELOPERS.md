@@ -43,7 +43,7 @@ addaxai-connect/
 ├── services/                    # All microservices
 │   ├── ingestion/              # FTPS watcher (Python)
 │   ├── detection/              # Object detection worker (Python + PyTorch/TF)
-│   ├── classification/         # Species classification worker (Python + PyTorch/TF)
+│   ├── classification-deepfaune/ # DeepFaune classification worker (Python + PyTorch/TF)
 │   ├── alerts/                 # Alert evaluation worker
 │   ├── notifications/          # Notification dispatcher
 │   ├── notifications-email/    # Email notification sender
@@ -74,8 +74,7 @@ addaxai-connect/
 │   ├── logging.md
 │   └── update-guide.md
 │
-├── docker-compose.yml          # Production config
-├── docker-compose.demo.yml     # Demo mode overlay
+├── docker-compose.yml          # All services (profiles: deepfaune, speciesnet, demo)
 ├── CONVENTIONS.md              # Code conventions
 ├── .gitignore
 ├── README.md                   # User-facing documentation

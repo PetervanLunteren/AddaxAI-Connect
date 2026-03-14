@@ -4,6 +4,7 @@ services:
     image: postgis/postgis:15-3.3
     container_name: addaxai-postgres
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet, demo]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -23,6 +24,7 @@ services:
     image: redis:7-alpine
     container_name: addaxai-redis
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet, demo]
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - ./data/redis:/data
@@ -39,6 +41,7 @@ services:
     image: minio/minio:latest
     container_name: addaxai-minio
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet, demo]
     command: server /data --console-address ":9001"
     ports:
       - "127.0.0.1:9000:9000"  # S3 API - localhost only for nginx proxy
@@ -60,6 +63,7 @@ services:
   minio-init:
     image: minio/mc:latest
     container_name: addaxai-minio-init
+    profiles: [deepfaune, speciesnet, demo]
     depends_on:
       - minio
     entrypoint: >
@@ -82,6 +86,7 @@ services:
     image: prom/prometheus:latest
     container_name: addaxai-prometheus
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     user: "${UID:-1000}:${GID:-1000}"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -99,6 +104,7 @@ services:
     image: grafana/loki:latest
     container_name: addaxai-loki
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     user: "${UID:-1000}:${GID:-1000}"
     command: -config.file=/etc/loki/loki-config.yml
     volumes:
@@ -112,6 +118,7 @@ services:
     image: grafana/promtail:latest
     container_name: addaxai-promtail
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     command: -config.file=/etc/promtail/promtail-config.yml
     volumes:
       - ./monitoring/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
@@ -127,6 +134,7 @@ services:
       dockerfile: services/api/Dockerfile
     container_name: addaxai-api
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet, demo]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -142,6 +150,7 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD}
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      DEMO_MODE: ${DEMO_MODE:-false}
       # Logging configuration
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
@@ -177,6 +186,7 @@ services:
       dockerfile: services/ingestion/Dockerfile
     container_name: addaxai-ingestion
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -206,6 +216,7 @@ services:
       dockerfile: services/detection/Dockerfile
     container_name: addaxai-detection
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -229,13 +240,14 @@ services:
     networks:
       - addaxai-network
 
-  # Classification Worker
-  classification:
+  # DeepFaune Classification Worker
+  classification-deepfaune:
     build:
       context: .
-      dockerfile: services/classification/Dockerfile
-    container_name: addaxai-classification
+      dockerfile: services/classification-deepfaune/Dockerfile
+    container_name: addaxai-classification-deepfaune
     restart: unless-stopped
+    profiles: [deepfaune]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -261,6 +273,38 @@ services:
     networks:
       - addaxai-network
 
+  # SpeciesNet Classification Worker
+  classification-speciesnet:
+    build:
+      context: .
+      dockerfile: services/classification-speciesnet/Dockerfile
+    container_name: addaxai-classification-speciesnet
+    restart: unless-stopped
+    profiles: [speciesnet]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SPECIESNET_MODEL_DIR: /models/classification-speciesnet
+      SPECIESNET_HF_REPO: Addax-Data-Science/SPECIESNET-v4-0-1-A-v1
+      CONFIDENCE_THRESHOLD: 0.0
+      TOP_N_PREDICTIONS: 1
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    volumes:
+      - ./models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network
+
   # Notifications Service - core notification coordinator
   notifications:
     build:
@@ -268,6 +312,7 @@ services:
       dockerfile: services/notifications/Dockerfile
     container_name: addaxai-notifications
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -291,6 +336,7 @@ services:
     build: ./services/frontend
     container_name: addaxai-frontend
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet, demo]
     ports:
       - "3000:80"
     volumes:
@@ -300,7 +346,6 @@ services:
     networks:
       - addaxai-network
 
-
   # Telegram Notifications Worker
   notifications-telegram:
     build:
@@ -308,6 +353,7 @@ services:
       dockerfile: services/notifications-telegram/Dockerfile
     container_name: addaxai-notifications-telegram
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -337,6 +383,7 @@ services:
       dockerfile: services/notifications-email/Dockerfile
     container_name: addaxai-notifications-email
     restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}

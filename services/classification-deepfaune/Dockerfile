@@ -16,7 +16,7 @@ COPY shared /shared
 RUN pip install --no-cache-dir -e /shared
 
 # Install service dependencies
-COPY services/classification/requirements.txt .
+COPY services/classification-deepfaune/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy service code

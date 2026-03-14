@@ -4,7 +4,8 @@
 - [ ] CHECK IF THE TOTAL AND SEND PER DAY COUNTS ARE CORRECTLY STORED. 
 - [ ] does the exsessive image notification work? 
 
-### TODO Priority 1
+### TODO Priority 
+- [ ] check if speciesnet deployment works (i moved around some docker files.)
 - [ ] SPECIESNET ADDITION - Make the whole system be able to use SpeciesNet as well as DeepFaune. (this will probably take a day or so, so make sure to write an elaborate prompt for this). 
 
 great! thanks for the report. With all that information you already gathered, please investigate the following:
