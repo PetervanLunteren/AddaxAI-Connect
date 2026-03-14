@@ -177,29 +177,21 @@ export function drawDetectionOverlay(
     return { x, y, w, h };
   });
 
-  // 1. Spotlight dim overlay with cutouts (union of all bboxes stays bright)
+  // 1. Spotlight dim overlay with cutouts (union of all bboxes stays original)
   const cornerR = BBOX_CORNER_RADIUS * scale;
+  // Fill entire canvas with dim
   ctx.save();
-  // First, draw all bbox regions as solid white (union)
-  ctx.beginPath();
-  for (const r of rects) {
-    roundedRectPath(ctx, r.x, r.y, r.w, r.h, cornerR);
-  }
-  ctx.fillStyle = '#fff';
-  ctx.fill();
-  // Then use destination-over to fill the dim behind (only where nothing was drawn)
-  ctx.globalCompositeOperation = 'destination-over';
   ctx.fillStyle = DIM_FILL;
   ctx.fillRect(0, 0, canvasW, canvasH);
-  // Finally, clear the bbox regions to reveal the original image
+  // Clear bbox regions to reveal original image underneath
   ctx.globalCompositeOperation = 'destination-out';
   ctx.beginPath();
   for (const r of rects) {
     roundedRectPath(ctx, r.x, r.y, r.w, r.h, cornerR);
   }
+  ctx.fillStyle = '#000';
   ctx.fill();
   ctx.restore();
-  // Reset composite operation
   ctx.globalCompositeOperation = 'source-over';
 
   // 2. Bounding box outlines
