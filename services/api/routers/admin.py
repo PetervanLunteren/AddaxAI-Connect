@@ -10,7 +10,6 @@ import httpx
 import base64
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from pydantic import BaseModel, EmailStr
@@ -1541,7 +1540,7 @@ async def get_taxonomy_mapping(
     )
 
 
-@router.post("/taxonomy/upload")
+@router.post("/taxonomy/upload", response_model=TaxonomyMappingResponse)
 async def upload_taxonomy_mapping(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_session),
@@ -1552,14 +1551,10 @@ async def upload_taxonomy_mapping(
 
     CSV must have 'latin' and 'common' columns. Extra columns are ignored.
     After inserting, reprocesses all existing classifications that have a raw_prediction.
-    Streams progress as newline-delimited JSON.
     """
     import csv
     import io
-    import json
-    from sqlalchemy import func
 
-    # --- Validate and parse CSV up-front (before streaming) ---
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1622,67 +1617,51 @@ async def upload_taxonomy_mapping(
             detail="CSV has no data rows",
         )
 
-    # --- Stream progress ---
-    async def generate():
-        from shared.taxonomy import apply_taxonomy_walkup
+    # Replace all existing rows
+    await db.execute(delete(TaxonomyMapping))
+    for row in rows:
+        db.add(TaxonomyMapping(latin=row["latin"], common=row["common"]))
+    await db.flush()
 
-        yield json.dumps({"stage": "inserting", "count": len(rows)}) + "\n"
+    # Reprocess existing classifications with new mapping (batched for memory)
+    from shared.taxonomy import apply_taxonomy_walkup
 
-        # Replace all existing rows
-        await db.execute(delete(TaxonomyMapping))
-        for row in rows:
-            db.add(TaxonomyMapping(latin=row["latin"], common=row["common"]))
-        await db.flush()
+    taxonomy_map = {row["latin"]: row["common"] for row in rows}
+    reprocessed_count = 0
+    batch_size = 500
 
-        # Count classifications to reprocess
-        total_result = await db.execute(
-            select(func.count()).select_from(ClassificationModel).where(
-                ClassificationModel.raw_prediction.isnot(None)
-            )
-        )
-        total = total_result.scalar() or 0
+    result = await db.execute(
+        select(ClassificationModel).where(
+            ClassificationModel.raw_prediction.isnot(None)
+        ).execution_options(yield_per=batch_size)
+    )
 
-        yield json.dumps({"stage": "reprocessing", "current": 0, "total": total}) + "\n"
+    for partition in result.partitions(batch_size):
+        for classification in partition:
+            new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
+            if classification.species != new_species:
+                classification.species = new_species
+                reprocessed_count += 1
 
-        taxonomy_map = {row["latin"]: row["common"] for row in rows}
-        reprocessed_count = 0
-        batch_size = 500
+    await db.commit()
 
-        if total > 0:
-            result = await db.execute(
-                select(ClassificationModel).where(
-                    ClassificationModel.raw_prediction.isnot(None)
-                ).execution_options(yield_per=batch_size)
-            )
+    # Refresh entries to get IDs
+    result = await db.execute(
+        select(TaxonomyMapping).order_by(TaxonomyMapping.latin)
+    )
+    entries = result.scalars().all()
 
-            processed = 0
-            for partition in result.partitions(batch_size):
-                for classification in partition:
-                    new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
-                    if classification.species != new_species:
-                        classification.species = new_species
-                        reprocessed_count += 1
-                processed += len(partition)
-                yield json.dumps({"stage": "reprocessing", "current": processed, "total": total}) + "\n"
+    logger.info(
+        "Taxonomy mapping uploaded",
+        count=len(entries),
+        reprocessed_count=reprocessed_count,
+        uploaded_by=current_user.email,
+    )
 
-        await db.commit()
-
-        logger.info(
-            "Taxonomy mapping uploaded",
-            count=len(rows),
-            reprocessed_count=reprocessed_count,
-            uploaded_by=current_user.email,
-        )
-
-        yield json.dumps({"stage": "done", "count": len(rows), "reprocessed_count": reprocessed_count}) + "\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="application/x-ndjson",
-        headers={
-            "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache",
-        },
+    return TaxonomyMappingResponse(
+        count=len(entries),
+        entries=[TaxonomyMappingEntry.model_validate(e) for e in entries],
+        reprocessed_count=reprocessed_count,
     )
 
 

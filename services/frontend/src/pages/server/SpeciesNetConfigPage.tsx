@@ -16,7 +16,6 @@ import {
   FileSpreadsheet,
   Upload,
 } from 'lucide-react';
-import { TaxonomyUploadEvent } from '../../api/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { CountrySelect } from '../../components/ui/CountrySelect';
@@ -36,9 +35,11 @@ export const SpeciesNetConfigPage: React.FC = () => {
   // --- Taxonomy state ---
   const [uploadModal, setUploadModal] = useState<{
     open: boolean;
-    event: TaxonomyUploadEvent | null;
-    error: string | null;
-  }>({ open: false, event: null, error: null });
+    status: 'uploading' | 'done' | 'error';
+    count?: number;
+    reprocessedCount?: number;
+    error?: string;
+  }>({ open: false, status: 'uploading' });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Query server settings (for geofencing)
@@ -94,21 +95,33 @@ export const SpeciesNetConfigPage: React.FC = () => {
     queryFn: adminApi.getTaxonomyMapping,
   });
 
-  // Upload with streaming progress
-  const handleUpload = useCallback(async (file: File) => {
-    setUploadModal({ open: true, event: { stage: 'inserting', count: 0 }, error: null });
-    try {
-      await adminApi.uploadTaxonomyMapping(file, (event) => {
-        setUploadModal((prev) => ({ ...prev, event }));
+  // Upload mutation with modal
+  const uploadMutation = useMutation({
+    mutationFn: adminApi.uploadTaxonomyMapping,
+    onSuccess: (result) => {
+      setUploadModal({
+        open: true,
+        status: 'done',
+        count: result.count,
+        reprocessedCount: result.reprocessed_count,
       });
       queryClient.invalidateQueries({ queryKey: ['taxonomy-mapping'] });
       queryClient.invalidateQueries({ queryKey: ['available-species'] });
       queryClient.invalidateQueries({ queryKey: ['setup-status'] });
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || err?.message || 'Upload failed';
-      setUploadModal((prev) => ({ ...prev, error: detail, event: null }));
-    }
-  }, [queryClient]);
+    },
+    onError: (error: any) => {
+      setUploadModal({
+        open: true,
+        status: 'error',
+        error: error.response?.data?.detail || error.message || 'Upload failed',
+      });
+    },
+  });
+
+  const handleUpload = useCallback((file: File) => {
+    setUploadModal({ open: true, status: 'uploading' });
+    uploadMutation.mutate(file);
+  }, [uploadMutation]);
 
   // Clear mutation
   const clearMutation = useMutation({
@@ -356,7 +369,7 @@ export const SpeciesNetConfigPage: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              {uploadModal.error ? (
+              {uploadModal.status === 'error' ? (
                 <>
                   <div className="flex items-center gap-3 mb-4">
                     <XCircle className="h-5 w-5 text-red-500 shrink-0" />
@@ -364,57 +377,36 @@ export const SpeciesNetConfigPage: React.FC = () => {
                   </div>
                   <p className="text-sm text-muted-foreground mb-6">{uploadModal.error}</p>
                   <div className="flex justify-end">
-                    <Button onClick={() => setUploadModal({ open: false, event: null, error: null })}>
+                    <Button onClick={() => setUploadModal({ open: false, status: 'uploading' })}>
                       Close
                     </Button>
                   </div>
                 </>
-              ) : uploadModal.event?.stage === 'done' ? (
+              ) : uploadModal.status === 'done' ? (
                 <>
                   <div className="flex items-center gap-3 mb-4">
                     <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                     <h3 className="text-lg font-semibold">Upload complete</h3>
                   </div>
                   <p className="text-sm text-muted-foreground mb-1">
-                    Uploaded {uploadModal.event.count} taxonomy entries.
+                    Uploaded {uploadModal.count} taxonomy entries.
                   </p>
-                  {(uploadModal.event.reprocessed_count ?? 0) > 0 && (
+                  {(uploadModal.reprocessedCount ?? 0) > 0 && (
                     <p className="text-sm text-muted-foreground mb-1">
-                      {uploadModal.event.reprocessed_count} classifications reprocessed.
+                      {uploadModal.reprocessedCount} classifications reprocessed.
                     </p>
                   )}
                   <div className="flex justify-end mt-6">
-                    <Button onClick={() => setUploadModal({ open: false, event: null, error: null })}>
+                    <Button onClick={() => setUploadModal({ open: false, status: 'uploading' })}>
                       Close
                     </Button>
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="flex items-center gap-3 mb-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
-                    <h3 className="text-lg font-semibold">
-                      {uploadModal.event?.stage === 'reprocessing'
-                        ? 'Reprocessing classifications...'
-                        : 'Uploading taxonomy...'}
-                    </h3>
-                  </div>
-                  {uploadModal.event?.stage === 'reprocessing' && uploadModal.event.total! > 0 && (
-                    <div className="space-y-2">
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{
-                            width: `${Math.round(((uploadModal.event.current ?? 0) / uploadModal.event.total!) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="text-sm text-muted-foreground text-center">
-                        {uploadModal.event.current?.toLocaleString()} / {uploadModal.event.total?.toLocaleString()} classifications
-                      </p>
-                    </div>
-                  )}
-                </>
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                  <h3 className="text-lg font-semibold">Uploading and reprocessing...</h3>
+                </div>
               )}
             </div>
           </div>
