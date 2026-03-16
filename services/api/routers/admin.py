@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Classification as ClassificationModel
+from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Classification as ClassificationModel, Detection, Image
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -1631,9 +1631,14 @@ async def upload_taxonomy_mapping(
     batch_size = 500
 
     stream = await db.stream(
-        select(ClassificationModel).where(
-            ClassificationModel.raw_prediction.isnot(None)
-        ).execution_options(yield_per=batch_size)
+        select(ClassificationModel)
+        .join(Detection, ClassificationModel.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .where(
+            ClassificationModel.raw_prediction.isnot(None),
+            Image.is_verified == False,
+        )
+        .execution_options(yield_per=batch_size)
     )
 
     async for partition in stream.scalars().partitions(batch_size):

@@ -200,7 +200,7 @@ export const SpeciesNetConfigPage: React.FC = () => {
             <div className="w-1/2 shrink-0">
               <label className="text-sm font-medium block">Taxonomy mapping</label>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Uploading a new file replaces the existing mapping and automatically reprocesses all classifications.
+                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Uploading a new file replaces the existing mapping and automatically reprocesses unverified classifications.
               </p>
               {entries.length > 0 && (
                 <button
