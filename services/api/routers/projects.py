@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation
+from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS, BUCKET_PROJECT_DOCUMENTS
@@ -216,14 +216,33 @@ async def create_project(
     current_user: User = Depends(require_server_admin),
 ):
     """
-    Create a new project (server admin only)
+    Create a new project (server admin only).
 
-    Args:
-        project_data: Project creation data
-
-    Returns:
-        Created project
+    Requires server setup to be complete: timezone must be configured,
+    and for SpeciesNet servers, taxonomy mapping and country code must be set.
     """
+    # Check server setup prerequisites
+    missing = []
+    result = await db.execute(select(ServerSettings).limit(1))
+    server_settings = result.scalar_one_or_none()
+
+    if not server_settings or not server_settings.timezone:
+        missing.append("timezone")
+
+    model = settings.classification_model or "deepfaune"
+    if model == "speciesnet":
+        taxonomy_result = await db.execute(select(TaxonomyMapping.id).limit(1))
+        if taxonomy_result.scalar_one_or_none() is None:
+            missing.append("taxonomy mapping")
+        if not server_settings or not server_settings.speciesnet_country_code:
+            missing.append("country code")
+
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Server setup incomplete. Configure {', '.join(missing)} in server settings before creating a project.",
+        )
+
     project = Project(
         name=project_data.name,
         description=project_data.description,

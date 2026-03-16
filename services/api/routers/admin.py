@@ -1324,11 +1324,15 @@ async def get_server_timezone(db: AsyncSession) -> str:
 class ServerSettingsResponse(BaseModel):
     """Response for server settings"""
     timezone: Optional[str] = None
+    speciesnet_country_code: Optional[str] = None
+    speciesnet_admin1_region: Optional[str] = None
 
 
 class ServerSettingsUpdateRequest(BaseModel):
     """Request to update server settings"""
-    timezone: str
+    timezone: Optional[str] = None
+    speciesnet_country_code: Optional[str] = None
+    speciesnet_admin1_region: Optional[str] = None
 
 
 @router.get(
@@ -1349,9 +1353,13 @@ async def get_server_settings(
     settings = result.scalar_one_or_none()
 
     if not settings:
-        return ServerSettingsResponse(timezone=None)
+        return ServerSettingsResponse()
 
-    return ServerSettingsResponse(timezone=settings.timezone)
+    return ServerSettingsResponse(
+        timezone=settings.timezone,
+        speciesnet_country_code=settings.speciesnet_country_code,
+        speciesnet_admin1_region=settings.speciesnet_admin1_region,
+    )
 
 
 @router.patch(
@@ -1377,29 +1385,50 @@ async def update_server_settings(
     Raises:
         HTTPException 400: If timezone is invalid
     """
-    from zoneinfo import ZoneInfo
-    try:
-        ZoneInfo(data.timezone)
-    except (KeyError, Exception):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid timezone: {data.timezone}",
-        )
+    # Validate timezone if provided
+    if data.timezone is not None:
+        from zoneinfo import ZoneInfo
+        try:
+            ZoneInfo(data.timezone)
+        except (KeyError, Exception):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid timezone: {data.timezone}",
+            )
+
+    # Validate country code if provided (3 uppercase letters)
+    if data.speciesnet_country_code is not None:
+        code = data.speciesnet_country_code.strip().upper()
+        if code and (len(code) != 3 or not code.isalpha()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Country code must be 3 letters (ISO 3166-1 alpha-3)",
+            )
+        data.speciesnet_country_code = code if code else None
 
     result = await db.execute(select(ServerSettings).limit(1))
     settings = result.scalar_one_or_none()
 
-    if settings:
-        settings.timezone = data.timezone
-    else:
-        settings = ServerSettings(timezone=data.timezone)
+    if not settings:
+        settings = ServerSettings()
         db.add(settings)
+
+    if data.timezone is not None:
+        settings.timezone = data.timezone
+    if data.speciesnet_country_code is not None:
+        settings.speciesnet_country_code = data.speciesnet_country_code
+    if data.speciesnet_admin1_region is not None:
+        settings.speciesnet_admin1_region = data.speciesnet_admin1_region.strip() or None
 
     await db.commit()
 
-    logger.info("Server timezone updated", timezone=data.timezone, updated_by=current_user.email)
+    logger.info("Server settings updated", updated_by=current_user.email)
 
-    return ServerSettingsResponse(timezone=settings.timezone)
+    return ServerSettingsResponse(
+        timezone=settings.timezone,
+        speciesnet_country_code=settings.speciesnet_country_code,
+        speciesnet_admin1_region=settings.speciesnet_admin1_region,
+    )
 
 
 @router.get(
@@ -1420,6 +1449,58 @@ async def is_timezone_configured(
     configured = settings is not None and settings.timezone is not None
 
     return {"configured": configured}
+
+
+class SetupStatusResponse(BaseModel):
+    """Server setup status for project creation prerequisites"""
+    model: str
+    timezone: bool
+    taxonomy_mapping: bool
+    country_code: bool
+    ready: bool
+
+
+@router.get(
+    "/setup-status",
+    response_model=SetupStatusResponse,
+)
+async def get_setup_status(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Check if all server setup prerequisites are met for project creation.
+
+    For DeepFaune: only timezone is required.
+    For SpeciesNet: timezone, taxonomy mapping, and country code are required.
+    """
+    model = settings.classification_model or "deepfaune"
+
+    result = await db.execute(select(ServerSettings).limit(1))
+    server_settings = result.scalar_one_or_none()
+
+    has_timezone = server_settings is not None and server_settings.timezone is not None
+
+    if model == "speciesnet":
+        taxonomy_result = await db.execute(select(TaxonomyMapping.id).limit(1))
+        has_taxonomy = taxonomy_result.scalar_one_or_none() is not None
+        has_country = (
+            server_settings is not None
+            and server_settings.speciesnet_country_code is not None
+        )
+        ready = has_timezone and has_taxonomy and has_country
+    else:
+        has_taxonomy = True
+        has_country = True
+        ready = has_timezone
+
+    return SetupStatusResponse(
+        model=model,
+        timezone=has_timezone,
+        taxonomy_mapping=has_taxonomy,
+        country_code=has_country,
+        ready=ready,
+    )
 
 
 # ============================================================================

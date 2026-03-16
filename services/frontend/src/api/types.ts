@@ -287,6 +287,8 @@ export interface ProjectWithRole {
 // Server-wide settings
 export interface ServerSettings {
   timezone: string | null;
+  speciesnet_country_code: string | null;
+  speciesnet_admin1_region: string | null;
 }
 
 // Project user management

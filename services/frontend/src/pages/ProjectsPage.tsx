@@ -24,10 +24,10 @@ export const ProjectsPage: React.FC = () => {
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Check if timezone is configured (server admins only)
-  const { data: tzStatus } = useQuery({
-    queryKey: ['timezone-configured'],
-    queryFn: adminApi.isTimezoneConfigured,
+  // Check server setup status (server admins only)
+  const { data: setupStatus } = useQuery({
+    queryKey: ['setup-status'],
+    queryFn: adminApi.getSetupStatus,
     enabled: isServerAdmin,
   });
 
@@ -75,20 +75,32 @@ export const ProjectsPage: React.FC = () => {
             </p>
           </div>
           {isServerAdmin && (
-            <Button size="sm" onClick={() => setShowCreateModal(true)}>
+            <Button
+              size="sm"
+              onClick={() => setShowCreateModal(true)}
+              disabled={setupStatus && !setupStatus.ready}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add project
             </Button>
           )}
         </div>
 
-        {/* Timezone not configured banner (server admins only) */}
-        {isServerAdmin && tzStatus && !tzStatus.configured && (
+        {/* Setup incomplete banner (server admins only) */}
+        {isServerAdmin && setupStatus && !setupStatus.ready && (
           <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">
-              Camera timezone hasn't been configured yet.{' '}
-              <Link to="/server/settings" className="underline font-medium">Set it in Server Settings</Link>
+              Server setup incomplete.{' '}
+              {!setupStatus.timezone && (
+                <><Link to="/server/settings" className="underline font-medium">Set the camera timezone</Link>. </>
+              )}
+              {!setupStatus.country_code && (
+                <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
+              )}
+              {!setupStatus.taxonomy_mapping && (
+                <><Link to="/server/taxonomy" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
+              )}
             </span>
           </div>
         )}

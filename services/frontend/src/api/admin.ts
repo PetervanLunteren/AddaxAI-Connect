@@ -245,7 +245,7 @@ export const adminApi = {
   /**
    * Update server-wide settings (server admin only)
    */
-  updateServerSettings: async (data: { timezone: string }): Promise<ServerSettings> => {
+  updateServerSettings: async (data: Partial<ServerSettings>): Promise<ServerSettings> => {
     const response = await apiClient.patch<ServerSettings>('/api/admin/server-settings', data);
     return response.data;
   },
@@ -255,6 +255,14 @@ export const adminApi = {
    */
   isTimezoneConfigured: async (): Promise<{ configured: boolean }> => {
     const response = await apiClient.get<{ configured: boolean }>('/api/admin/server-settings/timezone-configured');
+    return response.data;
+  },
+
+  /**
+   * Check server setup status for project creation prerequisites
+   */
+  getSetupStatus: async (): Promise<{ model: string; timezone: boolean; taxonomy_mapping: boolean; country_code: boolean; ready: boolean }> => {
+    const response = await apiClient.get('/api/admin/setup-status');
     return response.data;
   },
 

@@ -72,7 +72,9 @@ def _apply_ensemble(
     ensemble: Any,
     image_path: str,
     classifier_result: dict,
-    detection: DetectionInfo
+    detection: DetectionInfo,
+    country_code: str,
+    admin1_region: str = ""
 ) -> Optional[tuple[str, float]]:
     """
     Apply SpeciesNet ensemble (geofencing + taxonomic rollup) to a single detection.
@@ -84,6 +86,8 @@ def _apply_ensemble(
         image_path: Path to the image file
         classifier_result: Raw classifier predict() output for this detection
         detection: DetectionInfo for this detection
+        country_code: ISO 3166-1 alpha-3 country code
+        admin1_region: ISO 3166-2 admin1 region (optional, US states)
 
     Returns:
         Tuple of (label, score) or None if ensemble fails
@@ -110,8 +114,8 @@ def _apply_ensemble(
 
     geolocation_results = {
         image_path: {
-            "country": settings.speciesnet_country_code,
-            "admin1_region": settings.speciesnet_admin1_region or ""
+            "country": country_code,
+            "admin1_region": admin1_region
         }
     }
 
@@ -140,15 +144,16 @@ def run_classification(
     detections: List[DetectionInfo],
     included_species: Optional[List[str]] = None,
     taxonomy_map: Optional[dict[str, str]] = None,
-    ensemble: Any = None
+    ensemble: Any = None,
+    geofencing_config: Optional[dict[str, str]] = None
 ) -> List[Classification]:
     """
     Run SpeciesNet classification on animal detections.
 
     Only processes detections with category="animal".
     For each detection, creates a BBox and calls the SpeciesNet classifier.
-    If an ensemble is provided, applies geofencing and taxonomic rollup
-    before taxonomy CSV mapping.
+    If an ensemble and geofencing config are provided, applies geofencing
+    and taxonomic rollup before taxonomy CSV mapping.
 
     Args:
         classifier: Loaded SpeciesNetClassifier instance
@@ -156,7 +161,8 @@ def run_classification(
         detections: List of DetectionInfo objects with bbox coordinates
         included_species: Ignored for SpeciesNet (deferred to taxonomy mapping)
         taxonomy_map: Taxonomy CSV mapping dict
-        ensemble: Optional SpeciesNetEnsemble for geofencing
+        ensemble: SpeciesNetEnsemble for geofencing
+        geofencing_config: Dict with 'country_code' and 'admin1_region'
 
     Returns:
         List of Classification objects (top-1 predictions per animal)
@@ -226,10 +232,12 @@ def run_classification(
                 label_for_taxonomy = raw_full_label
                 score_for_taxonomy = raw_score
 
-                if ensemble:
+                if ensemble and geofencing_config:
                     try:
                         ensemble_result = _apply_ensemble(
-                            ensemble, image_path, result, detection
+                            ensemble, image_path, result, detection,
+                            country_code=geofencing_config["country_code"],
+                            admin1_region=geofencing_config.get("admin1_region", "")
                         )
                         if ensemble_result:
                             ensemble_label, ensemble_score = ensemble_result

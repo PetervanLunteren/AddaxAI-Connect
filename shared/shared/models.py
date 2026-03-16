@@ -362,6 +362,8 @@ class ServerSettings(Base):
 
     id = Column(Integer, primary_key=True)
     timezone = Column(String(50), nullable=True)  # NULL = not configured yet
+    speciesnet_country_code = Column(String(10), nullable=True)   # ISO 3166-1 alpha-3
+    speciesnet_admin1_region = Column(String(20), nullable=True)  # ISO 3166-2 (US states)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

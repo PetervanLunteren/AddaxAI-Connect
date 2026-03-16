@@ -12,6 +12,7 @@ import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
 import { Button } from '../../components/ui/Button';
 import { adminApi } from '../../api/admin';
+import { speciesApi } from '../../api/species';
 
 // Generate random 5-character hash for bot username
 const generateBotUsername = (): string => {
@@ -92,6 +93,12 @@ export const ServerSettingsPage: React.FC = () => {
   const [tzSaveStatus, setTzSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [tzError, setTzError] = useState<string | null>(null);
 
+  // --- Geofencing state ---
+  const [countryCode, setCountryCode] = useState('');
+  const [admin1Region, setAdmin1Region] = useState('');
+  const [geoSaveStatus, setGeoSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [geoError, setGeoError] = useState<string | null>(null);
+
   // --- Telegram state ---
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [botToken, setBotToken] = useState('');
@@ -106,10 +113,23 @@ export const ServerSettingsPage: React.FC = () => {
     retry: false,
   });
 
-  // Sync timezone state when server settings load
+  // Query model type (to show geofencing section only for SpeciesNet)
+  const { data: speciesData } = useQuery({
+    queryKey: ['available-species'],
+    queryFn: () => speciesApi.getAvailable(),
+  });
+  const isSpeciesNet = speciesData?.model === 'speciesnet';
+
+  // Sync state when server settings load
   useEffect(() => {
     if (serverSettings?.timezone) {
       setTimezone(serverSettings.timezone);
+    }
+    if (serverSettings?.speciesnet_country_code) {
+      setCountryCode(serverSettings.speciesnet_country_code);
+    }
+    if (serverSettings?.speciesnet_admin1_region) {
+      setAdmin1Region(serverSettings.speciesnet_admin1_region);
     }
   }, [serverSettings]);
 
@@ -136,6 +156,36 @@ export const ServerSettingsPage: React.FC = () => {
     setTzSaveStatus('saving');
     setTzError(null);
     updateTimezoneMutation.mutate(timezone);
+  };
+
+  // Geofencing save
+  const hasGeoChanges = countryCode !== (serverSettings?.speciesnet_country_code ?? '')
+    || admin1Region !== (serverSettings?.speciesnet_admin1_region ?? '');
+
+  const updateGeoMutation = useMutation({
+    mutationFn: (data: { speciesnet_country_code: string; speciesnet_admin1_region: string }) =>
+      adminApi.updateServerSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['server-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['setup-status'] });
+      setGeoSaveStatus('success');
+      setTimeout(() => setGeoSaveStatus('idle'), 2000);
+    },
+    onError: (error: any) => {
+      setGeoError(error.response?.data?.detail || error.message || 'Failed to save');
+      setGeoSaveStatus('error');
+      setTimeout(() => setGeoSaveStatus('idle'), 3000);
+    },
+  });
+
+  const handleSaveGeo = () => {
+    if (!countryCode) return;
+    setGeoSaveStatus('saving');
+    setGeoError(null);
+    updateGeoMutation.mutate({
+      speciesnet_country_code: countryCode.toUpperCase(),
+      speciesnet_admin1_region: admin1Region,
+    });
   };
 
   // Query Telegram configuration
@@ -275,7 +325,90 @@ export const ServerSettingsPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Section 2: Telegram Notifications */}
+        {/* Section 2: Geofencing (SpeciesNet only) */}
+        {isSpeciesNet && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Geofencing</CardTitle>
+              <CardDescription>
+                Country code for SpeciesNet geofencing. Filters out species that do not occur in the configured country.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {settingsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Country code</label>
+                    <input
+                      type="text"
+                      value={countryCode}
+                      onChange={(e) => setCountryCode(e.target.value.toUpperCase().slice(0, 3))}
+                      placeholder="NLD"
+                      maxLength={3}
+                      className="w-32 px-3 py-2 border rounded-md text-sm uppercase"
+                      disabled={geoSaveStatus === 'saving'}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ISO 3166-1 alpha-3 (e.g. NLD, DEU, USA, KEN)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Admin1 region (optional)</label>
+                    <input
+                      type="text"
+                      value={admin1Region}
+                      onChange={(e) => setAdmin1Region(e.target.value)}
+                      placeholder="US-CA"
+                      className="w-32 px-3 py-2 border rounded-md text-sm"
+                      disabled={geoSaveStatus === 'saving'}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ISO 3166-2 subdivision code. Only needed for US states.
+                    </p>
+                  </div>
+
+                  {geoError && (
+                    <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4" />
+                      {geoError}
+                    </div>
+                  )}
+
+                  {hasGeoChanges && countryCode.length === 3 && (
+                    <Button
+                      onClick={handleSaveGeo}
+                      disabled={geoSaveStatus === 'saving'}
+                      size="sm"
+                    >
+                      {geoSaveStatus === 'saving' ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save geofencing
+                        </>
+                      )}
+                    </Button>
+                  )}
+
+                  {geoSaveStatus === 'success' && !hasGeoChanges && (
+                    <p className="text-sm text-green-600">Geofencing settings saved</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Section 3: Telegram Notifications */}
         <Card>
           <CardHeader>
             <CardTitle>Telegram Notifications</CardTitle>

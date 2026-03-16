@@ -11,7 +11,7 @@ from config import get_settings
 from model_loader import load_model
 from classifier import run_classification
 from storage_operations import download_image_from_minio
-from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping
+from db_operations import get_detections_for_image, insert_classifications, update_image_status, get_taxonomy_mapping, get_geofencing_config
 from annotated_image import (
     generate_annotated_image,
     upload_annotated_image_to_minio,
@@ -27,7 +27,7 @@ logger = get_logger("classification-speciesnet")
 settings = get_settings()
 
 
-def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble=None) -> None:
+def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble=None, geofencing_config: dict | None = None) -> None:
     """
     Process detection-complete message through classification pipeline.
 
@@ -236,7 +236,7 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
 
         # Step 4: Run classification on animal detections
         # SpeciesNet ignores included_species (no filtering — taxonomy mapping handles it)
-        classifications = run_classification(classifier, image_path, detections, None, taxonomy_map, ensemble)
+        classifications = run_classification(classifier, image_path, detections, None, taxonomy_map, ensemble, geofencing_config)
 
         logger.info(
             "Classifications generated",
@@ -517,27 +517,31 @@ def main():
     # Load model on startup
     logger.info("Loading SpeciesNet model")
     classifier, ensemble = load_model()
-    logger.info(
-        "Model loaded successfully",
-        ensemble_enabled=ensemble is not None
-    )
+    logger.info("Model loaded successfully")
 
-    # Wait for taxonomy mapping to be configured
+    # Wait for taxonomy mapping and geofencing config to be configured via UI
     taxonomy_map = get_taxonomy_mapping()
     while not taxonomy_map:
         logger.warning("Taxonomy mapping not configured, waiting 30s...")
         time.sleep(30)
         taxonomy_map = get_taxonomy_mapping()
-
     logger.info("Taxonomy mapping loaded", num_entries=len(taxonomy_map))
+
+    geo_config = get_geofencing_config()
+    while not geo_config:
+        logger.warning("Country code not configured, waiting 30s...")
+        time.sleep(30)
+        geo_config = get_geofencing_config()
+    logger.info("Geofencing config loaded", country=geo_config["country_code"])
 
     # Initialize queue consumer
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
 
-    # Process messages forever — refresh taxonomy map on each message
+    # Process messages forever, refresh config on each message
     def handle_message(msg):
         current_map = get_taxonomy_mapping()
-        process_detection_complete(msg, classifier, current_map, ensemble)
+        current_geo = get_geofencing_config()
+        process_detection_complete(msg, classifier, current_map, ensemble, current_geo)
 
     logger.info("Listening for messages", queue=QUEUE_DETECTION_COMPLETE)
     queue.consume_forever(handle_message)

@@ -118,37 +118,28 @@ def load_ensemble(model_dir: str) -> Any:
     """
     Load SpeciesNet ensemble for geofencing and taxonomic rollup.
 
-    Only loaded when a country code is configured. The ensemble filters out
-    species that don't occur in the configured country and collapses uncertain
-    predictions to higher taxonomy levels.
+    Always loaded. Country code is read from the database per-classification,
+    not at load time.
 
     Returns:
-        SpeciesNetEnsemble or None if no country code configured
+        SpeciesNetEnsemble instance
     """
-    if not settings.speciesnet_country_code:
-        logger.info("No country code configured, geofencing disabled")
-        return None
-
     from speciesnet import SpeciesNetEnsemble
 
     ensemble = SpeciesNetEnsemble(model_name=model_dir, geofence=True)
-    logger.info(
-        "Ensemble loaded for geofencing",
-        country=settings.speciesnet_country_code
-    )
+    logger.info("Ensemble loaded for geofencing")
     return ensemble
 
 
 def load_model() -> tuple[Any, Any]:
     """
-    Load SpeciesNet classifier model and optionally the ensemble.
+    Load SpeciesNet classifier and ensemble.
 
     Downloads model from HuggingFace if not cached, patches info.json to
-    prevent MegaDetector download, then instantiates the classifier and
-    optionally the ensemble (if a country code is configured).
+    prevent MegaDetector download, then instantiates both components.
 
     Returns:
-        Tuple of (SpeciesNetClassifier, SpeciesNetEnsemble or None)
+        Tuple of (SpeciesNetClassifier, SpeciesNetEnsemble)
 
     Raises:
         Exception: If model loading or download fails
@@ -164,11 +155,7 @@ def load_model() -> tuple[Any, Any]:
         classifier = SpeciesNetClassifier(model_name=model_dir, device="cpu")
         ensemble = load_ensemble(model_dir)
 
-        logger.info(
-            "SpeciesNet model loaded successfully",
-            model_dir=model_dir,
-            ensemble_enabled=ensemble is not None
-        )
+        logger.info("SpeciesNet model loaded successfully", model_dir=model_dir)
 
         return classifier, ensemble
 

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from shared.database import get_db_session
-from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project, TaxonomyMapping
+from shared.models import Image, Detection, Classification as ClassificationModel, Camera, Project, TaxonomyMapping, ServerSettings
 from shared.logger import get_logger
 from classifier import Classification, DetectionInfo
 
@@ -28,6 +28,28 @@ def get_taxonomy_mapping() -> dict[str, str]:
             return {row.latin: row.common for row in rows}
     except Exception as e:
         logger.error("Failed to fetch taxonomy mapping", error=str(e), exc_info=True)
+        raise
+
+
+def get_geofencing_config() -> dict[str, str]:
+    """
+    Fetch country code and admin1 region from server settings.
+
+    Returns:
+        Dict with 'country_code' and 'admin1_region' keys.
+        Empty dict if not configured.
+    """
+    try:
+        with get_db_session() as db:
+            settings = db.query(ServerSettings).first()
+            if settings and settings.speciesnet_country_code:
+                return {
+                    "country_code": settings.speciesnet_country_code,
+                    "admin1_region": settings.speciesnet_admin1_region or "",
+                }
+            return {}
+    except Exception as e:
+        logger.error("Failed to fetch geofencing config", error=str(e), exc_info=True)
         raise
 
 
