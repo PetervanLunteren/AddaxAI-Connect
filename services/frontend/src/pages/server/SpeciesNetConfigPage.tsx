@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Trash2,
+
   FileSpreadsheet,
   ChevronRight,
   ChevronDown,
@@ -42,8 +42,6 @@ export const SpeciesNetConfigPage: React.FC = () => {
     reprocessedCount?: number;
     error?: string;
   }>({ open: false, status: 'uploading' });
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-
   // Query server settings (for geofencing)
   const { data: serverSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['server-settings'],
@@ -125,17 +123,6 @@ export const SpeciesNetConfigPage: React.FC = () => {
     uploadMutation.mutate(file);
   }, [uploadMutation]);
 
-  // Clear mutation
-  const clearMutation = useMutation({
-    mutationFn: adminApi.clearTaxonomyMapping,
-    onSuccess: () => {
-      setShowClearConfirm(false);
-      queryClient.invalidateQueries({ queryKey: ['taxonomy-mapping'] });
-      queryClient.invalidateQueries({ queryKey: ['available-species'] });
-      queryClient.invalidateQueries({ queryKey: ['setup-status'] });
-    },
-  });
-
   // Dropzone
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -213,48 +200,20 @@ export const SpeciesNetConfigPage: React.FC = () => {
             <div className="w-1/2 shrink-0">
               <label className="text-sm font-medium block">Taxonomy mapping</label>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with the <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Replaces any existing mapping and reprocesses classifications.
+                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Uploading a new file replaces the existing mapping and automatically reprocesses all classifications.
               </p>
               {entries.length > 0 && (
-                <div className="mt-3 space-y-1">
-                  <button
-                    onClick={() => setShowMapping(!showMapping)}
-                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {showMapping ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    View mapping ({entries.length})
-                  </button>
-                  {showClearConfirm ? (
-                    <div className="flex items-center gap-2 ml-5">
-                      <span className="text-sm text-muted-foreground">Are you sure?</span>
-                      <button
-                        onClick={() => clearMutation.mutate()}
-                        disabled={clearMutation.isPending}
-                        className="px-2 py-1 text-xs bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 disabled:opacity-50"
-                      >
-                        {clearMutation.isPending ? 'Clearing...' : 'Yes, clear'}
-                      </button>
-                      <button
-                        onClick={() => setShowClearConfirm(false)}
-                        className="px-2 py-1 text-xs border border-border rounded hover:bg-accent"
-                      >
-                        Cancel
-                      </button>
-                    </div>
+                <button
+                  onClick={() => setShowMapping(!showMapping)}
+                  className="flex items-center gap-1 mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showMapping ? (
+                    <ChevronDown className="h-4 w-4" />
                   ) : (
-                    <button
-                      onClick={() => setShowClearConfirm(true)}
-                      className="flex items-center gap-1 ml-5 text-sm text-destructive hover:text-destructive/80 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Clear mapping
-                    </button>
+                    <ChevronRight className="h-4 w-4" />
                   )}
-                </div>
+                  View mapping ({entries.length})
+                </button>
               )}
             </div>
             <div className="flex-1">
