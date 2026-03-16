@@ -12,4 +12,4 @@
 11. **Use git to move files** - Don't ever use rsync to put scripts on servers. Always use git commit, git push, and git pull on the server itself. That keeps the code up to date. 
 12. **Use built in features if possible** - Always check whether the required functionality is already available through built-in features. If so, prefer that over writing custom code. If a built-in option is close but does not fully meet the requirement, stop and discuss the pros and cons before proceeding.
 13. **No em dashes** - Never use em dashes (—) or double hyphens (--) in text. Use commas, colons, semicolons, or separate sentences instead.
-14. **Write like a person, not an LLM** - 
+14. **Write like a person, not an LLM** - Avoid filler phrases like "it's important to note that", "let's", "dive into", "in order to", "leverage", "streamline", "it should be noted", or "please note that". Just say the thing directly. Keep text natural and to the point.
