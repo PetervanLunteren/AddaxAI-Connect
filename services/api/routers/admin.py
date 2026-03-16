@@ -1676,7 +1676,14 @@ async def upload_taxonomy_mapping(
 
         yield json.dumps({"stage": "done", "count": len(rows), "reprocessed_count": reprocessed_count}) + "\n"
 
-    return StreamingResponse(generate(), media_type="application/x-ndjson")
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 @router.delete("/taxonomy")
