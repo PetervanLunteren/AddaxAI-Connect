@@ -40,6 +40,7 @@ export const TaxonomyMappingPage: React.FC = () => {
         : `Uploaded ${result.count} entries.`;
       setUploadMessage(msg);
       queryClient.invalidateQueries({ queryKey: ['taxonomy-mapping'] });
+      queryClient.invalidateQueries({ queryKey: ['available-species'] });
       setTimeout(() => setUploadStatus('idle'), 8000);
     },
     onError: (error: any) => {
@@ -55,6 +56,7 @@ export const TaxonomyMappingPage: React.FC = () => {
     onSuccess: () => {
       setShowClearConfirm(false);
       queryClient.invalidateQueries({ queryKey: ['taxonomy-mapping'] });
+      queryClient.invalidateQueries({ queryKey: ['available-species'] });
     },
   });
 

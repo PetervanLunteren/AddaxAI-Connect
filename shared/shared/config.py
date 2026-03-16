@@ -37,9 +37,10 @@ class Settings(BaseSettings):
     # CORS (API only)
     cors_origins: Optional[str] = None
 
-    # ML Models (workers only)
-    detection_model_path: Optional[str] = None
-    classification_model_path: Optional[str] = None
+    # ML Models
+    detection_model_path: Optional[str] = None     # workers only
+    classification_model_path: Optional[str] = None  # workers only
+    classification_model: Optional[str] = None     # "deepfaune" or "speciesnet"
     use_gpu: bool = False
 
     # FTPS (ingestion only)

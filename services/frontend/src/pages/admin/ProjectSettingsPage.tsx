@@ -20,17 +20,8 @@ import { statisticsApi } from '../../api/statistics';
 import { cameraGroupsApi } from '../../api/cameraGroups';
 import { camerasApi } from '../../api/cameras';
 import { normalizeLabel } from '../../utils/labels';
+import { speciesApi } from '../../api/species';
 import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, CameraGroup } from '../../api/types';
-
-// DeepFaune v1.4 species list (38 European wildlife species)
-const DEEPFAUNE_SPECIES = [
-  'badger', 'bear', 'beaver', 'bird', 'bison', 'cat', 'chamois', 'cow',
-  'dog', 'equid', 'fallow_deer', 'fox', 'genet', 'goat', 'golden_jackal',
-  'hedgehog', 'ibex', 'lagomorph', 'lynx', 'marmot', 'micromammal', 'moose',
-  'mouflon', 'muskrat', 'mustelid', 'nutria', 'otter', 'porcupine', 'raccoon',
-  'raccoon_dog', 'red_deer', 'reindeer', 'roe_deer', 'sheep', 'squirrel',
-  'wild_boar', 'wolf', 'wolverine'
-].sort();
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 0, label: 'Disabled' },
@@ -120,6 +111,13 @@ export const ProjectSettingsPage: React.FC = () => {
     queryFn: () => camerasApi.getAll(currentProject!.id),
     enabled: !!currentProject,
   });
+
+  // Available species query (model-dependent)
+  const { data: availableSpeciesData } = useQuery({
+    queryKey: ['available-species'],
+    queryFn: () => speciesApi.getAvailable(),
+  });
+  const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
 
   // Sync fetched groups into pending state
   useEffect(() => {
@@ -299,7 +297,7 @@ export const ProjectSettingsPage: React.FC = () => {
     setIndependenceInterval(30);
   };
 
-  const speciesOptions: Option[] = DEEPFAUNE_SPECIES.map(species => ({
+  const speciesOptions: Option[] = (availableSpeciesData?.species ?? []).map(species => ({
     label: normalizeLabel(species),
     value: species
   }));
@@ -350,28 +348,31 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="border-t my-6" />
+          {/* Species Filtering (DeepFaune only, SpeciesNet uses taxonomy mapping) */}
+          {!isSpeciesNet && (
+            <>
+              <div className="border-t my-6" />
 
-          {/* Species Filtering */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
-              <label className="text-sm font-medium block">
-                Species filtering
-              </label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Only selected species will be classified when new images are uploaded. Already classified images are not affected. Leave empty to include all species.
-              </p>
-            </div>
-            <div className="flex-1">
-              <MultiSelect
-                options={speciesOptions}
-                value={includedSpecies}
-                onChange={setIncludedSpecies}
-                placeholder="Select species..."
-              />
-            </div>
-          </div>
+              <div className="flex items-center gap-8">
+                <div className="w-1/2 shrink-0">
+                  <label className="text-sm font-medium block">
+                    Species filtering
+                  </label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Only selected species will be classified when new images are uploaded. Already classified images are not affected. Leave empty to include all species.
+                  </p>
+                </div>
+                <div className="flex-1">
+                  <MultiSelect
+                    options={speciesOptions}
+                    value={includedSpecies}
+                    onChange={setIncludedSpecies}
+                    placeholder="Select species..."
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Divider */}
           <div className="border-t my-6" />

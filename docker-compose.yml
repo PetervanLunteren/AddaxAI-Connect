@@ -151,6 +151,7 @@ services:
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
       DEMO_MODE: ${DEMO_MODE:-false}
+      CLASSIFICATION_MODEL: ${CLASSIFICATION_MODEL:-deepfaune}
       # Logging configuration
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}

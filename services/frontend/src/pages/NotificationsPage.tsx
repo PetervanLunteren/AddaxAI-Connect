@@ -11,20 +11,11 @@ import { Card, CardContent } from '../components/ui/Card';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
+import { speciesApi } from '../api/species';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
-
-// DeepFaune v1.4 species list (38 European wildlife species)
-const DEEPFAUNE_SPECIES = [
-  'badger', 'bear', 'beaver', 'bird', 'bison', 'cat', 'chamois', 'cow',
-  'dog', 'equid', 'fallow_deer', 'fox', 'genet', 'goat', 'golden_jackal',
-  'hedgehog', 'ibex', 'lagomorph', 'lynx', 'marmot', 'micromammal', 'moose',
-  'mouflon', 'muskrat', 'mustelid', 'nutria', 'otter', 'porcupine', 'raccoon',
-  'raccoon_dog', 'red_deer', 'reindeer', 'roe_deer', 'sheep', 'squirrel',
-  'wild_boar', 'wolf', 'wolverine'
-].sort();
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -62,12 +53,21 @@ export const NotificationsPage: React.FC = () => {
   const isTelegramConfigured = telegramStatus?.is_configured ?? false;
   const adminEmail = telegramStatus?.admin_email ?? null;
 
-  // Use project's included species if configured, otherwise show all species
+  // Fetch available species from the API (model-dependent)
+  const { data: availableSpeciesData } = useQuery({
+    queryKey: ['available-species'],
+    queryFn: () => speciesApi.getAvailable(),
+  });
+  const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
+
+  // For DeepFaune: use project's included_species filter if set, otherwise full model list
+  // For SpeciesNet: always use taxonomy_mapping labels (included_species is not used)
   // Always include person/vehicle as they are detection-level categories
   const availableSpecies = useMemo(() => {
-    const baseSpecies = selectedProject?.included_species ?? DEEPFAUNE_SPECIES;
+    const modelSpecies = availableSpeciesData?.species ?? [];
+    const baseSpecies = (!isSpeciesNet && selectedProject?.included_species) || modelSpecies;
     return [...new Set([...baseSpecies, 'person', 'vehicle'])];
-  }, [selectedProject?.included_species]);
+  }, [availableSpeciesData?.species, isSpeciesNet, selectedProject?.included_species]);
   const speciesOptions: Option[] = useMemo(() =>
     availableSpecies
       .slice()

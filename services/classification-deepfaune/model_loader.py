@@ -12,21 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from shared.logger import get_logger
+from shared.species import DEEPFAUNE_CLASSES
 from config import get_settings
 
 logger = get_logger("classification.model_loader")
 settings = get_settings()
-
-# DeepFaune v1.4 species classes (38 European wildlife species)
-# Order MUST match the model's training - from reference implementation
-DEEPFAUNE_CLASSES = [
-    "bison", "badger", "ibex", "beaver", "red_deer", "golden_jackal", "chamois",
-    "cat", "goat", "roe_deer", "dog", "raccoon_dog", "fallow_deer", "squirrel",
-    "moose", "equid", "genet", "wolverine", "hedgehog", "lagomorph", "wolf",
-    "otter", "lynx", "marmot", "micromammal", "mouflon", "sheep", "mustelid",
-    "bird", "bear", "porcupine", "nutria", "muskrat", "raccoon", "fox",
-    "reindeer", "wild_boar", "cow"
-]
 
 
 def download_model_if_needed() -> str:
