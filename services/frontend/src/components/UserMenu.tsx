@@ -83,8 +83,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
     },
     {
       icon: List,
-      label: 'Taxonomy mapping',
-      onClick: () => handleNavigate('/server/taxonomy'),
+      label: 'SpeciesNet config',
+      onClick: () => handleNavigate('/server/speciesnet'),
       variant: 'default' as const,
     },
     {

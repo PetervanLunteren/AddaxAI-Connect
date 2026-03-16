@@ -96,10 +96,10 @@ export const ProjectsPage: React.FC = () => {
                 <><Link to="/server/settings" className="underline font-medium">Set the camera timezone</Link>. </>
               )}
               {!setupStatus.country_code && (
-                <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
+                <><Link to="/server/speciesnet" className="underline font-medium">Set the country code</Link>. </>
               )}
               {!setupStatus.taxonomy_mapping && (
-                <><Link to="/server/taxonomy" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
+                <><Link to="/server/speciesnet" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
               )}
             </span>
           </div>
