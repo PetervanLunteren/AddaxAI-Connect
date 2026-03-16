@@ -212,7 +212,7 @@ export const SpeciesNetConfigPage: React.FC = () => {
                   ) : (
                     <ChevronRight className="h-4 w-4" />
                   )}
-                  View mapping ({entries.length})
+                  View current mapping ({entries.length} labels)
                 </button>
               )}
             </div>
