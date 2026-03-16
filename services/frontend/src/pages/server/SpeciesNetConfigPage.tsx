@@ -15,7 +15,6 @@ import {
   Trash2,
   FileSpreadsheet,
   Upload,
-  Save,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
@@ -151,21 +150,19 @@ export const SpeciesNetConfigPage: React.FC = () => {
       <div className="space-y-6">
         {/* Section 1: Geofencing */}
         <Card>
-          <CardHeader>
-            <CardTitle>Geofencing</CardTitle>
-            <CardDescription>
-              Country code for SpeciesNet geofencing. Filters out species that do not occur in the configured country.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {settingsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <CardContent className="pt-6">
+            {/* Country */}
+            <div className="flex items-center gap-8">
+              <div className="w-1/2 shrink-0">
+                <label className="text-sm font-medium block">Country</label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Select the country where cameras are deployed. Filters out species that do not occur in this country.
+                </p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Country</label>
+              <div className="flex-1">
+                {settingsLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
                   <CountrySelect
                     value={countryCode}
                     onChange={(code) => {
@@ -174,31 +171,51 @@ export const SpeciesNetConfigPage: React.FC = () => {
                     }}
                     disabled={geoSaveStatus === 'saving'}
                   />
-                </div>
+                )}
+              </div>
+            </div>
 
-                {countryCode === 'USA' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">State (optional)</label>
+            {/* State (conditional) */}
+            {countryCode === 'USA' && (
+              <>
+                <div className="border-t my-6" />
+                <div className="flex items-center gap-8">
+                  <div className="w-1/2 shrink-0">
+                    <label className="text-sm font-medium block">State</label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Optionally narrow geofencing to a specific US state.
+                    </p>
+                  </div>
+                  <div className="flex-1">
                     <StateSelect
                       value={admin1Region}
                       onChange={setAdmin1Region}
                       disabled={geoSaveStatus === 'saving'}
                     />
                   </div>
-                )}
+                </div>
+              </>
+            )}
 
-                {geoError && (
-                  <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    {geoError}
-                  </div>
-                )}
+            {/* Error */}
+            {geoError && (
+              <>
+                <div className="border-t my-6" />
+                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {geoError}
+                </div>
+              </>
+            )}
 
-                {hasGeoChanges && countryCode && (
+            {/* Save button */}
+            {hasGeoChanges && countryCode && (
+              <>
+                <div className="border-t my-6" />
+                <div className="flex justify-end">
                   <Button
                     onClick={handleSaveGeo}
                     disabled={geoSaveStatus === 'saving'}
-                    size="sm"
                   >
                     {geoSaveStatus === 'saving' ? (
                       <>
@@ -206,18 +223,20 @@ export const SpeciesNetConfigPage: React.FC = () => {
                         Saving...
                       </>
                     ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save geofencing
-                      </>
+                      'Save geofencing'
                     )}
                   </Button>
-                )}
+                </div>
+              </>
+            )}
 
-                {geoSaveStatus === 'success' && !hasGeoChanges && (
+            {geoSaveStatus === 'success' && !hasGeoChanges && (
+              <>
+                <div className="border-t my-6" />
+                <div className="flex justify-end">
                   <p className="text-sm text-green-600">Geofencing settings saved</p>
-                )}
-              </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

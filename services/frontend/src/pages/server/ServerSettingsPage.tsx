@@ -6,8 +6,8 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download } from 'lucide-react';
+import { Card, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
 import { Button } from '../../components/ui/Button';
@@ -218,137 +218,120 @@ export const ServerSettingsPage: React.FC = () => {
       title="Server settings"
       description="Configure server-wide settings for timezone and notifications"
     >
-      <div className="space-y-6">
-        {/* Section 1: Timezone */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Camera timezone</CardTitle>
-            <CardDescription>
-              Timezone the cameras are set to. Used for exports and activity charts.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {settingsLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="space-y-4">
+      <Card>
+        <CardContent className="pt-6">
+          {/* Camera timezone */}
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">Camera timezone</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Timezone the cameras are set to. Used for exports and activity charts.
+              </p>
+            </div>
+            <div className="flex-1">
+              {settingsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
                 <TimezoneSelect
                   value={timezone}
                   onChange={setTimezone}
                   disabled={tzSaveStatus === 'saving'}
                 />
+              )}
+            </div>
+          </div>
 
-                {tzError && (
-                  <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    {tzError}
-                  </div>
-                )}
+          <div className="border-t my-6" />
 
-                {hasTimezoneChanges && (
-                  <Button
-                    onClick={handleSaveTimezone}
-                    disabled={tzSaveStatus === 'saving'}
-                    size="sm"
-                  >
-                    {tzSaveStatus === 'saving' ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save timezone
-                      </>
-                    )}
-                  </Button>
-                )}
-
-                {tzSaveStatus === 'success' && !hasTimezoneChanges && (
-                  <p className="text-sm text-green-600">Timezone saved</p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Section 2: Telegram Notifications */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Telegram notifications</CardTitle>
-            <CardDescription>
-              Configure Telegram bot for sending notifications to users
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {telegramLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : isTelegramConfigured && telegramConfig ? (
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <CheckCircle2 className="h-8 w-8 text-green-500" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-2">Configured and ready</h3>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      Telegram bot: <span className="font-medium text-foreground">@{telegramConfig.bot_username}</span>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Users can now configure Telegram notifications in their project settings.
-                    </p>
-                  </div>
+          {/* Telegram notifications */}
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">Telegram notifications</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isTelegramConfigured && telegramConfig
+                  ? <>Bot <span className="font-medium text-foreground">@{telegramConfig.bot_username}</span> is active. Users can configure Telegram notifications in their project settings.</>
+                  : 'Configure a Telegram bot to enable instant notifications.'}
+              </p>
+              {isTelegramConfigured ? (
+                <button
+                  onClick={handleUnconfigure}
+                  disabled={unconfigureMutation.isPending}
+                  className="text-sm text-destructive hover:underline mt-2 inline-flex items-center gap-1"
+                >
+                  {unconfigureMutation.isPending ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" /> Removing...</>
+                  ) : (
+                    <><Trash2 className="h-3 w-3" /> Remove bot</>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowConfigModal(true)}
+                  className="text-sm text-primary hover:underline mt-2"
+                >
+                  Configure bot
+                </button>
+              )}
+            </div>
+            <div className="flex-1">
+              {telegramLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : isTelegramConfigured ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <span className="text-green-600">Configured</span>
                 </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <XCircle className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Not configured</span>
+                </div>
+              )}
+            </div>
+          </div>
 
-                <div className="pt-4">
-                  <button
-                    onClick={handleUnconfigure}
-                    disabled={unconfigureMutation.isPending}
-                    className="px-4 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive/10 disabled:opacity-50 transition-colors flex items-center gap-2"
-                  >
-                    {unconfigureMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Removing...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        Remove bot
-                      </>
-                    )}
-                  </button>
-                </div>
+          {/* Save button */}
+          {tzError && (
+            <>
+              <div className="border-t my-6" />
+              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {tzError}
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <XCircle className="h-8 w-8 text-red-500" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-2">Not configured</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Telegram bot is not set up. Configure a bot to enable Telegram notifications.
-                    </p>
-                    <button
-                      onClick={() => setShowConfigModal(true)}
-                      className="px-6 py-2.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium"
-                    >
-                      Configure Telegram bot
-                    </button>
-                  </div>
-                </div>
+            </>
+          )}
+
+          {hasTimezoneChanges && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveTimezone}
+                  disabled={tzSaveStatus === 'saving'}
+                >
+                  {tzSaveStatus === 'saving' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save changes'
+                  )}
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </>
+          )}
+
+          {tzSaveStatus === 'success' && !hasTimezoneChanges && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex justify-end">
+                <p className="text-sm text-green-600">Timezone saved</p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Configuration Modal */}
       {showConfigModal && (
