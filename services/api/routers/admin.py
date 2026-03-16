@@ -1630,13 +1630,13 @@ async def upload_taxonomy_mapping(
     reprocessed_count = 0
     batch_size = 500
 
-    result = await db.execute(
+    result = await db.stream(
         select(ClassificationModel).where(
             ClassificationModel.raw_prediction.isnot(None)
         ).execution_options(yield_per=batch_size)
     )
 
-    for partition in result.partitions(batch_size):
+    async for partition in result.partitions(batch_size):
         for classification in partition:
             new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
             if classification.species != new_species:
