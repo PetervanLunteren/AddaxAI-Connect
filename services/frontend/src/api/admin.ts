@@ -283,9 +283,11 @@ export const adminApi = {
   ): Promise<{ count: number; reprocessed_count: number }> => {
     const formData = new FormData();
     formData.append('file', file);
+    const token = localStorage.getItem('access_token');
     const response = await fetch('/api/admin/taxonomy/upload', {
       method: 'POST',
       body: formData,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
