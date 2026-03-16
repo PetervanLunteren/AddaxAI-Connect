@@ -114,15 +114,41 @@ def patch_info_json(model_dir: str) -> None:
         raise
 
 
-def load_model() -> Any:
+def load_ensemble(model_dir: str) -> Any:
     """
-    Load SpeciesNet classifier model.
+    Load SpeciesNet ensemble for geofencing and taxonomic rollup.
 
-    Downloads model from HuggingFace if not cached, patches info.json to
-    prevent MegaDetector download, then instantiates the classifier.
+    Only loaded when a country code is configured. The ensemble filters out
+    species that don't occur in the configured country and collapses uncertain
+    predictions to higher taxonomy levels.
 
     Returns:
-        SpeciesNetClassifier: Loaded classifier instance
+        SpeciesNetEnsemble or None if no country code configured
+    """
+    if not settings.speciesnet_country_code:
+        logger.info("No country code configured, geofencing disabled")
+        return None
+
+    from speciesnet import SpeciesNetEnsemble
+
+    ensemble = SpeciesNetEnsemble(model_name=model_dir, geofence=True)
+    logger.info(
+        "Ensemble loaded for geofencing",
+        country=settings.speciesnet_country_code
+    )
+    return ensemble
+
+
+def load_model() -> tuple[Any, Any]:
+    """
+    Load SpeciesNet classifier model and optionally the ensemble.
+
+    Downloads model from HuggingFace if not cached, patches info.json to
+    prevent MegaDetector download, then instantiates the classifier and
+    optionally the ensemble (if a country code is configured).
+
+    Returns:
+        Tuple of (SpeciesNetClassifier, SpeciesNetEnsemble or None)
 
     Raises:
         Exception: If model loading or download fails
@@ -136,13 +162,15 @@ def load_model() -> Any:
         from speciesnet import SpeciesNetClassifier
 
         classifier = SpeciesNetClassifier(model_name=model_dir, device="cpu")
+        ensemble = load_ensemble(model_dir)
 
         logger.info(
             "SpeciesNet model loaded successfully",
-            model_dir=model_dir
+            model_dir=model_dir,
+            ensemble_enabled=ensemble is not None
         )
 
-        return classifier
+        return classifier, ensemble
 
     except Exception as e:
         logger.error("Model loading failed", error=str(e), exc_info=True)

@@ -68,24 +68,95 @@ def parse_speciesnet_label(label: str) -> tuple[str, str]:
     return common_name, label
 
 
+def _apply_ensemble(
+    ensemble: Any,
+    image_path: str,
+    classifier_result: dict,
+    detection: DetectionInfo
+) -> Optional[tuple[str, float]]:
+    """
+    Apply SpeciesNet ensemble (geofencing + taxonomic rollup) to a single detection.
+
+    Formats our data for ensemble.combine() and extracts the result.
+
+    Args:
+        ensemble: SpeciesNetEnsemble instance
+        image_path: Path to the image file
+        classifier_result: Raw classifier predict() output for this detection
+        detection: DetectionInfo for this detection
+
+    Returns:
+        Tuple of (label, score) or None if ensemble fails
+    """
+    # Map our categories to SpeciesNet format
+    category_map = {"animal": "1", "person": "2", "vehicle": "3"}
+    label_map = {"animal": "animal", "person": "human", "vehicle": "vehicle"}
+
+    sn_category = category_map.get(detection.category, "1")
+    sn_label = label_map.get(detection.category, "animal")
+
+    detector_results = {
+        image_path: {
+            "detections": [{
+                "category": sn_category,
+                "label": sn_label,
+                "conf": detection.confidence,
+                "bbox": detection.bbox_normalized
+            }]
+        }
+    }
+
+    classifier_results = {image_path: classifier_result}
+
+    geolocation_results = {
+        image_path: {
+            "country": settings.speciesnet_country_code,
+            "admin1_region": settings.speciesnet_admin1_region or ""
+        }
+    }
+
+    combined = ensemble.combine(
+        classifier_results=classifier_results,
+        detector_results=detector_results,
+        geolocation_results=geolocation_results
+    )
+
+    # Extract result for our image
+    image_result = combined.get(image_path, {})
+    predictions = image_result.get("predictions", [])
+
+    if predictions:
+        prediction = predictions[0]
+        label = prediction.get("label", "")
+        score = prediction.get("score", 0.0)
+        return label, score
+
+    return None
+
+
 def run_classification(
     classifier: Any,
     image_path: str,
     detections: List[DetectionInfo],
     included_species: Optional[List[str]] = None,
-    taxonomy_map: Optional[dict[str, str]] = None
+    taxonomy_map: Optional[dict[str, str]] = None,
+    ensemble: Any = None
 ) -> List[Classification]:
     """
     Run SpeciesNet classification on animal detections.
 
     Only processes detections with category="animal".
     For each detection, creates a BBox and calls the SpeciesNet classifier.
+    If an ensemble is provided, applies geofencing and taxonomic rollup
+    before taxonomy CSV mapping.
 
     Args:
         classifier: Loaded SpeciesNetClassifier instance
         image_path: Path to full image file
         detections: List of DetectionInfo objects with bbox coordinates
         included_species: Ignored for SpeciesNet (deferred to taxonomy mapping)
+        taxonomy_map: Taxonomy CSV mapping dict
+        ensemble: Optional SpeciesNetEnsemble for geofencing
 
     Returns:
         List of Classification objects (top-1 predictions per animal)
@@ -96,7 +167,8 @@ def run_classification(
     logger.info(
         "Running classification",
         image_path=image_path,
-        num_detections=len(detections)
+        num_detections=len(detections),
+        ensemble_enabled=ensemble is not None
     )
 
     try:
@@ -139,30 +211,56 @@ def run_classification(
             preprocessed = classifier.preprocess(pil_image, bboxes=[bbox])
             result = classifier.predict(image_path, preprocessed)
 
-            # Extract top-1 prediction
-            # Result format: {filepath, classifications: {classes: [...], scores: [...]}}
+            # Extract top-1 prediction from raw classifier
             classifications_data = result.get("classifications", {}) if result else {}
             classes = classifications_data.get("classes", [])
             scores = classifications_data.get("scores", [])
 
             if classes and scores:
-                label = classes[0]
-                score = scores[0]
+                raw_label = classes[0]
+                raw_score = scores[0]
 
-                common_name, full_label = parse_speciesnet_label(label)
+                _, raw_full_label = parse_speciesnet_label(raw_label)
 
-                # Apply taxonomy walk-up if mapping is available
+                # Apply ensemble (geofencing + rollup) if available
+                label_for_taxonomy = raw_full_label
+                score_for_taxonomy = raw_score
+
+                if ensemble:
+                    try:
+                        ensemble_result = _apply_ensemble(
+                            ensemble, image_path, result, detection
+                        )
+                        if ensemble_result:
+                            ensemble_label, ensemble_score = ensemble_result
+                            _, label_for_taxonomy = parse_speciesnet_label(ensemble_label)
+                            score_for_taxonomy = ensemble_score
+                            logger.debug(
+                                "Ensemble applied",
+                                detection_id=detection.detection_id,
+                                raw_label=raw_full_label,
+                                ensemble_label=label_for_taxonomy
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            "Ensemble failed, using raw classifier output",
+                            detection_id=detection.detection_id,
+                            error=str(e)
+                        )
+
+                # Apply taxonomy walk-up on ensemble output (or raw if no ensemble)
                 if taxonomy_map:
-                    species = apply_taxonomy_walkup(full_label, taxonomy_map)
+                    species = apply_taxonomy_walkup(label_for_taxonomy, taxonomy_map)
                 else:
+                    common_name, _ = parse_speciesnet_label(label_for_taxonomy)
                     species = common_name
 
                 classification = Classification(
                     detection_id=detection.detection_id,
                     species=species,
-                    confidence=score,
-                    raw_prediction=full_label,
-                    raw_confidence=score
+                    confidence=score_for_taxonomy,
+                    raw_prediction=label_for_taxonomy,
+                    raw_confidence=raw_score
                 )
             else:
                 classification = Classification(

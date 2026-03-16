@@ -27,7 +27,7 @@ logger = get_logger("classification-speciesnet")
 settings = get_settings()
 
 
-def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str]) -> None:
+def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble=None) -> None:
     """
     Process detection-complete message through classification pipeline.
 
@@ -236,7 +236,7 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
 
         # Step 4: Run classification on animal detections
         # SpeciesNet ignores included_species (no filtering — taxonomy mapping handles it)
-        classifications = run_classification(classifier, image_path, detections, None, taxonomy_map)
+        classifications = run_classification(classifier, image_path, detections, None, taxonomy_map, ensemble)
 
         logger.info(
             "Classifications generated",
@@ -516,8 +516,11 @@ def main():
 
     # Load model on startup
     logger.info("Loading SpeciesNet model")
-    classifier = load_model()
-    logger.info("Model loaded successfully")
+    classifier, ensemble = load_model()
+    logger.info(
+        "Model loaded successfully",
+        ensemble_enabled=ensemble is not None
+    )
 
     # Wait for taxonomy mapping to be configured
     taxonomy_map = get_taxonomy_mapping()
@@ -534,7 +537,7 @@ def main():
     # Process messages forever — refresh taxonomy map on each message
     def handle_message(msg):
         current_map = get_taxonomy_mapping()
-        process_detection_complete(msg, classifier, current_map)
+        process_detection_complete(msg, classifier, current_map, ensemble)
 
     logger.info("Listening for messages", queue=QUEUE_DETECTION_COMPLETE)
     queue.consume_forever(handle_message)

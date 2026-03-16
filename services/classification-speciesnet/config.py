@@ -36,6 +36,10 @@ class ClassificationSettings(BaseSettings):
     # Top-N predictions to store (1 = top-1 only)
     top_n_predictions: int = 1
 
+    # Geofencing (enables SpeciesNet ensemble for geographic filtering)
+    speciesnet_country_code: Optional[str] = None    # ISO 3166-1 alpha-3
+    speciesnet_admin1_region: Optional[str] = None   # ISO 3166-2 (US states)
+
     # GPU configuration (auto-detect if not set)
     use_gpu: Optional[bool] = None
 
