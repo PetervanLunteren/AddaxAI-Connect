@@ -115,21 +115,21 @@ def _apply_ensemble(
         }
     }
 
-    combined = ensemble.combine(
+    results = ensemble.combine(
+        filepaths=[image_path],
         classifier_results=classifier_results,
         detector_results=detector_results,
-        geolocation_results=geolocation_results
+        geolocation_results=geolocation_results,
+        partial_predictions={}
     )
 
-    # Extract result for our image
-    image_result = combined.get(image_path, {})
-    predictions = image_result.get("predictions", [])
-
-    if predictions:
-        prediction = predictions[0]
-        label = prediction.get("label", "")
-        score = prediction.get("score", 0.0)
-        return label, score
+    # combine() returns a list with one result per filepath
+    if results:
+        result = results[0]
+        label = result.get("prediction", "")
+        score = result.get("prediction_score", 0.0)
+        if label:
+            return label, score
 
     return None
 
