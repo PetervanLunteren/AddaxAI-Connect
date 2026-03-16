@@ -10,6 +10,7 @@ import httpx
 import base64
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from pydantic import BaseModel, EmailStr
@@ -1540,7 +1541,7 @@ async def get_taxonomy_mapping(
     )
 
 
-@router.post("/taxonomy/upload", response_model=TaxonomyMappingResponse)
+@router.post("/taxonomy/upload")
 async def upload_taxonomy_mapping(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_async_session),
@@ -1551,21 +1552,23 @@ async def upload_taxonomy_mapping(
 
     CSV must have 'latin' and 'common' columns. Extra columns are ignored.
     After inserting, reprocesses all existing classifications that have a raw_prediction.
+    Streams progress as newline-delimited JSON.
     """
     import csv
     import io
+    import json
+    from sqlalchemy import func
 
-    # Validate file type
+    # --- Validate and parse CSV up-front (before streaming) ---
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File must be a .csv file",
         )
 
-    # Read and parse CSV
     content = await file.read()
     try:
-        text = content.decode("utf-8-sig")  # Handle BOM
+        text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -1580,7 +1583,6 @@ async def upload_taxonomy_mapping(
             detail="CSV file is empty or has no header row",
         )
 
-    # Check required columns
     fieldnames_lower = [f.lower().strip() for f in reader.fieldnames]
     if "latin" not in fieldnames_lower or "common" not in fieldnames_lower:
         raise HTTPException(
@@ -1588,11 +1590,9 @@ async def upload_taxonomy_mapping(
             detail=f"CSV must have 'latin' and 'common' columns. Found: {', '.join(reader.fieldnames)}",
         )
 
-    # Parse rows
     rows = []
     seen_latin: set[str] = set()
-    for i, row in enumerate(reader, start=2):  # start=2 because row 1 is header
-        # Normalize keys to lowercase
+    for i, row in enumerate(reader, start=2):
         normalized = {k.lower().strip(): v for k, v in row.items()}
         latin = (normalized.get("latin") or "").strip().lower()
         common = (normalized.get("common") or "").strip()
@@ -1622,54 +1622,61 @@ async def upload_taxonomy_mapping(
             detail="CSV has no data rows",
         )
 
-    # Replace all existing rows
-    await db.execute(delete(TaxonomyMapping))
+    # --- Stream progress ---
+    async def generate():
+        from shared.taxonomy import apply_taxonomy_walkup
 
-    new_entries = []
-    for row in rows:
-        entry = TaxonomyMapping(latin=row["latin"], common=row["common"])
-        db.add(entry)
-        new_entries.append(entry)
+        yield json.dumps({"stage": "inserting", "count": len(rows)}) + "\n"
 
-    await db.flush()
+        # Replace all existing rows
+        await db.execute(delete(TaxonomyMapping))
+        for row in rows:
+            db.add(TaxonomyMapping(latin=row["latin"], common=row["common"]))
+        await db.flush()
 
-    # Reprocess existing classifications with new mapping
-    from shared.taxonomy import apply_taxonomy_walkup
+        # Count classifications to reprocess
+        total_result = await db.execute(
+            select(func.count()).select_from(ClassificationModel).where(
+                ClassificationModel.raw_prediction.isnot(None)
+            )
+        )
+        total = total_result.scalar() or 0
 
-    taxonomy_map = {row["latin"]: row["common"] for row in rows}
+        yield json.dumps({"stage": "reprocessing", "current": 0, "total": total}) + "\n"
 
-    result = await db.execute(
-        select(ClassificationModel).where(ClassificationModel.raw_prediction.isnot(None))
-    )
-    classifications = result.scalars().all()
+        taxonomy_map = {row["latin"]: row["common"] for row in rows}
+        reprocessed_count = 0
+        batch_size = 500
 
-    reprocessed_count = 0
-    for classification in classifications:
-        new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
-        if classification.species != new_species:
-            classification.species = new_species
-            reprocessed_count += 1
+        if total > 0:
+            result = await db.execute(
+                select(ClassificationModel).where(
+                    ClassificationModel.raw_prediction.isnot(None)
+                ).execution_options(yield_per=batch_size)
+            )
 
-    await db.commit()
+            processed = 0
+            for partition in result.partitions(batch_size):
+                for classification in partition:
+                    new_species = apply_taxonomy_walkup(classification.raw_prediction, taxonomy_map)
+                    if classification.species != new_species:
+                        classification.species = new_species
+                        reprocessed_count += 1
+                processed += len(partition)
+                yield json.dumps({"stage": "reprocessing", "current": processed, "total": total}) + "\n"
 
-    # Refresh entries to get IDs
-    result = await db.execute(
-        select(TaxonomyMapping).order_by(TaxonomyMapping.latin)
-    )
-    entries = result.scalars().all()
+        await db.commit()
 
-    logger.info(
-        "Taxonomy mapping uploaded",
-        count=len(entries),
-        reprocessed_count=reprocessed_count,
-        uploaded_by=current_user.email,
-    )
+        logger.info(
+            "Taxonomy mapping uploaded",
+            count=len(rows),
+            reprocessed_count=reprocessed_count,
+            uploaded_by=current_user.email,
+        )
 
-    return TaxonomyMappingResponse(
-        count=len(entries),
-        entries=[TaxonomyMappingEntry.model_validate(e) for e in entries],
-        reprocessed_count=reprocessed_count,
-    )
+        yield json.dumps({"stage": "done", "count": len(rows), "reprocessed_count": reprocessed_count}) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 @router.delete("/taxonomy")

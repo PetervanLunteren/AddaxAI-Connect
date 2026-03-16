@@ -513,3 +513,11 @@ export interface TaxonomyMappingResponse {
   entries: TaxonomyMappingEntry[];
   reprocessed_count?: number;
 }
+
+export interface TaxonomyUploadEvent {
+  stage: 'inserting' | 'reprocessing' | 'done';
+  count?: number;
+  current?: number;
+  total?: number;
+  reprocessed_count?: number;
+}

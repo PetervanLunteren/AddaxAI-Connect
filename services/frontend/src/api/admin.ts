@@ -19,6 +19,7 @@ import type {
   TelegramConfigureRequest,
   ServerSettings,
   TaxonomyMappingResponse,
+  TaxonomyUploadEvent,
 } from './types';
 
 export const adminApi = {
@@ -276,15 +277,41 @@ export const adminApi = {
     return response.data;
   },
 
-  uploadTaxonomyMapping: async (file: File): Promise<TaxonomyMappingResponse> => {
+  uploadTaxonomyMapping: async (
+    file: File,
+    onProgress?: (event: TaxonomyUploadEvent) => void,
+  ): Promise<{ count: number; reprocessed_count: number }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await apiClient.post<TaxonomyMappingResponse>(
-      '/api/admin/taxonomy/upload',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-    return response.data;
+    const response = await fetch('/api/admin/taxonomy/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw { response: { data: body } };
+    }
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let lastEvent: TaxonomyUploadEvent = { stage: 'inserting', count: 0 };
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event: TaxonomyUploadEvent = JSON.parse(line);
+        lastEvent = event;
+        onProgress?.(event);
+      }
+    }
+    if (lastEvent.stage === 'done') {
+      return { count: lastEvent.count!, reprocessed_count: lastEvent.reprocessed_count! };
+    }
+    throw new Error('Upload stream ended unexpectedly');
   },
 
   clearTaxonomyMapping: async (): Promise<{ deleted_count: number }> => {
