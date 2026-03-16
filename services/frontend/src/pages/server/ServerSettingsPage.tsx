@@ -10,6 +10,8 @@ import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Che
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
+import { CountrySelect } from '../../components/ui/CountrySelect';
+import { StateSelect } from '../../components/ui/StateSelect';
 import { Button } from '../../components/ui/Button';
 import { adminApi } from '../../api/admin';
 import { speciesApi } from '../../api/species';
@@ -183,7 +185,7 @@ export const ServerSettingsPage: React.FC = () => {
     setGeoSaveStatus('saving');
     setGeoError(null);
     updateGeoMutation.mutate({
-      speciesnet_country_code: countryCode.toUpperCase(),
+      speciesnet_country_code: countryCode,
       speciesnet_admin1_region: admin1Region,
     });
   };
@@ -342,35 +344,27 @@ export const ServerSettingsPage: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Country code</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-medium mb-1">Country</label>
+                    <CountrySelect
                       value={countryCode}
-                      onChange={(e) => setCountryCode(e.target.value.toUpperCase().slice(0, 3))}
-                      placeholder="NLD"
-                      maxLength={3}
-                      className="w-32 px-3 py-2 border rounded-md text-sm uppercase"
+                      onChange={(code) => {
+                        setCountryCode(code);
+                        if (code !== 'USA') setAdmin1Region('');
+                      }}
                       disabled={geoSaveStatus === 'saving'}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ISO 3166-1 alpha-3 (e.g. NLD, DEU, USA, KEN)
-                    </p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Admin1 region (optional)</label>
-                    <input
-                      type="text"
-                      value={admin1Region}
-                      onChange={(e) => setAdmin1Region(e.target.value)}
-                      placeholder="US-CA"
-                      className="w-32 px-3 py-2 border rounded-md text-sm"
-                      disabled={geoSaveStatus === 'saving'}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ISO 3166-2 subdivision code. Only needed for US states.
-                    </p>
-                  </div>
+                  {countryCode === 'USA' && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">State (optional)</label>
+                      <StateSelect
+                        value={admin1Region}
+                        onChange={setAdmin1Region}
+                        disabled={geoSaveStatus === 'saving'}
+                      />
+                    </div>
+                  )}
 
                   {geoError && (
                     <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
@@ -379,7 +373,7 @@ export const ServerSettingsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {hasGeoChanges && countryCode.length === 3 && (
+                  {hasGeoChanges && countryCode && (
                     <Button
                       onClick={handleSaveGeo}
                       disabled={geoSaveStatus === 'saving'}
