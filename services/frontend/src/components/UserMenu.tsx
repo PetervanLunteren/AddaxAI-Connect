@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound, PawPrint } from 'lucide-react';
+import { Menu, Users, FileX, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound, Dog } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -82,7 +82,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       variant: 'default' as const,
     },
     {
-      icon: PawPrint,
+      icon: Dog,
       label: 'SpeciesNet config',
       onClick: () => handleNavigate('/server/speciesnet'),
       variant: 'default' as const,
