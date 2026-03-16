@@ -13,6 +13,7 @@ import {
   XCircle,
   AlertCircle,
 
+  Save,
   FileSpreadsheet,
   ChevronRight,
   ChevronDown,
@@ -222,7 +223,10 @@ export const SpeciesNetConfigPage: React.FC = () => {
                         Saving...
                       </>
                     ) : (
-                      'Save geofencing'
+                      <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
                     )}
                   </Button>
                 </div>
