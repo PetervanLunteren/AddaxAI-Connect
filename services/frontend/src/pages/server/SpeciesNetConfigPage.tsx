@@ -258,12 +258,6 @@ export const SpeciesNetConfigPage: React.FC = () => {
               )}
             </div>
             <div className="flex-1">
-              {entries.length > 0 && (
-                <div className="flex items-center gap-2 text-sm text-green-600 mb-3">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {entries.length} entries
-                </div>
-              )}
               <div
                 {...getRootProps()}
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
