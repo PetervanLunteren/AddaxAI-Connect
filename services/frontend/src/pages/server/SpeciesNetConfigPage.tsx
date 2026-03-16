@@ -155,7 +155,7 @@ export const SpeciesNetConfigPage: React.FC = () => {
               <div className="w-1/2 shrink-0">
                 <label className="text-sm font-medium block">Country</label>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Select the country where cameras are deployed. Filters out species that do not occur in this country. Only applies to new classifications, not retroactively.
+                  Select the country where cameras are deployed. Filters out species that do not occur in this country. Only applies to new analyses, not retroactively.
                 </p>
               </div>
               <div className="flex-1">
