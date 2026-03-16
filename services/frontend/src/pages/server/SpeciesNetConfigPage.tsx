@@ -146,163 +146,169 @@ export const SpeciesNetConfigPage: React.FC = () => {
       title="SpeciesNet configuration"
       description="Geofencing and taxonomy mapping for SpeciesNet classification"
     >
-      <Card>
-        <CardContent className="pt-6">
-          {/* Country */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
-              <label className="text-sm font-medium block">Country</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Select the country where cameras are deployed. Filters out species that do not occur in this country. Only applies to new classifications, not retroactively.
-              </p>
-            </div>
-            <div className="flex-1">
-              {settingsLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : (
-                <CountrySelect
-                  value={countryCode}
-                  onChange={(code) => {
-                    setCountryCode(code);
-                    if (code !== 'USA') setAdmin1Region('');
-                  }}
-                  disabled={geoSaveStatus === 'saving'}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* State (conditional) */}
-          {countryCode === 'USA' && (
-            <>
-              <div className="border-t my-6" />
-              <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
-                  <label className="text-sm font-medium block">State</label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Optionally narrow geofencing to a specific US state.
-                  </p>
-                </div>
-                <div className="flex-1">
-                  <StateSelect
-                    value={admin1Region}
-                    onChange={setAdmin1Region}
+      <div className="space-y-6">
+        {/* Geofencing card */}
+        <Card>
+          <CardContent className="pt-6">
+            {/* Country */}
+            <div className="flex items-center gap-8">
+              <div className="w-1/2 shrink-0">
+                <label className="text-sm font-medium block">Country</label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Select the country where cameras are deployed. Filters out species that do not occur in this country. Only applies to new classifications, not retroactively.
+                </p>
+              </div>
+              <div className="flex-1">
+                {settingsLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <CountrySelect
+                    value={countryCode}
+                    onChange={(code) => {
+                      setCountryCode(code);
+                      if (code !== 'USA') setAdmin1Region('');
+                    }}
                     disabled={geoSaveStatus === 'saving'}
                   />
-                </div>
+                )}
               </div>
-            </>
-          )}
+            </div>
 
-          {/* Taxonomy mapping */}
-          <div className="border-t my-6" />
-          <div className="flex items-start gap-8">
-            <div className="w-1/2 shrink-0">
-              <label className="text-sm font-medium block">Taxonomy mapping</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Uploading a new file replaces the existing mapping and automatically reprocesses unverified classifications.
-              </p>
-              {entries.length > 0 && (
-                <button
-                  onClick={() => setShowMapping(!showMapping)}
-                  className="flex items-center gap-1 mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            {/* State (conditional) */}
+            {countryCode === 'USA' && (
+              <>
+                <div className="border-t my-6" />
+                <div className="flex items-center gap-8">
+                  <div className="w-1/2 shrink-0">
+                    <label className="text-sm font-medium block">State</label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Optionally narrow geofencing to a specific US state.
+                    </p>
+                  </div>
+                  <div className="flex-1">
+                    <StateSelect
+                      value={admin1Region}
+                      onChange={setAdmin1Region}
+                      disabled={geoSaveStatus === 'saving'}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Error */}
+            {geoError && (
+              <>
+                <div className="border-t my-6" />
+                <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {geoError}
+                </div>
+              </>
+            )}
+
+            {/* Save button */}
+            {hasGeoChanges && countryCode && (
+              <>
+                <div className="border-t my-6" />
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleSaveGeo}
+                    disabled={geoSaveStatus === 'saving'}
+                  >
+                    {geoSaveStatus === 'saving' ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save geofencing'
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {geoSaveStatus === 'success' && !hasGeoChanges && (
+              <>
+                <div className="border-t my-6" />
+                <div className="flex justify-end">
+                  <p className="text-sm text-green-600">Geofencing settings saved</p>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Taxonomy mapping card */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-8">
+              <div className="w-1/2 shrink-0">
+                <label className="text-sm font-medium block">Taxonomy mapping</label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Uploading a new file replaces the existing mapping and automatically reprocesses unverified classifications.
+                </p>
+                {entries.length > 0 && (
+                  <button
+                    onClick={() => setShowMapping(!showMapping)}
+                    className="flex items-center gap-1 mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showMapping ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                    View current mapping ({entries.length} labels)
+                  </button>
+                )}
+              </div>
+              <div className="flex-1">
+                <div
+                  {...getRootProps()}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                    isDragActive
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                  }`}
                 >
-                  {showMapping ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  View current mapping ({entries.length} labels)
-                </button>
-              )}
-            </div>
-            <div className="flex-1">
-              <div
-                {...getRootProps()}
-                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  isDragActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50 hover:bg-accent/50'
-                }`}
-              >
-                <input {...getInputProps()} />
-                <div className="flex flex-col items-center space-y-2">
-                  <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
-                  <p className="text-sm font-medium">
-                    {isDragActive ? 'Drop CSV here...' : 'Drop CSV here, or click to select'}
-                  </p>
+                  <input {...getInputProps()} />
+                  <div className="flex flex-col items-center space-y-2">
+                    <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm font-medium">
+                      {isDragActive ? 'Drop CSV here...' : 'Drop CSV here, or click to select'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Collapsible mapping table */}
-          {showMapping && entries.length > 0 && (
-            <div className="mt-4 border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left px-4 py-2">Latin</th>
-                      <th className="text-left px-4 py-2">Common name</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {entries.map((entry) => (
-                      <tr key={entry.id} className="border-t">
-                        <td className="px-4 py-2 font-mono text-xs">{entry.latin}</td>
-                        <td className="px-4 py-2">{entry.common}</td>
+            {/* Collapsible mapping table */}
+            {showMapping && entries.length > 0 && (
+              <div className="mt-4 border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left px-4 py-2">Latin</th>
+                        <th className="text-left px-4 py-2">Common name</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {entries.map((entry) => (
+                        <tr key={entry.id} className="border-t">
+                          <td className="px-4 py-2 font-mono text-xs">{entry.latin}</td>
+                          <td className="px-4 py-2">{entry.common}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {geoError && (
-            <>
-              <div className="border-t my-6" />
-              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                {geoError}
-              </div>
-            </>
-          )}
-
-          {/* Save button */}
-          {hasGeoChanges && countryCode && (
-            <>
-              <div className="border-t my-6" />
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleSaveGeo}
-                  disabled={geoSaveStatus === 'saving'}
-                >
-                  {geoSaveStatus === 'saving' ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save geofencing'
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
-
-          {geoSaveStatus === 'success' && !hasGeoChanges && (
-            <>
-              <div className="border-t my-6" />
-              <div className="flex justify-end">
-                <p className="text-sm text-green-600">Geofencing settings saved</p>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Upload progress modal */}
       {uploadModal.open && (
