@@ -258,19 +258,28 @@ export const SpeciesNetConfigPage: React.FC = () => {
               )}
             </div>
             <div className="flex-1">
-              {taxonomyLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : entries.length > 0 ? (
-                <div className="flex items-center gap-2 text-sm text-green-600">
+              {entries.length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-green-600 mb-3">
                   <CheckCircle2 className="h-4 w-4" />
                   {entries.length} entries
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <XCircle className="h-4 w-4" />
-                  Not configured
-                </div>
               )}
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                  isDragActive
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                }`}
+              >
+                <input {...getInputProps()} />
+                <div className="flex flex-col items-center space-y-2">
+                  <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm font-medium">
+                    {isDragActive ? 'Drop CSV here...' : 'Drop CSV here, or click to select'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -297,30 +306,6 @@ export const SpeciesNetConfigPage: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* Dropzone */}
-          <div className="border-t my-6" />
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 sm:p-12 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary/50 hover:bg-accent/50'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <div className="flex flex-col items-center space-y-4">
-              <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">
-                  {isDragActive ? 'Drop CSV here...' : 'Drag and drop a CSV file here, or click to select'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Required columns: latin, common. Extra columns are ignored.
-                </p>
-              </div>
-            </div>
-          </div>
 
           {/* Error */}
           {geoError && (
