@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from shared.models import User, ProjectNotificationPreference, Project
 from shared.database import get_async_session
 from auth.users import current_verified_user
+from auth.permissions import can_access_project
 
 
 router = APIRouter(prefix="/api/projects", tags=["notifications"])
@@ -89,8 +90,8 @@ async def get_notification_preferences(
             detail=f"Project {project_id} not found"
         )
 
-    # Verify user has access (either assigned to project or is superuser)
-    if not current_user.is_superuser and current_user.project_id != project_id:
+    # Verify user has access (project member or server admin)
+    if not await can_access_project(current_user, project_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this project"
@@ -162,8 +163,8 @@ async def update_notification_preferences(
             detail=f"Project {project_id} not found"
         )
 
-    # Verify user has access (either assigned to project or is superuser)
-    if not current_user.is_superuser and current_user.project_id != project_id:
+    # Verify user has access (project member or server admin)
+    if not await can_access_project(current_user, project_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this project"
@@ -286,8 +287,8 @@ async def generate_telegram_link_token(
             detail=f"Project {project_id} not found"
         )
 
-    # Verify user has access
-    if not current_user.is_superuser and current_user.project_id != project_id:
+    # Verify user has access (project member or server admin)
+    if not await can_access_project(current_user, project_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this project"
@@ -373,8 +374,8 @@ async def get_telegram_link_status(
             detail=f"Project {project_id} not found"
         )
 
-    # Verify user has access
-    if not current_user.is_superuser and current_user.project_id != project_id:
+    # Verify user has access (project member or server admin)
+    if not await can_access_project(current_user, project_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this project"
@@ -440,8 +441,8 @@ async def unlink_telegram(
             detail=f"Project {project_id} not found"
         )
 
-    # Verify user has access
-    if not current_user.is_superuser and current_user.project_id != project_id:
+    # Verify user has access (project member or server admin)
+    if not await can_access_project(current_user, project_id, db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this project"

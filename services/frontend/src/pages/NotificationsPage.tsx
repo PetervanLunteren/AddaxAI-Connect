@@ -207,7 +207,6 @@ export const NotificationsPage: React.FC = () => {
     updateMutation.mutate({
       // Legacy fields (for backward compatibility)
       enabled: isTelegramLinked,
-      signal_phone: null,
       telegram_chat_id: isTelegramLinked ? (linkStatus?.chat_id || null) : null,
       notify_species: legacySpeciesValues.length > 0 ? legacySpeciesValues : null,
       notify_low_battery: false,
