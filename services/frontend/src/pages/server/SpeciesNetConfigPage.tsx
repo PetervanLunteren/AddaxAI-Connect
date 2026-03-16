@@ -213,7 +213,7 @@ export const SpeciesNetConfigPage: React.FC = () => {
             <div className="w-1/2 shrink-0">
               <label className="text-sm font-medium block">Taxonomy mapping</label>
               <p className="text-sm text-muted-foreground mt-1">
-                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. Replaces any existing mapping and reprocesses classifications.
+                Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with the <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Replaces any existing mapping and reprocesses classifications.
               </p>
               {entries.length > 0 && (
                 <div className="mt-3 space-y-1">
