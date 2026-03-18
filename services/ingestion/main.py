@@ -29,15 +29,6 @@ from storage_operations import upload_image_to_minio, generate_and_upload_thumbn
 from daily_report_parser import parse_daily_report
 from utils import ValidationError, reject_file, delete_file
 
-# TEMPORARY: Willfine-2024 → Willfine-2025 format converter for testing
-# To remove: delete willfine_2024_converter.py and remove this import
-from willfine_2024_converter import (
-    is_willfine_2024_image,
-    convert_willfine_2024_image,
-    is_willfine_2024_daily_report,
-    convert_willfine_2024_daily_report
-)
-
 # Enable PIL to load truncated images from camera traps
 # Camera traps often send incomplete JPEGs over cellular connections
 from PIL import ImageFile
@@ -184,17 +175,6 @@ def process_image(filepath: str) -> None:
     logger.info("Processing image", file_name=clean_filename, filepath=filepath)
 
     try:
-        # TEMPORARY: Convert Willfine-2024 to Willfine-2025 format if needed
-        # To remove: delete this block when removing willfine_2024_converter.py
-        if is_willfine_2024_image(filepath):
-            if not convert_willfine_2024_image(filepath):
-                reject_file(
-                    filepath,
-                    "conversion_failed",
-                    "Failed to convert Willfine-2024 image to Willfine-2025 format"
-                )
-                return
-
         # Step 1: Validate file
         validate_image(filepath)
 
@@ -370,17 +350,6 @@ def process_daily_report(filepath: str) -> None:
     logger.info("Processing daily report", file_name=clean_filename)
 
     try:
-        # TEMPORARY: Convert Willfine-2024 to Willfine-2025 format if needed
-        # To remove: delete this block when removing willfine_2024_converter.py
-        if is_willfine_2024_daily_report(filepath):
-            if not convert_willfine_2024_daily_report(filepath):
-                reject_file(
-                    filepath,
-                    "conversion_failed",
-                    "Failed to convert Willfine-2024 daily report to Willfine-2025 format"
-                )
-                return
-
         # Step 1: Validate file
         validate_daily_report(filepath)
 
