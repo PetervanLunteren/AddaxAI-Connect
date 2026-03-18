@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, FileX, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound, Squirrel } from 'lucide-react';
+import { Menu, Users, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound, Squirrel } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -88,15 +88,9 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       variant: 'default' as const,
     },
     {
-      icon: FileX,
-      label: 'Rejected files',
-      onClick: () => handleNavigate('/server/rejected-files'),
-      variant: 'default' as const,
-    },
-    {
       icon: Upload,
-      label: 'Upload to FTPS',
-      onClick: () => handleNavigate('/server/ftps-upload'),
+      label: 'File management',
+      onClick: () => handleNavigate('/server/file-management'),
       variant: 'default' as const,
     },
     {

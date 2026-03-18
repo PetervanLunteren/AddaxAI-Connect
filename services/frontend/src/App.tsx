@@ -25,8 +25,7 @@ import { DocumentsPage } from './pages/DocumentsPage';
 import { AboutPage } from './pages/AboutPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementPage';
-import { RejectedFilesPage } from './pages/server/RejectedFilesPage';
-import { FTPSUploadPage } from './pages/server/FTPSUploadPage';
+import { FileManagementPage } from './pages/server/FileManagementPage';
 import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { ServerSettingsPage } from './pages/server/ServerSettingsPage';
 import { HealthPage } from './pages/server/HealthPage';
@@ -80,18 +79,10 @@ function App() {
                 element={<Navigate to="/server/server-admin-management" replace />}
               />
               <Route
-                path="/server/rejected-files"
+                path="/server/file-management"
                 element={
                   <ProtectedRoute>
-                    <RejectedFilesPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/server/ftps-upload"
-                element={
-                  <ProtectedRoute>
-                    <FTPSUploadPage />
+                    <FileManagementPage />
                   </ProtectedRoute>
                 }
               />
