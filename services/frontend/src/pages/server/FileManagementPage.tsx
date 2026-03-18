@@ -358,12 +358,12 @@ export const FileManagementPage: React.FC = () => {
         <CardContent>
           <div className="border rounded-lg">
             {isLoadingUploads ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : !uploadFilesData || uploadFilesData.total_count === 0 ? (
-              <div className="py-12 text-center">
-                <CheckCircle2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <div className="py-6 text-center">
+                <CheckCircle2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-muted-foreground">No files waiting</p>
                 <p className="text-sm text-muted-foreground mt-2">
                   The ingestion service is up to date.
@@ -433,16 +433,16 @@ export const FileManagementPage: React.FC = () => {
         <CardContent>
           <div className="border rounded-lg">
             {isLoading ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : !rejectedFilesData ? (
-              <div className="py-12 text-center">
+              <div className="py-6 text-center">
                 <p className="text-muted-foreground">Failed to load rejected files</p>
               </div>
             ) : rejectedFilesData.total_count === 0 ? (
-              <div className="py-12 text-center">
-                <CheckCircle2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <div className="py-6 text-center">
+                <CheckCircle2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-muted-foreground">No rejected files</p>
                 <p className="text-sm text-muted-foreground mt-2">
                   All uploaded files are being processed successfully
