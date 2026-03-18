@@ -15,7 +15,6 @@ import {
   Image as ImageIcon,
   RefreshCw,
   AlertTriangle,
-  FileX,
   Trash2,
   ArrowUpCircle,
 } from 'lucide-react';
@@ -262,85 +261,79 @@ export const FileManagementPage: React.FC = () => {
     >
       {/* Card 1: Upload files */}
       <Card className="mb-6">
-        <CardContent className="py-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-base font-medium">Upload files</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload image files (.jpg) and daily report text files (.txt) directly to the FTPS
-                ingestion folder.
-              </p>
-            </div>
-            <div
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                isDragActive
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50 hover:bg-accent/50'
-              }`}
-            >
-              <input {...getInputProps()} />
-              <div className="flex flex-col items-center space-y-3">
-                <div className="flex space-x-2">
-                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                  <FileText className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-sm font-medium">
-                  {isDragActive ? 'Drop files here...' : 'Drop files here, or click to select'}
-                </p>
+        <CardHeader>
+          <CardTitle>Upload files</CardTitle>
+          <CardDescription>
+            Upload image files (.jpg) and daily report text files (.txt) directly to the FTPS
+            ingestion folder.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+              isDragActive
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50 hover:bg-accent/50'
+            }`}
+          >
+            <input {...getInputProps()} />
+            <div className="flex flex-col items-center space-y-3">
+              <div className="flex space-x-2">
+                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                <FileText className="h-6 w-6 text-muted-foreground" />
               </div>
+              <p className="text-sm font-medium">
+                {isDragActive ? 'Drop files here...' : 'Drop files here, or click to select'}
+              </p>
             </div>
           </div>
 
           {/* Upload status table */}
           {fileStatuses.length > 0 && (
-            <div className="mt-4">
-              <div className="border rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted">
-                      <tr>
-                        <th className="text-left px-4 py-2">File</th>
-                        <th className="text-left px-4 py-2">Status</th>
-                        <th className="text-left px-4 py-2 hidden sm:table-cell">Message</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fileStatuses.map((fileStatus, idx) => (
-                        <tr key={idx} className="border-t">
-                          <td className="px-4 py-2 font-medium break-all">{fileStatus.filename}</td>
-                          <td className="px-4 py-2">
-                            {fileStatus.status === 'pending' && (
-                              <span className="text-muted-foreground">Pending...</span>
-                            )}
-                            {fileStatus.status === 'uploading' && (
-                              <div className="flex items-center space-x-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Uploading...</span>
-                              </div>
-                            )}
-                            {fileStatus.status === 'success' && (
-                              <div className="flex items-center space-x-2 text-green-600">
-                                <CheckCircle2 className="h-4 w-4" />
-                                <span>Success</span>
-                              </div>
-                            )}
-                            {fileStatus.status === 'error' && (
-                              <div className="flex items-center space-x-2 text-red-600">
-                                <XCircle className="h-4 w-4" />
-                                <span>Failed</span>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-muted-foreground hidden sm:table-cell">
-                            {fileStatus.message || '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2">File</th>
+                    <th className="text-left py-2 px-2">Status</th>
+                    <th className="text-left py-2 px-2 hidden sm:table-cell">Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fileStatuses.map((fileStatus, idx) => (
+                    <tr key={idx} className="border-b last:border-0">
+                      <td className="py-2 px-2 font-medium break-all">{fileStatus.filename}</td>
+                      <td className="py-2 px-2">
+                        {fileStatus.status === 'pending' && (
+                          <span className="text-muted-foreground">Pending...</span>
+                        )}
+                        {fileStatus.status === 'uploading' && (
+                          <div className="flex items-center space-x-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Uploading...</span>
+                          </div>
+                        )}
+                        {fileStatus.status === 'success' && (
+                          <div className="flex items-center space-x-2 text-green-600">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>Success</span>
+                          </div>
+                        )}
+                        {fileStatus.status === 'error' && (
+                          <div className="flex items-center space-x-2 text-red-600">
+                            <XCircle className="h-4 w-4" />
+                            <span>Failed</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-2 text-muted-foreground hidden sm:table-cell">
+                        {fileStatus.message || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
@@ -374,8 +367,8 @@ export const FileManagementPage: React.FC = () => {
             </div>
           ) : rejectedFilesData.total_count === 0 ? (
             <div className="py-12 text-center">
-              <FileX className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No rejected files found</p>
+              <CheckCircle2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No rejected files</p>
               <p className="text-sm text-muted-foreground mt-2">
                 All uploaded files are being processed successfully
               </p>
