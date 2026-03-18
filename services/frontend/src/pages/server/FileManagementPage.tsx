@@ -343,7 +343,7 @@ export const FileManagementPage: React.FC = () => {
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="space-y-2">
               <CardTitle>Rejected files</CardTitle>
               <CardDescription>
                 Files rejected by the ingestion pipeline. Rejected files older than 30 days are
@@ -518,7 +518,7 @@ export const FileManagementPage: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="space-y-2">
               <CardTitle>Uploads folder</CardTitle>
               <CardDescription>
                 Files waiting to be picked up by the ingestion service. This folder should normally be empty.
