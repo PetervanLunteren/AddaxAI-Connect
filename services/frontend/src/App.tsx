@@ -26,7 +26,6 @@ import { AboutPage } from './pages/AboutPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementPage';
 import { FileManagementPage } from './pages/server/FileManagementPage';
-import { DeleteDataPage } from './pages/server/DeleteDataPage';
 import { ServerSettingsPage } from './pages/server/ServerSettingsPage';
 import { HealthPage } from './pages/server/HealthPage';
 import { SpeciesNetConfigPage } from './pages/server/SpeciesNetConfigPage';
@@ -83,14 +82,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <FileManagementPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/server/delete-data"
-                element={
-                  <ProtectedRoute>
-                    <DeleteDataPage />
                   </ProtectedRoute>
                 }
               />

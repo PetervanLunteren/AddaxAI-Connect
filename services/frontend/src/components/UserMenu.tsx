@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, Upload, Trash2, Settings, Activity, LogOut, Info, KeyRound, Squirrel } from 'lucide-react';
+import { Menu, Users, Upload, Settings, Activity, LogOut, Info, KeyRound, Squirrel } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -92,12 +92,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       label: 'File management',
       onClick: () => handleNavigate('/server/file-management'),
       variant: 'default' as const,
-    },
-    {
-      icon: Trash2,
-      label: 'Delete all data',
-      onClick: () => handleNavigate('/server/delete-data'),
-      variant: 'destructive' as const,
     },
   ];
 

@@ -9,21 +9,6 @@ export interface UploadResponse {
   message: string;
 }
 
-export interface ClearDataResponse {
-  success: boolean;
-  message: string;
-  deleted_counts: {
-    classifications: number;
-    detections: number;
-    images: number;
-    cameras: number;
-    minio_raw_images: number;
-    minio_crops: number;
-    minio_thumbnails: number;
-    ftps_files: number;
-  };
-}
-
 /**
  * Upload file directly to FTPS directory (superuser only)
  */
@@ -44,10 +29,3 @@ export const uploadFile = async (file: File): Promise<UploadResponse> => {
   return response.data;
 };
 
-/**
- * Clear all data from database, MinIO, and FTPS directory (superuser only)
- */
-export const clearAllData = async (): Promise<ClearDataResponse> => {
-  const response = await apiClient.post<ClearDataResponse>('/api/devtools/clear-all-data');
-  return response.data;
-};
