@@ -19,7 +19,6 @@ import {
   Trash2,
   ArrowUpCircle,
   Info,
-  FolderOpen,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -350,8 +349,14 @@ export const FileManagementPage: React.FC = () => {
       </Card>
 
       {/* Card 2: Rejected files */}
-      <Card>
-        <CardContent className="py-6">
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Rejected files</CardTitle>
+          <CardDescription>
+            Files rejected by the ingestion pipeline. Review, reprocess, or delete them here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           {/* Info banner */}
           <div className="flex items-start gap-3 mb-6 p-3 rounded-md border border-blue-200 bg-blue-50">
             <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -532,71 +537,71 @@ export const FileManagementPage: React.FC = () => {
             </>
           )}
 
-          {/* Uploads folder section */}
-          <div className="border rounded-lg mt-6">
-            <div className="flex items-center justify-between p-4 border-b">
-              <div>
-                <h3 className="text-base font-medium flex items-center gap-2">
-                  <FolderOpen className="h-5 w-5" />
-                  Uploads folder
-                </h3>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Files waiting to be picked up by the ingestion service. This folder should normally be empty.
+        </CardContent>
+      </Card>
+
+      {/* Card 3: Uploads folder */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Uploads folder</CardTitle>
+              <CardDescription>
+                Files waiting to be picked up by the ingestion service. This folder should normally be empty.
+              </CardDescription>
+            </div>
+            <Button onClick={() => refetchUploads()} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingUploads ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !uploadFilesData || uploadFilesData.total_count === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              No files in uploads folder. The ingestion service is up to date.
+            </p>
+          ) : (
+            <div>
+              <div className="flex items-center gap-2 mb-3 p-2 rounded bg-amber-50 border border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {uploadFilesData.total_count} file{uploadFilesData.total_count !== 1 ? 's' : ''} waiting
+                  for processing. If these persist, the ingestion service may need attention.
                 </p>
               </div>
-              <Button onClick={() => refetchUploads()} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2">Filename</th>
+                      <th className="text-left py-2 px-2 hidden md:table-cell">Size</th>
+                      <th className="text-left py-2 px-2 hidden sm:table-cell">Last modified</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadFilesData.files.map((file) => (
+                      <tr key={file.filepath} className="border-b last:border-0">
+                        <td className="py-2 px-2 font-mono text-xs break-all max-w-xs">
+                          {file.filename}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
+                          {formatFileSize(file.size_bytes)}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
+                          {formatTimestamp(file.timestamp)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="p-4">
-              {isLoadingUploads ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : !uploadFilesData || uploadFilesData.total_count === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">
-                  No files in uploads folder. The ingestion service is up to date.
-                </p>
-              ) : (
-                <div>
-                  <div className="flex items-center gap-2 mb-3 p-2 rounded bg-amber-50 border border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                    <p className="text-sm text-amber-800">
-                      {uploadFilesData.total_count} file{uploadFilesData.total_count !== 1 ? 's' : ''} waiting
-                      for processing. If these persist, the ingestion service may need attention.
-                    </p>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-2">Filename</th>
-                          <th className="text-left py-2 px-2 hidden md:table-cell">Size</th>
-                          <th className="text-left py-2 px-2 hidden sm:table-cell">Last modified</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {uploadFilesData.files.map((file) => (
-                          <tr key={file.filepath} className="border-b last:border-0">
-                            <td className="py-2 px-2 font-mono text-xs break-all max-w-xs">
-                              {file.filename}
-                            </td>
-                            <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
-                              {formatFileSize(file.size_bytes)}
-                            </td>
-                            <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
-                              {formatTimestamp(file.timestamp)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
