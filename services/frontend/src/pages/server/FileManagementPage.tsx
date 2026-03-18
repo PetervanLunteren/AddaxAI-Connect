@@ -18,7 +18,6 @@ import {
   FileX,
   Trash2,
   ArrowUpCircle,
-  Info,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -251,7 +250,6 @@ export const FileManagementPage: React.FC = () => {
     missing_datetime: 'Missing DateTime',
     validation_failed: 'Validation Failed',
     duplicate: 'Duplicate',
-    conversion_failed: 'Conversion Failed',
     parse_failed: 'Parse Failed',
     unsupported_file_type: 'Unsupported File Type',
     exif_extraction_failed: 'EXIF Extraction Failed',
@@ -351,23 +349,21 @@ export const FileManagementPage: React.FC = () => {
       {/* Card 2: Rejected files */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Rejected files</CardTitle>
-          <CardDescription>
-            Files rejected by the ingestion pipeline. Review, reprocess, or delete them here.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Rejected files</CardTitle>
+              <CardDescription>
+                Files rejected by the ingestion pipeline. Rejected files older than 30 days are
+                automatically deleted daily at midnight UTC.
+              </CardDescription>
+            </div>
+            <Button onClick={() => refetchFiles()} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          {/* Info banner */}
-          <div className="flex items-start gap-3 mb-6 p-3 rounded-md border border-blue-200 bg-blue-50">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-blue-900">Automatic cleanup</p>
-              <p className="text-blue-700 mt-0.5">
-                Rejected files older than 30 days are automatically deleted daily at midnight UTC.
-              </p>
-            </div>
-          </div>
-
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -439,104 +435,89 @@ export const FileManagementPage: React.FC = () => {
               )}
 
               {/* Rejected files table */}
-              <div className="border rounded-lg">
-                <div className="flex items-center justify-between p-4 border-b">
-                  <div>
-                    <h3 className="text-base font-medium">All rejected files</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      Click a row for details. Files can be reprocessed or permanently deleted.
-                    </p>
-                  </div>
-                  <Button onClick={() => refetchFiles()} variant="outline" size="sm">
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-2 w-8">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2 w-8">
+                        <input
+                          type="checkbox"
+                          checked={sortedFiles.length > 0 && selectedFiles.size === sortedFiles.length}
+                          onChange={handleSelectAll}
+                          className="cursor-pointer"
+                        />
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('filename')}
+                      >
+                        Filename {sortField === 'filename' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
+                        onClick={() => handleSort('reason')}
+                      >
+                        Reason {sortField === 'reason' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden sm:table-cell"
+                        onClick={() => handleSort('device_id')}
+                      >
+                        Camera ID {sortField === 'device_id' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden md:table-cell"
+                        onClick={() => handleSort('size_bytes')}
+                      >
+                        Size {sortField === 'size_bytes' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                      <th
+                        className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden lg:table-cell"
+                        onClick={() => handleSort('timestamp')}
+                      >
+                        Timestamp {sortField === 'timestamp' && (sortDirection === 'asc' ? '↑' : '↓')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedFiles.map((file) => (
+                      <tr
+                        key={file.filepath}
+                        onClick={(e) => handleRowClick(file, e)}
+                        className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
+                      >
+                        <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
-                            checked={sortedFiles.length > 0 && selectedFiles.size === sortedFiles.length}
-                            onChange={handleSelectAll}
+                            checked={selectedFiles.has(file.filepath)}
+                            onChange={() => handleSelectFile(file.filepath)}
                             className="cursor-pointer"
                           />
-                        </th>
-                        <th
-                          className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
-                          onClick={() => handleSort('filename')}
-                        >
-                          Filename {sortField === 'filename' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50"
-                          onClick={() => handleSort('reason')}
-                        >
-                          Reason {sortField === 'reason' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden sm:table-cell"
-                          onClick={() => handleSort('device_id')}
-                        >
-                          Camera ID {sortField === 'device_id' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden md:table-cell"
-                          onClick={() => handleSort('size_bytes')}
-                        >
-                          Size {sortField === 'size_bytes' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </th>
-                        <th
-                          className="text-left py-2 px-2 cursor-pointer hover:bg-accent/50 hidden lg:table-cell"
-                          onClick={() => handleSort('timestamp')}
-                        >
-                          Timestamp {sortField === 'timestamp' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </th>
+                        </td>
+                        <td className="py-2 px-2 font-mono text-xs break-all max-w-xs">
+                          {file.filename}
+                        </td>
+                        <td className="py-2 px-2">
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                            {reasonLabels[file.reason] || file.reason}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-mono text-xs hidden sm:table-cell">
+                          {file.device_id || <span className="text-muted-foreground">-</span>}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
+                          {formatFileSize(file.size_bytes)}
+                        </td>
+                        <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden lg:table-cell">
+                          {formatTimestamp(file.timestamp)}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {sortedFiles.map((file) => (
-                        <tr
-                          key={file.filepath}
-                          onClick={(e) => handleRowClick(file, e)}
-                          className="border-b last:border-0 cursor-pointer hover:bg-accent/50 transition-colors"
-                        >
-                          <td className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={selectedFiles.has(file.filepath)}
-                              onChange={() => handleSelectFile(file.filepath)}
-                              className="cursor-pointer"
-                            />
-                          </td>
-                          <td className="py-2 px-2 font-mono text-xs break-all max-w-xs">
-                            {file.filename}
-                          </td>
-                          <td className="py-2 px-2">
-                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                              {reasonLabels[file.reason] || file.reason}
-                            </span>
-                          </td>
-                          <td className="py-2 px-2 font-mono text-xs hidden sm:table-cell">
-                            {file.device_id || <span className="text-muted-foreground">-</span>}
-                          </td>
-                          <td className="py-2 px-2 whitespace-nowrap hidden md:table-cell">
-                            {formatFileSize(file.size_bytes)}
-                          </td>
-                          <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden lg:table-cell">
-                            {formatTimestamp(file.timestamp)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </>
           )}
-
         </CardContent>
       </Card>
 
@@ -558,21 +539,28 @@ export const FileManagementPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           {isLoadingUploads ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : !uploadFilesData || uploadFilesData.total_count === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
-              No files in uploads folder. The ingestion service is up to date.
-            </p>
+            <div className="py-12 text-center">
+              <CheckCircle2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No files waiting</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                The ingestion service is up to date.
+              </p>
+            </div>
           ) : (
-            <div>
-              <div className="flex items-center gap-2 mb-3 p-2 rounded bg-amber-50 border border-amber-200">
-                <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                <p className="text-sm text-amber-800">
-                  {uploadFilesData.total_count} file{uploadFilesData.total_count !== 1 ? 's' : ''} waiting
-                  for processing. If these persist, the ingestion service may need attention.
-                </p>
+            <>
+              <div className="flex items-start gap-3 mb-6 p-3 rounded-md border border-amber-200 bg-amber-50">
+                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-900">Files waiting</p>
+                  <p className="text-amber-700 mt-0.5">
+                    {uploadFilesData.total_count} file{uploadFilesData.total_count !== 1 ? 's' : ''} waiting
+                    for processing. If these persist, the ingestion service may need attention.
+                  </p>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -600,7 +588,7 @@ export const FileManagementPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </>
           )}
         </CardContent>
       </Card>
