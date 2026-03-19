@@ -91,6 +91,28 @@ def version():
     }
 
 
+CLASSIFICATION_MODELS = {
+    "deepfaune": {
+        "name": "DeepFaune v1.4",
+        "url": "https://www.deepfaune.cnrs.fr/en/",
+        "description": "a species classification model",
+    },
+    "speciesnet": {
+        "name": "SpeciesNet v4.0.1",
+        "url": "https://github.com/google/speciesnet",
+        "description": "a species classification model",
+    },
+}
+
+
+@app.get("/api/classification-model")
+def classification_model():
+    """Get classification model display info for the About page"""
+    model_key = settings.classification_model or "deepfaune"
+    model = CLASSIFICATION_MODELS.get(model_key, CLASSIFICATION_MODELS["deepfaune"])
+    return model
+
+
 @app.get("/health")
 def health():
     return {"status": "healthy"}

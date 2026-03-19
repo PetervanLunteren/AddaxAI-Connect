@@ -15,7 +15,14 @@ export const AboutPage: React.FC = () => {
   const { data: version, isLoading } = useQuery({
     queryKey: ['version'],
     queryFn: versionApi.getVersion,
-    staleTime: Infinity, // Version doesn't change during runtime
+    staleTime: Infinity,
+  });
+
+  // Fetch classification model info
+  const { data: classificationModel } = useQuery({
+    queryKey: ['classification-model'],
+    queryFn: versionApi.getClassificationModel,
+    staleTime: Infinity,
   });
 
   return (
@@ -62,16 +69,19 @@ export const AboutPage: React.FC = () => {
                 <ExternalLink className="h-3 w-3" />
               </a>
               , a general-purpose object detection model trained on camera trap imagery, to locate animals, people, and vehicles. Detected animals are then passed to{' '}
-              <a
-                href="https://www.deepfaune.cnrs.fr/en/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                DeepFaune v1.4
-                <ExternalLink className="h-3 w-3" />
-              </a>
-              , a species classification model, to determine the specific wildlife species present in each image.
+              {classificationModel ? (
+                <a
+                  href={classificationModel.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-0.5"
+                >
+                  {classificationModel.name}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : '...'
+              }
+              , {classificationModel?.description || 'a species classification model'}, to determine the specific wildlife species present in each image.
             </p>
           </div>
 
