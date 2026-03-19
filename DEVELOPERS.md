@@ -127,12 +127,14 @@ pytest tests/ingestion/test_daily_report_parser.py -v
 pytest tests/ -m "not ml"
 ```
 
-# Git commit messages
-Do NOT add these lines to the git commit messages. there should not be any trace of Claude Code in the git history. 
-```
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+## Git commit messages
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+There should not be any trace of Claude Code in the git history. A `commit-msg` hook in `.githooks/` automatically strips Co-Authored-By and Generated-with-Claude lines at commit time, before the commit is recorded.
+
+Git does not use tracked hook directories by default. After cloning, activate the hook once:
+```bash
+git config core.hooksPath .githooks
 ```
+This is a one-time setup per clone (local machine, each VM, etc.).
 
 

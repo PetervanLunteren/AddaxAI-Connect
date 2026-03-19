@@ -1,0 +1,15 @@
+#!/bin/sh
+# Strip Claude Code co-author and generated-by lines from commit messages.
+
+MSG_FILE="$1"
+
+# Remove Co-Authored-By: Claude lines (any variant)
+sed -i.bak '/^Co-Authored-By: Claude.*/d' "$MSG_FILE"
+
+# Remove "Generated with [Claude Code]" lines (with or without emoji prefix)
+sed -i.bak '/Generated with \[Claude Code\]/d' "$MSG_FILE"
+
+# Remove trailing blank lines
+sed -i.bak -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$MSG_FILE"
+
+rm -f "${MSG_FILE}.bak"
