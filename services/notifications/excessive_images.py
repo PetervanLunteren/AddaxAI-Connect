@@ -81,7 +81,7 @@ def send_excessive_image_alerts() -> None:
         for pref, user, project, config in eligible:
             try:
                 threshold = config.get('threshold', DEFAULT_THRESHOLD)
-                to_email = pref.report_email if pref.report_email else user.email
+                to_email = user.email
 
                 if not to_email:
                     logger.warning(

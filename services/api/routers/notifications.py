@@ -29,7 +29,6 @@ class NotificationPreferenceResponse(BaseModel):
 
     # Multi-channel fields
     telegram_chat_id: Optional[str] = None
-    report_email: Optional[str] = None  # Custom email for reports (defaults to user email)
     notification_channels: Optional[Dict[str, Any]] = None
 
     class Config:
@@ -47,7 +46,6 @@ class NotificationPreferenceUpdateRequest(BaseModel):
 
     # Multi-channel fields
     telegram_chat_id: Optional[str] = None
-    report_email: Optional[str] = None  # Custom email for reports (defaults to user email)
     notification_channels: Optional[Dict[str, Any]] = None
 
 
@@ -217,8 +215,6 @@ async def update_notification_preferences(
     # Update new multi-channel fields
     if data.telegram_chat_id is not None:
         prefs.telegram_chat_id = data.telegram_chat_id
-    if data.report_email is not None:
-        prefs.report_email = data.report_email
     if data.notification_channels is not None:
         prefs.notification_channels = data.notification_channels
 

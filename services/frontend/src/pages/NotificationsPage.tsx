@@ -22,7 +22,7 @@ export const NotificationsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
   const { user } = useAuth();
-  const { selectedProject } = useProject();
+  const { selectedProject, canAdminCurrentProject } = useProject();
 
   // Telegram species state
   const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
@@ -37,6 +37,9 @@ export const NotificationsPage: React.FC = () => {
 
   // Excessive image alerts state
   const [excessiveImagesThreshold, setExcessiveImagesThreshold] = useState(0);
+
+  // Project inactivity alerts state
+  const [projectInactivityEnabled, setProjectInactivityEnabled] = useState(false);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -102,6 +105,10 @@ export const NotificationsPage: React.FC = () => {
         // Excessive image alerts configuration
         const excessiveConfig = notificationChannels.excessive_images || {};
         setExcessiveImagesThreshold(excessiveConfig.enabled ? (excessiveConfig.threshold || 50) : 0);
+
+        // Project inactivity alerts configuration
+        const inactivityConfig = notificationChannels.project_inactivity || {};
+        setProjectInactivityEnabled(inactivityConfig.enabled || false);
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
@@ -201,6 +208,9 @@ export const NotificationsPage: React.FC = () => {
       excessive_images: {
         enabled: excessiveImagesThreshold > 0,
         threshold: excessiveImagesThreshold > 0 ? excessiveImagesThreshold : 50
+      },
+      project_inactivity: {
+        enabled: projectInactivityEnabled
       }
     };
 
@@ -323,6 +333,30 @@ export const NotificationsPage: React.FC = () => {
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
               </div>
+
+              {/* Project inactivity alerts row (project admins only) */}
+              {canAdminCurrentProject && (
+                <>
+                  <div className="border-t my-6" />
+                  <div className="flex items-center gap-8">
+                    <div className="w-1/2 shrink-0">
+                      <label className="text-sm font-medium block">Project inactivity alert</label>
+                      <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 24 hours. This usually means something is wrong with the FTPS server, network, or all cameras at once.</p>
+                    </div>
+                    <div className="flex-1 relative">
+                      <select
+                        value={projectInactivityEnabled ? 'enabled' : 'disabled'}
+                        onChange={(e) => setProjectInactivityEnabled(e.target.value === 'enabled')}
+                        className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="disabled">Disabled</option>
+                        <option value="enabled">Enabled (checked daily at 06:00 UTC)</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Divider */}
               <div className="border-t my-6" />

@@ -8,6 +8,7 @@ Also runs scheduled jobs:
 - Daily battery digest at 12:00 UTC
 - Email reports: daily at 06:00 UTC, weekly on Monday, monthly on 1st
 - Excessive image alerts at 06:30 UTC
+- Project inactivity alerts at 06:00 UTC
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -21,6 +22,7 @@ from event_handlers import handle_species_detection, handle_low_battery, handle_
 from battery_digest import send_daily_battery_digest
 from email_report import send_daily_reports, send_weekly_reports, send_monthly_reports
 from excessive_images import send_excessive_image_alerts
+from project_inactivity import send_project_inactivity_alerts
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -141,11 +143,22 @@ def main() -> None:
         name='Send excessive image alerts at 06:30 UTC'
     )
 
+    # Project inactivity alerts - daily at 06:00 UTC
+    scheduler.add_job(
+        send_project_inactivity_alerts,
+        'cron',
+        hour=6,
+        minute=0,
+        id='project_inactivity_alerts',
+        name='Send project inactivity alerts at 06:00 UTC'
+    )
+
     scheduler.start()
 
     logger.info("Scheduled daily battery digest at 12:00 UTC")
     logger.info("Scheduled email reports: daily 06:00, weekly Monday 06:00, monthly 1st 06:00 UTC")
     logger.info("Scheduled excessive image alerts at 06:30 UTC")
+    logger.info("Scheduled project inactivity alerts at 06:00 UTC")
 
     # Listen to notification events queue
     queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)

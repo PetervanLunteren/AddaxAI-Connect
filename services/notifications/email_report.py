@@ -163,8 +163,7 @@ def _send_reports_for_frequency(
 
         for pref, user, project, email_config in eligible_prefs:
             try:
-                # Determine recipient email
-                to_email = pref.report_email if pref.report_email else user.email
+                to_email = user.email
 
                 if not to_email:
                     logger.warning(
