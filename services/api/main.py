@@ -99,7 +99,7 @@ CLASSIFICATION_MODELS = {
     },
     "speciesnet": {
         "name": "SpeciesNet v4.0.1",
-        "url": "https://github.com/google/speciesnet",
+        "url": "https://github.com/google/cameratrapai",
         "description": "a species classification model",
     },
 }
