@@ -1,6 +1,6 @@
 {% extends "base_email.html" %}
 
-{% block title %}{{ project_name }} - No images received in 24 hours{% endblock %}
+{% block title %}{{ project_name }} - No images received in 48 hours{% endblock %}
 
 {% block header_content %}
 <h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
@@ -14,7 +14,7 @@
     <tr>
         <td align="center" style="padding: 10px;">
             <p style="font-size: 36px; font-weight: 700; color: #882000; line-height: 1.2; margin: 0;">0</p>
-            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">images received in the last 24 hours</p>
+            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">images received in the last 48 hours</p>
         </td>
     </tr>
 </table>

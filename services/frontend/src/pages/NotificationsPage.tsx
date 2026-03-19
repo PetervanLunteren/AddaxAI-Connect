@@ -341,7 +341,7 @@ export const NotificationsPage: React.FC = () => {
                   <div className="flex items-center gap-8">
                     <div className="w-1/2 shrink-0">
                       <label className="text-sm font-medium block">Project inactivity alert</label>
-                      <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 24 hours. This usually means something is wrong with the FTPS server, network, or all cameras at once.</p>
+                      <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the FTPS server, network, or all cameras at once.</p>
                     </div>
                     <div className="flex-1 relative">
                       <select

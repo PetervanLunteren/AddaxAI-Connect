@@ -2,11 +2,11 @@
 Project inactivity alert — daily check.
 
 Sends an email to opted-in project admins when an entire project receives
-zero images in the last 24 hours. This usually means something is wrong
+zero images in the last 48 hours. This usually means something is wrong
 with the FTPS server, network, or all cameras at once.
 """
 from typing import Dict, Any, Optional
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text, select
 
@@ -30,13 +30,13 @@ settings = get_settings()
 def send_project_inactivity_alerts() -> None:
     """
     Scheduled job: check whether each project received at least one image
-    in the last 24 hours. Email opted-in project admins if not.
+    in the last 48 hours. Email opted-in project admins if not.
     """
     logger.info("Starting project inactivity alert check")
 
-    yesterday = date.today() - timedelta(days=1)
-    start_of_day = datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=timezone.utc)
-    end_of_day = start_of_day + timedelta(days=1)
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(hours=48)
+    window_end = now
 
     with get_sync_session() as db:
         # Query all notification preferences joined with user and project
@@ -70,7 +70,7 @@ def send_project_inactivity_alerts() -> None:
         logger.info(
             "Processing project inactivity alerts",
             user_project_count=len(eligible),
-            date=yesterday.isoformat()
+            window_start=window_start.isoformat()
         )
 
         # Cache project image counts to avoid duplicate queries
@@ -94,7 +94,7 @@ def send_project_inactivity_alerts() -> None:
                 # Check if project had any images (cached per project)
                 if project.id not in project_has_images:
                     project_has_images[project.id] = _project_received_images(
-                        db, project.id, start_of_day, end_of_day
+                        db, project.id, window_start, window_end
                     )
 
                 if project_has_images[project.id]:
@@ -106,7 +106,7 @@ def send_project_inactivity_alerts() -> None:
 
                 template_data = {
                     'project_name': project.name,
-                    'date_label': yesterday.strftime('%B %d, %Y'),
+                    'date_label': now.strftime('%B %d, %Y'),
                     'dashboard_url': dashboard_url,
                     'settings_url': settings_url,
                 }
@@ -115,15 +115,15 @@ def send_project_inactivity_alerts() -> None:
                     'project_inactivity_alert.html', **template_data
                 )
                 text_content = _generate_text_content(
-                    project.name, yesterday, dashboard_url, settings_url
+                    project.name, dashboard_url, settings_url
                 )
 
-                subject = f"{project.name} - No images received in 24 hours"
+                subject = f"{project.name} - No images received in 48 hours"
 
                 trigger_data = {
                     'project_id': project.id,
                     'project_name': project.name,
-                    'date': yesterday.isoformat(),
+                    'checked_at': now.isoformat(),
                     'generated_at': datetime.now(timezone.utc).isoformat()
                 }
 
@@ -189,7 +189,7 @@ def _get_project_inactivity_config(pref: ProjectNotificationPreference) -> Optio
 
 
 def _project_received_images(
-    db, project_id: int, start_of_day: datetime, end_of_day: datetime
+    db, project_id: int, window_start: datetime, window_end: datetime
 ) -> bool:
     """Check whether a project received at least one image in the given window."""
     result = db.execute(
@@ -199,14 +199,14 @@ def _project_received_images(
                 FROM images i
                 JOIN cameras c ON i.camera_id = c.id
                 WHERE c.project_id = :project_id
-                  AND i.uploaded_at >= :start_of_day
-                  AND i.uploaded_at < :end_of_day
+                  AND i.uploaded_at >= :window_start
+                  AND i.uploaded_at < :window_end
             )
         """),
         {
             'project_id': project_id,
-            'start_of_day': start_of_day,
-            'end_of_day': end_of_day
+            'window_start': window_start,
+            'window_end': window_end
         }
     )
     return result.scalar()
@@ -214,17 +214,15 @@ def _project_received_images(
 
 def _generate_text_content(
     project_name: str,
-    report_date: date,
     dashboard_url: str,
     settings_url: str
 ) -> str:
     """Generate plain text version of the project inactivity alert."""
     lines = [
-        f"{project_name} - No images received in 24 hours",
-        f"Date: {report_date.strftime('%B %d, %Y')}",
+        f"{project_name} - No images received in 48 hours",
         "=" * 50,
         "",
-        f"The project \"{project_name}\" did not receive any images in the last 24 hours.",
+        f"The project \"{project_name}\" did not receive any images in the last 48 hours.",
         "",
         "This may indicate a problem with the FTPS server, network connectivity,",
         "or all cameras in this project.",
