@@ -18,5 +18,6 @@
 
 ### TODO Priority 2
 - [x] VERSION TAG NOT UPDATED - Simplified to a plain VERSION file updated by GitHub Actions on tag push.
+- [ ] remove the "Claude sentences" form the git pushes. 
 - [ ] IMPROVE README - Improve the README so that it reflects a good, working repo. Make it consice, and refer to other specialised MD files if people want more info, or step-by-step instructions. 
 - [ ] SETUP GUIDE - add a full step - by - step setup guide, including screenshots, etc. This goes past the server setup, and also handles user managment, timezone settings, testing via FTPS, etc. 
