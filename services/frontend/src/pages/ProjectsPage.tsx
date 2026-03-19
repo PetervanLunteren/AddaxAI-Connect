@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Camera, AlertCircle, Plus } from 'lucide-react';
+import { Loader2, Camera, AlertCircle, Info, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
@@ -101,6 +101,17 @@ export const ProjectsPage: React.FC = () => {
               {!setupStatus.taxonomy_mapping && (
                 <><Link to="/server/speciesnet" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
               )}
+            </span>
+          </div>
+        )}
+
+        {/* Telegram not configured banner (server admins only) */}
+        {isServerAdmin && setupStatus && !setupStatus.telegram && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-center gap-2">
+            <Info className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">
+              Telegram bot is not configured. Users will not receive Telegram notifications.{' '}
+              <Link to="/server/settings" className="underline font-medium">Configure Telegram</Link>.
             </span>
           </div>
         )}

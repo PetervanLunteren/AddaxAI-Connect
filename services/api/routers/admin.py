@@ -1457,6 +1457,7 @@ class SetupStatusResponse(BaseModel):
     timezone: bool
     taxonomy_mapping: bool
     country_code: bool
+    telegram: bool
     ready: bool
 
 
@@ -1481,6 +1482,10 @@ async def get_setup_status(
 
     has_timezone = server_settings is not None and server_settings.timezone is not None
 
+    telegram_result = await db.execute(select(TelegramConfig).limit(1))
+    telegram_config = telegram_result.scalar_one_or_none()
+    has_telegram = telegram_config is not None and telegram_config.is_configured
+
     if model == "speciesnet":
         taxonomy_result = await db.execute(select(TaxonomyMapping.id).limit(1))
         has_taxonomy = taxonomy_result.scalar_one_or_none() is not None
@@ -1499,6 +1504,7 @@ async def get_setup_status(
         timezone=has_timezone,
         taxonomy_mapping=has_taxonomy,
         country_code=has_country,
+        telegram=has_telegram,
         ready=ready,
     )
 

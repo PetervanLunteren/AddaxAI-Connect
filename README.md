@@ -11,7 +11,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 - [ ] **Production** - Testing, deployment, documentation
 
 ## Repository structure
-- Ansible-based deployment with roles for security, Docker, vsftpd, nginx, SSL, and app deployment
+- Ansible-based deployment with roles for security, Docker, pure-ftpd, nginx, SSL, and app deployment
 - Docker Compose stack defining PostgreSQL, Redis, MinIO, Prometheus, Loki, and Promtail
 - Monitoring infrastructure already configured with Prometheus, Loki, and Promtail
 - FTPS server for camera trap image uploads
@@ -24,7 +24,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 - FastAPI-Users for authentication with email verification
 - SMTP for transactional emails (verification, password reset)
 - Prometheus/Loki/Promtail for monitoring and logging
-- vsftpd for FTPS uploads
+- Pure-FTPd for FTPS uploads
 - Nginx as reverse proxy
 - Docker Compose for orchestration
 
@@ -60,4 +60,3 @@ The system has three role levels:
 
 The initial server admin is created during deployment via `admin_email`.
 Other users are invited by server admins or project admins through the web interface.
-

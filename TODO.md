@@ -9,7 +9,7 @@
 - [x] make the server/settings and "SpeciesNet configuration" pages follow the same UI format as the projects settings page and notifications pages. Two col layout, title, caption left, widget on the right, one save button for all settings on the page. 
 - [x] merge the "rejected files" and "upload to FTPS" pages into one. How to call it? I dont know. What about "Ingestion" or "FTPS". What do you propose? Merge them into one, with two cards, one for the upload function (two col, just like the settings pages, title + caption on the left, upload drag/drop widget on the right), and a separate card for the "rejected files". 
 - [x] You can remove the "Delete all data" option in the server hamburger menu. We now have replaced it with a more finegrained option in the projects "curation" option. So remove the "Delete all data" option in the server hamburger menu, along with all the code and redundant files, API calls etc. No dead code. 
-- [ ] make the country and state codes required. keep it simple, KISS. rollup and geofencing are always enabled. 
+- [x] make the country and state codes required. keep it simple, KISS. rollup and geofencing are always enabled. 
 - [ ] if all looks good and there are no immediate things to edit anymore, test it from scratch for both speciesnet and deepfaune. Do some FTPS uploads, some notifcations, som CSVs, etc. Give it a full test suite manually. 
 
 
