@@ -107,6 +107,8 @@ services:
     profiles: [deepfaune, speciesnet]
     user: "${UID:-1000}:${GID:-1000}"
     command: -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./monitoring/loki-config.yml:/etc/loki/loki-config.yml:ro
       - ./data/loki:/loki
