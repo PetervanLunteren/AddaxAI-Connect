@@ -1,0 +1,29 @@
+name: Update VERSION file
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Write version from tag
+        run: echo "${GITHUB_REF_NAME}" > VERSION
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git diff --cached --quiet && exit 0
+          git commit -m "Update VERSION to ${GITHUB_REF_NAME}"
+          git push origin main

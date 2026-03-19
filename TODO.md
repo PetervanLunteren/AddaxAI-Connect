@@ -17,6 +17,6 @@
 
 
 ### TODO Priority 2
-- [ ] VERSION TAG NOT UPDATED - If I follow the steps in docs/update-guide.md, the tag in https://pwn.addaxai.com/about doesnt update.... Why? Shoudl we simplify this tag system to just an TXT file that gets written every time a release is done via github actions? That is very easy and just works always. 
+- [x] VERSION TAG NOT UPDATED - Simplified to a plain VERSION file updated by GitHub Actions on tag push.
 - [ ] IMPROVE README - Improve the README so that it reflects a good, working repo. Make it consice, and refer to other specialised MD files if people want more info, or step-by-step instructions. 
 - [ ] SETUP GUIDE - add a full step - by - step setup guide, including screenshots, etc. This goes past the server setup, and also handles user managment, timezone settings, testing via FTPS, etc. 

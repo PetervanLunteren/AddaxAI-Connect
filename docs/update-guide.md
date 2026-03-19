@@ -42,11 +42,22 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
    cd /opt/addaxai-connect && bash scripts/update-database.sh
    ```
 
-4. **Verify on production.** *(on the production server)* Check that the frontend loads, you can log in, existing images display correctly, camera list and health data are intact, and all services show as healthy on the /server/health page. Monitor the logs for a few minutes to catch any runtime errors.
+4. **Verify on production.** *(on the production server)* Check that the frontend loads, you can log in, existing images display correctly, camera list and health data are intact, and all services show as healthy on the /server/health page. Confirm the version shown on the About page matches the latest release. Monitor the logs for a few minutes to catch any runtime errors.
 
    ```
    cd /opt/addaxai-connect && docker compose logs -f --tail 50
    ```
+
+## Versioning
+
+The version shown on the About page comes from the `VERSION` file in the repo root. A GitHub Action updates this file automatically whenever you push a git tag:
+
+```
+git tag v0.3.1
+git push origin v0.3.1
+```
+
+The action writes the tag name to `VERSION` and commits it to `main`. The next time you pull and rebuild on the server, the About page will show the new version.
 
 ## Rollback
 
