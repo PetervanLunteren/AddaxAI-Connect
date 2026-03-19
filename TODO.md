@@ -17,8 +17,6 @@
 
 
 ### TODO Priority 2
-- [ ] Add a notification method that sends out emails if something weird is happening with the server, like certain serveices not working anymore, or cameras not sending any images anymore for longer than X time, etc. What would a server maintainer want to get notified about, wihtout getting false positives. perhaps a last update of more than 1 day? That means not a single daily report or a single image came in in 24 hours. That is very suspicuous and also very easy to imolement, right? I like simple KISS. We can then do that at the daily check (see other email notifications where it checks at 6 UTC). Makes sense?
-- [ ] WHAT IS LOKI? - the https://dev.addaxai.com/server/health page often shows the LOKI service as red. What does it do in this project? And is it even implemented? Investigate. 
 - [ ] VERSION TAG NOT UPDATED - If I follow the steps in docs/update-guide.md, the tag in https://pwn.addaxai.com/about doesnt update.... Why? Shoudl we simplify this tag system to just an TXT file that gets written every time a release is done via github actions? That is very easy and just works always. 
 - [ ] IMPROVE README - Improve the README so that it reflects a good, working repo. Make it consice, and refer to other specialised MD files if people want more info, or step-by-step instructions. 
 - [ ] SETUP GUIDE - add a full step - by - step setup guide, including screenshots, etc. This goes past the server setup, and also handles user managment, timezone settings, testing via FTPS, etc. 

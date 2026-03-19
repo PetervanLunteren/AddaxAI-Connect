@@ -159,8 +159,6 @@ async def get_services_health(
     services.append(await check_postgres(db))
     services.append(check_redis())
     services.append(await check_http_service("minio", "http://minio:9000/minio/health/live"))
-    services.append(await check_http_service("prometheus", "http://prometheus:9090/-/healthy"))
-    services.append(await check_http_service("loki", "http://loki:3100/ready"))
 
     # API (self)
     services.append(ServiceStatus(

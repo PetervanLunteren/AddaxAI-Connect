@@ -12,8 +12,7 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 
 ## Repository structure
 - Ansible-based deployment with roles for security, Docker, pure-ftpd, nginx, SSL, and app deployment
-- Docker Compose stack defining PostgreSQL, Redis, MinIO, Prometheus, Loki, and Promtail
-- Monitoring infrastructure already configured with Prometheus, Loki, and Promtail
+- Docker Compose stack defining PostgreSQL, Redis, and MinIO
 - FTPS server for camera trap image uploads
 - Infrastructure services (DB, queue, storage) deployed; application services (API, workers) are placeholders
 
@@ -23,7 +22,6 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 - MinIO for S3-compatible object storage
 - FastAPI-Users for authentication with email verification
 - SMTP for transactional emails (verification, password reset)
-- Prometheus/Loki/Promtail for monitoring and logging
 - Pure-FTPd for FTPS uploads
 - Nginx as reverse proxy
 - Docker Compose for orchestration
@@ -39,13 +37,12 @@ Containerized microservices platform based on [AddaxAI](https://github.com/Peter
 | Auth       | FastAPI-Users               | Email verification, password reset         |
 | Email      | SMTP                        | Port blocking possible on some providers   |
 | Frontend   | React + Vite + TypeScript   | Modern, fast dev                           |
-| Logging    | JSON + Loki + Promtail      | Structured logs, correlation IDs           |
-| Metrics    | Prometheus                  | Alerts configured, metrics not exposed yet |
+| Logging    | JSON to stdout              | Structured logs, correlation IDs           |
 | Deployment | Ansible + Docker Compose    | Single-VM Ubuntu 24.04                     |
 | SSL        | Let's Encrypt (certbot)     | Auto-renewal configured                    |
 
 ## Security
-Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO, Prometheus, Loki) accessible only within Docker network. Monitoring endpoints protected via nginx reverse proxy with HTTP basic auth.
+Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO) accessible only within Docker network.
 
 ## Getting started
 

@@ -19,8 +19,6 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   postgres: 'PostgreSQL',
   redis: 'Redis',
   minio: 'MinIO',
-  prometheus: 'Prometheus',
-  loki: 'Loki',
   api: 'API',
   frontend: 'Frontend',
   ingestion: 'Ingestion worker',

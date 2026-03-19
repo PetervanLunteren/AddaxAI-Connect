@@ -83,8 +83,8 @@ echo "======================================================================="
 echo ""
 
 # Check that sensitive ports are NOT publicly exposed
-SENSITIVE_PORTS=(5432 6379 9000 9001 9090 3100)
-PORT_NAMES=("PostgreSQL" "Redis" "MinIO-API" "MinIO-Console" "Prometheus" "Loki")
+SENSITIVE_PORTS=(5432 6379 9000 9001)
+PORT_NAMES=("PostgreSQL" "Redis" "MinIO-API" "MinIO-Console")
 
 for i in "${!SENSITIVE_PORTS[@]}"; do
     port="${SENSITIVE_PORTS[$i]}"
@@ -111,7 +111,7 @@ else
 fi
 
 # Check Docker containers
-EXPECTED_CONTAINERS=("addaxai-postgres" "addaxai-redis" "addaxai-minio" "addaxai-prometheus" "addaxai-loki")
+EXPECTED_CONTAINERS=("addaxai-postgres" "addaxai-redis" "addaxai-minio")
 
 cd {{ app_directory | default('/opt/addaxai-connect') }} 2>/dev/null || {
     warn "Application directory not found" "Check if app-deploy role has run"
@@ -181,27 +181,7 @@ fi
 
 echo ""
 echo "======================================================================="
-echo "7. MONITORING SECURITY"
-echo "======================================================================="
-echo ""
-
-# Check Prometheus port binding
-if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-prometheus" | grep -q "9090->9090"; then
-    fail "Prometheus port 9090 is mapped to host" "Remove ports section from prometheus service"
-else
-    pass "Prometheus port is not exposed on host"
-fi
-
-# Check Loki port binding
-if docker ps --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.Ports{{ '}}' }}' 2>/dev/null | grep "addaxai-loki" | grep -q "3100->3100"; then
-    fail "Loki port 3100 is mapped to host" "Remove ports section from loki service"
-else
-    pass "Loki port is not exposed on host"
-fi
-
-echo ""
-echo "======================================================================="
-echo "8. NGINX CONFIGURATION"
+echo "7. NGINX CONFIGURATION"
 echo "======================================================================="
 echo ""
 

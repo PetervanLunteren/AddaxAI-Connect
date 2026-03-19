@@ -11,30 +11,6 @@
     group: "{{ app_user | default('ubuntu') }}"
     mode: '0600'
 
-- name: Check if monitoring configs are directories (Docker created them incorrectly)
-  stat:
-    path: "{{ app_directory | default('/opt/addaxai-connect') }}/monitoring/{{ item }}"
-  register: monitoring_check
-  loop:
-    - prometheus.yml
-    - loki-config.yml
-    - promtail-config.yml
-
-- name: Stop Docker containers if monitoring configs are directories
-  command: docker compose down
-  args:
-    chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
-  become_user: "{{ app_user | default('ubuntu') }}"
-  when: monitoring_check.results | selectattr('stat.isdir', 'defined') | selectattr('stat.isdir') | list | length > 0
-  ignore_errors: true
-
-- name: Remove incorrectly created monitoring directories
-  file:
-    path: "{{ app_directory | default('/opt/addaxai-connect') }}/monitoring/{{ item.item }}"
-    state: absent
-  loop: "{{ monitoring_check.results }}"
-  when: item.stat.exists and item.stat.isdir
-
 - name: Create required directories for volumes
   file:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}/{{ item }}"
@@ -45,9 +21,6 @@
   loop:
     - data/redis
     - data/minio
-    - data/prometheus
-    - data/loki
-    - logs
 
 - name: Create postgres data directory with correct ownership
   file:
@@ -274,8 +247,6 @@
       - Redis (port 6379)
       - MinIO (ports 9000, 9001)
       - FastAPI (port 8000)
-      - Prometheus (port 9090)
-      - Loki (port 3100)
 
       Initial Server Admin Setup:
       {% if admin_email is defined and admin_email | length > 0 %}
@@ -304,4 +275,3 @@
       - Web UI: https://{{ domain_name | default(ansible_host) }}
       - API: https://{{ domain_name | default(ansible_host) }}/api
       - MinIO Console: http://{{ ansible_host }}:9001
-      - Prometheus: http://{{ ansible_host }}:9090

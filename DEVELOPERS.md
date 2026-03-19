@@ -55,12 +55,6 @@ addaxai-connect/
 │   ├── detection/
 │   └── classification/
 │
-├── monitoring/                 # Prometheus, Loki configs
-│   ├── prometheus.yml
-│   ├── prometheus-alerts.yml
-│   ├── loki-config.yml
-│   └── promtail-config.yml
-│
 ├── scripts/                    # Admin and deployment scripts
 │   ├── create_admin_invitation.py
 │   ├── populate_demo_data.py
@@ -71,7 +65,6 @@ addaxai-connect/
 │   ├── data-formats.md
 │   ├── deployment.md
 │   ├── dev-server-setup.md
-│   ├── logging.md
 │   └── update-guide.md
 │
 ├── docker-compose.yml          # All services (profiles: deepfaune, speciesnet, demo)
@@ -89,7 +82,7 @@ See [docs/deployment.md](docs/deployment.md) for deployment, server management, 
 
 ## Logging & Debugging
 
-**We use structured JSON logging with correlation IDs.** All logs flow to Loki for centralized querying.
+**We use structured JSON logging with correlation IDs.** All services write JSON to stdout, captured by Docker.
 
 **How to log in your code:**
 ```python
@@ -109,21 +102,14 @@ logger.error('API call failed', { component: 'Dashboard', status: 500 });
 
 **View logs:**
 ```bash
-# Local: Docker logs (JSON format)
 docker compose logs api --tail 50
 docker compose logs -f api  # Follow
-
-# Production: Loki at https://dev.addaxai.com/loki/
-# Query: {service="api"} | json | level="ERROR"
-# Query: {} | json | image_id="abc-123"  # Trace an image
 ```
 
 **Correlation IDs for tracing:**
 - `request_id` - Auto-generated per API request
 - `image_id` - Track one image through the entire pipeline
 - `user_id` - Track user actions
-
-**Full guide:** See [docs/logging.md](docs/logging.md) for LogQL queries, best practices, and debugging workflows.
 
 ## Running tests
 

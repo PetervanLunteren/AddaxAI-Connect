@@ -2,7 +2,7 @@
 Structured logging module for AddaxAI Connect.
 
 Provides JSON-formatted logging with support for correlation IDs (request_id, image_id)
-and context injection. Integrates with Loki for centralized log aggregation.
+and context injection. Logs are written as JSON to stdout and captured by Docker.
 
 Usage:
     from shared.logger import get_logger

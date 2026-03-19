@@ -74,7 +74,6 @@
           - API Endpoint: http://{{ ansible_host }}/api
           {% endif -%}
           - MinIO Console: http://{{ ansible_host }}:9001
-          - Prometheus: http://{{ ansible_host }}:9090
 
           Next Steps:
           1. SSH into VM: ssh {{ app_user | default('ubuntu') }}@{{ ansible_host }}

@@ -63,7 +63,7 @@ minio_password: "changeme_minio123"       # MinIO password (CHANGE THIS!)
 jwt_secret: "changeme_jwt_secret_very_long_random_string_123"  # JWT secret (CHANGE THIS!)
 
 # Monitoring & Admin Access
-monitoring_password: "changeme_monitoring123"  # Password for Prometheus/Loki/MinIO console (CHANGE THIS!)
+monitoring_password: "changeme_monitoring123"  # Password for MinIO console and admin endpoints (CHANGE THIS!)
 
 # Security Verification
 fail_on_security_issues: true             # Fail playbook if critical security issues detected (recommended: true)

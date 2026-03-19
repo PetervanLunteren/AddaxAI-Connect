@@ -1,7 +1,7 @@
 """
 Logs API endpoint for frontend logging.
 
-Allows frontend to send logs to backend for centralized logging in Loki.
+Allows frontend to send structured logs to the backend.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field, field_validator
