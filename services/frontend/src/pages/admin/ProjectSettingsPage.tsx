@@ -60,6 +60,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [showThresholdBreakdown, setShowThresholdBreakdown] = useState(false);
   const [showIndependenceBreakdown, setShowIndependenceBreakdown] = useState(false);
+  const [showEventBreakdown, setShowEventBreakdown] = useState(false);
 
   // Load values when project changes
   useEffect(() => {
@@ -255,7 +256,8 @@ export const ProjectSettingsPage: React.FC = () => {
       const eventsFallback = (obs: DetectionCountResponse): IndependenceSummaryResponse => ({
         raw_total: obs.total,
         independent_total: obs.total,
-        species: obs.species.map(s => ({ species: s.species, raw_count: s.count, independent_count: s.count })),
+        independent_event_total: obs.total,
+        species: obs.species.map(s => ({ species: s.species, raw_count: s.count, independent_count: s.count, independent_event_count: s.count })),
       });
 
       setModalData({
@@ -564,10 +566,11 @@ export const ProjectSettingsPage: React.FC = () => {
           {modalData && (
             <div className="space-y-3">
 
-              {/* Observations card */}
+              {/* Detections card */}
               <Card>
                 <CardContent className="pt-4 pb-4">
-                  <p className="text-sm font-medium">Observations</p>
+                  <p className="text-sm font-medium">Detections</p>
+                  <p className="text-xs text-muted-foreground">All detections above confidence threshold</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.observations.before.total.toLocaleString()}</code>
                     {' '}&rarr;{' '}
@@ -618,10 +621,11 @@ export const ProjectSettingsPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Independent events card */}
+              {/* Independent observations card */}
               <Card>
                 <CardContent className="pt-4 pb-4">
-                  <p className="text-sm font-medium">Independent events</p>
+                  <p className="text-sm font-medium">Independent observations</p>
+                  <p className="text-xs text-muted-foreground">Maximum individuals per event, summed across events</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.before.independent_total.toLocaleString()}</code>
                     {' '}&rarr;{' '}
@@ -646,6 +650,61 @@ export const ProjectSettingsPage: React.FC = () => {
                           {showIndependenceBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
                         </button>
                         {showIndependenceBreakdown && (
+                          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                            {changed.map((species) => {
+                              const oldCount = oldMap.get(species) ?? 0;
+                              const newCount = newMap.get(species) ?? 0;
+                              return (
+                                <div key={species} className="flex justify-between items-center text-xs text-muted-foreground">
+                                  <span>{normalizeLabel(species)}</span>
+                                  <span className="tabular-nums">
+                                    <code className="bg-muted px-1 py-0.5 rounded">{oldCount.toLocaleString()}</code> &rarr; <code className="bg-muted px-1 py-0.5 rounded">{newCount.toLocaleString()}</code>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {unchangedCount > 0 && (
+                              <p className="text-xs text-muted-foreground italic pt-1">
+                                {unchangedCount} other species unchanged
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+
+              {/* Independent events card */}
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-sm font-medium">Independent events</p>
+                  <p className="text-xs text-muted-foreground">Distinct events after independence grouping</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.before.independent_event_total.toLocaleString()}</code>
+                    {' '}&rarr;{' '}
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{modalData.events.after.independent_event_total.toLocaleString()}</code>
+                  </p>
+                  {(() => {
+                    const oldMap = new Map(modalData.events.before.species.map(s => [s.species, s.independent_event_count]));
+                    const newMap = new Map(modalData.events.after.species.map(s => [s.species, s.independent_event_count]));
+                    const allSpecies = [...new Set([...oldMap.keys(), ...newMap.keys()])];
+                    const changed = allSpecies.filter(s => (oldMap.get(s) ?? 0) !== (newMap.get(s) ?? 0));
+                    changed.sort((a, b) => (newMap.get(b) ?? 0) - (newMap.get(a) ?? 0));
+                    const unchangedCount = allSpecies.length - changed.length;
+                    if (changed.length === 0) return null;
+                    return (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowEventBreakdown(!showEventBreakdown)}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:underline"
+                        >
+                          {showEventBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          {showEventBreakdown ? 'Hide' : 'Show'} breakdown ({changed.length} species changed)
+                        </button>
+                        {showEventBreakdown && (
                           <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                             {changed.map((species) => {
                               const oldCount = oldMap.get(species) ?? 0;

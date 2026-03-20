@@ -190,6 +190,38 @@ async def get_independent_species_counts(
     return [{"species": row.species, "count": row.count} for row in result.all()]
 
 
+async def get_independent_event_counts(
+    db: AsyncSession,
+    project_ids: List[int],
+    interval_minutes: int,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    species_filter: Optional[str] = None,
+    camera_ids: Optional[List[int]] = None,
+) -> List[dict]:
+    """
+    Count distinct independent events per species.
+
+    Returns list of {species: str, count: int} sorted by count descending.
+    Unlike get_independent_species_counts (which sums MaxN across events),
+    this counts the number of distinct events.
+    """
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, camera_ids)
+    params["project_ids"] = project_ids
+    params["interval"] = interval_minutes
+
+    query = f"""
+    {cte_sql}
+    SELECT species, COUNT(*)::int as count
+    FROM events
+    GROUP BY species
+    ORDER BY count DESC
+    """
+
+    result = await db.execute(text(query), params)
+    return [{"species": row.species, "count": row.count} for row in result.all()]
+
+
 async def get_independent_hourly_activity(
     db: AsyncSession,
     project_ids: List[int],

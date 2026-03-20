@@ -493,11 +493,13 @@ export interface IndependenceSummarySpecies {
   species: string;
   raw_count: number;
   independent_count: number;
+  independent_event_count: number;
 }
 
 export interface IndependenceSummaryResponse {
   raw_total: number;
   independent_total: number;
+  independent_event_total: number;
   species: IndependenceSummarySpecies[];
 }
 

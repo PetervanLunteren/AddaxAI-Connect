@@ -24,6 +24,7 @@ from utils.preferred_counts import (
 )
 from utils.independence_filter import (
     get_independent_species_counts,
+    get_independent_event_counts,
     get_independent_hourly_activity,
     get_independent_daily_trend,
     get_independent_species_camera_matrix,
@@ -1307,11 +1308,13 @@ class IndependenceSummarySpecies(BaseModel):
     species: str
     raw_count: int
     independent_count: int
+    independent_event_count: int
 
 
 class IndependenceSummaryResponse(BaseModel):
     raw_total: int
     independent_total: int
+    independent_event_total: int
     species: List[IndependenceSummarySpecies]
 
 
@@ -1339,6 +1342,7 @@ async def get_independence_summary(
         return IndependenceSummaryResponse(
             raw_total=0,
             independent_total=0,
+            independent_event_total=0,
             species=[],
         )
 
@@ -1348,34 +1352,45 @@ async def get_independence_summary(
         project_ids=accessible_project_ids,
     )
 
-    # Get independence-filtered counts
+    # Get independence-filtered counts (sum of MaxN per event) and event counts
     indep_counts = await get_independent_species_counts(
         db=db,
         project_ids=accessible_project_ids,
         interval_minutes=interval,
     )
+    event_counts = await get_independent_event_counts(
+        db=db,
+        project_ids=accessible_project_ids,
+        interval_minutes=interval,
+    )
 
-    # Build lookup for independent counts
+    # Build lookups
     indep_lookup = {c['species']: c['count'] for c in indep_counts}
+    event_lookup = {c['species']: c['count'] for c in event_counts}
 
     # Merge: use raw species list as base (it has all species)
     species_list = []
     raw_total = 0
     indep_total = 0
+    event_total = 0
     for rc in raw_counts:
         sp = rc['species']
         raw_c = rc['count']
         indep_c = indep_lookup.get(sp, 0)
+        event_c = event_lookup.get(sp, 0)
         raw_total += raw_c
         indep_total += indep_c
+        event_total += event_c
         species_list.append(IndependenceSummarySpecies(
             species=sp,
             raw_count=raw_c,
             independent_count=indep_c,
+            independent_event_count=event_c,
         ))
 
     return IndependenceSummaryResponse(
         raw_total=raw_total,
         independent_total=indep_total,
+        independent_event_total=event_total,
         species=species_list,
     )
