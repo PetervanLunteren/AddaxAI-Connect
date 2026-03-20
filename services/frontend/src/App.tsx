@@ -28,7 +28,6 @@ import { ServerAdminManagementPage } from './pages/server/ServerAdminManagementP
 import { FileManagementPage } from './pages/server/FileManagementPage';
 import { ServerSettingsPage } from './pages/server/ServerSettingsPage';
 import { HealthPage } from './pages/server/HealthPage';
-import { SpeciesNetConfigPage } from './pages/server/SpeciesNetConfigPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
@@ -97,19 +96,6 @@ function App() {
               <Route
                 path="/server/telegram-config"
                 element={<Navigate to="/server/settings" replace />}
-              />
-              <Route
-                path="/server/speciesnet"
-                element={
-                  <ProtectedRoute>
-                    <SpeciesNetConfigPage />
-                  </ProtectedRoute>
-                }
-              />
-              {/* Redirect old taxonomy URL */}
-              <Route
-                path="/server/taxonomy"
-                element={<Navigate to="/server/speciesnet" replace />}
               />
               <Route
                 path="/server/health"

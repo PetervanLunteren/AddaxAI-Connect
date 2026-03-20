@@ -79,6 +79,7 @@ export const ProjectsPage: React.FC = () => {
               size="sm"
               onClick={() => setShowCreateModal(true)}
               disabled={setupStatus && !setupStatus.ready}
+              title={setupStatus && !setupStatus.ready ? 'Server setup incomplete. Complete the setup steps below before creating a project.' : undefined}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add project
@@ -96,10 +97,10 @@ export const ProjectsPage: React.FC = () => {
                 <><Link to="/server/settings" className="underline font-medium">Set the camera timezone</Link>. </>
               )}
               {!setupStatus.country_code && (
-                <><Link to="/server/speciesnet" className="underline font-medium">Set the country code</Link>. </>
+                <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
               )}
               {!setupStatus.taxonomy_mapping && (
-                <><Link to="/server/speciesnet" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
+                <><Link to="/server/settings" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
               )}
             </span>
           </div>
@@ -110,7 +111,7 @@ export const ProjectsPage: React.FC = () => {
           <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-center gap-2">
             <Info className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">
-              Telegram bot is not configured. Users will not receive Telegram notifications.{' '}
+              Telegram bot is not configured. This is optional, but without it no one will receive real-time notifications.{' '}
               <Link to="/server/settings" className="underline font-medium">Configure Telegram</Link>.
             </span>
           </div>
