@@ -46,7 +46,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [blurPeopleVehicles, setBlurPeopleVehicles] = useState<boolean>(currentProject?.blur_people_vehicles ?? true);
-  const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 0);
+  const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +67,7 @@ export const ProjectSettingsPage: React.FC = () => {
     if (currentProject) {
       setThreshold(currentProject.detection_threshold ?? 0.2);
       setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
-      setIndependenceInterval(currentProject.independence_interval_minutes ?? 0);
+      setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
       const included = currentProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
@@ -144,7 +144,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
   const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
-  const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 0);
+  const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
 
   // Compare pending groups against saved groups
   const hasGroupChanges = (() => {
@@ -170,7 +170,7 @@ export const ProjectSettingsPage: React.FC = () => {
 
     // Snapshot old values before saving
     const oldThreshold = currentProject.detection_threshold;
-    const oldInterval = currentProject.independence_interval_minutes ?? 0;
+    const oldInterval = currentProject.independence_interval_minutes ?? 30;
 
     try {
       // 1. Fetch "before" stats (old settings still in DB)
@@ -284,7 +284,7 @@ export const ProjectSettingsPage: React.FC = () => {
   const handleResetUnsaved = () => {
     setThreshold(currentProject.detection_threshold ?? 0.2);
     setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
-    setIndependenceInterval(currentProject.independence_interval_minutes ?? 0);
+    setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
     const included = currentProject.included_species || [];
     setIncludedSpecies(
       included.map(species => ({ label: normalizeLabel(species), value: species }))
@@ -419,7 +419,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Independence interval
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event is the maximum individuals seen in any single image. Affects all statistics retroactively.
+                Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event uses MaxN: the peak number of individuals visible in a single image within that event. This prevents double-counting across frames. Affects all statistics retroactively.
               </p>
             </div>
             <div className="flex-1 relative">
