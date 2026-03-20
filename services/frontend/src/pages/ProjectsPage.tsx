@@ -111,7 +111,7 @@ export const ProjectsPage: React.FC = () => {
           <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-center gap-2">
             <Info className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">
-              Telegram bot is not configured. This is optional, but without it no one will receive real-time notifications.{' '}
+              Telegram bot is not configured. This is optional, but without it no one will be able to sign up for real-time notifications.{' '}
               <Link to="/server/settings" className="underline font-medium">Configure Telegram</Link>.
             </span>
           </div>

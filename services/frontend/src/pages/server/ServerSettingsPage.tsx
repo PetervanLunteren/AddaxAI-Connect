@@ -110,6 +110,7 @@ export const ServerSettingsPage: React.FC = () => {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   // --- Taxonomy state ---
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showMapping, setShowMapping] = useState(false);
   const [uploadModal, setUploadModal] = useState<{
     open: boolean;
@@ -208,19 +209,22 @@ export const ServerSettingsPage: React.FC = () => {
     },
   });
 
-  const handleUpload = useCallback((file: File) => {
-    setUploadModal({ open: true, status: 'uploading' });
-    uploadMutation.mutate(file);
-  }, [uploadMutation]);
-
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
-        handleUpload(acceptedFiles[0]);
+        setPendingFile(acceptedFiles[0]);
       }
     },
-    [handleUpload]
+    []
   );
+
+  const handleUploadPending = () => {
+    if (!pendingFile) return;
+    setUploadModal({ open: true, status: 'uploading' });
+    uploadMutation.mutate(pendingFile, {
+      onSettled: () => setPendingFile(null),
+    });
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -437,7 +441,7 @@ export const ServerSettingsPage: React.FC = () => {
             <>
               <div className="border-t my-6" />
               <div className="flex justify-end">
-                <p className="text-sm text-green-600">Timezone saved</p>
+                <p className="text-sm text-[#0f6064]">Timezone saved</p>
               </div>
             </>
           )}
@@ -447,10 +451,8 @@ export const ServerSettingsPage: React.FC = () => {
       {/* SpeciesNet settings (conditional) */}
       {isSpeciesNet && (
         <>
-          <h3 className="text-lg font-semibold mt-8 mb-4">SpeciesNet settings</h3>
-
           {/* Geofencing card */}
-          <Card className="mb-6">
+          <Card className="mt-6 mb-6">
             <CardContent className="pt-6">
               {/* Country */}
               <div className="flex items-center gap-8">
@@ -538,7 +540,7 @@ export const ServerSettingsPage: React.FC = () => {
                 <>
                   <div className="border-t my-6" />
                   <div className="flex justify-end">
-                    <p className="text-sm text-green-600">Geofencing settings saved</p>
+                    <p className="text-sm text-[#0f6064]">Geofencing settings saved</p>
                   </div>
                 </>
               )}
@@ -552,7 +554,7 @@ export const ServerSettingsPage: React.FC = () => {
                 <div className="w-1/2 shrink-0">
                   <label className="text-sm font-medium block">Taxonomy mapping</label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Uploading a new file replaces the existing mapping and automatically reprocesses unverified classifications.
+                    Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Saving a new file replaces the existing mapping and reprocesses unverified classifications.
                   </p>
                   {entries.length > 0 && (
                     <button
@@ -574,14 +576,32 @@ export const ServerSettingsPage: React.FC = () => {
                     className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
                       isDragActive
                         ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50 hover:bg-accent/50'
+                        : pendingFile
+                          ? 'border-primary/50 bg-accent/30'
+                          : 'border-border hover:border-primary/50 hover:bg-accent/50'
                     }`}
                   >
                     <input {...getInputProps()} />
                     <div className="flex flex-col items-center space-y-2">
                       <FileSpreadsheet className="h-6 w-6 text-muted-foreground" />
                       <p className="text-sm font-medium">
-                        {isDragActive ? 'Drop CSV here...' : 'Drop CSV here, or click to select'}
+                        {isDragActive
+                          ? 'Drop CSV here...'
+                          : pendingFile
+                            ? (
+                              <span className="inline-flex items-center gap-1">
+                                {pendingFile.name}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setPendingFile(null); }}
+                                  className="p-0.5 hover:bg-accent rounded"
+                                  title="Remove file"
+                                >
+                                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              </span>
+                            )
+                            : 'Drop CSV here, or click to select'}
                       </p>
                     </div>
                   </div>
@@ -610,6 +630,19 @@ export const ServerSettingsPage: React.FC = () => {
                     </table>
                   </div>
                 </div>
+              )}
+
+              {/* Save button */}
+              {pendingFile && (
+                <>
+                  <div className="border-t my-6" />
+                  <div className="flex justify-end">
+                    <Button onClick={handleUploadPending}>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save and reprocess
+                    </Button>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
