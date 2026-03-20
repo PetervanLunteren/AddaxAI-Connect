@@ -419,7 +419,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Independence interval
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event uses MaxN: the peak number of individuals visible in a single image within that event. This prevents double-counting across frames. Affects all statistics retroactively.
+                Consecutive detections of the same species at the same camera within this window are merged into one independent event. The count for each event is based on MaxN, the peak number of individuals visible in a single image within that event. This prevents double-counting across frames. Affects all statistics retroactively.
               </p>
             </div>
             <div className="flex-1 relative">

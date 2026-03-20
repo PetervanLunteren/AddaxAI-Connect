@@ -220,7 +220,7 @@ export const Dashboard: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
-          <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends. Observation counts use MaxN: the peak number of individuals per species visible in a single image within each event, summed across all events.</p>
+          <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends. Observation counts are based on MaxN, the peak number of individuals per species visible in a single image within each event, summed across all events.</p>
         </div>
         <DashboardFilters
           tags={selectedTags}
