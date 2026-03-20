@@ -198,8 +198,8 @@ export const NotificationsPage: React.FC = () => {
         enabled: isTelegramLinked,
         channels: channels,
         notify_species: isTelegramLinked
-          ? (telegramNotifySpecies.length > 0 ? telegramNotifySpecies.map(opt => opt.value) : null)
-          : null
+          ? telegramNotifySpecies.map(opt => opt.value)
+          : []
       },
       email_report: {
         enabled: reportFrequency !== 'disabled',
@@ -218,7 +218,7 @@ export const NotificationsPage: React.FC = () => {
       // Legacy fields (for backward compatibility)
       enabled: isTelegramLinked,
       telegram_chat_id: isTelegramLinked ? (linkStatus?.chat_id || null) : null,
-      notify_species: legacySpeciesValues.length > 0 ? legacySpeciesValues : null,
+      notify_species: legacySpeciesValues,
       notify_low_battery: false,
       battery_threshold: 30,
       notify_system_health: false,
@@ -230,7 +230,7 @@ export const NotificationsPage: React.FC = () => {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-0">Notifications</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">Configure alerts for species detections and system events</p>
+      <p className="text-sm text-gray-600 mt-1 mb-6">Configure alerts for species detections and system events. These settings apply to your account only.</p>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -248,7 +248,7 @@ export const NotificationsPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked ? (
                       <>
-                        {'Receive an instant Telegram message with a photo each time a species is detected. Leave empty to get alerts for all species. '}
+                        {'Receive an instant Telegram message with a photo each time a selected species is detected. '}
                         {unlinkMutation.isPending ? (
                           <span className="inline-flex items-center gap-1">
                             <Loader2 className="h-3 w-3 animate-spin inline" />
@@ -341,7 +341,7 @@ export const NotificationsPage: React.FC = () => {
                   <div className="flex items-center gap-8">
                     <div className="w-1/2 shrink-0">
                       <label className="text-sm font-medium block">Project inactivity alert</label>
-                      <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the FTPS server, network, or all cameras at once.</p>
+                      <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the server or network.</p>
                     </div>
                     <div className="flex-1 relative">
                       <select

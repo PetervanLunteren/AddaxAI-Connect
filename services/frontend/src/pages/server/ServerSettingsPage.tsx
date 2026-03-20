@@ -380,23 +380,18 @@ export const ServerSettingsPage: React.FC = () => {
               {telegramLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               ) : isTelegramConfigured ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-[#0f6064]" />
-                    <span className="text-[#0f6064]">Configured</span>
-                  </div>
-                  <button
-                    onClick={handleUnconfigure}
-                    disabled={unconfigureMutation.isPending}
-                    className="text-sm text-destructive hover:underline inline-flex items-center gap-1"
-                  >
-                    {unconfigureMutation.isPending ? (
-                      <><Loader2 className="h-3 w-3 animate-spin" /> Removing...</>
-                    ) : (
-                      <><Trash2 className="h-3 w-3" /> Remove bot</>
-                    )}
-                  </button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUnconfigure}
+                  disabled={unconfigureMutation.isPending}
+                >
+                  {unconfigureMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Removing...</>
+                  ) : (
+                    'Remove bot'
+                  )}
+                </Button>
               ) : (
                 <Button
                   variant="outline"

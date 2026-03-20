@@ -20,6 +20,6 @@ COPY services/classification-deepfaune/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy service code
-COPY services/classification .
+COPY services/classification-deepfaune .
 
 CMD ["python", "worker.py"]

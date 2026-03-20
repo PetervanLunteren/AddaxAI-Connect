@@ -167,9 +167,9 @@ def _evaluate_json_preferences(
         if not species:
             return None
 
-        # Check notify_species: null = all, or list contains species
+        # Check notify_species: must be a non-empty list containing the species
         notify_species = type_config.get('notify_species')
-        if notify_species is not None and species not in notify_species:
+        if not notify_species or species not in notify_species:
             return None
 
         # Check detection confidence vs project threshold
