@@ -372,30 +372,30 @@ export const ServerSettingsPage: React.FC = () => {
               <label className="text-sm font-medium block">Telegram notifications</label>
               <p className="text-sm text-muted-foreground mt-1">
                 {isTelegramConfigured && telegramConfig
-                  ? <>Bot <span className="font-medium text-foreground">@{telegramConfig.bot_username}</span> is active. Users can configure Telegram notifications in their project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
+                  ? <>Bot <code className="text-xs bg-muted px-1 py-0.5 rounded">@{telegramConfig.bot_username}</code> is active. Users can configure Telegram notifications in their project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
                   : 'Configure a Telegram bot to enable instant notifications.'}
               </p>
-              {isTelegramConfigured ? (
-                <button
-                  onClick={handleUnconfigure}
-                  disabled={unconfigureMutation.isPending}
-                  className="text-sm text-destructive hover:underline mt-2 inline-flex items-center gap-1"
-                >
-                  {unconfigureMutation.isPending ? (
-                    <><Loader2 className="h-3 w-3 animate-spin" /> Removing...</>
-                  ) : (
-                    <><Trash2 className="h-3 w-3" /> Remove bot</>
-                  )}
-                </button>
-              ) : null}
             </div>
             <div className="flex-1">
               {telegramLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               ) : isTelegramConfigured ? (
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                  <span className="text-green-600">Configured</span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="h-4 w-4 text-[#0f6064]" />
+                    <span className="text-[#0f6064]">Configured</span>
+                  </div>
+                  <button
+                    onClick={handleUnconfigure}
+                    disabled={unconfigureMutation.isPending}
+                    className="text-sm text-destructive hover:underline inline-flex items-center gap-1"
+                  >
+                    {unconfigureMutation.isPending ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> Removing...</>
+                    ) : (
+                      <><Trash2 className="h-3 w-3" /> Remove bot</>
+                    )}
+                  </button>
                 </div>
               ) : (
                 <Button
@@ -727,6 +727,7 @@ export const ServerSettingsPage: React.FC = () => {
                             AddaxAI Connect
                             <CopyButton text="AddaxAI Connect" id="copy-botname" />
                           </code>
+                          {' '}(use this exact name)
                         </li>
                         <li>
                           Choose username{' '}
@@ -734,6 +735,7 @@ export const ServerSettingsPage: React.FC = () => {
                             {botUsername}
                             <CopyButton text={botUsername} id="copy-username" />
                           </code>
+                          {' '}(use this exact username, you can change it later via @BotFather)
                         </li>
                         <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrs-TUVwxyz_A1</em>)</li>
                       </ol>
