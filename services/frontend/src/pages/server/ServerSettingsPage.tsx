@@ -919,14 +919,18 @@ export const ServerSettingsPage: React.FC = () => {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 pt-4 overflow-y-auto">
+            <div className="px-6 pt-4">
               <table className="w-full text-sm">
-                <thead className="bg-muted sticky top-0">
+                <thead className="bg-muted">
                   <tr>
                     <th className="text-left px-4 py-2">Latin</th>
                     <th className="text-left px-4 py-2">Common name</th>
                   </tr>
                 </thead>
+              </table>
+            </div>
+            <div className="px-6 pb-6 overflow-y-auto">
+              <table className="w-full text-sm">
                 <tbody>
                   {entries.map((entry) => (
                     <tr key={entry.id} className="border-t">
