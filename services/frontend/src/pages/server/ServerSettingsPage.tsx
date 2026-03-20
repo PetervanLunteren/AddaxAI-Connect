@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save, FileSpreadsheet, ChevronRight, ChevronDown } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
@@ -97,6 +97,7 @@ export const ServerSettingsPage: React.FC = () => {
   const [tzError, setTzError] = useState<string | null>(null);
 
   // --- Telegram state ---
+  const [showProfilePicModal, setShowProfilePicModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [botToken, setBotToken] = useState('');
   const [botUsername, setBotUsername] = useState(generateBotUsername());
@@ -199,6 +200,9 @@ export const ServerSettingsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['taxonomy-mapping'] });
       queryClient.invalidateQueries({ queryKey: ['available-species'] });
       queryClient.invalidateQueries({ queryKey: ['setup-status'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['species'] });
+      setTimeout(() => setUploadModal({ open: false, status: 'uploading' }), 3000);
     },
     onError: (error: any) => {
       setUploadModal({
@@ -368,7 +372,7 @@ export const ServerSettingsPage: React.FC = () => {
               <label className="text-sm font-medium block">Telegram notifications</label>
               <p className="text-sm text-muted-foreground mt-1">
                 {isTelegramConfigured && telegramConfig
-                  ? <>Bot <span className="font-medium text-foreground">@{telegramConfig.bot_username}</span> is active. Users can configure Telegram notifications in their project settings.</>
+                  ? <>Bot <span className="font-medium text-foreground">@{telegramConfig.bot_username}</span> is active. Users can configure Telegram notifications in their project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
                   : 'Configure a Telegram bot to enable instant notifications.'}
               </p>
               {isTelegramConfigured ? (
@@ -555,20 +559,10 @@ export const ServerSettingsPage: React.FC = () => {
                   <label className="text-sm font-medium block">Taxonomy mapping</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Saving a new file replaces the existing mapping and reprocesses unverified classifications.
+                    {entries.length > 0 && (
+                      <>{' '}<button onClick={() => setShowMapping(true)} className="text-primary hover:underline">View current mapping ({entries.length} labels)</button>.</>
+                    )}
                   </p>
-                  {entries.length > 0 && (
-                    <button
-                      onClick={() => setShowMapping(!showMapping)}
-                      className="flex items-center gap-1 mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showMapping ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                      View current mapping ({entries.length} labels)
-                    </button>
-                  )}
                 </div>
                 <div className="flex-1">
                   <div
@@ -608,29 +602,6 @@ export const ServerSettingsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Collapsible mapping table */}
-              {showMapping && entries.length > 0 && (
-                <div className="mt-4 border rounded-lg overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="text-left px-4 py-2">Latin</th>
-                          <th className="text-left px-4 py-2">Common name</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {entries.map((entry) => (
-                          <tr key={entry.id} className="border-t">
-                            <td className="px-4 py-2 font-mono text-xs">{entry.latin}</td>
-                            <td className="px-4 py-2">{entry.common}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
 
               {/* Save button */}
               {pendingFile && (
@@ -788,43 +759,6 @@ export const ServerSettingsPage: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Profile Picture Instructions */}
-                <div className="bg-muted border border-border p-4 rounded-md">
-                  <div className="flex gap-2">
-                    <AlertCircle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-muted-foreground space-y-2">
-                      <p>
-                        <strong>Optional: Add a profile picture</strong>
-                      </p>
-                      <ol className="list-decimal list-inside space-y-1">
-                        <li>
-                          Download the{' '}
-                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
-                            logo
-                            <DownloadButton fileName="addaxai-logo.png" />
-                          </code>
-                        </li>
-                        <li>
-                          Open{' '}
-                          <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
-                            @BotFather
-                            <CopyButton text="@BotFather" id="copy-botfather-pic" />
-                          </code>
-                          {' '}in Telegram
-                        </li>
-                        <li>
-                          Click{' '}
-                          <code className="px-1.5 py-0.5 bg-background rounded">
-                            Open
-                          </code>
-                          {' '}next to the message input
-                        </li>
-                        <li>Select your bot → Edit info → Set New Photo</li>
-                      </ol>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
@@ -918,6 +852,90 @@ export const ServerSettingsPage: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Picture Modal */}
+      {showProfilePicModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Add a profile picture</h2>
+                <button
+                  onClick={() => setShowProfilePicModal(false)}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                <li>
+                  Download the{' '}
+                  <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
+                    logo
+                    <DownloadButton fileName="addaxai-logo.png" />
+                  </code>
+                </li>
+                <li>
+                  Open{' '}
+                  <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
+                    @BotFather
+                    <CopyButton text="@BotFather" id="copy-botfather-pic" />
+                  </code>
+                  {' '}in Telegram
+                </li>
+                <li>
+                  Click{' '}
+                  <code className="px-1.5 py-0.5 bg-muted rounded">
+                    Open
+                  </code>
+                  {' '}next to the message input
+                </li>
+                <li>Select your bot, then Edit info, then Set New Photo</li>
+              </ol>
+              <div className="flex justify-end mt-6">
+                <Button variant="outline" onClick={() => setShowProfilePicModal(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Taxonomy Mapping Modal */}
+      {showMapping && entries.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+            <div className="p-6 pb-0 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Taxonomy mapping ({entries.length} labels)</h2>
+              <button
+                onClick={() => setShowMapping(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 pt-4 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    <th className="text-left px-4 py-2">Latin</th>
+                    <th className="text-left px-4 py-2">Common name</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => (
+                    <tr key={entry.id} className="border-t">
+                      <td className="px-4 py-2 font-mono text-xs">{entry.latin}</td>
+                      <td className="px-4 py-2">{entry.common}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
