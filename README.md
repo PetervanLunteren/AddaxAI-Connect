@@ -1,3 +1,27 @@
+<p align="center">
+  <img src="https://github.com/PetervanLunteren/EcoAssist-metadata/blob/main/AddaxAI-logo/logo_incl_text_bottom.png" width="40%" />
+</p>
+<h1 align="center">Connect</h1>
+
+<br>
+
+<div align="center">
+  
+[![status](https://joss.theoj.org/papers/dabe3753aae2692d9908166a7ce80e6e/status.svg)](https://joss.theoj.org/papers/dabe3753aae2692d9908166a7ce80e6e)
+[![Project Status: Active The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+![GitHub](https://img.shields.io/github/license/PetervanLunteren/AddaxAI-Connect)
+
+</div>
+
+<div align="center">
+  
+![GitHub last commit](https://img.shields.io/github/last-commit/PetervanLunteren/AddaxAI-Connect)
+![GitHub release](https://img.shields.io/github/v/release/PetervanLunteren/AddaxAI-Connect)
+
+</div>
+
+
+
 # AddaxAI Connect
 Containerized microservices platform based on [AddaxAI](https://github.com/PetervanLunteren/addaxai) that processes camera trap images through machine learning models and presents results via web interface. The system automatically ingests images from remote camera traps via FTPS, runs object detection and species classification, and provides real-time updates to users.
 
