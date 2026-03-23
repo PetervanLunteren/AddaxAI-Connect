@@ -28,6 +28,8 @@ A collaboration between [Addax Data Science](https://addaxdatascience.com) and [
 
 ## What it looks like
 
+See a working demo here: https://demo.addaxai.com/login
+
 | ![Gallery view](docs/images/screenshot-gallery.png) | ![Map view](docs/images/screenshot-map.png) |
 |:---:|:---:|
 | Browse and filter your images | See where your cameras are |
@@ -43,7 +45,7 @@ Your camera uploads an image via FTPS. From there, AddaxAI Connect handles the p
 1. **Ingestion** validates the file, reads GPS and timestamp from the metadata, stores it
 2. **Detection** with [MegaDetector v1000 Redwood](https://github.com/agentmorris/MegaDetector) finds animals, people, and vehicles
 3. **Classification** identifies the species using [DeepFaune](https://www.deepfaune.cnrs.fr/) or [SpeciesNet](https://github.com/google/speciesnet). Need another model? [Open an issue!](https://github.com/PetervanLunteren/AddaxAI-Connect/issues)
-4. **Notifications** via email and Telegram: instant alerts, daily/weekly/monthly reports, battery warnings, system errors, etc
+4. **Notifications** via email and Telegram: instant alerts, daily/weekly/monthly reports, battery warnings, etc
 5. **Web interface** lets you browse results, view them on a map, check stats, and export data
 
 Each step runs as its own Docker service. They pass messages through Redis queues, store images in MinIO, and share a PostgreSQL database. It supports multiple projects with role-based access control, so different teams can work from the same server. For the full breakdown, see its [architecture](docs/architecture.md).

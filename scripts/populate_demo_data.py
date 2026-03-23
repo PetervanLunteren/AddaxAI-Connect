@@ -718,7 +718,7 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             continue
 
         battery = rng.uniform(85, 90)
-        sd_remaining = rng.uniform(93, 98)
+        sd_used = rng.uniform(2, 7)
         total_images = 0
         sent_images = 0
         # Per-camera signal baseline
@@ -752,15 +752,15 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             signal = signal_base + rng.randint(-3, 3)
             signal = max(5, min(31, signal))
 
-            # SD utilization: track "% space remaining" (frontend shows 100 - this as "used")
-            # Target: 5-10% used → store 90-95% remaining
+            # SD utilization: track "% used"
+            # Target: 3-7% used, occasional card swap resets to near-zero
             daily_imgs = rng.randint(0, 3)
             total_images += daily_imgs
             sent_images += max(0, daily_imgs - rng.randint(0, 1))
-            sd_remaining -= daily_imgs * 0.003        # Each image uses ~0.3% of space
-            if sd_remaining < 85 or rng.random() < 0.03:
-                sd_remaining = rng.uniform(93, 98)    # Card swap → near-empty card
-            sd_remaining = max(sd_remaining, 80.0)    # Floor at 80% remaining (= 20% used)
+            sd_used += daily_imgs * 0.003             # Each image uses ~0.3% of space
+            if sd_used > 15 or rng.random() < 0.03:
+                sd_used = rng.uniform(2, 7)           # Card swap → near-empty card
+            sd_used = min(sd_used, 20.0)              # Cap at 20% used
 
             reports.append({
                 "id": report_id,
@@ -769,7 +769,7 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
                 "battery_percent": max(0, min(100, int(battery))),
                 "signal_quality": signal,
                 "temperature_c": int(round(temp)),
-                "sd_utilization_percent": round(sd_remaining, 1),
+                "sd_utilization_percent": round(sd_used, 1),
                 "total_images": total_images,
                 "sent_images": min(sent_images, total_images),
             })
