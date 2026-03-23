@@ -6,7 +6,7 @@
 <br>
 
 <div align="center">
-  
+
 [![status](https://joss.theoj.org/papers/dabe3753aae2692d9908166a7ce80e6e/status.svg)](https://joss.theoj.org/papers/dabe3753aae2692d9908166a7ce80e6e)
 [![Project Status: Active The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 ![GitHub](https://img.shields.io/github/license/PetervanLunteren/AddaxAI-Connect)
@@ -14,70 +14,71 @@
 </div>
 
 <div align="center">
-  
+
 ![GitHub last commit](https://img.shields.io/github/last-commit/PetervanLunteren/AddaxAI-Connect)
 ![GitHub release](https://img.shields.io/github/v/release/PetervanLunteren/AddaxAI-Connect)
 
 </div>
 
+<br>
 
+Your camera traps take the photos. Connect does the rest.
 
-# AddaxAI Connect
-Containerized microservices platform based on [AddaxAI](https://github.com/PetervanLunteren/addaxai) that processes camera trap images through machine learning models and presents results via web interface. The system automatically ingests images from remote camera traps via FTPS, runs object detection and species classification, and provides real-time updates to users.
+**AddaxAI Connect** is an open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications. Deploy it on a single server, point your cameras at it, and go do something more fun than manually sorting thousands of photos of empty bushes.
 
-**A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org)**
+A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
 
-## Roadmap
-- [x] **Infrastructure** - Ansible automation, Docker configs, security hardening
-- [x] **Database setup** - SQLAlchemy models, Alembic migrations, PostGIS integration
-- [x] **ML Pipeline** - Ingestion, detection, classification workers
-- [x] **Web App** - FastAPI backend + React frontend
-- [ ] **Production** - Testing, deployment, documentation
+## What it looks like
 
-## Repository structure
-- Ansible-based deployment with roles for security, Docker, pure-ftpd, nginx, SSL, and app deployment
-- Docker Compose stack defining PostgreSQL, Redis, and MinIO
-- FTPS server for camera trap image uploads
-- Infrastructure services (DB, queue, storage) deployed; application services (API, workers) are placeholders
+<!-- Add screenshots to docs/images/ and update the paths below -->
 
-## Key technologies
-- PostgreSQL with PostGIS for spatial data
-- Redis for message queuing
-- MinIO for S3-compatible object storage
-- FastAPI-Users for authentication with email verification
-- SMTP for transactional emails (verification, password reset)
-- Pure-FTPd for FTPS uploads
-- Nginx as reverse proxy
-- Docker Compose for orchestration
+| ![Gallery view](docs/images/screenshot-gallery.png) | ![Map view](docs/images/screenshot-map.png) |
+|:---:|:---:|
+| Browse and filter your images | See where your cameras are |
 
-## Technology choices
+| ![Image detail](docs/images/screenshot-detail.png) | ![Dashboard](docs/images/screenshot-dashboard.png) |
+|:---:|:---:|
+| Detections with bounding boxes | Stats at a glance |
 
-| Component  | Tech                        | Notes                                      |
-|------------|-----------------------------|--------------------------------------------|
-| Queue      | Redis                       | FIFO lists with BRPOP, simple pub/sub      |
-| Storage    | MinIO                       | S3-compatible, self-hosted                 |
-| DB         | PostgreSQL 15 + PostGIS 3.3 | Spatial queries for GPS data               |
-| API        | FastAPI                     | Async, auto docs, FastAPI-Users            |
-| Auth       | FastAPI-Users               | Email verification, password reset         |
-| Email      | SMTP                        | Port blocking possible on some providers   |
-| Frontend   | React + Vite + TypeScript   | Modern, fast dev                           |
-| Logging    | JSON to stdout              | Structured logs, correlation IDs           |
-| Deployment | Ansible + Docker Compose    | Single-VM Ubuntu 24.04                     |
-| SSL        | Let's Encrypt (certbot)     | Auto-renewal configured                    |
+## How it works
 
-## Security
-Multi-layered security with UFW firewall, TLS/SSL encryption, password authentication on all services, and network isolation. Sensitive services (PostgreSQL, Redis, MinIO) accessible only within Docker network.
+Your camera uploads an image via FTPS. From there, Connect handles the pipeline automatically:
+
+1. **Ingestion** validates the file, reads GPS and timestamp from the metadata, stores it
+2. **Detection** with [MegaDetector](https://github.com/PetervanLunteren/MegaDetector) finds animals, people, and vehicles
+3. **Classification** identifies the species using [DeepFaune](https://www.deepfaune.cnrs.fr/) or [SpeciesNet](https://github.com/google/speciesnet)
+4. **Notifications** sends you an email, Telegram message, or adds it to your report
+5. **Web interface** lets you browse results, view them on a map, check stats, and export data
+
+Each step runs as its own Docker service. They pass messages through Redis queues, store images in MinIO, and share a PostgreSQL database. For the full breakdown, see [architecture](docs/architecture.md).
+
+## Features
+
+- **Automatic processing** from camera to classified result without lifting a finger
+- **Two classification models** to choose from: DeepFaune (38 European species) or SpeciesNet (2,498 species worldwide)
+- **Web interface** with image gallery, filters, interactive map, and statistics dashboard
+- **Notifications** via email and Telegram: instant alerts, daily/weekly/monthly reports, battery warnings
+- **Multi-project support** for managing separate camera trap projects from one server
+- **User roles** with server admins, project admins, and viewers, each with per-project access control
+- **Fully self-hosted** on a single Ubuntu server. Your data stays yours.
 
 ## Getting started
 
-See [docs/deployment.md](docs/deployment.md) for the full setup guide.
+You need an Ubuntu server (24.04, 8 GB RAM minimum), a domain name, and about 30 minutes. Deployment is automated with Ansible: fill in a config file, run one command, and it handles the rest.
 
-## User roles
+**[Deployment guide](docs/deployment.md)**
 
-The system has three role levels:
-- **Server admin** - Full access to all projects and system settings
-- **Project admin** - Can manage specific projects (cameras, species, users)
-- **Project viewer** - Read-only access to specific projects
+## Documentation
 
-The initial server admin is created during deployment via `admin_email`.
-Other users are invited by server admins or project admins through the web interface.
+| Document | Description |
+|---|---|
+| [Deployment guide](docs/deployment.md) | Step-by-step server setup and configuration |
+| [Update guide](docs/update-guide.md) | Safely updating a running server |
+| [Architecture](docs/architecture.md) | Technology stack, data flow, and security model |
+| [Developer docs](DEVELOPERS.md) | Repo structure, logging, tests, and conventions |
+| [Data formats](docs/data-formats.md) | EXIF metadata, daily reports, and file naming |
+| [Conventions](CONVENTIONS.md) | Code style and repo guidelines |
+
+## License
+
+[MIT](LICENSE)
