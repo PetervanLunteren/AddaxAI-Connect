@@ -116,11 +116,10 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
     ```
 
-   [add screenshot]
+   <img width="788" height="646" alt="Screenshot 2026-03-23 at 13 39 14" src="https://github.com/user-attachments/assets/a23784ff-af28-418f-90fb-b1834d0f5d92" />
+
 
 9. **Create a DNS record**
-
-   [add screenshot]
    
    When the playbook pauses, go to your DNS provider and add an `A` record pointing your domain to your server's IP address.
 
@@ -136,13 +135,13 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
    When this returns your server's IP, you're good. The playbook will wait for you to press ENTER before continuing. After that, wait for the playbook to finish building and deploying all services before moving on.
 
-   [add screenshot]
+   <img width="788" height="646" alt="Screenshot 2026-03-23 at 13 46 04" src="https://github.com/user-attachments/assets/f8e96c86-c28c-40dd-8dbb-0c1874a1083d" />
 
-10. **Register your admin account**
+11. **Register your admin account**
 
     A registration link will be sent to your `admin_email`. Click it to create your account and set your password. The link expires after 7 days and can only be used once. Check your spam folder if you don't see it.
 
-11. Now you can login if all went well! 
+12. Now you can login if all went well! 
 
 [add screenshots] 
 
