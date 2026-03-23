@@ -140,13 +140,13 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     This can take 30-60 minutes the first time since it builds all Docker images on the server. Good time to go outside and do some bird watching. When you see lots of green texts, checkmarks and `failed=0`, the server is deployed.
 
-    [add screenshot of finished terminal screen]
+    <img width="788" height="646" alt="Screenshot 2026-03-23 at 14 36 48" src="https://github.com/user-attachments/assets/5454f891-8358-4deb-a77e-2f9411dbb897" />
 
 11. **Register your admin account**
 
     A registration link will be sent to your `admin_email`. Click it to create your account and set your password. The link expires after 7 days and can only be used once. Check your spam folder if you don't see it.
 
-   [add screenshot of register page]
+   <img width="1624" height="966" alt="Screenshot 2026-03-23 at 14 40 11" src="https://github.com/user-attachments/assets/31408f95-ccd2-4bb4-a6c7-470a2696ca0d" />
 
 12. **Configure server settings**
 
@@ -154,7 +154,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     If you're using SpeciesNet, you'll also need to upload a taxonomy mapping CSV. This maps SpeciesNet's output labels to the species names you want to see in the interface. See [speciesnet-taxonomy-mapping.md](speciesnet-taxonomy-mapping.md) for how to create one.
 
-    [add screenshot of warnings on the start page]
+    <img width="1624" height="966" alt="Screenshot 2026-03-23 at 14 41 04" src="https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d" />
+
 
     
 
