@@ -75,9 +75,8 @@ classification_model: ""                  # Classification model — "deepfaune"
 # Email Settings (for authentication)
 mail_server: "smtp.gmail.com"             # SMTP server
 mail_port: 587                            # SMTP port
-mail_username: ""                         # SMTP username (REQUIRED)
+mail_username: ""                         # SMTP username (REQUIRED). Also used as the "From" address unless mail_from is set.
 mail_password: ""                         # SMTP password or app password (REQUIRED)
-mail_from: ""                             # From email address (REQUIRED)
 
 # Initial server admin account
 # This email will be used to create the first superuser account during deployment

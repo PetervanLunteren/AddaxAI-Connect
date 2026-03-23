@@ -22,13 +22,13 @@
 
 <br>
 
-AddaxAI Connect is an open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications. Fully self-hosted on a single server, so your data stays yours. Deploy it, point your cameras at it, and go do something more fun than manually sorting thousands of photos of empty bushes.
+**AddaxAI Connect** is an open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications. Fully self-hosted on a single server, so your data stays yours. Deploy it, point your cameras at it, and go do something more fun than manually sorting thousands of photos of empty bushes.
 
 A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
 
 ## What it looks like
 
-See a working demo here: https://demo.addaxai.com/login
+Try it yourself: [demo.addaxai.com](https://demo.addaxai.com/login)
 
 <p>
 <img width="49%" alt="Screenshot 1" src="https://github.com/user-attachments/assets/99f2f7fe-f861-4bc2-8956-067285fd3bea" />
@@ -53,7 +53,7 @@ Each step runs as its own Docker service. They pass messages through Redis queue
 
 ## Getting started
 
-It runs on a single Ubuntu server (24.04, 8 GB RAM minimum). You also need a domain name and about an hour. Deployment is automated with Ansible: fill in a config file, run a command, and it handles the rest.
+You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour.
 
 **[Deployment guide](docs/deployment.md)**
 

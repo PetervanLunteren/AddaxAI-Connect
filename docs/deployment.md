@@ -1,116 +1,181 @@
 # Deployment guide
 
+Everything runs on a single Ubuntu server. You configure a few variables, run one Ansible command, and it sets up the entire stack: Docker, databases, ML workers, web interface, SSL certificates, security measures, etc.
+
+**Before you start**, make sure you have:
+- An Ubuntu server (tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 (Premium Intel) - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`)
+- A domain name you control (you'll need to create a DNS record)
+- An SSH key pair (most cloud providers let you add your public key during VM creation)
+- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) installed on your local machine
+
 ## Setup
 
 1. **Deploy a VM**
-   You can use a provider of your choice, like DigitalOcean or RunPod. The system is tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 (Premium Intel) - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`, but other Ubuntu versions should also work. During VM creation, add your SSH public key (most providers have a field for this). After deployment, take note of the IPv4 address for later steps. All the following steps are on your local machine, not on the VM.
+
+   Use any cloud provider you like (DigitalOcean, Hetzner, AWS, etc.). Add your SSH public key during creation and note the IPv4 address. All the following steps happen on your local machine, not on the server.
 
 2. **Clone this repo**
-   On your local machine
+
     ```bash
     git clone https://github.com/PetervanLunteren/AddaxAI-Connect.git
     cd AddaxAI-Connect
     ```
 
-3. **Create Ansible inventory and dev files**
+3. **Create your config files**
+
     ```bash
-    cd ansible/
-    cp inventory.yml.example inventory.yml
-    cp group_vars/dev.yml.example group_vars/dev.yml
+    cp ansible/inventory.yml.example ansible/inventory.yml
+    cp ansible/group_vars/dev.yml.example ansible/group_vars/dev.yml
     ```
 
-4. **Configure inventory variables**
-   Replace in `inventory.yml`.
+4. **Configure `ansible/inventory.yml`**
 
    | Variable | Example | Description |
    |---------|---------|-------------|
-   | `your_vm_ipv4` | `123.456.789.01` | The IPv4 address of the virtual machine you created in step 1. |
-   | `your_ssh_key` | `~/.ssh/id_rsa` | The path to your private SSH key on your local device. |
+   | `your_vm_ipv4` | `123.456.789.01` | IPv4 address of your server |
+   | `your_ssh_key` | `~/.ssh/id_rsa` | Path to your private SSH key |
 
+5. **Configure `ansible/group_vars/dev.yml`**
 
-5. **Set core passwords**
-   Replace in `group_vars/dev.yml`. Make sure to create secure passwords (for example with `openssl rand -base64 32`).
+   This is where all your settings go. Generate secure passwords with `openssl rand -base64 32`.
 
-   | Variable | Example | Description |
-   |---------|---------|-------------|
-   | `app_user_password` | `"securepassword"` | Password you define for `sudo` access on the server. |
-   | `ftps_password` | `"securepassword"` | Password you define for FTPS access. |
-   | `db_password` | `"securepassword"` | Password you define for the database user. |
-   | `minio_password` | `"securepassword"` | Password you define for the Minio storage admin user. |
-   | `redis_password` | `"securepassword"` | Password you define for the Redis instance. |
-   | `jwt_secret` | `"securesecret"` | Secret key you define for signing JWT tokens. |
-   | `monitoring_password` | `"securepassword"` | Password you define for accessing monitoring tools. |
+   **Passwords and secrets**
 
+   | Variable | Description |
+   |---------|-------------|
+   | `app_user_password` | Password for `sudo` access on the server |
+   | `ftps_password` | Password for FTPS camera uploads |
+   | `db_password` | Database password |
+   | `minio_password` | MinIO storage admin password |
+   | `redis_password` | Redis password |
+   | `jwt_secret` | Secret key for signing JWT tokens |
+   | `monitoring_password` | Password for monitoring tools |
 
-6. **Configure classification model**
-   Still in `group_vars/dev.yml`.
-
-   | Variable | Example | Description |
-   |---------|---------|-------------|
-   | `classification_model` | `"deepfaune"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,498 global species). |
-
-7. **Set domain and TLS settings**
-   Still in `group_vars/dev.yml`.
+   **Classification model**
 
    | Variable | Example | Description |
    |---------|---------|-------------|
-   | `domain_name` | `"dev.example.com"` | The domain name your application will use. You must own the domain and have access to its DNS records. |
-   | `letsencrypt_email` | `"you@example.com"` | Email address used for Letsencrypt SSL certificate registration. |
-   | `letsencrypt_staging` | `false` | When set to `true`, it uses Let's Encrypt's staging environment with test certificates. This helps avoid rate limits during testing. Set it to `false` to request real, trusted certificates. |
+   | `classification_model` | `"speciesnet"` | `"deepfaune"` (38 European species) or `"speciesnet"` (2,498 global species) |
 
-8. **Configure email and server admin**
-   Still in `group_vars/dev.yml`.
+   **Domain and TLS**
 
    | Variable | Example | Description |
    |---------|---------|-------------|
-   | `mail_server` | `"smtp.gmail.com"` | SMTP server address for outgoing email for password resets, invitations, and other notifications. |
-   | `mail_port` | `587` | SMTP port number. |
-   | `mail_username` | `"your.email@example.com"` | Username for authenticating with your mail provider. |
-   | `mail_password` | `"securepassword"` | Password or app password for your mail provider. |
-   | `mail_from` | `"your.email@example.com"` | Email address that will appear in the 'From' field of system emails. |
-   | `admin_email` | `"admin@example.com"` | Email address for initial server admin account. During deployment, a temporary password will be generated for this account. You can change it after first login. |
+   | `domain_name` | `"cam.example.com"` | Your domain. You need access to its DNS records. |
+   | `letsencrypt_email` | `"you@example.com"` | Email for SSL certificate registration |
+   | `letsencrypt_staging` | `false` | Set to `true` during testing to avoid rate limits, `false` for real certificates |
 
-9. **Add VM to known_hosts**
-   Add the VM's SSH host key to your known_hosts file.
+   **Email and admin account**
+
+   | Variable | Example | Description |
+   |---------|---------|-------------|
+   | `mail_server` | `"smtp.gmail.com"` | SMTP server for outgoing email |
+   | `mail_port` | `587` | SMTP port |
+   | `mail_username` | `"your.email@example.com"` | Login for your SMTP server. This account sends all system emails. |
+   | `mail_password` | `"securepassword"` | SMTP password or app password |
+   | `admin_email` | `"admin@example.com"` | Email for the first user account on the platform (gets server admin access). |
+
+   <details>
+   <summary>Test your email settings before deploying</summary>
+
+   Replace the values below with your own and run it on your local machine. If you receive the email, your settings are correct.
+
+   ```bash
+   python3 -c "
+   import smtplib
+   s = smtplib.SMTP('smtp.gmail.com', 587)
+   s.starttls()
+   s.login('your.email@example.com', 'your-app-password')
+   s.sendmail('your.email@example.com', 'your.email@example.com', 'Subject: SMTP test\n\nIt works!')
+   s.quit()
+   print('Email sent!')
+   "
+   ```
+
+   </details>
+
+6. **Add server to known_hosts**
+
     ```bash
     ssh-keyscan -H <your_vm_ipv4> >> ~/.ssh/known_hosts
     ```
 
-10. **Test Ansible connection**
-   Should return `pong` if successful.
+7. **Test the connection**
+
+   Should return `pong`.
+
     ```bash
-    ansible -i inventory.yml dev -m ping
+    ansible -i ansible/inventory.yml dev -m ping
     ```
 
-11. **Run playbook**
-   Deploys entire infrastructure automatically. It will prompt you to do some manual tasks, like DNS record creation.
+8. **Run the playbook**
+
+   This deploys everything. It will pause once to ask you to create a DNS record pointing your domain to the server. This can take 30-60 minutes the first time since it builds all Docker images on the server. Good time to go outside and do some bird watching.
+
     ```bash
-    ansible-playbook -i inventory.yml playbook.yml
+    ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
     ```
 
-12. **Register your admin account**
-    When the deployment finishes, a registration URL will be displayed in the Ansible output. Copy this URL and open it in a browser. You'll be directed to a registration page where you can set your password for the `admin_email` you configured. After registration, you're automatically assigned the 'server admin' role with full control. The registration URL expires in 7 days and can only be used once.
+   [add screenshot]
 
-13. **Configure camera traps**
-    Set up your camera traps to upload via FTPS.
+9. **Create a DNS record**
+
+   [add screenshot]
+   
+   When the playbook pauses, go to your DNS provider and add an `A` record pointing your domain to your server's IP address.
+
+   | Type | Name | Value |
+   |------|------|-------|
+   | A | `cam.example.com` | `<your_vm_ipv4>` |
+
+   DNS propagation can take a few minutes. You can verify it with:
+
+   ```bash
+   dig +short cam.example.com
+   ```
+
+   When this returns your server's IP, you're good. The playbook will wait for you to press ENTER before continuing. After that, wait for the playbook to finish building and deploying all services before moving on.
+
+   [add screenshot]
+
+10. **Register your admin account**
+
+    A registration link will be sent to your `admin_email`. Click it to create your account and set your password. The link expires after 7 days and can only be used once. Check your spam folder if you don't see it.
+
+11. Now you can login if all went well! 
+
+[add screenshots] 
+
+<!-- TODO first the UI settings, then adding a camera and testing -->
+
+
+
+
+
+
+
+10. **Configure your camera traps**
+
+    Point your cameras at the server using FTPS.
 
     | Setting | Value |
     |---------|-------|
     | Host | `<your_vm_ipv4>` |
     | Port | `21` (control), `990` (FTPS), `40000-50000` (passive) |
     | Username | `camera` |
-    | Password | `<ftps_password>` |
+    | Password | the `ftps_password` you set in step 5 |
     | Protocol | FTPS (explicit TLS) |
 
-14. **Finish and manage your system**
-    After configuration, camera traps will upload images automatically for processing on the server, and detections will be shown in the frontend. You can manage notifications, settings, users, and other features directly in the UI.
+    Once connected, images will be picked up and processed automatically. Results show up in the web interface at your domain.
 
 ## Troubleshooting
 
-**Email SMTP doesn't work:**
+**Email not sending?**
 
-Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) to prevent spam. This prevents verification and password reset emails from being sent. You can test this with the command below. If they are blocked, that is because of the cloud provider, and we can't really do anything about that. The solution would be to submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
+Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
 
 ```bash
 python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
 ```
+
+If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
