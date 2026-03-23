@@ -110,18 +110,17 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 8. **Run the playbook**
 
-   This deploys everything. It will pause once to ask you to create a DNS record pointing your domain to the server. This can take 30-60 minutes the first time since it builds all Docker images on the server. Good time to go outside and do some bird watching.
+   This deploys everything.
 
     ```bash
     ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
     ```
 
-   <img width="788" height="646" alt="Screenshot 2026-03-23 at 13 39 14" src="https://github.com/user-attachments/assets/a23784ff-af28-418f-90fb-b1834d0f5d92" />
-
+   <img width="788" alt="Ansible terminal" src="https://github.com/user-attachments/assets/a23784ff-af28-418f-90fb-b1834d0f5d92" />
 
 9. **Create a DNS record**
-   
-   When the playbook pauses, go to your DNS provider and add an `A` record pointing your domain to your server's IP address.
+
+   The playbook will pause and ask you to set up DNS. Go to your DNS provider and add an `A` record pointing your domain to your server's IP address.
 
    | Type | Name | Value |
    |------|------|-------|
@@ -133,17 +132,31 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
    dig +short cam.example.com
    ```
 
-   When this returns your server's IP, you're good. The playbook will wait for you to press ENTER before continuing. After that, wait for the playbook to finish building and deploying all services before moving on.
+   When this returns your server's IP, you're good. Press ENTER to continue. The playbook will then finish building and deploying all services.
 
-   <img width="788" height="646" alt="Screenshot 2026-03-23 at 13 46 04" src="https://github.com/user-attachments/assets/f8e96c86-c28c-40dd-8dbb-0c1874a1083d" />
+   <img width="788" alt="Playbook completed" src="https://github.com/user-attachments/assets/f8e96c86-c28c-40dd-8dbb-0c1874a1083d" />
+
+10. **Wait for the playbook to finish**
+
+    This can take 30-60 minutes the first time since it builds all Docker images on the server. Good time to go outside and do some bird watching. When you see lots of green texts, checkmarks and `failed=0`, the server is deployed.
+
+    [add screenshot of finished terminal screen]
 
 11. **Register your admin account**
 
     A registration link will be sent to your `admin_email`. Click it to create your account and set your password. The link expires after 7 days and can only be used once. Check your spam folder if you don't see it.
 
-12. Now you can login if all went well! 
+   [add screenshot of register page]
 
-[add screenshots] 
+12. **Configure server settings**
+
+    When you first log in, you'll see some warnings about missing settings. That's expected. The required settings depend on whether you deployed with DeepFaune or SpeciesNet. Click on any setting name in the warning to go straight to the right page. They should be pretty self-explanatory.
+
+    If you're using SpeciesNet, you'll also need to upload a taxonomy mapping CSV. This maps SpeciesNet's output labels to the species names you want to see in the interface. See [speciesnet-taxonomy-mapping.md](speciesnet-taxonomy-mapping.md) for how to create one.
+
+    [add screenshot of warnings on the start page]
+
+    
 
 <!-- TODO first the UI settings, then adding a camera and testing -->
 

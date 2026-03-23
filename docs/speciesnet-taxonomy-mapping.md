@@ -35,7 +35,9 @@ Use the [SpeciesNet Taxonomy Mapper](https://dmorris.net/speciesnet-taxonomy-map
 
 Type or paste your target species into the input field, one per line. You can use common names, latin names, or both (e.g. "Red fox, Vulpes vulpes"). These are the species and taxonomic groups you expect in your project area.
 
-For most projects, you do not need to list every possible species. Start with family-level groups (like "cervidae", "canidae", "felidae") and only add specific species for the ones you want to distinguish individually. See [continent-specific templates](taxonomy-templates/) for starting points.
+For most projects, you do not need to list every possible species. Start with family-level groups (like "cervidae", "canidae", "felidae") and only add specific species for the ones you want to distinguish individually. See [continent-specific examples](taxonomy-examples/) for starting points.
+
+Think about what labels you want to see in the UI and notifications. For example, if you add white-tailed deer at species level and use "deer" as the catch-all for the cervidae family, every deer that isn't identified as white-tailed will show up as "deer". That's confusing when it appears next to "white-tailed deer" in your dashboard. Better to use labels like "white-tailed deer" and "other deer" (or "unknown deer") so it's always clear what's a confident ID and what's a fallback.
 
 ### Step 2: add your study area (optional)
 
@@ -43,7 +45,7 @@ Enter a geographic location in the study area field. This helps the tool resolve
 
 ### Step 3: process and review
 
-Click **Process input**. The tool uses Gemini to map your species list to standardised taxonomy entries. Review the results in the output table:
+Click **Process input**. The tool maps your species list to standardised taxonomy entries. Review the results in the output table:
 
 - Edit any rows that look wrong
 - Lock rows you are happy with (click the lock icon)
