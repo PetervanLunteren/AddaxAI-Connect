@@ -38,7 +38,7 @@ For most projects, you do not need to list every possible species. SpeciesNet co
 
 Click **Process input**. The tool maps your species list to standardised taxonomy entries. Review the results in the output table:
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 40 29" src="https://github.com/user-attachments/assets/796cdafb-5d9a-4b1a-8015-a523ae311c48" />
+<img width="1624" height="966" alt="Screenshot 2026-03-25 at 14 20 15" src="https://github.com/user-attachments/assets/a7bbde33-95ad-411f-8389-8109645e623e" />
 
 Edit any rows that look wrong. In this example, the tool mapped "cervidae" to "cervidae family", "felidae" to "cat family" and "panthera leo" to "lion". Review all labels carefully, because they're what you'll see in your dashboard. You can edit them directly in the output table before downloading. For example, you might want to change "cat family" to "other cat", since you have specific species like lion and leopard alongside them. 
 
@@ -46,37 +46,16 @@ Edit any rows that look wrong. In this example, the tool mapped "cervidae" to "c
 
 Click **Download CSV**. The file will have four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect only uses the `latin` and `common` columns. The other two are ignored on upload.
 
-### Uploading the CSV
+#### Step 5: upload into AddaxAI Connect
 
-1. Log in as a server admin
-2. Open the hamburger menu (top right) and click **Server settings**
-3. Drag and drop your CSV file at the **Taxonomy mapping** field, or click to browse
-4. Click the **Save and reprocess** button that appears
-5. after processing, a **View current mapping** link appears in the caption, click to check all went well
+1. Open the hamburger menu (top right) and click **Server settings**
+2. Drag and drop your CSV file at the **Taxonomy mapping** field, or click to browse
+3. Click the **Save and reprocess** button that appears
+4. After processing, a **View current mapping** link appears in the caption, click to check all went well
 
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 48 33" src="https://github.com/user-attachments/assets/98972879-f630-4d3a-a69e-b2cf78fcdad3" />
 
-The upload replaces any existing mapping. All existing classifications are automatically reprocessed with the new mapping, so you do not need to re-run inference. The response shows how many classifications were updated.
-
-Classification won't start until a taxonomy mapping has been uploaded, so make sure to do this before expecting results.
-
-### Choosing your labels
-
-The labels in your CSV are exactly what you'll see in your dashboard, notifications, and exports. You can re-upload at any time, so don't overthink it on the first try. Start simple and refine as you learn what your cameras are picking up.
-
-**Start broad, then refine.** Begin with family-level groups and only add individual species for the ones you actually want to distinguish. For example, start with `cervidae,other deer` as your only deer entry. If you later want to split out white-tailed deer, add `odocoileus virginianus,white-tailed deer`. Everything else in the deer family still shows up as "other deer".
-
-**Name your catch-alls clearly.** If you have both "white-tailed deer" (species level) and "deer" (family level) in your CSV, it gets confusing fast. A dashboard showing "white-tailed deer" next to "deer" doesn't tell you whether "deer" means "we detected a deer but couldn't tell which kind" or "this is a different deer species". Use "other deer" or "unknown deer" for the family-level catch-all instead. Same goes for any group where you distinguish specific species: "other canid", "other mustelid", etc.
-
-**Always include broad catch-alls.** Without them, any animal that doesn't match a more specific row falls through to the generic label "animal". At minimum, include:
-
-```
-mammalia,mammal
-aves,bird
-reptilia,reptile
-```
-
-Even if birds aren't your focus, they show up on camera traps often. Better to label them "bird" than "animal".
+The upload replaces any existing mapping. All existing classifications are reprocessed with the new mapping, so you do not need to re-run inference.
 
 ### How matching works
 
@@ -106,3 +85,22 @@ It matched at species level, so the image is labelled "blackbird". Now say Speci
 | Class | `aves` | Yes | **bird** |
 
 No specific match, so it walks up to class level and falls back to "bird". If you later want to distinguish great tits, add `parus major,great tit` to your CSV and re-upload. Blackbirds stay "blackbird", great tits become "great tit", and everything else still falls back to "bird".
+
+### Choosing your labels
+
+The labels in your CSV are exactly what you'll see in your dashboard, notifications, and exports. You can re-upload at any time, so don't overthink it on the first try. Start simple and refine as you learn what your cameras are picking up.
+
+**Start broad, then refine.** Begin with family-level groups and only add individual species for the ones you actually want to distinguish. For example, start with `cervidae,other deer` as your only deer entry. If you later want to split out white-tailed deer, add `odocoileus virginianus,white-tailed deer`. Everything else in the deer family still shows up as "other deer".
+
+**Name your catch-alls clearly.** If you have both "white-tailed deer" (species level) and "deer" (family level) in your CSV, it gets confusing fast. A dashboard showing "white-tailed deer" next to "deer" doesn't tell you whether "deer" means "we detected a deer but couldn't tell which kind" or "this is a different deer species". Use "other deer" or "unknown deer" for the family-level catch-all instead. Same goes for any group where you distinguish specific species: "other canid", "other mustelid", etc.
+
+**Always include broad catch-alls.** Without them, any animal that doesn't match a more specific row falls through to the generic label "animal". At minimum, include:
+
+```
+mammalia,mammal
+aves,bird
+reptilia,reptile
+```
+
+Even if birds aren't your focus, they show up on camera traps often. Better to label them "bird" than "animal".
+
