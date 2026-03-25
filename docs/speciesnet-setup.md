@@ -1,24 +1,42 @@
-# SpeciesNet taxonomy mapping
+# SpeciesNet setup
 
-SpeciesNet needs a taxonomy mapping CSV before it can classify images. This CSV tells the system which labels to use for each species or group. Without it, the SpeciesNet worker won't start.
+If you deployed with SpeciesNet, you'll see some extra warnings on your dashboard after first login:
 
-## Creating your CSV
+[add screenshot of the SpeciesNet warnings]
+
+This guide walks you through the SpeciesNet-specific settings. The general server settings (timezone, etc.) are covered in the [deployment guide](deployment.md).
+
+## Country
+
+Go to **Server settings** and select the country where your cameras are deployed. This filters out species that don't occur in your region, which improves classification accuracy.
+
+If you select the USA, an optional state dropdown appears to narrow it further.
+
+[add screenshot of the country setting]
+
+This only applies to new classifications, not retroactively.
+
+## Taxonomy mapping
+
+SpeciesNet classifies at different taxonomy levels depending on confidence, from species all the way up to class. A taxonomy mapping CSV makes these predictions easier to interpret by letting you control which labels show up in your dashboard, notifications, and exports. You define the labels that make sense for your project, and the system maps every prediction to the best match.
+
+### Creating your CSV
 
 Use the [SpeciesNet Taxonomy Mapper](https://dmorris.net/speciesnet-taxonomy-mapper/) to generate your CSV. This tool was built by Dan Morris, one of the creators of SpeciesNet.
 
 [add screenshot of the Taxonomy Mapper tool]
 
-### Step 1: enter your species list
+#### Step 1: enter your species list
 
 Type or paste your target species into the input field, one per line. You can use common names, latin names, or both (e.g. "red fox, vulpes vulpes"). These are the species and taxonomic groups you expect in your project area.
 
 For most projects, you do not need to list every possible species. Start with family-level groups (like "cervidae", "canidae", "felidae") and add specific species only for the ones you want to distinguish.
 
-### Step 2: add your study area (optional)
+#### Step 2: add your study area (optional)
 
 Enter a geographic location in the study area field. This helps the tool resolve ambiguous common names. For example, "badger" refers to different species in Europe vs North America.
 
-### Step 3: process and review
+#### Step 3: process and review
 
 Click **Process input**. The tool maps your species list to standardised taxonomy entries. Review the results in the output table:
 
@@ -26,11 +44,11 @@ Click **Process input**. The tool maps your species list to standardised taxonom
 - Lock rows you are happy with (click the lock icon)
 - Click **Process input** again to reprocess only the unlocked rows
 
-### Step 4: download the CSV
+#### Step 4: download the CSV
 
 Click **Download CSV**. The file will have four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect only uses the `latin` and `common` columns. The other two are ignored on upload.
 
-## Uploading into AddaxAI Connect
+### Uploading the CSV
 
 1. Log in as a server admin
 2. Open the hamburger menu (top right) and click **Taxonomy mapping**
@@ -40,7 +58,9 @@ Click **Download CSV**. The file will have four columns: `latin`, `common`, `ori
 
 The upload replaces any existing mapping. All existing classifications are automatically reprocessed with the new mapping, so you do not need to re-run inference. The response shows how many classifications were updated.
 
-## Choosing your labels
+Classification won't start until a taxonomy mapping has been uploaded, so make sure to do this before expecting results.
+
+### Choosing your labels
 
 The labels in your CSV are exactly what you'll see in your dashboard, notifications, and exports. You can re-upload at any time, so don't overthink it on the first try. Start simple and refine as you learn what your cameras are picking up.
 
@@ -60,7 +80,7 @@ Even if birds and reptiles aren't your focus, they show up on camera traps regul
 
 [add screenshot of labels in the dashboard/gallery]
 
-## How matching works
+### How matching works
 
 SpeciesNet predictions can land at any taxonomy level depending on confidence. The same animal might come back as "red fox" (species), "vulpes" (genus), "canidae" (family), or "carnivora" (order). The system handles this by checking your CSV from the most specific level up to the least specific, and returning the first match. If nothing matches, it falls back to "animal".
 

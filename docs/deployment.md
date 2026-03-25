@@ -152,7 +152,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     When you first log in, you'll see some warnings about missing settings. That's expected. The required settings depend on whether you deployed with DeepFaune or SpeciesNet. Click on any setting name in the warning to go straight to the right page. They should be pretty self-explanatory.
 
-    If you're using SpeciesNet, you'll also need to upload a taxonomy mapping CSV. This maps SpeciesNet's output labels to the species names you want to see in the interface. See [speciesnet-taxonomy-mapping.md](speciesnet-taxonomy-mapping.md) for how to create one.
+    If you're using SpeciesNet, there are a few extra settings to configure. See [speciesnet-setup.md](speciesnet-setup.md) for the full walkthrough.
 
     <img width="1624" height="966" alt="Screenshot 2026-03-23 at 14 41 04" src="https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d" />
 
