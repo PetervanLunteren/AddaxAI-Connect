@@ -23,9 +23,9 @@ The required settings depend on which classification model you chose:
 
 Once those are set, you can create your first project.
 
-1. Go to the home page and click **Add project**
+1. Go to the home page and click `Add project`
 2. Enter a project name and optionally a description and image
-3. Click **Create project**
+3. Click `Create project`
 
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 15 52 21" src="https://github.com/user-attachments/assets/6edb85da-ef27-49b2-b599-2ee67b2c581a" />
 
@@ -34,22 +34,23 @@ A project groups your cameras, images, and users together. You can create multip
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 15 52 36" src="https://github.com/user-attachments/assets/def050e8-17f0-493a-8ecd-2e15fd9341de" />
 
 
-## Add cameras
+## Add and connect cameras
 
-1. Open your project and go to the **Cameras** tab
-2. Click **Add camera**
-3. Enter the camera's device ID (the unique identifier your camera uses, usually found in the camera settings or EXIF data)
-4. Optionally add a friendly name and notes
+Before adding cameras, check the [camera requirements](camera-requirements.md) to make sure your camera type is supported.
 
-[add screenshot of add camera dialog]
+1. Open your project and go to the `Cameras` tab
+2. Click `Add camera`
+3. Fill in the fields:
+   - **Camera ID** (required): must exactly match the camera ID embedded in the images and reports, otherwise they won't be linked. See [camera requirements](camera-requirements.md) for details on how this ID is extracted.
+   - **Friendly name** (optional): a human-readable name like "North Ridge" or "Waterhole cam". If left empty, the camera ID is used as the display name.
+   - **Remarks** (optional): notes about the camera placement, angle, or anything else you want to remember.
+   - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track.
+
+<img width="1624" height="966" alt="Screenshot 2026-03-25 at 16 46 52" src="https://github.com/user-attachments/assets/218a2ac4-8e68-4862-9797-306ef162deeb" />
 
 You can also import multiple cameras at once using a CSV file.
 
-## Configure camera traps
-
-Before connecting your cameras, check the [camera requirements](camera-requirements.md) to make sure your camera type is supported.
-
-Point your cameras at the server using FTPS.
+Then configure your cameras to upload via FTPS:
 
 | Setting | Value |
 |---------|-------|
@@ -59,23 +60,24 @@ Point your cameras at the server using FTPS.
 | Password | the `ftps_password` you set during deployment |
 | Protocol | FTPS (explicit TLS) |
 
-Once connected, images will be picked up and processed automatically. Results show up in the web interface within a few minutes.
+Once connected, images will be picked up and processed automatically. Results show up in the web interface after a few seconds. If not, check the [troubleshooting section](camera-requirements.md#troubleshooting) in the camera requirements doc.
 
 ## Invite users
 
-You can invite other people to your projects. There are three roles:
+You can invite other people to your projects. There are two project roles:
 
-- **Server admin** has full access to all projects and system settings
 - **Project admin** can manage a specific project (cameras, users, settings)
-- **Project viewer** has read-only access to a specific project
+- **Project viewer** has read-only access to a specific project and can set their own notifications
 
-To invite someone to a project:
+To invite someone:
 
-1. Open the project and go to the **Users** tab
+1. Open the project and go to the `Users` tab
 2. Enter their email address and select a role
 3. They'll receive an invitation email with a registration link
 
 Users can have different roles across different projects. For example, someone can be an admin of one project and a viewer of another.
+
+To add a server admin (full access to all projects and system settings), go to `Server admins` in the hamburger menu on the projects page.
 
 ## Set up notifications (optional)
 
@@ -85,10 +87,18 @@ Email notifications (daily/weekly/monthly reports, battery alerts) work out of t
 
 ### Telegram alerts
 
-For real-time alerts via Telegram:
+There are two steps to get Telegram working:
 
-1. Go to **Server settings**
-2. Enter your Telegram bot token and username
-3. Users can then link their Telegram account from their profile
+**Server admin: set up the bot**
 
-[add screenshot of Telegram settings]
+Go to `Server settings`, click `Configure bot`, and follow the instructions in the modal.
+
+<img width="1624" height="966" alt="Screenshot 2026-03-25 at 16 57 31" src="https://github.com/user-attachments/assets/6f3f8495-de7a-4376-a534-780209759dfe" />
+
+**Each user: link their account**
+
+Go to the `Notifications` page in any project, click the Telegram link button, and follow the instructions in the modal.
+
+<img width="1624" height="966" alt="Screenshot 2026-03-25 at 17 00 57" src="https://github.com/user-attachments/assets/923531a8-c819-42d1-baa3-31b9d392449e" />
+
+Once linked, users can select which species they want to receive instant Telegram notifications about in their project notification settings.

@@ -722,16 +722,14 @@ export const ServerSettingsPage: React.FC = () => {
                             AddaxAI Connect
                             <CopyButton text="AddaxAI Connect" id="copy-botname" />
                           </code>
-                          {' '}(use this exact name)
-                        </li>
+                                                  </li>
                         <li>
                           Choose username{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             {botUsername}
                             <CopyButton text={botUsername} id="copy-username" />
                           </code>
-                          {' '}(use this exact username, you can change it later via @BotFather)
-                        </li>
+                                                  </li>
                         <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrs-TUVwxyz_A1</em>)</li>
                       </ol>
                     </div>

@@ -18,9 +18,21 @@ How this metadata is embedded (filename, EXIF, etc.) does not matter. A custom c
 
 ## Supported cameras
 
-* [Willfine 4.0T CG (2025)](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg)
+* [Willfine 4.0T CG](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg)
 
 If your camera isn't listed, it needs a new profile. See below.
+
+## FTPS settings
+
+Configure your camera to upload via FTPS with these settings:
+
+| Setting | Value |
+|---------|-------|
+| Host | your server's IP address |
+| Port | `21` (control), `990` (FTPS), `40000-50000` (passive) |
+| Username | `camera` |
+| Password | the `ftps_password` you set during deployment |
+| Protocol | FTPS (explicit TLS) |
 
 ## Camera profiles
 
@@ -33,7 +45,7 @@ Creating a new profile usually takes a bit of time for development and testing. 
 1. Collecting a few sample images and daily reports from the camera
 2. Inspecting the EXIF data and file naming patterns
 3. Writing the extraction logic
-4. Testing with the upload tool on the **File management** page to verify images are accepted and routed correctly
+4. Testing with the upload tool on the `File management` page to verify images are accepted and routed correctly
 5. Uploading real images via your cameras over FTPS to confirm the full pipeline works end to end
 
 If you need a new camera profile, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with some sample files and we'll work it out.
@@ -42,7 +54,7 @@ If you need a new camera profile, [open an issue](https://github.com/PetervanLun
 
 Images uploading but not showing up? Here are the most common causes:
 
-- **No matching camera profile**: the system rejects images it can't identify. Go to **File management** (hamburger menu on the projects page, server admins only) to see rejected files and the reason they were rejected.
+- **No matching camera profile**: the system rejects images it can't identify. Go to `File management` (hamburger menu on the projects page, server admins only) to see rejected files and the reason they were rejected.
 - **Missing required metadata**: if the camera profile requires GPS or date/time and the image doesn't have it, it gets rejected.
 - **Wrong file format**: only JPEG images are accepted (max 10 MB).
 - **Daily reports not parsed**: reports must be under 1 MB and match the expected format for the camera profile.

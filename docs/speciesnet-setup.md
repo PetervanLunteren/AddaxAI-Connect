@@ -6,7 +6,7 @@ This guide walks you through the SpeciesNet-specific settings. The general serve
 
 ## Country
 
-Go to **Server settings** and select the country where your cameras are deployed. This filters out species that don't occur in your region, which improves classification accuracy.
+Go to `Server settings` and select the country where your cameras are deployed. This filters out species that don't occur in your region, which improves classification accuracy.
 
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 28 50" src="https://github.com/user-attachments/assets/e890724e-c964-4750-b1fe-48c2f734046f" />
 
@@ -36,7 +36,7 @@ For most projects, you do not need to list every possible species. SpeciesNet co
 
 #### Step 3: process and review
 
-Click **Process input**. The tool maps your species list to standardised taxonomy entries. Review the results in the output table:
+Click `Process input`. The tool maps your species list to standardised taxonomy entries. Review the results in the output table:
 
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 14 20 15" src="https://github.com/user-attachments/assets/a7bbde33-95ad-411f-8389-8109645e623e" />
 
@@ -44,14 +44,14 @@ Edit any rows that look wrong. In this example, the tool mapped "cervidae" to "c
 
 #### Step 4: download the CSV
 
-Click **Download CSV**. The file will have four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect only uses the `latin` and `common` columns. The other two are ignored on upload.
+Click `Download CSV`. The file will have four columns: `latin`, `common`, `original_latin`, `original_common`. AddaxAI Connect only uses the `latin` and `common` columns. The other two are ignored on upload.
 
 #### Step 5: upload into AddaxAI Connect
 
-1. Open the hamburger menu (top right) and click **Server settings**
-2. Drag and drop your CSV file at the **Taxonomy mapping** field, or click to browse
-3. Click the **Save and reprocess** button that appears
-4. After processing, a **View current mapping** link appears in the caption, click to check all went well
+1. Open the hamburger menu (top right) and click `Server settings`
+2. Drag and drop your CSV file at the `Taxonomy mapping` field, or click to browse
+3. Click the `Save and reprocess` button that appears
+4. After processing, a `View current mapping` link appears in the caption, click to check all went well
 
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 48 33" src="https://github.com/user-attachments/assets/98972879-f630-4d3a-a69e-b2cf78fcdad3" />
 
