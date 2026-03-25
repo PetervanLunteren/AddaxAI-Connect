@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, Save, X, MessageCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
@@ -414,19 +415,11 @@ export const NotificationsPage: React.FC = () => {
       )}
 
       {/* Telegram linking modal */}
-      {showLinkModal && deepLink && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Link your Telegram account</h2>
-                <button
-                  onClick={() => setShowLinkModal(false)}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+      <Dialog open={showLinkModal && !!deepLink} onOpenChange={setShowLinkModal}>
+        <DialogContent onClose={() => setShowLinkModal(false)}>
+          <DialogHeader>
+            <DialogTitle>Link your Telegram account</DialogTitle>
+          </DialogHeader>
 
               <div className="space-y-6">
                 {/* QR code */}
@@ -472,10 +465,8 @@ export const NotificationsPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -15,6 +15,7 @@ import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
 import { CountrySelect } from '../../components/ui/CountrySelect';
 import { StateSelect } from '../../components/ui/StateSelect';
 import { Button } from '../../components/ui/Button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { adminApi } from '../../api/admin';
 
 // Generate random 5-character hash for bot username
@@ -665,19 +666,11 @@ export const ServerSettingsPage: React.FC = () => {
       )}
 
       {/* Configuration Modal */}
-      {showConfigModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Configure Telegram Bot</h2>
-                <button
-                  onClick={() => setShowConfigModal(false)}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+      <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+        <DialogContent className="max-w-2xl" onClose={() => setShowConfigModal(false)}>
+          <DialogHeader>
+            <DialogTitle>Configure Telegram Bot</DialogTitle>
+          </DialogHeader>
 
               <form onSubmit={handleConfigure} className="space-y-4">
                 <div className="bg-muted border border-border p-4 rounded-md mb-4">
@@ -778,25 +771,15 @@ export const ServerSettingsPage: React.FC = () => {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Test Message Modal */}
-      {showTestModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Send Test Message</h2>
-                <button
-                  onClick={() => setShowTestModal(false)}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+      <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
+        <DialogContent onClose={() => setShowTestModal(false)}>
+          <DialogHeader>
+            <DialogTitle>Send Test Message</DialogTitle>
+          </DialogHeader>
 
               <form onSubmit={handleSendTest} className="space-y-4">
                 <div className="bg-muted border border-border p-4 rounded-md mb-4">
@@ -847,25 +830,15 @@ export const ServerSettingsPage: React.FC = () => {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Profile Picture Modal */}
-      {showProfilePicModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Add a profile picture</h2>
-                <button
-                  onClick={() => setShowProfilePicModal(false)}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+      <Dialog open={showProfilePicModal} onOpenChange={setShowProfilePicModal}>
+        <DialogContent onClose={() => setShowProfilePicModal(false)}>
+          <DialogHeader>
+            <DialogTitle>Add a profile picture</DialogTitle>
+          </DialogHeader>
               <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                 <li>
                   Download the{' '}
@@ -896,25 +869,16 @@ export const ServerSettingsPage: React.FC = () => {
                   Close
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Taxonomy Mapping Modal */}
-      {showMapping && entries.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
-            <div className="p-6 pb-0 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Taxonomy mapping ({entries.length} labels)</h2>
-              <button
-                onClick={() => setShowMapping(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="px-6 pt-4">
+      <Dialog open={showMapping && entries.length > 0} onOpenChange={setShowMapping}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col" onClose={() => setShowMapping(false)}>
+          <DialogHeader>
+            <DialogTitle>Taxonomy mapping ({entries.length} labels)</DialogTitle>
+          </DialogHeader>
+            <div>
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
@@ -924,7 +888,7 @@ export const ServerSettingsPage: React.FC = () => {
                 </thead>
               </table>
             </div>
-            <div className="px-6 pb-6 overflow-y-auto">
+            <div className="overflow-y-auto">
               <table className="w-full text-sm">
                 <tbody>
                   {entries.map((entry) => (
@@ -936,9 +900,8 @@ export const ServerSettingsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </ServerPageLayout>
   );
 };
