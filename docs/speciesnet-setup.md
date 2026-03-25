@@ -59,7 +59,7 @@ The upload replaces any existing mapping. All existing classifications are repro
 
 ### How matching works
 
-SpeciesNet predictions can land at any taxonomy level depending on confidence. The same animal might come back as "red fox" (species), "vulpes" (genus), "canidae" (family), or "carnivora" (order). The system handles this by checking your CSV from the most specific level up to the least specific, and returning the first match. If nothing matches, it falls back to "animal".
+SpeciesNet predictions can land at any taxonomy level depending on confidence. The same animal might come back as "red fox" (species), "vulpes" (genus), "canidae" (family), "carnivora" (order), or "mammalia" (class). The system handles this by checking your CSV from the most specific level up to the least specific, and returning the first match. If nothing matches, it falls back to "animal".
 
 Say your CSV contains these two rows:
 
@@ -94,7 +94,7 @@ The labels in your CSV are exactly what you'll see in your dashboard, notificati
 
 **Name your catch-alls clearly.** If you have both "white-tailed deer" (species level) and "deer" (family level) in your CSV, it gets confusing fast. A dashboard showing "white-tailed deer" next to "deer" doesn't tell you whether "deer" means "we detected a deer but couldn't tell which kind" or "this is a different deer species". Use "other deer" or "unknown deer" for the family-level catch-all instead. Same goes for any group where you distinguish specific species: "other canid", "other mustelid", etc.
 
-**Always include broad catch-alls.** Without them, any animal that doesn't match a more specific row falls through to the generic label "animal". At minimum, include:
+**Broad catch-alls help.** Without them, any animal that doesn't match a more specific row falls through to the generic label "animal". Something like this covers most cases:
 
 ```
 mammalia,mammal

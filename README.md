@@ -62,6 +62,7 @@ You need an Ubuntu server and a domain name. Deployment is automated with Ansibl
 | Document | Description |
 |---|---|
 | [Deployment guide](docs/deployment.md) | Step-by-step server setup and configuration |
+| [Setup guide](docs/setup-guide.md) | First login, projects, cameras, and inviting users |
 | [Update guide](docs/update-guide.md) | Safely updating a running server |
 | [Architecture](docs/architecture.md) | Technology stack, data flow, and security model |
 | [Developer docs](DEVELOPERS.md) | Repo structure, logging, tests, and conventions |

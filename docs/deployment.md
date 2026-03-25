@@ -142,48 +142,12 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     <img width="788" height="646" alt="Screenshot 2026-03-23 at 14 36 48" src="https://github.com/user-attachments/assets/5454f891-8358-4deb-a77e-2f9411dbb897" />
 
-11. **Register your admin account**
-
-    A registration link will be sent to your `admin_email`. Click it to create your account and set your password. The link expires after 7 days and can only be used once. Check your spam folder if you don't see it.
-
-   <img width="1624" height="966" alt="Screenshot 2026-03-23 at 14 40 11" src="https://github.com/user-attachments/assets/31408f95-ccd2-4bb4-a6c7-470a2696ca0d" />
-
-12. **Configure server settings**
-
-    When you first log in, you'll see some warnings about missing settings. That's expected. The required settings depend on whether you deployed with DeepFaune or SpeciesNet. Click on any setting name in the warning to go straight to the right page. They should be pretty self-explanatory.
-
-    If you're using SpeciesNet, there are a few extra settings to configure. See [speciesnet-setup.md](speciesnet-setup.md) for the full walkthrough.
-
-    <img width="1624" height="966" alt="Screenshot 2026-03-23 at 14 41 04" src="https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d" />
-
-
-    
-
-<!-- TODO first the UI settings, then adding a camera and testing -->
-
-
-
-
-
-
-
-10. **Configure your camera traps**
-
-    Point your cameras at the server using FTPS.
-
-    | Setting | Value |
-    |---------|-------|
-    | Host | `<your_vm_ipv4>` |
-    | Port | `21` (control), `990` (FTPS), `40000-50000` (passive) |
-    | Username | `camera` |
-    | Password | the `ftps_password` you set in step 5 |
-    | Protocol | FTPS (explicit TLS) |
-
-    Once connected, images will be picked up and processed automatically. Results show up in the web interface at your domain.
+Your server is live! Time to put it to work. Continue with the **[setup guide](setup-guide.md)** to register your account, configure settings, and start processing images.
 
 ## Troubleshooting
 
-**Email not sending?**
+<details>
+<summary>Email not sending?</summary>
 
 Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
 
@@ -192,3 +156,5 @@ python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.A
 ```
 
 If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
+
+</details>
