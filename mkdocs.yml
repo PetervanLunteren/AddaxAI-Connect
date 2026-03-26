@@ -46,7 +46,5 @@ nav:
     - Deployment: deployment.md
     - Setup guide: setup-guide.md
     - Camera requirements: camera-requirements.md
-  - Guides:
-    - SpeciesNet setup: speciesnet-setup.md
   - Reference:
     - Architecture: architecture.md

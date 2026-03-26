@@ -5,7 +5,8 @@ Not every camera trap works out of the box. The system needs to know how to read
 ## Requirements
 
 **Required:**
-- **Configurable FTPS settings**: the camera must be able to send images via FTPS to a custom IP address or domain
+
+- **Configurable FTPS settings**: the camera must be able to send images via FTPS (FTP over TLS) to a custom IP address or domain
 - **High-resolution images**: lower resolution leads to less predictable AI performance
 - **GPS location** in each image
 - **Camera identifier**: some link to the camera ID (usually IMEI or another unique identifier) so the system knows which camera the image came from
@@ -14,6 +15,7 @@ Not every camera trap works out of the box. The system needs to know how to read
 How this metadata is embedded (filename, EXIF, etc.) does not matter. A custom camera profile handles the extraction for each camera type.
 
 **Nice to have:**
+
 - **Recurrent status reports** with information like signal strength, battery percentage, SD card usage, camera location, number of images on SD, etc. These are shown on the camera health page. If the camera does not send this information, those fields simply won't be populated, but the system works fine without them.
 
 ## Supported cameras
@@ -28,11 +30,10 @@ Configure your camera to upload via FTPS with these settings:
 
 | Setting | Value |
 |---------|-------|
-| Host | your server's IP address |
-| Port | `21` (control), `990` (FTPS), `40000-50000` (passive) |
+| Host | `your_vm_ipv4` from `ansible/inventory.yml` |
+| Port | `21` |
 | Username | `camera` |
-| Password | the `ftps_password` you set during deployment |
-| Protocol | FTPS (explicit TLS) |
+| Password | `ftps_password` from `ansible/group_vars/dev.yml` |
 
 ## Camera profiles
 

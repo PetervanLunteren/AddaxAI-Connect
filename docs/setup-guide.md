@@ -14,10 +14,7 @@ When you first log in, you'll see some warnings about missing settings. That's e
 
 ![Screenshot 2026-03-23 at 14 41 04](https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d)
 
-The required settings depend on which classification model you chose:
-
-- **Camera timezone** is required for all classification models. Select the timezone your cameras are set to.
-- **SpeciesNet** requires additional setup (country, taxonomy mapping). See [speciesnet-setup.md](speciesnet-setup.md) for the full walkthrough.
+Set the camera timezone to match your cameras. If you deployed with SpeciesNet, there are a few extra settings to configure. See [speciesnet-setup.md](speciesnet-setup.md) for the full walkthrough.
 
 ## Create a project
 
@@ -44,21 +41,24 @@ Before adding cameras, check the [camera requirements](camera-requirements.md) t
    - **Camera ID** (required): must exactly match the camera ID embedded in the images and reports, otherwise they won't be linked. See [camera requirements](camera-requirements.md) for details on how this ID is extracted.
    - **Friendly name** (optional): a human-readable name like "North Ridge" or "Waterhole cam". If left empty, the camera ID is used as the display name.
    - **Remarks** (optional): notes about the camera placement, angle, or anything else you want to remember.
-   - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track.
+   - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track, like "Heading: South" or "Attached to: Oak tree".
+
+You can also import multiple cameras at once by clicking `Import CSV`.
 
 ![Screenshot 2026-03-25 at 16 46 52](https://github.com/user-attachments/assets/218a2ac4-8e68-4862-9797-306ef162deeb)
-
-You can also import multiple cameras at once using a CSV file.
 
 Then configure your cameras to upload via FTPS:
 
 | Setting | Value |
 |---------|-------|
-| Host | your server's IP address |
-| Port | `21` (control), `990` (FTPS), `40000-50000` (passive) |
+| Host | `your_vm_ipv4` from `ansible/inventory.yml` |
+| Port | `21` |
 | Username | `camera` |
-| Password | the `ftps_password` you set during deployment |
-| Protocol | FTPS (explicit TLS) |
+| Password | `ftps_password` from `ansible/group_vars/dev.yml` |
+
+??? tip "Firewall or networking issues?"
+
+    FTP uses multiple ports: `21` for the control channel, `990` for implicit FTPS, and `40000-50000` for passive mode data transfers. If your camera connects but fails to upload, make sure these ports are open on your firewall.
 
 Once connected, images will be picked up and processed automatically. Results show up in the web interface after a few seconds. If not, check the [troubleshooting section](camera-requirements.md#troubleshooting) in the camera requirements doc.
 
@@ -69,21 +69,27 @@ You can invite other people to your projects. There are two project roles:
 - **Project admin** can manage a specific project (cameras, users, settings)
 - **Project viewer** has read-only access to a specific project and can set their own notifications
 
-To invite someone:
+To invite someone (project admins and server admins only):
 
-1. Open the project and go to the `Users` tab
+1. Open the project, go to `Admin tools` in the sidebar, then `Users`
 2. Enter their email address and select a role
 3. They'll receive an invitation email with a registration link
+
+![Project users page](https://github.com/user-attachments/assets/dd32c904-b86b-467b-aed4-fffeb5a5c2e0)
 
 Users can have different roles across different projects. For example, someone can be an admin of one project and a viewer of another.
 
 To add a server admin (full access to all projects and system settings), go to `Server admins` in the hamburger menu on the projects page.
 
-## Set up notifications (optional)
+## Set up notifications
+
+Users can configure their notification preferences in the project settings.
+
+![Notification settings](https://github.com/user-attachments/assets/2803cbd4-7326-4b15-b44b-aee7034259c7)
 
 ### Email reports
 
-Email notifications (daily/weekly/monthly reports, battery alerts) work out of the box using the SMTP settings from deployment. Users can configure their notification preferences in the project settings.
+Email notifications (daily/weekly/monthly reports, battery alerts, system health, etc.) work out of the box using the SMTP settings from deployment.
 
 ### Telegram alerts
 
