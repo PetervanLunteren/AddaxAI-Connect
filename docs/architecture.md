@@ -63,7 +63,7 @@ All services run as Docker containers on a single host, connected through a shar
 - **MinIO** provides S3-compatible storage for raw images, crops, thumbnails, and annotated images
 
 ### Application
-- **API** (FastAPI, port 8000) serves REST endpoints, WebSocket connections, and authentication
+- **API** (FastAPI, port 8000) serves REST endpoints, WebSocket connections, and authentication. Interactive API docs (Swagger UI) are available at `/api/docs` on your server.
 - **Frontend** (React via Nginx, port 3000) is the web interface
 
 ### Workers
