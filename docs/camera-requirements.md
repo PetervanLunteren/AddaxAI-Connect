@@ -59,7 +59,7 @@ Images uploading but not showing up? Here are the most common causes:
 - **Wrong file format**: only JPEG images are accepted (max 10 MB).
 - **Daily reports not parsed**: reports must be under 1 MB and match the expected format for the camera profile.
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 16 29 08" src="https://github.com/user-attachments/assets/3a6b8ed0-2e39-4547-afcd-a325b6ecb8e7" />
+![Screenshot 2026-03-25 at 16 29 08](https://github.com/user-attachments/assets/3a6b8ed0-2e39-4547-afcd-a325b6ecb8e7)
 
 For more detail, check the ingestion logs:
 

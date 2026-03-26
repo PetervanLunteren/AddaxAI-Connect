@@ -120,5 +120,8 @@ email_preview.html
 email_verification_preview.html
 email_previews/
 
+# MkDocs build output
+site/
+
 # Claude stuff
 .claude

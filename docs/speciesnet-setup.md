@@ -1,6 +1,6 @@
 # SpeciesNet setup
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 26 30" src="https://github.com/user-attachments/assets/46a83891-5f3e-41a6-a6eb-b171bfb90e6a" />
+![Screenshot 2026-03-25 at 13 26 30](https://github.com/user-attachments/assets/46a83891-5f3e-41a6-a6eb-b171bfb90e6a)
 
 This guide walks you through the SpeciesNet-specific settings. The general server settings (timezone, etc.) are covered in the [deployment guide](deployment.md).
 
@@ -8,7 +8,7 @@ This guide walks you through the SpeciesNet-specific settings. The general serve
 
 Go to `Server settings` and select the country where your cameras are deployed. This filters out species that don't occur in your region, which improves classification accuracy.
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 28 50" src="https://github.com/user-attachments/assets/e890724e-c964-4750-b1fe-48c2f734046f" />
+![Screenshot 2026-03-25 at 13 28 50](https://github.com/user-attachments/assets/e890724e-c964-4750-b1fe-48c2f734046f)
 
 If you select the USA, an optional state dropdown appears to narrow it further.
 
@@ -22,7 +22,7 @@ SpeciesNet classifies at different taxonomy levels depending on confidence, from
 
 Use the [SpeciesNet Taxonomy Mapper](https://dmorris.net/speciesnet-taxonomy-mapper/) to generate your CSV. This tool was built by Dan Morris, one of the creators of SpeciesNet.
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 31 34" src="https://github.com/user-attachments/assets/2d36abd3-6af6-4c7c-86fd-72789f59c1ca" />
+![Screenshot 2026-03-25 at 13 31 34](https://github.com/user-attachments/assets/2d36abd3-6af6-4c7c-86fd-72789f59c1ca)
 
 #### Step 1: add your study area (optional)
 
@@ -38,7 +38,7 @@ For most projects, you do not need to list every possible species. SpeciesNet co
 
 Click `Process input`. The tool maps your species list to standardised taxonomy entries. Review the results in the output table:
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 14 20 15" src="https://github.com/user-attachments/assets/a7bbde33-95ad-411f-8389-8109645e623e" />
+![Screenshot 2026-03-25 at 14 20 15](https://github.com/user-attachments/assets/a7bbde33-95ad-411f-8389-8109645e623e)
 
 Edit any rows that look wrong. In this example, the tool mapped "cervidae" to "cervidae family", "felidae" to "cat family" and "panthera leo" to "lion". Review all labels carefully, because they're what you'll see in your dashboard. You can edit them directly in the output table before downloading. For example, you might want to change "cat family" to "other cat", since you have specific species like lion and leopard alongside them. 
 
@@ -53,7 +53,7 @@ Click `Download CSV`. The file will have four columns: `latin`, `common`, `origi
 3. Click the `Save and reprocess` button that appears
 4. After processing, a `View current mapping` link appears in the caption, click to check all went well
 
-<img width="1624" height="966" alt="Screenshot 2026-03-25 at 13 48 33" src="https://github.com/user-attachments/assets/98972879-f630-4d3a-a69e-b2cf78fcdad3" />
+![Screenshot 2026-03-25 at 13 48 33](https://github.com/user-attachments/assets/98972879-f630-4d3a-a69e-b2cf78fcdad3)
 
 The upload replaces any existing mapping. All existing classifications are reprocessed with the new mapping, so you do not need to re-run inference.
 

@@ -116,7 +116,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
     ```
 
-   <img width="788" alt="Ansible terminal" src="https://github.com/user-attachments/assets/a23784ff-af28-418f-90fb-b1834d0f5d92" />
+   ![Ansible terminal](https://github.com/user-attachments/assets/a23784ff-af28-418f-90fb-b1834d0f5d92)
 
 9. **Create a DNS record**
 
@@ -134,13 +134,13 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
    When this returns your server's IP, you're good. Press ENTER to continue. The playbook will then finish building and deploying all services.
 
-   <img width="788" alt="Playbook completed" src="https://github.com/user-attachments/assets/f8e96c86-c28c-40dd-8dbb-0c1874a1083d" />
+   ![Playbook completed](https://github.com/user-attachments/assets/f8e96c86-c28c-40dd-8dbb-0c1874a1083d)
 
 10. **Wait for the playbook to finish**
 
     This can take 30-60 minutes the first time since it builds all Docker images on the server. Good time to go outside and do some bird watching. When you see lots of green texts, checkmarks and `failed=0`, the server is deployed.
 
-    <img width="788" height="646" alt="Screenshot 2026-03-23 at 14 36 48" src="https://github.com/user-attachments/assets/5454f891-8358-4deb-a77e-2f9411dbb897" />
+    ![Screenshot 2026-03-23 at 14 36 48](https://github.com/user-attachments/assets/5454f891-8358-4deb-a77e-2f9411dbb897)
 
 Your server is live! Time to put it to work. Continue with the **[setup guide](setup-guide.md)** to register your account, configure settings, and start processing images.
 
