@@ -64,6 +64,9 @@ All services run as Docker containers on a single host, connected through a shar
 
 ### Application
 - **API** (FastAPI, port 8000) serves REST endpoints, WebSocket connections, and authentication. Interactive API docs (Swagger UI) are available at `/api/docs` on your server.
+
+![Swagger UI](https://github.com/user-attachments/assets/e0942b03-9d3c-4843-bcd0-aac592eb2276)
+
 - **Frontend** (React via Nginx, port 3000) is the web interface
 
 ### Workers
