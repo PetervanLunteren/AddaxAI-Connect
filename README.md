@@ -54,9 +54,7 @@ Each step runs as its own Docker service. They pass messages through Redis queue
 
 ## Getting started
 
-You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour.
-
-**[Read the docs](https://petervanlunteren.github.io/AddaxAI-Connect/)**
+You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. [Read the docs](https://petervanlunteren.github.io/AddaxAI-Connect/).
 
 For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.md).
 
