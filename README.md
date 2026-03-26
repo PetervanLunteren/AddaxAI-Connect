@@ -56,18 +56,9 @@ Each step runs as its own Docker service. They pass messages through Redis queue
 
 You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour.
 
-**[Deployment guide](docs/deployment.md)**
+**[Read the docs](https://petervanlunteren.github.io/AddaxAI-Connect/)**
 
-## Documentation
-
-| Document | Description |
-|---|---|
-| [Deployment guide](docs/deployment.md) | Step-by-step server setup and configuration |
-| [Setup guide](docs/setup-guide.md) | First login, projects, cameras, and inviting users |
-| [Update guide](docs/update-guide.md) | Safely updating a running server |
-| [Architecture](docs/architecture.md) | Technology stack, data flow, and security model |
-| [Developer docs](DEVELOPERS.md) | Repo structure, logging, tests, and conventions |
-| [Conventions](CONVENTIONS.md) | Code style and repo guidelines |
+For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.md).
 
 ## License
 

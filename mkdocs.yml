@@ -1,11 +1,10 @@
-site_name: AddaxAI Connect
+site_name: AddaxAI Connect docs
 site_url: https://petervanlunteren.github.io/AddaxAI-Connect/
 repo_url: https://github.com/PetervanLunteren/AddaxAI-Connect
 repo_name: PetervanLunteren/AddaxAI-Connect
 
 theme:
   name: material
-  favicon: assets/favicon.svg
   palette:
     - scheme: default
       primary: custom
