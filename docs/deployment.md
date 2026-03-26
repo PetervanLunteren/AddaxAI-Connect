@@ -144,15 +144,12 @@ Your server is live! Time to put it to work. Continue with the **[setup guide](s
 
 ## Troubleshooting
 
-<details>
-<summary>Email not sending?</summary>
+??? tip "Email not sending?"
 
-Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
+    Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
 
-```bash
-python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
-```
+    ```bash
+    python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
+    ```
 
-If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
-
-</details>
+    If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
