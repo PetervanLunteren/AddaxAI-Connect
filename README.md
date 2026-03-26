@@ -17,6 +17,7 @@
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/PetervanLunteren/AddaxAI-Connect)
 ![GitHub release](https://img.shields.io/github/v/release/PetervanLunteren/AddaxAI-Connect)
+[![docs](https://github.com/PetervanLunteren/AddaxAI-Connect/actions/workflows/deploy-docs.yml/badge.svg)](https://petervanlunteren.github.io/AddaxAI-Connect/)
 
 </div>
 
@@ -66,7 +67,6 @@ You need an Ubuntu server and a domain name. Deployment is automated with Ansibl
 | [Update guide](docs/update-guide.md) | Safely updating a running server |
 | [Architecture](docs/architecture.md) | Technology stack, data flow, and security model |
 | [Developer docs](DEVELOPERS.md) | Repo structure, logging, tests, and conventions |
-| [Data formats](docs/data-formats.md) | EXIF metadata, daily reports, and file naming |
 | [Conventions](CONVENTIONS.md) | Code style and repo guidelines |
 
 ## License

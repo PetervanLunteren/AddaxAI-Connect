@@ -62,7 +62,6 @@ addaxai-connect/
 │   └── verify-redis-security.sh
 │
 ├── docs/                       # Documentation
-│   ├── data-formats.md
 │   ├── deployment.md
 │   ├── dev-server-setup.md
 │   └── update-guide.md
@@ -126,15 +125,4 @@ pytest tests/ingestion/test_daily_report_parser.py -v
 # Skip ML-dependent tests (used in CI)
 pytest tests/ -m "not ml"
 ```
-
-## Git commit messages
-
-There should not be any trace of Claude Code in the git history. A `commit-msg` hook in `.githooks/` automatically strips Co-Authored-By and Generated-with-Claude lines at commit time, before the commit is recorded.
-
-Git does not use tracked hook directories by default. After cloning, activate the hook once:
-```bash
-git config core.hooksPath .githooks
-```
-This is a one-time setup per clone (local machine, each VM, etc.).
-
 

@@ -5,16 +5,18 @@ repo_name: PetervanLunteren/AddaxAI-Connect
 
 theme:
   name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
   palette:
     - scheme: default
-      primary: teal
-      accent: teal
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: teal
-      accent: teal
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -35,6 +37,9 @@ markdown_extensions:
   - attr_list
   - md_in_html
 
+extra_css:
+  - assets/custom.css
+
 nav:
   - Home: index.md
   - Getting started:
@@ -43,7 +48,5 @@ nav:
     - Camera requirements: camera-requirements.md
   - Guides:
     - SpeciesNet setup: speciesnet-setup.md
-    - Updating your server: update-guide.md
   - Reference:
     - Architecture: architecture.md
-    - Data formats: data-formats.md

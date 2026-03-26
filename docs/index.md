@@ -1,13 +1,13 @@
 # AddaxAI Connect
 
-An open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications.
+Documentation for setting up and running your own camera trap monitoring platform.
 
 ## Where to start
 
-- **New here?** Start with the [deployment guide](deployment.md) to set up your server, then follow the [setup guide](setup-guide.md) to configure your first project.
-- **Already running?** Check the [update guide](update-guide.md) for safe server updates.
-- **Want to contribute?** See [DEVELOPERS.md](https://github.com/PetervanLunteren/AddaxAI-Connect/blob/main/DEVELOPERS.md) and [CONVENTIONS.md](https://github.com/PetervanLunteren/AddaxAI-Connect/blob/main/CONVENTIONS.md) in the repo.
+1. [Deploy your server](deployment.md)
+2. [Set up your project](setup-guide.md)
+3. [Check camera compatibility](camera-requirements.md)
 
-## Questions?
+Want to understand how the system works under the hood? See the [architecture](architecture.md).
 
-[Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.
+Questions? [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.
