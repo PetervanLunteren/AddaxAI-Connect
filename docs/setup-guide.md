@@ -102,3 +102,9 @@ Go to the `Notifications` page in any project, click the Telegram link button, a
 <img width="1624" height="966" alt="Screenshot 2026-03-25 at 17 00 57" src="https://github.com/user-attachments/assets/923531a8-c819-42d1-baa3-31b9d392449e" />
 
 Once linked, users can select which species they want to receive instant Telegram notifications about in their project notification settings.
+
+## You're all set
+
+Once images start flowing in, your dashboards, maps, and galleries will fill up. Happy monitoring!
+
+If you have any questions, let me know: peter@addaxdatascience.com
