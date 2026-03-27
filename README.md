@@ -50,7 +50,7 @@ Your camera uploads an image via FTPS. From there, AddaxAI Connect handles the p
 4. **Notifications** via email and Telegram: instant alerts, daily/weekly/monthly reports, battery warnings, etc
 5. **Web interface** lets you browse results, view them on a map, check stats, and export data
 
-Each step runs as its own Docker service. They pass messages through Redis queues, store images in MinIO, and share a PostgreSQL database. It supports multiple projects with role-based access control, so different teams can work from the same server. For the full breakdown, see its [architecture](docs/architecture.md).
+Each step runs as its own Docker service. They pass messages through Redis queues, store images in MinIO, and share a PostgreSQL database. It supports multiple projects with role-based access control, so different teams can work from the same server. For the full breakdown, see the [architecture](https://petervanlunteren.github.io/AddaxAI-Connect/architecture/).
 
 ## Camera compatibility
 
@@ -60,7 +60,11 @@ Adding a new camera usually takes a bit of development and testing. If your came
 
 ## Getting started
 
-You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. [Read the docs](https://petervanlunteren.github.io/AddaxAI-Connect/).
+You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. See the [deployment guide](https://petervanlunteren.github.io/AddaxAI-Connect/deployment/) for step-by-step instructions.
+
+## Documentation
+
+Full documentation at [petervanlunteren.github.io/AddaxAI-Connect](https://petervanlunteren.github.io/AddaxAI-Connect/): deployment, setup, camera requirements, operations, updates, and more.
 
 For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.md).
 

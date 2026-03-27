@@ -8,6 +8,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 - A domain name you control (you'll need to create a DNS record)
 - An SSH key pair (most cloud providers let you add your public key during VM creation)
 - [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) installed on your local machine
+- A [supported camera](camera-requirements.md), or one that can be added
 
 ## Setup
 
