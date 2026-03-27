@@ -6,7 +6,7 @@ Once your server is running, here is how to check that everything is healthy and
 
 The web interface has a built-in health page at `Server settings > System health` (server admins only). It checks connectivity to all infrastructure services (PostgreSQL, Redis, MinIO), verifies that the API and frontend are responding, and shows queue depth for each worker. It also reports whether the processing pipeline has pending images.
 
-![System health page](https://github.com/user-attachments/assets/placeholder-system-health)
+![System health page](https://github.com/user-attachments/assets/c244fc1e-7419-4d83-bb69-e44578f2b79b)
 
 If a service shows as unhealthy, check its logs (see below).
 
@@ -61,6 +61,8 @@ A growing `image-ingested` queue means detection is falling behind or stuck. A g
 ## File management
 
 The `File management` page (hamburger menu, server admins only) shows rejected files and their rejection reasons. Common reasons: no matching camera profile, missing GPS or timestamp metadata, wrong file format, or file too large. You can delete rejected files or move them back for reprocessing from this page.
+
+![File management page](https://github.com/user-attachments/assets/e1651680-7fce-4a27-8a21-10cb59e21408)
 
 ## Disk and storage
 

@@ -48,17 +48,6 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
    cd /opt/addaxai-connect && docker compose logs -f --tail 50
    ```
 
-## Versioning
-
-The version shown on the About page comes from the `VERSION` file in the repo root. A GitHub Action updates this file automatically whenever you push a git tag:
-
-```
-git tag v0.3.1
-git push origin v0.3.1
-```
-
-The action writes the tag name to `VERSION` and commits it to `main`. The next time you pull and rebuild on the server, the About page will show the new version.
-
 ## Rollback
 
 You have two options depending on the severity of the issue.
