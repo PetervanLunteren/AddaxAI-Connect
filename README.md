@@ -36,8 +36,6 @@ Try it yourself: [demo.addaxai.com](https://demo.addaxai.com/login)
 <img width="49%" alt="Screenshot 2" src="https://github.com/user-attachments/assets/732dd48a-47aa-4ac0-9d3b-1695eb371343" />
 <img width="49%" alt="Screenshot 3" src="https://github.com/user-attachments/assets/d8b6adba-e5f0-44fb-8264-26b52003095a" />
 <img width="49%" alt="Screenshot 4" src="https://github.com/user-attachments/assets/ba55901c-585d-4b85-a86c-762b02340391" />
-<img width="49%" alt="Screenshot 5" src="https://github.com/user-attachments/assets/5aa9a949-027f-4a52-b6b7-c8bacb35a546" />
-<img width="49%" alt="Screenshot 6" src="https://github.com/user-attachments/assets/5fac4b00-c5b4-490a-a7aa-67a8b5d60bc7" />
 </p>
 
 ## How it works
