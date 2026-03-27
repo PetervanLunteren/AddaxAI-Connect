@@ -60,11 +60,7 @@ Adding a new camera usually takes a bit of development and testing. If your came
 
 ## Getting started
 
-You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. See the [deployment guide](https://petervanlunteren.github.io/AddaxAI-Connect/deployment/) for step-by-step instructions.
-
-## Documentation
-
-Full documentation at [petervanlunteren.github.io/AddaxAI-Connect](https://petervanlunteren.github.io/AddaxAI-Connect/): deployment, setup, camera requirements, operations, updates, and more.
+You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. See the [documentation](https://petervanlunteren.github.io/AddaxAI-Connect/) for camera requirements, step-by-step deployment, and setup instructions.
 
 For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.md).
 
