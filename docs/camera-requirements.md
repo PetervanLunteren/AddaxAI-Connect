@@ -35,6 +35,10 @@ Configure your camera to upload via FTPS with these settings:
 | Username | `camera` |
 | Password | `ftps_password` from `ansible/group_vars/dev.yml` |
 
+??? tip "Firewall or networking issues?"
+
+    Ansible opens all required ports on the server automatically: `21` (control channel), `990` (implicit FTPS), and `40000-50000` (passive mode data transfers). If your camera still connects but fails to upload, check whether an external firewall (cloud provider security group, corporate network, etc.) is blocking any of these ports.
+
 ## Camera profiles
 
 A camera profile tells the system how to extract metadata from a specific camera model. It defines how to identify the camera type, how to extract the camera ID, and which fields are required. Profiles are defined in `services/ingestion/camera_profiles.py`.

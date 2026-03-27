@@ -44,5 +44,11 @@ nav:
     - Deployment: deployment.md
     - Setup guide: setup-guide.md
     - Camera requirements: camera-requirements.md
+    - SpeciesNet setup: speciesnet-setup.md
+  - Running your server:
+    - Operations and monitoring: operations.md
+    - Update guide: update-guide.md
   - Reference:
     - Architecture: architecture.md
+  - Developer:
+    - Dev server setup: dev-server-setup.md

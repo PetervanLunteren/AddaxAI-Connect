@@ -47,18 +47,7 @@ You can also import multiple cameras at once by clicking `Import CSV`.
 
 ![Screenshot 2026-03-25 at 16 46 52](https://github.com/user-attachments/assets/218a2ac4-8e68-4862-9797-306ef162deeb)
 
-Then configure your cameras to upload via FTPS:
-
-| Setting | Value |
-|---------|-------|
-| Host | `your_vm_ipv4` from `ansible/inventory.yml` |
-| Port | `21` |
-| Username | `camera` |
-| Password | `ftps_password` from `ansible/group_vars/dev.yml` |
-
-??? tip "Firewall or networking issues?"
-
-    FTP uses multiple ports: `21` for the control channel, `990` for implicit FTPS, and `40000-50000` for passive mode data transfers. If your camera connects but fails to upload, make sure these ports are open on your firewall.
+Then configure your cameras to upload via FTPS. See [camera requirements](camera-requirements.md#ftps-settings) for the connection settings and troubleshooting tips.
 
 Once connected, images will be picked up and processed automatically. Results show up in the web interface after a few seconds. If not, check the [troubleshooting section](camera-requirements.md#troubleshooting) in the camera requirements doc.
 

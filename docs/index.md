@@ -1,13 +1,28 @@
 # AddaxAI Connect
 
-Documentation for setting up and running your own camera trap monitoring platform.
+An open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, detects and classifies animals, and shows you everything in a web interface with maps, charts, and notifications. Fully self-hosted on a single server.
 
-## Where to start
+**Try the demo:** [demo.addaxai.com](https://demo.addaxai.com/login)
 
-1. [Deploy your server](deployment.md)
-2. [Set up your project](setup-guide.md)
-3. [Check camera compatibility](camera-requirements.md)
+<p>
+<img width="49%" alt="Dashboard" src="https://github.com/user-attachments/assets/99f2f7fe-f861-4bc2-8956-067285fd3bea" />
+<img width="49%" alt="Map view" src="https://github.com/user-attachments/assets/732dd48a-47aa-4ac0-9d3b-1695eb371343" />
+</p>
 
-Want to understand how the system works under the hood? See the [architecture](architecture.md).
+## Getting started
+
+1. [Deploy your server](deployment.md) with Ansible (about an hour)
+2. [Set up your project](setup-guide.md): register, configure settings, add cameras, invite users
+3. [Check camera compatibility](camera-requirements.md): any FTPS-capable camera works, but each model needs a profile. See the docs for supported cameras and how to add yours.
+4. If you chose SpeciesNet, follow the [SpeciesNet setup](speciesnet-setup.md) for taxonomy mapping
+
+## Running your server
+
+- [Operations and monitoring](operations.md): check service health, view logs, monitor the pipeline
+- [Update guide](update-guide.md): safely update to new versions with backup and rollback
+
+## Reference
+
+- [Architecture](architecture.md): technology stack, data flow, services, security, and user roles
 
 Questions? [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.
