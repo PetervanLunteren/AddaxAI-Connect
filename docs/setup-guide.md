@@ -6,6 +6,8 @@ Your server is running. This guide covers everything from first login to process
 
 A registration link was sent to your `admin_email` during deployment. Click it to create your account and set your password. The link expires after 7 days and can only be used once. Check your spam folder if you don't see it.
 
+If you are running multiple AddaxAI servers, the link may open a cached version of the wrong server. If that happens, clear your browser cache and click the link again.
+
 ![Screenshot 2026-03-23 at 14 40 11](https://github.com/user-attachments/assets/31408f95-ccd2-4bb4-a6c7-470a2696ca0d)
 
 ## Configure server settings
@@ -14,7 +16,7 @@ When you first log in, you'll see some warnings about missing settings. That's e
 
 ![Screenshot 2026-03-23 at 14 41 04](https://github.com/user-attachments/assets/79d289f2-8c0c-4b6e-8b79-dc751462eb2d)
 
-Set the camera timezone to match your cameras. If you deployed with SpeciesNet, there are a few extra settings to configure. See [speciesnet-setup.md](speciesnet-setup.md) for the full walkthrough.
+Set the camera timezone to match your cameras. If you deployed with SpeciesNet, there are a few extra settings to configure. See [speciesnet-setup.md](speciesnet-setup.md) for more info on the extra steps.
 
 ## Create a project
 
@@ -41,7 +43,7 @@ Before adding cameras, check the [camera requirements](camera-requirements.md) t
    - **Camera ID** (required): must exactly match the camera ID embedded in the images and reports, otherwise they won't be linked. See [camera requirements](camera-requirements.md) for details on how this ID is extracted.
    - **Friendly name** (optional): a human-readable name like "North Ridge" or "Waterhole cam". If left empty, the camera ID is used as the display name.
    - **Remarks** (optional): notes about the camera placement, angle, or anything else you want to remember.
-   - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track, like "Heading: South" or "Attached to: Oak tree".
+   - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track, like "Heading: South" or "Tree: Oak".
 
 You can also import multiple cameras at once by clicking `Import CSV`.
 

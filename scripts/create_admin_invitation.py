@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from shared.models import User, UserInvitation
 from shared.database import Base
+from shared.email_renderer import render_email
 
 
 def send_admin_invitation_email(
@@ -69,36 +70,21 @@ def send_admin_invitation_email(
             "Ansible should have validated SMTP connectivity - check your mail settings."
         )
 
+    # Render HTML email from template
+    html_content, text_content = render_email(
+        "server_admin_invitation.html",
+        inviter_email=mail_from,
+        registration_url=registration_url,
+        expiry_days=7,
+    )
+
     # Create email message
     msg = EmailMessage()
-    msg['Subject'] = f"Server Admin Invitation - AddaxAI Connect"
+    msg['Subject'] = "Server admin invitation - AddaxAI Connect"
     msg['From'] = mail_from
     msg['To'] = to_email
-
-    # Email body
-    body = f"""
-Hello!
-
-You've been invited to become a Server Administrator on AddaxAI Connect.
-
-As a server admin, you will have full access to:
-- All projects and camera trap data
-- User management and invitations
-- System configuration and settings
-
-To accept this invitation and set up your account, click the link below:
-
-{registration_url}
-
-This invitation link is unique to you and will expire in 7 days.
-
-Once registered, you can login at: https://{domain_name}/login
-
----
-AddaxAI Connect
-Camera Trap Image Processing Platform
-"""
-    msg.set_content(body)
+    msg.set_content(text_content)
+    msg.add_alternative(html_content, subtype='html')
 
     # Send email via SMTP with STARTTLS (raises on failure)
     with smtplib.SMTP(mail_server, mail_port, timeout=10) as server:

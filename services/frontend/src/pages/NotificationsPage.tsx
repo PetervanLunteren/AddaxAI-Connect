@@ -427,6 +427,13 @@ export const NotificationsPage: React.FC = () => {
                   <QRCode value={deepLink} size={200} />
                 </div>
 
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 border-t border-border" />
+                  <span className="text-sm text-muted-foreground">or</span>
+                  <div className="flex-1 border-t border-border" />
+                </div>
+
                 {/* Open Telegram button */}
                 <div className="flex justify-center">
                   <a

@@ -3,7 +3,7 @@
 # Settings you need to configure
 # ============================================================
 
-# Passwords and secrets — generate with: openssl rand -base64 32
+# Passwords and secrets — generate with: openssl rand -hex 32
 app_user_password: "PASSWORD"                                       # Password for sudo access on the server
 ftps_password: "changeme_ftps123"                                   # Password for FTPS camera uploads
 db_password: "changeme_db123"                                       # Database password
@@ -18,11 +18,11 @@ classification_model: ""                  # "deepfaune" (38 European species) or
 # Domain and TLS
 domain_name: ""                           # Your domain (e.g. "cam.example.com")
 letsencrypt_email: ""                     # Email for SSL certificate registration
-letsencrypt_staging: false                # Use staging certificates during testing to avoid rate limits
+letsencrypt_staging: false                # false = real certificates, true = test certificates (use during testing to avoid rate limits)
 
 # Email
-mail_server: "smtp.gmail.com"             # SMTP server
-mail_port: 587                            # SMTP port
+mail_server: ""                           # SMTP server (e.g. "smtp.gmail.com")
+mail_port: 587                            # SMTP port (587 is standard for TLS)
 mail_username: ""                         # SMTP username, also used as the "From" address unless mail_from is set
 mail_password: ""                         # SMTP password or app password
 

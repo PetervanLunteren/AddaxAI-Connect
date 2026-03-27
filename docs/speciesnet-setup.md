@@ -10,7 +10,7 @@ Go to `Server settings` and select the country where your cameras are deployed. 
 
 ![Screenshot 2026-03-25 at 13 28 50](https://github.com/user-attachments/assets/e890724e-c964-4750-b1fe-48c2f734046f)
 
-If you select the USA, an optional state dropdown appears to narrow it further.
+If you select the USA, an optional state dropdown appears to narrow it further. Then click save.
 
 This only applies to new classifications, not retroactively.
 
@@ -20,7 +20,7 @@ SpeciesNet classifies at different taxonomy levels depending on confidence, from
 
 ### Creating your CSV
 
-Use the [SpeciesNet Taxonomy Mapper](https://dmorris.net/speciesnet-taxonomy-mapper/) to generate your CSV. This tool was built by Dan Morris, one of the creators of SpeciesNet.
+Use the [SpeciesNet Taxonomy Mapper ↗](https://dmorris.net/speciesnet-taxonomy-mapper/){:target="_blank"} to generate your CSV. This tool was built by Dan Morris, one of the creators of SpeciesNet.
 
 ![Screenshot 2026-03-25 at 13 31 34](https://github.com/user-attachments/assets/2d36abd3-6af6-4c7c-86fd-72789f59c1ca)
 

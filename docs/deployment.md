@@ -29,6 +29,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     cp ansible/group_vars/dev.yml.example ansible/group_vars/dev.yml
     ```
 
+    Open both files in a text editor (VS Code, TextEdit, Notepad, etc.) and fill in your values.
+
 4.  **Configure `ansible/inventory.yml`**
 
     | Variable | Example | Description |
@@ -38,7 +40,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 5.  **Configure `ansible/group_vars/dev.yml`**
 
-    This is where all your settings go. Generate secure passwords with `openssl rand -base64 32`.
+    This is where all your settings go. The passwords below don't belong to existing accounts. You're creating them now. Generate secure ones with `openssl rand -hex 32`.
 
     **Passwords and secrets**
 
@@ -73,24 +75,36 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `mail_server` | `"smtp.gmail.com"` | SMTP server for outgoing email |
     | `mail_port` | `587` | SMTP port |
     | `mail_username` | `"your.email@example.com"` | Login for your SMTP server. This account sends all system emails. |
-    | `mail_password` | `"securepassword"` | SMTP password or app password |
+    | `mail_password` | `"securepassword"` | You might need an app password, see tip below |
     | `admin_email` | `"admin@example.com"` | Email for the first user account on the platform (gets server admin access). |
 
     ??? tip "Test your email settings before deploying"
 
-        Replace the values below with your own and run it on your local machine. If you receive the email, your settings are correct.
+        Some providers (Gmail, Outlook, etc.) don't allow you to log in with your regular password for automated sending. You'll need to create an app password in your provider's security settings first.
+
+        Test your settings by replacing the values below and running it on your local machine. If you receive the email, your settings are correct. If it fails, check with your email provider whether app passwords or other authentication steps are required.
 
         ```bash
         python3 -c "
         import smtplib
-        s = smtplib.SMTP('smtp.gmail.com', 587)
+        s = smtplib.SMTP('<mail_server>', <mail_port>)
         s.starttls()
-        s.login('your.email@example.com', 'your-app-password')
-        s.sendmail('your.email@example.com', 'your.email@example.com', 'Subject: SMTP test\n\nIt works!')
+        s.login('<mail_username>', '<mail_password>')
+        s.sendmail('<mail_username>', '<mail_username>', 'Subject: SMTP test\n\nIt works!')
         s.quit()
         print('Email sent!')
         "
         ```
+
+    ??? tip "Email not sending after deployment?"
+
+        Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
+
+        ```bash
+        python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('<mail_server>', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
+        ```
+
+        If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
 
 6.  **Add server to known_hosts**
 
@@ -108,7 +122,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 8.  **Run the playbook**
 
-    This deploys everything.
+    This deploys everything. After a few minutes it will pause and ask you to set up DNS, see the next step.
 
     ```bash
     ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
@@ -118,16 +132,16 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 9.  **Create a DNS record**
 
-    The playbook will pause and ask you to set up DNS. Go to your DNS provider and add an `A` record pointing your domain to your server's IP address.
+    Go to your DNS provider and add an `A` record pointing your domain to your server's IP address.
 
     | Type | Name | Value |
     |------|------|-------|
-    | A | `cam.example.com` | `<your_vm_ipv4>` |
+    | A | `<domain_name>` | `<your_vm_ipv4>` |
 
-    DNS propagation can take a few minutes. You can verify it with:
+    DNS propagation can take a few minutes. Open a new terminal window and verify it with:
 
     ```bash
-    dig +short cam.example.com
+    dig +short <domain_name>
     ```
 
     When this returns your server's IP, you're good. Press ENTER to continue. The playbook will then finish building and deploying all services.
@@ -136,20 +150,9 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 10. **Wait for the playbook to finish**
 
-    This can take 30-60 minutes the first time since it builds all Docker images on the server. Good time to go outside and do some bird watching. When you see lots of green texts, checkmarks and `failed=0`, the server is deployed.
+    This can take 30-60 minutes since it builds all Docker images on the server. Good time to go outside and do some bird watching. When you see lots of green texts, checkmarks and `failed=0`, the server is deployed.
 
     ![Screenshot 2026-03-23 at 14 36 48](https://github.com/user-attachments/assets/5454f891-8358-4deb-a77e-2f9411dbb897)
 
 Your server is live! Time to put it to work. Continue with the **[setup guide](setup-guide.md)** to register your account, configure settings, and start processing images.
 
-## Troubleshooting
-
-??? tip "Email not sending?"
-
-    Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
-
-    ```bash
-    python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('smtp.gmail.com', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
-    ```
-
-    If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
