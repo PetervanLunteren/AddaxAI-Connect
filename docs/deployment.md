@@ -4,7 +4,6 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 **Before you start**, make sure you have:
 
-- An Ubuntu server (tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 (Premium Intel) - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`, but any Ubuntu with at least 8 GB RAM and enough storage for your images should work)
 - A domain name you control (you'll need to create a DNS record)
 - An SSH key pair (most cloud providers let you add your public key during VM creation)
 - [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) installed on your local machine
@@ -14,7 +13,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
 1.  **Deploy a VM**
 
-    Use any cloud provider you like (DigitalOcean, Hetzner, AWS, etc.). Add your SSH public key during creation and note the IPv4 address. All the following steps happen on your local machine, not on the server.
+    Use any cloud provider you like (DigitalOcean, Hetzner, AWS, etc.). You need Ubuntu with at least 8 GB RAM and enough storage for your images (tested on DigitalOcean's `Ubuntu 24.04 (LTS) x64 (Premium Intel) - 8GB / 2 Intel CPUs / 160GB NVMe SSD ($48/mo)`). Add your SSH public key during creation and note the IPv4 address. All the following steps happen on your local machine, not on the server.
 
 2.  **Clone this repo**
 

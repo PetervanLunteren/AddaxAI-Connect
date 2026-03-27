@@ -1,10 +1,4 @@
 ---
-# Ansible Inventory - Copy this to inventory.yml and fill in your VM details
-#
-# Usage:
-#   1. Copy this file: cp inventory.yml.example inventory.yml
-#   2. Replace the placeholders with your actual VM IP and SSH settings
-#   3. Run: ansible-playbook -i inventory.yml playbook.yml
 
 all:
   children:
