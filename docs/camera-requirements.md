@@ -21,7 +21,7 @@ How this metadata is embedded (filename, EXIF, etc.) does not matter. A custom c
 ## Supported cameras
 
 * [Willfine 4.0T CG](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg)
-* [Swift Enduro 4.0PCG-R](https://wiki.smartparks.org/addaxaiconnect/cameras/swiftenduro40pcgr)
+* [Swift Enduro 4.0PCG-R](https://outdoorcameras.com.au/shop/swift-enduro-4g/)
 
 If your camera isn't listed, it needs a new profile. See below.
 
