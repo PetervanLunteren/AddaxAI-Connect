@@ -362,7 +362,10 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
 
         # Store camera_id before session closes
         camera_id = camera.id
-        report_date = datetime.now(timezone.utc).date()
+
+        # Use the date from the report itself, fall back to today if not available
+        report_datetime = health_data.get('report_datetime')
+        report_date = report_datetime.date() if report_datetime else datetime.now(timezone.utc).date()
 
         # Update config JSON with health data (for current status)
         camera.config = camera.config or {}
