@@ -19,19 +19,20 @@
 ![GitHub release](https://img.shields.io/github/v/release/PetervanLunteren/AddaxAI-Connect)
 [![docs](https://github.com/PetervanLunteren/AddaxAI-Connect/actions/workflows/deploy-docs.yml/badge.svg)](https://petervanlunteren.github.io/AddaxAI-Connect/)
 
-</div>
-
-<br>
-
-**AddaxAI Connect** is an open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications. Fully self-hosted on a single server, so your data stays yours. Deploy it, point your cameras at it, and go do something more fun than manually sorting thousands of photos of empty bushes.
-
-A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
-
 <h3>
   
 Official documentation: https://petervanlunteren.github.io/AddaxAI-Connect/
 
 </h3>
+
+</div>
+
+<br>
+
+
+**AddaxAI Connect** is an open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications. Fully self-hosted on a single server, so your data stays yours. Deploy it, point your cameras at it, and go do something more fun than manually sorting thousands of photos of empty bushes.
+
+A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
 
 ## What it looks like
 
