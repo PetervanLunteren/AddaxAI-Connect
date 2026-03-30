@@ -52,7 +52,9 @@ def parse_daily_report(filepath: str) -> dict:
             f"Filename: {filename}, Keys: {list(raw_data.keys())}"
         )
 
-    # Parse Willfine-2025 format
+    # Route to the correct parser based on field names
+    if 'Total Pics' in raw_data:
+        return parse_swift_enduro_report(filepath, raw_data)
     return parse_willfine_2025_report(filepath, raw_data)
 
 
@@ -87,6 +89,55 @@ def parse_willfine_2025_report(filepath: str, raw_data: dict) -> dict:
         'total_images': parse_image_count(raw_data.get('Total')),
         'sent_images': parse_image_count(raw_data.get('Send')),
         'report_datetime': parse_report_datetime(raw_data.get('Date')),
+    }
+
+    logger.info(
+        "Daily report parsed",
+        camera_id=camera_id,
+        battery=parsed['battery_percentage'],
+        temperature=parsed['temperature'],
+        signal_quality=parsed['signal_quality']
+    )
+
+    return parsed
+
+
+def parse_swift_enduro_report(filepath: str, raw_data: dict) -> dict:
+    """
+    Parse Swift Enduro daily report.
+
+    Format:
+    - IMEI and CamID fields (CamID may be empty)
+    - Temperature: "21 Celsius Degree" format
+    - GPS: DMS format "S32*56'06" E117*09'36""
+    - Date: "DD/MM/YYYY  HH:MM:SS" (double space)
+    - Keys: Total Pics, Send times (with spaces)
+
+    Args:
+        filepath: Path to daily report file
+        raw_data: Parsed key:value pairs
+
+    Returns:
+        Dictionary with parsed data
+    """
+    filename = os.path.basename(filepath)
+    camera_id = raw_data['IMEI']
+
+    # Normalize double-space in date field
+    date_str = raw_data.get('Date')
+    if date_str:
+        date_str = ' '.join(date_str.split())
+
+    parsed = {
+        'camera_id': camera_id,
+        'signal_quality': parse_signal_quality(raw_data.get('CSQ')),
+        'temperature': parse_temperature_celsius_word(raw_data.get('Temp')),
+        'battery_percentage': parse_battery(raw_data.get('Battery')),
+        'sd_utilization_percentage': parse_sd_card(raw_data.get('SD')),
+        'gps_location': parse_gps_dms(raw_data.get('GPS')),
+        'total_images': parse_image_count(raw_data.get('Total Pics')),
+        'sent_images': parse_image_count(raw_data.get('Send times')),
+        'report_datetime': parse_report_datetime(date_str),
     }
 
     logger.info(
@@ -138,6 +189,31 @@ def parse_temperature(temp_str: Optional[str]) -> Optional[int]:
         # Strip trailing space and degree symbol
         temp_clean = temp_str.rstrip('℃ ')
         return int(temp_clean)
+    except ValueError:
+        logger.warning("Failed to parse temperature", temp_str=temp_str)
+        return None
+
+
+def parse_temperature_celsius_word(temp_str: Optional[str]) -> Optional[int]:
+    """
+    Parse temperature field in "Celsius Degree" word format.
+
+    Used by Swift Enduro cameras.
+
+    Args:
+        temp_str: Temperature like "21 Celsius Degree" or "21 Celsius Degree   "
+
+    Returns:
+        Temperature in Celsius, or None if not parseable
+    """
+    if not temp_str:
+        return None
+
+    try:
+        match = re.match(r'(-?\d+)', temp_str.strip())
+        if not match:
+            return None
+        return int(match.group(1))
     except ValueError:
         logger.warning("Failed to parse temperature", temp_str=temp_str)
         return None
@@ -237,6 +313,41 @@ def parse_gps_decimal(gps_str: Optional[str]) -> Optional[Tuple[float, float]]:
 
     except (ValueError, IndexError) as e:
         logger.warning("Failed to parse GPS", gps_str=gps_str, error=str(e))
+        return None
+
+
+def parse_gps_dms(gps_str: Optional[str]) -> Optional[Tuple[float, float]]:
+    """
+    Parse GPS coordinates in DMS format.
+
+    Used by Swift Enduro cameras.
+
+    Args:
+        gps_str: GPS in format "S32*56'06\" E117*09'36\""
+
+    Returns:
+        Tuple of (latitude, longitude) in decimal degrees, or None if not parseable
+    """
+    if not gps_str:
+        return None
+
+    try:
+        matches = re.findall(r"([NSEW])(\d+)\*(\d+)'(\d+)\"", gps_str)
+        if len(matches) != 2:
+            logger.warning("Failed to parse GPS DMS", gps_str=gps_str)
+            return None
+
+        coords = []
+        for direction, degrees, minutes, seconds in matches:
+            decimal = float(degrees) + float(minutes) / 60 + float(seconds) / 3600
+            if direction in ('S', 'W'):
+                decimal = -decimal
+            coords.append(decimal)
+
+        return (coords[0], coords[1])
+
+    except (ValueError, IndexError) as e:
+        logger.warning("Failed to parse GPS DMS", gps_str=gps_str, error=str(e))
         return None
 
 

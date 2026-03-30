@@ -3,10 +3,12 @@ from datetime import datetime
 from daily_report_parser import (
     parse_signal_quality,
     parse_temperature,
+    parse_temperature_celsius_word,
     parse_battery,
     parse_sd_card,
     parse_image_count,
     parse_gps_decimal,
+    parse_gps_dms,
     parse_report_datetime,
 )
 
@@ -89,6 +91,42 @@ class TestParseImageCount:
 
     def test_float_string(self):
         assert parse_image_count("89.5") is None
+
+
+class TestParseTemperatureCelsiusWord:
+    def test_celsius_degree_format(self):
+        assert parse_temperature_celsius_word("21 Celsius Degree") == 21
+
+    def test_with_trailing_whitespace(self):
+        assert parse_temperature_celsius_word("21 Celsius Degree   ") == 21
+
+    def test_none_input(self):
+        assert parse_temperature_celsius_word(None) is None
+
+    def test_non_numeric(self):
+        assert parse_temperature_celsius_word("hot Celsius Degree") is None
+
+
+class TestParseGpsDms:
+    def test_south_east_coordinates(self):
+        result = parse_gps_dms('S32*56\'06" E117*09\'36"')
+        assert result is not None
+        lat, lon = result
+        assert round(lat, 4) == round(-32 - 56/60 - 6/3600, 4)
+        assert round(lon, 4) == round(117 + 9/60 + 36/3600, 4)
+
+    def test_north_west_coordinates(self):
+        result = parse_gps_dms('N52*05\'55" W5*07\'31"')
+        assert result is not None
+        lat, lon = result
+        assert lat > 0
+        assert lon < 0
+
+    def test_none_input(self):
+        assert parse_gps_dms(None) is None
+
+    def test_invalid_format(self):
+        assert parse_gps_dms("not-gps") is None
 
 
 class TestParseGpsDecimal:

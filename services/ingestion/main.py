@@ -212,19 +212,16 @@ def process_image(filepath: str) -> None:
 
         logger.info("Camera profile identified", file_name=filename, profile=profile.name)
 
-        # Step 4: Extract device ID (from SerialNumber EXIF field)
-        device_id = exif.get('SerialNumber')
+        # Step 4: Extract device ID using camera profile
+        device_id = profile.get_camera_id(exif, clean_filename)
         if not device_id:
             reject_file(
                 filepath,
                 "missing_device_id",
-                f"Could not extract device ID (SerialNumber field) for profile {profile.name}",
+                f"Could not extract device ID for profile {profile.name}",
                 exif_metadata=exif
             )
             return
-
-        # Convert to string to ensure consistent type
-        device_id = str(device_id)
 
         # Step 5: Get datetime
         try:
