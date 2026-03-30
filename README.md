@@ -27,6 +27,12 @@
 
 A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
 
+<h3>
+  
+Official documentation: https://petervanlunteren.github.io/AddaxAI-Connect/
+
+</h3>
+
 ## What it looks like
 
 Try it yourself: [demo.addaxai.com](https://demo.addaxai.com/login)
