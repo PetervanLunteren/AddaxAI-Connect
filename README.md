@@ -69,6 +69,10 @@ You need an Ubuntu server and a domain name. Deployment is automated with Ansibl
 
 For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.md).
 
+## Is it free?
+
+Yes, if you already have the required hardware. AddaxAI Connect is open source under the MIT license, so there are no software costs. You will need cameras, SIM cards, and a server. If those are already in place, you can run the system at no additional cost. If you need help sourcing hardware or setting things up, visit [plan.addaxai.com](https://plan.addaxai.com).
+
 ## License
 
 [MIT](LICENSE)
