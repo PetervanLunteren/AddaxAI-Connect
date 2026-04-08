@@ -22,6 +22,12 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
 
 4. **Power on the droplet.** *(in the DigitalOcean dashboard)* Go back to your droplet and click the power on button. Wait until the status shows it's running again before continuing.
 
+5. **Bring services back up.** *(on the production server)* SSH back in and start the docker compose stack. Powering off ran `docker compose down`, which removed the containers, so they do not come back on their own after boot.
+
+   ```
+   cd /opt/addaxai-connect && docker compose up -d
+   ```
+
 ## 2. Update production
 
 1. **Pull the latest code.** *(on the production server)* SSH back in and pull the new version.

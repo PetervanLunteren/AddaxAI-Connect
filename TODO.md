@@ -5,12 +5,12 @@
 - [ ] does the exsessive image notification work? 
 
 ## TODO Priority 2
-- [ ] Make the bounding box clearer in the grid view (and the telegram notifications?)
+- [ ] is it difficult to have the Activity pattern in the dashboard resemble a clock with hours around it? 
 - [ ] Now it shows the bounding boxes on every image in the ImageDetailsModal by default. But the boxes are actually AI predictions, If a user adds an aninal via verification, it doesnt add a bounding box. Perhaps we can change the default to not show anything, but have a toggle to "Show AI predicitons" which makes it clearer that these are AI predictions, right? 
 - [ ] Can a 2-minute independence interval be configured to ensure consistency with our previous projects?
 - [ ] In the annotation tool, the dropdown only allows selection of species already observed in the project. Can this be expanded to allow corrections to species not yet observed?
 - [ ] Similarly, how can a new species be added to the list? Could predefined species lists (like in Agouti) be implemented?
-- [ ] In the settings, I am unable to link a Telegram account for alerts, and I also get an error when saving preferences. Could you please check this? Errors and also cant save notification settings. 
+- [x] In the settings, I am unable to link a Telegram account for alerts, and I also get an error when saving preferences. Could you please check this? Errors and also cant save notification settings. Should be fixed in the latest version already. No change needed. Already fixed. 
 - [ ] There is an inconsistency between the “Camera” and “Map” tabs: some deleted locations (test data) still appear on the map.
 - [ ] Is it possible to define species-specific confidence thresholds?
 - [ ] When navigating through images, is it possible to filter and display only those classified as “empty” in order to review false negatives? Should we add Empty as a label and change the filter "Species" to "Labels" so you have full control? 
@@ -25,3 +25,4 @@
 
 ## Possible future features
 - [ ] Allow manual upload of all SD card images that were not transmitted, in order to benefit from automatic recognition and centralize all data on the server?
+
