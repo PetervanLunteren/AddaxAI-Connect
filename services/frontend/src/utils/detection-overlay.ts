@@ -179,9 +179,10 @@ export function drawDetectionOverlay(
   // UI scale factor for fonts, pills, paddings (reference display width = 1000)
   const scale = canvasW / 1000;
 
-  // Stroke scale floors at 0.6 so small thumbnails still get a clearly visible
-  // ~3 px stroke (5 * 0.6). Larger views scale linearly with display width.
-  const strokeScale = Math.max(0.6, scale);
+  // Clamp stroke scale so the bbox border stays consistent across views:
+  // thumbnails get a clear ~3 px stroke (5 * 0.6) and the detail modal stays
+  // at ~4 px (5 * 0.8) instead of growing to 6-8 px on large displays.
+  const strokeScale = Math.min(0.8, Math.max(0.6, scale));
 
   // Pre-compute all bbox rects in canvas coords
   const rects = detections.map((d) => {
