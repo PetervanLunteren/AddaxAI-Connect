@@ -11,7 +11,7 @@ import { getSpeciesColor } from './species-colors';
 // --- Constants (matching WebUI detection-overlay.ts) ---
 
 const BBOX_STROKE_WIDTH = 5;
-const BBOX_OPACITY = 0.5;
+const BBOX_OPACITY = 1.0;
 const BBOX_CORNER_RADIUS = 4;
 const DIM_FILL = 'rgba(0, 0, 0, 0.35)';
 const PILL_BG = 'rgba(0, 0, 0, 0.5)';
