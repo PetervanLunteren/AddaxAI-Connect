@@ -148,12 +148,26 @@ function ActivityClock({ hours }: ActivityClockProps) {
       {/* Hover details in the center of the clock */}
       {hoveredEntry && (
         <g style={{ pointerEvents: 'none' }}>
+          {/* Card background — drawn on top of the bars so the text stays
+              readable even when the count label is wider than the inner circle */}
+          <rect
+            x={cx - 35}
+            y={cy - 14}
+            width={70}
+            height={28}
+            rx={3}
+            style={{
+              fill: 'hsl(var(--card))',
+              stroke: 'hsl(var(--border))',
+              strokeWidth: 0.5,
+            }}
+          />
           <text
             x={cx}
             y={cy - 3}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={11}
+            fontSize={10}
             fontWeight="bold"
             fill="currentColor"
             className="text-foreground"
@@ -162,10 +176,10 @@ function ActivityClock({ hours }: ActivityClockProps) {
           </text>
           <text
             x={cx}
-            y={cy + 9}
+            y={cy + 8}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={8}
+            fontSize={7}
             fill="currentColor"
             className="text-muted-foreground"
           >
