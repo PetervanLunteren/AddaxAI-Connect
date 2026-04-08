@@ -6,13 +6,14 @@
  */
 import type { Detection } from '../api/types';
 import { normalizeLabel } from './labels';
+import { getSpeciesColor } from './species-colors';
 
 // --- Constants (matching WebUI detection-overlay.ts) ---
 
 const BBOX_STROKE_WIDTH = 5;
-const BBOX_OPACITY = 1.0;
+const BBOX_OPACITY = 0.5;
 const BBOX_CORNER_RADIUS = 4;
-const DIM_FILL = 'rgba(0, 0, 0, 0.55)';
+const DIM_FILL = 'rgba(0, 0, 0, 0.35)';
 const PILL_BG = 'rgba(0, 0, 0, 0.5)';
 const PILL_PAD_X = 6;
 const PILL_PAD_Y = 4;
@@ -34,6 +35,17 @@ const DEFAULT_COLOR = '#882000';
 
 export function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] ?? DEFAULT_COLOR;
+}
+
+/**
+ * Pick the stroke/dot color for a detection: use the species color when a
+ * classification exists, otherwise fall back to the category color.
+ */
+function getDetectionColor(detection: Detection): string {
+  if (detection.classifications.length > 0) {
+    return getSpeciesColor(detection.classifications[0].species);
+  }
+  return getCategoryColor(detection.category);
 }
 
 // --- Canvas helpers ---
@@ -88,7 +100,7 @@ function computePillLayout(
   canvasW: number,
   canvasH: number,
 ): PillLayout {
-  const color = getCategoryColor(detection.category);
+  const color = getDetectionColor(detection);
   const categoryText = `${normalizeLabel(detection.category)} ${Math.round(detection.confidence * 100)}%`;
 
   let speciesText: string | null = null;
@@ -164,9 +176,12 @@ export function drawDetectionOverlay(
   const scaleX = canvasW / imageWidth;
   const scaleY = canvasH / imageHeight;
 
-  // UI scale factor (for stroke widths, fonts, paddings)
-  // Reference display width = 1000
+  // UI scale factor for fonts, pills, paddings (reference display width = 1000)
   const scale = canvasW / 1000;
+
+  // Stroke scale floors at 0.6 so small thumbnails still get a clearly visible
+  // ~3 px stroke (5 * 0.6). Larger views scale linearly with display width.
+  const strokeScale = Math.max(0.6, scale);
 
   // Pre-compute all bbox rects in canvas coords
   const rects = detections.map((d) => {
@@ -178,7 +193,7 @@ export function drawDetectionOverlay(
   });
 
   // 1. Spotlight dim overlay with cutouts (union of all bboxes stays original)
-  const cornerR = BBOX_CORNER_RADIUS * scale;
+  const cornerR = BBOX_CORNER_RADIUS * strokeScale;
   // Fill entire canvas with dim
   ctx.save();
   ctx.fillStyle = DIM_FILL;
@@ -195,10 +210,10 @@ export function drawDetectionOverlay(
   ctx.globalCompositeOperation = 'source-over';
 
   // 2. Bounding box outlines
-  const strokeW = BBOX_STROKE_WIDTH * scale;
+  const strokeW = BBOX_STROKE_WIDTH * strokeScale;
   detections.forEach((detection, i) => {
     const r = rects[i];
-    const color = getCategoryColor(detection.category);
+    const color = getDetectionColor(detection);
 
     ctx.save();
     ctx.globalAlpha = BBOX_OPACITY;
