@@ -50,12 +50,38 @@ function ActivityClock({ hours }: ActivityClockProps) {
   // SVG angle (0 deg = right, increasing clockwise).
   const hourAngle = (hour: number) => ((hour * 15 - 90) * Math.PI) / 180;
 
+  const [hoveredHour, setHoveredHour] = useState<number | null>(null);
+  const hoveredEntry =
+    hoveredHour !== null ? hours.find((h) => h.hour === hoveredHour) ?? null : null;
+
+  // Convert cursor position to the closest hour. Anywhere inside the
+  // outer circle counts as a hover; outside clears it.
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 200;
+    const y = ((e.clientY - rect.top) / rect.height) * 200;
+    const dx = x - cx;
+    const dy = y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > outerR + 6) {
+      setHoveredHour(null);
+      return;
+    }
+    // atan2 returns angle in [-pi, pi] with 0 at the right side.
+    // Rotate by +90 deg so 0 is at the top, then snap to the nearest 15 deg slot.
+    let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    deg = (deg + 90 + 360) % 360;
+    setHoveredHour(Math.round(deg / 15) % 24);
+  };
+
   return (
     <svg
       viewBox="0 0 200 200"
       className="w-full h-full"
       role="img"
       aria-label="Hourly activity clock"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoveredHour(null)}
     >
       {/* Faint guide circles for visual scale */}
       <circle
@@ -83,6 +109,7 @@ function ActivityClock({ hours }: ActivityClockProps) {
         const y1 = cy + innerR * Math.sin(angle);
         const x2 = cx + (innerR + length) * Math.cos(angle);
         const y2 = cy + (innerR + length) * Math.sin(angle);
+        const isHovered = hoveredHour === hour;
         return (
           <line
             key={hour}
@@ -91,11 +118,9 @@ function ActivityClock({ hours }: ActivityClockProps) {
             x2={x2}
             y2={y2}
             stroke={getHourColor(hour)}
-            strokeWidth={barWidth}
+            strokeWidth={isHovered ? barWidth + 2 : barWidth}
             strokeLinecap="round"
-          >
-            <title>{`${hour.toString().padStart(2, '0')}:00 — ${count} detection${count === 1 ? '' : 's'}`}</title>
-          </line>
+          />
         );
       })}
 
@@ -119,6 +144,35 @@ function ActivityClock({ hours }: ActivityClockProps) {
           </text>
         );
       })}
+
+      {/* Hover details in the center of the clock */}
+      {hoveredEntry && (
+        <g style={{ pointerEvents: 'none' }}>
+          <text
+            x={cx}
+            y={cy - 3}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={11}
+            fontWeight="bold"
+            fill="currentColor"
+            className="text-foreground"
+          >
+            {`${hoveredEntry.hour.toString().padStart(2, '0')}:00`}
+          </text>
+          <text
+            x={cx}
+            y={cy + 9}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={8}
+            fill="currentColor"
+            className="text-muted-foreground"
+          >
+            {`${hoveredEntry.count} detection${hoveredEntry.count === 1 ? '' : 's'}`}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }
