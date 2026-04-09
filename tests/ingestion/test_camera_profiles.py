@@ -83,40 +83,38 @@ class TestInstarPathRegex:
     """The path regex is the gatekeeper for INSTAR profile selection."""
 
     def test_positive_coords(self):
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg"
         assert INSTAR_PROFILE.matches_path(path)
 
     def test_negative_coords(self):
-        path = "INSTAR/lat-33.85679_lon-70.65876/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat-33.85679_lon-70.65876/A_2026-04-09_16-04-05.jpeg"
         assert INSTAR_PROFILE.matches_path(path)
 
     def test_mixed_signs(self):
-        path = "INSTAR/lat-33.85679_lon151.20929/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat-33.85679_lon151.20929/A_2026-04-09_16-04-05.jpeg"
         assert INSTAR_PROFILE.matches_path(path)
 
     def test_case_insensitive_extension(self):
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.JPG"
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.JPG"
         assert INSTAR_PROFILE.matches_path(path)
 
-    def test_record_subdir_not_matched(self):
-        # Videos must NOT match - they are dispatched separately and never reach process_image
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/record/A_2026-04-09_16-04-05.mp4"
+    def test_mp4_in_same_dir_not_matched(self):
+        # Video clips land alongside the stills but the regex only accepts
+        # JPEGs. The dispatcher catches .mp4 by extension before profile lookup.
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.mp4"
         assert not INSTAR_PROFILE.matches_path(path)
 
     def test_missing_brand_prefix_not_matched(self):
-        path = "lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg"
-        assert not INSTAR_PROFILE.matches_path(path)
-
-    def test_missing_date_dir_not_matched(self):
-        path = "INSTAR/lat52.02368_lon12.98290/images/A_2026-04-09_16-04-05.jpeg"
+        path = "lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg"
         assert not INSTAR_PROFILE.matches_path(path)
 
     def test_malformed_latlon_not_matched(self):
-        path = "INSTAR/lat-foo_lon-bar/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat-foo_lon-bar/A_2026-04-09_16-04-05.jpeg"
         assert not INSTAR_PROFILE.matches_path(path)
 
     def test_extra_segment_not_matched(self):
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/sub/A_2026-04-09_16-04-05.jpeg"
+        # Anything below an extra subdir under the lat-lon dir is rejected
+        path = "INSTAR/lat52.02368_lon12.98290/sub/A_2026-04-09_16-04-05.jpeg"
         assert not INSTAR_PROFILE.matches_path(path)
 
     def test_flat_path_not_matched(self):
@@ -125,22 +123,22 @@ class TestInstarPathRegex:
 
 class TestParseInstarPath:
     def test_extracts_device_id_datetime_gps(self):
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg"
         result = parse_instar_path(path)
         assert result["device_id"] == "lat52.02368_lon12.98290"
         assert result["datetime"] == datetime(2026, 4, 9, 16, 4, 5)
         assert result["gps"] == (52.02368, 12.98290)
 
     def test_negative_coords(self):
-        path = "INSTAR/lat-33.85679_lon-70.65876/20260101/images/A_2026-01-01_00-00-01.jpeg"
+        path = "INSTAR/lat-33.85679_lon-70.65876/A_2026-01-01_00-00-01.jpeg"
         result = parse_instar_path(path)
         assert result["device_id"] == "lat-33.85679_lon-70.65876"
         assert result["gps"] == (-33.85679, -70.65876)
         assert result["datetime"] == datetime(2026, 1, 1, 0, 0, 1)
 
     def test_test_snapshot_raises(self):
-        # Test-Snapshot.jpeg arrives in images/ but has no timestamp -> ValueError
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/Test-Snapshot.jpeg"
+        # Test-Snapshot.jpeg lands in the lat-lon dir but has no timestamp -> ValueError
+        path = "INSTAR/lat52.02368_lon12.98290/Test-Snapshot.jpeg"
         with pytest.raises(ValueError, match="no timestamp"):
             parse_instar_path(path)
 
@@ -151,12 +149,12 @@ class TestParseInstarPath:
     def test_filename_with_lowercase_channel_accepted(self):
         # The filename regex is case-insensitive, so a future firmware that
         # writes 'a_' instead of 'A_' must still parse cleanly.
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/a_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat52.02368_lon12.98290/a_2026-04-09_16-04-05.jpeg"
         assert parse_instar_path(path)["datetime"] == datetime(2026, 4, 9, 16, 4, 5)
 
     def test_device_id_round_trips_through_split(self):
         # Make sure device_id is the verbatim path segment, not a re-formatted version
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg"
         assert parse_instar_path(path)["device_id"] == "lat52.02368_lon12.98290"
 
 
@@ -164,7 +162,7 @@ class TestIdentifyCameraProfile:
     def test_path_match_beats_exif(self):
         # Even if EXIF matched something, the path-based profile wins
         exif = {"Make": "Willfine", "Model": "4.0T CG"}
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg"
         profile = identify_camera_profile(exif=exif, filename="A.jpg", relative_path=path)
         assert profile.name == "INSTAR"
 
@@ -181,7 +179,7 @@ class TestIdentifyCameraProfile:
 
     def test_identifies_instar_with_empty_exif(self):
         # INSTAR has zero EXIF; identification must succeed without it
-        path = "INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg"
+        path = "INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg"
         profile = identify_camera_profile(exif={}, filename="A_2026-04-09_16-04-05.jpeg", relative_path=path)
         assert profile.name == "INSTAR"
 

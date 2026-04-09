@@ -77,19 +77,20 @@ INSTAR cameras don't write any metadata into their image files (no EXIF), so the
 INSTAR/<lat-lon-string>
 ```
 
-For example: `INSTAR/lat52.02368_lon12.98290`. INSTAR will then build the full upload path automatically:
+For example: `INSTAR/lat52.02368_lon12.98290`. INSTAR drops every uploaded file straight into that directory:
 
 ```
-INSTAR/lat52.02368_lon12.98290/<YYYYMMDD>/images/<filename>.jpeg
+INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg
+INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.mp4
 ```
 
-**What gets processed.** Only JPEG stills under `images/` are sent into the ML pipeline. INSTAR also uploads MP4 video clips into a sibling `record/` directory, and may produce `Test-Snapshot.jpeg` files when you press the "Test" button in the web UI. These are handled as follows:
+**What gets processed.** Only JPEG stills with a timestamped filename are sent into the ML pipeline. INSTAR also uploads MP4 video clips into the same directory, and may produce `Test-Snapshot.jpeg` files when you press the "Test" button in the web UI. These are handled as follows:
 
 | File | Behaviour |
 |---|---|
-| `images/A_YYYY-MM-DD_HH-MM-SS.jpeg` | Processed as a normal image. Datetime is parsed from the filename, GPS from the path. |
-| `record/*.mp4` | Logged and deleted. Video is not processed. |
-| `images/Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Visible in `File management`. |
+| `A_YYYY-MM-DD_HH-MM-SS.jpeg` | Processed as a normal image. Datetime is parsed from the filename, GPS from the path. |
+| `A_YYYY-MM-DD_HH-MM-SS.mp4` | Logged and deleted. Video is not processed. |
+| `Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Visible in `File management`. |
 
 INSTAR cameras do not send daily health reports, so the battery, signal, SD usage, and "last seen" health fields stay empty. This is expected, not a misconfiguration.
 

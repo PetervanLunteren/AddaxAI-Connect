@@ -151,19 +151,19 @@ def extract_swift_enduro_camera_id(exif: dict, filename: str) -> Optional[str]:
 #
 #     INSTAR/lat<LAT>_lon<LON>
 #
-# e.g. ``INSTAR/lat52.02368_lon12.98290``. INSTAR then builds the full path:
+# e.g. ``INSTAR/lat52.02368_lon12.98290``. INSTAR drops every uploaded file
+# straight into that directory:
 #
-#     /uploads/INSTAR/lat52.02368_lon12.98290/20260409/images/A_2026-04-09_16-04-05.jpeg
+#     /uploads/INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg
+#     /uploads/INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.mp4
 #
-# The YYYYMMDD date dir and the "images/" segment are forced by the camera
-# firmware and ignored during parsing (datetime comes from the filename).
-#
-# Videos arrive under a sibling ``record/`` dir and are deleted at dispatch
-# time, so they never reach parse_instar_path.
+# The lat-lon dir is the only structure we rely on. Video clips land in the
+# same directory as the stills and are deleted by the extension dispatcher
+# (.mp4 → log + delete) before they ever reach parse_instar_path.
 # ---------------------------------------------------------------------------
 
 INSTAR_PATH_RE = re.compile(
-    r"^INSTAR/lat(?P<lat>-?\d+\.\d+)_lon(?P<lon>-?\d+\.\d+)/\d{8}/images/[^/]+\.jpe?g$",
+    r"^INSTAR/lat(?P<lat>-?\d+\.\d+)_lon(?P<lon>-?\d+\.\d+)/[^/]+\.jpe?g$",
     re.IGNORECASE,
 )
 

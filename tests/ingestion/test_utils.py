@@ -66,7 +66,7 @@ class TestRejectFileFlat:
 
 class TestRejectFileNested:
     def _setup_instar_tree(self, upload_root, filename="Test-Snapshot.jpeg"):
-        nested = upload_root / "INSTAR" / "lat52.02368_lon12.98290" / "20260409" / "images"
+        nested = upload_root / "INSTAR" / "lat52.02368_lon12.98290"
         nested.mkdir(parents=True)
         src = nested / filename
         src.write_bytes(b"\xff\xd8\xff\x00")
@@ -78,7 +78,7 @@ class TestRejectFileNested:
         reject_file(str(src), "missing_datetime", "no timestamp")
 
         expected = upload_root / "rejected" / "missing_datetime" / (
-            "INSTAR_lat52.02368_lon12.98290_20260409_images_Test-Snapshot.jpeg"
+            "INSTAR_lat52.02368_lon12.98290_Test-Snapshot.jpeg"
         )
         assert expected.exists()
         assert not src.exists()
@@ -91,8 +91,8 @@ class TestRejectFileNested:
 
     def test_two_nested_sources_with_same_basename_do_not_collide(self, upload_root):
         # Two different INSTAR cameras both produce a Test-Snapshot.jpeg
-        src_a = upload_root / "INSTAR" / "lat52.02368_lon12.98290" / "20260409" / "images" / "Test-Snapshot.jpeg"
-        src_b = upload_root / "INSTAR" / "lat-33.85679_lon-70.65876" / "20260409" / "images" / "Test-Snapshot.jpeg"
+        src_a = upload_root / "INSTAR" / "lat52.02368_lon12.98290" / "Test-Snapshot.jpeg"
+        src_b = upload_root / "INSTAR" / "lat-33.85679_lon-70.65876" / "Test-Snapshot.jpeg"
         for src in (src_a, src_b):
             src.parent.mkdir(parents=True)
             src.write_bytes(b"\xff\xd8\xff\x00")
@@ -103,8 +103,8 @@ class TestRejectFileNested:
         rejected_dir = upload_root / "rejected" / "missing_datetime"
         rejected_files = sorted(p.name for p in rejected_dir.iterdir() if not p.name.endswith(".error.json"))
         assert rejected_files == [
-            "INSTAR_lat-33.85679_lon-70.65876_20260409_images_Test-Snapshot.jpeg",
-            "INSTAR_lat52.02368_lon12.98290_20260409_images_Test-Snapshot.jpeg",
+            "INSTAR_lat-33.85679_lon-70.65876_Test-Snapshot.jpeg",
+            "INSTAR_lat52.02368_lon12.98290_Test-Snapshot.jpeg",
         ]
 
     def test_nested_reject_prunes_empty_parents(self, upload_root):
@@ -132,7 +132,7 @@ class TestDeleteFile:
         assert upload_root.exists()
 
     def test_delete_nested_prunes_parents(self, upload_root):
-        nested_dir = upload_root / "INSTAR" / "lat52.02368_lon12.98290" / "20260409" / "images"
+        nested_dir = upload_root / "INSTAR" / "lat52.02368_lon12.98290"
         nested_dir.mkdir(parents=True)
         src = nested_dir / "A_2026-04-09_16-04-05.jpeg"
         src.write_bytes(b"\x00")
