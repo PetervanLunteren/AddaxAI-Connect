@@ -58,6 +58,16 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const queryClient = useQueryClient();
   const { selectedProject } = useProject();
 
+  // Invalidate every cache that depends on this image's verification state.
+  // Called from all four save/verify/unverify/notes mutations so the grid
+  // chips, the species dropdown, and the dashboard all refresh together.
+  const invalidateAfterVerification = () => {
+    queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+    queryClient.invalidateQueries({ queryKey: ['images'] });
+    queryClient.invalidateQueries({ queryKey: ['species'] });
+    queryClient.invalidateQueries({ queryKey: ['statistics'] });
+  };
+
   // Local state for form
   const [observations, setObservations] = useState<ObservationRow[]>([]);
   const [notes, setNotes] = useState('');
@@ -187,7 +197,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      invalidateAfterVerification();
       setError(null);
       setIsEditing(false);
       onVerificationSaved?.();
@@ -207,7 +217,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      invalidateAfterVerification();
       setObservations([]);
       setError(null);
       setIsEditing(false);
@@ -233,7 +243,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      invalidateAfterVerification();
     },
   });
 
@@ -252,7 +262,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      invalidateAfterVerification();
     },
   });
 
