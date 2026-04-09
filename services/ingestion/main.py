@@ -38,6 +38,56 @@ logger = get_logger("ingestion")
 settings = get_settings()
 
 
+def _is_under_rejected_tree(filepath: str) -> bool:
+    """
+    True if ``filepath`` sits under the rejected/ subtree of the upload dir.
+
+    With the recursive watchdog observer, file events fire inside rejected/
+    too (when reject_file moves a file in). This guard prevents an infinite
+    loop where rejecting a file immediately re-queues it for processing.
+    """
+    upload_dir = settings.ftps_upload_dir or "/uploads"
+    try:
+        rel = Path(filepath).resolve().relative_to(Path(upload_dir).resolve())
+    except ValueError:
+        return False
+    return bool(rel.parts) and rel.parts[0] == "rejected"
+
+
+def _dispatch_file(filepath: str, base_ext: str) -> None:
+    """
+    Route a file to the appropriate handler based on its extension.
+
+    ``.jpg/.jpeg`` → process_image
+    ``.txt``       → process_daily_report
+    ``.mp4``       → logged and deleted (no video support; avoids clogging rejected/)
+    anything else  → rejected as ``unsupported_file_type``
+    """
+    filename = os.path.basename(filepath)
+
+    if base_ext in ('jpg', 'jpeg'):
+        process_image(filepath)
+    elif base_ext == 'txt':
+        process_daily_report(filepath)
+    elif base_ext == 'mp4':
+        logger.info(
+            "Deleted unsupported video",
+            file_name=filename,
+            filepath=filepath,
+            reason="no_video_support",
+        )
+        try:
+            os.unlink(filepath)
+        except OSError as e:
+            logger.warning(
+                "Failed to delete unsupported video",
+                filepath=filepath,
+                error=str(e),
+            )
+    else:
+        reject_file(filepath, "unsupported_file_type", "Extension not recognized")
+
+
 class IngestionEventHandler(FileSystemEventHandler):
     """
     Handles file system events in the FTPS upload directory.
@@ -60,6 +110,10 @@ class IngestionEventHandler(FileSystemEventHandler):
         if filename.startswith('.'):
             return
 
+        # Ignore files inside the rejected/ tree (recursive observer picks them up)
+        if _is_under_rejected_tree(filepath):
+            return
+
         # Small delay to ensure file is fully written
         time.sleep(0.5)
 
@@ -67,13 +121,8 @@ class IngestionEventHandler(FileSystemEventHandler):
         if not os.path.exists(filepath):
             return
 
-        # Route by file extension
-        if filename.lower().endswith(('.jpg', '.jpeg')):
-            process_image(filepath)
-        elif filename.lower().endswith('.txt'):
-            process_daily_report(filepath)
-        else:
-            reject_file(filepath, "unsupported_file_type", f"Extension not recognized")
+        base_ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
+        _dispatch_file(filepath, base_ext)
 
     def on_moved(self, event: FileMovedEvent):
         """
@@ -104,6 +153,10 @@ class IngestionEventHandler(FileSystemEventHandler):
         if dest_filename.startswith('.'):
             return
 
+        # Ignore files inside the rejected/ tree
+        if _is_under_rejected_tree(filepath):
+            return
+
         # No sleep needed - file was fully written before atomic rename
 
         # Route by file extension (checking base extension, not AutoRename suffix)
@@ -115,12 +168,7 @@ class IngestionEventHandler(FileSystemEventHandler):
         if base_ext.isdigit() and len(parts) > 2:
             base_ext = parts[-2]
 
-        if base_ext in ['jpg', 'jpeg']:
-            process_image(filepath)
-        elif base_ext == 'txt':
-            process_daily_report(filepath)
-        else:
-            reject_file(filepath, "unsupported_file_type", f"Extension not recognized")
+        _dispatch_file(filepath, base_ext)
 
 
 def strip_autorename_suffix(filename: str) -> str:
@@ -148,20 +196,32 @@ def strip_autorename_suffix(filename: str) -> str:
     return re.sub(r'\.\d+$', '', filename)
 
 
+def _relative_upload_path(filepath: str) -> str:
+    """
+    Return ``filepath`` relative to the upload directory, using ``/`` separators.
+
+    Used for path-based profile identification. Falls back to the basename
+    if the file is somehow outside the upload root.
+    """
+    upload_dir = settings.ftps_upload_dir or "/uploads"
+    try:
+        rel = Path(filepath).resolve().relative_to(Path(upload_dir).resolve())
+    except ValueError:
+        return os.path.basename(filepath)
+    return rel.as_posix()
+
+
 def process_image(filepath: str) -> None:
     """
     Process uploaded camera trap image.
 
-    Workflow:
-    1. Validate file (MIME type, size)
-    2. Extract EXIF metadata
-    3. Identify camera profile
-    4. Extract camera ID
-    5. Generate UUID
-    6. Upload to MinIO
-    7. Create database record
-    8. Publish to Redis queue
-    9. Delete original file
+    Two code paths depending on the camera profile:
+
+    - **Path-based profile** (e.g. INSTAR): identify from the upload path,
+      extract device_id / datetime / GPS from the path and filename, skip
+      EXIF entirely.
+    - **EXIF-based profile** (Willfine, Swift Enduro): extract EXIF, require
+      Make/Model, use the profile's get_camera_id.
 
     Args:
         filepath: Path to image file
@@ -171,85 +231,108 @@ def process_image(filepath: str) -> None:
     # Strip AutoRename suffix (.1, .2, etc.) to preserve original camera filename
     # This must be done BEFORE any filename-based processing
     clean_filename = strip_autorename_suffix(filename)
+    relative_path = _relative_upload_path(filepath)
 
-    logger.info("Processing image", file_name=clean_filename, filepath=filepath)
+    logger.info(
+        "Processing image",
+        file_name=clean_filename,
+        filepath=filepath,
+        relative_path=relative_path,
+    )
 
     try:
-        # Step 1: Validate file
+        # Step 1: Validate file (MIME, size)
         validate_image(filepath)
 
-        # Step 2: Extract EXIF
-        exif = extract_exif(filepath)
-        if not exif:
-            reject_file(
-                filepath,
-                "exif_extraction_failed",
-                "Could not extract EXIF metadata",
-                exif_metadata={}
-            )
-            return
-
-        # Step 2b: Check if camera EXIF data is present
-        make = exif.get('Make')
-        model = exif.get('Model')
-
-        if not make and not model:
-            # Image has basic metadata (dimensions) but no camera EXIF data
-            reject_file(
-                filepath,
-                "no_camera_exif",
-                f"Image file has no camera EXIF data (Make/Model missing). File may have been edited or EXIF stripped. Basic metadata present: {list(exif.keys())}",
-                exif_metadata=exif
-            )
-            return
-
-        # Step 3: Identify camera profile
+        # Step 2: Identify camera profile.
+        #
+        # Path-based profiles (INSTAR) match on the relative upload path and
+        # skip EXIF entirely. EXIF-based profiles still need Make/Model, so
+        # we only read EXIF when the path-based match misses.
+        exif: dict = {}
         try:
-            profile = identify_camera_profile(exif, filename)
-        except ValueError as e:
-            reject_file(filepath, "unsupported_camera", str(e), exif_metadata=exif)
-            return
+            profile = identify_camera_profile(exif={}, filename=clean_filename, relative_path=relative_path)
+        except ValueError:
+            # No path-based profile matched. Try EXIF-based identification.
+            exif = extract_exif(filepath) or {}
+            if not exif:
+                reject_file(
+                    filepath,
+                    "exif_extraction_failed",
+                    "Could not extract EXIF metadata",
+                    exif_metadata={}
+                )
+                return
 
-        logger.info("Camera profile identified", file_name=filename, profile=profile.name)
+            make = exif.get('Make')
+            model = exif.get('Model')
+            if not make and not model:
+                reject_file(
+                    filepath,
+                    "no_camera_exif",
+                    f"Image file has no camera EXIF data (Make/Model missing). "
+                    f"File may have been edited or EXIF stripped. "
+                    f"Basic metadata present: {list(exif.keys())}",
+                    exif_metadata=exif
+                )
+                return
 
-        # Step 4: Extract device ID using camera profile
-        device_id = profile.get_camera_id(exif, clean_filename)
-        if not device_id:
-            reject_file(
-                filepath,
-                "missing_device_id",
-                f"Could not extract device ID for profile {profile.name}",
-                exif_metadata=exif
-            )
-            return
+            try:
+                profile = identify_camera_profile(
+                    exif=exif, filename=clean_filename, relative_path=relative_path
+                )
+            except ValueError as e:
+                reject_file(filepath, "unsupported_camera", str(e), exif_metadata=exif)
+                return
 
-        # Step 5: Get datetime
-        try:
-            datetime_original = get_datetime_original(
-                exif,
-                filepath,
-                allow_fallback=not profile.requires_datetime
-            )
-        except ValueError as e:
-            reject_file(filepath, "missing_datetime", str(e), exif_metadata=exif)
-            return
+        logger.info(
+            "Camera profile identified",
+            file_name=filename,
+            profile=profile.name,
+            is_path_based=profile.is_path_based,
+        )
 
-        # Step 6: Look up camera (returns database ID or None)
-        camera_db_id = get_camera_by_device_id(device_id)
-        if camera_db_id is None:
-            reject_file(
-                filepath,
-                "unknown_camera",
-                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files."
-            )
-            return
+        # Step 3: Extract device_id, datetime, GPS according to the profile.
+        if profile.is_path_based:
+            try:
+                parsed = profile.parse_path(relative_path)
+            except ValueError as e:
+                # Covers Test-Snapshot.jpeg and any other filename without a
+                # timestamp. Route to missing_datetime so it lands next to the
+                # other datetime rejections.
+                reject_file(filepath, "missing_datetime", str(e))
+                return
 
-        # Step 7: Generate UUID for image
-        image_uuid = str(uuid.uuid4())
+            device_id = parsed["device_id"]
+            datetime_original = parsed["datetime"]
+            gps_location = parsed["gps"]
+            # Record the path-derived metadata in the audit trail
+            exif = {"source": "path", "relative_path": relative_path}
+        else:
+            # EXIF-based profile (exif has already been extracted above)
+            device_id = profile.get_camera_id(exif, clean_filename)
+            if not device_id:
+                reject_file(
+                    filepath,
+                    "missing_device_id",
+                    f"Could not extract device ID for profile {profile.name}",
+                    exif_metadata=exif
+                )
+                return
 
-        # Step 8: Extract GPS if present
-        gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
+            try:
+                datetime_original = get_datetime_original(
+                    exif,
+                    filepath,
+                    allow_fallback=not profile.requires_datetime
+                )
+            except ValueError as e:
+                reject_file(filepath, "missing_datetime", str(e), exif_metadata=exif)
+                return
 
+            gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
+
+        # Step 4: Validate GPS (shared between both flows).
         # Reject images whose GPS is present but nonsensical, e.g. (0, 0)
         # or out-of-range. Doing this before the missing_gps check below so
         # that (0, 0) is recorded under invalid_gps, not missing_gps.
@@ -271,10 +354,23 @@ def process_image(filepath: str) -> None:
             )
             return
 
-        # Step 9: Upload to MinIO (using cleaned filename, device ID as folder, UUID for uniqueness)
+        # Step 5: Look up camera (returns database ID or None)
+        camera_db_id = get_camera_by_device_id(device_id)
+        if camera_db_id is None:
+            reject_file(
+                filepath,
+                "unknown_camera",
+                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files."
+            )
+            return
+
+        # Step 6: Generate UUID for image
+        image_uuid = str(uuid.uuid4())
+
+        # Step 7: Upload to MinIO (using cleaned filename, device ID as folder, UUID for uniqueness)
         storage_path = upload_image_to_minio(filepath, device_id, image_uuid, clean_filename)
 
-        # Step 10: Generate and upload thumbnail
+        # Step 8: Generate and upload thumbnail
         # Note: thumbnail generation may fail for severely corrupted images, but we
         # continue processing since the full image is already uploaded to MinIO
         try:
@@ -288,7 +384,7 @@ def process_image(filepath: str) -> None:
             )
             thumbnail_path = None
 
-        # Step 11: Create database record (with cleaned filename)
+        # Step 9: Create database record (with cleaned filename)
         create_image_record(
             image_uuid=image_uuid,
             camera_id=camera_db_id,
@@ -303,7 +399,7 @@ def process_image(filepath: str) -> None:
         # Set correlation ID for subsequent logs
         set_image_id(image_uuid)
 
-        # Step 12: Publish to Redis queue
+        # Step 10: Publish to Redis queue
         queue = RedisQueue(QUEUE_IMAGE_INGESTED)
         queue.publish({
             'image_uuid': image_uuid,
@@ -319,7 +415,7 @@ def process_image(filepath: str) -> None:
             queued=True
         )
 
-        # Step 13: Delete original file
+        # Step 11: Delete original file
         delete_file(filepath)
 
     except ValidationError as e:
@@ -511,17 +607,32 @@ def main():
         log_level=settings.log_level
     )
 
-    # Process any existing files in upload directory (from before service start)
+    # Process any existing files in the upload directory (from before service start).
+    # Recursive scan picks up nested camera trees (e.g. INSTAR/<lat-lon>/<date>/images/),
+    # but the rejected/ subtree is excluded so we never re-process old rejections.
     upload_path = Path(upload_dir)
-    existing_files = list(upload_path.glob('*.*'))
+
+    def _is_under_rejected(path: Path) -> bool:
+        try:
+            rel_parts = path.relative_to(upload_path).parts
+        except ValueError:
+            return False
+        return bool(rel_parts) and rel_parts[0] == "rejected"
+
+    existing_files = [
+        f for f in upload_path.rglob('*')
+        if f.is_file() and not _is_under_rejected(f) and not f.name.startswith('.')
+    ]
     existing_images = [f for f in existing_files if f.suffix.lower() in ['.jpg', '.jpeg']]
     existing_reports = [f for f in existing_files if f.suffix.lower() == '.txt']
+    existing_videos = [f for f in existing_files if f.suffix.lower() == '.mp4']
 
-    if existing_images or existing_reports:
+    if existing_images or existing_reports or existing_videos:
         logger.info(
             "Processing existing files from upload directory",
             num_images=len(existing_images),
-            num_reports=len(existing_reports)
+            num_reports=len(existing_reports),
+            num_videos=len(existing_videos)
         )
 
         for image_file in existing_images:
@@ -546,10 +657,30 @@ def main():
                     exc_info=True
                 )
 
-    # Set up file system observer
+        for video_file in existing_videos:
+            # Same policy as the dispatcher: log and delete.
+            logger.info(
+                "Deleted unsupported video",
+                file_name=video_file.name,
+                filepath=str(video_file),
+                reason="no_video_support",
+            )
+            try:
+                video_file.unlink()
+            except OSError as e:
+                logger.warning(
+                    "Failed to delete unsupported video",
+                    filepath=str(video_file),
+                    error=str(e),
+                )
+
+    # Set up recursive file system observer.
+    # Recursive mode is required so cameras that upload into nested directories
+    # (e.g. INSTAR's /custom-path/<date>/images/) are picked up. The on_created
+    # and on_moved handlers exclude the rejected/ subtree to avoid event loops.
     event_handler = IngestionEventHandler()
     observer = Observer()
-    observer.schedule(event_handler, upload_dir, recursive=False)
+    observer.schedule(event_handler, upload_dir, recursive=True)
     observer.start()
 
     # Set up daily cleanup scheduler

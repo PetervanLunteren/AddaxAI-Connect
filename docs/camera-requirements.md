@@ -22,6 +22,7 @@ How this metadata is embedded (filename, EXIF, etc.) does not matter. A custom c
 
 * [Willfine 4.0T CG](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg)
 * [Swift Enduro 4.0PCG-R](https://outdoorcameras.com.au/shop/swift-enduro-4g/)
+* INSTAR (path-based profile, see below)
 
 If your camera isn't listed, it needs a new profile. See below.
 
@@ -55,6 +56,42 @@ Creating a new profile usually takes a bit of time for development and testing. 
 5. Uploading real images via your cameras over FTPS to confirm the full pipeline works end to end
 
 If you need a new camera profile, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with some sample files and we'll work it out.
+
+## INSTAR setup
+
+INSTAR cameras don't write any metadata into their image files (no EXIF), so the camera identifier and GPS location are taken from the upload directory path instead. The admin tells the camera which path to upload into, and the ingestion service parses the path to figure out which camera the image belongs to and where it was taken.
+
+**Step 1: pick the lat/lon string for this camera.** Use the format `lat<LATITUDE>_lon<LONGITUDE>` with a decimal point and a single underscore between the two halves. Use a `-` for southern or western hemispheres. Examples:
+
+| Coordinates | Lat/lon string |
+|---|---|
+| 52.02368 N, 12.98290 E | `lat52.02368_lon12.98290` |
+| 33.85679 S, 151.20929 E | `lat-33.85679_lon151.20929` |
+| 33.85679 S, 70.65876 W | `lat-33.85679_lon-70.65876` |
+
+**Step 2: register the camera in Camera Management.** Use the lat/lon string as the camera's `device_id` (the same field where you'd put an IMEI for other cameras). The match is case-insensitive but the rest of the string must be exact. Assign the camera to a project as usual.
+
+**Step 3: configure the INSTAR web UI.** Set the FTPS upload settings to the universal credentials in the [FTPS settings](#ftps-settings) section above. In the camera's "custom-path" field, enter:
+
+```
+INSTAR/<lat-lon-string>
+```
+
+For example: `INSTAR/lat52.02368_lon12.98290`. INSTAR will then build the full upload path automatically:
+
+```
+INSTAR/lat52.02368_lon12.98290/<YYYYMMDD>/images/<filename>.jpeg
+```
+
+**What gets processed.** Only JPEG stills under `images/` are sent into the ML pipeline. INSTAR also uploads MP4 video clips into a sibling `record/` directory, and may produce `Test-Snapshot.jpeg` files when you press the "Test" button in the web UI. These are handled as follows:
+
+| File | Behaviour |
+|---|---|
+| `images/A_YYYY-MM-DD_HH-MM-SS.jpeg` | Processed as a normal image. Datetime is parsed from the filename, GPS from the path. |
+| `record/*.mp4` | Logged and deleted. Video is not processed. |
+| `images/Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Visible in `File management`. |
+
+INSTAR cameras do not send daily health reports, so the battery, signal, SD usage, and "last seen" health fields stay empty. This is expected, not a misconfiguration.
 
 ## Troubleshooting
 

@@ -8,9 +8,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 
+from shared.config import get_settings
 from shared.logger import get_logger
 
 logger = get_logger("ingestion")
+settings = get_settings()
+
+
+def _upload_root() -> Path:
+    """Return the configured upload root (matches main.py fallback)."""
+    return Path(settings.ftps_upload_dir or "/uploads")
 
 
 class ValidationError(Exception):
@@ -54,13 +61,46 @@ def get_file_mtime(filepath: str) -> datetime:
     return datetime.fromtimestamp(mtime)
 
 
+def _rejected_filename(filepath: str) -> str:
+    """
+    Derive a unique, collision-safe filename for the rejected/ directory.
+
+    Flat uploads keep their original basename (e.g. ``A.jpg``). Nested uploads
+    are flattened by replacing path separators with underscores so that two
+    different source paths with the same basename do not clobber each other.
+
+    Example:
+        /uploads/A.jpg
+            -> A.jpg
+        /uploads/INSTAR/lat52.02368_lon12.98290/20260409/images/Test-Snapshot.jpeg
+            -> INSTAR_lat52.02368_lon12.98290_20260409_images_Test-Snapshot.jpeg
+    """
+    path = Path(filepath)
+    try:
+        rel = path.relative_to(_upload_root())
+    except ValueError:
+        # filepath is not under the upload root (shouldn't happen, but be safe)
+        return path.name
+
+    if len(rel.parts) == 1:
+        return rel.parts[0]
+    return "_".join(rel.parts)
+
+
 def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_metadata: Optional[dict] = None) -> None:
     """
     Move file to rejected directory with error log.
 
     Creates:
-    - /uploads/rejected/{reason}/{filename}
-    - /uploads/rejected/{reason}/{filename}.error.json
+    - <upload_root>/rejected/{reason}/{flattened_filename}
+    - <upload_root>/rejected/{reason}/{flattened_filename}.error.json
+
+    Nested source paths are flattened into the rejected filename to avoid
+    basename collisions (see _rejected_filename).
+
+    After moving, empty parent directories between the source and the upload
+    root are pruned so nested camera trees (e.g. INSTAR/<lat-lon>/<date>/images/)
+    do not accumulate indefinitely.
 
     Args:
         filepath: Path to file to reject
@@ -68,20 +108,22 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
         details: Additional error details
         exif_metadata: EXIF metadata extracted from file (if any)
     """
-    filename = os.path.basename(filepath)
+    original_filename = os.path.basename(filepath)
+    rejected_filename = _rejected_filename(filepath)
     file_size = os.path.getsize(filepath)
 
     # Create rejection directory
-    rejected_dir = Path("/uploads/rejected") / reason
+    rejected_dir = _upload_root() / "rejected" / reason
     rejected_dir.mkdir(parents=True, exist_ok=True)
 
     # Move file
-    dest_path = rejected_dir / filename
+    dest_path = rejected_dir / rejected_filename
     shutil.move(filepath, dest_path)
 
     # Create error JSON with metadata
     error_data = {
-        "filename": filename,
+        "filename": original_filename,
+        "source_path": filepath,
         "rejected_at": datetime.now(timezone.utc).isoformat() + "Z",
         "reason": reason,
         "details": details or "",
@@ -89,22 +131,28 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
         "exif_metadata": exif_metadata or {},
     }
 
-    error_json_path = rejected_dir / f"{filename}.error.json"
+    error_json_path = rejected_dir / f"{rejected_filename}.error.json"
     with open(error_json_path, 'w') as f:
         json.dump(error_data, f, indent=2)
 
     logger.warning(
         "File rejected",
-        file_name=filename,
+        file_name=original_filename,
         reason=reason,
         details=details,
         dest_path=str(dest_path)
     )
 
+    # Clean up any now-empty parent dirs left behind by the move
+    prune_empty_parents(filepath)
+
 
 def delete_file(filepath: str) -> None:
     """
     Delete file after successful processing.
+
+    After deleting, empty parent directories between the file and the upload
+    root are pruned so nested camera trees do not accumulate indefinitely.
 
     Args:
         filepath: Path to file to delete
@@ -122,6 +170,44 @@ def delete_file(filepath: str) -> None:
             exc_info=True
         )
         # Don't raise - file was already processed successfully
+        return
+
+    prune_empty_parents(filepath)
+
+
+def prune_empty_parents(filepath: str) -> None:
+    """
+    Walk up from ``filepath`` deleting empty parent directories.
+
+    Stops at the first non-empty directory or when reaching the upload root
+    (whichever comes first). Best-effort: swallows OSError so a race with
+    a concurrent FTPS upload cannot crash the ingestion service.
+
+    The upload root itself and the ``rejected/`` tree are never pruned.
+    """
+    upload_root = _upload_root().resolve()
+    rejected_root = (upload_root / "rejected").resolve()
+
+    try:
+        current = Path(filepath).resolve().parent
+    except OSError:
+        return
+
+    while True:
+        # Never prune the upload root, the rejected tree, or anything outside them
+        if current == upload_root:
+            return
+        if current == rejected_root or rejected_root in current.parents:
+            return
+        if upload_root not in current.parents:
+            return
+
+        try:
+            current.rmdir()  # Fails with OSError if not empty
+        except OSError:
+            return
+
+        current = current.parent
 
 
 def convert_gps_dms_to_decimal(dms_str: str) -> Optional[float]:

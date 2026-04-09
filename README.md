@@ -59,7 +59,7 @@ Each step runs as its own Docker service. They pass messages through Redis queue
 
 ## Camera compatibility
 
-AddaxAI Connect works with any camera trap that can upload images via FTPS. Each camera model needs a camera profile, a small piece of code that tells the system how to extract the camera ID, GPS coordinates, and timestamp from that model's images.
+AddaxAI Connect works with any camera trap that can upload images via FTPS. Each camera model needs a camera profile, a small piece of code that tells the system how to extract the camera ID, GPS coordinates, and timestamp from that model's images. Profiles can pull these from EXIF (Willfine, Swift Enduro) or from the upload directory path (INSTAR).
 
 Adding a new camera usually takes a bit of development and testing. If your camera isn't listed, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with a few sample images and we'll work it out. See [camera requirements](https://petervanlunteren.github.io/AddaxAI-Connect/camera-requirements/) for the full details and list of supported cameras.
 
