@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
 import { CameraGroupsModal } from '../../components/CameraGroupsModal';
+import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
@@ -48,6 +49,13 @@ export const ProjectSettingsPage: React.FC = () => {
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
   const [blurPeopleVehicles, setBlurPeopleVehicles] = useState<boolean>(currentProject?.blur_people_vehicles ?? true);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
+  const [classificationDefault, setClassificationDefault] = useState<number>(
+    currentProject?.classification_thresholds?.default ?? 0.0,
+  );
+  const [classificationOverrides, setClassificationOverrides] = useState<Record<string, number>>(
+    currentProject?.classification_thresholds?.overrides ?? {},
+  );
+  const [showClassificationOverridesModal, setShowClassificationOverridesModal] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +77,8 @@ export const ProjectSettingsPage: React.FC = () => {
       setThreshold(currentProject.detection_threshold ?? 0.2);
       setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
       setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
+      setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
+      setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
       const included = currentProject.included_species || [];
       setIncludedSpecies(
         included.map(species => ({
@@ -87,6 +97,18 @@ export const ProjectSettingsPage: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-projects'] });
+    },
+  });
+
+  // Classification thresholds mutation
+  const updateClassificationThresholdsMutation = useMutation({
+    mutationFn: async (data: { default: number; overrides: Record<string, number> }) => {
+      if (!currentProject) throw new Error('No project selected');
+      return await adminApi.updateClassificationThresholds(currentProject.id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-projects'] });
+      refreshProjects();
     },
   });
 
@@ -147,6 +169,19 @@ export const ProjectSettingsPage: React.FC = () => {
   const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
 
+  const hasClassificationThresholdChanges = (() => {
+    const stored = currentProject.classification_thresholds ?? { default: 0.0, overrides: {} };
+    if (classificationDefault !== (stored.default ?? 0.0)) return true;
+    const storedOverrides = stored.overrides ?? {};
+    const storedKeys = Object.keys(storedOverrides);
+    const currentKeys = Object.keys(classificationOverrides);
+    if (storedKeys.length !== currentKeys.length) return true;
+    for (const [species, value] of Object.entries(classificationOverrides)) {
+      if (storedOverrides[species] !== value) return true;
+    }
+    return false;
+  })();
+
   // Compare pending groups against saved groups
   const hasGroupChanges = (() => {
     if (pendingGroups.length !== cameraGroups.length) return true;
@@ -162,7 +197,13 @@ export const ProjectSettingsPage: React.FC = () => {
     }) || cameraGroups.some(sg => !pendingGroups.find(pg => pg.id === sg.id)); // deleted group
   })();
 
-  const hasUnsavedChanges = hasThresholdChanges || hasSpeciesChanges || hasBlurChanges || hasIntervalChanges || hasGroupChanges;
+  const hasUnsavedChanges =
+    hasThresholdChanges ||
+    hasSpeciesChanges ||
+    hasBlurChanges ||
+    hasIntervalChanges ||
+    hasGroupChanges ||
+    hasClassificationThresholdChanges;
 
   // Unified save handler
   const handleSave = async () => {
@@ -187,6 +228,15 @@ export const ProjectSettingsPage: React.FC = () => {
 
       if (hasThresholdChanges) {
         promises.push(updateThresholdMutation.mutateAsync(threshold));
+      }
+
+      if (hasClassificationThresholdChanges) {
+        promises.push(
+          updateClassificationThresholdsMutation.mutateAsync({
+            default: classificationDefault,
+            overrides: classificationOverrides,
+          }),
+        );
       }
 
       if (hasSpeciesChanges || hasBlurChanges || hasIntervalChanges) {
@@ -286,6 +336,8 @@ export const ProjectSettingsPage: React.FC = () => {
     setThreshold(currentProject.detection_threshold ?? 0.2);
     setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
     setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
+    setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
+    setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
     const included = currentProject.included_species || [];
     setIncludedSpecies(
       included.map(species => ({ label: normalizeLabel(species), value: species }))
@@ -298,6 +350,8 @@ export const ProjectSettingsPage: React.FC = () => {
     setThreshold(0.5);
     setBlurPeopleVehicles(true);
     setIndependenceInterval(30);
+    setClassificationDefault(0.0);
+    setClassificationOverrides({});
   };
 
   const speciesOptions: Option[] = (availableSpeciesData?.species ?? []).map(species => ({
@@ -348,6 +402,56 @@ export const ProjectSettingsPage: React.FC = () => {
               <span className="text-sm font-medium w-12 text-right">
                 {(threshold * 100).toFixed(0)}%
               </span>
+            </div>
+          </div>
+
+          <div className="border-t my-6" />
+
+          {/* Classification Confidence Threshold */}
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">
+                Classification confidence threshold
+              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Hide species classifications below this confidence score. Applied
+                on top of the detection threshold above. Use the per-species
+                overrides for noisy species like badger or red fox.
+              </p>
+            </div>
+            <div className="flex-1 flex items-center gap-3">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={classificationDefault}
+                onChange={(e) => setClassificationDefault(parseFloat(e.target.value))}
+                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${classificationDefault * 100}%, #e1eceb ${classificationDefault * 100}%, #e1eceb 100%)`,
+                }}
+                disabled={isSaving}
+              />
+              <span className="text-sm font-medium w-12 text-right">
+                {(classificationDefault * 100).toFixed(0)}%
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-8 mt-2">
+            <div className="w-1/2 shrink-0" />
+            <div className="flex-1">
+              <button
+                type="button"
+                onClick={() => setShowClassificationOverridesModal(true)}
+                className="text-sm text-[#0f6064] hover:underline"
+                disabled={isSaving}
+              >
+                Set per-species overrides
+                {Object.keys(classificationOverrides).length > 0 &&
+                  ` (${Object.keys(classificationOverrides).length} customised)`}
+              </button>
             </div>
           </div>
 
@@ -555,6 +659,15 @@ export const ProjectSettingsPage: React.FC = () => {
         open={showCameraGroups}
         onOpenChange={setShowCameraGroups}
         onGroupsChange={setPendingGroups}
+      />
+
+      {/* Per-species classification thresholds modal */}
+      <ClassificationThresholdsModal
+        open={showClassificationOverridesModal}
+        onClose={() => setShowClassificationOverridesModal(false)}
+        defaultThreshold={classificationDefault}
+        overrides={classificationOverrides}
+        onChange={setClassificationOverrides}
       />
 
       {/* Effect on statistics modal */}

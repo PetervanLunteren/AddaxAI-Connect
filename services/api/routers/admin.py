@@ -3,7 +3,7 @@ Admin endpoints for managing email allowlist and Telegram configuration.
 
 Only accessible by superusers.
 """
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 import secrets
 import httpx
@@ -1309,6 +1309,92 @@ async def update_project_detection_threshold(
         project_name=project.name,
         detection_threshold=project.detection_threshold,
         message=f"Detection threshold updated from {old_threshold} to {request.detection_threshold}"
+    )
+
+
+# ==================== Classification Thresholds ====================
+
+
+class UpdateClassificationThresholdsRequest(BaseModel):
+    """Request body for updating per-species classification thresholds."""
+    default: float
+    overrides: Dict[str, float] = {}
+
+
+class UpdateClassificationThresholdsResponse(BaseModel):
+    """Response for classification thresholds update."""
+    project_id: int
+    project_name: str
+    classification_thresholds: Dict[str, Any]
+
+
+@router.patch(
+    "/projects/{project_id}/classification-thresholds",
+    response_model=UpdateClassificationThresholdsResponse,
+)
+async def update_project_classification_thresholds(
+    project_id: int,
+    request: UpdateClassificationThresholdsRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Update per-species classification confidence thresholds for a project.
+
+    The default applies to every species the project's classifier knows
+    about. Per-species overrides take precedence over the default. Both
+    the default and every override must be in [0.0, 1.0]. Classifications
+    below the effective threshold are hidden from statistics, the image
+    grid, exports, the map, and notifications. Historic data is filtered
+    immediately. Lowering the threshold restores the data.
+
+    Accessible to project admins and server admins.
+    """
+    from auth.permissions import can_admin_project
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    if not (0.0 <= request.default <= 1.0):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="default must be between 0.0 and 1.0",
+        )
+    for species, threshold in request.overrides.items():
+        if not (0.0 <= threshold <= 1.0):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"override for '{species}' must be between 0.0 and 1.0",
+            )
+
+    project = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found",
+        )
+
+    project.classification_thresholds = {
+        "default": request.default,
+        "overrides": request.overrides,
+    }
+    await db.commit()
+    await db.refresh(project)
+
+    logger.info(
+        "Classification thresholds updated",
+        project_id=project_id,
+        project_name=project.name,
+        default=request.default,
+        override_count=len(request.overrides),
+    )
+
+    return UpdateClassificationThresholdsResponse(
+        project_id=project.id,
+        project_name=project.name,
+        classification_thresholds=project.classification_thresholds,
     )
 
 

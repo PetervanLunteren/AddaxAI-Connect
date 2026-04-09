@@ -9,6 +9,8 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, union_all, literal
 
+from shared.classification_threshold import classification_passes_threshold
+
 
 async def get_preferred_species_counts(
     db: AsyncSession,
@@ -91,7 +93,8 @@ async def get_preferred_species_counts(
         .where(
             and_(
                 *unverified_filters,
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(Classification.species)
@@ -199,7 +202,8 @@ async def get_preferred_unique_species(
         .where(
             and_(
                 *unverified_filters,
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .distinct()
@@ -317,7 +321,8 @@ async def get_preferred_hourly_activity(
         .where(
             and_(
                 *unverified_filters,
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(func.extract('hour', Image.uploaded_at))
@@ -427,7 +432,8 @@ async def get_preferred_species_first_dates(
         .where(
             and_(
                 *unverified_filters,
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(Classification.species)
@@ -539,7 +545,8 @@ async def get_preferred_species_camera_matrix(
         .where(
             and_(
                 *unverified_filters,
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(Camera.name, Classification.species)
@@ -658,7 +665,8 @@ async def get_preferred_daily_trend(
         .where(
             and_(
                 *unverified_filters,
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(func.date(Image.uploaded_at))

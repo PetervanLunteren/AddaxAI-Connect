@@ -19,6 +19,7 @@ import type {
   TelegramConfigureRequest,
   ServerSettings,
   TaxonomyMappingResponse,
+  ClassificationThresholds,
 } from './types';
 
 export const adminApi = {
@@ -309,6 +310,22 @@ export const adminApi = {
     }>(`/api/admin/projects/${projectId}/detection-threshold`, {
       detection_threshold: threshold,
     });
+    return response.data;
+  },
+
+  updateClassificationThresholds: async (
+    projectId: number,
+    thresholds: ClassificationThresholds,
+  ): Promise<{
+    project_id: number;
+    project_name: string;
+    classification_thresholds: ClassificationThresholds;
+  }> => {
+    const response = await apiClient.patch<{
+      project_id: number;
+      project_name: string;
+      classification_thresholds: ClassificationThresholds;
+    }>(`/api/admin/projects/${projectId}/classification-thresholds`, thresholds);
     return response.data;
   },
 };

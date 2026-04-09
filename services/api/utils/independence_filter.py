@@ -13,9 +13,13 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
+from shared.classification_threshold import CLASSIFICATION_THRESHOLD_FILTER_SQL
+
 
 # Base CTE that computes independent events from raw observations.
 # Parameters: :project_ids, :interval (minutes), plus optional filter params.
+# {classification_filter} is substituted at build time with the per-species
+# classification confidence filter (uses cl.confidence and p.classification_thresholds).
 _INDEPENDENCE_CTE = """
 WITH raw_obs AS (
     -- Verified: human observations
@@ -35,6 +39,7 @@ WITH raw_obs AS (
     JOIN projects p ON c.project_id = p.id
     WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
       AND d.confidence >= p.detection_threshold
+      AND {classification_filter}
       {unverified_filters}
     UNION ALL
     -- Unverified: person/vehicle detections (no classification)
@@ -150,6 +155,7 @@ def _build_cte(
         verified_filters=verified_filters,
         unverified_filters=unverified_filters,
         pv_filters=pv_filters,
+        classification_filter=CLASSIFICATION_THRESHOLD_FILTER_SQL.strip(),
     )
     return cte_sql, params
 

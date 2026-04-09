@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from shared.models import (
     Image, Camera, Detection, Classification, Project, HumanObservation
 )
+from shared.classification_threshold import classification_passes_threshold
 from sqlalchemy import union_all
 from shared.logger import get_logger
 
@@ -96,11 +97,13 @@ def get_overview_stats(
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Camera.project_id == project_id,
                 Image.is_verified == False,
-                Detection.confidence >= detection_threshold
+                Detection.confidence >= detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .distinct()
@@ -149,11 +152,13 @@ def get_overview_stats(
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Camera.project_id == project_id,
                 Image.is_verified == False,
-                Detection.confidence >= detection_threshold
+                Detection.confidence >= detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(Classification.species)
@@ -257,11 +262,13 @@ def get_species_distribution(
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Camera.project_id == project_id,
                 Image.is_verified == False,
                 Detection.confidence >= detection_threshold,
+                classification_passes_threshold(),
                 Image.uploaded_at >= start_dt,
                 Image.uploaded_at <= end_dt
             )
@@ -469,10 +476,12 @@ def get_notable_detections(
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Camera.project_id == project_id,
                 Detection.confidence >= detection_threshold,
+                classification_passes_threshold(),
                 Image.uploaded_at >= start_dt,
                 Image.uploaded_at <= end_dt
             )
@@ -558,11 +567,13 @@ def get_activity_summary(
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Camera.project_id == project_id,
                 Image.is_verified == False,
                 Detection.confidence >= detection_threshold,
+                classification_passes_threshold(),
                 Image.uploaded_at >= start_dt,
                 Image.uploaded_at <= end_dt
             )

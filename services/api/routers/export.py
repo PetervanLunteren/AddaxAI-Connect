@@ -34,6 +34,7 @@ from shared.storage import StorageClient, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids
+from shared.classification_threshold import effective_classification_threshold
 
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
@@ -218,6 +219,7 @@ def _build_observations_csv(
     media_entries: list,
     taxonomy_lookup: Dict[str, dict],
     detection_threshold: float,
+    classification_thresholds: Optional[Dict[str, Any]],
     tz: ZoneInfo,
     event_assignments: Optional[dict] = None,
 ) -> tuple[str, set]:
@@ -308,10 +310,17 @@ def _build_observations_csv(
 
                 if detection.category == "animal" and detection.classifications:
                     classification = detection.classifications[0]
-                    species_name = classification.species
-                    observed_species.add(species_name)
-                    class_confidence = str(round(classification.confidence, 6))
-                    classified_by = "MegaDetector v1000 + DeepFaune v1.4"
+                    # Skip the species label if the classification is below the
+                    # project's per-species threshold. The detection itself is
+                    # still exported as a raw animal observation.
+                    threshold = effective_classification_threshold(
+                        classification_thresholds, classification.species,
+                    )
+                    if classification.confidence >= threshold:
+                        species_name = classification.species
+                        observed_species.add(species_name)
+                        class_confidence = str(round(classification.confidence, 6))
+                        classified_by = "MegaDetector v1000 + DeepFaune v1.4"
 
                     tax = taxonomy_lookup.get(species_name)
                     if tax and tax["scientific_name"]:
@@ -638,7 +647,8 @@ async def export_camtrap_dp(
         images, deployments_by_camera, camera_identifiers, tz, include_media,
     )
     observations_csv, observed_species = _build_observations_csv(
-        media_entries, taxonomy_lookup, project.detection_threshold, tz,
+        media_entries, taxonomy_lookup, project.detection_threshold,
+        project.classification_thresholds, tz,
         event_assignments=event_assignments,
     )
     datapackage_json = _build_datapackage_json(
@@ -713,6 +723,7 @@ def _build_observation_rows(
     camera_names: Dict[int, str],
     taxonomy_lookup: Dict[str, dict],
     detection_threshold: float,
+    classification_thresholds: Optional[Dict[str, Any]],
     tz: ZoneInfo,
 ) -> tuple:
     """
@@ -763,9 +774,20 @@ def _build_observation_rows(
                     continue
 
                 if det.category == "animal" and det.classifications:
-                    species = det.classifications[0].species
-                    confidence = det.classifications[0].confidence
-                    classified_by = "MegaDetector v1000 + DeepFaune v1.4"
+                    cls = det.classifications[0]
+                    cls_threshold = effective_classification_threshold(
+                        classification_thresholds, cls.species,
+                    )
+                    if cls.confidence >= cls_threshold:
+                        species = cls.species
+                        confidence = cls.confidence
+                        classified_by = "MegaDetector v1000 + DeepFaune v1.4"
+                    else:
+                        # Sub-threshold classification: degrade to a raw
+                        # animal detection without a species label.
+                        species = det.category
+                        confidence = det.confidence
+                        classified_by = "MegaDetector v1000"
                 else:
                     species = det.category
                     confidence = det.confidence
@@ -905,7 +927,8 @@ async def export_observations(
     )
 
     headers, rows = _build_observation_rows(
-        images, camera_names, taxonomy_lookup, project.detection_threshold, tz,
+        images, camera_names, taxonomy_lookup, project.detection_threshold,
+        project.classification_thresholds, tz,
     )
 
     today = date.today().isoformat()
@@ -944,6 +967,7 @@ def _build_spatial_layers(
     camera_names: Dict[int, str],
     taxonomy_lookup: Dict[str, dict],
     detection_threshold: float,
+    classification_thresholds: Optional[Dict[str, Any]],
     tz: ZoneInfo,
     deployment_rows: list,
 ) -> Dict[str, list]:
@@ -975,7 +999,8 @@ def _build_spatial_layers(
 
     # --- Observations layer ---
     headers, rows = _build_observation_rows(
-        images, camera_names, taxonomy_lookup, detection_threshold, tz,
+        images, camera_names, taxonomy_lookup, detection_threshold,
+        classification_thresholds, tz,
     )
 
     # Build GPS lookup from image objects (reliable float values)
@@ -1514,7 +1539,8 @@ async def export_spatial(
 
     layers = _build_spatial_layers(
         images, camera_names, taxonomy_lookup,
-        project.detection_threshold, tz, deployment_rows,
+        project.detection_threshold, project.classification_thresholds,
+        tz, deployment_rows,
     )
 
     today = date.today().isoformat()

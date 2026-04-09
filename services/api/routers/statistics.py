@@ -10,6 +10,7 @@ from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
+from shared.classification_threshold import classification_passes_threshold, CLASSIFICATION_THRESHOLD_FILTER_SQL
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
@@ -514,12 +515,20 @@ async def get_detection_rate_map(
             GROUP BY cdp.id
         ),
         unverified_counts AS (
-            -- Counts from AI detections (unverified images only)
+            -- Counts from AI detections (unverified images only).
+            -- The COALESCE(...) clause is the per-species classification
+            -- threshold filter — sub-threshold classifications are excluded
+            -- from the count.
             SELECT
                 cdp.id as deployment_id,
                 COUNT(d.id) FILTER (WHERE
                     d.id IS NOT NULL
                     AND d.confidence >= p.detection_threshold
+                    AND cl.confidence >= COALESCE(
+                        (p.classification_thresholds->'overrides'->>cl.species)::float,
+                        (p.classification_thresholds->>'default')::float,
+                        0.0
+                    )
                     AND (CAST(:species AS text) IS NULL OR LOWER(cl.species) = LOWER(CAST(:species AS text)))
                     AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
@@ -1248,7 +1257,9 @@ async def get_detection_count(
         .group_by(HumanObservation.species)
     )
 
-    # Unverified: AI classifications above threshold, grouped by species
+    # Unverified: AI classifications above threshold, grouped by species.
+    # The Project join is needed so classification_passes_threshold() can read
+    # the per-species classification_thresholds dict.
     unverified_query = (
         select(
             Classification.species.label('species'),
@@ -1257,11 +1268,13 @@ async def get_detection_count(
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(
             and_(
                 Image.is_verified == False,
                 Camera.project_id.in_(accessible_project_ids),
                 Detection.confidence >= threshold,
+                classification_passes_threshold(),
             )
         )
         .group_by(Classification.species)

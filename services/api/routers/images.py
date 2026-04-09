@@ -17,6 +17,7 @@ from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
+from shared.classification_threshold import classification_passes_threshold
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -203,7 +204,8 @@ async def get_species(
                 Image.is_hidden == False,
                 Image.is_verified == False,
                 Camera.project_id.in_(accessible_project_ids),
-                Detection.confidence >= Project.detection_threshold
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
             )
         )
         .distinct()
@@ -394,7 +396,8 @@ async def list_images(
                     .where(
                         and_(
                             Classification.species.in_(species_filter),
-                            Detection.confidence >= Project.detection_threshold
+                            Detection.confidence >= Project.detection_threshold,
+                            classification_passes_threshold(),
                         )
                     )
                 )

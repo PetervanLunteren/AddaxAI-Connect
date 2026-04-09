@@ -188,6 +188,27 @@ def _evaluate_json_preferences(
             )
             return None
 
+        # Per-species classification confidence threshold. The event carries
+        # both detection_confidence (MegaDetector) and confidence (the
+        # classification confidence). Compare the latter against the
+        # project's per-species classification threshold so notifications
+        # don't fire for sub-threshold classifications that are hidden
+        # from every other view.
+        from shared.classification_threshold import effective_classification_threshold
+        classification_confidence = event.get('confidence')
+        if classification_confidence is not None:
+            cls_threshold = effective_classification_threshold(
+                project.classification_thresholds, species,
+            )
+            if classification_confidence < cls_threshold:
+                logger.debug(
+                    "Classification below per-species threshold, skipping notification",
+                    classification_confidence=classification_confidence,
+                    threshold=cls_threshold,
+                    species=species,
+                )
+                return None
+
     elif event_type == 'battery_digest':
         # Battery threshold is stored in type config
         # Threshold checking happens in battery_digest.py, not here

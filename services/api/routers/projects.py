@@ -1,7 +1,7 @@
 """
 Project endpoints for managing study areas and species configurations.
 """
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -62,6 +62,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None
+    classification_thresholds: Optional[Dict[str, Any]] = None
     blur_people_vehicles: Optional[bool] = None
     independence_interval_minutes: Optional[int] = None
 
@@ -82,6 +83,7 @@ class ProjectResponse(BaseModel):
     description: Optional[str] = None
     included_species: Optional[List[str]] = None
     detection_threshold: float
+    classification_thresholds: Optional[Dict[str, Any]] = None
     blur_people_vehicles: bool
     independence_interval_minutes: int
     image_url: Optional[str] = None
@@ -146,6 +148,7 @@ async def list_projects(
             description=project.description,
             included_species=project.included_species,
             detection_threshold=project.detection_threshold,
+            classification_thresholds=project.classification_thresholds,
             blur_people_vehicles=project.blur_people_vehicles,
             independence_interval_minutes=project.independence_interval_minutes,
             image_url=image_url,
@@ -196,6 +199,7 @@ async def get_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
+        classification_thresholds=project.classification_thresholds,
         blur_people_vehicles=project.blur_people_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
@@ -261,6 +265,7 @@ async def create_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
+        classification_thresholds=project.classification_thresholds,
         blur_people_vehicles=project.blur_people_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
@@ -327,6 +332,29 @@ async def update_project(
                 detail="Independence interval must be between 0 and 1440 minutes",
             )
         project.independence_interval_minutes = project_data.independence_interval_minutes
+    if project_data.classification_thresholds is not None:
+        # Validate the dict shape: a "default" float in [0, 1] and an
+        # "overrides" dict whose values are also floats in [0, 1].
+        ct = project_data.classification_thresholds
+        default = ct.get("default", 0.0)
+        overrides = ct.get("overrides", {}) or {}
+        if not isinstance(default, (int, float)) or not (0.0 <= default <= 1.0):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="classification_thresholds.default must be between 0.0 and 1.0",
+            )
+        if not isinstance(overrides, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="classification_thresholds.overrides must be an object",
+            )
+        for species, value in overrides.items():
+            if not isinstance(value, (int, float)) or not (0.0 <= value <= 1.0):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"classification_thresholds.overrides['{species}'] must be between 0.0 and 1.0",
+                )
+        project.classification_thresholds = {"default": default, "overrides": overrides}
 
     await db.commit()
     await db.refresh(project)
@@ -339,6 +367,7 @@ async def update_project(
         description=project.description,
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
+        classification_thresholds=project.classification_thresholds,
         blur_people_vehicles=project.blur_people_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,

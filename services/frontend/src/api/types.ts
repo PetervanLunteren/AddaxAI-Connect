@@ -239,6 +239,7 @@ export interface ProjectUpdate {
   included_species?: string[];
   blur_people_vehicles?: boolean;
   independence_interval_minutes?: number;
+  classification_thresholds?: { default: number; overrides: Record<string, number> };
 }
 
 export interface ProjectDeleteResponse {
@@ -270,6 +271,14 @@ export interface UserWithMemberships extends User {
   invitation_expires_at?: string;  // ISO timestamp when invitation expires
 }
 
+// Per-species classification confidence thresholds.
+// `default` applies to every species the model knows about. `overrides`
+// takes precedence per species. `null` on the project = no filtering.
+export interface ClassificationThresholds {
+  default: number;
+  overrides: Record<string, number>;
+}
+
 // Project with user's role
 export interface ProjectWithRole {
   id: number;
@@ -278,6 +287,7 @@ export interface ProjectWithRole {
   role: string;
   included_species: string[] | null;
   detection_threshold: number;
+  classification_thresholds: ClassificationThresholds | null;
   blur_people_vehicles: boolean;
   independence_interval_minutes: number;
   image_url: string | null;
