@@ -417,7 +417,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     add('person', 'Person');
     add('vehicle', 'Vehicle');
 
-    return Array.from(byValue.values());
+    return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [includedSpecies, globalCatalog, observedSpecies, aiPredictions]);
 
   // Check if save button should be enabled
