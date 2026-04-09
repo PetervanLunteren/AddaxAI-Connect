@@ -23,6 +23,7 @@ from camera_profiles import identify_camera_profile
 from db_operations import (
     get_camera_by_device_id,
     create_image_record,
+    get_server_timezone,
     update_camera_health
 )
 from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail
@@ -304,8 +305,18 @@ def process_image(filepath: str) -> None:
                 return
 
             device_id = parsed["device_id"]
-            datetime_original = parsed["datetime"]
             gps_location = parsed["gps"]
+
+            # Path-based cameras (INSTAR) have no GPS time sync, so the
+            # filename timestamp is local wall-clock time in whatever timezone
+            # the admin set on the camera. Anchor it to the server's
+            # configured timezone before PostgreSQL converts it to UTC for
+            # storage; otherwise the time gets stored as if it were UTC and
+            # the UI displays it shifted by the local-UTC offset.
+            naive_dt = parsed["datetime"]
+            server_tz = get_server_timezone()
+            datetime_original = naive_dt.replace(tzinfo=server_tz)
+
             # Record the path-derived metadata in the audit trail
             exif = {"source": "path", "relative_path": relative_path}
         else:

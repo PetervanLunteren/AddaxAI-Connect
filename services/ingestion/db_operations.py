@@ -6,11 +6,12 @@ import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional, Tuple
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, text
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, CameraDeploymentPeriod, CameraHealthReport, Image, Project
+from shared.models import Camera, CameraDeploymentPeriod, CameraHealthReport, Image, Project, ServerSettings
 from shared.logger import get_logger
 from camera_profiles import CameraProfile
 from utils import is_valid_gps
@@ -19,6 +20,23 @@ logger = get_logger("ingestion")
 
 # Constants
 RELOCATION_THRESHOLD_METERS = 100.0  # GPS change >100m = new deployment
+
+
+def get_server_timezone() -> ZoneInfo:
+    """
+    Return the configured server timezone as a ZoneInfo object.
+
+    Falls back to UTC if no ServerSettings row exists or its ``timezone``
+    column is null. Used by path-based camera profiles (e.g. INSTAR) whose
+    cameras write local wall-clock times into the upload path: that
+    wall-clock time has to be anchored to the server's timezone before
+    PostgreSQL converts it to UTC for storage.
+    """
+    with get_db_session() as session:
+        result = session.execute(select(ServerSettings).limit(1))
+        settings = result.scalar_one_or_none()
+        name = settings.timezone if settings and settings.timezone else "UTC"
+        return ZoneInfo(name)
 
 
 def get_camera_by_device_id(device_id: str) -> Optional[int]:
