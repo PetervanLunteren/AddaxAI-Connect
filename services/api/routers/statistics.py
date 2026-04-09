@@ -597,7 +597,7 @@ async def get_detection_rate_map(
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(:project_ids)
-              AND NOT ST_Equals(cdp.location, ST_GeogFromText('POINT(0 0)'))
+              AND NOT (ST_X(cdp.location::geometry) = 0 AND ST_Y(cdp.location::geometry) = 0)
               AND (cdp.end_date IS NULL OR cdp.end_date >= cdp.start_date)
         )
         SELECT
