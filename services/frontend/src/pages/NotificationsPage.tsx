@@ -327,9 +327,9 @@ export const NotificationsPage: React.FC = () => {
                     className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
                   >
                     <option value="disabled">Disabled</option>
-                    <option value="daily">Daily (sent at 06:00 UTC)</option>
-                    <option value="weekly">Weekly (sent every Monday)</option>
-                    <option value="monthly">Monthly (sent on the 1st)</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly (every Monday)</option>
+                    <option value="monthly">Monthly (on the 1st)</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
@@ -351,7 +351,7 @@ export const NotificationsPage: React.FC = () => {
                         className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
                       >
                         <option value="disabled">Disabled</option>
-                        <option value="enabled">Enabled (checked daily at 06:00 UTC)</option>
+                        <option value="enabled">Enabled</option>
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     </div>
