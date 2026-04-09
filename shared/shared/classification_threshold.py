@@ -30,13 +30,20 @@ def classification_passes_threshold():
     at or above the project's effective threshold for that classification's
     species. Use inside a `.where(...)` of any query that already joins
     Classification and Project.
+
+    Uses the `->` and `->>` operators directly via SQLAlchemy's `.op()`
+    so the same expression works against either `json` or `jsonb` columns
+    (the model uses the generic `JSON` type which is plain `json` on
+    PostgreSQL; `astext` would require `jsonb`).
     """
     overrides_value = cast(
-        Project.classification_thresholds["overrides"][Classification.species].astext,
+        Project.classification_thresholds.op("->")("overrides").op("->>")(
+            Classification.species
+        ),
         Float,
     )
     default_value = cast(
-        Project.classification_thresholds["default"].astext,
+        Project.classification_thresholds.op("->>")("default"),
         Float,
     )
     effective = func.coalesce(overrides_value, default_value, 0.0)
