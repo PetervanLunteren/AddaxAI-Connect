@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera, ExternalLink } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera, ExternalLink, Sparkles } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -73,6 +73,15 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       setNotesExpanded(false);
     }
   }, [imageDetail?.uuid]);
+
+  // Default AI prediction overlay: ON for unverified images, OFF for verified
+  // ones (where the canvas would otherwise show stale AI bboxes that contradict
+  // the human-verified observation list).
+  useEffect(() => {
+    if (imageDetail) {
+      setShowBboxes(!imageDetail.verification.is_verified);
+    }
+  }, [imageDetail?.uuid, imageDetail?.verification.is_verified]);
 
   // Update verification panel when local notes change
   useEffect(() => {
@@ -387,6 +396,16 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     className="absolute top-0 left-0 w-full h-full cursor-pointer"
                     onClick={handleCanvasClick}
                   />
+                  {/* AI prediction banner — visible only when bboxes are shown */}
+                  {showBboxes && imageDetail.detections.length > 0 && (
+                    <div
+                      className="absolute top-3 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1 pointer-events-none"
+                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Showing AI predictions
+                    </div>
+                  )}
                   {/* Camera name chip */}
                   <div
                     className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
@@ -425,7 +444,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowBboxes(!showBboxes)}
-                  title={showBboxes ? 'Hide boxes' : 'Show boxes'}
+                  title={showBboxes ? 'Hide AI predictions' : 'Show AI predictions'}
                 >
                   {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
@@ -554,7 +573,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">B</span>
-                  <span>Toggle boxes</span>
+                  <span>Toggle AI predictions</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Esc</span>
