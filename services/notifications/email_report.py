@@ -20,7 +20,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log
+from db_operations import create_notification_log, get_server_timezone
 from report_stats import (
     get_overview_stats,
     get_species_distribution,
@@ -34,6 +34,18 @@ logger = get_logger("notifications.email_report")
 settings = get_settings()
 
 
+def _local_today() -> date:
+    """
+    Return today's date in the configured server timezone.
+
+    Used by the report-period entry points so that "yesterday" / "last week"
+    / "last month" line up with the user's local calendar instead of UTC.
+    """
+    with get_sync_session() as db:
+        tz = get_server_timezone(db)
+    return datetime.now(tz).date()
+
+
 def send_daily_reports() -> None:
     """
     Scheduled job: Send daily email reports at 06:00 UTC.
@@ -43,8 +55,8 @@ def send_daily_reports() -> None:
     """
     logger.info("Starting daily email reports")
 
-    # Report covers yesterday
-    today = date.today()
+    # Report covers yesterday in the server's local timezone
+    today = _local_today()
     report_date = today - timedelta(days=1)
 
     _send_reports_for_frequency(
@@ -64,8 +76,8 @@ def send_weekly_reports() -> None:
     """
     logger.info("Starting weekly email reports")
 
-    # Report covers last 7 days (Mon-Sun)
-    today = date.today()
+    # Report covers last 7 days (Mon-Sun) in the server's local timezone
+    today = _local_today()
     end_date = today - timedelta(days=1)  # Yesterday (Sunday)
     start_date = end_date - timedelta(days=6)  # Previous Monday
 
@@ -86,8 +98,8 @@ def send_monthly_reports() -> None:
     """
     logger.info("Starting monthly email reports")
 
-    # Report covers previous month
-    today = date.today()
+    # Report covers previous month in the server's local timezone
+    today = _local_today()
     # First day of current month
     first_of_month = today.replace(day=1)
     # Last day of previous month

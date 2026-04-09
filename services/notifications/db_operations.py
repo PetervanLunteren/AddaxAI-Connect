@@ -3,12 +3,28 @@ Database operations for notifications service
 """
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import select
 
 from shared.logger import get_logger
-from shared.models import NotificationLog, Project
+from shared.models import NotificationLog, Project, ServerSettings
 from shared.database import get_sync_session
 
 logger = get_logger("notifications.db")
+
+
+def get_server_timezone(db) -> ZoneInfo:
+    """
+    Return the configured server timezone as a ZoneInfo object.
+
+    Falls back to UTC if no ServerSettings row exists or its `timezone`
+    column is null. The caller passes in an open sync session.
+    """
+    result = db.execute(select(ServerSettings).limit(1))
+    settings = result.scalar_one_or_none()
+    name = settings.timezone if settings and settings.timezone else "UTC"
+    return ZoneInfo(name)
 
 
 def create_notification_log(
