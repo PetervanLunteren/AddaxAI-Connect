@@ -538,7 +538,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   options={allSpeciesOptions}
                   value={obs.species}
                   onChange={(selected) => updateSpecies(obs.id, selected)}
-                  placeholder="Select or type to add a new species..."
+                  placeholder="Select or type..."
                   isLoading={speciesLoading}
                 />
               </div>
