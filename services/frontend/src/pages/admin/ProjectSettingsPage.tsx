@@ -25,6 +25,7 @@ import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 0, label: 'Disabled' },
+  { value: 2, label: '2 minutes' },
   { value: 5, label: '5 minutes' },
   { value: 15, label: '15 minutes' },
   { value: 30, label: '30 minutes' },
