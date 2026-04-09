@@ -15,6 +15,8 @@ import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
 import { imagesApi } from '../api/images';
+import { speciesApi } from '../api/species';
+import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
 import type { ImageDetail, HumanObservationInput } from '../api/types';
 
@@ -54,6 +56,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   highlightedSpecies,
 }, ref) => {
   const queryClient = useQueryClient();
+  const { selectedProject } = useProject();
 
   // Local state for form
   const [observations, setObservations] = useState<ObservationRow[]>([]);
@@ -63,11 +66,27 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const [isEditing, setIsEditing] = useState(!imageDetail.verification.is_verified);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
 
-  // Fetch species list for dropdown
-  const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
-    queryKey: ['species'],
-    queryFn: () => imagesApi.getSpecies(),
+  // Source 1: historical species observed in this project's database, so a
+  // label like "bear" stays pickable even if it has been removed from the
+  // project's allowed list since some images were recorded.
+  const projectId = selectedProject?.id;
+  const { data: observedSpecies, isLoading: observedLoading } = useQuery({
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
   });
+
+  // Source 2: global model catalog. Only fetched as a fallback for projects
+  // whose included_species is null/empty (which means "all species allowed").
+  const includedSpecies = selectedProject?.included_species ?? null;
+  const needsGlobalCatalog = !includedSpecies || includedSpecies.length === 0;
+  const { data: globalCatalog, isLoading: globalLoading } = useQuery({
+    queryKey: ['available-species'],
+    queryFn: () => speciesApi.getAvailable(),
+    enabled: needsGlobalCatalog,
+  });
+
+  const speciesLoading = observedLoading || globalLoading;
 
   // Aggregate AI predictions by species (including person/vehicle)
   const aiPredictions = React.useMemo(() => {
@@ -358,33 +377,38 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     );
   };
 
-  // Build species options for dropdown
+  // Build species options for the dropdown as a union of three sources:
+  // 1) the project's allowed list (or the global model catalog when the
+  //    allowed list is null/empty, which semantically means "all allowed"),
+  // 2) every species ever recorded in this project's DB, so old labels
+  //    that have since been removed from the whitelist stay pickable, and
+  // 3) any species the AI predicted on the current image, as a safety net.
+  // Person and Vehicle are always included since they are valid annotation
+  // targets even though they aren't species.
   const allSpeciesOptions = React.useMemo(() => {
-    const options = speciesOptions?.map(s => ({
-      label: s.label,
-      value: s.value,
-    })) || [];
+    const byValue = new Map<string, Option>();
 
-    // Add Person and Vehicle as standard options
-    if (!options.find(o => o.value === 'person')) {
-      options.push({ label: 'Person', value: 'person' });
-    }
-    if (!options.find(o => o.value === 'vehicle')) {
-      options.push({ label: 'Vehicle', value: 'vehicle' });
-    }
-
-    // Add any detected species not in the list
-    aiPredictions.forEach(pred => {
-      if (!options.find(o => o.value === pred.species)) {
-        options.push({
-          label: normalizeLabel(pred.species),
-          value: pred.species,
-        });
+    const add = (value: string, label?: string) => {
+      if (!byValue.has(value)) {
+        byValue.set(value, { value, label: label ?? normalizeLabel(value) });
       }
-    });
+    };
 
-    return options;
-  }, [speciesOptions, aiPredictions]);
+    if (includedSpecies && includedSpecies.length > 0) {
+      includedSpecies.forEach(s => add(s));
+    } else if (globalCatalog) {
+      globalCatalog.species.forEach(s => add(s));
+    }
+
+    observedSpecies?.forEach(s => add(s.value, s.label));
+
+    aiPredictions.forEach(pred => add(pred.species));
+
+    add('person', 'Person');
+    add('vehicle', 'Vehicle');
+
+    return Array.from(byValue.values());
+  }, [includedSpecies, globalCatalog, observedSpecies, aiPredictions]);
 
   // Check if save button should be enabled
   const canSave = React.useMemo(() => {
@@ -504,7 +528,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   options={allSpeciesOptions}
                   value={obs.species}
                   onChange={(selected) => updateSpecies(obs.id, selected)}
-                  placeholder="Select species..."
+                  placeholder="Select or type to add a new species..."
                   isLoading={speciesLoading}
                 />
               </div>
