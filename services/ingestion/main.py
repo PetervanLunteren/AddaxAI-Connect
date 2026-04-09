@@ -27,7 +27,7 @@ from db_operations import (
 )
 from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail
 from daily_report_parser import parse_daily_report
-from utils import ValidationError, reject_file, delete_file
+from utils import ValidationError, reject_file, delete_file, is_valid_gps
 
 # Enable PIL to load truncated images from camera traps
 # Camera traps often send incomplete JPEGs over cellular connections
@@ -249,6 +249,18 @@ def process_image(filepath: str) -> None:
 
         # Step 8: Extract GPS if present
         gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
+
+        # Reject images whose GPS is present but nonsensical, e.g. (0, 0)
+        # or out-of-range. Doing this before the missing_gps check below so
+        # that (0, 0) is recorded under invalid_gps, not missing_gps.
+        if gps_location and not is_valid_gps(gps_location):
+            reject_file(
+                filepath,
+                "invalid_gps",
+                f"Image GPS is invalid: {gps_location}. Expected a real coordinate, not (0, 0) or out of range.",
+                exif_metadata=exif
+            )
+            return
 
         if not gps_location and profile.requires_gps:
             reject_file(

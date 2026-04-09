@@ -576,7 +576,11 @@ async def get_detection_rate_map(
             GROUP BY deployment_id
         ),
         deployment_info AS (
-            -- Get deployment metadata
+            -- Get deployment metadata. The two extra WHERE clauses below are
+            -- defense in depth: the ingestion path now rejects invalid GPS
+            -- and clamps same-day relocations, but we still skip Null Island
+            -- deployments and inverted-date zombies in case any future code
+            -- path or restored backup re-introduces a bad row.
             SELECT
                 cdp.id as deployment_id,
                 cdp.camera_id,
@@ -593,6 +597,8 @@ async def get_detection_rate_map(
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(:project_ids)
+              AND NOT ST_Equals(cdp.location, ST_GeogFromText('POINT(0 0)'))
+              AND (cdp.end_date IS NULL OR cdp.end_date >= cdp.start_date)
         )
         SELECT
             di.camera_id,

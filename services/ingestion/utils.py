@@ -6,7 +6,7 @@ import json
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from shared.logger import get_logger
 
@@ -16,6 +16,28 @@ logger = get_logger("ingestion")
 class ValidationError(Exception):
     """Raised when file validation fails"""
     pass
+
+
+def is_valid_gps(gps: Optional[Tuple[float, float]]) -> bool:
+    """
+    Return True if the GPS tuple looks like a real coordinate.
+
+    Rejects: None, exact (0, 0) (Null Island sentinel), and out-of-range values.
+    Does NOT use a fuzzy near-zero threshold so real equatorial / Greenwich
+    deployments are not rejected.
+    """
+    if gps is None:
+        return False
+    lat, lon = gps
+    if lat is None or lon is None:
+        return False
+    if lat == 0.0 and lon == 0.0:
+        return False
+    if not (-90.0 <= lat <= 90.0):
+        return False
+    if not (-180.0 <= lon <= 180.0):
+        return False
+    return True
 
 
 def get_file_mtime(filepath: str) -> datetime:

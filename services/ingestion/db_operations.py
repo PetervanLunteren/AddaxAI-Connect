@@ -13,6 +13,7 @@ from shared.database import get_db_session
 from shared.models import Camera, CameraDeploymentPeriod, CameraHealthReport, Image, Project
 from shared.logger import get_logger
 from camera_profiles import CameraProfile
+from utils import is_valid_gps
 
 logger = get_logger("ingestion")
 
@@ -105,8 +106,13 @@ def update_or_create_deployment(
         event_date: Date of image or daily report
 
     Raises:
-        ValueError: If GPS coordinates are invalid
+        ValueError: If GPS coordinates are invalid (None, (0, 0), or out of range).
     """
+    # Defensive guard: callers should pre-validate, but raise loudly here
+    # so any future caller cannot silently insert a (0, 0) zombie.
+    if not is_valid_gps(new_gps):
+        raise ValueError(f"Invalid GPS for camera {camera_id}: {new_gps}")
+
     with get_db_session() as session:
         new_lat, new_lon = new_gps
 
@@ -137,9 +143,13 @@ def update_or_create_deployment(
             distance = calculate_gps_distance(current_lat, current_lon, new_lat, new_lon)
 
             if distance > RELOCATION_THRESHOLD_METERS:
-                # Camera relocated - close current deployment and start new one
+                # Camera relocated - close current deployment and start new one.
+                # Clamp the closing date so it never falls before the deployment's
+                # own start_date (otherwise a relocation on the same calendar day
+                # the deployment was created leaves an inverted, impossible range
+                # that no image can ever match).
                 yesterday = event_date - timedelta(days=1)
-                current_deployment.end_date = yesterday
+                current_deployment.end_date = max(yesterday, current_deployment.start_date)
 
                 # Get next deployment_id
                 next_deployment_id = current_deployment.deployment_id + 1
@@ -379,13 +389,22 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         }
         camera.config['last_report_timestamp'] = datetime.now(timezone.utc).isoformat()
 
-        # Update GPS location if present in daily report
-        if health_data.get('gps_location'):
-            lat, lon = health_data['gps_location']
-            # Update camera location from daily report GPS
+        # Update GPS location if the daily report has a valid GPS reading.
+        # Bad readings like (0, 0) or out-of-range values are ignored so they
+        # do not poison camera.config['gps_from_report'] (which other services
+        # like excessive_images.py read for the email Location field).
+        report_gps = health_data.get('gps_location')
+        if is_valid_gps(report_gps):
+            lat, lon = report_gps
             # Note: This requires PostGIS Geography type
             # For now, store in config JSON as well
             camera.config['gps_from_report'] = {'lat': lat, 'lon': lon}
+        elif report_gps is not None:
+            logger.warning(
+                "Daily report has invalid GPS, skipping camera location update",
+                device_id=device_id,
+                gps=report_gps,
+            )
 
         # Mark config as modified so SQLAlchemy detects the change
         flag_modified(camera, 'config')
@@ -431,13 +450,22 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
             signal_quality=health_data.get('signal_quality')
         )
 
-    # Update deployment period if daily report has GPS
+    # Update deployment period if daily report has valid GPS. Health data
+    # (battery, temperature) is the file's main payload and is already saved
+    # above, so an invalid GPS is logged and skipped, not file-rejected.
     # (done outside session context since update_or_create_deployment creates its own session)
-    if health_data.get('gps_location'):
+    report_gps = health_data.get('gps_location')
+    if is_valid_gps(report_gps):
         update_or_create_deployment(
             camera_id=camera_id,
-            new_gps=health_data['gps_location'],
+            new_gps=report_gps,
             event_date=datetime.now(timezone.utc).date()
+        )
+    elif report_gps is not None:
+        logger.warning(
+            "Daily report has invalid GPS, skipping deployment update",
+            device_id=device_id,
+            gps=report_gps,
         )
 
     return True
