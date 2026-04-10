@@ -1755,6 +1755,35 @@ async def get_verification_progress_all(
             label=row.species,
         ))
 
+    # Person and Vehicle rows: images with at least one detection of that category
+    for category in ["person", "vehicle"]:
+        cat_subq = (
+            select(func.distinct(Detection.image_id))
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .where(
+                Detection.category == category,
+                Detection.confidence >= Project.detection_threshold,
+                Camera.project_id.in_(accessible_project_ids),
+                Image.is_hidden == False,
+            )
+        )
+        cat_filter = Image.id.in_(cat_subq)
+        cat_total = (await db.execute(
+            select(func.count(Image.id)).join(Camera).where(and_(*base_filters, cat_filter))
+        )).scalar_one()
+        cat_verified = (await db.execute(
+            select(func.count(Image.id)).join(Camera).where(and_(*base_filters, cat_filter, Image.is_verified == True))
+        )).scalar_one()
+        if cat_total > 0:
+            rows.append(VerificationProgressResponse(
+                total=cat_total,
+                verified=cat_verified,
+                percentage=round((cat_verified / cat_total) * 100, 1) if cat_total > 0 else 0.0,
+                label=category,
+            ))
+
     # "Empty" row: images with no visible detections and no human observations
     has_vis_pv = (
         select(Detection.image_id)
