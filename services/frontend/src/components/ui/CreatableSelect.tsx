@@ -29,7 +29,7 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
   placeholder = 'Select or type...',
   isLoading = false,
   className = '',
-  isClearable = true,
+  isClearable = false,
 }) => {
   const handleChange = (newValue: SingleValue<Option>) => {
     onChange(newValue);
