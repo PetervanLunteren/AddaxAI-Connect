@@ -138,20 +138,11 @@ export const ProjectUsersPage: React.FC = () => {
   };
 
   const handleRemoveUser = () => {
-    console.log('[DEBUG] handleRemoveUser called', {
-      selectedUser,
-      user_id: selectedUser?.user_id,
-      invitation_id: selectedUser?.invitation_id,
-    });
     if (!selectedUser) return;
     if (selectedUser.user_id) {
-      console.log('[DEBUG] Calling removeUserMutation with user_id:', selectedUser.user_id);
       removeUserMutation.mutate(selectedUser.user_id);
     } else if (selectedUser.invitation_id) {
-      console.log('[DEBUG] Calling cancelInvitationMutation with invitation_id:', selectedUser.invitation_id);
       cancelInvitationMutation.mutate(selectedUser.invitation_id);
-    } else {
-      console.log('[DEBUG] Neither user_id nor invitation_id found, doing nothing');
     }
   };
 
