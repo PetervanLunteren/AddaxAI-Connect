@@ -32,7 +32,12 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
   isClearable = false,
 }) => {
   const handleChange = (newValue: SingleValue<Option>) => {
-    onChange(newValue);
+    // Re-selecting the same value clears it (replaces the removed X button)
+    if (newValue && value && newValue.value === value.value) {
+      onChange(null);
+    } else {
+      onChange(newValue);
+    }
   };
 
   // Format the option label for newly created options
