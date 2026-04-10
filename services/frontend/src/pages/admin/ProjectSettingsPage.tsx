@@ -382,7 +382,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Detection confidence threshold
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Hide detections below this confidence score. Only affects unverified images. Verified observations are always included. Applies retroactively to all statistics and exports.
+                Hide detections below this confidence score. Only affects unverified images.
               </p>
             </div>
             <div className="flex-1 flex items-center gap-3">
@@ -414,9 +414,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 Classification confidence threshold
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Hide species classifications below this confidence score. Applied
-                on top of the detection threshold above. Use the per-species
-                overrides for noisy species like badger or red fox.
+                Hide species predictions below this confidence. Use the per-species overrides to filter noisy species.
               </p>
             </div>
             <div className="flex-1 flex items-center gap-3">
