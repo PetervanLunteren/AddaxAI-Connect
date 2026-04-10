@@ -1755,6 +1755,44 @@ async def get_verification_progress_all(
             label=row.species,
         ))
 
+    # "Empty" row: images with no visible detections and no human observations
+    has_vis_pv = (
+        select(Detection.image_id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(Detection.confidence >= Project.detection_threshold, Detection.category.in_(["person", "vehicle"]))
+        .distinct()
+    )
+    has_vis_animal = (
+        select(Detection.image_id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .join(Classification, Classification.detection_id == Detection.id)
+        .where(Detection.confidence >= Project.detection_threshold, Detection.category == "animal", classification_passes_threshold())
+        .distinct()
+    )
+    has_human_obs = select(HumanObservation.image_id).distinct()
+    empty_filter = and_(
+        ~Image.id.in_(has_vis_pv),
+        ~Image.id.in_(has_vis_animal),
+        ~Image.id.in_(has_human_obs),
+    )
+    empty_total = (await db.execute(
+        select(func.count(Image.id)).join(Camera).where(and_(*base_filters, empty_filter))
+    )).scalar_one()
+    empty_verified = (await db.execute(
+        select(func.count(Image.id)).join(Camera).where(and_(*base_filters, empty_filter, Image.is_verified == True))
+    )).scalar_one()
+    if empty_total > 0:
+        rows.append(VerificationProgressResponse(
+            total=empty_total,
+            verified=empty_verified,
+            percentage=round((empty_verified / empty_total) * 100, 1) if empty_total > 0 else 0.0,
+            label="empty",
+        ))
+
     # Sort by percentage ascending (least verified first), but keep "all" pinned at top
     all_row = rows[0]
     rest = sorted(rows[1:], key=lambda r: r.percentage)
