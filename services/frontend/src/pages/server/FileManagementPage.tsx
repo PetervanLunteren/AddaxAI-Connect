@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Trash2,
   ArrowUpCircle,
+  Folder,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -35,7 +36,10 @@ import {
   deleteRejectedFiles,
   reprocessRejectedFiles,
   getUploadFiles,
+  getUploadsTree,
+  deleteUploadFile,
   type RejectedFile,
+  type TreeNode as TreeNodeData,
 } from '../../api/ingestion-monitoring';
 
 interface FileUploadStatus {
@@ -46,6 +50,71 @@ interface FileUploadStatus {
 
 type SortField = 'filename' | 'reason' | 'device_id' | 'size_bytes' | 'timestamp';
 type SortDirection = 'asc' | 'desc';
+
+/**
+ * Recursive tree node for the upload directory viewer.
+ */
+function UploadTreeNode({
+  node,
+  depth,
+  onDelete,
+}: {
+  node: TreeNodeData;
+  depth: number;
+  onDelete: (path: string, name: string) => void;
+}) {
+  const paddingLeft = depth * 20;
+
+  const formatRelativeTime = (unixTimestamp: number): string => {
+    const seconds = Math.floor(Date.now() / 1000 - unixTimestamp);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const formatSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  if (node.type === 'directory') {
+    return (
+      <>
+        <div className="flex items-center py-1" style={{ paddingLeft }}>
+          <Folder className="h-4 w-4 mr-2 text-blue-500 shrink-0" />
+          <span className="text-foreground">{node.name}/</span>
+        </div>
+        {node.children?.map((child) => (
+          <UploadTreeNode key={child.path} node={child} depth={depth + 1} onDelete={onDelete} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div className="flex items-center py-1 group" style={{ paddingLeft }}>
+      <FileText className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+      <span className="text-foreground truncate">{node.name}</span>
+      <span className="ml-auto flex items-center gap-3 text-muted-foreground text-xs shrink-0 pl-4">
+        {node.size_bytes != null && <span>{formatSize(node.size_bytes)}</span>}
+        {node.modified_at != null && <span>{formatRelativeTime(node.modified_at)}</span>}
+        <button
+          onClick={() => onDelete(node.path, node.name)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+          title="Delete file"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    </div>
+  );
+}
+
 
 export const FileManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -131,6 +200,26 @@ export const FileManagementPage: React.FC = () => {
     queryKey: ['upload-files'],
     queryFn: getUploadFiles,
     refetchInterval: 30000,
+  });
+
+  // Upload directory tree state
+  const [deleteFilePath, setDeleteFilePath] = useState<string | null>(null);
+  const [deleteFileName, setDeleteFileName] = useState<string>('');
+
+  const { data: uploadsTreeData, isLoading: isTreeLoading, refetch: refetchTree } = useQuery({
+    queryKey: ['uploads-tree'],
+    queryFn: getUploadsTree,
+  });
+
+  const deleteUploadFileMutation = useMutation({
+    mutationFn: deleteUploadFile,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['uploads-tree'] });
+      setDeleteFilePath(null);
+    },
+    onError: (error: any) => {
+      alert(`Failed to delete file: ${error.response?.data?.detail || error.message}`);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -339,7 +428,97 @@ export const FileManagementPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Card 2: Rejected files */}
+      {/* Card 2: Upload directory tree */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <CardTitle>Upload directory</CardTitle>
+              <CardDescription>
+                Files and folders currently in the upload directory. Excludes rejected files.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchTree()}
+              disabled={isTreeLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isTreeLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isTreeLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !uploadsTreeData || (uploadsTreeData.total_files === 0 && uploadsTreeData.total_dirs === 0) ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <CheckCircle2 className="h-8 w-8 mb-2" />
+              <p className="text-sm">Upload directory is empty</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-0.5 text-sm font-mono">
+                {uploadsTreeData.tree.map((node) => (
+                  <UploadTreeNode
+                    key={node.path}
+                    node={node}
+                    depth={0}
+                    onDelete={(path, name) => {
+                      setDeleteFilePath(path);
+                      setDeleteFileName(name);
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                {uploadsTreeData.total_files} {uploadsTreeData.total_files === 1 ? 'file' : 'files'}
+                {uploadsTreeData.total_dirs > 0 && (
+                  <>, {uploadsTreeData.total_dirs} {uploadsTreeData.total_dirs === 1 ? 'folder' : 'folders'}</>
+                )}
+                , {formatFileSize(uploadsTreeData.total_size_bytes)} total
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Delete upload file confirmation dialog */}
+      <Dialog open={deleteFilePath !== null} onOpenChange={(open) => { if (!open) setDeleteFilePath(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete file</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <span className="font-medium">{deleteFileName}</span>?
+              This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteFilePath(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteFilePath) deleteUploadFileMutation.mutate(deleteFilePath);
+              }}
+              disabled={deleteUploadFileMutation.isPending}
+            >
+              {deleteUploadFileMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Card 3: Rejected files */}
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between">

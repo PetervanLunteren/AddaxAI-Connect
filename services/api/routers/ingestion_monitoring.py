@@ -68,6 +68,29 @@ class UploadFilesResponse(BaseModel):
     files: List[UploadFileResponse]
 
 
+class TreeNodeResponse(BaseModel):
+    """A single node (file or directory) in the uploads directory tree"""
+    name: str
+    type: str  # "file" or "directory"
+    path: str  # Relative POSIX path from the upload root
+    size_bytes: int | None = None  # Files only
+    modified_at: float | None = None  # Unix timestamp, files only
+    children: List["TreeNodeResponse"] | None = None  # Directories only
+
+
+class UploadsTreeResponse(BaseModel):
+    """Recursive tree of the uploads directory (excluding rejected/)"""
+    tree: List[TreeNodeResponse]
+    total_files: int
+    total_dirs: int
+    total_size_bytes: int
+
+
+class DeleteUploadFileRequest(BaseModel):
+    """Request to delete a single file from the uploads tree"""
+    filepath: str  # Relative POSIX path from the upload root
+
+
 def extract_device_id_from_file(file_path: Path) -> str | None:
     """
     Extract device ID from a file using exiftool.
@@ -439,3 +462,160 @@ async def get_upload_files(
         total_count=len(upload_files),
         files=upload_files,
     )
+
+
+# ---------------------------------------------------------------------------
+# Uploads directory tree
+# ---------------------------------------------------------------------------
+
+def build_uploads_tree(
+    directory: Path,
+    upload_root: Path,
+) -> tuple[List[TreeNodeResponse], int, int, int]:
+    """
+    Recursively build a nested tree of the given directory.
+
+    Skips hidden files (dot-prefixed) and the ``rejected/`` subtree (that
+    has its own card on the page). Directories are sorted before files;
+    both are alphabetical.
+
+    Returns:
+        (tree_nodes, total_files, total_dirs, total_size_bytes)
+    """
+    dirs: list[TreeNodeResponse] = []
+    files: list[TreeNodeResponse] = []
+    total_files = 0
+    total_dirs = 0
+    total_size = 0
+
+    try:
+        entries = sorted(directory.iterdir(), key=lambda p: p.name)
+    except PermissionError:
+        return [], 0, 0, 0
+
+    for entry in entries:
+        if entry.name.startswith("."):
+            continue
+
+        rel_path = entry.relative_to(upload_root).as_posix()
+
+        if entry.is_dir():
+            # Skip the rejected/ subtree entirely
+            if entry.name == "rejected" and entry.parent == upload_root:
+                continue
+
+            children, child_files, child_dirs, child_size = build_uploads_tree(
+                entry, upload_root
+            )
+            total_files += child_files
+            total_dirs += child_dirs + 1
+            total_size += child_size
+
+            dirs.append(TreeNodeResponse(
+                name=entry.name,
+                type="directory",
+                path=rel_path,
+                children=children,
+            ))
+        elif entry.is_file():
+            try:
+                stat = entry.stat()
+            except OSError:
+                continue
+            total_files += 1
+            total_size += stat.st_size
+
+            files.append(TreeNodeResponse(
+                name=entry.name,
+                type="file",
+                path=rel_path,
+                size_bytes=stat.st_size,
+                modified_at=stat.st_mtime,
+            ))
+
+    return dirs + files, total_files, total_dirs, total_size
+
+
+@router.get(
+    "/uploads-tree",
+    response_model=UploadsTreeResponse,
+)
+async def get_uploads_tree(
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Get the recursive directory tree of the uploads folder (server admin only).
+
+    Excludes the ``rejected/`` subtree (shown in the Rejected files card)
+    and hidden files (Pure-FTPd temp uploads, etc.).
+    """
+    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
+    upload_root = Path(ftps_dir)
+
+    if not upload_root.exists():
+        return UploadsTreeResponse(tree=[], total_files=0, total_dirs=0, total_size_bytes=0)
+
+    tree, total_files, total_dirs, total_size = build_uploads_tree(upload_root, upload_root)
+
+    return UploadsTreeResponse(
+        tree=tree,
+        total_files=total_files,
+        total_dirs=total_dirs,
+        total_size_bytes=total_size,
+    )
+
+
+@router.post("/uploads-tree/delete")
+async def delete_upload_file(
+    request: DeleteUploadFileRequest,
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Delete a single file from the uploads directory (server admin only).
+
+    Security: rejects paths that escape the upload root, target the
+    rejected/ subtree, or point to a directory.
+    """
+    ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
+    upload_root = Path(ftps_dir).resolve()
+
+    # Resolve the requested path against the upload root
+    target = (upload_root / request.filepath).resolve()
+
+    # Path traversal guard
+    if not str(target).startswith(str(upload_root)):
+        raise HTTPException(status_code=400, detail="Path escapes the upload directory")
+
+    # Reject deletions inside the rejected/ subtree
+    try:
+        rel = target.relative_to(upload_root)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path escapes the upload directory")
+
+    if rel.parts and rel.parts[0] == "rejected":
+        raise HTTPException(status_code=400, detail="Use the Rejected files card to manage rejected files")
+
+    # Only delete files, not directories
+    if target.is_dir():
+        raise HTTPException(status_code=400, detail="Cannot delete directories, only individual files")
+
+    if not target.exists():
+        raise HTTPException(status_code=404, detail="File not found (may have been processed already)")
+
+    # Delete the file
+    try:
+        target.unlink()
+        logger.info("Deleted upload file via admin", filepath=str(target), user=current_user.email)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {e}")
+
+    # Prune empty parent directories up to (but not including) the upload root
+    current = target.parent
+    while current != upload_root:
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
+    return {"success": True}

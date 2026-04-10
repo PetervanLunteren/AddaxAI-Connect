@@ -79,3 +79,38 @@ export const getUploadFiles = async (): Promise<UploadFilesResponse> => {
   );
   return response.data;
 };
+
+// Uploads directory tree
+
+export interface TreeNode {
+  name: string;
+  type: 'file' | 'directory';
+  path: string;
+  size_bytes?: number;
+  modified_at?: number;
+  children?: TreeNode[];
+}
+
+export interface UploadsTreeResponse {
+  tree: TreeNode[];
+  total_files: number;
+  total_dirs: number;
+  total_size_bytes: number;
+}
+
+/**
+ * Get the recursive directory tree of the uploads folder (server admin only)
+ */
+export const getUploadsTree = async (): Promise<UploadsTreeResponse> => {
+  const response = await apiClient.get<UploadsTreeResponse>(
+    '/api/ingestion-monitoring/uploads-tree'
+  );
+  return response.data;
+};
+
+/**
+ * Delete a single file from the uploads directory (server admin only)
+ */
+export const deleteUploadFile = async (filepath: string): Promise<void> => {
+  await apiClient.post('/api/ingestion-monitoring/uploads-tree/delete', { filepath });
+};
