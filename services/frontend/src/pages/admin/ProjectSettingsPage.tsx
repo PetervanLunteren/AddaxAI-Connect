@@ -418,37 +418,33 @@ export const ProjectSettingsPage: React.FC = () => {
               </p>
             </div>
             <div className="flex-1 flex items-center gap-3">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={classificationDefault}
-                onChange={(e) => setClassificationDefault(parseFloat(e.target.value))}
-                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${classificationDefault * 100}%, #e1eceb ${classificationDefault * 100}%, #e1eceb 100%)`,
-                }}
-                disabled={isSaving}
-              />
-              <span className="text-sm font-medium w-12 text-right">
-                {(classificationDefault * 100).toFixed(0)}%
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-8 mt-2">
-            <div className="w-1/2 shrink-0" />
-            <div className="flex-1">
+              <div className="flex-[2] flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={classificationDefault}
+                  onChange={(e) => setClassificationDefault(parseFloat(e.target.value))}
+                  className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${classificationDefault * 100}%, #e1eceb ${classificationDefault * 100}%, #e1eceb 100%)`,
+                  }}
+                  disabled={isSaving}
+                />
+                <span className="text-sm font-medium w-12 text-right">
+                  {(classificationDefault * 100).toFixed(0)}%
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowClassificationOverridesModal(true)}
-                className="text-sm text-[#0f6064] hover:underline"
+                className="flex-1 text-sm text-[#0f6064] hover:underline text-right whitespace-nowrap"
                 disabled={isSaving}
               >
-                Set per-species overrides
+                Set overrides
                 {Object.keys(classificationOverrides).length > 0 &&
-                  ` (${Object.keys(classificationOverrides).length} customised)`}
+                  ` (${Object.keys(classificationOverrides).length})`}
               </button>
             </div>
           </div>
