@@ -29,15 +29,10 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
   placeholder = 'Select or type...',
   isLoading = false,
   className = '',
-  isClearable = false,
+  isClearable = true,
 }) => {
   const handleChange = (newValue: SingleValue<Option>) => {
-    // Re-selecting the same value clears it (replaces the removed X button)
-    if (newValue && value && newValue.value === value.value) {
-      onChange(null);
-    } else {
-      onChange(newValue);
-    }
+    onChange(newValue);
   };
 
   // Format the option label for newly created options
@@ -92,14 +87,8 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
       color: 'hsl(var(--foreground))',
       fontSize: '0.875rem',
     }),
-    clearIndicator: (provided) => ({
-      ...provided,
-      color: 'hsl(var(--muted-foreground))',
-      cursor: 'pointer',
-      padding: '4px',
-      '&:hover': {
-        color: 'hsl(var(--foreground))',
-      },
+    clearIndicator: () => ({
+      display: 'none',
     }),
     dropdownIndicator: (provided) => ({
       ...provided,
