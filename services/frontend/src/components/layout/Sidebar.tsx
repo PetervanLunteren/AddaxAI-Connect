@@ -117,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               >
                 <div className="flex items-center space-x-3">
                   <ShieldAlert className="h-5 w-5" />
-                  <span>Admin Tools</span>
+                  <span>Admin tools</span>
                 </div>
                 {adminToolsOpen ? (
                   <ChevronDown className="h-4 w-4" />
