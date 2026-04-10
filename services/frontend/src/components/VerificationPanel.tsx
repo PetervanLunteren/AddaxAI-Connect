@@ -587,28 +587,8 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 ${index === focusedIndex || highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
-              {/* Row 1: action buttons right-aligned */}
-              <div className="flex items-center justify-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => splitObservation(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                  title="Split into two rows"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeObservation(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                  title="Remove"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              {/* Row 2: species + count */}
-              <div className="flex items-center gap-2">
+              {/* Row 1: species + count + split + remove */}
+              <div className="flex items-center gap-1">
                 <div className="flex-1 min-w-0">
                   <CreatableSpeciesSelect
                     options={allSpeciesOptions}
@@ -643,6 +623,22 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => splitObservation(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  title="Split into two rows"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeObservation(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  title="Remove"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
 
               {/* Row 3: sex, age, behaviour */}
