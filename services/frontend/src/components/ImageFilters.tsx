@@ -5,7 +5,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { MultiSelect, Option } from './ui/MultiSelect';
-import { Checkbox } from './ui/Checkbox';
 
 interface ImageFiltersProps {
   filters: {
@@ -14,7 +13,6 @@ interface ImageFiltersProps {
     start_date: string;
     end_date: string;
     species: Option[];
-    show_empty: boolean;
     verified: '' | 'true' | 'false';
   };
   onFilterChange: (key: string, value: any) => void;
@@ -60,7 +58,6 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
     filters.species.length +
     (filters.start_date ? 1 : 0) +
     (filters.end_date ? 1 : 0) +
-    (filters.show_empty ? 1 : 0) +
     (filters.verified ? 1 : 0);
 
   return (
@@ -104,14 +101,14 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
             />
           </div>
 
-          {/* Species */}
+          {/* Labels (species + person/vehicle + empty) */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Species</label>
+            <label className="text-sm font-medium">Labels</label>
             <MultiSelect
               options={speciesOptions}
               value={filters.species}
               onChange={(selected) => onFilterChange('species', selected)}
-              placeholder="Select species..."
+              placeholder="Select labels..."
               isLoading={speciesLoading}
             />
           </div>
@@ -156,14 +153,6 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
               />
             </div>
           </div>
-
-          {/* Show empty */}
-          <Checkbox
-            id="show-empty"
-            checked={filters.show_empty}
-            onChange={(checked) => onFilterChange('show_empty', checked)}
-            label="Show images without detections"
-          />
 
           {/* Clear all */}
           {activeCount > 0 && (

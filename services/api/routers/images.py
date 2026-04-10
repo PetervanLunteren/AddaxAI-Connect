@@ -246,7 +246,7 @@ async def get_species(
         return normalized
 
     # Convert to label/value format for react-select
-    return [
+    options = [
         SpeciesOption(
             label=normalize_label(species),
             value=species
@@ -254,6 +254,11 @@ async def get_species(
         for species in species_list
         if species  # Filter out any null/empty values
     ]
+
+    # Add "Empty" as a special label (always available, not from DB)
+    options.append(SpeciesOption(label="Empty", value="empty"))
+
+    return options
 
 
 @router.get(
@@ -350,13 +355,17 @@ async def list_images(
                 detail="Invalid end_date format. Use ISO format (YYYY-MM-DD)",
             )
 
-    # Handle species filter (supports comma-separated values)
-    # Need to join with classifications to filter by species
+    # Handle species/label filter (supports comma-separated values).
+    # "empty" is a special label meaning "no visible detections".
     species_filter = None
+    has_empty_label = False
     if species:
         species_list = [s.strip() for s in species.split(',') if s.strip()]
         if species_list:
-            species_filter = species_list
+            has_empty_label = "empty" in species_list
+            species_filter = [s for s in species_list if s != "empty"]
+            if not species_filter:
+                species_filter = None  # only "empty" was selected
 
     # Handle verification status filter
     if verified is not None:
@@ -365,36 +374,37 @@ async def list_images(
         elif verified.lower() == "false":
             filters.append(Image.is_verified == False)
 
-    # Filter out empty images if show_empty is False (default).
-    # An image is "non-empty" if it has at least one detection that passes
-    # both the detection threshold AND the per-species classification
-    # threshold (for animal detections with a classification). Person/vehicle
-    # detections only need to pass the detection threshold.
-    if not show_empty:
-        has_visible_pv = (
-            select(Detection.image_id)
-            .join(Image, Detection.image_id == Image.id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .join(Project, Camera.project_id == Project.id)
-            .where(
-                Detection.confidence >= Project.detection_threshold,
-                Detection.category.in_(["person", "vehicle"]),
-            )
-            .distinct()
+    # Subqueries for "has visible detections" — reused by both the
+    # default empty-hiding filter and the "Empty" label filter.
+    has_visible_pv = (
+        select(Detection.image_id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            Detection.confidence >= Project.detection_threshold,
+            Detection.category.in_(["person", "vehicle"]),
         )
-        has_visible_animal = (
-            select(Detection.image_id)
-            .join(Image, Detection.image_id == Image.id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .join(Project, Camera.project_id == Project.id)
-            .join(Classification, Classification.detection_id == Detection.id)
-            .where(
-                Detection.confidence >= Project.detection_threshold,
-                Detection.category == "animal",
-                classification_passes_threshold(),
-            )
-            .distinct()
+        .distinct()
+    )
+    has_visible_animal = (
+        select(Detection.image_id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .join(Classification, Classification.detection_id == Detection.id)
+        .where(
+            Detection.confidence >= Project.detection_threshold,
+            Detection.category == "animal",
+            classification_passes_threshold(),
         )
+        .distinct()
+    )
+
+    # Default: hide empty images unless "Empty" is explicitly selected.
+    # When "Empty" is in the labels, the species_condition OR below handles
+    # inclusion, so the blanket exclusion must be skipped.
+    if not has_empty_label and not show_empty:
         filters.append(
             or_(
                 Image.id.in_(has_visible_pv),
@@ -403,12 +413,14 @@ async def list_images(
             )
         )
 
-    # Build species filter condition (reused for both count and data queries)
-    # Must respect verified status: use AI classifications for unverified, human observations for verified
+    # Build label filter condition (reused for both count and data queries).
+    # Handles species, person/vehicle, and the special "empty" label.
     species_condition = None
+    label_conditions = []
+
     if species_filter:
-        species_condition = or_(
-            # Unverified images: match by AI Classification (with detection threshold)
+        label_conditions.extend([
+            # Unverified images: match by AI Classification (with thresholds)
             and_(
                 Image.is_verified == False,
                 Image.id.in_(
@@ -452,7 +464,30 @@ async def list_images(
                     )
                 )
             ),
+        ])
+
+    # "Empty" label: images with no visible detections. For unverified
+    # images this means all detections are below threshold; for verified
+    # images it means the human recorded zero observations.
+    if has_empty_label:
+        label_conditions.append(
+            or_(
+                and_(
+                    Image.is_verified == False,
+                    ~Image.id.in_(has_visible_pv),
+                    ~Image.id.in_(has_visible_animal),
+                ),
+                and_(
+                    Image.is_verified == True,
+                    ~Image.id.in_(
+                        select(HumanObservation.image_id).distinct()
+                    ),
+                ),
+            )
         )
+
+    if label_conditions:
+        species_condition = or_(*label_conditions)
 
     # Count total (join with Camera for project filtering)
     count_query = select(func.count(Image.id)).join(Camera)

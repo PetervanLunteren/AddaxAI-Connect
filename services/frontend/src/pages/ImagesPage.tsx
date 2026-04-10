@@ -37,7 +37,6 @@ export const ImagesPage: React.FC = () => {
     start_date: '',
     end_date: '',
     species: [] as Option[],
-    show_empty: false, // Default: hide empty images
     verified: '' as '' | 'true' | 'false',  // '' = all
   });
 
@@ -67,7 +66,6 @@ export const ImagesPage: React.FC = () => {
         species: filters.species.length > 0
           ? filters.species.map(s => s.value).join(',')
           : undefined,
-        show_empty: filters.show_empty,
         verified: filters.verified || undefined,
       }),
     enabled: projectId !== undefined,
@@ -106,26 +104,39 @@ export const ImagesPage: React.FC = () => {
       }
     }
 
+    // Backward compat: ?show_empty=true → select the "Empty" label
     if (showEmptyParam === 'true') {
-      updates.show_empty = true;
+      updates.species = [{ label: 'Empty', value: 'empty' }];
     }
 
     if (Object.keys(updates).length > 0) {
       setFilters(prev => ({ ...prev, ...updates }));
       setPage(1);
-      // Clear params from URL so they don't stick around
       searchParams.delete('camera_id');
       searchParams.delete('show_empty');
       setSearchParams(searchParams, { replace: true });
     }
   }, [cameras]);
 
-  // Fetch species for filter dropdown
-  const { data: speciesOptions, isLoading: speciesLoading } = useQuery({
+  // Fetch labels for filter dropdown (species + person/vehicle + empty)
+  const { data: rawLabelOptions, isLoading: speciesLoading } = useQuery({
     queryKey: ['species', projectId],
     queryFn: () => imagesApi.getSpecies(projectId),
     enabled: projectId !== undefined,
   });
+
+  // Pin Empty, Person, Vehicle at the top; rest alphabetical
+  const speciesOptions = React.useMemo(() => {
+    if (!rawLabelOptions) return [];
+    const pinned = ['empty', 'person', 'vehicle'];
+    const pinnedOptions = pinned
+      .map(v => rawLabelOptions.find(s => s.value === v))
+      .filter((s): s is NonNullable<typeof s> => !!s);
+    const rest = rawLabelOptions
+      .filter(s => !pinned.includes(s.value as string))
+      .sort((a, b) => (a.label as string).localeCompare(b.label as string));
+    return [...pinnedOptions, ...rest];
+  }, [rawLabelOptions]);
 
   // Fetch overview for date bounds
   const { data: overview } = useQuery({
@@ -146,7 +157,6 @@ export const ImagesPage: React.FC = () => {
       start_date: '',
       end_date: '',
       species: [],
-      show_empty: false,
       verified: '',
     });
     setPage(1);
@@ -158,7 +168,6 @@ export const ImagesPage: React.FC = () => {
     filters.start_date !== '' ||
     filters.end_date !== '' ||
     filters.species.length > 0 ||
-    filters.show_empty ||
     filters.verified !== '';
 
   const formatTimestamp = (timestamp: string) => {
@@ -221,7 +230,6 @@ export const ImagesPage: React.FC = () => {
       species: filters.species.length > 0
         ? filters.species.map(s => s.value).join(',')
         : undefined,
-      show_empty: filters.show_empty,
     };
 
     // On last image of page → prefetch next page's first image UUID
