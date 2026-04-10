@@ -39,7 +39,7 @@ export const VerificationProgressCard: React.FC<VerificationProgressCardProps> =
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">Verification progress</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Sorted by least verified first
+          Sorted by most images first
         </p>
       </CardHeader>
       <CardContent>

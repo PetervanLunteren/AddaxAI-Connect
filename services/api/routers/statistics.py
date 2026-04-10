@@ -1822,9 +1822,9 @@ async def get_verification_progress_all(
             label="empty",
         ))
 
-    # Sort by percentage ascending (least verified first), but keep "all" pinned at top
+    # Sort by total images descending (most images first), keep "all" pinned at top
     all_row = rows[0]
-    rest = sorted(rows[1:], key=lambda r: r.percentage)
+    rest = sorted(rows[1:], key=lambda r: r.total, reverse=True)
     rows = [all_row] + rest
 
     return VerificationProgressAllResponse(rows=rows)
