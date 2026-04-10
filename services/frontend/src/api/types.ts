@@ -95,6 +95,7 @@ export interface HumanObservation {
   count: number;
   sex: string;
   life_stage: string;
+  behavior: string;
   created_at: string;
   created_by_email: string;
   updated_at: string | null;
@@ -113,6 +114,7 @@ export interface HumanObservationInput {
   count: number;
   sex: string;
   life_stage: string;
+  behavior: string;
 }
 
 export interface SaveVerificationRequest {

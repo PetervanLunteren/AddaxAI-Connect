@@ -32,12 +32,17 @@ interface ObservationRow {
   species: Option | null;
   sex: string;
   life_stage: string;
+  behavior: string;
   count: number;
   isAiSuggested: boolean;  // Track if this row is from AI and not yet modified
 }
 
 const SEX_OPTIONS = ['unknown', 'male', 'female'] as const;
 const LIFE_STAGE_OPTIONS = ['unknown', 'adult', 'subadult', 'juvenile'] as const;
+const BEHAVIOR_OPTIONS = [
+  'unknown', 'traveling', 'foraging', 'resting', 'vigilance',
+  'drinking', 'grooming', 'courtship', 'nursing', 'aggression', 'marking',
+] as const;
 
 // Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
@@ -151,6 +156,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           species: { label: normalizeLabel(obs.species), value: obs.species },
           sex: obs.sex || 'unknown',
           life_stage: obs.life_stage || 'unknown',
+          behavior: obs.behavior || 'unknown',
           count: obs.count,
           isAiSuggested: false,
         }));
@@ -162,6 +168,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           species: { label: normalizeLabel(pred.species), value: pred.species },
           sex: 'unknown',
           life_stage: 'unknown',
+          behavior: 'unknown',
           count: pred.count,
           isAiSuggested: true,
         }));
@@ -199,6 +206,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
           count: obs.count,
           sex: obs.sex,
           life_stage: obs.life_stage,
+          behavior: obs.behavior,
         }));
 
       return imagesApi.saveVerification(imageUuid, {
@@ -361,7 +369,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const addObservation = () => {
     setObservations(prev => [
       ...prev,
-      { id: `new-${Date.now()}`, species: null, sex: 'unknown', life_stage: 'unknown', count: 1, isAiSuggested: false },
+      { id: `new-${Date.now()}`, species: null, sex: 'unknown', life_stage: 'unknown', behavior: 'unknown', count: 1, isAiSuggested: false },
     ]);
   };
 
@@ -384,6 +392,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         species: original.species ? { ...original.species } : null,
         sex: 'unknown',
         life_stage: 'unknown',
+        behavior: 'unknown',
         count: 1,
         isAiSuggested: false,
       };
@@ -465,12 +474,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     // If already verified, only enable if there are changes
     const currentObs = observations
       .filter(obs => obs.species !== null)
-      .map(obs => `${obs.species!.value}:${obs.count}:${obs.sex}:${obs.life_stage}`)
+      .map(obs => `${obs.species!.value}:${obs.count}:${obs.sex}:${obs.life_stage}:${obs.behavior}`)
       .sort()
       .join(',');
 
     const savedObs = imageDetail.human_observations
-      .map(obs => `${obs.species}:${obs.count}:${obs.sex || 'unknown'}:${obs.life_stage || 'unknown'}`)
+      .map(obs => `${obs.species}:${obs.count}:${obs.sex || 'unknown'}:${obs.life_stage || 'unknown'}:${obs.behavior || 'unknown'}`)
       .sort()
       .join(',');
 
@@ -514,11 +523,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                       <span className="text-sm">{normalizeLabel(obs.species)}</span>
                       <span className="text-sm text-muted-foreground">× {obs.count}</span>
                     </div>
-                    {(obs.sex !== 'unknown' || obs.life_stage !== 'unknown') && (
+                    {(obs.sex !== 'unknown' || obs.life_stage !== 'unknown' || obs.behavior !== 'unknown') && (
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {[
                           obs.sex !== 'unknown' ? obs.sex.charAt(0).toUpperCase() + obs.sex.slice(1) : null,
                           obs.life_stage !== 'unknown' ? obs.life_stage.charAt(0).toUpperCase() + obs.life_stage.slice(1) : null,
+                          obs.behavior !== 'unknown' ? obs.behavior.charAt(0).toUpperCase() + obs.behavior.slice(1) : null,
                         ].filter(Boolean).join(' · ')}
                       </div>
                     )}
@@ -659,6 +669,22 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
+
+              {/* Row 3: behaviour */}
+              <select
+                value={obs.behavior}
+                onChange={(e) => setObservations(prev =>
+                  prev.map(o => o.id === obs.id ? { ...o, behavior: e.target.value, isAiSuggested: false } : o)
+                )}
+                className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink w-full"
+                title="Behaviour"
+              >
+                {BEHAVIOR_OPTIONS.map(v => (
+                  <option key={v} value={v}>
+                    {v === 'unknown' ? 'Behaviour: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
+                  </option>
+                ))}
+              </select>
             </div>
           ))}
 

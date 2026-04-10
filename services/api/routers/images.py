@@ -85,6 +85,7 @@ class HumanObservationResponse(BaseModel):
     count: int
     sex: str
     life_stage: str
+    behavior: str
     created_at: str
     created_by_email: str
     updated_at: Optional[str] = None
@@ -144,6 +145,7 @@ class HumanObservationInput(BaseModel):
     count: int = 1
     sex: str = 'unknown'
     life_stage: str = 'unknown'
+    behavior: str = 'unknown'
 
 
 class SaveVerificationRequest(BaseModel):
@@ -776,6 +778,7 @@ async def get_image(
             count=obs.count,
             sex=obs.sex,
             life_stage=obs.life_stage,
+            behavior=obs.behavior,
             created_at=obs.created_at.isoformat(),
             created_by_email=obs.created_by.email if obs.created_by else "unknown",
             updated_at=obs.updated_at.isoformat() if obs.updated_at else None,
@@ -882,6 +885,7 @@ async def save_verification(
             count=obs_input.count,
             sex=obs_input.sex,
             life_stage=obs_input.life_stage,
+            behavior=obs_input.behavior,
             created_at=now,
             created_by_user_id=current_user.id,
         )
@@ -925,6 +929,7 @@ async def save_verification(
             count=obs.count,
             sex=obs.sex,
             life_stage=obs.life_stage,
+            behavior=obs.behavior,
             created_at=obs.created_at.isoformat(),
             created_by_email=user.email,
             updated_at=None,

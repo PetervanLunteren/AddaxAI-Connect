@@ -1485,15 +1485,19 @@ async def get_demographics(
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
 
-    if field not in ("sex", "life_stage"):
+    if field not in ("sex", "life_stage", "behavior"):
         from fastapi import HTTPException, status as http_status
         raise HTTPException(
             status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="field must be 'sex' or 'life_stage'",
+            detail="field must be 'sex', 'life_stage', or 'behavior'",
         )
 
     # Pick the column to group by
-    group_col = HumanObservation.sex if field == "sex" else HumanObservation.life_stage
+    group_col = (
+        HumanObservation.sex if field == "sex"
+        else HumanObservation.life_stage if field == "life_stage"
+        else HumanObservation.behavior
+    )
 
     filters = [
         Camera.project_id.in_(accessible_project_ids),

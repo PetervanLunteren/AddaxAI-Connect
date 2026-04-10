@@ -236,7 +236,7 @@ def _build_observations_csv(
         "observationID", "deploymentID", "mediaID",
         "eventID", "eventStart", "eventEnd",
         "observationLevel", "observationType",
-        "scientificName", "count", "sex", "lifeStage",
+        "scientificName", "count", "sex", "lifeStage", "behavior",
         "classificationMethod", "classifiedBy", "classificationProbability",
         "bboxX", "bboxY", "bboxWidth", "bboxHeight",
         "observationComments",
@@ -283,6 +283,7 @@ def _build_observations_csv(
                     ho.count,
                     ho.sex,
                     ho.life_stage,
+                    ho.behavior,
                     "human",
                     "",  # classifiedBy - user privacy
                     "",  # classificationProbability
@@ -362,6 +363,7 @@ def _build_observations_csv(
                     1,  # count = 1 per detection
                     "unknown",  # sex (AI doesn't predict)
                     "unknown",  # lifeStage (AI doesn't predict)
+                    "unknown",  # behavior (AI doesn't predict)
                     "machine",
                     classified_by,
                     class_confidence,
@@ -739,7 +741,7 @@ def _build_observation_rows(
     headers = [
         "image_uuid", "filename", "datetime", "camera_name",
         "latitude", "longitude",
-        "species", "scientific_name", "count", "sex", "life_stage",
+        "species", "scientific_name", "count", "sex", "life_stage", "behavior",
         "max_confidence",
         "classification_method", "observation_comments", "is_verified",
     ]
@@ -768,7 +770,7 @@ def _build_observation_rows(
                 rows.append([
                     image.uuid, image.filename, ts_str, camera_name,
                     lat, lon,
-                    ho.species, sci_name, ho.count, ho.sex, ho.life_stage,
+                    ho.species, sci_name, ho.count, ho.sex, ho.life_stage, ho.behavior,
                     "",
                     "human", "Human identification", is_verified,
                 ])
@@ -812,7 +814,7 @@ def _build_observation_rows(
                 rows.append([
                     image.uuid, image.filename, ts_str, camera_name,
                     lat, lon,
-                    species, sci_name, data["count"], "unknown", "unknown",
+                    species, sci_name, data["count"], "unknown", "unknown", "unknown",
                     round(data["max_confidence"], 6),
                     "machine", f"{data['classified_by']}, not reviewed", is_verified,
                 ])
@@ -828,7 +830,7 @@ def _build_observation_rows(
             rows.append([
                 image.uuid, image.filename, ts_str, camera_name,
                 lat, lon,
-                "blank", "", "", "", "",
+                "blank", "", "", "", "", "",
                 "",
                 blank_method, blank_comments, is_verified,
             ])
