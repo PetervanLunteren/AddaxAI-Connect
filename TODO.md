@@ -26,19 +26,22 @@ Open follow-ups:
 - [x] In the annotation tool, the dropdown only allows selection of species already observed in the project. Can this be expanded to allow corrections to species not yet observed?
 - [x] Similarly, how can a new species be added to the list? Could predefined species lists (like in Agouti) be implemented?
 - [x] In the settings, I am unable to link a Telegram account for alerts, and I also get an error when saving preferences. Could you please check this? Errors and also cant save notification settings. Should be fixed in the latest version already. No change needed. Already fixed. 
-- [ ] species-specific confidence thresholds
-
-Lets investigate the option to have species-specific confidence thresholds. These would be classification thresholds, so extra on the already implemented detection threshold. WOuld this be dififcult to add? I'm thinking a general slider that determines the thresh for all classes, and an option to open a modal that shows all classes with separate sliders for each. Perhaps with the main slider above and checkboxes to say "for this species I want to set a thresh apart from the main CLS thresh". What do you think? What would be you thoughts in terms of code complexity, UX, UI, users added benefit, etc. Also, what should happen with the detections that fall below the thresh? Remove from statistics and visualisations? Just like the detection.threshold already does? WOuld make sense. And also, which list should we show for the separate sliders? The same list as is shown when selecting a new label? That is already a curated list with all labels in the DB plus custom ones, etc. What are your thoughts? Lets make a plan! 
-
-
-- [ ] When navigating through images, is it possible to filter and display only those classified as “empty” in order to review false negatives? Should we add Empty as a label and change the filter "Species" to "Labels" so you have full control? 
-- [ ] For each picture, it would be useful to add “stage” (adult, subadult, juvenile) and “sex” (male, female) fields, with “Unknown” as the default value.
+- [x] species-specific confidence thresholds
+- [x] when downloading an image, something goes wrong with the bboxes, as the inner box is completely black, while the outer box should be dimmed for the spotlight effect. Investigate. 
+- [x] When navigating through images, is it possible to filter and display only those classified as “empty” in order to review false negatives? Should we add Empty as a label and change the filter "Species" to "Labels" so you have full control? 
+- [x] For each picture, it would be useful to add “stage” (adult, subadult, juvenile) and “sex” (male, female) fields, with “Unknown” as the default value.
 - [ ] WOuld it make sense to have a list of behaviours to choose from? This can be image level.
 - [ ] Could options such as “empty” and “unknown” be added as tags for images?
 - [ ] It would be helpful to have a “like” feature (or similar tag) to send selected photos to a dedicated “Gallery” tab. This would be useful for reporting and communication purposes, allowing us to easily select the best images without browsing the entire dataset.
 - [ ] Could brightness and contrast adjustment tools be added for night images (similar to Agouti)?
 - [ ] Could a reference photo be attached to each camera to help identify its location in the field? We can have an upload feature in the camera slideout. 
 - [ ] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? How would this work?
+
+
+
+[label drop down] [counts] [duplicate] [close]
+[sex] [age] [behaviour] 
+
 
 
 ## Possible future features
