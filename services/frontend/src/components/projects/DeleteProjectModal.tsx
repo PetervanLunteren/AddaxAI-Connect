@@ -87,7 +87,7 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
           <DialogHeader>
             <div className="flex items-center gap-2 text-green-600">
               <CheckCircle className="h-5 w-5" />
-              <DialogTitle>Project Deleted Successfully</DialogTitle>
+              <DialogTitle>Project deleted successfully</DialogTitle>
             </div>
             <DialogDescription>
               The project and all associated data have been permanently removed.
@@ -114,7 +114,7 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
               </div>
             </div>
             <div className="p-3 bg-gray-50 rounded-md text-sm">
-              <p className="text-muted-foreground">MinIO Files Deleted</p>
+              <p className="text-muted-foreground">MinIO files deleted</p>
               <p className="text-lg font-bold">{deleteResult.deleted_minio_files}</p>
             </div>
           </div>
@@ -133,7 +133,7 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
         <DialogHeader>
           <div className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            <DialogTitle>Delete Project</DialogTitle>
+            <DialogTitle>Delete project</DialogTitle>
           </div>
           <DialogDescription>
             This action cannot be undone. This will permanently delete the project and all associated data.

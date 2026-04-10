@@ -285,7 +285,7 @@ export const ProjectUsersPage: React.FC = () => {
       <Dialog open={showAddUserModal} onOpenChange={setShowAddUserModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add user to Project</DialogTitle>
+            <DialogTitle>Add user to project</DialogTitle>
             <DialogDescription>
               Enter a user's email and assign them a role.
             </DialogDescription>
@@ -348,7 +348,7 @@ export const ProjectUsersPage: React.FC = () => {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update User Role</DialogTitle>
+            <DialogTitle>Update user role</DialogTitle>
             <DialogDescription>
               Change {selectedUser?.email}'s role in this project
             </DialogDescription>

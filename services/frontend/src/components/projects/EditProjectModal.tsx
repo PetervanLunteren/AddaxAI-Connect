@@ -148,7 +148,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent onClose={handleClose}>
         <DialogHeader>
-          <DialogTitle>Edit Project</DialogTitle>
+          <DialogTitle>Edit project</DialogTitle>
           <DialogDescription>
             Update project name, description, and image.
           </DialogDescription>

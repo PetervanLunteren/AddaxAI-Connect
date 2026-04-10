@@ -669,7 +669,7 @@ export const ServerSettingsPage: React.FC = () => {
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
         <DialogContent className="max-w-2xl" onClose={() => setShowConfigModal(false)}>
           <DialogHeader>
-            <DialogTitle>Configure Telegram Bot</DialogTitle>
+            <DialogTitle>Configure Telegram bot</DialogTitle>
           </DialogHeader>
 
               <form onSubmit={handleConfigure} className="space-y-4">
@@ -778,7 +778,7 @@ export const ServerSettingsPage: React.FC = () => {
       <Dialog open={showTestModal} onOpenChange={setShowTestModal}>
         <DialogContent onClose={() => setShowTestModal(false)}>
           <DialogHeader>
-            <DialogTitle>Send Test Message</DialogTitle>
+            <DialogTitle>Send test message</DialogTitle>
           </DialogHeader>
 
               <form onSubmit={handleSendTest} className="space-y-4">

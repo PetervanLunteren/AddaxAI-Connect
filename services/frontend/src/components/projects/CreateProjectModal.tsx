@@ -121,7 +121,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent onClose={handleClose}>
         <DialogHeader>
-          <DialogTitle>Create Project</DialogTitle>
+          <DialogTitle>Create project</DialogTitle>
           <DialogDescription>
             Create a new wildlife monitoring project with a name, description, and optional image.
           </DialogDescription>
