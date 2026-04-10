@@ -192,22 +192,23 @@ export function drawDetectionOverlay(
     return { x, y, w, h };
   });
 
-  // 1. Spotlight dim overlay with cutouts (union of all bboxes stays original)
+  // 1. Spotlight dim overlay with cutouts (union of all bboxes stays original).
+  // Uses the evenodd fill rule so the dim covers everything EXCEPT the bbox
+  // interiors. This works on both the layered on-screen canvas (where the
+  // canvas sits above a separate <img>) and the single-canvas download path
+  // (where the image pixels live on the same canvas). The previous
+  // destination-out approach erased image pixels in the download case,
+  // leaving black holes where the bboxes were.
   const cornerR = BBOX_CORNER_RADIUS * strokeScale;
-  // Fill entire canvas with dim
   ctx.save();
   ctx.fillStyle = DIM_FILL;
-  ctx.fillRect(0, 0, canvasW, canvasH);
-  // Clear bbox regions to reveal original image underneath
-  ctx.globalCompositeOperation = 'destination-out';
   ctx.beginPath();
+  ctx.rect(0, 0, canvasW, canvasH);
   for (const r of rects) {
     roundedRectPath(ctx, r.x, r.y, r.w, r.h, cornerR);
   }
-  ctx.fillStyle = '#000';
-  ctx.fill();
+  ctx.fill('evenodd');
   ctx.restore();
-  ctx.globalCompositeOperation = 'source-over';
 
   // 2. Bounding box outlines
   const strokeW = BBOX_STROKE_WIDTH * strokeScale;
