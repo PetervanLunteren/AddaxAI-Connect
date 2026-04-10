@@ -484,11 +484,19 @@ async def list_images(
             human_obs_by_image[obs.image_id].append(obs)
 
     for image, camera, project in rows:
-        # Filter detections by project threshold
-        visible_detections = [
-            d for d in image.detections
-            if d.confidence >= project.detection_threshold
-        ]
+        # Filter detections by project thresholds (detection + classification)
+        visible_detections = []
+        for d in image.detections:
+            if d.confidence < project.detection_threshold:
+                continue
+            if d.category == 'animal' and d.classifications:
+                cls = d.classifications[0]
+                cls_thresh = effective_classification_threshold(
+                    project.classification_thresholds, cls.species,
+                )
+                if cls.confidence < cls_thresh:
+                    continue
+            visible_detections.append(d)
 
         # For verified images: use human observations
         # For unverified images: use AI detections
@@ -516,11 +524,6 @@ async def list_images(
                 for detection in visible_detections:
                     if detection.classifications:
                         for classification in detection.classifications:
-                            cls_thresh = effective_classification_threshold(
-                                project.classification_thresholds, classification.species,
-                            )
-                            if classification.confidence < cls_thresh:
-                                continue
                             if max_confidence is None or classification.confidence > max_confidence:
                                 max_confidence = classification.confidence
                                 top_species = classification.species
@@ -528,8 +531,8 @@ async def list_images(
         # Generate thumbnail URL using the streaming endpoint
         thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
 
-        # Build detections response (only visible detections, with sub-threshold
-        # classifications stripped so the grid chips match the dashboard counts).
+        # Build detections response (only visible detections — sub-threshold
+        # detections were already filtered above)
         detections_response = []
         for detection in visible_detections:
             classifications_response = [
@@ -539,9 +542,6 @@ async def list_images(
                     confidence=cls.confidence,
                 )
                 for cls in detection.classifications
-                if cls.confidence >= effective_classification_threshold(
-                    project.classification_thresholds, cls.species,
-                )
             ]
 
             # Transform bbox from database format {x_min, y_min, width, height}
@@ -647,19 +647,28 @@ async def get_image(
 
     image, camera, project = row
 
-    # Filter detections by project threshold
-    visible_detections = [
-        d for d in image.detections
-        if d.confidence >= project.detection_threshold
-    ]
+    # Filter detections by project thresholds. A detection is hidden when:
+    # - its confidence is below the detection threshold, OR
+    # - it is an animal with a classification below the per-species
+    #   classification threshold (removes false positives such as a branch
+    #   that the model always predicts as "bird 81%").
+    visible_detections = []
+    for d in image.detections:
+        if d.confidence < project.detection_threshold:
+            continue
+        if d.category == 'animal' and d.classifications:
+            cls = d.classifications[0]
+            cls_thresh = effective_classification_threshold(
+                project.classification_thresholds, cls.species,
+            )
+            if cls.confidence < cls_thresh:
+                continue
+        visible_detections.append(d)
 
     # Generate full image URL using the streaming endpoint
     full_image_url = f"/api/images/{image.uuid}/full"
 
-    # Build detections response (only visible detections). Classifications
-    # below their per-species threshold are stripped so the bbox still shows
-    # ("Animal 77%") but the species label ("Roe deer 60%") is hidden,
-    # matching what the dashboard and exports do.
+    # Build detections response (only visible detections)
     detections_response = []
     for detection in visible_detections:
         classifications_response = [
@@ -669,9 +678,6 @@ async def get_image(
                 confidence=cls.confidence,
             )
             for cls in detection.classifications
-            if cls.confidence >= effective_classification_threshold(
-                project.classification_thresholds, cls.species,
-            )
         ]
 
         # Transform bbox from database format {x_min, y_min, width, height}
