@@ -1663,7 +1663,7 @@ async def get_verification_progress(
         verified_q = verified_q.where(label_filter)
     verified = (await db.execute(verified_q)).scalar_one()
 
-    percentage = round((verified / total) * 100, 1) if total > 0 else 0.0
+    percentage = round((verified / total) * 100) if total > 0 else 0.0
 
     return VerificationProgressResponse(
         total=total,
@@ -1722,7 +1722,7 @@ async def get_verification_progress_all(
     rows = [VerificationProgressResponse(
         total=total_all,
         verified=verified_all,
-        percentage=round((verified_all / total_all) * 100, 1) if total_all > 0 else 0.0,
+        percentage=round((verified_all / total_all) * 100) if total_all > 0 else 0.0,
         label="all",
     )]
 
@@ -1751,7 +1751,7 @@ async def get_verification_progress_all(
         rows.append(VerificationProgressResponse(
             total=sp_total,
             verified=sp_verified,
-            percentage=round((sp_verified / sp_total) * 100, 1) if sp_total > 0 else 0.0,
+            percentage=round((sp_verified / sp_total) * 100) if sp_total > 0 else 0.0,
             label=row.species,
         ))
 
@@ -1780,7 +1780,7 @@ async def get_verification_progress_all(
             rows.append(VerificationProgressResponse(
                 total=cat_total,
                 verified=cat_verified,
-                percentage=round((cat_verified / cat_total) * 100, 1) if cat_total > 0 else 0.0,
+                percentage=round((cat_verified / cat_total) * 100) if cat_total > 0 else 0.0,
                 label=category,
             ))
 
@@ -1818,7 +1818,7 @@ async def get_verification_progress_all(
         rows.append(VerificationProgressResponse(
             total=empty_total,
             verified=empty_verified,
-            percentage=round((empty_verified / empty_total) * 100, 1) if empty_total > 0 else 0.0,
+            percentage=round((empty_verified / empty_total) * 100) if empty_total > 0 else 0.0,
             label="empty",
         ))
 
