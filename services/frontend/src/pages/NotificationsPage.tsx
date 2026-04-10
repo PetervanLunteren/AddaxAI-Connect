@@ -6,8 +6,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, Save, X, MessageCircle, ChevronDown } from 'lucide-react';
+import { Loader2, Save, X, MessageCircle, ChevronDown, Link2, Unlink2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
@@ -247,67 +248,78 @@ export const NotificationsPage: React.FC = () => {
                 <div className="w-1/2 shrink-0">
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {isTelegramLinked ? (
-                      <>
-                        {'Receive an instant Telegram message with a photo each time a selected species is detected. '}
-                        {unlinkMutation.isPending ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin inline" />
-                            <span>Unlinking...</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleUnlink}
-                            className="text-muted-foreground hover:underline"
-                          >
-                            Unlink Telegram
-                          </button>
-                        )}
-                      </>
-                    ) : isTelegramConfigured ? (
-                      <>
-                        Receive an instant Telegram message with a photo each time a species is detected. Link your Telegram account to get started.{' '}
-                        {generateTokenMutation.isPending ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin inline" />
-                            <span className="text-primary">Generating link...</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={handleGenerateLink}
-                            className="text-primary hover:underline font-medium pointer-events-auto"
-                          >
-                            Click here to link
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        Receive an instant Telegram message with a photo each time a species is detected. A Telegram bot has not been configured for this server yet.{' '}
-                        {user?.is_superuser ? (
-                          <Link to="/server/settings" className="text-primary hover:underline font-medium pointer-events-auto">
-                            Click here to configure it
-                          </Link>
-                        ) : adminEmail ? (
-                          <a href={`mailto:${adminEmail}`} className="text-primary hover:underline font-medium pointer-events-auto">
-                            Click here to contact your server admin
-                          </a>
-                        ) : (
-                          <span>Contact your server admin to set it up</span>
-                        )}
-                      </>
-                    )}
+                    {isTelegramLinked
+                      ? 'Receive an instant Telegram message with a photo each time a selected species is detected.'
+                      : isTelegramConfigured
+                        ? 'Receive an instant Telegram message with a photo each time a species is detected. Link your Telegram account to get started.'
+                        : user?.is_superuser
+                          ? 'Receive an instant Telegram message with a photo each time a species is detected. A Telegram bot has not been configured yet.'
+                          : 'Receive an instant Telegram message with a photo each time a species is detected. A Telegram bot has not been configured for this server yet.'
+                    }
                   </p>
                 </div>
-                <div className="flex-1">
-                  <MultiSelect
-                    options={speciesOptions}
-                    value={telegramNotifySpecies}
-                    onChange={setTelegramNotifySpecies}
-                    placeholder="Select species to notify about..."
-                  />
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex-[2]">
+                    <MultiSelect
+                      options={speciesOptions}
+                      value={telegramNotifySpecies}
+                      onChange={setTelegramNotifySpecies}
+                      placeholder="Select species to notify about..."
+                    />
+                  </div>
+                  <div className="flex-1 flex justify-end">
+                    {isTelegramLinked ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={handleUnlink}
+                        disabled={unlinkMutation.isPending}
+                        className="whitespace-nowrap pointer-events-auto"
+                      >
+                        {unlinkMutation.isPending ? (
+                          <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Unlinking...</>
+                        ) : (
+                          'Unlink Telegram'
+                        )}
+                      </Button>
+                    ) : isTelegramConfigured ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={handleGenerateLink}
+                        disabled={generateTokenMutation.isPending}
+                        className="whitespace-nowrap pointer-events-auto"
+                      >
+                        {generateTokenMutation.isPending ? (
+                          <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
+                        ) : (
+                          'Link Telegram'
+                        )}
+                      </Button>
+                    ) : user?.is_superuser ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => window.location.href = '/server/settings'}
+                        className="whitespace-nowrap pointer-events-auto"
+                      >
+                        Configure
+                      </Button>
+                    ) : adminEmail ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => window.location.href = `mailto:${adminEmail}`}
+                        className="whitespace-nowrap pointer-events-auto"
+                      >
+                        Contact admin
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
