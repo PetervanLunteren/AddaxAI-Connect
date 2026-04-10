@@ -436,16 +436,15 @@ export const ProjectSettingsPage: React.FC = () => {
                   {(classificationDefault * 100).toFixed(0)}%
                 </span>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowClassificationOverridesModal(true)}
-                className="flex-1 text-sm text-[#0f6064] hover:underline text-right whitespace-nowrap"
                 disabled={isSaving}
+                className="whitespace-nowrap"
               >
                 Set overrides
-                {Object.keys(classificationOverrides).length > 0 &&
-                  ` (${Object.keys(classificationOverrides).length})`}
-              </button>
+              </Button>
             </div>
           </div>
 
