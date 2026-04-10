@@ -83,6 +83,8 @@ class HumanObservationResponse(BaseModel):
     id: int
     species: str
     count: int
+    sex: str
+    life_stage: str
     created_at: str
     created_by_email: str
     updated_at: Optional[str] = None
@@ -140,6 +142,8 @@ class HumanObservationInput(BaseModel):
     """Input for creating/updating a human observation"""
     species: str
     count: int = 1
+    sex: str = 'unknown'
+    life_stage: str = 'unknown'
 
 
 class SaveVerificationRequest(BaseModel):
@@ -770,6 +774,8 @@ async def get_image(
             id=obs.id,
             species=obs.species,
             count=obs.count,
+            sex=obs.sex,
+            life_stage=obs.life_stage,
             created_at=obs.created_at.isoformat(),
             created_by_email=obs.created_by.email if obs.created_by else "unknown",
             updated_at=obs.updated_at.isoformat() if obs.updated_at else None,
@@ -874,6 +880,8 @@ async def save_verification(
             image_id=image.id,
             species=obs_input.species,
             count=obs_input.count,
+            sex=obs_input.sex,
+            life_stage=obs_input.life_stage,
             created_at=now,
             created_by_user_id=current_user.id,
         )
@@ -915,6 +923,8 @@ async def save_verification(
             id=obs.id,
             species=obs.species,
             count=obs.count,
+            sex=obs.sex,
+            life_stage=obs.life_stage,
             created_at=obs.created_at.isoformat(),
             created_by_email=user.email,
             updated_at=None,

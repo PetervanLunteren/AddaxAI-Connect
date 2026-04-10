@@ -32,6 +32,8 @@ import {
   SpeciesComparisonChart,
   DashboardFilters,
 } from '../components/dashboard';
+import { DemographicChart } from '../components/dashboard/DemographicChart';
+import { VerificationProgressCard } from '../components/dashboard/VerificationProgressCard';
 
 // Register ChartJS components
 ChartJS.register(
@@ -312,6 +314,12 @@ export const Dashboard: React.FC = () => {
 
       {/* Row 3: Species activity comparison (full width) */}
       <SpeciesComparisonChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
+
+      {/* Row 4: Demographics + Verification progress */}
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+        <DemographicChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
+        <VerificationProgressCard dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
+      </div>
     </div>
   );
 };

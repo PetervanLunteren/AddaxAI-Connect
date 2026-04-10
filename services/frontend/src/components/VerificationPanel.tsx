@@ -30,9 +30,14 @@ interface VerificationPanelProps {
 interface ObservationRow {
   id: string;
   species: Option | null;
+  sex: string;
+  life_stage: string;
   count: number;
   isAiSuggested: boolean;  // Track if this row is from AI and not yet modified
 }
+
+const SEX_OPTIONS = ['unknown', 'male', 'female'] as const;
+const LIFE_STAGE_OPTIONS = ['unknown', 'adult', 'subadult', 'juvenile'] as const;
 
 // Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
@@ -144,17 +149,21 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         const existingObs = imageDetail.human_observations.map((obs) => ({
           id: `existing-${obs.id}`,
           species: { label: normalizeLabel(obs.species), value: obs.species },
+          sex: obs.sex || 'unknown',
+          life_stage: obs.life_stage || 'unknown',
           count: obs.count,
-          isAiSuggested: false,  // Human-verified data
+          isAiSuggested: false,
         }));
         setObservations(existingObs);
       } else {
-        // Pre-populate from AI predictions
+        // Pre-populate from AI predictions (AI doesn't predict sex/life_stage)
         const aiObs = aiPredictions.map((pred, idx) => ({
           id: `ai-${idx}`,
           species: { label: normalizeLabel(pred.species), value: pred.species },
+          sex: 'unknown',
+          life_stage: 'unknown',
           count: pred.count,
-          isAiSuggested: true,  // AI suggestion, not yet confirmed
+          isAiSuggested: true,
         }));
         setObservations(aiObs);
       }
@@ -188,6 +197,8 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         .map(obs => ({
           species: obs.species!.value,
           count: obs.count,
+          sex: obs.sex,
+          life_stage: obs.life_stage,
         }));
 
       return imagesApi.saveVerification(imageUuid, {
@@ -350,7 +361,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const addObservation = () => {
     setObservations(prev => [
       ...prev,
-      { id: `new-${Date.now()}`, species: null, count: 1, isAiSuggested: false },
+      { id: `new-${Date.now()}`, species: null, sex: 'unknown', life_stage: 'unknown', count: 1, isAiSuggested: false },
     ]);
   };
 
@@ -430,12 +441,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     // If already verified, only enable if there are changes
     const currentObs = observations
       .filter(obs => obs.species !== null)
-      .map(obs => `${obs.species!.value}:${obs.count}`)
+      .map(obs => `${obs.species!.value}:${obs.count}:${obs.sex}:${obs.life_stage}`)
       .sort()
       .join(',');
 
     const savedObs = imageDetail.human_observations
-      .map(obs => `${obs.species}:${obs.count}`)
+      .map(obs => `${obs.species}:${obs.count}:${obs.sex || 'unknown'}:${obs.life_stage || 'unknown'}`)
       .sort()
       .join(',');
 
@@ -472,11 +483,21 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 imageDetail.human_observations.map((obs) => (
                   <div
                     key={obs.id}
-                    className="flex justify-between items-center py-1.5 px-2 rounded"
+                    className="py-1.5 px-2 rounded"
                     style={{ backgroundColor: 'rgba(15, 96, 100, 0.1)' }}
                   >
-                    <span className="text-sm">{normalizeLabel(obs.species)}</span>
-                    <span className="text-sm text-muted-foreground">× {obs.count}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm">{normalizeLabel(obs.species)}</span>
+                      <span className="text-sm text-muted-foreground">× {obs.count}</span>
+                    </div>
+                    {(obs.sex !== 'unknown' || obs.life_stage !== 'unknown') && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {[
+                          obs.sex !== 'unknown' ? obs.sex.charAt(0).toUpperCase() + obs.sex.slice(1) : null,
+                          obs.life_stage !== 'unknown' ? obs.life_stage.charAt(0).toUpperCase() + obs.life_stage.slice(1) : null,
+                        ].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -527,58 +548,87 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             <div
               key={obs.id}
               className={`
-                flex items-center gap-2 p-2 rounded-md transition-all duration-300
+                p-2 rounded-md space-y-2 transition-all duration-300
                 border border-input bg-background
                 ${index === focusedIndex || highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
-              {/* Species select */}
-              <div className="flex-1 min-w-0">
-                <CreatableSpeciesSelect
-                  options={allSpeciesOptions}
-                  value={obs.species}
-                  onChange={(selected) => updateSpecies(obs.id, selected)}
-                  placeholder="Select or type..."
-                  isLoading={speciesLoading}
-                />
-              </div>
-
-              {/* Count controls: - [count] + */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
+              {/* Row 1: species select */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <CreatableSpeciesSelect
+                    options={allSpeciesOptions}
+                    value={obs.species}
+                    onChange={(selected) => updateSpecies(obs.id, selected)}
+                    placeholder="Select or type..."
+                    isLoading={speciesLoading}
+                  />
+                </div>
+                {/* Remove button */}
                 <button
                   type="button"
-                  onClick={() => decrementCount(obs.id)}
-                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title="Decrease count"
+                  onClick={() => removeObservation(obs.id)}
+                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  title="Remove observation"
                 >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={obs.count}
-                  onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
-                  className="w-10 h-8 px-1 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => incrementCount(obs.id)}
-                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title="Increase count"
-                >
-                  <Plus className="h-4 w-4" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Remove button */}
-              <button
-                type="button"
-                onClick={() => removeObservation(obs.id)}
-                className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                title="Remove species"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              {/* Row 2: sex, life stage, count */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={obs.sex}
+                  onChange={(e) => setObservations(prev =>
+                    prev.map(o => o.id === obs.id ? { ...o, sex: e.target.value, isAiSuggested: false } : o)
+                  )}
+                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  title="Sex"
+                >
+                  {SEX_OPTIONS.map(v => (
+                    <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
+                  ))}
+                </select>
+                <select
+                  value={obs.life_stage}
+                  onChange={(e) => setObservations(prev =>
+                    prev.map(o => o.id === obs.id ? { ...o, life_stage: e.target.value, isAiSuggested: false } : o)
+                  )}
+                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  title="Life stage"
+                >
+                  {LIFE_STAGE_OPTIONS.map(v => (
+                    <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
+                  ))}
+                </select>
+                <div className="flex-1" />
+                {/* Count controls */}
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => decrementCount(obs.id)}
+                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Decrease count"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={obs.count}
+                    onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
+                    className="w-8 h-7 px-0.5 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => incrementCount(obs.id)}
+                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Increase count"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
 

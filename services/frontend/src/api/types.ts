@@ -93,6 +93,8 @@ export interface HumanObservation {
   id: number;
   species: string;
   count: number;
+  sex: string;
+  life_stage: string;
   created_at: string;
   created_by_email: string;
   updated_at: string | null;
@@ -109,6 +111,8 @@ export interface VerificationInfo {
 export interface HumanObservationInput {
   species: string;
   count: number;
+  sex: string;
+  life_stage: string;
 }
 
 export interface SaveVerificationRequest {

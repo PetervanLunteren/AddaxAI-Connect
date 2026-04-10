@@ -208,6 +208,8 @@ class HumanObservation(Base):
     image_id = Column(Integer, ForeignKey("images.id", ondelete="CASCADE"), nullable=False, index=True)
     species = Column(String(255), nullable=False, index=True)
     count = Column(Integer, nullable=False, default=1)
+    sex = Column(String(50), nullable=False, server_default='unknown')
+    life_stage = Column(String(50), nullable=False, server_default='unknown')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

@@ -170,4 +170,41 @@ export const statisticsApi = {
     );
     return response.data;
   },
+
+  getDemographics: async (
+    projectId: number,
+    filters?: { field?: string; species?: string; start_date?: string; end_date?: string; camera_ids?: string },
+  ) => {
+    const params: Record<string, string> = { project_id: projectId.toString() };
+    if (filters?.field) params.field = filters.field;
+    if (filters?.species) params.species = filters.species;
+    if (filters?.start_date) params.start_date = filters.start_date;
+    if (filters?.end_date) params.end_date = filters.end_date;
+    if (filters?.camera_ids) params.camera_ids = filters.camera_ids;
+    const response = await apiClient.get<{
+      field: string;
+      species: string | null;
+      values: { value: string; count: number }[];
+      total: number;
+    }>('/api/statistics/demographics', { params });
+    return response.data;
+  },
+
+  getVerificationProgress: async (
+    projectId: number,
+    filters?: { label?: string; start_date?: string; end_date?: string; camera_ids?: string },
+  ) => {
+    const params: Record<string, string> = { project_id: projectId.toString() };
+    if (filters?.label) params.label = filters.label;
+    if (filters?.start_date) params.start_date = filters.start_date;
+    if (filters?.end_date) params.end_date = filters.end_date;
+    if (filters?.camera_ids) params.camera_ids = filters.camera_ids;
+    const response = await apiClient.get<{
+      total: number;
+      verified: number;
+      percentage: number;
+      label: string;
+    }>('/api/statistics/verification-progress', { params });
+    return response.data;
+  },
 };

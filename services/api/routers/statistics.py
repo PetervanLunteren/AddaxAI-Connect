@@ -1445,3 +1445,229 @@ async def get_independence_summary(
         independent_event_total=event_total,
         species=species_list,
     )
+
+
+# ==================== Demographics ====================
+
+
+class DemographicValue(BaseModel):
+    value: str
+    count: int
+
+
+class DemographicResponse(BaseModel):
+    field: str
+    species: Optional[str] = None
+    values: List[DemographicValue]
+    total: int
+
+
+@router.get(
+    "/demographics",
+    response_model=DemographicResponse,
+)
+async def get_demographics(
+    project_id: Optional[int] = Query(None),
+    field: str = Query("sex", description="'sex' or 'life_stage'"),
+    species: Optional[str] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    camera_ids: Optional[str] = Query(None),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get sex or life_stage distribution from verified human observations.
+
+    Only counts verified observations because sex and life_stage are
+    human-entered data (the AI does not predict them).
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+
+    if field not in ("sex", "life_stage"):
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="field must be 'sex' or 'life_stage'",
+        )
+
+    # Pick the column to group by
+    group_col = HumanObservation.sex if field == "sex" else HumanObservation.life_stage
+
+    filters = [
+        Camera.project_id.in_(accessible_project_ids),
+        Image.is_verified == True,
+        Image.is_hidden == False,
+    ]
+    if species:
+        filters.append(func.lower(HumanObservation.species) == species.lower())
+    if start_date:
+        filters.append(Image.uploaded_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        filters.append(Image.uploaded_at <= datetime.combine(end_date, datetime.max.time()))
+    if camera_ids:
+        camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()]
+        filters.append(Image.camera_id.in_(camera_id_list))
+
+    query = (
+        select(group_col, func.sum(HumanObservation.count).label("total"))
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(and_(*filters))
+        .group_by(group_col)
+        .order_by(func.sum(HumanObservation.count).desc())
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    values = [DemographicValue(value=row[0] or "unknown", count=row[1]) for row in rows]
+    total = sum(v.count for v in values)
+
+    return DemographicResponse(
+        field=field,
+        species=species,
+        values=values,
+        total=total,
+    )
+
+
+# ==================== Verification Progress ====================
+
+
+class VerificationProgressResponse(BaseModel):
+    total: int
+    verified: int
+    percentage: float
+    label: str
+
+
+@router.get(
+    "/verification-progress",
+    response_model=VerificationProgressResponse,
+)
+async def get_verification_progress(
+    project_id: Optional[int] = Query(None),
+    label: Optional[str] = Query(None, description="Filter: 'all', 'empty', 'person', 'vehicle', or a species name"),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    camera_ids: Optional[str] = Query(None),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get verification progress (verified / total images) with optional label filter.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()] if camera_ids else None
+
+    base_filters: list = [
+        Camera.project_id.in_(accessible_project_ids),
+        Image.is_hidden == False,
+        Image.status == "classified",
+    ]
+    if start_date:
+        base_filters.append(Image.uploaded_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        base_filters.append(Image.uploaded_at <= datetime.combine(end_date, datetime.max.time()))
+    if camera_id_list:
+        base_filters.append(Image.camera_id.in_(camera_id_list))
+
+    effective_label = label or "all"
+
+    # Label-specific subquery filter (narrows the image set)
+    label_filter = None
+    if effective_label == "empty":
+        # Images with no visible detections AND no human observations
+        has_vis_pv = (
+            select(Detection.image_id)
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .where(Detection.confidence >= Project.detection_threshold, Detection.category.in_(["person", "vehicle"]))
+            .distinct()
+        )
+        has_vis_animal = (
+            select(Detection.image_id)
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .join(Classification, Classification.detection_id == Detection.id)
+            .where(Detection.confidence >= Project.detection_threshold, Detection.category == "animal", classification_passes_threshold())
+            .distinct()
+        )
+        has_human_obs = select(HumanObservation.image_id).distinct()
+        label_filter = and_(
+            ~Image.id.in_(has_vis_pv),
+            ~Image.id.in_(has_vis_animal),
+            ~Image.id.in_(has_human_obs),
+        )
+    elif effective_label in ("person", "vehicle"):
+        label_filter = Image.id.in_(
+            select(Detection.image_id)
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .where(
+                Detection.category == effective_label,
+                Detection.confidence >= Project.detection_threshold,
+            )
+            .distinct()
+        )
+    elif effective_label != "all":
+        # Species name filter
+        from sqlalchemy import or_ as sa_or
+        label_filter = sa_or(
+            # Unverified: AI classification
+            and_(
+                Image.is_verified == False,
+                Image.id.in_(
+                    select(Image.id)
+                    .join(Detection)
+                    .join(Classification)
+                    .join(Camera, Image.camera_id == Camera.id)
+                    .join(Project, Camera.project_id == Project.id)
+                    .where(
+                        func.lower(Classification.species) == effective_label.lower(),
+                        Detection.confidence >= Project.detection_threshold,
+                        classification_passes_threshold(),
+                    )
+                ),
+            ),
+            # Verified: human observation
+            and_(
+                Image.is_verified == True,
+                Image.id.in_(
+                    select(Image.id)
+                    .join(HumanObservation)
+                    .where(func.lower(HumanObservation.species) == effective_label.lower())
+                ),
+            ),
+        )
+
+    # Count total
+    total_q = select(func.count(Image.id)).join(Camera).where(and_(*base_filters))
+    if label_filter is not None:
+        total_q = total_q.where(label_filter)
+    total = (await db.execute(total_q)).scalar_one()
+
+    # Count verified
+    verified_q = (
+        select(func.count(Image.id))
+        .join(Camera)
+        .where(and_(*base_filters, Image.is_verified == True))
+    )
+    if label_filter is not None:
+        verified_q = verified_q.where(label_filter)
+    verified = (await db.execute(verified_q)).scalar_one()
+
+    percentage = round((verified / total) * 100, 1) if total > 0 else 0.0
+
+    return VerificationProgressResponse(
+        total=total,
+        verified=verified,
+        percentage=percentage,
+        label=effective_label,
+    )
