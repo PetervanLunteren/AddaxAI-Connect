@@ -586,7 +586,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   title="Sex"
                 >
                   {SEX_OPTIONS.map(v => (
-                    <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
+                    <option key={v} value={v}>
+                      {v === 'unknown' ? 'Sex: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
+                    </option>
                   ))}
                 </select>
                 <select
@@ -598,7 +600,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   title="Life stage"
                 >
                   {LIFE_STAGE_OPTIONS.map(v => (
-                    <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>
+                    <option key={v} value={v}>
+                      {v === 'unknown' ? 'Age: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
+                    </option>
                   ))}
                 </select>
                 <div className="flex-1" />
