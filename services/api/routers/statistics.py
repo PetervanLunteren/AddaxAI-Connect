@@ -1671,3 +1671,93 @@ async def get_verification_progress(
         percentage=percentage,
         label=effective_label,
     )
+
+
+class VerificationProgressAllResponse(BaseModel):
+    rows: List[VerificationProgressResponse]
+
+
+@router.get(
+    "/verification-progress-all",
+    response_model=VerificationProgressAllResponse,
+)
+async def get_verification_progress_all(
+    project_id: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    camera_ids: Optional[str] = Query(None),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get verification progress for ALL labels in a single call.
+
+    Returns one row per observed species (plus "all") sorted by percentage
+    ascending so the least-verified labels appear first.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()] if camera_ids else None
+
+    base_filters: list = [
+        Camera.project_id.in_(accessible_project_ids),
+        Image.is_hidden == False,
+        Image.status == "classified",
+    ]
+    if start_date:
+        base_filters.append(Image.uploaded_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        base_filters.append(Image.uploaded_at <= datetime.combine(end_date, datetime.max.time()))
+    if camera_id_list:
+        base_filters.append(Image.camera_id.in_(camera_id_list))
+
+    # "All images" totals
+    total_all = (await db.execute(
+        select(func.count(Image.id)).join(Camera).where(and_(*base_filters))
+    )).scalar_one()
+    verified_all = (await db.execute(
+        select(func.count(Image.id)).join(Camera).where(and_(*base_filters, Image.is_verified == True))
+    )).scalar_one()
+
+    rows = [VerificationProgressResponse(
+        total=total_all,
+        verified=verified_all,
+        percentage=round((verified_all / total_all) * 100, 1) if total_all > 0 else 0.0,
+        label="all",
+    )]
+
+    # Per-species: count verified vs total per species using the
+    # "preferred" data source (human obs for verified, classification
+    # for unverified). For simplicity, count images that have at least
+    # one detection/observation of each species.
+    species_q = (
+        select(
+            HumanObservation.species,
+            func.count(func.distinct(Image.id)).label("total"),
+            func.count(func.distinct(Image.id)).filter(Image.is_verified == True).label("verified"),
+        )
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(and_(
+            Camera.project_id.in_(accessible_project_ids),
+            Image.is_hidden == False,
+        ))
+        .group_by(HumanObservation.species)
+    )
+    species_result = await db.execute(species_q)
+    for row in species_result.all():
+        sp_total = row.total
+        sp_verified = row.verified
+        rows.append(VerificationProgressResponse(
+            total=sp_total,
+            verified=sp_verified,
+            percentage=round((sp_verified / sp_total) * 100, 1) if sp_total > 0 else 0.0,
+            label=row.species,
+        ))
+
+    # Sort by percentage ascending (least verified first), but keep "all" pinned at top
+    all_row = rows[0]
+    rest = sorted(rows[1:], key=lambda r: r.percentage)
+    rows = [all_row] + rest
+
+    return VerificationProgressAllResponse(rows=rows)

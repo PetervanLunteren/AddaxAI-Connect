@@ -1,10 +1,13 @@
 /**
- * Verification progress card — shows how many images have been verified.
+ * Verification progress card — scrollable list of progress bars per label.
+ *
+ * "All images" is pinned at the top. The rest are sorted by percentage
+ * ascending so the least-verified labels (where effort is needed) appear
+ * first. No dropdown — everything is visible at a glance.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
@@ -20,19 +23,10 @@ export const VerificationProgressCard: React.FC<VerificationProgressCardProps> =
   projectId,
   cameraIds,
 }) => {
-  const [selectedLabel, setSelectedLabel] = useState<string>('all');
-
-  const { data: speciesList } = useQuery({
-    queryKey: ['statistics', 'species', projectId],
-    queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
-    enabled: projectId !== undefined,
-  });
-
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'verification-progress', projectId, selectedLabel, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'verification-progress-all', projectId, dateRange.startDate, dateRange.endDate, cameraIds],
     queryFn: () =>
-      statisticsApi.getVerificationProgress(projectId!, {
-        label: selectedLabel === 'all' ? undefined : selectedLabel,
+      statisticsApi.getVerificationProgressAll(projectId!, {
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         camera_ids: cameraIds,
@@ -43,46 +37,43 @@ export const VerificationProgressCard: React.FC<VerificationProgressCardProps> =
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-lg">Verification progress</CardTitle>
-          <Select
-            value={selectedLabel}
-            onValueChange={setSelectedLabel}
-            className="w-36 h-9 text-sm"
-          >
-            <SelectItem value="all">All images</SelectItem>
-            <SelectItem value="empty">Empty</SelectItem>
-            <SelectItem value="person">Person</SelectItem>
-            <SelectItem value="vehicle">Vehicle</SelectItem>
-            {speciesList?.map((s) => (
-              <SelectItem key={s.species} value={s.species}>
-                {normalizeLabel(s.species)}
-              </SelectItem>
-            ))}
-          </Select>
-        </div>
+        <CardTitle className="text-lg">Verification progress</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Sorted by least verified first
+        </p>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
-        ) : data ? (
-          <div className="space-y-2">
-            {/* Progress bar */}
-            <div className="w-full h-4 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${data.percentage}%`,
-                  backgroundColor: '#0f6064',
-                }}
-              />
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">
-                {data.verified.toLocaleString()} of {data.total.toLocaleString()} images verified
-              </span>
-              <span className="font-medium">{data.percentage}%</span>
-            </div>
+        ) : data && data.rows.length > 0 ? (
+          <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+            {data.rows.map((row, index) => {
+              const isAll = row.label === 'all';
+              return (
+                <div key={row.label}>
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className={`text-sm ${isAll ? 'font-semibold' : ''}`}>
+                      {isAll ? 'All images' : normalizeLabel(row.label)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {row.verified}/{row.total} ({row.percentage}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${row.percentage}%`,
+                        backgroundColor: '#0f6064',
+                      }}
+                    />
+                  </div>
+                  {isAll && index < data.rows.length - 1 && (
+                    <div className="border-b mt-3" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">No data</p>

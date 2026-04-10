@@ -190,6 +190,20 @@ export const statisticsApi = {
     return response.data;
   },
 
+  getVerificationProgressAll: async (
+    projectId: number,
+    filters?: { start_date?: string; end_date?: string; camera_ids?: string },
+  ) => {
+    const params: Record<string, string> = { project_id: projectId.toString() };
+    if (filters?.start_date) params.start_date = filters.start_date;
+    if (filters?.end_date) params.end_date = filters.end_date;
+    if (filters?.camera_ids) params.camera_ids = filters.camera_ids;
+    const response = await apiClient.get<{
+      rows: { total: number; verified: number; percentage: number; label: string }[];
+    }>('/api/statistics/verification-progress-all', { params });
+    return response.data;
+  },
+
   getVerificationProgress: async (
     projectId: number,
     filters?: { label?: string; start_date?: string; end_date?: string; camera_ids?: string },
