@@ -577,39 +577,17 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 ${index === focusedIndex || highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
-              {/* Row 1: species select */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <CreatableSpeciesSelect
-                    options={allSpeciesOptions}
-                    value={obs.species}
-                    onChange={(selected) => updateSpecies(obs.id, selected)}
-                    placeholder="Select or type..."
-                    isLoading={speciesLoading}
-                  />
-                </div>
-                {/* Split button */}
-                <button
-                  type="button"
-                  onClick={() => splitObservation(obs.id)}
-                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                  title="Split into two rows (same species, different sex/age)"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-                {/* Remove button */}
-                <button
-                  type="button"
-                  onClick={() => removeObservation(obs.id)}
-                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                  title="Remove observation"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+              {/* Row 1: species (full width) */}
+              <CreatableSpeciesSelect
+                options={allSpeciesOptions}
+                value={obs.species}
+                onChange={(selected) => updateSpecies(obs.id, selected)}
+                placeholder="Select or type..."
+                isLoading={speciesLoading}
+              />
 
-              {/* Row 2: sex, life stage, count */}
-              <div className="flex items-center gap-2">
+              {/* Row 2: sex, age, count, split, remove */}
+              <div className="flex items-center gap-1.5">
                 <select
                   value={obs.sex}
                   onChange={(e) => setObservations(prev =>
@@ -639,7 +617,6 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   ))}
                 </select>
                 <div className="flex-1" />
-                {/* Count controls */}
                 <div className="flex items-center gap-0.5 flex-shrink-0">
                   <button
                     type="button"
@@ -665,6 +642,22 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => splitObservation(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  title="Split into two rows"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeObservation(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  title="Remove"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
           ))}
