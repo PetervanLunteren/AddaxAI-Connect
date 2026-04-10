@@ -30,6 +30,7 @@ Open follow-ups:
 - [x] when downloading an image, something goes wrong with the bboxes, as the inner box is completely black, while the outer box should be dimmed for the spotlight effect. Investigate. 
 - [x] When navigating through images, is it possible to filter and display only those classified as “empty” in order to review false negatives? Should we add Empty as a label and change the filter "Species" to "Labels" so you have full control? 
 - [x] For each picture, it would be useful to add “stage” (adult, subadult, juvenile) and “sex” (male, female) fields, with “Unknown” as the default value.
+- [ ] can we add a border round the plus minus buttons in the verification modal? Now it does not seem like these belong together : [- 1 +]
 - [ ] WOuld it make sense to have a list of behaviours to choose from? This can be image level.
 - [ ] Could options such as “empty” and “unknown” be added as tags for images?
 - [ ] It would be helpful to have a “like” feature (or similar tag) to send selected photos to a dedicated “Gallery” tab. This would be useful for reporting and communication purposes, allowing us to easily select the best images without browsing the entire dataset.
