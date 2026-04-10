@@ -17,7 +17,7 @@ from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
-from shared.classification_threshold import classification_passes_threshold
+from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -516,6 +516,11 @@ async def list_images(
                 for detection in visible_detections:
                     if detection.classifications:
                         for classification in detection.classifications:
+                            cls_thresh = effective_classification_threshold(
+                                project.classification_thresholds, classification.species,
+                            )
+                            if classification.confidence < cls_thresh:
+                                continue
                             if max_confidence is None or classification.confidence > max_confidence:
                                 max_confidence = classification.confidence
                                 top_species = classification.species
@@ -523,7 +528,8 @@ async def list_images(
         # Generate thumbnail URL using the streaming endpoint
         thumbnail_url = f"/api/images/{image.uuid}/thumbnail" if image.storage_path else None
 
-        # Build detections response (only visible detections)
+        # Build detections response (only visible detections, with sub-threshold
+        # classifications stripped so the grid chips match the dashboard counts).
         detections_response = []
         for detection in visible_detections:
             classifications_response = [
@@ -533,6 +539,9 @@ async def list_images(
                     confidence=cls.confidence,
                 )
                 for cls in detection.classifications
+                if cls.confidence >= effective_classification_threshold(
+                    project.classification_thresholds, cls.species,
+                )
             ]
 
             # Transform bbox from database format {x_min, y_min, width, height}
@@ -647,7 +656,10 @@ async def get_image(
     # Generate full image URL using the streaming endpoint
     full_image_url = f"/api/images/{image.uuid}/full"
 
-    # Build detections response (only visible detections)
+    # Build detections response (only visible detections). Classifications
+    # below their per-species threshold are stripped so the bbox still shows
+    # ("Animal 77%") but the species label ("Roe deer 60%") is hidden,
+    # matching what the dashboard and exports do.
     detections_response = []
     for detection in visible_detections:
         classifications_response = [
@@ -657,6 +669,9 @@ async def get_image(
                 confidence=cls.confidence,
             )
             for cls in detection.classifications
+            if cls.confidence >= effective_classification_threshold(
+                project.classification_thresholds, cls.species,
+            )
         ]
 
         # Transform bbox from database format {x_min, y_min, width, height}
