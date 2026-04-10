@@ -428,99 +428,7 @@ export const FileManagementPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Card 2: Upload directory tree */}
-      <Card className="mb-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <CardTitle>Upload directory</CardTitle>
-              <CardDescription>
-                Files and folders currently in the upload directory. Excludes rejected files.
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetchTree()}
-              disabled={isTreeLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isTreeLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg p-4">
-            {isTreeLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : !uploadsTreeData || (uploadsTreeData.total_files === 0 && uploadsTreeData.total_dirs === 0) ? (
-              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                <CheckCircle2 className="h-8 w-8 mb-2" />
-                <p className="text-sm">Upload directory is empty</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-0.5 text-sm font-mono">
-                  {uploadsTreeData.tree.map((node) => (
-                    <UploadTreeNode
-                      key={node.path}
-                      node={node}
-                      depth={0}
-                      onDelete={(path, name) => {
-                        setDeleteFilePath(path);
-                        setDeleteFileName(name);
-                      }}
-                    />
-                  ))}
-                </div>
-                <p className="mt-4 text-xs text-muted-foreground">
-                  {uploadsTreeData.total_files} {uploadsTreeData.total_files === 1 ? 'file' : 'files'}
-                  {uploadsTreeData.total_dirs > 0 && (
-                    <>, {uploadsTreeData.total_dirs} {uploadsTreeData.total_dirs === 1 ? 'folder' : 'folders'}</>
-                  )}
-                  , {formatFileSize(uploadsTreeData.total_size_bytes)} total
-                </p>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Delete upload file confirmation dialog */}
-      <Dialog open={deleteFilePath !== null} onOpenChange={(open) => { if (!open) setDeleteFilePath(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete file</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete <span className="font-medium">{deleteFileName}</span>?
-              This cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteFilePath(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (deleteFilePath) deleteUploadFileMutation.mutate(deleteFilePath);
-              }}
-              disabled={deleteUploadFileMutation.isPending}
-            >
-              {deleteUploadFileMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" />
-              )}
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Card 3: Rejected files */}
+      {/* Card 2: Rejected files */}
       <Card className="mb-6">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -847,6 +755,97 @@ export const FileManagementPage: React.FC = () => {
                   Reprocess
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Card 3: Upload directory tree */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <CardTitle>Upload directory</CardTitle>
+              <CardDescription>
+                Files and folders currently in the upload directory. Excludes rejected files.
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchTree()}
+              disabled={isTreeLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isTreeLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-lg p-4">
+            {isTreeLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !uploadsTreeData || (uploadsTreeData.total_files === 0 && uploadsTreeData.total_dirs === 0) ? (
+              <div className="py-6 text-center">
+                <CheckCircle2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-muted-foreground">Upload directory is empty</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-0.5 text-sm font-mono">
+                  {uploadsTreeData.tree.map((node) => (
+                    <UploadTreeNode
+                      key={node.path}
+                      node={node}
+                      depth={0}
+                      onDelete={(path, name) => {
+                        setDeleteFilePath(path);
+                        setDeleteFileName(name);
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  {uploadsTreeData.total_files} {uploadsTreeData.total_files === 1 ? 'file' : 'files'}
+                  {uploadsTreeData.total_dirs > 0 && (
+                    <>, {uploadsTreeData.total_dirs} {uploadsTreeData.total_dirs === 1 ? 'folder' : 'folders'}</>
+                  )}
+                  , {formatFileSize(uploadsTreeData.total_size_bytes)} total
+                </p>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Delete upload file confirmation dialog */}
+      <Dialog open={deleteFilePath !== null} onOpenChange={(open) => { if (!open) setDeleteFilePath(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete file</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <span className="font-medium">{deleteFileName}</span>?
+              This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteFilePath(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteFilePath) deleteUploadFileMutation.mutate(deleteFilePath);
+              }}
+              disabled={deleteUploadFileMutation.isPending}
+            >
+              {deleteUploadFileMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
