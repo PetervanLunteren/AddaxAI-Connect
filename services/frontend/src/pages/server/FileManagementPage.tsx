@@ -450,39 +450,41 @@ export const FileManagementPage: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {isTreeLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !uploadsTreeData || (uploadsTreeData.total_files === 0 && uploadsTreeData.total_dirs === 0) ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <CheckCircle2 className="h-8 w-8 mb-2" />
-              <p className="text-sm">Upload directory is empty</p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-0.5 text-sm font-mono">
-                {uploadsTreeData.tree.map((node) => (
-                  <UploadTreeNode
-                    key={node.path}
-                    node={node}
-                    depth={0}
-                    onDelete={(path, name) => {
-                      setDeleteFilePath(path);
-                      setDeleteFileName(name);
-                    }}
-                  />
-                ))}
+          <div className="border rounded-lg p-4">
+            {isTreeLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-              <p className="mt-4 text-xs text-muted-foreground">
-                {uploadsTreeData.total_files} {uploadsTreeData.total_files === 1 ? 'file' : 'files'}
-                {uploadsTreeData.total_dirs > 0 && (
-                  <>, {uploadsTreeData.total_dirs} {uploadsTreeData.total_dirs === 1 ? 'folder' : 'folders'}</>
-                )}
-                , {formatFileSize(uploadsTreeData.total_size_bytes)} total
-              </p>
-            </>
-          )}
+            ) : !uploadsTreeData || (uploadsTreeData.total_files === 0 && uploadsTreeData.total_dirs === 0) ? (
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <CheckCircle2 className="h-8 w-8 mb-2" />
+                <p className="text-sm">Upload directory is empty</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-0.5 text-sm font-mono">
+                  {uploadsTreeData.tree.map((node) => (
+                    <UploadTreeNode
+                      key={node.path}
+                      node={node}
+                      depth={0}
+                      onDelete={(path, name) => {
+                        setDeleteFilePath(path);
+                        setDeleteFileName(name);
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  {uploadsTreeData.total_files} {uploadsTreeData.total_files === 1 ? 'file' : 'files'}
+                  {uploadsTreeData.total_dirs > 0 && (
+                    <>, {uploadsTreeData.total_dirs} {uploadsTreeData.total_dirs === 1 ? 'folder' : 'folders'}</>
+                  )}
+                  , {formatFileSize(uploadsTreeData.total_size_bytes)} total
+                </p>
+              </>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -557,9 +559,6 @@ export const FileManagementPage: React.FC = () => {
               <div className="py-6 text-center">
                 <CheckCircle2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-muted-foreground">No rejected files</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  All uploaded files are being processed successfully
-                </p>
               </div>
             ) : (
               <>
