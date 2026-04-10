@@ -442,7 +442,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   size="sm"
                   onClick={() => setShowClassificationOverridesModal(true)}
                   disabled={isSaving}
-                  className="whitespace-nowrap"
+                  className="w-full whitespace-nowrap"
                 >
                   Set overrides
                 </Button>
@@ -566,6 +566,7 @@ export const ProjectSettingsPage: React.FC = () => {
                       size="sm"
                       onClick={() => setShowCameraGroups(true)}
                       disabled={isSaving}
+                      className="w-full whitespace-nowrap"
                     >
                       Manage groups
                     </Button>

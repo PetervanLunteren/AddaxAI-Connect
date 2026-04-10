@@ -275,7 +275,7 @@ export const NotificationsPage: React.FC = () => {
                         type="button"
                         onClick={handleUnlink}
                         disabled={unlinkMutation.isPending}
-                        className="whitespace-nowrap pointer-events-auto"
+                        className="w-full whitespace-nowrap pointer-events-auto"
                       >
                         {unlinkMutation.isPending ? (
                           <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Unlinking...</>
@@ -290,7 +290,7 @@ export const NotificationsPage: React.FC = () => {
                         type="button"
                         onClick={handleGenerateLink}
                         disabled={generateTokenMutation.isPending}
-                        className="whitespace-nowrap pointer-events-auto"
+                        className="w-full whitespace-nowrap pointer-events-auto"
                       >
                         {generateTokenMutation.isPending ? (
                           <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
@@ -304,7 +304,7 @@ export const NotificationsPage: React.FC = () => {
                         size="sm"
                         type="button"
                         onClick={() => window.location.href = '/server/settings'}
-                        className="whitespace-nowrap pointer-events-auto"
+                        className="w-full whitespace-nowrap pointer-events-auto"
                       >
                         Configure
                       </Button>
@@ -314,7 +314,7 @@ export const NotificationsPage: React.FC = () => {
                         size="sm"
                         type="button"
                         onClick={() => window.location.href = `mailto:${adminEmail}`}
-                        className="whitespace-nowrap pointer-events-auto"
+                        className="w-full whitespace-nowrap pointer-events-auto"
                       >
                         Contact admin
                       </Button>
