@@ -587,13 +587,13 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
               />
 
               {/* Row 2: sex, age, count, split, remove */}
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 flex-wrap-none overflow-hidden">
                 <select
                   value={obs.sex}
                   onChange={(e) => setObservations(prev =>
                     prev.map(o => o.id === obs.id ? { ...o, sex: e.target.value, isAiSuggested: false } : o)
                   )}
-                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink"
                   title="Sex"
                 >
                   {SEX_OPTIONS.map(v => (
@@ -607,7 +607,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                   onChange={(e) => setObservations(prev =>
                     prev.map(o => o.id === obs.id ? { ...o, life_stage: e.target.value, isAiSuggested: false } : o)
                   )}
-                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink"
                   title="Life stage"
                 >
                   {LIFE_STAGE_OPTIONS.map(v => (
