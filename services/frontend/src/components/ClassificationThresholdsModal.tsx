@@ -123,7 +123,7 @@ export function ClassificationThresholdsModal({
                     type="checkbox"
                     checked={isOverridden}
                     onChange={(e) => toggleOverride(value, e.target.checked)}
-                    className="h-4 w-4 cursor-pointer"
+                    className="h-4 w-4 cursor-pointer accent-[#0f6064]"
                   />
                   <span className="flex-1 text-sm">{label}</span>
                   <input
