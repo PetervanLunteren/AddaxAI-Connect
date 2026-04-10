@@ -10,7 +10,7 @@
  */
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Minus, X, Loader2, Check } from 'lucide-react';
+import { Plus, Minus, X, Loader2, Check, Copy } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
@@ -370,6 +370,30 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     setObservations(prev => prev.filter(obs => obs.id !== id));
   };
 
+  // Split an observation into two rows with the same species. The
+  // original keeps most of the count; the copy gets 1. The user then
+  // adjusts sex/life_stage/count on each row.
+  const splitObservation = (id: string) => {
+    setObservations(prev => {
+      const idx = prev.findIndex(obs => obs.id === id);
+      if (idx === -1) return prev;
+      const original = prev[idx];
+      const newCount = Math.max(1, original.count - 1);
+      const copy: ObservationRow = {
+        id: `split-${Date.now()}`,
+        species: original.species ? { ...original.species } : null,
+        sex: 'unknown',
+        life_stage: 'unknown',
+        count: 1,
+        isAiSuggested: false,
+      };
+      const updated = [...prev];
+      updated[idx] = { ...original, count: newCount, isAiSuggested: false };
+      updated.splice(idx + 1, 0, copy);
+      return updated;
+    });
+  };
+
   // Update observation species (marks as human-modified)
   const updateSpecies = (id: string, species: Option | null) => {
     setObservations(prev =>
@@ -564,6 +588,15 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                     isLoading={speciesLoading}
                   />
                 </div>
+                {/* Split button */}
+                <button
+                  type="button"
+                  onClick={() => splitObservation(obs.id)}
+                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  title="Split into two rows (same species, different sex/age)"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
                 {/* Remove button */}
                 <button
                   type="button"
