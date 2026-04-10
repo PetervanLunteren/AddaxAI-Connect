@@ -390,7 +390,7 @@ export const ProjectSettingsPage: React.FC = () => {
                 type="range"
                 min="0"
                 max="1"
-                step="0.05"
+                step="0.01"
                 value={threshold}
                 onChange={(e) => setThreshold(parseFloat(e.target.value))}
                 className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
@@ -423,7 +423,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   type="range"
                   min="0"
                   max="1"
-                  step="0.05"
+                  step="0.01"
                   value={classificationDefault}
                   onChange={(e) => setClassificationDefault(parseFloat(e.target.value))}
                   className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"

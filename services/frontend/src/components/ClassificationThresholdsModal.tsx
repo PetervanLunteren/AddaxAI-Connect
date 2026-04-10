@@ -130,7 +130,7 @@ export function ClassificationThresholdsModal({
                     type="range"
                     min="0"
                     max="1"
-                    step="0.05"
+                    step="0.01"
                     value={effective}
                     onChange={(e) =>
                       setOverrideValue(value, parseFloat(e.target.value))
