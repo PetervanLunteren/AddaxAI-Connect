@@ -781,10 +781,10 @@ export const FileManagementPage: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-lg p-4">
+          <div className="border rounded-lg">
             {isTreeLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : !uploadsTreeData || (uploadsTreeData.total_files === 0 && uploadsTreeData.total_dirs === 0) ? (
               <div className="py-6 text-center">
@@ -792,7 +792,7 @@ export const FileManagementPage: React.FC = () => {
                 <p className="text-muted-foreground">Upload directory is empty</p>
               </div>
             ) : (
-              <>
+              <div className="p-4">
                 <div className="space-y-0.5 text-sm font-mono">
                   {uploadsTreeData.tree.map((node) => (
                     <UploadTreeNode
@@ -813,7 +813,7 @@ export const FileManagementPage: React.FC = () => {
                   )}
                   , {formatFileSize(uploadsTreeData.total_size_bytes)} total
                 </p>
-              </>
+              </div>
             )}
           </div>
         </CardContent>
