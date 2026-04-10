@@ -587,17 +587,8 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 ${index === focusedIndex || highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
-              {/* Row 1: species + split + remove */}
-              <div className="flex items-center gap-1">
-                <div className="flex-1 min-w-0">
-                  <CreatableSpeciesSelect
-                    options={allSpeciesOptions}
-                    value={obs.species}
-                    onChange={(selected) => updateSpecies(obs.id, selected)}
-                    placeholder="Select or type..."
-                    isLoading={speciesLoading}
-                  />
-                </div>
+              {/* Row 1: action buttons right-aligned */}
+              <div className="flex items-center justify-end gap-1">
                 <button
                   type="button"
                   onClick={() => splitObservation(obs.id)}
@@ -616,31 +607,42 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 </button>
               </div>
 
-              {/* Row 2: count */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => decrementCount(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title="Decrease count"
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={obs.count}
-                  onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
-                  className="w-8 h-7 px-0.5 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => incrementCount(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  title="Increase count"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
+              {/* Row 2: species + count */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <CreatableSpeciesSelect
+                    options={allSpeciesOptions}
+                    value={obs.species}
+                    onChange={(selected) => updateSpecies(obs.id, selected)}
+                    placeholder="Select or type..."
+                    isLoading={speciesLoading}
+                  />
+                </div>
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => decrementCount(obs.id)}
+                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Decrease count"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={obs.count}
+                    onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
+                    className="w-8 h-7 px-0.5 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => incrementCount(obs.id)}
+                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    title="Increase count"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Row 3: sex, age, behaviour */}
