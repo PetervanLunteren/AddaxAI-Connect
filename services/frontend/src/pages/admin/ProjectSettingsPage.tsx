@@ -409,7 +409,7 @@ export const ProjectSettingsPage: React.FC = () => {
 
           {/* Classification Confidence Threshold */}
           <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+            <div className="w-2/3 shrink-0">
               <label className="text-sm font-medium block">
                 Classification confidence threshold
               </label>
@@ -418,24 +418,22 @@ export const ProjectSettingsPage: React.FC = () => {
               </p>
             </div>
             <div className="flex-1 flex items-center gap-3">
-              <div className="flex-[2] flex items-center gap-3">
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={classificationDefault}
-                  onChange={(e) => setClassificationDefault(parseFloat(e.target.value))}
-                  className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
-                  style={{
-                    background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${classificationDefault * 100}%, #e1eceb ${classificationDefault * 100}%, #e1eceb 100%)`,
-                  }}
-                  disabled={isSaving}
-                />
-                <span className="text-sm font-medium w-12 text-right">
-                  {(classificationDefault * 100).toFixed(0)}%
-                </span>
-              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={classificationDefault}
+                onChange={(e) => setClassificationDefault(parseFloat(e.target.value))}
+                className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${classificationDefault * 100}%, #e1eceb ${classificationDefault * 100}%, #e1eceb 100%)`,
+                }}
+                disabled={isSaving}
+              />
+              <span className="text-sm font-medium w-12 text-right">
+                {(classificationDefault * 100).toFixed(0)}%
+              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -542,7 +540,7 @@ export const ProjectSettingsPage: React.FC = () => {
             <>
               <div className="border-t my-6" />
               <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
+                <div className="w-2/3 shrink-0">
                   <label className="text-sm font-medium block">
                     Camera groups
                   </label>
