@@ -1499,9 +1499,25 @@ async def export_spatial(
             WHERE c.project_id = :project_id
         ),
         dep_det_counts AS (
+            -- Count detections per deployment, applying both the detection
+            -- threshold and the per-species classification threshold.
+            -- Person/vehicle detections only need the detection threshold;
+            -- animal detections also need the classification to pass.
             SELECT di.id AS dep_id,
-                   COUNT(d.id) AS det_count
+                   COUNT(d.id) FILTER (WHERE
+                       d.id IS NOT NULL
+                       AND (
+                           d.category IN ('person', 'vehicle')
+                           OR cl.confidence >= COALESCE(
+                               (p.classification_thresholds->'overrides'->>cl.species)::float,
+                               (p.classification_thresholds->>'default')::float,
+                               0.0
+                           )
+                       )
+                   ) AS det_count
             FROM dep_info di
+            JOIN cameras c ON di.camera_id = c.id
+            JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i
                 ON i.camera_id = di.camera_id
                 AND i.uploaded_at::date >= di.start_date
@@ -1510,6 +1526,7 @@ async def export_spatial(
             LEFT JOIN detections d
                 ON d.image_id = i.id
                 AND d.confidence >= :detection_threshold
+            LEFT JOIN classifications cl ON cl.detection_id = d.id
             GROUP BY di.id
         )
         SELECT di.*,

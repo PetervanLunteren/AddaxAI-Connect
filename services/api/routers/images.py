@@ -365,17 +365,41 @@ async def list_images(
         elif verified.lower() == "false":
             filters.append(Image.is_verified == False)
 
-    # Filter out empty images if show_empty is False (default)
+    # Filter out empty images if show_empty is False (default).
+    # An image is "non-empty" if it has at least one detection that passes
+    # both the detection threshold AND the per-species classification
+    # threshold (for animal detections with a classification). Person/vehicle
+    # detections only need to pass the detection threshold.
     if not show_empty:
-        # Only show images that have at least one detection above project threshold
+        has_visible_pv = (
+            select(Detection.image_id)
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .where(
+                Detection.confidence >= Project.detection_threshold,
+                Detection.category.in_(["person", "vehicle"]),
+            )
+            .distinct()
+        )
+        has_visible_animal = (
+            select(Detection.image_id)
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .join(Classification, Classification.detection_id == Detection.id)
+            .where(
+                Detection.confidence >= Project.detection_threshold,
+                Detection.category == "animal",
+                classification_passes_threshold(),
+            )
+            .distinct()
+        )
         filters.append(
-            Image.id.in_(
-                select(Detection.image_id)
-                .join(Image, Detection.image_id == Image.id)
-                .join(Camera, Image.camera_id == Camera.id)
-                .join(Project, Camera.project_id == Project.id)
-                .where(Detection.confidence >= Project.detection_threshold)
-                .distinct()
+            or_(
+                Image.id.in_(has_visible_pv),
+                Image.id.in_(has_visible_animal),
+                Image.is_verified == True,
             )
         )
 
@@ -1163,13 +1187,20 @@ async def get_annotated_image(
     natural_width = image.image_metadata['width']
     natural_height = image.image_metadata['height']
 
-    # Transform detections into format expected by annotated_image_generator
-    # Filter by project detection threshold
+    # Transform detections into format expected by annotated_image_generator.
+    # Filter by both detection threshold and per-species classification
+    # threshold so the download matches what the user sees on screen.
     detections_data = []
     for detection in image.detections:
-        # Skip detections below project threshold
         if detection.confidence < detection_threshold:
             continue
+        if detection.category == 'animal' and detection.classifications:
+            cls = detection.classifications[0]
+            cls_thresh = effective_classification_threshold(
+                project.classification_thresholds, cls.species,
+            )
+            if cls.confidence < cls_thresh:
+                continue
 
         # Bbox is stored with both pixel coordinates and normalized array
         # Use pixel coordinates directly (x_min, y_min, width, height are already in pixels)

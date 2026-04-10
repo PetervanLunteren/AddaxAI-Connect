@@ -1101,30 +1101,50 @@ async def get_pipeline_status(
     )
     classified = classified_result.scalar_one()
 
-    # Count detections by category (only from UNVERIFIED images)
-    # Verified images use human observations, not AI detections
-    cat_conditions = [
+    # Count detections by category (only from UNVERIFIED images).
+    # Verified images use human observations, not AI detections.
+    # Animal detections are also filtered by the per-species classification
+    # threshold so the "animal" count matches what the dashboard shows.
+    base_cat = [
         Camera.project_id.in_(accessible_project_ids),
         Image.is_hidden == False,
         Image.is_verified == False,
         Detection.confidence >= Project.detection_threshold,
     ]
     if camera_id_list:
-        cat_conditions.append(Image.camera_id.in_(camera_id_list))
-    category_result = await db.execute(
+        base_cat.append(Image.camera_id.in_(camera_id_list))
+
+    # Person/vehicle: no classifications, detection threshold only
+    pv_result = await db.execute(
         select(
             Detection.category,
-            func.count(Detection.id).label('count')
+            func.count(Detection.id).label('count'),
         )
         .join(Image)
         .join(Camera)
         .join(Project, Camera.project_id == Project.id)
-        .where(and_(*cat_conditions))
+        .where(and_(*base_cat, Detection.category.in_(["person", "vehicle"])))
         .group_by(Detection.category)
     )
-    category_rows = category_result.all()
+    # Animal: also apply classification threshold
+    animal_result = await db.execute(
+        select(
+            Detection.category,
+            func.count(Detection.id).label('count'),
+        )
+        .join(Image)
+        .join(Camera)
+        .join(Project, Camera.project_id == Project.id)
+        .join(Classification, Classification.detection_id == Detection.id)
+        .where(and_(*base_cat, Detection.category == "animal", classification_passes_threshold()))
+        .group_by(Detection.category)
+    )
 
-    category_counts = {row.category: row.count for row in category_rows}
+    category_counts: dict = {}
+    for row in pv_result.all():
+        category_counts[row.category] = row.count
+    for row in animal_result.all():
+        category_counts[row.category] = row.count
 
     # Count empty images
     # For verified images: no HumanObservation rows
@@ -1162,8 +1182,10 @@ async def get_pipeline_status(
     )
     verified_empty = verified_empty_result.scalar_one()
 
-    # Unverified images with detections above threshold
-    ud_conditions = [
+    # Unverified images with at least one visible detection. An animal
+    # detection also needs its classification to pass the per-species
+    # threshold; person/vehicle detections only need the detection threshold.
+    ud_base = [
         Camera.project_id.in_(accessible_project_ids),
         Image.is_verified == False,
         Image.status == "classified",
@@ -1171,23 +1193,33 @@ async def get_pipeline_status(
         Detection.confidence >= Project.detection_threshold,
     ]
     if camera_id_list:
-        ud_conditions.append(Image.camera_id.in_(camera_id_list))
-    unverified_with_detections = (
+        ud_base.append(Image.camera_id.in_(camera_id_list))
+    has_visible_pv = (
         select(Detection.image_id)
-        .join(Image)
-        .join(Camera)
-        .join(Project, Camera.project_id == Project.id)
-        .where(and_(*ud_conditions))
+        .join(Image).join(Camera).join(Project, Camera.project_id == Project.id)
+        .where(and_(*ud_base, Detection.category.in_(["person", "vehicle"])))
         .distinct()
     )
+    has_visible_animal = (
+        select(Detection.image_id)
+        .join(Image).join(Camera).join(Project, Camera.project_id == Project.id)
+        .join(Classification, Classification.detection_id == Detection.id)
+        .where(and_(*ud_base, Detection.category == "animal", classification_passes_threshold()))
+        .distinct()
+    )
+    # Combine via OR for the downstream empty-image check
+    unverified_with_detections_combined = or_(
+        Image.id.in_(has_visible_pv),
+        Image.id.in_(has_visible_animal),
+    )
 
-    # Count unverified empty (classified, not verified, no detections)
+    # Count unverified empty (classified, not verified, no visible detections)
     ue_conditions = [
         Camera.project_id.in_(accessible_project_ids),
         Image.status == "classified",
         Image.is_hidden == False,
         Image.is_verified == False,
-        ~Image.id.in_(unverified_with_detections),
+        ~unverified_with_detections_combined,
     ]
     if camera_id_list:
         ue_conditions.append(Image.camera_id.in_(camera_id_list))
