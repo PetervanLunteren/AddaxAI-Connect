@@ -105,6 +105,7 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
       options={options}
       value={value}
       onChange={handleChange}
+      onMenuOpen={() => { if (value) onChange(null); }}
       placeholder={placeholder}
       isLoading={isLoading}
       styles={customStyles}
