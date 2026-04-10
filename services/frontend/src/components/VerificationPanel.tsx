@@ -587,42 +587,64 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 ${index === focusedIndex || highlightedRowId === obs.id ? 'ring-2 ring-primary ring-offset-1' : ''}
               `}
             >
-              {/* Row 1: species (full width) */}
-              <CreatableSpeciesSelect
-                options={allSpeciesOptions}
-                value={obs.species}
-                onChange={(selected) => updateSpecies(obs.id, selected)}
-                placeholder="Select or type..."
-                isLoading={speciesLoading}
-              />
-
-              {/* Row 2: count, sex, age, split, remove */}
-              <div className="flex items-center gap-1 flex-wrap-none overflow-hidden">
-                <div className="flex items-center gap-0.5 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => decrementCount(obs.id)}
-                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    title="Decrease count"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={obs.count}
-                    onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
-                    className="w-8 h-7 px-0.5 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              {/* Row 1: species + split + remove */}
+              <div className="flex items-center gap-1">
+                <div className="flex-1 min-w-0">
+                  <CreatableSpeciesSelect
+                    options={allSpeciesOptions}
+                    value={obs.species}
+                    onChange={(selected) => updateSpecies(obs.id, selected)}
+                    placeholder="Select or type..."
+                    isLoading={speciesLoading}
                   />
-                  <button
-                    type="button"
-                    onClick={() => incrementCount(obs.id)}
-                    className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                    title="Increase count"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => splitObservation(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  title="Split into two rows"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeObservation(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  title="Remove"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Row 2: count */}
+              <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => decrementCount(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Decrease count"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={obs.count}
+                  onChange={(e) => updateCount(obs.id, parseInt(e.target.value) || 1)}
+                  className="w-8 h-7 px-0.5 text-center border-0 bg-transparent text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => incrementCount(obs.id)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Increase count"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Row 3: sex, age, behaviour */}
+              <div className="flex items-center gap-1 overflow-hidden">
                 <select
                   value={obs.sex}
                   onChange={(e) => setObservations(prev =>
@@ -651,40 +673,21 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                     </option>
                   ))}
                 </select>
-                <div className="flex-1" />
-                <button
-                  type="button"
-                  onClick={() => splitObservation(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-                  title="Split into two rows"
+                <select
+                  value={obs.behavior}
+                  onChange={(e) => setObservations(prev =>
+                    prev.map(o => o.id === obs.id ? { ...o, behavior: e.target.value, isAiSuggested: false } : o)
+                  )}
+                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink"
+                  title="Behaviour"
                 >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeObservation(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                  title="Remove"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              {/* Row 3: behaviour */}
-              <select
-                value={obs.behavior}
-                onChange={(e) => setObservations(prev =>
-                  prev.map(o => o.id === obs.id ? { ...o, behavior: e.target.value, isAiSuggested: false } : o)
-                )}
-                className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink w-full"
-                title="Behaviour"
-              >
-                {BEHAVIOR_OPTIONS.map(v => (
-                  <option key={v} value={v}>
-                    {v === 'unknown' ? 'Behaviour: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
+                  {BEHAVIOR_OPTIONS.map(v => (
+                    <option key={v} value={v}>
+                      {v === 'unknown' ? 'Behaviour: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
                   </option>
                 ))}
-              </select>
+                </select>
+              </div>
             </div>
           ))}
 
