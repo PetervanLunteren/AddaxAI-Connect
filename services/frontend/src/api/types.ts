@@ -304,6 +304,7 @@ export interface ServerSettings {
 // Project user management
 export interface ProjectUserInfo {
   user_id: number | null;  // null for pending invitations
+  invitation_id: number | null;  // set for pending invitations, null for registered users
   email: string;
   role: string;
   is_registered: boolean;  // true for registered users, false for pending invitations

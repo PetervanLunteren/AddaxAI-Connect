@@ -98,6 +98,7 @@ class ProjectResponse(BaseModel):
 class ProjectUserInfo(BaseModel):
     """User information in project context"""
     user_id: Optional[int] = None  # None for pending invitations
+    invitation_id: Optional[int] = None  # Set for pending invitations, None for registered users
     email: str
     role: str
     is_registered: bool  # True for registered users, False for pending invitations
@@ -630,6 +631,7 @@ async def list_project_users(
         users.append(
             ProjectUserInfo(
                 user_id=None,  # No user_id yet - not registered
+                invitation_id=invitation.id,
                 email=invitation.email,
                 role=invitation.role,
                 is_registered=False,
@@ -938,6 +940,62 @@ async def remove_user_from_project(
     return {
         "message": f"User {user.email} removed from project {project.name}",
     }
+
+
+@router.delete(
+    "/{project_id}/invitations/{invitation_id}",
+    status_code=status.HTTP_200_OK,
+)
+async def cancel_project_invitation(
+    project_id: int,
+    invitation_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Cancel a pending invitation for a project (project admin or server admin).
+
+    Verifies the invitation belongs to the specified project before deleting.
+    """
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    result = await db.execute(
+        select(UserInvitation).where(
+            UserInvitation.id == invitation_id,
+            UserInvitation.project_id == project_id,
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Invitation not found in this project",
+        )
+
+    if invitation.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invitation for {invitation.email} has already been used",
+        )
+
+    email = invitation.email
+    await db.delete(invitation)
+    await db.commit()
+
+    logger.info(
+        "Project invitation cancelled",
+        invitation_id=invitation_id,
+        email=email,
+        project_id=project_id,
+        cancelled_by=current_user.id,
+    )
+
+    return {"message": f"Invitation for {email} cancelled"}
 
 
 # Project User Invitation

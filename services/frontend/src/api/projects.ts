@@ -123,6 +123,16 @@ export const projectsApi = {
   },
 
   /**
+   * Cancel a pending invitation for a project (project admin or server admin)
+   */
+  cancelInvitation: async (projectId: number, invitationId: number): Promise<{ message: string }> => {
+    const response = await apiClient.delete<{ message: string }>(
+      `/api/projects/${projectId}/invitations/${invitationId}`
+    );
+    return response.data;
+  },
+
+  /**
    * Invite a new user to project (project admin or server admin)
    */
   inviteUser: async (projectId: number, email: string, role: string): Promise<InvitationResponse> => {

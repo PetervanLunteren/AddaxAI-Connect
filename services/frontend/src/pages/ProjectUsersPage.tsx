@@ -81,7 +81,7 @@ export const ProjectUsersPage: React.FC = () => {
     },
   });
 
-  // Remove user mutation
+  // Remove user mutation (registered users)
   const removeUserMutation = useMutation({
     mutationFn: (userId: number) =>
       projectsApi.removeUser(parseInt(projectId!), userId),
@@ -92,6 +92,20 @@ export const ProjectUsersPage: React.FC = () => {
     },
     onError: (error: any) => {
       alert(`Failed to remove user: ${error.response?.data?.detail || 'Unknown error'}`);
+    },
+  });
+
+  // Cancel invitation mutation (pending invitations)
+  const cancelInvitationMutation = useMutation({
+    mutationFn: (invitationId: number) =>
+      projectsApi.cancelInvitation(parseInt(projectId!), invitationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
+      setShowRemoveUserModal(false);
+      setSelectedUser(null);
+    },
+    onError: (error: any) => {
+      alert(`Failed to cancel invitation: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -124,8 +138,11 @@ export const ProjectUsersPage: React.FC = () => {
   };
 
   const handleRemoveUser = () => {
-    if (selectedUser && selectedUser.user_id) {
+    if (!selectedUser) return;
+    if (selectedUser.user_id) {
       removeUserMutation.mutate(selectedUser.user_id);
+    } else if (selectedUser.invitation_id) {
+      cancelInvitationMutation.mutate(selectedUser.invitation_id);
     }
   };
 
@@ -374,14 +391,18 @@ export const ProjectUsersPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Remove User Modal */}
+      {/* Remove User / Cancel Invitation Modal */}
       <Dialog open={showRemoveUserModal} onOpenChange={setShowRemoveUserModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove User from Project</DialogTitle>
+            <DialogTitle>
+              {selectedUser?.invitation_id ? 'Cancel invitation' : 'Remove user from project'}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove {selectedUser?.email} from this project?
-              They will lose all access to project data.
+              {selectedUser?.invitation_id
+                ? `Are you sure you want to cancel the invitation for ${selectedUser?.email}?`
+                : `Are you sure you want to remove ${selectedUser?.email} from this project? They will lose all access to project data.`
+              }
             </DialogDescription>
           </DialogHeader>
 
@@ -389,19 +410,19 @@ export const ProjectUsersPage: React.FC = () => {
             <Button
               variant="outline"
               onClick={() => setShowRemoveUserModal(false)}
-              disabled={removeUserMutation.isPending}
+              disabled={removeUserMutation.isPending || cancelInvitationMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleRemoveUser}
-              disabled={removeUserMutation.isPending}
+              disabled={removeUserMutation.isPending || cancelInvitationMutation.isPending}
             >
-              {removeUserMutation.isPending && (
+              {(removeUserMutation.isPending || cancelInvitationMutation.isPending) && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Remove User
+              {selectedUser?.invitation_id ? 'Cancel invitation' : 'Remove user'}
             </Button>
           </DialogFooter>
         </DialogContent>
