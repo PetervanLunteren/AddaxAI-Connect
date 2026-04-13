@@ -6,11 +6,16 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
-from shared.classification_threshold import classification_passes_threshold, CLASSIFICATION_THRESHOLD_FILTER_SQL
+from shared.classification_threshold import (
+    classification_passes_threshold,
+    CLASSIFICATION_THRESHOLD_FILTER_SQL,
+    effective_classification_threshold,
+)
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
@@ -1832,3 +1837,185 @@ async def get_verification_progress_all(
     rows = [all_row] + rest
 
     return VerificationProgressAllResponse(rows=rows)
+
+
+class PerformanceAggregateRow(BaseModel):
+    """Per-species instance-level comparison between human and AI counts"""
+    species: str
+    human_count: int
+    ai_count: int
+    diff: int  # ai_count - human_count, negative means AI under-counts
+
+
+class PerformanceResponse(BaseModel):
+    """Performance data for a project: aggregate + confusion matrix"""
+    total_verified_images: int
+    aggregate: List[PerformanceAggregateRow]
+    matrix_classes: List[str]
+    matrix: List[List[int]]
+    matrix_row_totals: List[int]
+    matrix_col_totals: List[int]
+    matrix_correct: int
+    matrix_accuracy: float
+
+
+@router.get("/performance", response_model=PerformanceResponse)
+async def get_performance(
+    project_id: int = Query(..., description="Project to compute performance for"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Compare AI predictions against human verifications for a project.
+
+    Returns two views computed in a single pass over the verified images:
+
+    - Aggregate per-species instance counts (sum of human observation counts
+      vs count of visible AI detections). Good for spotting per-species bias.
+    - Image-level top-1 confusion matrix, including empty/person/vehicle as
+      classes. Good for spotting which species the AI confuses for which.
+
+    Both views honor the project's detection and classification thresholds
+    so the comparison matches what the user sees in the rest of the UI.
+    """
+    if project_id not in accessible_project_ids:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this project",
+        )
+
+    # Load project for per-species classification thresholds.
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = project_result.scalar_one_or_none()
+    if not project:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found",
+        )
+
+    # Fetch verified, classified, non-hidden images for this project with
+    # their detections and human observations eagerly loaded. One query.
+    query = (
+        select(Image)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            Camera.project_id == project_id,
+            Image.is_verified == True,
+            Image.status == "classified",
+            Image.is_hidden == False,
+        )
+        .options(
+            selectinload(Image.human_observations),
+            selectinload(Image.detections).selectinload(Detection.classifications),
+        )
+    )
+    result = await db.execute(query)
+    images = result.scalars().unique().all()
+
+    from collections import Counter
+    human_counts: Counter = Counter()  # aggregate: human instances by species
+    ai_counts: Counter = Counter()     # aggregate: AI instances by species
+    matrix_counts: Counter = Counter() # matrix: (gt, pred) -> count
+
+    for image in images:
+        # ----- Aggregate: human side (instance-level) -----
+        # Sum HumanObservation.count for every observation row on this image.
+        for obs in image.human_observations:
+            human_counts[obs.species] += obs.count
+
+        # Collect visible detections with their effective label.
+        # "Visible" = passes detection_threshold AND (for animals) passes the
+        # per-species classification_threshold. Mirrors images.py:598-610.
+        visible_labeled: list[tuple[str, float]] = []  # (label, classification_confidence)
+        visible_pv: list[tuple[str, float]] = []  # (category, detection_confidence)
+        for d in image.detections:
+            if d.confidence < project.detection_threshold:
+                continue
+            if d.category in ("person", "vehicle"):
+                visible_pv.append((d.category, d.confidence))
+                ai_counts[d.category] += 1
+            elif d.category == "animal" and d.classifications:
+                cls = d.classifications[0]
+                cls_thresh = effective_classification_threshold(
+                    project.classification_thresholds, cls.species,
+                )
+                if cls.confidence < cls_thresh:
+                    continue
+                visible_labeled.append((cls.species, cls.confidence))
+                ai_counts[cls.species] += 1
+
+        # ----- Matrix: image-level top-1 pairing -----
+        # Human top-1: highest-count observation, first-seen on ties.
+        if image.human_observations:
+            sorted_obs = sorted(
+                image.human_observations,
+                key=lambda o: o.count,
+                reverse=True,
+            )
+            human_top = sorted_obs[0].species
+        else:
+            human_top = "empty"
+
+        # AI top-1: person/vehicle take precedence if present (they're
+        # what the UI shows on the grid card), otherwise highest-confidence
+        # visible animal classification. Empty if no visible detections.
+        if visible_pv:
+            ai_top = max(visible_pv, key=lambda x: x[1])[0]
+        elif visible_labeled:
+            ai_top = max(visible_labeled, key=lambda x: x[1])[0]
+        else:
+            ai_top = "empty"
+
+        matrix_counts[(human_top, ai_top)] += 1
+
+    # Build aggregate rows, sorted by max(human, ai) descending so the most
+    # prominent species sit at the top of the table.
+    all_species = set(human_counts) | set(ai_counts)
+    aggregate_rows = [
+        PerformanceAggregateRow(
+            species=species,
+            human_count=human_counts.get(species, 0),
+            ai_count=ai_counts.get(species, 0),
+            diff=ai_counts.get(species, 0) - human_counts.get(species, 0),
+        )
+        for species in all_species
+    ]
+    aggregate_rows.sort(
+        key=lambda r: max(r.human_count, r.ai_count),
+        reverse=True,
+    )
+
+    # Build matrix class list: empty, person, vehicle first (guaranteed
+    # present even if zero), then species alphabetical.
+    seen_classes = {gt for gt, _ in matrix_counts} | {pred for _, pred in matrix_counts}
+    fixed_head = ["empty", "person", "vehicle"]
+    species_classes = sorted(seen_classes - set(fixed_head))
+    matrix_classes = fixed_head + species_classes
+
+    class_index = {c: i for i, c in enumerate(matrix_classes)}
+    n = len(matrix_classes)
+    matrix = [[0] * n for _ in range(n)]
+    for (gt, pred), count in matrix_counts.items():
+        matrix[class_index[gt]][class_index[pred]] = count
+
+    row_totals = [sum(row) for row in matrix]
+    col_totals = [sum(matrix[r][c] for r in range(n)) for c in range(n)]
+    matrix_correct = sum(matrix[i][i] for i in range(n))
+    total_pairs = sum(row_totals)
+    matrix_accuracy = (matrix_correct / total_pairs) if total_pairs > 0 else 0.0
+
+    return PerformanceResponse(
+        total_verified_images=len(images),
+        aggregate=aggregate_rows,
+        matrix_classes=matrix_classes,
+        matrix=matrix,
+        matrix_row_totals=row_totals,
+        matrix_col_totals=col_totals,
+        matrix_correct=matrix_correct,
+        matrix_accuracy=matrix_accuracy,
+    )

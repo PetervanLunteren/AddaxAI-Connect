@@ -36,7 +36,7 @@ Open follow-ups:
 - [x] “like” feature 
 - [x] Could brightness and contrast adjustment tools be added for night images (similar to Agouti)?
 - [x] Could a reference photo be attached to each camera to help identify its location in the field? We can have an upload feature in the camera slideout. 
-- [ ] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? How would this work?
+- [x] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? Shipped as a Performance page with both an instance-level aggregate (per-species human vs AI counts) and an image-level top-1 confusion matrix. 
 
 
 

@@ -19,7 +19,8 @@ import {
   Users,
   Settings,
   Map,
-  ListChecks
+  ListChecks,
+  Target
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -43,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/map`, icon: Map, label: 'Map' },
+    { to: `/projects/${projectId}/performance`, icon: Target, label: 'Performance' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
     { to: `/projects/${projectId}/exports`, icon: Download, label: 'Exports' },
     { to: `/projects/${projectId}/documents`, icon: FileText, label: 'Documents' },

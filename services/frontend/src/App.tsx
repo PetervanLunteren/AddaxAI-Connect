@@ -32,6 +32,7 @@ import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { DetectionRateMapPage } from './pages/DetectionRateMapPage';
+import { PerformancePage } from './pages/PerformancePage';
 
 function App() {
   return (
@@ -130,6 +131,7 @@ function App() {
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="images" element={<ImagesPage />} />
                 <Route path="map" element={<DetectionRateMapPage />} />
+                <Route path="performance" element={<PerformancePage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="exports" element={<ExportsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
