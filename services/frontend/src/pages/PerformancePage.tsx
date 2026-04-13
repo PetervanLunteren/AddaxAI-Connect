@@ -165,23 +165,23 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
   return (
     <div className="space-y-3">
       <div className="max-h-[60vh] overflow-auto">
-        <table className="w-full text-sm">
+        <table className="text-sm">
           <thead className="sticky top-0 bg-background border-b">
             <tr>
-              <th className="text-left py-2 pr-4 font-medium">Species</th>
-              <th className="text-right py-2 px-4 font-medium">Human</th>
-              <th className="text-right py-2 px-4 font-medium">AI</th>
-              <th className="text-right py-2 pl-4 font-medium">Diff</th>
+              <th className="text-left py-2 pr-6 font-medium">Species</th>
+              <th className="text-right py-2 px-6 font-medium">Human</th>
+              <th className="text-right py-2 px-6 font-medium">AI</th>
+              <th className="text-right py-2 pl-6 font-medium">Diff</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.species} className="border-b border-border/50">
-                <td className="py-1.5 pr-4">{normalizeLabel(row.species)}</td>
-                <td className="py-1.5 px-4 text-right tabular-nums">{row.human_count}</td>
-                <td className="py-1.5 px-4 text-right tabular-nums">{row.ai_count}</td>
+                <td className="py-1.5 pr-6 whitespace-nowrap">{normalizeLabel(row.species)}</td>
+                <td className="py-1.5 px-6 text-right tabular-nums">{row.human_count}</td>
+                <td className="py-1.5 px-6 text-right tabular-nums">{row.ai_count}</td>
                 <td
-                  className="py-1.5 pl-4 text-right tabular-nums font-medium"
+                  className="py-1.5 pl-6 text-right tabular-nums font-medium"
                   style={diffStyle(row.diff, row.human_count)}
                 >
                   {row.diff > 0 ? '+' : ''}
