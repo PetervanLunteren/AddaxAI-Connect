@@ -305,36 +305,36 @@ export const ImagesPage: React.FC = () => {
                 className="cursor-pointer hover:shadow-lg transition-shadow relative"
                 onClick={() => setSelectedImageUuid(image.uuid)}
               >
-                {/* Verified badge - overflow top-right corner */}
-                {image.is_verified && (
-                  <div
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
-                    style={{ backgroundColor: '#0f6064' }}
-                    title="Verified"
-                  >
-                    <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
-                  </div>
-                )}
-                {/* Liked badge - overflow top-left corner */}
-                {image.is_liked && (
-                  <div
-                    className="absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
-                    style={{ backgroundColor: '#882000' }}
-                    title="Liked"
-                  >
-                    <Heart className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
-                  </div>
-                )}
-                {/* Needs review badge - overflow bottom-right corner */}
-                {image.needs_review && (
-                  <div
-                    className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
-                    style={{ backgroundColor: '#71b7ba' }}
-                    title="Needs review"
-                  >
-                    <Flag className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
-                  </div>
-                )}
+                {/* Status badges - stacked at the top-right corner */}
+                <div className="absolute -top-2 -right-2 z-10 flex flex-col gap-1">
+                  {image.is_verified && (
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: '#0f6064' }}
+                      title="Verified"
+                    >
+                      <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                    </div>
+                  )}
+                  {image.is_liked && (
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: '#882000' }}
+                      title="Liked"
+                    >
+                      <Heart className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
+                    </div>
+                  )}
+                  {image.needs_review && (
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: '#71b7ba' }}
+                      title="Needs review"
+                    >
+                      <Flag className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
+                    </div>
+                  )}
+                </div>
                 <div className="relative overflow-hidden rounded-t-lg">
                   {image.thumbnail_url ? (
                     <ImageThumbnailWithBoxes
