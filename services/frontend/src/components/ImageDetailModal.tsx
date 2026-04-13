@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Loader2, Camera, ExternalLink, Sparkles } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Loader2, Camera, ExternalLink, Sparkles, Sun, Contrast, RotateCcw } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -56,6 +56,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [localNotes, setLocalNotes] = useState('');
+  const [brightness, setBrightness] = useState(50);
+  const [contrast, setContrast] = useState(50);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const adjustRef = useRef<HTMLDivElement>(null);
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
 
   const queryClient = useQueryClient();
@@ -97,6 +101,25 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   useEffect(() => {
     verificationPanelRef.current?.setNotes(localNotes);
   }, [localNotes]);
+
+  // Close brightness/contrast popover on outside click
+  useEffect(() => {
+    if (!adjustOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (adjustRef.current && !adjustRef.current.contains(e.target as Node)) {
+        setAdjustOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [adjustOpen]);
+
+  // CSS filter for the image. 50 is the neutral identity (1.0x); the slider
+  // range 0..100 maps linearly to 0x..2x via /50, mirroring AddaxAI-WebUI.
+  const imageFilter =
+    brightness !== 50 || contrast !== 50
+      ? `brightness(${brightness / 50}) contrast(${contrast / 50})`
+      : undefined;
 
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full`;
@@ -399,6 +422,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     src={imageBlobUrl}
                     alt={imageDetail.filename}
                     className="w-full h-auto rounded-lg"
+                    style={imageFilter ? { filter: imageFilter } : undefined}
                     onLoad={() => setImageLoaded(true)}
                   />
                   <canvas
@@ -458,6 +482,91 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 >
                   {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
+                <div className="relative" ref={adjustRef}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setAdjustOpen(!adjustOpen)}
+                    title={`Brightness: ${brightness}%, contrast: ${contrast}%`}
+                  >
+                    <Sun className="h-5 w-5" />
+                  </Button>
+                  {adjustOpen && (
+                    <div className="absolute left-0 mt-2 w-56 border rounded-md bg-background shadow-lg z-50 p-3 space-y-3">
+                      {/* Brightness */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium flex items-center gap-1">
+                            <Sun className="h-3.5 w-3.5" /> Brightness
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {brightness}%
+                            </span>
+                            {brightness !== 50 && (
+                              <button
+                                type="button"
+                                onClick={() => setBrightness(50)}
+                                className="text-muted-foreground hover:text-foreground"
+                                title="Reset"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={brightness}
+                          onChange={(e) => setBrightness(Number(e.target.value))}
+                          className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${brightness}%, #e1eceb ${brightness}%, #e1eceb 100%)`,
+                          }}
+                        />
+                      </div>
+
+                      {/* Contrast */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium flex items-center gap-1">
+                            <Contrast className="h-3.5 w-3.5" /> Contrast
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {contrast}%
+                            </span>
+                            {contrast !== 50 && (
+                              <button
+                                type="button"
+                                onClick={() => setContrast(50)}
+                                className="text-muted-foreground hover:text-foreground"
+                                title="Reset"
+                              >
+                                <RotateCcw className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={contrast}
+                          onChange={(e) => setContrast(Number(e.target.value))}
+                          className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, #0f6064 0%, #0f6064 ${contrast}%, #e1eceb ${contrast}%, #e1eceb 100%)`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
