@@ -111,9 +111,10 @@ function computeDetailedMetrics(data: PerformanceData): DetailedMetrics {
 
 const CollapsibleCard: React.FC<{
   title: string;
+  caption?: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-}> = ({ title, defaultOpen = false, children }) => {
+}> = ({ title, caption, defaultOpen = false, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <Card>
@@ -122,11 +123,14 @@ const CollapsibleCard: React.FC<{
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between py-3 px-4 text-left hover:bg-muted/30 transition-colors"
       >
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <div>
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {caption && <p className="text-xs text-muted-foreground mt-0.5">{caption}</p>}
+        </div>
         {open ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         )}
       </button>
       {open && <CardContent className="pt-0 pb-4">{children}</CardContent>}
@@ -159,33 +163,51 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
     return <p className="text-sm text-muted-foreground">No species observed yet.</p>;
   }
   return (
-    <div className="max-h-[60vh] overflow-auto">
-      <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-background border-b">
-          <tr>
-            <th className="text-left py-2 pr-4 font-medium">Species</th>
-            <th className="text-right py-2 px-4 font-medium">Human</th>
-            <th className="text-right py-2 px-4 font-medium">AI</th>
-            <th className="text-right py-2 pl-4 font-medium">Diff</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.species} className="border-b border-border/50">
-              <td className="py-1.5 pr-4">{normalizeLabel(row.species)}</td>
-              <td className="py-1.5 px-4 text-right tabular-nums">{row.human_count}</td>
-              <td className="py-1.5 px-4 text-right tabular-nums">{row.ai_count}</td>
-              <td
-                className="py-1.5 pl-4 text-right tabular-nums font-medium"
-                style={diffStyle(row.diff, row.human_count)}
-              >
-                {row.diff > 0 ? '+' : ''}
-                {row.diff}
-              </td>
+    <div className="space-y-3">
+      <div className="max-h-[60vh] overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-background border-b">
+            <tr>
+              <th className="text-left py-2 pr-4 font-medium">Species</th>
+              <th className="text-right py-2 px-4 font-medium">Human</th>
+              <th className="text-right py-2 px-4 font-medium">AI</th>
+              <th className="text-right py-2 pl-4 font-medium">Diff</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.species} className="border-b border-border/50">
+                <td className="py-1.5 pr-4">{normalizeLabel(row.species)}</td>
+                <td className="py-1.5 px-4 text-right tabular-nums">{row.human_count}</td>
+                <td className="py-1.5 px-4 text-right tabular-nums">{row.ai_count}</td>
+                <td
+                  className="py-1.5 pl-4 text-right tabular-nums font-medium"
+                  style={diffStyle(row.diff, row.human_count)}
+                >
+                  {row.diff > 0 ? '+' : ''}
+                  {row.diff}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p>
+          For every verified image, we sum the human observation counts and we count visible AI detections.
+          Multi-species images are counted in full on both sides, so a frame with three deer and one fox
+          adds three to the human deer total and one to the human fox total.
+        </p>
+        <p>
+          The diff column is colored: green when the AI count is within 5% of the human count, amber up to 25% off,
+          red beyond. A negative diff means the AI is under-counting, a positive diff means it is over-counting.
+        </p>
+        <p>
+          Mistakes can cancel out across images at this aggregate level. For example, an image where the AI
+          said deer instead of fox and another where it said fox instead of deer both look perfect in this
+          table. Open the confusion matrix below to see directional mix-ups.
+        </p>
+      </div>
     </div>
   );
 };
@@ -198,8 +220,9 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
   const rowMaxes = matrix.map((row) => Math.max(...row, 0));
 
   return (
-    <div className="overflow-auto max-h-[70vh]">
-      <table className="text-xs border-collapse">
+    <div className="space-y-3">
+      <div className="overflow-auto max-h-[70vh]">
+        <table className="text-xs border-collapse">
         <thead>
           <tr>
             <th className="sticky left-0 top-0 bg-background z-20 p-1 text-muted-foreground font-normal">
@@ -257,6 +280,25 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
           })}
         </tbody>
       </table>
+      </div>
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p>
+          Each verified image contributes one cell. The row is the human top-1 species (the species with the highest
+          count in that image, or empty when no animals were verified). The column is the AI top-1 (the
+          highest-confidence visible classification, or empty when no detections were above threshold).
+          Diagonal cells are correct, off-diagonal cells are mistakes.
+        </p>
+        <p>
+          The number under each column header (P:) is precision: of all images where the AI guessed this class,
+          what fraction were actually this class. The number under each row header (R:) is recall: of all images
+          that actually were this class, what fraction the AI caught.
+        </p>
+        <p>
+          Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection errors rather
+          than classification errors, since detection is what decides whether an image is empty or shows a person
+          or vehicle. Multi-species images are attributed to their most-numerous species on each side.
+        </p>
+      </div>
     </div>
   );
 };
@@ -328,25 +370,6 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
   );
 };
 
-const FootnoteCard: React.FC = () => (
-  <Card>
-    <CardContent className="py-4 space-y-2 text-xs text-muted-foreground">
-      <p>
-        The aggregate table counts individual instances (sum of human observation counts and visible AI detections).
-        The matrix pairs each image to its top-1 species on each side.
-      </p>
-      <p>
-        Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> in the matrix reflect detection errors
-        rather than classification errors, since detection is what decides whether an image is empty or shows a person
-        or vehicle.
-      </p>
-      <p>
-        Multi-species images are counted fully in the aggregate but attributed to their most-numerous species in the matrix.
-      </p>
-    </CardContent>
-  </Card>
-);
-
 export const PerformancePage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
@@ -390,16 +413,25 @@ export const PerformancePage: React.FC = () => {
       ) : (
         <div className="space-y-4">
           <HeadlineCard data={data} />
-          <CollapsibleCard title="Per-species counts (instance level)" defaultOpen>
+          <CollapsibleCard
+            title="Per-species counts"
+            caption="Instance level: sums every observation and every detection"
+            defaultOpen
+          >
             <AggregateContent rows={data.aggregate} />
           </CollapsibleCard>
-          <CollapsibleCard title="Confusion matrix (image-level top-1)">
+          <CollapsibleCard
+            title="Confusion matrix"
+            caption="Image level top-1: pairs each verified image to its dominant species on both sides"
+          >
             <MatrixContent data={data} />
           </CollapsibleCard>
-          <CollapsibleCard title="Detailed metrics (precision, recall, F1)">
+          <CollapsibleCard
+            title="Detailed metrics"
+            caption="Precision, recall, F1 and macro / weighted / micro averages"
+          >
             <MetricsContent data={data} />
           </CollapsibleCard>
-          <FootnoteCard />
         </div>
       )}
     </div>
