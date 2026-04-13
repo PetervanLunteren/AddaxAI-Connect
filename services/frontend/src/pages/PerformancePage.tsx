@@ -18,17 +18,6 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-function diffStyle(diff: number, humanCount: number): React.CSSProperties {
-  if (diff === 0) return {};
-  // Relative bias: how off is the AI vs the human ground truth.
-  const ref = Math.max(humanCount, 1);
-  const ratio = Math.abs(diff) / ref;
-  // Green for < 5% off, amber up to 25% off, red beyond.
-  if (ratio < 0.05) return { color: '#0f6064' };
-  if (ratio < 0.25) return { color: '#b45309' }; // amber-700
-  return { color: '#882000' };
-}
-
 function cellStyle(count: number, rowMax: number, isDiagonal: boolean): React.CSSProperties {
   if (count === 0) return {};
   const intensity = rowMax > 0 ? count / rowMax : 0;
@@ -180,10 +169,7 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
                 <td className="py-1.5 pl-4 pr-6 whitespace-nowrap">{normalizeLabel(row.species)}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{row.human_count}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{row.ai_count}</td>
-                <td
-                  className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium"
-                  style={diffStyle(row.diff, row.human_count)}
-                >
+                <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">
                   {row.diff > 0 ? '+' : ''}
                   {row.diff}
                 </td>
@@ -195,12 +181,11 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
       <p className="text-xs text-muted-foreground">
         For every verified image, human observation counts are summed and visible AI detections are counted.
         Multi-species images contribute in full on both sides, so a frame with three deer and one fox adds
-        three to the human deer total and one to the human fox total. The diff column is colored: green when
-        the AI count is within 5% of the human count, amber up to 25% off, red beyond. A negative diff means
-        the AI is under-counting, a positive diff means it is over-counting. Mistakes can cancel out across
-        images at this aggregate level: an image where the AI said deer instead of fox and another where it
-        said fox instead of deer both look perfect in this table. Open the confusion matrix below to see
-        directional mix-ups.
+        three to the human deer total and one to the human fox total. A negative diff means the AI is
+        under-counting, a positive diff means it is over-counting. Mistakes can cancel out across images at
+        this aggregate level: an image where the AI said deer instead of fox and another where it said fox
+        instead of deer both look perfect in this table. Open the confusion matrix below to see directional
+        mix-ups.
       </p>
     </div>
   );
