@@ -88,15 +88,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     }
   }, [imageDetail?.uuid]);
 
-  // Default AI prediction overlay: ON for unverified images, OFF for verified
-  // ones (where the canvas would otherwise show stale AI bboxes that contradict
-  // the human-verified observation list).
-  useEffect(() => {
-    if (imageDetail) {
-      setShowBboxes(!imageDetail.verification.is_verified);
-    }
-  }, [imageDetail?.uuid, imageDetail?.verification.is_verified]);
-
   // Update verification panel when local notes change
   useEffect(() => {
     verificationPanelRef.current?.setNotes(localNotes);
