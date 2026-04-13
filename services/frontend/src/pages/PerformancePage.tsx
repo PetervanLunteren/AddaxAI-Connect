@@ -57,7 +57,6 @@ interface DetailedMetrics {
   weightedP: number | null;
   weightedR: number | null;
   weightedF1: number | null;
-  micro: number;  // = matrix accuracy in single-label multiclass
 }
 
 function computeDetailedMetrics(data: PerformanceData): DetailedMetrics {
@@ -109,7 +108,6 @@ function computeDetailedMetrics(data: PerformanceData): DetailedMetrics {
     weightedP: weighted('precision'),
     weightedR: weighted('recall'),
     weightedF1: weighted('f1'),
-    micro: data.matrix_accuracy,
   };
 }
 
@@ -434,14 +432,6 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
               <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.weightedR)}</td>
               <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">{fmt(m.weightedF1)}</td>
             </tr>
-            <tr>
-              <td className="py-1.5 pl-4 pr-6 font-medium whitespace-nowrap">Micro avg</td>
-              <td className="py-1.5 px-6" />
-              <td className="py-1.5 px-6 text-right tabular-nums font-medium" colSpan={3}>
-                {fmt(m.micro)}
-                <span className="text-muted-foreground font-normal text-xs ml-2">(= overall accuracy)</span>
-              </td>
-            </tr>
           </tfoot>
         </table>
       </div>
@@ -450,9 +440,9 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
         ground truth). <strong>Precision</strong> is the fraction of images predicted as this class that
         were actually this class. <strong>Recall</strong> is the fraction of images that actually were this
         class that the AI caught. <strong>F1</strong> is the harmonic mean of precision and recall, a single
-        balanced score. <strong>Macro avg</strong> takes the mean of each metric across classes equally;
-        <strong> weighted avg</strong> weights by support so common species count more; <strong>micro avg</strong>
-        aggregates across classes and equals overall accuracy in this single-label setup.
+        balanced score. <strong>Macro avg</strong> takes the mean of each metric across classes equally, so
+        rare species count just as much as common ones. <strong>Weighted avg</strong> weights by support so
+        common species count more.
       </p>
     </div>
   );
@@ -515,7 +505,7 @@ export const PerformancePage: React.FC = () => {
           </CollapsibleCard>
           <CollapsibleCard
             title="Detailed metrics"
-            caption="Per-class precision, recall, and F1 derived from the confusion matrix, plus macro, weighted, and micro averages across all classes for a single overall score."
+            caption="Per-class precision, recall, and F1 derived from the confusion matrix, plus macro and weighted averages across all classes."
           >
             <MetricsContent data={data} />
           </CollapsibleCard>
