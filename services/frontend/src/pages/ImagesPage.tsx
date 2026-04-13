@@ -314,7 +314,8 @@ export const ImagesPage: React.FC = () => {
                 {/* Liked badge - overflow top-left corner */}
                 {image.is_liked && (
                   <div
-                    className="absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center z-10 bg-rose-500"
+                    className="absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+                    style={{ backgroundColor: '#882000' }}
                     title="Liked"
                   >
                     <Heart className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />

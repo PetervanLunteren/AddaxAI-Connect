@@ -474,7 +474,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   title={imageDetail.is_liked ? 'Unlike' : 'Like'}
                 >
                   <Heart
-                    className={`h-5 w-5 ${imageDetail.is_liked ? 'fill-rose-500 text-rose-500' : ''}`}
+                    className="h-5 w-5"
+                    style={imageDetail.is_liked ? { fill: '#882000', color: '#882000' } : undefined}
                   />
                 </Button>
                 <Button
