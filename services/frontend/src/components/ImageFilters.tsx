@@ -14,6 +14,7 @@ interface ImageFiltersProps {
     end_date: string;
     species: Option[];
     verified: '' | 'true' | 'false';
+    liked: '' | 'true' | 'false';
   };
   onFilterChange: (key: string, value: any) => void;
   onClearAll: () => void;
@@ -58,7 +59,8 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
     filters.species.length +
     (filters.start_date ? 1 : 0) +
     (filters.end_date ? 1 : 0) +
-    (filters.verified ? 1 : 0);
+    (filters.verified ? 1 : 0) +
+    (filters.liked ? 1 : 0);
 
   return (
     <div ref={containerRef} className="relative">
@@ -125,6 +127,23 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
                 <option value="">All</option>
                 <option value="false">Unverified</option>
                 <option value="true">Verified</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Liked */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Liked</label>
+            <div className="relative">
+              <select
+                className="w-full h-9 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                value={filters.liked}
+                onChange={(e) => onFilterChange('liked', e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="true">Liked</option>
+                <option value="false">Not liked</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             </div>

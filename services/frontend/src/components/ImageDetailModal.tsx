@@ -12,8 +12,8 @@
  * - X: Delete focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Loader2, Camera, ExternalLink, Sparkles } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Loader2, Camera, ExternalLink, Sparkles } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -58,12 +58,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [localNotes, setLocalNotes] = useState('');
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
 
+  const queryClient = useQueryClient();
+
   const { data: imageDetail, isLoading, error } = useQuery({
     queryKey: ['image', imageUuid],
     queryFn: () => imagesApi.getByUuid(imageUuid),
     enabled: isOpen && !!imageUuid,
     // Keep showing previous image while loading new one (no loader flash)
     placeholderData: (previousData) => previousData,
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: (nextLiked: boolean) => imagesApi.setLike(imageUuid, nextLiked),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+    },
   });
 
   // Sync notes from verification panel when image changes
@@ -455,6 +465,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   title="Download image"
                 >
                   <Download className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => likeMutation.mutate(!imageDetail.is_liked)}
+                  disabled={likeMutation.isPending}
+                  title={imageDetail.is_liked ? 'Unlike' : 'Like'}
+                >
+                  <Heart
+                    className={`h-5 w-5 ${imageDetail.is_liked ? 'fill-rose-500 text-rose-500' : ''}`}
+                  />
                 </Button>
                 <Button
                   variant="ghost"

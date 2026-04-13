@@ -71,6 +71,7 @@ class ImageListItemResponse(BaseModel):
     image_width: Optional[int] = None
     image_height: Optional[int] = None
     is_verified: bool = False
+    is_liked: bool = False
     observed_species: List[str] = []  # Human observations for verified images
 
     class Config:
@@ -119,6 +120,8 @@ class ImageDetailResponse(BaseModel):
     detections: List[DetectionResponse]
     verification: VerificationInfo
     human_observations: List[HumanObservationResponse]
+    is_liked: bool = False
+    liked_by_email: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -160,6 +163,18 @@ class SaveVerificationResponse(BaseModel):
     message: str
     verification: VerificationInfo
     human_observations: List[HumanObservationResponse]
+
+
+class SetLikeRequest(BaseModel):
+    """Request body for liking / unliking an image"""
+    is_liked: bool
+
+
+class SetLikeResponse(BaseModel):
+    """Response after toggling the like on an image"""
+    is_liked: bool
+    liked_at: Optional[str] = None
+    liked_by_email: Optional[str] = None
 
 
 @router.get(
@@ -280,6 +295,7 @@ async def list_images(
     species: Optional[str] = None,
     show_empty: bool = Query(False),
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
+    liked: Optional[str] = Query(None),  # "true", "false", or None for all
     tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -379,6 +395,13 @@ async def list_images(
             filters.append(Image.is_verified == True)
         elif verified.lower() == "false":
             filters.append(Image.is_verified == False)
+
+    # Handle liked status filter
+    if liked is not None:
+        if liked.lower() == "true":
+            filters.append(Image.is_liked == True)
+        elif liked.lower() == "false":
+            filters.append(Image.is_liked == False)
 
     # Subqueries for "has visible detections" — reused by both the
     # default empty-hiding filter and the "Empty" label filter.
@@ -652,6 +675,7 @@ async def list_images(
             image_width=image_width,
             image_height=image_height,
             is_verified=image.is_verified,
+            is_liked=image.is_liked,
             observed_species=observed_species,
         ))
 
@@ -698,6 +722,7 @@ async def get_image(
             selectinload(Image.human_observations).selectinload(HumanObservation.created_by),
             selectinload(Image.human_observations).selectinload(HumanObservation.updated_by),
             selectinload(Image.verified_by),
+            selectinload(Image.liked_by),
         )
     )
 
@@ -804,6 +829,8 @@ async def get_image(
         detections=detections_response,
         verification=verification,
         human_observations=human_observations_response,
+        is_liked=image.is_liked,
+        liked_by_email=image.liked_by.email if image.liked_by else None,
     )
 
 
@@ -942,6 +969,64 @@ async def save_verification(
         message="Verification saved successfully",
         verification=verification,
         human_observations=human_observations_response,
+    )
+
+
+@router.put(
+    "/{uuid}/like",
+    response_model=SetLikeResponse,
+)
+async def set_like(
+    uuid: str,
+    request: SetLikeRequest,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Toggle the project-wide "liked" flag on an image.
+
+    The flag is shared across all project members: anyone with access to
+    the image's project can like or unlike it, and everyone sees the same
+    state. Useful for curating a best-of gallery for reports without
+    scrolling the full grid.
+    """
+    from datetime import datetime, timezone
+
+    result = await db.execute(
+        select(Image).join(Camera, Image.camera_id == Camera.id).where(Image.uuid == uuid)
+    )
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
+    camera = camera_result.scalar_one_or_none()
+    if not camera or camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image",
+        )
+
+    image.is_liked = request.is_liked
+    if request.is_liked:
+        image.liked_at = datetime.now(timezone.utc)
+        image.liked_by_user_id = current_user.id
+    else:
+        image.liked_at = None
+        # Keep liked_by_user_id for audit, matching how verified_by is preserved.
+
+    await db.commit()
+    await db.refresh(image)
+
+    return SetLikeResponse(
+        is_liked=image.is_liked,
+        liked_at=image.liked_at.isoformat() if image.liked_at else None,
+        liked_by_email=current_user.email if image.is_liked else None,
     )
 
 

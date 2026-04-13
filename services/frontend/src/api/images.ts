@@ -2,7 +2,7 @@
  * Images API endpoints
  */
 import apiClient from './client';
-import type { ImageListItem, ImageDetail, PaginatedResponse, SaveVerificationRequest, SaveVerificationResponse } from './types';
+import type { ImageListItem, ImageDetail, PaginatedResponse, SaveVerificationRequest, SaveVerificationResponse, SetLikeResponse } from './types';
 
 export interface ImageFilters {
   page?: number;
@@ -13,6 +13,7 @@ export interface ImageFilters {
   species?: string;
   show_empty?: boolean;
   verified?: string;  // "true", "false", or undefined for all
+  liked?: string;  // "true", "false", or undefined for all
   tags?: string;  // Comma-separated camera tags
   project_id?: number;
 }
@@ -56,6 +57,17 @@ export const imagesApi = {
    */
   saveVerification: async (uuid: string, data: SaveVerificationRequest): Promise<SaveVerificationResponse> => {
     const response = await apiClient.put<SaveVerificationResponse>(`/api/images/${uuid}/verification`, data);
+    return response.data;
+  },
+
+  /**
+   * Toggle the project-wide "liked" flag on an image
+   */
+  setLike: async (uuid: string, isLiked: boolean): Promise<SetLikeResponse> => {
+    const response = await apiClient.put<SetLikeResponse>(
+      `/api/images/${uuid}/like`,
+      { is_liked: isLiked },
+    );
     return response.data;
   },
 };

@@ -31,9 +31,9 @@ Open follow-ups:
 - [x] When navigating through images, is it possible to filter and display only those classified as “empty” in order to review false negatives? Should we add Empty as a label and change the filter "Species" to "Labels" so you have full control? 
 - [x] For each picture, it would be useful to add “stage” (adult, subadult, juvenile) and “sex” (male, female) fields, with “Unknown” as the default value.
 - [x] can we add a border round the plus minus buttons in the verification modal? Now it does not seem like these belong together : [- 1 +]
-- [x] WOuld it make sense to have a list of behaviours to choose from? This can be image level.
+- [x] WOuld it make sense to have a list of behaviours to choose from?
 - [ ] Could options such as “empty” and “unknown” be added as tags for images?
-- [ ] It would be helpful to have a “like” feature (or similar tag) to send selected photos to a dedicated “Gallery” tab. This would be useful for reporting and communication purposes, allowing us to easily select the best images without browsing the entire dataset.
+- [x] It would be helpful to have a “like” feature (or similar tag) in the Image Detail Modal? Something simple like a heart icon that gets filled if pressed. This would be useful for reporting and communication purposes, allowing us to easily select the best images without browsing the entire dataset. We should then also add a filter to get only liked images up.
 - [ ] Could brightness and contrast adjustment tools be added for night images (similar to Agouti)?
 - [ ] Could a reference photo be attached to each camera to help identify its location in the field? We can have an upload feature in the camera slideout. 
 - [ ] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? How would this work?

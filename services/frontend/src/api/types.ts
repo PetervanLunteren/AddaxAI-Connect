@@ -63,6 +63,7 @@ export interface ImageListItem {
   image_height: number | null;
   is_verified: boolean;
   is_hidden: boolean;
+  is_liked: boolean;
   observed_species: string[];  // Human observations for verified images
 }
 
@@ -129,6 +130,16 @@ export interface SaveVerificationResponse {
   human_observations: HumanObservation[];
 }
 
+export interface SetLikeRequest {
+  is_liked: boolean;
+}
+
+export interface SetLikeResponse {
+  is_liked: boolean;
+  liked_at: string | null;
+  liked_by_email: string | null;
+}
+
 export interface ImageDetail {
   id: number;
   uuid: string;
@@ -144,6 +155,8 @@ export interface ImageDetail {
   detections: Detection[];
   verification: VerificationInfo;
   human_observations: HumanObservation[];
+  is_liked: boolean;
+  liked_by_email: string | null;
 }
 
 export interface PaginatedResponse<T> {

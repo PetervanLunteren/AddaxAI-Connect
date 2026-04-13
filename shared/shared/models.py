@@ -36,11 +36,17 @@ class Image(Base):
     verified_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     verification_notes = Column(Text, nullable=True)
 
+    # Like / favorite (shared across the project)
+    is_liked = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
+    liked_at = Column(DateTime(timezone=True), nullable=True)
+    liked_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
     # Relationships
     camera = relationship("Camera", back_populates="images")
     detections = relationship("Detection", back_populates="image", cascade="all, delete-orphan")
     human_observations = relationship("HumanObservation", back_populates="image", cascade="all, delete-orphan")
     verified_by = relationship("User", foreign_keys=[verified_by_user_id])
+    liked_by = relationship("User", foreign_keys=[liked_by_user_id])
 
 
 class Camera(Base):

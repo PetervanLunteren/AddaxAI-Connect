@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import type { Option } from '../components/ui/MultiSelect';
@@ -38,6 +38,7 @@ export const ImagesPage: React.FC = () => {
     end_date: '',
     species: [] as Option[],
     verified: '' as '' | 'true' | 'false',  // '' = all
+    liked: '' as '' | 'true' | 'false',  // '' = all
   });
 
   const limit = 24; // Images per page
@@ -67,6 +68,7 @@ export const ImagesPage: React.FC = () => {
           ? filters.species.map(s => s.value).join(',')
           : undefined,
         verified: filters.verified || undefined,
+        liked: filters.liked || undefined,
       }),
     enabled: projectId !== undefined,
   });
@@ -158,6 +160,7 @@ export const ImagesPage: React.FC = () => {
       end_date: '',
       species: [],
       verified: '',
+      liked: '',
     });
     setPage(1);
   };
@@ -168,7 +171,8 @@ export const ImagesPage: React.FC = () => {
     filters.start_date !== '' ||
     filters.end_date !== '' ||
     filters.species.length > 0 ||
-    filters.verified !== '';
+    filters.verified !== '' ||
+    filters.liked !== '';
 
   const formatTimestamp = (timestamp: string) => {
     // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
@@ -305,6 +309,15 @@ export const ImagesPage: React.FC = () => {
                     title="Verified"
                   >
                     <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+                  </div>
+                )}
+                {/* Liked badge - overflow top-left corner */}
+                {image.is_liked && (
+                  <div
+                    className="absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center z-10 bg-rose-500"
+                    title="Liked"
+                  >
+                    <Heart className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
                   </div>
                 )}
                 <div className="relative overflow-hidden rounded-t-lg">
