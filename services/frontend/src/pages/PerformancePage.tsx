@@ -497,6 +497,20 @@ const MetricsContent: React.FC<{ data: PerformanceData; projectId: number }> = (
           </tfoot>
         </table>
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Each row reports per-class metrics derived from the confusion matrix. Support is the number of
+        verified images where this class is the human top-1, precision is the fraction of images predicted
+        as this class that were actually this class, recall is the fraction of images that actually were
+        this class that the AI caught, and F1 combines precision and recall into a single balanced score
+        using their harmonic mean. The F1 cell is colour-scaled from light yellow (low) to dark teal (high)
+        to make strong and weak classes easy to spot. Click any per-class row to open the underlying
+        verified images in the Images tab. The macro and weighted averages at the bottom are always
+        computed across all classes, regardless of how many rows the top filter is showing. Cells involving
+        <em> empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection errors rather than
+        classification errors, since detection is what decides whether an image is empty or shows a person
+        or vehicle. Multi-species images are attributed to their most-numerous species.
+      </p>
     </div>
   );
 };
