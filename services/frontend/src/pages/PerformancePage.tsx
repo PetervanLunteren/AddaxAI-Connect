@@ -9,7 +9,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Loader2, Target } from 'lucide-react';
+import { Activity, BarChart3, CheckCircle2, ChevronDown, ChevronRight, Loader2, Target } from 'lucide-react';
 import { performanceApi, type PerformanceData } from '../api/performance';
 import { Card, CardContent } from '../components/ui/Card';
 import { normalizeLabel } from '../utils/labels';
@@ -140,25 +140,54 @@ const CollapsibleCard: React.FC<{
   );
 };
 
-const HeadlineCard: React.FC<{ data: PerformanceData }> = ({ data }) => (
-  <Card>
-    <CardContent className="py-6">
-      <div className="flex items-baseline gap-4">
-        <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Verified images</p>
-          <p className="text-3xl font-bold tabular-nums">{data.total_verified_images}</p>
-        </div>
-        <div className="border-l border-border pl-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Top-1 matrix accuracy</p>
-          <p className="text-3xl font-bold tabular-nums">{formatPercent(data.matrix_accuracy)}</p>
-          <p className="text-xs text-muted-foreground">
-            {data.matrix_correct} of {data.total_verified_images} verified images
-          </p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
+const SummaryCards: React.FC<{ data: PerformanceData }> = ({ data }) => {
+  const m = useMemo(() => computeDetailedMetrics(data), [data]);
+  const fmt = (v: number | null) => (v === null ? 'n/a' : formatPercent(v));
+  const cardColor = '#0f6064';
+
+  const cards = [
+    {
+      title: 'Verified images',
+      value: data.total_verified_images.toLocaleString(),
+      icon: CheckCircle2,
+    },
+    {
+      title: 'Top-1 accuracy',
+      value: fmt(data.matrix_accuracy),
+      icon: Target,
+    },
+    {
+      title: 'Weighted avg F1',
+      value: fmt(m.weightedF1),
+      icon: Activity,
+    },
+    {
+      title: 'Macro avg F1',
+      value: fmt(m.macroF1),
+      icon: BarChart3,
+    },
+  ];
+
+  return (
+    <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+      {cards.map((card) => (
+        <Card key={card.title}>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                <p className="text-2xl font-bold mt-1">{card.value}</p>
+              </div>
+              <div className="p-3 rounded-lg" style={{ backgroundColor: `${cardColor}20` }}>
+                <card.icon className="h-6 w-6" style={{ color: cardColor }} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+};
 
 const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ rows }) => {
   if (rows.length === 0) {
@@ -557,7 +586,7 @@ export const PerformancePage: React.FC = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          <HeadlineCard data={data} />
+          <SummaryCards data={data} />
           <CollapsibleCard
             title="Confusion matrix"
             caption="Pairs each verified image's top human species with its top AI prediction, so the diagonal shows agreements and the off-diagonal cells show exactly which species the AI confuses for which."
