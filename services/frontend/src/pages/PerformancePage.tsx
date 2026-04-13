@@ -405,7 +405,6 @@ export const PerformancePage: React.FC = () => {
           <CollapsibleCard
             title="Per-species counts"
             caption="Instance level: sums every observation and every detection"
-            defaultOpen
           >
             <AggregateContent rows={data.aggregate} />
           </CollapsibleCard>
