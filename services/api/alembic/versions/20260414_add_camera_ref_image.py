@@ -6,7 +6,7 @@ landmark) for later navigation. Mirrors the project image pattern:
 one original plus a 512px thumbnail, both stored by filename in the
 local reference-images volume.
 
-Revision ID: 20260414_add_camera_reference_image
+Revision ID: 20260414_add_camera_ref_image
 Revises: 20260413_add_image_needs_review
 Create Date: 2026-04-14
 
@@ -15,7 +15,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '20260414_add_camera_reference_image'
+revision = '20260414_add_camera_ref_image'
 down_revision = '20260413_add_image_needs_review'
 branch_labels = None
 depends_on = None
