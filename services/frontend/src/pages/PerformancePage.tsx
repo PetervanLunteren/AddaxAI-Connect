@@ -241,9 +241,9 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
     return null;
   }
 
-  // Two sticky columns on the left. Widths fixed so the matrix grid is uniform.
+  // One sticky column on the left holding the human-class label.
   const FIRST_COL_LEFT = 0;
-  const SECOND_COL_LEFT = 7; // rem; matches the species-name column width
+  const FIRST_COL_WIDTH = 7; // rem
   const HEADER_ROW_TOP = 0;
   const CELL_SIZE = '2.25rem'; // square matrix cells
   const HEADER_HEIGHT = '9rem'; // rotated species labels sit in this strip
@@ -277,21 +277,9 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
                   left: `${FIRST_COL_LEFT}rem`,
                   top: `${HEADER_ROW_TOP}rem`,
                   height: HEADER_HEIGHT,
-                  width: `${SECOND_COL_LEFT}rem`,
+                  width: `${FIRST_COL_WIDTH}rem`,
                 }}
               />
-              <th
-                className="sticky bg-background z-30 border-b border-r text-center text-muted-foreground font-normal align-bottom pb-1.5"
-                style={{
-                  left: `${SECOND_COL_LEFT}rem`,
-                  top: `${HEADER_ROW_TOP}rem`,
-                  height: HEADER_HEIGHT,
-                  width: '3rem',
-                  minWidth: '3rem',
-                }}
-              >
-                recall
-              </th>
               {visibleClasses.map(({ cls }) => (
                 <th
                   key={cls}
@@ -323,32 +311,19 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
           </thead>
           <tbody>
             {visibleClasses.map(({ cls, idx: r }, rowIdx) => {
-              const rowTotal = matrix_row_totals[r];
-              const recall = rowTotal > 0 ? matrix[r][r] / rowTotal : null;
               return (
                 <tr key={cls} style={{ height: CELL_SIZE }}>
                   <th
                     className="sticky bg-background z-10 px-2 text-left font-medium border-r overflow-hidden text-ellipsis whitespace-nowrap"
                     style={{
                       left: `${FIRST_COL_LEFT}rem`,
-                      width: `${SECOND_COL_LEFT}rem`,
-                      maxWidth: `${SECOND_COL_LEFT}rem`,
+                      width: `${FIRST_COL_WIDTH}rem`,
+                      maxWidth: `${FIRST_COL_WIDTH}rem`,
                       height: CELL_SIZE,
                     }}
                     title={normalizeLabel(cls)}
                   >
                     {normalizeLabel(cls)}
-                  </th>
-                  <th
-                    className="sticky bg-background z-10 text-center text-muted-foreground font-normal tabular-nums border-r"
-                    style={{
-                      left: `${SECOND_COL_LEFT}rem`,
-                      width: '3rem',
-                      minWidth: '3rem',
-                      height: CELL_SIZE,
-                    }}
-                  >
-                    {recall === null ? 'n/a' : formatPercent(recall)}
                   </th>
                   {visibleClasses.map(({ idx: c, cls: predCls }) => {
                     const count = matrix[r][c];
@@ -389,13 +364,12 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
         Each verified image contributes one cell. The row is the human top-1 species (the species with the
         highest count in that image, or empty when no animals were verified). The column is the AI top-1 (the
         highest-confidence visible classification, or empty when no detections were above threshold). Diagonal
-        cells (tinted teal) are agreements, off-diagonal cells (tinted rust) are mistakes. The column labelled
-        <em> recall</em> shows, for each true class, the fraction of images of that class the AI caught.
-        Click any non-zero cell to open the underlying verified images in the Images tab. Cells involving
-        <em> empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection errors rather than
-        classification errors, since detection is what decides whether an image is empty or shows a person or
-        vehicle. Multi-species images are attributed to their most-numerous species on each side. For
-        per-class precision and F1 scores, open the Detailed metrics card below.
+        cells (tinted teal) are agreements, off-diagonal cells (tinted rust) are mistakes. Click any non-zero
+        cell to open the underlying verified images in the Images tab. Cells involving <em>empty</em>,
+        <em> person</em>, or <em>vehicle</em> reflect detection errors rather than classification errors,
+        since detection is what decides whether an image is empty or shows a person or vehicle. Multi-species
+        images are attributed to their most-numerous species on each side. For per-class precision, recall,
+        and F1 scores, open the Detailed metrics card below.
       </p>
     </div>
   );
