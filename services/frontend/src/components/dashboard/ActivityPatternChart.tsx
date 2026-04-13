@@ -22,18 +22,29 @@ const TWILIGHT = '#ff8945';
 const DAY = '#71b7ba';
 
 function getHourColor(hour: number, bands: SunBands | null): string {
-  // Sample the colour at the midpoint of the hour bar (e.g. hour 6
-  // represents the 6:00-7:00 slot, so check 6.5).
-  const t = hour + 0.5;
   if (bands) {
+    // Each bar covers a one-hour slot [hour, hour+1]. Colour by overlap
+    // with the astronomical bands rather than midpoint sampling, otherwise
+    // narrow twilight windows can slip between two adjacent hour midpoints
+    // and the dusk band disappears entirely (e.g. dusk 20:36-21:13 falls
+    // between the midpoints of hour 20 and hour 21).
+    const slot0 = hour;
+    const slot1 = hour + 1;
+    const overlap = (a0: number, a1: number, b0: number, b1: number) =>
+      Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+    const twilightOverlap =
+      overlap(slot0, slot1, bands.dawn, bands.sunrise) +
+      overlap(slot0, slot1, bands.sunset, bands.dusk);
+    // 15 minutes of twilight in the hour is enough to colour the whole bar.
+    if (twilightOverlap >= 0.25) return TWILIGHT;
+    const t = hour + 0.5;
     if (t >= bands.sunrise && t < bands.sunset) return DAY;
-    if (t >= bands.dawn && t < bands.sunrise) return TWILIGHT;
-    if (t >= bands.sunset && t < bands.dusk) return TWILIGHT;
     return NIGHT;
   }
   // Fallback used when the project has no camera GPS, when the cross-project
   // view is active, or when the sun never sets / never rises on this date
   // (polar day or polar night).
+  const t = hour + 0.5;
   if (t >= 21 || t < 5) return NIGHT;
   if (t < 7 || t >= 17) return TWILIGHT;
   return DAY;
