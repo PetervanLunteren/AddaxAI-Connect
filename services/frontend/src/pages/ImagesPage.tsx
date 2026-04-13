@@ -305,8 +305,8 @@ export const ImagesPage: React.FC = () => {
                 className="cursor-pointer hover:shadow-lg transition-shadow relative"
                 onClick={() => setSelectedImageUuid(image.uuid)}
               >
-                {/* Status badges - horizontally stacked with overlap */}
-                <div className="absolute -top-2 -right-2 z-10 flex -space-x-2">
+                {/* Status badges - horizontally stacked with overlap, verified on the right */}
+                <div className="absolute -top-2 -right-2 z-10 flex flex-row-reverse -space-x-2 space-x-reverse">
                   {image.is_verified && (
                     <div
                       className="relative z-30 w-6 h-6 rounded-full flex items-center justify-center ring-2 ring-background"
