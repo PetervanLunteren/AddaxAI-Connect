@@ -164,24 +164,24 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
   }
   return (
     <div className="space-y-3">
-      <div className="max-h-[60vh] overflow-auto">
+      <div className="inline-block max-h-[60vh] overflow-auto border border-input rounded-md">
         <table className="text-sm">
           <thead className="sticky top-0 bg-background border-b">
             <tr>
-              <th className="text-left py-2 pr-6 font-medium">Species</th>
+              <th className="text-left py-2 pl-4 pr-6 font-medium">Species</th>
               <th className="text-right py-2 px-6 font-medium">Human</th>
               <th className="text-right py-2 px-6 font-medium">AI</th>
-              <th className="text-right py-2 pl-6 font-medium">Diff</th>
+              <th className="text-right py-2 pl-6 pr-4 font-medium">Diff</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.species} className="border-b border-border/50">
-                <td className="py-1.5 pr-6 whitespace-nowrap">{normalizeLabel(row.species)}</td>
+              <tr key={row.species} className="border-b border-border/50 last:border-b-0">
+                <td className="py-1.5 pl-4 pr-6 whitespace-nowrap">{normalizeLabel(row.species)}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{row.human_count}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{row.ai_count}</td>
                 <td
-                  className="py-1.5 pl-6 text-right tabular-nums font-medium"
+                  className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium"
                   style={diffStyle(row.diff, row.human_count)}
                 >
                   {row.diff > 0 ? '+' : ''}
@@ -298,47 +298,47 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
   const fmt = (v: number | null) => (v === null ? '—' : formatPercent(v));
   return (
     <div className="space-y-3">
-      <div className="max-h-[60vh] overflow-auto">
-        <table className="w-full text-sm">
+      <div className="inline-block max-h-[60vh] overflow-auto border border-input rounded-md">
+        <table className="text-sm">
           <thead className="sticky top-0 bg-background border-b">
             <tr>
-              <th className="text-left py-2 pr-4 font-medium">Class</th>
-              <th className="text-right py-2 px-4 font-medium">Support</th>
-              <th className="text-right py-2 px-4 font-medium">Precision</th>
-              <th className="text-right py-2 px-4 font-medium">Recall</th>
-              <th className="text-right py-2 pl-4 font-medium">F1</th>
+              <th className="text-left py-2 pl-4 pr-6 font-medium">Class</th>
+              <th className="text-right py-2 px-6 font-medium">Support</th>
+              <th className="text-right py-2 px-6 font-medium">Precision</th>
+              <th className="text-right py-2 px-6 font-medium">Recall</th>
+              <th className="text-right py-2 pl-6 pr-4 font-medium">F1</th>
             </tr>
           </thead>
           <tbody>
             {m.perClass.map((c) => (
               <tr key={c.species} className="border-b border-border/50">
-                <td className="py-1.5 pr-4">{normalizeLabel(c.species)}</td>
-                <td className="py-1.5 px-4 text-right tabular-nums">{c.support}</td>
-                <td className="py-1.5 px-4 text-right tabular-nums">{fmt(c.precision)}</td>
-                <td className="py-1.5 px-4 text-right tabular-nums">{fmt(c.recall)}</td>
-                <td className="py-1.5 pl-4 text-right tabular-nums">{fmt(c.f1)}</td>
+                <td className="py-1.5 pl-4 pr-6 whitespace-nowrap">{normalizeLabel(c.species)}</td>
+                <td className="py-1.5 px-6 text-right tabular-nums">{c.support}</td>
+                <td className="py-1.5 px-6 text-right tabular-nums">{fmt(c.precision)}</td>
+                <td className="py-1.5 px-6 text-right tabular-nums">{fmt(c.recall)}</td>
+                <td className="py-1.5 pl-6 pr-4 text-right tabular-nums">{fmt(c.f1)}</td>
               </tr>
             ))}
           </tbody>
           <tfoot className="border-t-2 border-border">
             <tr>
-              <td className="py-1.5 pr-4 font-medium">Macro avg</td>
-              <td className="py-1.5 px-4" />
-              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.macroP)}</td>
-              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.macroR)}</td>
-              <td className="py-1.5 pl-4 text-right tabular-nums font-medium">{fmt(m.macroF1)}</td>
+              <td className="py-1.5 pl-4 pr-6 font-medium whitespace-nowrap">Macro avg</td>
+              <td className="py-1.5 px-6" />
+              <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.macroP)}</td>
+              <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.macroR)}</td>
+              <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">{fmt(m.macroF1)}</td>
             </tr>
             <tr>
-              <td className="py-1.5 pr-4 font-medium">Weighted avg</td>
-              <td className="py-1.5 px-4" />
-              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.weightedP)}</td>
-              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.weightedR)}</td>
-              <td className="py-1.5 pl-4 text-right tabular-nums font-medium">{fmt(m.weightedF1)}</td>
+              <td className="py-1.5 pl-4 pr-6 font-medium whitespace-nowrap">Weighted avg</td>
+              <td className="py-1.5 px-6" />
+              <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.weightedP)}</td>
+              <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.weightedR)}</td>
+              <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">{fmt(m.weightedF1)}</td>
             </tr>
             <tr>
-              <td className="py-1.5 pr-4 font-medium">Micro avg</td>
-              <td className="py-1.5 px-4" />
-              <td className="py-1.5 px-4 text-right tabular-nums font-medium" colSpan={3}>
+              <td className="py-1.5 pl-4 pr-6 font-medium whitespace-nowrap">Micro avg</td>
+              <td className="py-1.5 px-6" />
+              <td className="py-1.5 px-6 text-right tabular-nums font-medium" colSpan={3}>
                 {fmt(m.micro)}
                 <span className="text-muted-foreground font-normal text-xs ml-2">(= overall accuracy)</span>
               </td>
