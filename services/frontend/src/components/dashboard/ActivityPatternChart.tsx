@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
-import type { HourlyActivityPoint } from '../../api/types';
+import type { HourlyActivityPoint, SunBands } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
 
 interface ActivityPatternChartProps {
@@ -21,20 +21,30 @@ const NIGHT = '#0f6064';
 const TWILIGHT = '#ff8945';
 const DAY = '#71b7ba';
 
-function getHourColor(hour: number): string {
-  // Night: 21:00 - 05:00
-  if (hour >= 21 || hour < 5) return NIGHT;
-  // Dawn/Dusk: 05:00 - 07:00, 17:00 - 21:00
-  if (hour < 7 || hour >= 17) return TWILIGHT;
-  // Day: 07:00 - 17:00
+function getHourColor(hour: number, bands: SunBands | null): string {
+  // Sample the colour at the midpoint of the hour bar (e.g. hour 6
+  // represents the 6:00-7:00 slot, so check 6.5).
+  const t = hour + 0.5;
+  if (bands) {
+    if (t >= bands.sunrise && t < bands.sunset) return DAY;
+    if (t >= bands.dawn && t < bands.sunrise) return TWILIGHT;
+    if (t >= bands.sunset && t < bands.dusk) return TWILIGHT;
+    return NIGHT;
+  }
+  // Fallback used when the project has no camera GPS, when the cross-project
+  // view is active, or when the sun never sets / never rises on this date
+  // (polar day or polar night).
+  if (t >= 21 || t < 5) return NIGHT;
+  if (t < 7 || t >= 17) return TWILIGHT;
   return DAY;
 }
 
 interface ActivityClockProps {
   hours: HourlyActivityPoint[];
+  sunBands: SunBands | null;
 }
 
-function ActivityClock({ hours }: ActivityClockProps) {
+function ActivityClock({ hours, sunBands }: ActivityClockProps) {
   // Geometry: viewBox is 200x200 with center at (100, 100)
   const cx = 100;
   const cy = 100;
@@ -117,7 +127,7 @@ function ActivityClock({ hours }: ActivityClockProps) {
             y1={y1}
             x2={x2}
             y2={y2}
-            stroke={getHourColor(hour)}
+            stroke={getHourColor(hour, sunBands)}
             strokeWidth={isHovered ? barWidth + 2 : barWidth}
             strokeLinecap="round"
           />
@@ -243,7 +253,7 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
               <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : data && data.hours.some((h) => h.count > 0) ? (
-            <ActivityClock hours={data.hours} />
+            <ActivityClock hours={data.hours} sunBands={data.sun_bands} />
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">No activity data available</p>

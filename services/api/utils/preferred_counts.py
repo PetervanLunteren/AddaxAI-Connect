@@ -12,6 +12,19 @@ from sqlalchemy import select, func, and_, union_all, literal
 from shared.classification_threshold import classification_passes_threshold
 
 
+def _local_hour(ts_column):
+    """
+    Extract the local hour from a TIMESTAMPTZ column whose values are
+    stored as server-local time mistagged as UTC. The Postgres
+    timezone('UTC', ts) function returns the naive timestamp in UTC,
+    which strips the wrong UTC tag and gives the local value back.
+    Mirrors the Python idiom in routers/statistics.py:405-415 so the
+    hour we extract is always local, regardless of the database
+    session timezone.
+    """
+    return func.extract('hour', func.timezone('UTC', ts_column))
+
+
 async def get_preferred_species_counts(
     db: AsyncSession,
     project_ids: List[int],
@@ -299,19 +312,19 @@ async def get_preferred_hourly_activity(
     # Verified: group by hour, sum counts from HumanObservation
     verified_query = (
         select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
+            _local_hour(Image.uploaded_at).label('hour'),
             func.sum(HumanObservation.count).label('count')
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(and_(*verified_filters))
-        .group_by(func.extract('hour', Image.uploaded_at))
+        .group_by(_local_hour(Image.uploaded_at))
     )
 
     # Unverified: group by hour, count classifications
     unverified_query = (
         select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
+            _local_hour(Image.uploaded_at).label('hour'),
             func.count(Classification.id).label('count')
         )
         .join(Detection, Classification.detection_id == Detection.id)
@@ -325,13 +338,13 @@ async def get_preferred_hourly_activity(
                 classification_passes_threshold(),
             )
         )
-        .group_by(func.extract('hour', Image.uploaded_at))
+        .group_by(_local_hour(Image.uploaded_at))
     )
 
     # Person/vehicle: group by hour, count detections
     pv_query = (
         select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
+            _local_hour(Image.uploaded_at).label('hour'),
             func.count(Detection.id).label('count')
         )
         .join(Image, Detection.image_id == Image.id)
@@ -343,7 +356,7 @@ async def get_preferred_hourly_activity(
                 Detection.confidence >= Project.detection_threshold
             )
         )
-        .group_by(func.extract('hour', Image.uploaded_at))
+        .group_by(_local_hour(Image.uploaded_at))
     )
 
     # Combine and sum

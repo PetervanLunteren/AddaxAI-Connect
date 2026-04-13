@@ -246,12 +246,17 @@ async def get_independent_hourly_activity(
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
+    # event_start values are stored as server-local time mistagged as
+    # UTC, so AT TIME ZONE 'UTC' strips the wrong UTC tag and returns
+    # the naive local timestamp. Mirrors the Python idiom in
+    # routers/statistics.py:405-415, makes the hour extraction
+    # independent of the database session timezone.
     query = f"""
     {cte_sql}
-    SELECT EXTRACT(hour FROM event_start)::int as hour,
+    SELECT EXTRACT(hour FROM event_start AT TIME ZONE 'UTC')::int as hour,
            SUM(event_count)::int as count
     FROM events
-    GROUP BY EXTRACT(hour FROM event_start)
+    GROUP BY EXTRACT(hour FROM event_start AT TIME ZONE 'UTC')
     ORDER BY hour
     """
 

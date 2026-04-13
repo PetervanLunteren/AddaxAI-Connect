@@ -37,6 +37,7 @@ Open follow-ups:
 - [x] Could brightness and contrast adjustment tools be added for night images (similar to Agouti)?
 - [x] Could a reference photo be attached to each camera to help identify its location in the field? We can have an upload feature in the camera slideout. 
 - [x] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? Shipped as a Performance page with both an instance-level aggregate (per-species human vs AI counts) and an image-level top-1 confusion matrix. 
+- [x] despite having the setting, Connect's activity pattern chart doesn't actually use the timezone — it extracts EXTRACT(hour FROM uploaded_at) from UTC directly, which is a known inconsistency in their code. So Connect's activity chart is arguably broken for non-UTC zones. Fix this. And then update the colours in the activity pattern (night, dusk, day) based on the timezone settings! 
 
 
 

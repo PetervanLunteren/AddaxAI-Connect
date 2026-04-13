@@ -1,7 +1,7 @@
 """
 Statistics endpoints for dashboard metrics and charts.
 """
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Tuple
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
+from geoalchemy2.shape import to_shape
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
 from shared.classification_threshold import (
@@ -708,11 +709,74 @@ class HourlyActivityPoint(BaseModel):
     count: int
 
 
+class SunBands(BaseModel):
+    """
+    Astronomical day boundaries in fractional hours (0-24) in the project
+    timezone, used by the activity pattern chart to colour the bars by
+    night / dawn / day / dusk.
+    """
+    dawn: float      # start of civil twilight (sun 6 deg below horizon)
+    sunrise: float   # day begins (sun crosses horizon)
+    sunset: float    # day ends (sun crosses horizon)
+    dusk: float      # end of civil twilight
+
+
 class ActivityPatternResponse(BaseModel):
     """Activity pattern response with hourly counts"""
     hours: List[HourlyActivityPoint]
     species: str  # Species name or "all"
     total_detections: int
+    sun_bands: Optional[SunBands] = None  # null when no project camera GPS or polar day/night
+    timezone: str  # IANA name used to extract hours and to compute bands
+
+
+def _avg_camera_location(locations) -> Optional[Tuple[float, float]]:
+    """
+    Average lat/lon across cameras that have GPS. Returns None when the
+    project has no cameras with a location set. The activity pattern
+    endpoint uses this single point to ground its sun band calculation,
+    which is good enough as long as the cameras are within a few hundred
+    km of each other.
+    """
+    points = [to_shape(loc) for loc in locations if loc is not None]
+    if not points:
+        return None
+    avg_lat = sum(p.y for p in points) / len(points)
+    avg_lon = sum(p.x for p in points) / len(points)
+    return (avg_lat, avg_lon)
+
+
+def _compute_sun_bands(
+    lat: float,
+    lon: float,
+    reference_date: date,
+    tz_name: str,
+) -> Optional[SunBands]:
+    """
+    Compute dawn / sunrise / sunset / dusk for the given location and
+    reference date in the given timezone. Returns None when the sun
+    never rises or never sets at that latitude on that date (polar day
+    or polar night), in which case the frontend falls back to its
+    hardcoded bands.
+    """
+    from astral import LocationInfo
+    from astral.sun import sun
+
+    try:
+        location = LocationInfo("project", "project", tz_name, lat, lon)
+        s = sun(location.observer, date=reference_date, tzinfo=ZoneInfo(tz_name))
+    except ValueError:
+        return None
+
+    def to_fractional_hour(dt) -> float:
+        return dt.hour + dt.minute / 60 + dt.second / 3600
+
+    return SunBands(
+        dawn=to_fractional_hour(s['dawn']),
+        sunrise=to_fractional_hour(s['sunrise']),
+        sunset=to_fractional_hour(s['sunset']),
+        dusk=to_fractional_hour(s['dusk']),
+    )
 
 
 @router.get(
@@ -772,10 +836,38 @@ async def get_activity_pattern(
         hours.append(HourlyActivityPoint(hour=h, count=count))
         total += count
 
+    # Compute the timezone label and astronomical sun bands. The bands
+    # need a single project to be meaningful (cross-project view falls
+    # back to the frontend's hardcoded ranges).
+    from routers.admin import get_server_timezone
+    server_tz = await get_server_timezone(db)
+
+    sun_bands: Optional[SunBands] = None
+    if project_id is not None:
+        cam_result = await db.execute(
+            select(Camera.location).where(
+                Camera.project_id == project_id,
+                Camera.location.isnot(None),
+            )
+        )
+        avg = _avg_camera_location(cam_result.scalars().all())
+        if avg is not None:
+            if start_date and end_date:
+                ref_date = start_date + (end_date - start_date) / 2
+            elif start_date:
+                ref_date = start_date
+            elif end_date:
+                ref_date = end_date
+            else:
+                ref_date = date.today()
+            sun_bands = _compute_sun_bands(avg[0], avg[1], ref_date, server_tz)
+
     return ActivityPatternResponse(
         hours=hours,
         species=species if species else "all",
         total_detections=total,
+        sun_bands=sun_bands,
+        timezone=server_tz,
     )
 
 

@@ -460,10 +460,19 @@ export interface HourlyActivityPoint {
   count: number;
 }
 
+export interface SunBands {
+  dawn: number;     // fractional hour 0-24, civil dawn
+  sunrise: number;  // fractional hour 0-24
+  sunset: number;   // fractional hour 0-24
+  dusk: number;     // fractional hour 0-24, civil dusk
+}
+
 export interface ActivityPatternResponse {
   hours: HourlyActivityPoint[];
   species: string;  // Species name or "all"
   total_detections: number;
+  sun_bands: SunBands | null;  // null when no project camera GPS or polar day/night
+  timezone: string;  // IANA name used to extract hours and to compute bands
 }
 
 export interface ActivityPatternFilters {
