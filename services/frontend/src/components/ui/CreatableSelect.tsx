@@ -45,11 +45,21 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
       borderRadius: '0.375rem',
-      minHeight: '2.25rem',
+      minHeight: '1.75rem',
+      height: '1.75rem',
       boxShadow: state.isFocused ? '0 0 0 2px hsl(var(--ring))' : 'none',
       '&:hover': {
         borderColor: 'hsl(var(--input))',
       },
+    }),
+    valueContainer: (provided) => ({
+      ...provided,
+      height: '1.75rem',
+      padding: '0 6px',
+    }),
+    indicatorsContainer: (provided) => ({
+      ...provided,
+      height: '1.75rem',
     }),
     menu: (provided) => ({
       ...provided,
@@ -93,7 +103,7 @@ export const CreatableSpeciesSelect: React.FC<CreatableSelectProps> = ({
     dropdownIndicator: (provided) => ({
       ...provided,
       color: 'hsl(var(--muted-foreground))',
-      padding: '4px',
+      padding: '2px',
       '&:hover': {
         color: 'hsl(var(--foreground))',
       },

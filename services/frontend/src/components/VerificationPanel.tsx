@@ -626,7 +626,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 <button
                   type="button"
                   onClick={() => splitObservation(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-input hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
                   title="Split into two rows"
                 >
                   <Copy className="h-3.5 w-3.5" />
@@ -634,7 +634,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 <button
                   type="button"
                   onClick={() => removeObservation(obs.id)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
+                  className="h-7 w-7 flex items-center justify-center rounded-md border border-input hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
                   title="Remove"
                 >
                   <X className="h-3.5 w-3.5" />
