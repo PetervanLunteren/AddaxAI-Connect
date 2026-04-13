@@ -95,6 +95,8 @@ class Camera(Base):
     # Metadata
     tags = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)
+    reference_image_path = Column(String(512), nullable=True)
+    reference_thumbnail_path = Column(String(512), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

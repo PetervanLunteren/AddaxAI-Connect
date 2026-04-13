@@ -8,8 +8,9 @@
  * - Details: Administrative info like camera ID, serial, SIM (admins only)
  * - Actions: Delete camera and other admin actions (server admins only)
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDropzone } from 'react-dropzone';
 import {
   Edit,
   Trash2,
@@ -20,6 +21,7 @@ import {
   X,
   Plus,
   XCircle,
+  Upload,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
@@ -62,6 +64,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('notes');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState<UpdateCameraRequest>({});
@@ -128,6 +132,59 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     onError: (error: any) => {
       alert(`Failed to delete camera: ${error.response?.data?.detail || error.message}`);
     },
+  });
+
+  // Reference image mutations
+  const uploadReferenceMutation = useMutation({
+    mutationFn: (file: File) => camerasApi.uploadReferenceImage(camera!.id, file),
+    onSuccess: (updatedCamera) => {
+      queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      setReferenceError(null);
+      onUpdate?.(updatedCamera);
+    },
+    onError: (error: any) => {
+      setReferenceError(error.response?.data?.detail || error.message || 'Upload failed');
+    },
+  });
+
+  const deleteReferenceMutation = useMutation({
+    mutationFn: () => camerasApi.deleteReferenceImage(camera!.id),
+    onSuccess: (updatedCamera) => {
+      queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      setLightboxOpen(false);
+      setReferenceError(null);
+      onUpdate?.(updatedCamera);
+    },
+    onError: (error: any) => {
+      setReferenceError(error.response?.data?.detail || error.message || 'Delete failed');
+    },
+  });
+
+  const onReferenceDrop = useCallback((files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setReferenceError('Image must be less than 5MB');
+      return;
+    }
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+      setReferenceError('Image must be JPEG or PNG');
+      return;
+    }
+    setReferenceError(null);
+    uploadReferenceMutation.mutate(file);
+  }, [uploadReferenceMutation]);
+
+  const {
+    getRootProps: getReferenceRootProps,
+    getInputProps: getReferenceInputProps,
+    isDragActive: isReferenceDragActive,
+  } = useDropzone({
+    onDrop: onReferenceDrop,
+    accept: { 'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'] },
+    maxFiles: 1,
+    multiple: false,
+    disabled: !canAdmin,
   });
 
   if (!camera) return null;
@@ -438,6 +495,55 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     </div>
                   )}
                 </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Reference image</label>
+                  {camera.reference_thumbnail_url ? (
+                    <div className="relative mt-1">
+                      <img
+                        src={camera.reference_thumbnail_url}
+                        alt="Camera reference"
+                        className="w-full h-48 object-cover rounded-md border cursor-zoom-in"
+                        onClick={() => setLightboxOpen(true)}
+                      />
+                      {canAdmin && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => deleteReferenceMutation.mutate()}
+                          disabled={deleteReferenceMutation.isPending}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ) : canAdmin ? (
+                    <div
+                      {...getReferenceRootProps()}
+                      className={`mt-1 border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${
+                        isReferenceDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary/50'
+                      }`}
+                    >
+                      <input {...getReferenceInputProps()} />
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        {isReferenceDragActive ? 'Drop image here' : 'Drag and drop an image, or click to select'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        JPEG or PNG, max 5MB
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground mt-1">No reference image</p>
+                  )}
+                  {uploadReferenceMutation.isPending && (
+                    <p className="text-xs text-muted-foreground mt-1">Uploading...</p>
+                  )}
+                  {referenceError && (
+                    <p className="text-xs text-destructive mt-1">{referenceError}</p>
+                  )}
+                </div>
                 {notesModified && canAdmin && (
                   <Button
                     onClick={handleSave}
@@ -551,6 +657,22 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reference image lightbox */}
+      {lightboxOpen && camera.reference_image_url && (
+        <Dialog open={lightboxOpen} onOpenChange={(open) => !open && setLightboxOpen(false)}>
+          <DialogContent
+            onClose={() => setLightboxOpen(false)}
+            className="max-w-6xl"
+          >
+            <img
+              src={camera.reference_image_url}
+              alt="Camera reference, full size"
+              className="w-full max-h-[85vh] object-contain rounded-md"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 };

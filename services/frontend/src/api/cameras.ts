@@ -123,4 +123,26 @@ export const camerasApi = {
     const response = await apiClient.get<HealthHistoryResponse>(url);
     return response.data;
   },
+
+  /**
+   * Upload a reference image for a camera (project admin or server admin)
+   */
+  uploadReferenceImage: async (id: number, file: File): Promise<Camera> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<Camera>(
+      `/api/cameras/${id}/reference-image`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  },
+
+  /**
+   * Delete a camera's reference image
+   */
+  deleteReferenceImage: async (id: number): Promise<Camera> => {
+    const response = await apiClient.delete<Camera>(`/api/cameras/${id}/reference-image`);
+    return response.data;
+  },
 };

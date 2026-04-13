@@ -41,6 +41,8 @@ class CameraResponse(BaseModel):
     status: str  # active, inactive, never_reported
     total_images: Optional[int] = None
     sent_images: Optional[int] = None
+    reference_image_url: Optional[str] = None
+    reference_thumbnail_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -174,6 +176,8 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
         status=parse_camera_status(camera),
         total_images=health_data.get('total_images'),
         sent_images=health_data.get('sent_images'),
+        reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
+        reference_thumbnail_url=f"/reference-images/{camera.reference_thumbnail_path}" if camera.reference_thumbnail_path else None,
     )
 
 

@@ -20,6 +20,7 @@ THUMBNAIL_MAX_WIDTH = 512  # Max width, maintains aspect ratio
 ALLOWED_FORMATS = {"JPEG", "PNG"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png"}
 PROJECT_IMAGES_DIR = "/app/project-images"
+REFERENCE_IMAGES_DIR = "/app/reference-images"
 
 
 def validate_image_file(file: UploadFile) -> None:
@@ -283,6 +284,97 @@ def delete_project_images(image_filename: str | None, thumbnail_filename: str | 
     except Exception as e:
         logger.error(
             "Failed to delete project images",
+            image_filename=image_filename,
+            thumbnail_filename=thumbnail_filename,
+            error=str(e),
+            exc_info=True
+        )
+        # Don't raise - deletion failures shouldn't crash the operation
+
+
+def process_and_upload_reference_image(file: UploadFile, camera_id: int) -> tuple[str, str]:
+    """
+    Process and save a camera reference image with thumbnail to local filesystem.
+
+    Mirrors process_and_upload_project_image but writes to REFERENCE_IMAGES_DIR
+    and names files by camera id.
+    """
+    logger.info(
+        "Processing camera reference image",
+        camera_id=camera_id,
+        file_name=file.filename,
+        content_type=file.content_type
+    )
+
+    validate_image_file(file)
+
+    file.file.seek(0)
+    file_content = file.file.read()
+    file_buffer = BytesIO(file_content)
+
+    file_ext = os.path.splitext(file.filename or "image.jpg")[1].lower()
+    if not file_ext:
+        file_ext = ".jpg"
+
+    image_filename = f"camera_{camera_id}{file_ext}"
+    thumbnail_filename = f"camera_{camera_id}_thumb.jpg"
+
+    os.makedirs(REFERENCE_IMAGES_DIR, exist_ok=True)
+
+    image_path = os.path.join(REFERENCE_IMAGES_DIR, image_filename)
+    thumbnail_path = os.path.join(REFERENCE_IMAGES_DIR, thumbnail_filename)
+
+    try:
+        file_buffer.seek(0)
+        with open(image_path, 'wb') as f:
+            f.write(file_buffer.read())
+
+        logger.info("Saved reference image", camera_id=camera_id, file_path=image_path)
+
+        thumbnail_buffer = BytesIO(file_content)
+        thumbnail_data = generate_thumbnail(thumbnail_buffer)
+
+        with open(thumbnail_path, 'wb') as f:
+            f.write(thumbnail_data.read())
+
+        logger.info("Saved reference thumbnail", camera_id=camera_id, file_path=thumbnail_path)
+
+        return (image_filename, thumbnail_filename)
+
+    except Exception as e:
+        logger.error(
+            "Failed to save reference image",
+            camera_id=camera_id,
+            error=str(e),
+            exc_info=True
+        )
+        raise ValueError(f"Failed to save image: {str(e)}")
+
+
+def delete_reference_images(image_filename: str | None, thumbnail_filename: str | None) -> None:
+    """
+    Delete camera reference images from local filesystem.
+    """
+    if not image_filename and not thumbnail_filename:
+        logger.debug("No reference images to delete")
+        return
+
+    try:
+        if image_filename:
+            image_path = os.path.join(REFERENCE_IMAGES_DIR, image_filename)
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                logger.info("Deleted reference image", path=image_path)
+
+        if thumbnail_filename:
+            thumbnail_path = os.path.join(REFERENCE_IMAGES_DIR, thumbnail_filename)
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+                logger.info("Deleted reference thumbnail", path=thumbnail_path)
+
+    except Exception as e:
+        logger.error(
+            "Failed to delete reference images",
             image_filename=image_filename,
             thumbnail_filename=thumbnail_filename,
             error=str(e),

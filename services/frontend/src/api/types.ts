@@ -21,6 +21,8 @@ export interface Camera {
   status: 'active' | 'inactive' | 'never_reported';
   total_images?: number;
   sent_images?: number;
+  reference_image_url: string | null;
+  reference_thumbnail_url: string | null;
 }
 
 // Camera health history types

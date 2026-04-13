@@ -124,6 +124,7 @@ services:
     volumes:
       - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
       - ./data/project-images:/app/project-images
+      - ./data/reference-images:/app/reference-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -296,6 +297,7 @@ services:
       - "3000:80"
     volumes:
       - ./data/project-images:/usr/share/nginx/html/project-images
+      - ./data/reference-images:/usr/share/nginx/html/reference-images
     depends_on:
       - api
     networks:
