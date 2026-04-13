@@ -848,27 +848,23 @@ async def get_activity_pattern(
         hours.append(HourlyActivityPoint(hour=h, count=count))
         total += count
 
-    # Compute the timezone and astronomical sun bands. Use the project's
-    # average camera GPS to derive both the IANA timezone and the sun
-    # geometry, so bands always line up with the chart hours regardless
-    # of what the server-wide timezone setting happens to be. The server
-    # timezone is only used as a fallback label when no GPS is available.
+    # Compute the timezone label and astronomical sun bands. The server
+    # timezone setting is the user's declaration of which timezone the
+    # camera clocks are set to (some projects deliberately run their
+    # cameras on UTC for cross-site consistency, so deriving the
+    # timezone from GPS would silently override the user's choice). The
+    # bands need a single project to be meaningful; cross-project view
+    # falls back to the frontend's hardcoded ranges.
     from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
 
     sun_bands: Optional[SunBands] = None
-    effective_tz = server_tz
     if project_id is not None:
         cam_result = await db.execute(
             select(Camera.config).where(Camera.project_id == project_id)
         )
         avg = _avg_camera_location(cam_result.scalars().all())
         if avg is not None:
-            from timezonefinder import TimezoneFinder
-            tf = TimezoneFinder()
-            gps_tz = tf.timezone_at(lng=avg[1], lat=avg[0])
-            if gps_tz:
-                effective_tz = gps_tz
             if start_date and end_date:
                 ref_date = start_date + (end_date - start_date) / 2
             elif start_date:
@@ -877,14 +873,14 @@ async def get_activity_pattern(
                 ref_date = end_date
             else:
                 ref_date = date.today()
-            sun_bands = _compute_sun_bands(avg[0], avg[1], ref_date, effective_tz)
+            sun_bands = _compute_sun_bands(avg[0], avg[1], ref_date, server_tz)
 
     return ActivityPatternResponse(
         hours=hours,
         species=species if species else "all",
         total_detections=total,
         sun_bands=sun_bands,
-        timezone=effective_tz,
+        timezone=server_tz,
     )
 
 
