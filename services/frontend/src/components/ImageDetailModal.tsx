@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Loader2, Camera, ExternalLink, Sparkles, Sun, Contrast, RotateCcw } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, Camera, ExternalLink, Sparkles, Sun, Contrast, RotateCcw } from 'lucide-react';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -74,6 +74,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   const likeMutation = useMutation({
     mutationFn: (nextLiked: boolean) => imagesApi.setLike(imageUuid, nextLiked),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+    },
+  });
+
+  const needsReviewMutation = useMutation({
+    mutationFn: (next: boolean) => imagesApi.setNeedsReview(imageUuid, next),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
       queryClient.invalidateQueries({ queryKey: ['images'] });
@@ -576,6 +584,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <Heart
                     className="h-5 w-5"
                     style={imageDetail.is_liked ? { fill: '#882000', color: '#882000' } : undefined}
+                  />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => needsReviewMutation.mutate(!imageDetail.needs_review)}
+                  disabled={needsReviewMutation.isPending}
+                  title={imageDetail.needs_review ? 'Clear review flag' : 'Flag for review'}
+                >
+                  <Flag
+                    className="h-5 w-5"
+                    style={imageDetail.needs_review ? { fill: '#71b7ba', color: '#71b7ba' } : undefined}
                   />
                 </Button>
                 <Button

@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import type { Option } from '../components/ui/MultiSelect';
@@ -39,6 +39,7 @@ export const ImagesPage: React.FC = () => {
     species: [] as Option[],
     verified: '' as '' | 'true' | 'false',  // '' = all
     liked: '' as '' | 'true' | 'false',  // '' = all
+    needs_review: '' as '' | 'true' | 'false',  // '' = all
   });
 
   const limit = 24; // Images per page
@@ -69,6 +70,7 @@ export const ImagesPage: React.FC = () => {
           : undefined,
         verified: filters.verified || undefined,
         liked: filters.liked || undefined,
+        needs_review: filters.needs_review || undefined,
       }),
     enabled: projectId !== undefined,
   });
@@ -161,6 +163,7 @@ export const ImagesPage: React.FC = () => {
       species: [],
       verified: '',
       liked: '',
+      needs_review: '',
     });
     setPage(1);
   };
@@ -172,7 +175,8 @@ export const ImagesPage: React.FC = () => {
     filters.end_date !== '' ||
     filters.species.length > 0 ||
     filters.verified !== '' ||
-    filters.liked !== '';
+    filters.liked !== '' ||
+    filters.needs_review !== '';
 
   const formatTimestamp = (timestamp: string) => {
     // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
@@ -319,6 +323,16 @@ export const ImagesPage: React.FC = () => {
                     title="Liked"
                   >
                     <Heart className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
+                  </div>
+                )}
+                {/* Needs review badge - overflow bottom-right corner */}
+                {image.needs_review && (
+                  <div
+                    className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10"
+                    style={{ backgroundColor: '#71b7ba' }}
+                    title="Needs review"
+                  >
+                    <Flag className="h-3.5 w-3.5 text-white fill-current" strokeWidth={2.5} />
                   </div>
                 )}
                 <div className="relative overflow-hidden rounded-t-lg">

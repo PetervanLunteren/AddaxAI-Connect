@@ -15,6 +15,7 @@ interface ImageFiltersProps {
     species: Option[];
     verified: '' | 'true' | 'false';
     liked: '' | 'true' | 'false';
+    needs_review: '' | 'true' | 'false';
   };
   onFilterChange: (key: string, value: any) => void;
   onClearAll: () => void;
@@ -60,7 +61,8 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
     (filters.start_date ? 1 : 0) +
     (filters.end_date ? 1 : 0) +
     (filters.verified ? 1 : 0) +
-    (filters.liked ? 1 : 0);
+    (filters.liked ? 1 : 0) +
+    (filters.needs_review ? 1 : 0);
 
   return (
     <div ref={containerRef} className="relative">
@@ -144,6 +146,23 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
                 <option value="">All</option>
                 <option value="true">Liked</option>
                 <option value="false">Not liked</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Needs review */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Needs review</label>
+            <div className="relative">
+              <select
+                className="w-full h-9 px-3 pr-8 border border-input rounded-md bg-background text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                value={filters.needs_review}
+                onChange={(e) => onFilterChange('needs_review', e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="true">Needs review</option>
+                <option value="false">No review needed</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             </div>

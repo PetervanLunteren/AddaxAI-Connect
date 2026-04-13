@@ -72,6 +72,7 @@ class ImageListItemResponse(BaseModel):
     image_height: Optional[int] = None
     is_verified: bool = False
     is_liked: bool = False
+    needs_review: bool = False
     observed_species: List[str] = []  # Human observations for verified images
 
     class Config:
@@ -122,6 +123,8 @@ class ImageDetailResponse(BaseModel):
     human_observations: List[HumanObservationResponse]
     is_liked: bool = False
     liked_by_email: Optional[str] = None
+    needs_review: bool = False
+    needs_review_by_email: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -175,6 +178,18 @@ class SetLikeResponse(BaseModel):
     is_liked: bool
     liked_at: Optional[str] = None
     liked_by_email: Optional[str] = None
+
+
+class SetNeedsReviewRequest(BaseModel):
+    """Request body for flagging / unflagging an image for review"""
+    needs_review: bool
+
+
+class SetNeedsReviewResponse(BaseModel):
+    """Response after toggling the needs-review flag on an image"""
+    needs_review: bool
+    needs_review_at: Optional[str] = None
+    needs_review_by_email: Optional[str] = None
 
 
 @router.get(
@@ -296,6 +311,7 @@ async def list_images(
     show_empty: bool = Query(False),
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
+    needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
     tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -402,6 +418,13 @@ async def list_images(
             filters.append(Image.is_liked == True)
         elif liked.lower() == "false":
             filters.append(Image.is_liked == False)
+
+    # Handle needs-review status filter
+    if needs_review is not None:
+        if needs_review.lower() == "true":
+            filters.append(Image.needs_review == True)
+        elif needs_review.lower() == "false":
+            filters.append(Image.needs_review == False)
 
     # Subqueries for "has visible detections" — reused by both the
     # default empty-hiding filter and the "Empty" label filter.
@@ -676,6 +699,7 @@ async def list_images(
             image_height=image_height,
             is_verified=image.is_verified,
             is_liked=image.is_liked,
+            needs_review=image.needs_review,
             observed_species=observed_species,
         ))
 
@@ -723,6 +747,7 @@ async def get_image(
             selectinload(Image.human_observations).selectinload(HumanObservation.updated_by),
             selectinload(Image.verified_by),
             selectinload(Image.liked_by),
+            selectinload(Image.needs_review_by),
         )
     )
 
@@ -831,6 +856,8 @@ async def get_image(
         human_observations=human_observations_response,
         is_liked=image.is_liked,
         liked_by_email=image.liked_by.email if image.liked_by else None,
+        needs_review=image.needs_review,
+        needs_review_by_email=image.needs_review_by.email if image.needs_review_by else None,
     )
 
 
@@ -1027,6 +1054,63 @@ async def set_like(
         is_liked=image.is_liked,
         liked_at=image.liked_at.isoformat() if image.liked_at else None,
         liked_by_email=current_user.email if image.is_liked else None,
+    )
+
+
+@router.put(
+    "/{uuid}/needs-review",
+    response_model=SetNeedsReviewResponse,
+)
+async def set_needs_review(
+    uuid: str,
+    request: SetNeedsReviewRequest,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Toggle the project-wide "needs review" flag on an image.
+
+    Anyone with project access can flag or unflag. Useful for asking a
+    colleague to take a second look at a low-confidence species ID,
+    unusual behavior, or any image that warrants a second pair of eyes.
+    """
+    from datetime import datetime, timezone
+
+    result = await db.execute(
+        select(Image).join(Camera, Image.camera_id == Camera.id).where(Image.uuid == uuid)
+    )
+    image = result.scalar_one_or_none()
+
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
+    camera = camera_result.scalar_one_or_none()
+    if not camera or camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image",
+        )
+
+    image.needs_review = request.needs_review
+    if request.needs_review:
+        image.needs_review_at = datetime.now(timezone.utc)
+        image.needs_review_by_user_id = current_user.id
+    else:
+        image.needs_review_at = None
+        # Keep needs_review_by_user_id for audit, matching how verified_by is preserved.
+
+    await db.commit()
+    await db.refresh(image)
+
+    return SetNeedsReviewResponse(
+        needs_review=image.needs_review,
+        needs_review_at=image.needs_review_at.isoformat() if image.needs_review_at else None,
+        needs_review_by_email=current_user.email if image.needs_review else None,
     )
 
 

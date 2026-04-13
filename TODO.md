@@ -32,16 +32,11 @@ Open follow-ups:
 - [x] For each picture, it would be useful to add “stage” (adult, subadult, juvenile) and “sex” (male, female) fields, with “Unknown” as the default value.
 - [x] can we add a border round the plus minus buttons in the verification modal? Now it does not seem like these belong together : [- 1 +]
 - [x] WOuld it make sense to have a list of behaviours to choose from?
-- [ ] Could options such as “empty” and “unknown” be added as tags for images?
+- [x] Could options such as “empty” and “unknown” be added as tags for images? Shipped as a "needs review" flag — empty already covered by verification.
 - [x] “like” feature 
 - [x] Could brightness and contrast adjustment tools be added for night images (similar to Agouti)?
 - [ ] Could a reference photo be attached to each camera to help identify its location in the field? We can have an upload feature in the camera slideout. 
 - [ ] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? How would this work?
-
-
-
-[label drop down] [counts] [duplicate] [close]
-[sex] [age] [behaviour] 
 
 
 

@@ -2,7 +2,7 @@
  * Images API endpoints
  */
 import apiClient from './client';
-import type { ImageListItem, ImageDetail, PaginatedResponse, SaveVerificationRequest, SaveVerificationResponse, SetLikeResponse } from './types';
+import type { ImageListItem, ImageDetail, PaginatedResponse, SaveVerificationRequest, SaveVerificationResponse, SetLikeResponse, SetNeedsReviewResponse } from './types';
 
 export interface ImageFilters {
   page?: number;
@@ -14,6 +14,7 @@ export interface ImageFilters {
   show_empty?: boolean;
   verified?: string;  // "true", "false", or undefined for all
   liked?: string;  // "true", "false", or undefined for all
+  needs_review?: string;  // "true", "false", or undefined for all
   tags?: string;  // Comma-separated camera tags
   project_id?: number;
 }
@@ -67,6 +68,17 @@ export const imagesApi = {
     const response = await apiClient.put<SetLikeResponse>(
       `/api/images/${uuid}/like`,
       { is_liked: isLiked },
+    );
+    return response.data;
+  },
+
+  /**
+   * Toggle the project-wide "needs review" flag on an image
+   */
+  setNeedsReview: async (uuid: string, needsReview: boolean): Promise<SetNeedsReviewResponse> => {
+    const response = await apiClient.put<SetNeedsReviewResponse>(
+      `/api/images/${uuid}/needs-review`,
+      { needs_review: needsReview },
     );
     return response.data;
   },
