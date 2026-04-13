@@ -41,6 +41,23 @@ function gradientStyle(t: number): React.CSSProperties {
   };
 }
 
+// Map a signed AI minus Human difference to the brand gradient. The metric
+// is divergent (zero is best, large absolute diff is bad in either direction),
+// so this collapses both signs to "closeness to perfect" and feeds that to
+// the standard gradient. A small floor keeps maximally-off cells visible
+// (light yellow) instead of blank.
+function diffGradientStyle(diff: number, humanCount: number): React.CSSProperties {
+  let closeness: number;
+  if (diff === 0) {
+    closeness = 1;
+  } else if (humanCount === 0) {
+    closeness = 0.01;
+  } else {
+    closeness = Math.max(0.01, 1 - Math.abs(diff) / humanCount);
+  }
+  return gradientStyle(closeness);
+}
+
 interface ClassMetrics {
   species: string;
   support: number;     // # of verified images where this class is the human top-1
@@ -182,7 +199,10 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
                 <td className="py-1.5 pl-4 pr-6 whitespace-nowrap">{normalizeLabel(row.species)}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{row.human_count}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{row.ai_count}</td>
-                <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">
+                <td
+                  className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium"
+                  style={diffGradientStyle(row.diff, row.human_count)}
+                >
                   {row.diff > 0 ? '+' : ''}
                   {row.diff}
                 </td>
@@ -195,10 +215,12 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
         For every verified image, human observation counts are summed and visible AI detections are counted.
         Multi-species images contribute in full on both sides, so a frame with three deer and one fox adds
         three to the human deer total and one to the human fox total. A negative number in the last column
-        means the AI is under-counting, a positive number means it is over-counting. Mistakes can cancel out
-        across images at this aggregate level. For example, an image where the AI said deer instead of fox
-        and another where it said fox instead of deer both look perfect in this table. Open the confusion
-        matrix below to see directional mix-ups.
+        means the AI is under-counting, a positive number means it is over-counting. The Difference cell is
+        colour-scaled so darker teal means closer to perfect agreement and lighter yellow means the AI is
+        more off, in either direction. Note this is the inverse of the F1 gradient in the metrics card,
+        where dark teal means a higher score. Mistakes can cancel out across images at this aggregate level.
+        For example, an image where the AI said deer instead of fox and another where it said fox instead
+        of deer both look perfect in this table. Open the confusion matrix below to see directional mix-ups.
       </p>
     </div>
   );
