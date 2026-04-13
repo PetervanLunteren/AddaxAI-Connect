@@ -94,7 +94,9 @@ export const ImagesPage: React.FC = () => {
     if (!cameras) return;
     const cameraIdParam = searchParams.get('camera_id');
     const showEmptyParam = searchParams.get('show_empty');
-    if (!cameraIdParam && !showEmptyParam) return;
+    const speciesParam = searchParams.get('species');
+    const verifiedParam = searchParams.get('verified');
+    if (!cameraIdParam && !showEmptyParam && !speciesParam && !verifiedParam) return;
 
     const updates: Partial<typeof filters> = {};
 
@@ -113,11 +115,24 @@ export const ImagesPage: React.FC = () => {
       updates.species = [{ label: 'Empty', value: 'empty' }];
     }
 
+    // Deep link from the Performance page confusion matrix.
+    if (speciesParam) {
+      updates.species = speciesParam
+        .split(',')
+        .filter(Boolean)
+        .map(value => ({ label: normalizeLabel(value), value }));
+    }
+    if (verifiedParam === 'true' || verifiedParam === 'false') {
+      updates.verified = verifiedParam;
+    }
+
     if (Object.keys(updates).length > 0) {
       setFilters(prev => ({ ...prev, ...updates }));
       setPage(1);
       searchParams.delete('camera_id');
       searchParams.delete('show_empty');
+      searchParams.delete('species');
+      searchParams.delete('verified');
       setSearchParams(searchParams, { replace: true });
     }
   }, [cameras]);

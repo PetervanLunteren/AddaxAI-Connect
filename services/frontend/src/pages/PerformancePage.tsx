@@ -6,8 +6,8 @@
  * - Confusion matrix: image-level top-1 pairing, with empty/person/vehicle
  *   included as classes.
  */
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Loader2, Target } from 'lucide-react';
 import { performanceApi, type PerformanceData } from '../api/performance';
@@ -21,7 +21,8 @@ function formatPercent(value: number): string {
 function cellStyle(count: number, rowMax: number, isDiagonal: boolean): React.CSSProperties {
   if (count === 0) return {};
   const intensity = rowMax > 0 ? count / rowMax : 0;
-  const alpha = 0.1 + intensity * 0.5; // 0.1..0.6
+  // Diagonal cells get a stronger alpha range so correct predictions visually pop.
+  const alpha = isDiagonal ? 0.25 + intensity * 0.65 : 0.08 + intensity * 0.35;
   const base = isDiagonal ? '15, 96, 100' : '136, 32, 0';
   return { backgroundColor: `rgba(${base}, ${alpha})` };
 }
@@ -191,86 +192,187 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
   );
 };
 
-const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
+const TOP_N_OPTIONS: { value: number | null; label: string }[] = [
+  { value: 10, label: '10' },
+  { value: 20, label: '20' },
+  { value: 50, label: '50' },
+  { value: null, label: 'all' },
+];
+
+const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({ data, projectId }) => {
   const { matrix_classes, matrix, matrix_row_totals, matrix_col_totals } = data;
+  const navigate = useNavigate();
+  const [topN, setTopN] = useState<number | null>(null);
+
+  // Sort classes by frequency (row total + col total) descending, ties alphabetical.
+  const classOrder = useMemo(() => {
+    return matrix_classes
+      .map((cls, idx) => ({
+        cls,
+        idx,
+        freq: matrix_row_totals[idx] + matrix_col_totals[idx],
+      }))
+      .sort((a, b) => {
+        if (b.freq !== a.freq) return b.freq - a.freq;
+        return a.cls.localeCompare(b.cls);
+      });
+  }, [matrix_classes, matrix_row_totals, matrix_col_totals]);
+
+  const visibleClasses = topN === null ? classOrder : classOrder.slice(0, topN);
+
+  // Per-row max across visible cells only, for color scaling.
+  const rowMaxes = visibleClasses.map(({ idx: r }) => {
+    let max = 0;
+    for (const { idx: c } of visibleClasses) {
+      if (matrix[r][c] > max) max = matrix[r][c];
+    }
+    return max;
+  });
+
+  // Drill down to verified images of a row class on click.
+  const handleCellClick = (gtClass: string) => {
+    const params = new URLSearchParams();
+    params.set('species', gtClass);
+    params.set('verified', 'true');
+    navigate(`/projects/${projectId}/images?${params.toString()}`);
+  };
+
   if (matrix_classes.length === 0) {
     return null;
   }
-  const rowMaxes = matrix.map((row) => Math.max(...row, 0));
+
+  // Two sticky columns on the left. Width chosen to comfortably fit the
+  // longest typical species label; longer ones still wrap inside the cell.
+  const FIRST_COL_LEFT = 0;
+  const SECOND_COL_LEFT = 7; // rem; matches w-28 on the first column
+  const HEADER_ROW_TOP = 0;
+  const PRECISION_ROW_TOP = 1.875; // rem; clears the species row below the border
 
   return (
     <div className="space-y-3">
-      <div className="overflow-auto max-h-[70vh]">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Show top</span>
+        <select
+          value={topN === null ? 'all' : String(topN)}
+          onChange={(e) => setTopN(e.target.value === 'all' ? null : Number(e.target.value))}
+          className="border border-input rounded-md px-2 py-1 text-sm bg-background"
+        >
+          {TOP_N_OPTIONS.map((opt) => (
+            <option key={opt.label} value={opt.value === null ? 'all' : String(opt.value)}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-muted-foreground">classes by frequency</span>
+      </div>
+
+      <div className="inline-block max-h-[70vh] overflow-auto border border-input rounded-md">
         <table className="text-xs border-collapse">
-        <thead>
-          <tr>
-            <th className="sticky left-0 top-0 bg-background z-20 p-1 text-muted-foreground font-normal">
-              Human ↓ / AI →
-            </th>
-            {matrix_classes.map((cls, c) => {
-              const colTotal = matrix_col_totals[c];
-              const precision = colTotal > 0 ? matrix[c][c] / colTotal : null;
-              return (
+          <thead>
+            <tr>
+              <th
+                className="sticky bg-background z-30 p-1.5 border-b border-r"
+                style={{ left: `${FIRST_COL_LEFT}rem`, top: `${HEADER_ROW_TOP}rem` }}
+              />
+              <th
+                className="sticky bg-background z-30 p-1.5 border-b border-r"
+                style={{ left: `${SECOND_COL_LEFT}rem`, top: `${HEADER_ROW_TOP}rem` }}
+              />
+              {visibleClasses.map(({ cls }) => (
                 <th
                   key={cls}
-                  className="sticky top-0 bg-background z-10 p-1 align-bottom border-b"
+                  className="sticky bg-background z-20 p-1.5 align-bottom border-b font-medium whitespace-nowrap"
+                  style={{ top: `${HEADER_ROW_TOP}rem` }}
                 >
-                  <div className="text-foreground font-medium whitespace-nowrap">
-                    {normalizeLabel(cls)}
-                  </div>
-                  <div className="text-muted-foreground tabular-nums">
-                    P {precision === null ? 'n/a' : formatPercent(precision)}
-                  </div>
+                  {normalizeLabel(cls)}
                 </th>
+              ))}
+            </tr>
+            <tr>
+              <th
+                className="sticky bg-background z-30 p-1.5 text-left text-muted-foreground font-normal border-b border-r"
+                style={{ left: `${FIRST_COL_LEFT}rem`, top: `${PRECISION_ROW_TOP}rem` }}
+              >
+                precision
+              </th>
+              <th
+                className="sticky bg-background z-30 p-1.5 text-left text-muted-foreground font-normal border-b border-r"
+                style={{ left: `${SECOND_COL_LEFT}rem`, top: `${PRECISION_ROW_TOP}rem` }}
+              />
+              {visibleClasses.map(({ idx: c, cls }) => {
+                const colTotal = matrix_col_totals[c];
+                const precision = colTotal > 0 ? matrix[c][c] / colTotal : null;
+                return (
+                  <td
+                    key={cls}
+                    className="sticky bg-background z-20 p-1.5 text-center text-muted-foreground tabular-nums border-b"
+                    style={{ top: `${PRECISION_ROW_TOP}rem` }}
+                  >
+                    {precision === null ? 'n/a' : formatPercent(precision)}
+                  </td>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visibleClasses.map(({ cls, idx: r }, rowIdx) => {
+              const rowTotal = matrix_row_totals[r];
+              const recall = rowTotal > 0 ? matrix[r][r] / rowTotal : null;
+              return (
+                <tr key={cls}>
+                  <th
+                    className="sticky bg-background z-10 p-1.5 text-left font-medium whitespace-nowrap border-r"
+                    style={{ left: `${FIRST_COL_LEFT}rem`, width: `${SECOND_COL_LEFT}rem` }}
+                  >
+                    {normalizeLabel(cls)}
+                  </th>
+                  <th
+                    className="sticky bg-background z-10 p-1.5 text-center text-muted-foreground font-normal tabular-nums border-r"
+                    style={{ left: `${SECOND_COL_LEFT}rem` }}
+                  >
+                    {recall === null ? 'n/a' : formatPercent(recall)}
+                  </th>
+                  {visibleClasses.map(({ idx: c, cls: predCls }) => {
+                    const count = matrix[r][c];
+                    const isDiagonal = r === c;
+                    const isZero = count === 0;
+                    return (
+                      <td
+                        key={predCls}
+                        className={`p-1.5 text-center tabular-nums border border-border/30 ${
+                          isZero ? '' : 'cursor-pointer hover:brightness-110'
+                        }`}
+                        style={cellStyle(count, rowMaxes[rowIdx], isDiagonal)}
+                        onClick={isZero ? undefined : () => handleCellClick(cls)}
+                        title={
+                          isZero
+                            ? undefined
+                            : `${count} verified images where humans saw ${normalizeLabel(cls)} and the AI predicted ${normalizeLabel(predCls)}. Click to open them in the Images tab.`
+                        }
+                      >
+                        {isZero ? '' : count}
+                      </td>
+                    );
+                  })}
+                </tr>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {matrix_classes.map((cls, r) => {
-            const rowTotal = matrix_row_totals[r];
-            const recall = rowTotal > 0 ? matrix[r][r] / rowTotal : null;
-            return (
-              <tr key={cls}>
-                <th className="sticky left-0 bg-background z-10 p-1 text-left border-r">
-                  <div className="text-foreground font-medium whitespace-nowrap">
-                    {normalizeLabel(cls)}
-                  </div>
-                  <div className="text-muted-foreground tabular-nums">
-                    R {recall === null ? 'n/a' : formatPercent(recall)}
-                  </div>
-                </th>
-                {matrix_classes.map((_, c) => {
-                  const count = matrix[r][c];
-                  const isDiagonal = r === c;
-                  return (
-                    <td
-                      key={c}
-                      className="p-1 text-center tabular-nums border border-border/30"
-                      style={cellStyle(count, rowMaxes[r], isDiagonal)}
-                      title={`${count} images where humans saw ${normalizeLabel(matrix_classes[r])} and the AI predicted ${normalizeLabel(matrix_classes[c])}`}
-                    >
-                      {count === 0 ? <span className="text-muted-foreground/30">·</span> : count}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
       </div>
+
       <p className="text-xs text-muted-foreground">
         Each verified image contributes one cell. The row is the human top-1 species (the species with the
         highest count in that image, or empty when no animals were verified). The column is the AI top-1 (the
         highest-confidence visible classification, or empty when no detections were above threshold). Diagonal
-        cells are correct, off-diagonal cells are mistakes. The number under each column header (P) is
-        precision, meaning of all images where the AI guessed this class, what fraction were actually this
-        class. The number under each row header (R) is recall, meaning of all images that actually were this
-        class, what fraction the AI caught. Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em>
-        reflect detection errors rather than classification errors, since detection is what decides whether an
-        image is empty or shows a person or vehicle. Multi-species images are attributed to their most-numerous
-        species on each side.
+        cells (tinted teal) are agreements, off-diagonal cells (tinted rust) are mistakes. The strip across the
+        top labelled <em>precision</em> shows, for each predicted class, the fraction of images where the AI
+        guessed that class and was right. The column labelled <em>recall</em> shows, for each true class, the
+        fraction of images of that class the AI caught. Click any non-zero cell to open the underlying verified
+        images in the Images tab. Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect
+        detection errors rather than classification errors, since detection is what decides whether an image is
+        empty or shows a person or vehicle. Multi-species images are attributed to their most-numerous species
+        on each side.
       </p>
     </div>
   );
@@ -398,7 +500,7 @@ export const PerformancePage: React.FC = () => {
             title="Confusion matrix"
             caption="Pairs each verified image's top human species with its top AI prediction, so the diagonal shows agreements and the off-diagonal cells show exactly which species the AI confuses for which."
           >
-            <MatrixContent data={data} />
+            <MatrixContent data={data} projectId={projectIdNum} />
           </CollapsibleCard>
           <CollapsibleCard
             title="Detailed metrics"
