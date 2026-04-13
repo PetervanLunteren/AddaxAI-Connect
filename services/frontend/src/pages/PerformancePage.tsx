@@ -404,7 +404,7 @@ export const PerformancePage: React.FC = () => {
           <HeadlineCard data={data} />
           <CollapsibleCard
             title="Per-species counts"
-            caption="Shows how many of each species the AI detected compared to how many humans verified, summed across every image in the project. Useful for spotting whether the AI is systematically over- or under-counting a species."
+            caption="Compares total AI detections against human verifications per species, to spot systematic over- or under-counting."
           >
             <AggregateContent rows={data.aggregate} />
           </CollapsibleCard>
