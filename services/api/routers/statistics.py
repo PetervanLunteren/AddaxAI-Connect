@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func, and_, desc, text
 from pydantic import BaseModel
-from geoalchemy2.shape import to_shape
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
 from shared.classification_threshold import (
@@ -730,19 +729,32 @@ class ActivityPatternResponse(BaseModel):
     timezone: str  # IANA name used to extract hours and to compute bands
 
 
-def _avg_camera_location(locations) -> Optional[Tuple[float, float]]:
+def _avg_camera_location(camera_configs) -> Optional[Tuple[float, float]]:
     """
-    Average lat/lon across cameras that have GPS. Returns None when the
-    project has no cameras with a location set. The activity pattern
+    Average lat/lon across cameras whose config has 'gps_from_report'.
+    The canonical GPS source is Camera.config['gps_from_report'] (a
+    {'lat': ..., 'lon': ...} dict set by the daily camera health report
+    parser); the PostGIS Camera.location column is unused. Returns None
+    when no cameras in the project have GPS. The activity pattern
     endpoint uses this single point to ground its sun band calculation,
     which is good enough as long as the cameras are within a few hundred
     km of each other.
     """
-    points = [to_shape(loc) for loc in locations if loc is not None]
+    points: list[Tuple[float, float]] = []
+    for config in camera_configs:
+        if not config:
+            continue
+        gps = config.get('gps_from_report')
+        if not gps:
+            continue
+        try:
+            points.append((float(gps['lat']), float(gps['lon'])))
+        except (KeyError, TypeError, ValueError):
+            continue
     if not points:
         return None
-    avg_lat = sum(p.y for p in points) / len(points)
-    avg_lon = sum(p.x for p in points) / len(points)
+    avg_lat = sum(p[0] for p in points) / len(points)
+    avg_lon = sum(p[1] for p in points) / len(points)
     return (avg_lat, avg_lon)
 
 
@@ -845,10 +857,7 @@ async def get_activity_pattern(
     sun_bands: Optional[SunBands] = None
     if project_id is not None:
         cam_result = await db.execute(
-            select(Camera.location).where(
-                Camera.project_id == project_id,
-                Camera.location.isnot(None),
-            )
+            select(Camera.config).where(Camera.project_id == project_id)
         )
         avg = _avg_camera_location(cam_result.scalars().all())
         if avg is not None:
