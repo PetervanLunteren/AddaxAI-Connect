@@ -393,7 +393,7 @@ export const ImagesPage: React.FC = () => {
                     const remainingCount = allLabels.length - 2;
 
                     return (
-                      <div className="absolute top-2 right-2 flex flex-wrap gap-1 justify-end max-w-[calc(100%-1rem)]">
+                      <div className="absolute bottom-2 left-2 flex flex-wrap gap-1 justify-start max-w-[calc(100%-1rem)]">
                         {visibleLabels.map((label, idx) => (
                           <span
                             key={`${label}-${idx}`}
