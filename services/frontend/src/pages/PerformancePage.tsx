@@ -160,7 +160,7 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
               <th className="text-left py-2 pl-4 pr-6 font-medium">Species</th>
               <th className="text-right py-2 px-6 font-medium">Human</th>
               <th className="text-right py-2 px-6 font-medium">AI</th>
-              <th className="text-right py-2 pl-6 pr-4 font-medium">Diff</th>
+              <th className="text-right py-2 pl-6 pr-4 font-medium whitespace-nowrap">AI − Human</th>
             </tr>
           </thead>
           <tbody>
@@ -181,11 +181,11 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
       <p className="text-xs text-muted-foreground">
         For every verified image, human observation counts are summed and visible AI detections are counted.
         Multi-species images contribute in full on both sides, so a frame with three deer and one fox adds
-        three to the human deer total and one to the human fox total. A negative diff means the AI is
-        under-counting, a positive diff means it is over-counting. Mistakes can cancel out across images at
-        this aggregate level: an image where the AI said deer instead of fox and another where it said fox
-        instead of deer both look perfect in this table. Open the confusion matrix below to see directional
-        mix-ups.
+        three to the human deer total and one to the human fox total. A negative number in the last column
+        means the AI is under-counting, a positive number means it is over-counting. Mistakes can cancel out
+        across images at this aggregate level: an image where the AI said deer instead of fox and another
+        where it said fox instead of deer both look perfect in this table. Open the confusion matrix below
+        to see directional mix-ups.
       </p>
     </div>
   );
