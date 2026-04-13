@@ -192,22 +192,16 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
           </tbody>
         </table>
       </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>
-          For every verified image, human observation counts are summed and visible AI detections are counted.
-          Multi-species images contribute in full on both sides, so a frame with three deer and one fox
-          adds three to the human deer total and one to the human fox total.
-        </p>
-        <p>
-          The diff column is colored: green when the AI count is within 5% of the human count, amber up to 25% off,
-          red beyond. A negative diff means the AI is under-counting, a positive diff means it is over-counting.
-        </p>
-        <p>
-          Mistakes can cancel out across images at this aggregate level. For example, an image where the AI
-          said deer instead of fox and another where it said fox instead of deer both look perfect in this
-          table. Open the confusion matrix below to see directional mix-ups.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        For every verified image, human observation counts are summed and visible AI detections are counted.
+        Multi-species images contribute in full on both sides, so a frame with three deer and one fox adds
+        three to the human deer total and one to the human fox total. The diff column is colored: green when
+        the AI count is within 5% of the human count, amber up to 25% off, red beyond. A negative diff means
+        the AI is under-counting, a positive diff means it is over-counting. Mistakes can cancel out across
+        images at this aggregate level: an image where the AI said deer instead of fox and another where it
+        said fox instead of deer both look perfect in this table. Open the confusion matrix below to see
+        directional mix-ups.
+      </p>
     </div>
   );
 };
@@ -281,24 +275,17 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
         </tbody>
       </table>
       </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>
-          Each verified image contributes one cell. The row is the human top-1 species (the species with the highest
-          count in that image, or empty when no animals were verified). The column is the AI top-1 (the
-          highest-confidence visible classification, or empty when no detections were above threshold).
-          Diagonal cells are correct, off-diagonal cells are mistakes.
-        </p>
-        <p>
-          The number under each column header (P:) is precision: of all images where the AI guessed this class,
-          what fraction were actually this class. The number under each row header (R:) is recall: of all images
-          that actually were this class, what fraction the AI caught.
-        </p>
-        <p>
-          Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection errors rather
-          than classification errors, since detection is what decides whether an image is empty or shows a person
-          or vehicle. Multi-species images are attributed to their most-numerous species on each side.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Each verified image contributes one cell. The row is the human top-1 species (the species with the
+        highest count in that image, or empty when no animals were verified). The column is the AI top-1 (the
+        highest-confidence visible classification, or empty when no detections were above threshold). Diagonal
+        cells are correct, off-diagonal cells are mistakes. The number under each column header (P:) is
+        precision: of all images where the AI guessed this class, what fraction were actually this class. The
+        number under each row header (R:) is recall: of all images that actually were this class, what fraction
+        the AI caught. Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection
+        errors rather than classification errors, since detection is what decides whether an image is empty or
+        shows a person or vehicle. Multi-species images are attributed to their most-numerous species on each side.
+      </p>
     </div>
   );
 };
@@ -359,13 +346,15 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
           </tfoot>
         </table>
       </div>
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p><strong>Support</strong> is the number of verified images where this class is the human top-1 (the &ldquo;ground truth&rdquo;).</p>
-        <p><strong>Precision</strong> = of all the images where the AI predicted this class, what fraction were actually this class.</p>
-        <p><strong>Recall</strong> = of all the images that actually were this class, what fraction did the AI catch.</p>
-        <p><strong>F1</strong> is the harmonic mean of precision and recall (a single balanced score).</p>
-        <p><strong>Macro avg</strong> averages each metric across classes equally; <strong>weighted avg</strong> weights by support (so common species count more); <strong>micro avg</strong> aggregates across classes and equals overall accuracy in this single-label setup.</p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        <strong>Support</strong> is the number of verified images where this class is the human top-1 (the
+        &ldquo;ground truth&rdquo;). <strong>Precision</strong> is of all the images where the AI predicted this
+        class, what fraction were actually this class. <strong>Recall</strong> is of all the images that actually
+        were this class, what fraction the AI caught. <strong>F1</strong> is the harmonic mean of precision and
+        recall (a single balanced score). <strong>Macro avg</strong> averages each metric across classes equally;
+        <strong> weighted avg</strong> weights by support (so common species count more); <strong>micro avg</strong>
+        aggregates across classes and equals overall accuracy in this single-label setup.
+      </p>
     </div>
   );
 };
