@@ -305,11 +305,11 @@ export const ImagesPage: React.FC = () => {
                 className="cursor-pointer hover:shadow-lg transition-shadow relative"
                 onClick={() => setSelectedImageUuid(image.uuid)}
               >
-                {/* Status badges - stacked at the top-right corner */}
-                <div className="absolute -top-2 -right-2 z-10 flex flex-col gap-1">
+                {/* Status badges - horizontally stacked with overlap */}
+                <div className="absolute -top-2 -right-2 z-10 flex -space-x-2">
                   {image.is_verified && (
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      className="relative z-30 w-6 h-6 rounded-full flex items-center justify-center ring-2 ring-background"
                       style={{ backgroundColor: '#0f6064' }}
                       title="Verified"
                     >
@@ -318,7 +318,7 @@ export const ImagesPage: React.FC = () => {
                   )}
                   {image.is_liked && (
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      className="relative z-20 w-6 h-6 rounded-full flex items-center justify-center ring-2 ring-background"
                       style={{ backgroundColor: '#882000' }}
                       title="Liked"
                     >
@@ -327,7 +327,7 @@ export const ImagesPage: React.FC = () => {
                   )}
                   {image.needs_review && (
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center"
+                      className="relative z-10 w-6 h-6 rounded-full flex items-center justify-center ring-2 ring-background"
                       style={{ backgroundColor: '#71b7ba' }}
                       title="Needs review"
                     >
