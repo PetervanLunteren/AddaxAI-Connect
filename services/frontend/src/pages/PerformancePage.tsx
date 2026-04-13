@@ -49,7 +49,7 @@ const HeadlineCard: React.FC<{ data: PerformanceData }> = ({ data }) => (
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Top-1 matrix accuracy</p>
           <p className="text-3xl font-bold tabular-nums">{formatPercent(data.matrix_accuracy)}</p>
           <p className="text-xs text-muted-foreground">
-            {data.matrix_correct} of {data.total_verified_images} image pairs
+            {data.matrix_correct} of {data.total_verified_images} verified images
           </p>
         </div>
       </div>
