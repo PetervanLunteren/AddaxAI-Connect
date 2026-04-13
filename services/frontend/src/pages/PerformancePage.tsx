@@ -241,11 +241,13 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
     return null;
   }
 
-  // Two sticky columns on the left. Width chosen to comfortably fit the
-  // longest typical species label; longer ones still wrap inside the cell.
+  // Two sticky columns on the left. Widths fixed so the matrix grid is uniform.
   const FIRST_COL_LEFT = 0;
-  const SECOND_COL_LEFT = 7; // rem; matches the first column width
+  const SECOND_COL_LEFT = 7; // rem; matches the species-name column width
   const HEADER_ROW_TOP = 0;
+  const CELL_SIZE = '2.25rem'; // square matrix cells
+  const HEADER_HEIGHT = '9rem'; // rotated species labels sit in this strip
+  const LABEL_MAX_LENGTH = '8.25rem'; // longer labels truncate with ellipsis
 
   return (
     <div className="space-y-3">
@@ -266,26 +268,55 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
       </div>
 
       <div className="inline-block max-h-[70vh] overflow-auto border border-input rounded-md">
-        <table className="text-xs border-collapse">
+        <table className="text-xs border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead>
             <tr>
               <th
-                className="sticky bg-background z-30 p-1.5 border-b border-r"
-                style={{ left: `${FIRST_COL_LEFT}rem`, top: `${HEADER_ROW_TOP}rem` }}
+                className="sticky bg-background z-30 border-b border-r"
+                style={{
+                  left: `${FIRST_COL_LEFT}rem`,
+                  top: `${HEADER_ROW_TOP}rem`,
+                  height: HEADER_HEIGHT,
+                  width: `${SECOND_COL_LEFT}rem`,
+                }}
               />
               <th
-                className="sticky bg-background z-30 p-1.5 border-b border-r text-center text-muted-foreground font-normal"
-                style={{ left: `${SECOND_COL_LEFT}rem`, top: `${HEADER_ROW_TOP}rem` }}
+                className="sticky bg-background z-30 border-b border-r text-center text-muted-foreground font-normal align-bottom pb-1.5"
+                style={{
+                  left: `${SECOND_COL_LEFT}rem`,
+                  top: `${HEADER_ROW_TOP}rem`,
+                  height: HEADER_HEIGHT,
+                  width: '3rem',
+                  minWidth: '3rem',
+                }}
               >
                 recall
               </th>
               {visibleClasses.map(({ cls }) => (
                 <th
                   key={cls}
-                  className="sticky bg-background z-20 p-1.5 align-bottom border-b font-medium whitespace-nowrap"
-                  style={{ top: `${HEADER_ROW_TOP}rem` }}
+                  className="sticky bg-background z-20 align-bottom border-b font-medium p-0"
+                  style={{
+                    top: `${HEADER_ROW_TOP}rem`,
+                    height: HEADER_HEIGHT,
+                    width: CELL_SIZE,
+                    minWidth: CELL_SIZE,
+                    maxWidth: CELL_SIZE,
+                  }}
                 >
-                  {normalizeLabel(cls)}
+                  <div
+                    className="overflow-hidden text-ellipsis whitespace-nowrap mx-auto"
+                    style={{
+                      writingMode: 'vertical-rl',
+                      transform: 'rotate(180deg)',
+                      maxHeight: LABEL_MAX_LENGTH,
+                      paddingTop: '0.25rem',
+                      paddingBottom: '0.25rem',
+                    }}
+                    title={normalizeLabel(cls)}
+                  >
+                    {normalizeLabel(cls)}
+                  </div>
                 </th>
               ))}
             </tr>
@@ -295,16 +326,27 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
               const rowTotal = matrix_row_totals[r];
               const recall = rowTotal > 0 ? matrix[r][r] / rowTotal : null;
               return (
-                <tr key={cls}>
+                <tr key={cls} style={{ height: CELL_SIZE }}>
                   <th
-                    className="sticky bg-background z-10 p-1.5 text-left font-medium whitespace-nowrap border-r"
-                    style={{ left: `${FIRST_COL_LEFT}rem`, width: `${SECOND_COL_LEFT}rem` }}
+                    className="sticky bg-background z-10 px-2 text-left font-medium border-r overflow-hidden text-ellipsis whitespace-nowrap"
+                    style={{
+                      left: `${FIRST_COL_LEFT}rem`,
+                      width: `${SECOND_COL_LEFT}rem`,
+                      maxWidth: `${SECOND_COL_LEFT}rem`,
+                      height: CELL_SIZE,
+                    }}
+                    title={normalizeLabel(cls)}
                   >
                     {normalizeLabel(cls)}
                   </th>
                   <th
-                    className="sticky bg-background z-10 p-1.5 text-center text-muted-foreground font-normal tabular-nums border-r"
-                    style={{ left: `${SECOND_COL_LEFT}rem` }}
+                    className="sticky bg-background z-10 text-center text-muted-foreground font-normal tabular-nums border-r"
+                    style={{
+                      left: `${SECOND_COL_LEFT}rem`,
+                      width: '3rem',
+                      minWidth: '3rem',
+                      height: CELL_SIZE,
+                    }}
                   >
                     {recall === null ? 'n/a' : formatPercent(recall)}
                   </th>
@@ -315,10 +357,16 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
                     return (
                       <td
                         key={predCls}
-                        className={`p-1.5 text-center tabular-nums border border-border/30 ${
+                        className={`text-center tabular-nums border border-border/30 ${
                           isZero ? '' : 'cursor-pointer hover:brightness-110'
                         }`}
-                        style={cellStyle(count, rowMaxes[rowIdx], isDiagonal)}
+                        style={{
+                          width: CELL_SIZE,
+                          minWidth: CELL_SIZE,
+                          maxWidth: CELL_SIZE,
+                          height: CELL_SIZE,
+                          ...cellStyle(count, rowMaxes[rowIdx], isDiagonal),
+                        }}
                         onClick={isZero ? undefined : () => handleCellClick(cls)}
                         title={
                           isZero
