@@ -202,7 +202,7 @@ const TOP_N_OPTIONS: { value: number | null; label: string }[] = [
 const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({ data, projectId }) => {
   const { matrix_classes, matrix, matrix_row_totals, matrix_col_totals } = data;
   const navigate = useNavigate();
-  const [topN, setTopN] = useState<number | null>(null);
+  const [topN, setTopN] = useState<number | null>(20);
 
   // Sort classes by frequency (row total + col total) descending, ties alphabetical.
   const classOrder = useMemo(() => {
