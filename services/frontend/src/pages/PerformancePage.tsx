@@ -404,19 +404,19 @@ export const PerformancePage: React.FC = () => {
           <HeadlineCard data={data} />
           <CollapsibleCard
             title="Per-species counts"
-            caption="Instance level: sums every observation and every detection"
+            caption="Shows how many of each species the AI detected compared to how many humans verified, summed across every image in the project. Useful for spotting whether the AI is systematically over- or under-counting a species."
           >
             <AggregateContent rows={data.aggregate} />
           </CollapsibleCard>
           <CollapsibleCard
             title="Confusion matrix"
-            caption="Image level top-1: pairs each verified image to its dominant species on both sides"
+            caption="Pairs each verified image's top human species with its top AI prediction, so the diagonal shows agreements and the off-diagonal cells show exactly which species the AI confuses for which."
           >
             <MatrixContent data={data} />
           </CollapsibleCard>
           <CollapsibleCard
             title="Detailed metrics"
-            caption="Precision, recall, F1 and macro / weighted / micro averages"
+            caption="Per-class precision, recall, and F1 derived from the confusion matrix, plus macro, weighted, and micro averages across all classes for a single overall score."
           >
             <MetricsContent data={data} />
           </CollapsibleCard>
