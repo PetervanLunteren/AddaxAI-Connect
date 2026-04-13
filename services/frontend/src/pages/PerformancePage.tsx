@@ -194,8 +194,8 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
       </div>
       <div className="text-xs text-muted-foreground space-y-1">
         <p>
-          For every verified image, we sum the human observation counts and we count visible AI detections.
-          Multi-species images are counted in full on both sides, so a frame with three deer and one fox
+          For every verified image, human observation counts are summed and visible AI detections are counted.
+          Multi-species images contribute in full on both sides, so a frame with three deer and one fox
           adds three to the human deer total and one to the human fox total.
         </p>
         <p>
