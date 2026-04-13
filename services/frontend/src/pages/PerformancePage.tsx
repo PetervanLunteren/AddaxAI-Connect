@@ -559,12 +559,6 @@ export const PerformancePage: React.FC = () => {
         <div className="space-y-4">
           <HeadlineCard data={data} />
           <CollapsibleCard
-            title="Per-species counts"
-            caption="Compares total AI detections against human verifications per species, to spot systematic over- or under-counting."
-          >
-            <AggregateContent rows={data.aggregate} />
-          </CollapsibleCard>
-          <CollapsibleCard
             title="Confusion matrix"
             caption="Pairs each verified image's top human species with its top AI prediction, so the diagonal shows agreements and the off-diagonal cells show exactly which species the AI confuses for which."
           >
@@ -575,6 +569,12 @@ export const PerformancePage: React.FC = () => {
             caption="Per-class precision, recall, and F1 derived from the confusion matrix, plus macro and weighted averages across all classes."
           >
             <MetricsContent data={data} projectId={projectIdNum} />
+          </CollapsibleCard>
+          <CollapsibleCard
+            title="Per-species counts"
+            caption="Compares total AI detections against human verifications per species, to spot systematic over- or under-counting."
+          >
+            <AggregateContent rows={data.aggregate} />
           </CollapsibleCard>
         </div>
       )}
