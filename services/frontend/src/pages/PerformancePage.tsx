@@ -183,9 +183,9 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
         Multi-species images contribute in full on both sides, so a frame with three deer and one fox adds
         three to the human deer total and one to the human fox total. A negative number in the last column
         means the AI is under-counting, a positive number means it is over-counting. Mistakes can cancel out
-        across images at this aggregate level: an image where the AI said deer instead of fox and another
-        where it said fox instead of deer both look perfect in this table. Open the confusion matrix below
-        to see directional mix-ups.
+        across images at this aggregate level. For example, an image where the AI said deer instead of fox
+        and another where it said fox instead of deer both look perfect in this table. Open the confusion
+        matrix below to see directional mix-ups.
       </p>
     </div>
   );
@@ -219,7 +219,7 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
                     {normalizeLabel(cls)}
                   </div>
                   <div className="text-muted-foreground tabular-nums">
-                    P: {precision === null ? '—' : formatPercent(precision)}
+                    P {precision === null ? 'n/a' : formatPercent(precision)}
                   </div>
                 </th>
               );
@@ -237,7 +237,7 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
                     {normalizeLabel(cls)}
                   </div>
                   <div className="text-muted-foreground tabular-nums">
-                    R: {recall === null ? '—' : formatPercent(recall)}
+                    R {recall === null ? 'n/a' : formatPercent(recall)}
                   </div>
                 </th>
                 {matrix_classes.map((_, c) => {
@@ -248,7 +248,7 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
                       key={c}
                       className="p-1 text-center tabular-nums border border-border/30"
                       style={cellStyle(count, rowMaxes[r], isDiagonal)}
-                      title={`Human: ${normalizeLabel(matrix_classes[r])}, AI: ${normalizeLabel(matrix_classes[c])}, count: ${count}`}
+                      title={`${count} images where humans saw ${normalizeLabel(matrix_classes[r])} and the AI predicted ${normalizeLabel(matrix_classes[c])}`}
                     >
                       {count === 0 ? <span className="text-muted-foreground/30">·</span> : count}
                     </td>
@@ -264,12 +264,13 @@ const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
         Each verified image contributes one cell. The row is the human top-1 species (the species with the
         highest count in that image, or empty when no animals were verified). The column is the AI top-1 (the
         highest-confidence visible classification, or empty when no detections were above threshold). Diagonal
-        cells are correct, off-diagonal cells are mistakes. The number under each column header (P:) is
-        precision: of all images where the AI guessed this class, what fraction were actually this class. The
-        number under each row header (R:) is recall: of all images that actually were this class, what fraction
-        the AI caught. Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection
-        errors rather than classification errors, since detection is what decides whether an image is empty or
-        shows a person or vehicle. Multi-species images are attributed to their most-numerous species on each side.
+        cells are correct, off-diagonal cells are mistakes. The number under each column header (P) is
+        precision, meaning of all images where the AI guessed this class, what fraction were actually this
+        class. The number under each row header (R) is recall, meaning of all images that actually were this
+        class, what fraction the AI caught. Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em>
+        reflect detection errors rather than classification errors, since detection is what decides whether an
+        image is empty or shows a person or vehicle. Multi-species images are attributed to their most-numerous
+        species on each side.
       </p>
     </div>
   );
@@ -280,7 +281,7 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
   if (m.perClass.length === 0) {
     return <p className="text-sm text-muted-foreground">Not enough data yet.</p>;
   }
-  const fmt = (v: number | null) => (v === null ? '—' : formatPercent(v));
+  const fmt = (v: number | null) => (v === null ? 'n/a' : formatPercent(v));
   return (
     <div className="space-y-3">
       <div className="inline-block max-h-[60vh] overflow-auto border border-input rounded-md">
@@ -333,11 +334,11 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
       </div>
       <p className="text-xs text-muted-foreground">
         <strong>Support</strong> is the number of verified images where this class is the human top-1 (the
-        &ldquo;ground truth&rdquo;). <strong>Precision</strong> is of all the images where the AI predicted this
-        class, what fraction were actually this class. <strong>Recall</strong> is of all the images that actually
-        were this class, what fraction the AI caught. <strong>F1</strong> is the harmonic mean of precision and
-        recall (a single balanced score). <strong>Macro avg</strong> averages each metric across classes equally;
-        <strong> weighted avg</strong> weights by support (so common species count more); <strong>micro avg</strong>
+        ground truth). <strong>Precision</strong> is the fraction of images predicted as this class that
+        were actually this class. <strong>Recall</strong> is the fraction of images that actually were this
+        class that the AI caught. <strong>F1</strong> is the harmonic mean of precision and recall, a single
+        balanced score. <strong>Macro avg</strong> takes the mean of each metric across classes equally;
+        <strong> weighted avg</strong> weights by support so common species count more; <strong>micro avg</strong>
         aggregates across classes and equals overall accuracy in this single-label setup.
       </p>
     </div>
