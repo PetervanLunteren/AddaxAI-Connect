@@ -369,7 +369,7 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
         <em> person</em>, or <em>vehicle</em> reflect detection errors rather than classification errors,
         since detection is what decides whether an image is empty or shows a person or vehicle. Multi-species
         images are attributed to their most-numerous species on each side. For per-class precision, recall,
-        and F1 scores, open the Detailed metrics card below.
+        and F1 scores, open the metrics card below.
       </p>
     </div>
   );
