@@ -18,13 +18,27 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-function cellStyle(count: number, rowMax: number, isDiagonal: boolean): React.CSSProperties {
+// Brand gradient from FRONTEND_CONVENTIONS.md: dark teal (high) to light
+// yellow (low). Used for the confusion matrix cell intensity.
+const GRADIENT_HIGH = { r: 0x0f, g: 0x60, b: 0x64 }; // #0f6064
+const GRADIENT_LOW = { r: 0xf9, g: 0xf8, b: 0x71 };  // #f9f871
+
+function lerp(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
+function cellStyle(count: number, rowMax: number): React.CSSProperties {
   if (count === 0) return {};
-  const intensity = rowMax > 0 ? count / rowMax : 0;
-  // Diagonal cells get a stronger alpha range so correct predictions visually pop.
-  const alpha = isDiagonal ? 0.25 + intensity * 0.65 : 0.08 + intensity * 0.35;
-  const base = isDiagonal ? '15, 96, 100' : '136, 32, 0';
-  return { backgroundColor: `rgba(${base}, ${alpha})` };
+  const t = rowMax > 0 ? count / rowMax : 0;
+  const r = lerp(GRADIENT_LOW.r, GRADIENT_HIGH.r, t);
+  const g = lerp(GRADIENT_LOW.g, GRADIENT_HIGH.g, t);
+  const b = lerp(GRADIENT_LOW.b, GRADIENT_HIGH.b, t);
+  return {
+    backgroundColor: `rgb(${r}, ${g}, ${b})`,
+    // Flip text color to white once the background gets dark enough to
+    // wash out the default near-black foreground.
+    color: t > 0.55 ? '#ffffff' : '#1f2937',
+  };
 }
 
 interface ClassMetrics {
@@ -327,7 +341,6 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
                   </th>
                   {visibleClasses.map(({ idx: c, cls: predCls }) => {
                     const count = matrix[r][c];
-                    const isDiagonal = r === c;
                     const isZero = count === 0;
                     return (
                       <td
@@ -340,7 +353,7 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
                           minWidth: CELL_SIZE,
                           maxWidth: CELL_SIZE,
                           height: CELL_SIZE,
-                          ...cellStyle(count, rowMaxes[rowIdx], isDiagonal),
+                          ...cellStyle(count, rowMaxes[rowIdx]),
                         }}
                         onClick={isZero ? undefined : () => handleCellClick(cls)}
                         title={
@@ -363,13 +376,14 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
       <p className="text-xs text-muted-foreground">
         Each verified image contributes one cell. The row is the human top-1 species (the species with the
         highest count in that image, or empty when no animals were verified). The column is the AI top-1 (the
-        highest-confidence visible classification, or empty when no detections were above threshold). Diagonal
-        cells (tinted teal) are agreements, off-diagonal cells (tinted rust) are mistakes. Click any non-zero
-        cell to open the underlying verified images in the Images tab. Cells involving <em>empty</em>,
-        <em> person</em>, or <em>vehicle</em> reflect detection errors rather than classification errors,
-        since detection is what decides whether an image is empty or shows a person or vehicle. Multi-species
-        images are attributed to their most-numerous species on each side. For per-class precision, recall,
-        and F1 scores, open the metrics card below.
+        highest-confidence visible classification, or empty when no detections were above threshold). Cell
+        colour scales per row from light yellow (low) to dark teal (high), so the dominant prediction for each
+        true class stands out. The diagonal (top-left to bottom-right) is agreements, off-diagonal cells are
+        mistakes. Click any non-zero cell to open the underlying verified images in the Images tab. Cells
+        involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection errors rather than
+        classification errors, since detection is what decides whether an image is empty or shows a person or
+        vehicle. Multi-species images are attributed to their most-numerous species on each side. For
+        per-class precision, recall, and F1 scores, open the metrics card below.
       </p>
     </div>
   );
