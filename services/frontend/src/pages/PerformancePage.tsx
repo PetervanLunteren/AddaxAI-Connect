@@ -6,10 +6,10 @@
  * - Confusion matrix: image-level top-1 pairing, with empty/person/vehicle
  *   included as classes.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Target } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Target } from 'lucide-react';
 import { performanceApi, type PerformanceData } from '../api/performance';
 import { Card, CardContent } from '../components/ui/Card';
 import { normalizeLabel } from '../utils/labels';
@@ -37,6 +37,103 @@ function cellStyle(count: number, rowMax: number, isDiagonal: boolean): React.CS
   return { backgroundColor: `rgba(${base}, ${alpha})` };
 }
 
+interface ClassMetrics {
+  species: string;
+  support: number;     // # of verified images where this class is the human top-1
+  precision: number | null;
+  recall: number | null;
+  f1: number | null;
+}
+
+interface DetailedMetrics {
+  perClass: ClassMetrics[];
+  macroP: number | null;
+  macroR: number | null;
+  macroF1: number | null;
+  weightedP: number | null;
+  weightedR: number | null;
+  weightedF1: number | null;
+  micro: number;  // = matrix accuracy in single-label multiclass
+}
+
+function computeDetailedMetrics(data: PerformanceData): DetailedMetrics {
+  const perClass: ClassMetrics[] = data.matrix_classes.map((cls, i) => {
+    const tp = data.matrix[i][i];
+    const support = data.matrix_row_totals[i];
+    const colTotal = data.matrix_col_totals[i];
+    const precision = colTotal > 0 ? tp / colTotal : null;
+    const recall = support > 0 ? tp / support : null;
+    const f1 =
+      precision !== null && recall !== null && precision + recall > 0
+        ? (2 * precision * recall) / (precision + recall)
+        : null;
+    return { species: cls, support, precision, recall, f1 };
+  });
+
+  // Drop classes with no signal at all (no support and no predictions).
+  const present = perClass.filter((c) => c.support > 0 || (c.precision !== null && c.precision >= 0));
+
+  // Macro: simple mean across present classes, ignoring nulls.
+  const validP = present.filter((c) => c.precision !== null);
+  const validR = present.filter((c) => c.recall !== null);
+  const validF1 = present.filter((c) => c.f1 !== null);
+  const mean = (xs: number[]): number | null => (xs.length > 0 ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const macroP = mean(validP.map((c) => c.precision as number));
+  const macroR = mean(validR.map((c) => c.recall as number));
+  const macroF1 = mean(validF1.map((c) => c.f1 as number));
+
+  // Weighted: weighted by support.
+  const totalSupport = present.reduce((s, c) => s + c.support, 0);
+  const weighted = (key: 'precision' | 'recall' | 'f1'): number | null => {
+    if (totalSupport === 0) return null;
+    let acc = 0;
+    let weight = 0;
+    for (const c of present) {
+      const v = c[key];
+      if (v === null) continue;
+      acc += v * c.support;
+      weight += c.support;
+    }
+    return weight > 0 ? acc / weight : null;
+  };
+
+  return {
+    perClass: present,
+    macroP,
+    macroR,
+    macroF1,
+    weightedP: weighted('precision'),
+    weightedR: weighted('recall'),
+    weightedF1: weighted('f1'),
+    micro: data.matrix_accuracy,
+  };
+}
+
+const CollapsibleCard: React.FC<{
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({ title, defaultOpen = false, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-3 px-4 text-left hover:bg-muted/30 transition-colors"
+      >
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {open ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
+      {open && <CardContent className="pt-0 pb-4">{children}</CardContent>}
+    </Card>
+  );
+};
+
 const HeadlineCard: React.FC<{ data: PerformanceData }> = ({ data }) => (
   <Card>
     <CardContent className="py-6">
@@ -57,47 +154,43 @@ const HeadlineCard: React.FC<{ data: PerformanceData }> = ({ data }) => (
   </Card>
 );
 
-const AggregateCard: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ rows }) => (
-  <Card>
-    <CardContent className="py-4">
-      <h2 className="text-sm font-semibold mb-3">Per-species counts (instance level)</h2>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No species observed yet.</p>
-      ) : (
-        <div className="max-h-[60vh] overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-background border-b">
-              <tr>
-                <th className="text-left py-2 pr-4 font-medium">Species</th>
-                <th className="text-right py-2 px-4 font-medium">Human</th>
-                <th className="text-right py-2 px-4 font-medium">AI</th>
-                <th className="text-right py-2 pl-4 font-medium">Diff</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.species} className="border-b border-border/50">
-                  <td className="py-1.5 pr-4">{normalizeLabel(row.species)}</td>
-                  <td className="py-1.5 px-4 text-right tabular-nums">{row.human_count}</td>
-                  <td className="py-1.5 px-4 text-right tabular-nums">{row.ai_count}</td>
-                  <td
-                    className="py-1.5 pl-4 text-right tabular-nums font-medium"
-                    style={diffStyle(row.diff, row.human_count)}
-                  >
-                    {row.diff > 0 ? '+' : ''}
-                    {row.diff}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </CardContent>
-  </Card>
-);
+const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ rows }) => {
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">No species observed yet.</p>;
+  }
+  return (
+    <div className="max-h-[60vh] overflow-auto">
+      <table className="w-full text-sm">
+        <thead className="sticky top-0 bg-background border-b">
+          <tr>
+            <th className="text-left py-2 pr-4 font-medium">Species</th>
+            <th className="text-right py-2 px-4 font-medium">Human</th>
+            <th className="text-right py-2 px-4 font-medium">AI</th>
+            <th className="text-right py-2 pl-4 font-medium">Diff</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.species} className="border-b border-border/50">
+              <td className="py-1.5 pr-4">{normalizeLabel(row.species)}</td>
+              <td className="py-1.5 px-4 text-right tabular-nums">{row.human_count}</td>
+              <td className="py-1.5 px-4 text-right tabular-nums">{row.ai_count}</td>
+              <td
+                className="py-1.5 pl-4 text-right tabular-nums font-medium"
+                style={diffStyle(row.diff, row.human_count)}
+              >
+                {row.diff > 0 ? '+' : ''}
+                {row.diff}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
-const MatrixCard: React.FC<{ data: PerformanceData }> = ({ data }) => {
+const MatrixContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
   const { matrix_classes, matrix, matrix_row_totals, matrix_col_totals } = data;
   if (matrix_classes.length === 0) {
     return null;
@@ -105,71 +198,133 @@ const MatrixCard: React.FC<{ data: PerformanceData }> = ({ data }) => {
   const rowMaxes = matrix.map((row) => Math.max(...row, 0));
 
   return (
-    <Card>
-      <CardContent className="py-4">
-        <h2 className="text-sm font-semibold mb-3">Confusion matrix (image-level top-1)</h2>
-        <div className="overflow-auto max-h-[70vh]">
-          <table className="text-xs border-collapse">
-            <thead>
-              <tr>
-                <th className="sticky left-0 top-0 bg-background z-20 p-1 text-muted-foreground font-normal">
-                  Human ↓ / AI →
+    <div className="overflow-auto max-h-[70vh]">
+      <table className="text-xs border-collapse">
+        <thead>
+          <tr>
+            <th className="sticky left-0 top-0 bg-background z-20 p-1 text-muted-foreground font-normal">
+              Human ↓ / AI →
+            </th>
+            {matrix_classes.map((cls, c) => {
+              const colTotal = matrix_col_totals[c];
+              const precision = colTotal > 0 ? matrix[c][c] / colTotal : null;
+              return (
+                <th
+                  key={cls}
+                  className="sticky top-0 bg-background z-10 p-1 align-bottom border-b"
+                >
+                  <div className="text-foreground font-medium whitespace-nowrap">
+                    {normalizeLabel(cls)}
+                  </div>
+                  <div className="text-muted-foreground tabular-nums">
+                    P: {precision === null ? '—' : formatPercent(precision)}
+                  </div>
                 </th>
-                {matrix_classes.map((cls, c) => {
-                  const colTotal = matrix_col_totals[c];
-                  const precision = colTotal > 0 ? matrix[c][c] / colTotal : null;
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix_classes.map((cls, r) => {
+            const rowTotal = matrix_row_totals[r];
+            const recall = rowTotal > 0 ? matrix[r][r] / rowTotal : null;
+            return (
+              <tr key={cls}>
+                <th className="sticky left-0 bg-background z-10 p-1 text-left border-r">
+                  <div className="text-foreground font-medium whitespace-nowrap">
+                    {normalizeLabel(cls)}
+                  </div>
+                  <div className="text-muted-foreground tabular-nums">
+                    R: {recall === null ? '—' : formatPercent(recall)}
+                  </div>
+                </th>
+                {matrix_classes.map((_, c) => {
+                  const count = matrix[r][c];
+                  const isDiagonal = r === c;
                   return (
-                    <th
-                      key={cls}
-                      className="sticky top-0 bg-background z-10 p-1 align-bottom border-b"
+                    <td
+                      key={c}
+                      className="p-1 text-center tabular-nums border border-border/30"
+                      style={cellStyle(count, rowMaxes[r], isDiagonal)}
+                      title={`Human: ${normalizeLabel(matrix_classes[r])}, AI: ${normalizeLabel(matrix_classes[c])}, count: ${count}`}
                     >
-                      <div className="text-foreground font-medium whitespace-nowrap">
-                        {normalizeLabel(cls)}
-                      </div>
-                      <div className="text-muted-foreground tabular-nums">
-                        P: {precision === null ? '—' : formatPercent(precision)}
-                      </div>
-                    </th>
+                      {count === 0 ? <span className="text-muted-foreground/30">·</span> : count}
+                    </td>
                   );
                 })}
               </tr>
-            </thead>
-            <tbody>
-              {matrix_classes.map((cls, r) => {
-                const rowTotal = matrix_row_totals[r];
-                const recall = rowTotal > 0 ? matrix[r][r] / rowTotal : null;
-                return (
-                  <tr key={cls}>
-                    <th className="sticky left-0 bg-background z-10 p-1 text-left border-r">
-                      <div className="text-foreground font-medium whitespace-nowrap">
-                        {normalizeLabel(cls)}
-                      </div>
-                      <div className="text-muted-foreground tabular-nums">
-                        R: {recall === null ? '—' : formatPercent(recall)}
-                      </div>
-                    </th>
-                    {matrix_classes.map((_, c) => {
-                      const count = matrix[r][c];
-                      const isDiagonal = r === c;
-                      return (
-                        <td
-                          key={c}
-                          className="p-1 text-center tabular-nums border border-border/30"
-                          style={cellStyle(count, rowMaxes[r], isDiagonal)}
-                          title={`Human: ${normalizeLabel(matrix_classes[r])}, AI: ${normalizeLabel(matrix_classes[c])}, count: ${count}`}
-                        >
-                          {count === 0 ? <span className="text-muted-foreground/30">·</span> : count}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
+  const m = computeDetailedMetrics(data);
+  if (m.perClass.length === 0) {
+    return <p className="text-sm text-muted-foreground">Not enough data yet.</p>;
+  }
+  const fmt = (v: number | null) => (v === null ? '—' : formatPercent(v));
+  return (
+    <div className="space-y-3">
+      <div className="max-h-[60vh] overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-background border-b">
+            <tr>
+              <th className="text-left py-2 pr-4 font-medium">Class</th>
+              <th className="text-right py-2 px-4 font-medium">Support</th>
+              <th className="text-right py-2 px-4 font-medium">Precision</th>
+              <th className="text-right py-2 px-4 font-medium">Recall</th>
+              <th className="text-right py-2 pl-4 font-medium">F1</th>
+            </tr>
+          </thead>
+          <tbody>
+            {m.perClass.map((c) => (
+              <tr key={c.species} className="border-b border-border/50">
+                <td className="py-1.5 pr-4">{normalizeLabel(c.species)}</td>
+                <td className="py-1.5 px-4 text-right tabular-nums">{c.support}</td>
+                <td className="py-1.5 px-4 text-right tabular-nums">{fmt(c.precision)}</td>
+                <td className="py-1.5 px-4 text-right tabular-nums">{fmt(c.recall)}</td>
+                <td className="py-1.5 pl-4 text-right tabular-nums">{fmt(c.f1)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="border-t-2 border-border">
+            <tr>
+              <td className="py-1.5 pr-4 font-medium">Macro avg</td>
+              <td className="py-1.5 px-4" />
+              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.macroP)}</td>
+              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.macroR)}</td>
+              <td className="py-1.5 pl-4 text-right tabular-nums font-medium">{fmt(m.macroF1)}</td>
+            </tr>
+            <tr>
+              <td className="py-1.5 pr-4 font-medium">Weighted avg</td>
+              <td className="py-1.5 px-4" />
+              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.weightedP)}</td>
+              <td className="py-1.5 px-4 text-right tabular-nums font-medium">{fmt(m.weightedR)}</td>
+              <td className="py-1.5 pl-4 text-right tabular-nums font-medium">{fmt(m.weightedF1)}</td>
+            </tr>
+            <tr>
+              <td className="py-1.5 pr-4 font-medium">Micro avg</td>
+              <td className="py-1.5 px-4" />
+              <td className="py-1.5 px-4 text-right tabular-nums font-medium" colSpan={3}>
+                {fmt(m.micro)}
+                <span className="text-muted-foreground font-normal text-xs ml-2">(= overall accuracy)</span>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="text-xs text-muted-foreground space-y-1">
+        <p><strong>Support</strong> is the number of verified images where this class is the human top-1 (the &ldquo;ground truth&rdquo;).</p>
+        <p><strong>Precision</strong> = of all the images where the AI predicted this class, what fraction were actually this class.</p>
+        <p><strong>Recall</strong> = of all the images that actually were this class, what fraction did the AI catch.</p>
+        <p><strong>F1</strong> is the harmonic mean of precision and recall (a single balanced score).</p>
+        <p><strong>Macro avg</strong> averages each metric across classes equally; <strong>weighted avg</strong> weights by support (so common species count more); <strong>micro avg</strong> aggregates across classes and equals overall accuracy in this single-label setup.</p>
+      </div>
+    </div>
   );
 };
 
@@ -235,8 +390,15 @@ export const PerformancePage: React.FC = () => {
       ) : (
         <div className="space-y-4">
           <HeadlineCard data={data} />
-          <AggregateCard rows={data.aggregate} />
-          <MatrixCard data={data} />
+          <CollapsibleCard title="Per-species counts (instance level)" defaultOpen>
+            <AggregateContent rows={data.aggregate} />
+          </CollapsibleCard>
+          <CollapsibleCard title="Confusion matrix (image-level top-1)">
+            <MatrixContent data={data} />
+          </CollapsibleCard>
+          <CollapsibleCard title="Detailed metrics (precision, recall, F1)">
+            <MetricsContent data={data} />
+          </CollapsibleCard>
           <FootnoteCard />
         </div>
       )}
