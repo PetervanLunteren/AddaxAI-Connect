@@ -19,7 +19,7 @@ function formatPercent(value: number): string {
 }
 
 // Brand gradient from FRONTEND_CONVENTIONS.md: dark teal (high) to light
-// yellow (low). Used for the confusion matrix cell intensity.
+// yellow (low). Used by the confusion matrix cells and the F1 column.
 const GRADIENT_HIGH = { r: 0x0f, g: 0x60, b: 0x64 }; // #0f6064
 const GRADIENT_LOW = { r: 0xf9, g: 0xf8, b: 0x71 };  // #f9f871
 
@@ -27,17 +27,17 @@ function lerp(a: number, b: number, t: number): number {
   return Math.round(a + (b - a) * t);
 }
 
-function cellStyle(count: number, rowMax: number): React.CSSProperties {
-  if (count === 0) return {};
-  const t = rowMax > 0 ? count / rowMax : 0;
-  const r = lerp(GRADIENT_LOW.r, GRADIENT_HIGH.r, t);
-  const g = lerp(GRADIENT_LOW.g, GRADIENT_HIGH.g, t);
-  const b = lerp(GRADIENT_LOW.b, GRADIENT_HIGH.b, t);
+function gradientStyle(t: number): React.CSSProperties {
+  if (t <= 0) return {};
+  const clamped = Math.max(0, Math.min(1, t));
+  const r = lerp(GRADIENT_LOW.r, GRADIENT_HIGH.r, clamped);
+  const g = lerp(GRADIENT_LOW.g, GRADIENT_HIGH.g, clamped);
+  const b = lerp(GRADIENT_LOW.b, GRADIENT_HIGH.b, clamped);
   return {
     backgroundColor: `rgb(${r}, ${g}, ${b})`,
     // Flip text color to white once the background gets dark enough to
     // wash out the default near-black foreground.
-    color: t > 0.55 ? '#ffffff' : '#1f2937',
+    color: clamped > 0.55 ? '#ffffff' : '#1f2937',
   };
 }
 
@@ -351,7 +351,7 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
                           minWidth: CELL_SIZE,
                           maxWidth: CELL_SIZE,
                           height: CELL_SIZE,
-                          ...cellStyle(count, rowMaxes[rowIdx]),
+                          ...gradientStyle(rowMaxes[rowIdx] > 0 ? count / rowMaxes[rowIdx] : 0),
                         }}
                         onClick={isZero ? undefined : () => handleCellClick(cls)}
                         title={
@@ -387,14 +387,51 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
   );
 };
 
-const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
-  const m = computeDetailedMetrics(data);
+const MetricsContent: React.FC<{ data: PerformanceData; projectId: number }> = ({ data, projectId }) => {
+  const navigate = useNavigate();
+  const m = useMemo(() => computeDetailedMetrics(data), [data]);
+  const [topN, setTopN] = useState<number | null>(20);
+
+  // Sort per-class rows by support descending, ties alphabetical.
+  const sortedPerClass = useMemo(() => {
+    return [...m.perClass].sort((a, b) => {
+      if (b.support !== a.support) return b.support - a.support;
+      return a.species.localeCompare(b.species);
+    });
+  }, [m.perClass]);
+
   if (m.perClass.length === 0) {
     return <p className="text-sm text-muted-foreground">Not enough data yet.</p>;
   }
+
+  const visiblePerClass = topN === null ? sortedPerClass : sortedPerClass.slice(0, topN);
   const fmt = (v: number | null) => (v === null ? 'n/a' : formatPercent(v));
+
+  const handleRowClick = (cls: string) => {
+    const params = new URLSearchParams();
+    params.set('species', cls);
+    params.set('verified', 'true');
+    navigate(`/projects/${projectId}/images?${params.toString()}`);
+  };
+
   return (
     <div className="space-y-3">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Show top</span>
+        <select
+          value={topN === null ? 'all' : String(topN)}
+          onChange={(e) => setTopN(e.target.value === 'all' ? null : Number(e.target.value))}
+          className="border border-input rounded-md px-2 py-1 text-sm bg-background"
+        >
+          {TOP_N_OPTIONS.map((opt) => (
+            <option key={opt.label} value={opt.value === null ? 'all' : String(opt.value)}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-muted-foreground">classes by support</span>
+      </div>
+
       <div className="inline-block max-h-[60vh] overflow-auto border border-input rounded-md">
         <table className="text-sm">
           <thead className="sticky top-0 bg-background border-b">
@@ -407,13 +444,28 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
             </tr>
           </thead>
           <tbody>
-            {m.perClass.map((c) => (
-              <tr key={c.species} className="border-b border-border/50">
-                <td className="py-1.5 pl-4 pr-6 whitespace-nowrap">{normalizeLabel(c.species)}</td>
+            {visiblePerClass.map((c) => (
+              <tr
+                key={c.species}
+                onClick={() => handleRowClick(c.species)}
+                className="border-b border-border/50 cursor-pointer hover:bg-muted/30"
+                title={`Click to open verified images of ${normalizeLabel(c.species)} in the Images tab`}
+              >
+                <td
+                  className="py-1.5 pl-4 pr-6 overflow-hidden text-ellipsis whitespace-nowrap"
+                  style={{ maxWidth: '12rem' }}
+                >
+                  {normalizeLabel(c.species)}
+                </td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{c.support}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{fmt(c.precision)}</td>
                 <td className="py-1.5 px-6 text-right tabular-nums">{fmt(c.recall)}</td>
-                <td className="py-1.5 pl-6 pr-4 text-right tabular-nums">{fmt(c.f1)}</td>
+                <td
+                  className="py-1.5 pl-6 pr-4 text-right tabular-nums"
+                  style={c.f1 !== null ? gradientStyle(c.f1) : undefined}
+                >
+                  {fmt(c.f1)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -423,27 +475,28 @@ const MetricsContent: React.FC<{ data: PerformanceData }> = ({ data }) => {
               <td className="py-1.5 px-6" />
               <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.macroP)}</td>
               <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.macroR)}</td>
-              <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">{fmt(m.macroF1)}</td>
+              <td
+                className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium"
+                style={m.macroF1 !== null ? gradientStyle(m.macroF1) : undefined}
+              >
+                {fmt(m.macroF1)}
+              </td>
             </tr>
             <tr>
               <td className="py-1.5 pl-4 pr-6 font-medium whitespace-nowrap">Weighted avg</td>
               <td className="py-1.5 px-6" />
               <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.weightedP)}</td>
               <td className="py-1.5 px-6 text-right tabular-nums font-medium">{fmt(m.weightedR)}</td>
-              <td className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium">{fmt(m.weightedF1)}</td>
+              <td
+                className="py-1.5 pl-6 pr-4 text-right tabular-nums font-medium"
+                style={m.weightedF1 !== null ? gradientStyle(m.weightedF1) : undefined}
+              >
+                {fmt(m.weightedF1)}
+              </td>
             </tr>
           </tfoot>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">
-        <strong>Support</strong> is the number of verified images where this class is the human top-1 (the
-        ground truth). <strong>Precision</strong> is the fraction of images predicted as this class that
-        were actually this class. <strong>Recall</strong> is the fraction of images that actually were this
-        class that the AI caught. <strong>F1</strong> is the harmonic mean of precision and recall, a single
-        balanced score. <strong>Macro avg</strong> takes the mean of each metric across classes equally, so
-        rare species count just as much as common ones. <strong>Weighted avg</strong> weights by support so
-        common species count more.
-      </p>
     </div>
   );
 };
@@ -507,7 +560,7 @@ export const PerformancePage: React.FC = () => {
             title="Detailed metrics"
             caption="Per-class precision, recall, and F1 derived from the confusion matrix, plus macro and weighted averages across all classes."
           >
-            <MetricsContent data={data} />
+            <MetricsContent data={data} projectId={projectIdNum} />
           </CollapsibleCard>
         </div>
       )}
