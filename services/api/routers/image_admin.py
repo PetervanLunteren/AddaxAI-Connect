@@ -42,10 +42,10 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
             date_filters = [
                 Image.camera_id == camera_id,
                 Image.is_hidden == False,
-                Image.uploaded_at >= dep.start_date,
+                Image.captured_at >= dep.start_date,
             ]
             if dep.end_date is not None:
-                date_filters.append(Image.uploaded_at <= dep.end_date)
+                date_filters.append(Image.captured_at <= dep.end_date)
 
             count_query = (
                 select(func.count(Image.id))
@@ -68,8 +68,7 @@ class AdminImageListItemResponse(BaseModel):
     filename: str
     camera_id: int
     camera_name: str
-    uploaded_at: str
-    datetime_captured: Optional[str] = None
+    captured_at: str
     status: str
     detection_count: int
     top_species: Optional[str] = None
@@ -119,7 +118,7 @@ async def list_all_images(
     verified: Optional[str] = Query(None),
     hidden: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    sort_by: Optional[str] = Query("uploaded_at"),
+    sort_by: Optional[str] = Query("captured_at"),
     sort_dir: Optional[str] = Query("desc"),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -154,14 +153,14 @@ async def list_all_images(
     if start_date:
         try:
             start_dt = datetime.fromisoformat(start_date)
-            filters.append(Image.uploaded_at >= start_dt)
+            filters.append(Image.captured_at >= start_dt)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid start_date format")
 
     if end_date:
         try:
             end_dt = datetime.fromisoformat(end_date)
-            filters.append(Image.uploaded_at <= end_dt)
+            filters.append(Image.captured_at <= end_dt)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid end_date format")
 
@@ -199,11 +198,11 @@ async def list_all_images(
 
     # Sorting
     sort_column_map = {
-        "uploaded_at": Image.uploaded_at,
+        "captured_at": Image.captured_at,
         "filename": Image.filename,
         "camera_name": Camera.name,
     }
-    sort_col = sort_column_map.get(sort_by, Image.uploaded_at)
+    sort_col = sort_column_map.get(sort_by, Image.captured_at)
     order = desc(sort_col) if sort_dir == "desc" else asc(sort_col)
 
     # Data query
@@ -265,11 +264,6 @@ async def list_all_images(
         image = row.Image
         camera_name = row.camera_name
 
-        # Parse EXIF datetime
-        datetime_captured = None
-        if image.image_metadata and image.image_metadata.get("DateTimeOriginal"):
-            datetime_captured = image.image_metadata["DateTimeOriginal"]
-
         thumbnail_url = None
         if image.storage_path:
             thumbnail_url = f"/api/images/{image.uuid}/thumbnail"
@@ -279,8 +273,7 @@ async def list_all_images(
             filename=image.filename,
             camera_id=image.camera_id,
             camera_name=camera_name,
-            uploaded_at=image.uploaded_at.isoformat() if image.uploaded_at else "",
-            datetime_captured=datetime_captured,
+            captured_at=image.captured_at.isoformat() if image.captured_at else "",
             status=image.status,
             detection_count=detection_info.get(image.id, 0),
             top_species=top_species_map.get(image.id) if image_ids else None,

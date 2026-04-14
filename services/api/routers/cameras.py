@@ -3,6 +3,7 @@ Camera endpoints for viewing camera trap devices and their health status.
 """
 from typing import List, Optional
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
@@ -117,46 +118,32 @@ def normalize_tags(tags: Optional[List[str]]) -> List[str]:
     return result
 
 
-def parse_camera_status(camera: Camera) -> str:
+def _camera_status(last_reported_at: Optional[datetime]) -> str:
     """
-    Determine camera status based on last report timestamp
-
-    Args:
-        camera: Camera model instance
-
-    Returns:
-        Status string: 'active', 'inactive', or 'never_reported'
+    Classify a camera as 'active', 'inactive' or 'never_reported' based on when its
+    most recent health report arrived. A few-hour drift from the true local-vs-UTC
+    offset is irrelevant for a 7-day window, so the cutoff is computed naive.
     """
-    if not camera.config or 'last_report_timestamp' not in camera.config:
+    if last_reported_at is None:
         return 'never_reported'
-
-    last_report_str = camera.config.get('last_report_timestamp')
-    if not last_report_str:
-        return 'never_reported'
-
-    try:
-        last_report = datetime.fromisoformat(last_report_str)
-        days_since_report = (datetime.now(timezone.utc) - last_report).days
-
-        if days_since_report <= 7:
-            return 'active'
-        else:
-            return 'inactive'
-    except (ValueError, TypeError):
-        return 'never_reported'
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    return 'active' if last_reported_at >= cutoff else 'inactive'
 
 
-def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] = None) -> CameraResponse:
-    """
-    Convert Camera model to CameraResponse
+def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
+    """Localize a naive camera-clock datetime under the server tz and return ISO 8601."""
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=tz).isoformat()
 
-    Args:
-        camera: Camera model instance
-        last_image_timestamp: Optional timestamp of the most recent image
 
-    Returns:
-        CameraResponse with parsed health data
-    """
+def camera_to_response(
+    camera: Camera,
+    tz: ZoneInfo,
+    last_captured_at: Optional[datetime] = None,
+    last_reported_at: Optional[datetime] = None,
+) -> CameraResponse:
+    """Convert a Camera model to the API response shape."""
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
@@ -171,9 +158,9 @@ def camera_to_response(camera: Camera, last_image_timestamp: Optional[datetime] 
         battery_percentage=health_data.get('battery_percentage'),
         signal_quality=health_data.get('signal_quality'),
         sd_utilization_percentage=health_data.get('sd_utilization_percentage'),
-        last_report_timestamp=camera.config.get('last_report_timestamp') if camera.config else None,
-        last_image_timestamp=last_image_timestamp.isoformat() if last_image_timestamp else None,
-        status=parse_camera_status(camera),
+        last_report_timestamp=_localize(last_reported_at, tz),
+        last_image_timestamp=_localize(last_captured_at, tz),
+        status=_camera_status(last_reported_at),
         total_images=health_data.get('total_images'),
         sent_images=health_data.get('sent_images'),
         reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
@@ -214,20 +201,36 @@ async def list_cameras(
     result = await db.execute(query)
     cameras = result.scalars().all()
 
-    # Get last image timestamp for each camera
     camera_ids = [c.id for c in cameras]
+    last_captured_map: dict[int, datetime] = {}
+    last_reported_map: dict[int, datetime] = {}
     if camera_ids:
-        last_image_query = (
-            select(Image.camera_id, func.max(Image.uploaded_at).label('last_uploaded'))
+        captured_rows = await db.execute(
+            select(Image.camera_id, func.max(Image.captured_at))
             .where(Image.camera_id.in_(camera_ids))
             .group_by(Image.camera_id)
         )
-        last_image_result = await db.execute(last_image_query)
-        last_image_map = {row.camera_id: row.last_uploaded for row in last_image_result}
-    else:
-        last_image_map = {}
+        last_captured_map = {cam_id: ts for cam_id, ts in captured_rows.all()}
 
-    return [camera_to_response(camera, last_image_map.get(camera.id)) for camera in cameras]
+        reported_rows = await db.execute(
+            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
+            .where(CameraHealthReport.camera_id.in_(camera_ids))
+            .group_by(CameraHealthReport.camera_id)
+        )
+        last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    return [
+        camera_to_response(
+            camera,
+            tz=tz,
+            last_captured_at=last_captured_map.get(camera.id),
+            last_reported_at=last_reported_map.get(camera.id),
+        )
+        for camera in cameras
+    ]
 
 
 @router.get(
@@ -307,15 +310,23 @@ async def get_camera(
             detail="You do not have access to this camera"
         )
 
-    # Get last image timestamp
-    last_image_query = (
-        select(func.max(Image.uploaded_at))
-        .where(Image.camera_id == camera_id)
-    )
-    last_image_result = await db.execute(last_image_query)
-    last_image_timestamp = last_image_result.scalar_one_or_none()
+    last_captured_at = (await db.execute(
+        select(func.max(Image.captured_at)).where(Image.camera_id == camera_id)
+    )).scalar_one_or_none()
 
-    return camera_to_response(camera, last_image_timestamp)
+    last_reported_at = (await db.execute(
+        select(func.max(CameraHealthReport.reported_at)).where(CameraHealthReport.camera_id == camera_id)
+    )).scalar_one_or_none()
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    return camera_to_response(
+        camera,
+        tz=tz,
+        last_captured_at=last_captured_at,
+        last_reported_at=last_reported_at,
+    )
 
 
 @router.get(
@@ -378,17 +389,17 @@ async def get_camera_health_history(
     if start_date is None:
         start_date = end_date - timedelta(days=days)
 
-    # Query health reports
+    # Query health reports. reported_at is naive camera-clock; clamp by its date component.
     query = (
         select(CameraHealthReport)
         .where(
             and_(
                 CameraHealthReport.camera_id == camera_id,
-                CameraHealthReport.report_date >= start_date,
-                CameraHealthReport.report_date <= end_date,
+                func.date(CameraHealthReport.reported_at) >= start_date,
+                func.date(CameraHealthReport.reported_at) <= end_date,
             )
         )
-        .order_by(CameraHealthReport.report_date)
+        .order_by(CameraHealthReport.reported_at)
     )
 
     result = await db.execute(query)
@@ -397,7 +408,7 @@ async def get_camera_health_history(
     # Convert to response format
     report_points = [
         HealthReportPoint(
-            date=report.report_date.isoformat(),
+            date=report.reported_at.date().isoformat(),
             battery_percent=report.battery_percent,
             signal_quality=report.signal_quality,
             temperature_c=report.temperature_c,
@@ -486,7 +497,9 @@ async def create_camera(
     await db.commit()
     await db.refresh(camera)
 
-    return camera_to_response(camera)
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+    return camera_to_response(camera, tz=tz)
 
 
 @router.put(
@@ -545,7 +558,9 @@ async def update_camera(
     await db.commit()
     await db.refresh(camera)
 
-    return camera_to_response(camera)
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+    return camera_to_response(camera, tz=tz)
 
 
 @router.delete(

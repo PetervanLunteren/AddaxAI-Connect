@@ -26,11 +26,10 @@ def get_server_timezone() -> ZoneInfo:
     """
     Return the configured server timezone as a ZoneInfo object.
 
-    Falls back to UTC if no ServerSettings row exists or its ``timezone``
-    column is null. Used by path-based camera profiles (e.g. INSTAR) whose
-    cameras write local wall-clock times into the upload path: that
-    wall-clock time has to be anchored to the server's timezone before
-    PostgreSQL converts it to UTC for storage.
+    The ingestion pipeline stores camera wall-clock times as naive datetimes,
+    so this value is not needed for writes. It is used only for side
+    validations (e.g. warning when an EXIF OffsetTimeOriginal tag disagrees
+    with the declared server timezone). Falls back to UTC if unset.
     """
     with get_db_session() as session:
         result = session.execute(select(ServerSettings).limit(1))
@@ -293,7 +292,7 @@ def create_image_record(
     filename: str,
     storage_path: str,
     thumbnail_path: str,
-    datetime_original: datetime,
+    captured_at: datetime,
     gps_location: Optional[Tuple[float, float]],
     exif_metadata: dict
 ) -> str:
@@ -306,7 +305,7 @@ def create_image_record(
         filename: Image filename
         storage_path: Path in MinIO (e.g., "WUH09/2025/12/abc-123_image.jpg")
         thumbnail_path: Path to thumbnail in MinIO (e.g., "WUH09/2025/12/abc-123_image.jpg")
-        datetime_original: Image capture datetime
+        captured_at: Camera wall-clock capture datetime (naive, interpreted under ServerSettings.timezone)
         gps_location: (latitude, longitude) or None
         exif_metadata: Full EXIF data dictionary
 
@@ -321,20 +320,16 @@ def create_image_record(
             lat, lon = gps_location
             location_wkt = f"POINT({lon} {lat})"  # PostGIS uses lon,lat order
 
-        # Create image record
         image = Image(
             uuid=image_uuid,
             filename=filename,
             camera_id=camera_id,
+            captured_at=captured_at,
             storage_path=storage_path,
             thumbnail_path=thumbnail_path,
             status="pending",  # Will be updated by detection worker
             image_metadata=exif_metadata  # Store full EXIF as JSON
         )
-
-        # Manually set uploaded_at to datetime_original
-        # (by default it uses server time via func.now())
-        image.uploaded_at = datetime_original
 
         session.add(image)
         session.flush()  # Get image.id
@@ -357,7 +352,7 @@ def create_image_record(
         update_or_create_deployment(
             camera_id=camera_id,
             new_gps=gps_location,
-            event_date=datetime_original.date()
+            event_date=captured_at.date()
         )
 
     return image_uuid
@@ -391,9 +386,10 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         # Store camera_id before session closes
         camera_id = camera.id
 
-        # Use the date from the report itself, fall back to today if not available
-        report_datetime = health_data.get('report_datetime')
-        report_date = report_datetime.date() if report_datetime else datetime.now(timezone.utc).date()
+        # Camera wall-clock time from the parsed report. Fall back to the
+        # server's current naive UTC clock if the report had no timestamp,
+        # so malformed reports still land in the health table.
+        report_datetime = health_data.get('report_datetime') or datetime.utcnow()
 
         # Update config JSON with health data (for current status)
         camera.config = camera.config or {}
@@ -405,7 +401,6 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
             'total_images': health_data.get('total_images'),
             'sent_images': health_data.get('sent_images'),
         }
-        camera.config['last_report_timestamp'] = datetime.now(timezone.utc).isoformat()
 
         # Update GPS location if the daily report has a valid GPS reading.
         # Bad readings like (0, 0) or out-of-range values are ignored so they
@@ -427,26 +422,28 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         # Mark config as modified so SQLAlchemy detects the change
         flag_modified(camera, 'config')
 
-        # Insert or update historical health report (UPSERT pattern)
+        # Insert or update historical health report (UPSERT on one-per-day).
+        # The DB has a functional unique index on (camera_id, reported_at::date)
+        # so we match on the same expression to hit it.
+        report_day = report_datetime.date()
         existing_report = session.query(CameraHealthReport).filter(
             CameraHealthReport.camera_id == camera_id,
-            CameraHealthReport.report_date == report_date
+            func.date(CameraHealthReport.reported_at) == report_day
         ).first()
 
         if existing_report:
-            # Update existing report for today
+            existing_report.reported_at = report_datetime
             existing_report.battery_percent = health_data.get('battery_percentage')
             existing_report.signal_quality = health_data.get('signal_quality')
             existing_report.temperature_c = health_data.get('temperature')
             existing_report.sd_utilization_percent = health_data.get('sd_utilization_percentage')
             existing_report.total_images = health_data.get('total_images')
             existing_report.sent_images = health_data.get('sent_images')
-            logger.debug("Updated existing health report", camera_id=camera_id, date=report_date)
+            logger.debug("Updated existing health report", camera_id=camera_id, day=report_day)
         else:
-            # Create new health report for today
             health_report = CameraHealthReport(
                 camera_id=camera_id,
-                report_date=report_date,
+                reported_at=report_datetime,
                 battery_percent=health_data.get('battery_percentage'),
                 signal_quality=health_data.get('signal_quality'),
                 temperature_c=health_data.get('temperature'),
@@ -455,7 +452,7 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
                 sent_images=health_data.get('sent_images'),
             )
             session.add(health_report)
-            logger.debug("Created new health report", camera_id=camera_id, date=report_date)
+            logger.debug("Created new health report", camera_id=camera_id, day=report_day)
 
         session.flush()
 

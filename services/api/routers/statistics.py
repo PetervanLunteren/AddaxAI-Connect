@@ -137,7 +137,7 @@ async def get_overview(
     # Images today (filtered by project)
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     today_conditions = [
-        Image.uploaded_at >= today_start,
+        Image.captured_at >= today_start,
         Camera.project_id.in_(accessible_project_ids),
         Image.is_hidden == False,
     ]
@@ -155,14 +155,14 @@ async def get_overview(
     if camera_id_list:
         date_conditions.append(Image.camera_id.in_(camera_id_list))
     first_image_result = await db.execute(
-        select(func.min(func.date(Image.uploaded_at)))
+        select(func.min(func.date(Image.captured_at)))
         .join(Camera)
         .where(and_(*date_conditions))
     )
     first_image_date = first_image_result.scalar_one()
 
     last_image_result = await db.execute(
-        select(func.max(func.date(Image.uploaded_at)))
+        select(func.max(func.date(Image.captured_at)))
         .join(Camera)
         .where(and_(*date_conditions))
     )
@@ -210,17 +210,17 @@ async def get_images_timeline(
     # Query images grouped by date (filtered by project via camera)
     conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
     if start_date is not None:
-        conditions.append(Image.uploaded_at >= start_date)
+        conditions.append(Image.captured_at >= start_date)
 
     query = (
         select(
-            func.date(Image.uploaded_at).label('date'),
+            func.date(Image.captured_at).label('date'),
             func.count(Image.id).label('count')
         )
         .join(Camera)
         .where(and_(*conditions))
-        .group_by(func.date(Image.uploaded_at))
-        .order_by(func.date(Image.uploaded_at))
+        .group_by(func.date(Image.captured_at))
+        .order_by(func.date(Image.captured_at))
     )
 
     result = await db.execute(query)
@@ -311,42 +311,36 @@ async def get_camera_activity(
     Returns:
         Camera activity counts by status
     """
+    from shared.models import CameraHealthReport
+
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
-    # Fetch cameras filtered by accessible projects
+
+    # Pair each accessible camera with the timestamp of its latest health report (NULL if never reported).
     cam_conditions = [Camera.project_id.in_(accessible_project_ids)]
     if camera_id_list:
         cam_conditions.append(Camera.id.in_(camera_id_list))
     result = await db.execute(
-        select(Camera).where(and_(*cam_conditions))
+        select(Camera.id, func.max(CameraHealthReport.reported_at))
+        .outerjoin(CameraHealthReport, CameraHealthReport.camera_id == Camera.id)
+        .where(and_(*cam_conditions))
+        .group_by(Camera.id)
     )
-    cameras = result.scalars().all()
+
+    # reported_at is naive camera-clock; cutoff must also be naive. A few-hour drift
+    # from the true local-vs-UTC offset is irrelevant for a 7-day window.
+    cutoff = datetime.utcnow() - timedelta(days=7)
 
     active_count = 0
     inactive_count = 0
     never_reported_count = 0
-
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
-
-    for camera in cameras:
-        # Check if has health report
-        if not camera.config or 'last_report_timestamp' not in camera.config:
+    for _, last_reported_at in result.all():
+        if last_reported_at is None:
             never_reported_count += 1
-            continue
-
-        last_report_str = camera.config.get('last_report_timestamp')
-        if not last_report_str:
-            never_reported_count += 1
-            continue
-
-        try:
-            last_report = datetime.fromisoformat(last_report_str)
-            if last_report >= cutoff_date:
-                active_count += 1
-            else:
-                inactive_count += 1
-        except (ValueError, TypeError):
-            never_reported_count += 1
+        elif last_reported_at >= cutoff:
+            active_count += 1
+        else:
+            inactive_count += 1
 
     return CameraActivitySummary(
         active=active_count,
@@ -366,23 +360,14 @@ async def get_last_update(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Get timestamp of most recently classified image (filtered by accessible projects)
-
-    Returns EXIF DateTimeOriginal (actual capture time) if available, falls back to uploaded_at
-
-    Args:
-        accessible_project_ids: Project IDs accessible to user
-        db: Database session
-        current_user: Current authenticated user
-
-    Returns:
-        Last update timestamp (EXIF capture time preferred) or null if no images exist
+    Get the camera-clock timestamp of the most recently classified image
+    (filtered by accessible projects), serialized as an ISO 8601 instant in
+    UTC. The frontend renders it in the user's browser locale.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
 
-    # Query most recent classified image
     query = (
-        select(Image)
+        select(Image.captured_at)
         .join(Camera, Image.camera_id == Camera.id)
         .where(
             and_(
@@ -391,27 +376,20 @@ async def get_last_update(
                 Camera.project_id.in_(accessible_project_ids)
             )
         )
-        .order_by(desc(Image.uploaded_at))
+        .order_by(desc(Image.captured_at))
         .limit(1)
     )
 
     result = await db.execute(query)
-    image = result.scalar_one_or_none()
+    captured_at = result.scalar_one_or_none()
 
-    if not image:
+    if captured_at is None:
         return LastUpdateResponse(last_update=None)
 
-    # Get server timezone
+    # Camera-clock naive datetime, interpret under the server's declared tz, serialize as UTC.
     from routers.admin import get_server_timezone
     server_tz = await get_server_timezone(db)
-
-    # uploaded_at is set from EXIF capture time by the ingestion pipeline,
-    # stored as UTC but actually in the camera's local timezone (server timezone).
-    # Re-interpret it in the correct timezone, then convert to real UTC.
-    naive_dt = image.uploaded_at.replace(tzinfo=None)
-    local_dt = naive_dt.replace(tzinfo=ZoneInfo(server_tz))
-    utc_dt = local_dt.astimezone(timezone.utc)
-
+    utc_dt = captured_at.replace(tzinfo=ZoneInfo(server_tz)).astimezone(timezone.utc)
     return LastUpdateResponse(last_update=utc_dt.isoformat())
 
 
@@ -505,16 +483,16 @@ async def get_detection_rate_map(
                 COALESCE(SUM(ho.count) FILTER (WHERE
                     ho.id IS NOT NULL
                     AND (CAST(:species AS text) IS NULL OR LOWER(ho.species) = LOWER(CAST(:species AS text)))
-                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
-                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
+                    AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ), 0) as detection_count
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
                 AND i.is_verified = true
-                AND i.uploaded_at::date >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+                AND i.captured_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN human_observations ho ON ho.image_id = i.id
             WHERE c.project_id = ANY(:project_ids)
             GROUP BY cdp.id
@@ -535,8 +513,8 @@ async def get_detection_rate_map(
                         0.0
                     )
                     AND (CAST(:species AS text) IS NULL OR LOWER(cl.species) = LOWER(CAST(:species AS text)))
-                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
-                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
+                    AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ) as detection_count
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
@@ -544,8 +522,8 @@ async def get_detection_rate_map(
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
                 AND i.is_verified = false
-                AND i.uploaded_at::date >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+                AND i.captured_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN detections d ON d.image_id = i.id
             LEFT JOIN classifications cl ON cl.detection_id = d.id
             WHERE c.project_id = ANY(:project_ids)
@@ -560,8 +538,8 @@ async def get_detection_rate_map(
                     AND d.confidence >= p.detection_threshold
                     AND d.category IN ('person', 'vehicle')
                     AND (CAST(:species AS text) IS NULL OR LOWER(d.category) = LOWER(CAST(:species AS text)))
-                    AND (CAST(:start_date AS date) IS NULL OR i.uploaded_at::date >= CAST(:start_date AS date))
-                    AND (CAST(:end_date AS date) IS NULL OR i.uploaded_at::date <= CAST(:end_date AS date))
+                    AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
+                    AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ) as detection_count
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
@@ -569,8 +547,8 @@ async def get_detection_rate_map(
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
                 AND i.is_verified = false
-                AND i.uploaded_at::date >= cdp.start_date
-                AND (cdp.end_date IS NULL OR i.uploaded_at::date <= cdp.end_date)
+                AND i.captured_at::date >= cdp.start_date
+                AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN detections d ON d.image_id = i.id AND d.category IN ('person', 'vehicle')
             WHERE c.project_id = ANY(:project_ids)
             GROUP BY cdp.id
@@ -1052,10 +1030,10 @@ async def get_confidence_distribution(
     )
 
     if start_date:
-        query = query.where(func.date(Image.uploaded_at) >= start_date)
+        query = query.where(func.date(Image.captured_at) >= start_date)
 
     if end_date:
-        query = query.where(func.date(Image.uploaded_at) <= end_date)
+        query = query.where(func.date(Image.captured_at) <= end_date)
 
     result = await db.execute(query)
     confidences = [row[0] for row in result.all()]
@@ -1617,9 +1595,9 @@ async def get_demographics(
     if species:
         filters.append(func.lower(HumanObservation.species) == species.lower())
     if start_date:
-        filters.append(Image.uploaded_at >= datetime.combine(start_date, datetime.min.time()))
+        filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
-        filters.append(Image.uploaded_at <= datetime.combine(end_date, datetime.max.time()))
+        filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
     if camera_ids:
         camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()]
         filters.append(Image.camera_id.in_(camera_id_list))
@@ -1683,9 +1661,9 @@ async def get_verification_progress(
         Image.status == "classified",
     ]
     if start_date:
-        base_filters.append(Image.uploaded_at >= datetime.combine(start_date, datetime.min.time()))
+        base_filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
-        base_filters.append(Image.uploaded_at <= datetime.combine(end_date, datetime.max.time()))
+        base_filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
     if camera_id_list:
         base_filters.append(Image.camera_id.in_(camera_id_list))
 
@@ -1819,9 +1797,9 @@ async def get_verification_progress_all(
         Image.status == "classified",
     ]
     if start_date:
-        base_filters.append(Image.uploaded_at >= datetime.combine(start_date, datetime.min.time()))
+        base_filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
-        base_filters.append(Image.uploaded_at <= datetime.combine(end_date, datetime.max.time()))
+        base_filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
     if camera_id_list:
         base_filters.append(Image.camera_id.in_(camera_id_list))
 

@@ -2,9 +2,10 @@
 """
 Shift all demo data dates forward so the demo stays current.
 
-Lightweight alternative to re-running populate_demo_data.py — executes 6 SQL
-UPDATEs to advance every date/timestamp column by the number of days since
-the most recent image was uploaded.  Runs in <5 seconds with negligible RAM.
+Lightweight alternative to re-running populate_demo_data.py: executes a few
+SQL UPDATEs to advance every date/timestamp column by the number of days
+since the most recent image was captured. Runs in <5 seconds with negligible
+RAM.
 
 Usage:
     docker exec addaxai-api python /app/scripts/shift_demo_dates.py
@@ -32,7 +33,7 @@ def main():
         # --- Determine the shift delta ----------------------------------
         row = session.execute(
             text("""
-                SELECT MAX(i.uploaded_at::date)
+                SELECT MAX(i.captured_at::date)
                 FROM images i
                 JOIN cameras c ON c.id = i.camera_id
                 JOIN projects p ON p.id = c.project_id
@@ -60,11 +61,11 @@ def main():
             WHERE p.name = :project
         """
 
-        # 1) images.uploaded_at
+        # 1) images.captured_at
         session.execute(
             text(f"""
                 UPDATE images
-                SET uploaded_at = uploaded_at + (:delta * INTERVAL '1 day')
+                SET captured_at = captured_at + (:delta * INTERVAL '1 day')
                 WHERE camera_id IN ({demo_cameras})
             """),
             {"project": PROJECT_NAME, "delta": delta},
@@ -97,15 +98,16 @@ def main():
             {"project": PROJECT_NAME, "delta": delta},
         )
 
-        # 3) camera_health_reports.report_date  (date + integer in PostgreSQL)
-        #    Two-pass to avoid violating the unique (camera_id, report_date)
-        #    constraint: first move all dates to a far-future range where no
-        #    collisions are possible, then move back to the correct position.
+        # 3) camera_health_reports.reported_at
+        #    Two-pass to avoid transiently violating the functional unique
+        #    index on (camera_id, reported_at::date): first move all
+        #    timestamps to a far-future range where no collisions are
+        #    possible, then move back to the correct position.
         temp_offset = 100000
         session.execute(
             text(f"""
                 UPDATE camera_health_reports
-                SET report_date = report_date + :offset
+                SET reported_at = reported_at + (:offset * INTERVAL '1 day')
                 WHERE camera_id IN ({demo_cameras})
             """),
             {"project": PROJECT_NAME, "offset": temp_offset},
@@ -113,49 +115,13 @@ def main():
         session.execute(
             text(f"""
                 UPDATE camera_health_reports
-                SET report_date = report_date - :offset + :delta
+                SET reported_at = reported_at + ((:delta - :offset) * INTERVAL '1 day')
                 WHERE camera_id IN ({demo_cameras})
             """),
             {"project": PROJECT_NAME, "offset": temp_offset, "delta": delta},
         )
 
-        # 4) cameras.last_seen, last_image_at, last_daily_report_at
-        session.execute(
-            text(f"""
-                UPDATE cameras
-                SET last_seen           = last_seen           + (:delta * INTERVAL '1 day'),
-                    last_image_at       = last_image_at       + (:delta * INTERVAL '1 day'),
-                    last_daily_report_at = last_daily_report_at + (:delta * INTERVAL '1 day')
-                WHERE id IN ({demo_cameras})
-            """),
-            {"project": PROJECT_NAME, "delta": delta},
-        )
-
-        # 5) cameras.config->>'last_report_timestamp'  (ISO 8601 string inside JSON)
-        session.execute(
-            text(f"""
-                UPDATE cameras
-                SET config = (
-                    jsonb_set(
-                        config::jsonb,
-                        '{{"last_report_timestamp"}}',
-                        to_jsonb(
-                            to_char(
-                                (config->>'last_report_timestamp')::timestamptz
-                                    + (:delta * INTERVAL '1 day'),
-                                'YYYY-MM-DD"T"HH24:MI:SS+00:00'
-                            )
-                        )
-                    )
-                )::json
-                WHERE id IN ({demo_cameras})
-                  AND config IS NOT NULL
-                  AND config->>'last_report_timestamp' IS NOT NULL
-            """),
-            {"project": PROJECT_NAME, "delta": delta},
-        )
-
-        # 6) camera_deployment_periods.start_date
+        # 4) camera_deployment_periods.start_date
         session.execute(
             text(f"""
                 UPDATE camera_deployment_periods

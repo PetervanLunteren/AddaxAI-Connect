@@ -21,7 +21,8 @@ class Image(Base):
     uuid = Column(String(36), unique=True, nullable=False, index=True)
     filename = Column(String(255), nullable=False)
     camera_id = Column(Integer, ForeignKey("cameras.id"), nullable=False, index=True)
-    uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    # Camera wall-clock reading at capture, stored naive. Interpret under ServerSettings.timezone.
+    captured_at = Column(DateTime(timezone=False), nullable=False, index=True)
     storage_path = Column(String(512), nullable=False)
     thumbnail_path = Column(String(512), nullable=True)  # Path to thumbnail in MinIO
     status = Column(String(50), nullable=False, default="pending", index=True)
@@ -87,9 +88,6 @@ class Camera(Base):
     signal_quality = Column(Integer, nullable=True)
 
     # Timestamps
-    last_seen = Column(DateTime(timezone=True), nullable=True, index=True)
-    last_daily_report_at = Column(DateTime(timezone=True), nullable=True)
-    last_image_at = Column(DateTime(timezone=True), nullable=True)
     last_maintenance_at = Column(DateTime(timezone=True), nullable=True)
 
     # Metadata
@@ -163,7 +161,8 @@ class CameraHealthReport(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
-    report_date = Column(Date, nullable=False, index=True)  # Date of the daily report
+    # Camera wall-clock at which the daily report was generated, stored naive. Interpret under ServerSettings.timezone.
+    reported_at = Column(DateTime(timezone=False), nullable=False, index=True)
 
     # Health metrics
     battery_percent = Column(Integer, nullable=True)  # 0-100
@@ -178,10 +177,8 @@ class CameraHealthReport(Base):
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Unique constraint: one report per camera per day
-    __table_args__ = (
-        UniqueConstraint('camera_id', 'report_date', name='uq_camera_report_date'),
-    )
+    # One-report-per-camera-per-day uniqueness is enforced at the DB level via a functional
+    # unique index on (camera_id, reported_at::date) declared in the migration.
 
 
 class Detection(Base):

@@ -19,7 +19,7 @@ import os
 import sys
 import urllib.request
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from random import Random
 
@@ -627,7 +627,7 @@ def generate_all_data(cameras: list, rng: Random, species_image_info: dict):
                     "uuid": img_uuid,
                     "filename": f"IMG_{img_counter:06d}.JPG",
                     "camera_index": cam["index"],
-                    "uploaded_at": capture_dt,
+                    "captured_at": capture_dt,
                     "storage_path": img_storage_path,
                     "thumbnail_path": img_thumb_path,
                     "status": "classified",
@@ -765,7 +765,8 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
             reports.append({
                 "id": report_id,
                 "camera_index": cam["index"],
-                "report_date": current_date,
+                # Synthetic daily reports arrive at 08:00 local time.
+                "reported_at": datetime.combine(current_date, time(8, 0)),
                 "battery_percent": max(0, min(100, int(battery))),
                 "signal_quality": signal,
                 "temperature_c": int(round(temp)),
@@ -801,8 +802,8 @@ def curate_first_page(images, detections, classifications, species_image_info, r
             if cls:
                 animal_images.append((img, det, cls))
 
-    # Sort by uploaded_at desc and pick top candidates
-    animal_images.sort(key=lambda x: x[0]["uploaded_at"], reverse=True)
+    # Sort by captured_at desc and pick top candidates
+    animal_images.sort(key=lambda x: x[0]["captured_at"], reverse=True)
     selected = animal_images[:FRONT_PAGE_SIZE]
 
     # Build species sequence: all 14 species, then fill to 24, no consecutive dupes
@@ -821,11 +822,11 @@ def curate_first_page(images, detections, classifications, species_image_info, r
             sequence[i] = rng.choice(candidates)
 
     # Make these 24 images the most recent by bumping their timestamps
-    max_ts = max(img["uploaded_at"] for img in images)
+    max_ts = max(img["captured_at"] for img in images)
     for i, ((img, det, cls), species) in enumerate(zip(selected, sequence)):
         # Index 0 = most recent on the page (highest timestamp)
         new_ts = max_ts + timedelta(minutes=FRONT_PAGE_SIZE - i)
-        img["uploaded_at"] = new_ts
+        img["captured_at"] = new_ts
 
         # Update image paths and metadata for the new species
         sp_info = species_image_info.get(species)
@@ -1156,21 +1157,21 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict):
         for j, img in enumerate(chunk):
             key = f"_{i + j}"
             values_parts.append(
-                f"(:uuid{key}, :filename{key}, :camera_id{key}, :uploaded_at{key}, "
+                f"(:uuid{key}, :filename{key}, :camera_id{key}, :captured_at{key}, "
                 f":storage_path{key}, :thumbnail_path{key}, :status{key}, "
                 f"CAST(:metadata{key} AS jsonb), false)"
             )
             params[f"uuid{key}"] = img["uuid"]
             params[f"filename{key}"] = img["filename"]
             params[f"camera_id{key}"] = cam_index_to_id[img["camera_index"]]
-            params[f"uploaded_at{key}"] = img["uploaded_at"]
+            params[f"captured_at{key}"] = img["captured_at"]
             params[f"storage_path{key}"] = img["storage_path"]
             params[f"thumbnail_path{key}"] = img["thumbnail_path"]
             params[f"status{key}"] = img["status"]
             params[f"metadata{key}"] = img["image_metadata"]
 
         sql = (
-            "INSERT INTO images (uuid, filename, camera_id, uploaded_at, "
+            "INSERT INTO images (uuid, filename, camera_id, captured_at, "
             "storage_path, thumbnail_path, status, image_metadata, is_verified) VALUES "
             + ", ".join(values_parts)
         )
@@ -1260,11 +1261,11 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
         for j, rep in enumerate(chunk):
             key = f"_{i + j}"
             values_parts.append(
-                f"(:camera_id{key}, :report_date{key}, :battery{key}, "
+                f"(:camera_id{key}, :reported_at{key}, :battery{key}, "
                 f":signal{key}, :temp{key}, :sd{key}, :total{key}, :sent{key})"
             )
             params[f"camera_id{key}"] = cam_index_to_id[rep["camera_index"]]
-            params[f"report_date{key}"] = rep["report_date"]
+            params[f"reported_at{key}"] = rep["reported_at"]
             params[f"battery{key}"] = rep["battery_percent"]
             params[f"signal{key}"] = rep["signal_quality"]
             params[f"temp{key}"] = rep["temperature_c"]
@@ -1274,7 +1275,7 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
 
         sql = (
             "INSERT INTO camera_health_reports "
-            "(camera_id, report_date, battery_percent, signal_quality, "
+            "(camera_id, reported_at, battery_percent, signal_quality, "
             "temperature_c, sd_utilization_percent, total_images, sent_images) VALUES "
             + ", ".join(values_parts)
         )
@@ -1321,17 +1322,15 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
         latest = session.execute(
             text("""
                 SELECT battery_percent, signal_quality, temperature_c,
-                       sd_utilization_percent, total_images, sent_images,
-                       report_date
+                       sd_utilization_percent, total_images, sent_images
                 FROM camera_health_reports
                 WHERE camera_id = :cid
-                ORDER BY report_date DESC LIMIT 1
+                ORDER BY reported_at DESC LIMIT 1
             """),
             {"cid": cam_db_id},
         ).fetchone()
 
         config = None
-        last_daily_report_at = None
         battery = None
         temp = None
         signal = None
@@ -1340,15 +1339,6 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
             battery = latest[0]
             signal = latest[1]
             temp = latest[2]
-
-            # Hour variation per camera (not all at midnight)
-            report_hour = (cam_index * 7 + 3) % 24
-            report_minute = (cam_index * 13) % 60
-            last_daily_report_at = datetime(
-                latest[6].year, latest[6].month, latest[6].day,
-                report_hour, report_minute, 0,
-                tzinfo=timezone.utc,
-            )
 
             config = {
                 "last_health_report": {
@@ -1359,7 +1349,6 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
                     "total_images": latest[4],
                     "sent_images": latest[5],
                 },
-                "last_report_timestamp": last_daily_report_at.isoformat(),
                 "gps_from_report": {
                     "lat": cam["lat"],
                     "lon": cam["lon"],
@@ -1369,13 +1358,6 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
         session.execute(
             text("""
                 UPDATE cameras SET
-                    last_image_at = (
-                        SELECT MAX(uploaded_at) FROM images WHERE camera_id = :cid
-                    ),
-                    last_seen = (
-                        SELECT MAX(uploaded_at) FROM images WHERE camera_id = :cid
-                    ),
-                    last_daily_report_at = :last_report_at,
                     battery_percent = :battery,
                     temperature_c = :temp,
                     signal_quality = :signal,
@@ -1384,7 +1366,6 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
             """),
             {
                 "cid": cam_db_id,
-                "last_report_at": last_daily_report_at,
                 "battery": battery,
                 "temp": temp,
                 "signal": signal,

@@ -21,7 +21,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log
+from db_operations import create_notification_log, get_server_timezone
 
 logger = get_logger("notifications.project_inactivity")
 settings = get_settings()
@@ -34,11 +34,14 @@ def send_project_inactivity_alerts() -> None:
     """
     logger.info("Starting project inactivity alert check")
 
-    now = datetime.now(timezone.utc)
-    window_start = now - timedelta(hours=48)
-    window_end = now
-
     with get_sync_session() as db:
+        tz = get_server_timezone(db)
+
+        # captured_at is naive in server tz; use naive local-now as the reference.
+        now = datetime.now(tz).replace(tzinfo=None)
+        window_start = now - timedelta(hours=48)
+        window_end = now
+
         # Query all notification preferences joined with user and project
         query = (
             select(ProjectNotificationPreference, User, Project)
@@ -199,8 +202,8 @@ def _project_received_images(
                 FROM images i
                 JOIN cameras c ON i.camera_id = c.id
                 WHERE c.project_id = :project_id
-                  AND i.uploaded_at >= :window_start
-                  AND i.uploaded_at < :window_end
+                  AND i.captured_at >= :window_start
+                  AND i.captured_at < :window_end
             )
         """),
         {

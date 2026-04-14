@@ -18,12 +18,11 @@ from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED, QUEUE_NOTIFICATION_EV
 from shared.config import get_settings
 
 from validators import validate_image, validate_daily_report
-from exif_parser import extract_exif, get_datetime_original
+from exif_parser import extract_exif, get_datetime_original, check_exif_offset
 from camera_profiles import identify_camera_profile
 from db_operations import (
     get_camera_by_device_id,
     create_image_record,
-    get_server_timezone,
     update_camera_health
 )
 from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail
@@ -306,16 +305,7 @@ def process_image(filepath: str) -> None:
 
             device_id = parsed["device_id"]
             gps_location = parsed["gps"]
-
-            # Path-based cameras (INSTAR) have no GPS time sync, so the
-            # filename timestamp is local wall-clock time in whatever timezone
-            # the admin set on the camera. Anchor it to the server's
-            # configured timezone before PostgreSQL converts it to UTC for
-            # storage; otherwise the time gets stored as if it were UTC and
-            # the UI displays it shifted by the local-UTC offset.
-            naive_dt = parsed["datetime"]
-            server_tz = get_server_timezone()
-            datetime_original = naive_dt.replace(tzinfo=server_tz)
+            captured_at = parsed["datetime"]
 
             # Record the path-derived metadata in the audit trail
             exif = {"source": "path", "relative_path": relative_path}
@@ -332,7 +322,7 @@ def process_image(filepath: str) -> None:
                 return
 
             try:
-                datetime_original = get_datetime_original(
+                captured_at = get_datetime_original(
                     exif,
                     filepath,
                     allow_fallback=not profile.requires_datetime
@@ -340,6 +330,8 @@ def process_image(filepath: str) -> None:
             except ValueError as e:
                 reject_file(filepath, "missing_datetime", str(e), exif_metadata=exif)
                 return
+
+            check_exif_offset(exif, captured_at)
 
             gps_location = exif.get('gps_decimal')  # Tuple (lat, lon) or None
 
@@ -402,7 +394,7 @@ def process_image(filepath: str) -> None:
             filename=clean_filename,
             storage_path=storage_path,
             thumbnail_path=thumbnail_path,
-            datetime_original=datetime_original,
+            captured_at=captured_at,
             gps_location=gps_location,
             exif_metadata=exif
         )

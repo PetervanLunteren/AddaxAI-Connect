@@ -84,11 +84,7 @@ def get_camera_images_with_gps(session: Session) -> dict:
     query = text("""
         SELECT
             camera_id,
-            COALESCE(
-                -- Convert EXIF date format "YYYY:MM:DD HH:MM:SS" to PostgreSQL timestamp
-                TO_DATE(SPLIT_PART(image_metadata->>'DateTimeOriginal', ' ', 1), 'YYYY:MM:DD'),
-                uploaded_at::date
-            ) as image_date,
+            captured_at::date as image_date,
             image_metadata->>'gps_decimal' as gps
         FROM images
         WHERE image_metadata->>'gps_decimal' IS NOT NULL

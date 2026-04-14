@@ -60,8 +60,7 @@ class ImageListItemResponse(BaseModel):
     filename: str
     camera_id: int
     camera_name: str
-    uploaded_at: str
-    datetime_captured: Optional[str] = None  # EXIF DateTimeOriginal if available
+    captured_at: str
     status: str
     detection_count: int
     top_species: Optional[str] = None
@@ -112,7 +111,7 @@ class ImageDetailResponse(BaseModel):
     filename: str
     camera_id: int
     camera_name: str
-    uploaded_at: str
+    captured_at: str
     storage_path: str
     status: str
     image_metadata: dict
@@ -376,7 +375,7 @@ async def list_images(
     if start_date:
         try:
             start_dt = datetime.fromisoformat(start_date)
-            filters.append(Image.uploaded_at >= start_dt)
+            filters.append(Image.captured_at >= start_dt)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -386,7 +385,7 @@ async def list_images(
     if end_date:
         try:
             end_dt = datetime.fromisoformat(end_date)
-            filters.append(Image.uploaded_at <= end_dt)
+            filters.append(Image.captured_at <= end_dt)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -562,7 +561,7 @@ async def list_images(
         .join(Camera, Image.camera_id == Camera.id)
         .join(Project, Camera.project_id == Project.id)
         .options(selectinload(Image.detections).selectinload(Detection.classifications))
-        .order_by(desc(Image.uploaded_at))
+        .order_by(desc(Image.captured_at))
         .offset(offset)
         .limit(limit)
     )
@@ -675,20 +674,16 @@ async def list_images(
         # Get image dimensions from metadata
         image_width = None
         image_height = None
-        datetime_captured = None
         if image.image_metadata:
             image_width = image.image_metadata.get('width')
             image_height = image.image_metadata.get('height')
-            # Extract EXIF capture time if available
-            datetime_captured = image.image_metadata.get('DateTimeOriginal')
 
         items.append(ImageListItemResponse(
             uuid=image.uuid,
             filename=image.filename,
             camera_id=image.camera_id,
             camera_name=camera.name,
-            uploaded_at=image.uploaded_at.isoformat(),
-            datetime_captured=datetime_captured,
+            captured_at=image.captured_at.isoformat(),
             status=image.status,
             detection_count=detection_count,
             top_species=top_species,
@@ -845,7 +840,7 @@ async def get_image(
         filename=image.filename,
         camera_id=image.camera_id,
         camera_name=camera.name,
-        uploaded_at=image.uploaded_at.isoformat(),
+        captured_at=image.captured_at.isoformat(),
         storage_path=image.storage_path,
         status=image.status,
         image_metadata=image.image_metadata or {},

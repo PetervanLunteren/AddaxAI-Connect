@@ -48,29 +48,14 @@ OBSERVATIONS_SCHEMA = f"https://raw.githubusercontent.com/tdwg/camtrap-dp/{CAMTR
 
 def _parse_timestamp(image: Image, tz: ZoneInfo) -> Optional[datetime]:
     """
-    Parse image capture timestamp from EXIF metadata.
+    Return the image's capture timestamp as a timezone-aware datetime in ``tz``.
 
-    Falls back to uploaded_at if DateTimeOriginal is missing.
+    ``captured_at`` is the canonical camera wall-clock value, stored naive and
+    interpreted under ``ServerSettings.timezone`` (passed in here as ``tz``).
     """
-    dto = None
-    if image.image_metadata and image.image_metadata.get("DateTimeOriginal"):
-        raw = image.image_metadata["DateTimeOriginal"]
-        for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
-            try:
-                dto = datetime.strptime(raw, fmt)
-                break
-            except ValueError:
-                continue
-
-    if dto is None and image.uploaded_at:
-        # uploaded_at is timezone-aware (UTC); convert to target tz
-        return image.uploaded_at.astimezone(tz)
-
-    if dto is None:
+    if image.captured_at is None:
         return None
-
-    # Localize naive datetime to project timezone
-    return dto.replace(tzinfo=tz)
+    return image.captured_at.replace(tzinfo=tz)
 
 
 def _format_dt(dt: Optional[datetime]) -> str:
@@ -619,7 +604,7 @@ async def export_camtrap_dp(
             selectinload(Image.detections).selectinload(Detection.classifications),
             selectinload(Image.human_observations),
         )
-        .order_by(Image.uploaded_at)
+        .order_by(Image.captured_at)
     )
     images_result = await db.execute(images_query)
     images = images_result.scalars().unique().all()
@@ -923,7 +908,7 @@ async def export_observations(
             selectinload(Image.detections).selectinload(Detection.classifications),
             selectinload(Image.human_observations),
         )
-        .order_by(Image.uploaded_at)
+        .order_by(Image.captured_at)
     )
     images_result = await db.execute(images_query)
     images = images_result.scalars().unique().all()
@@ -1483,7 +1468,7 @@ async def export_spatial(
             selectinload(Image.detections).selectinload(Detection.classifications),
             selectinload(Image.human_observations),
         )
-        .order_by(Image.uploaded_at)
+        .order_by(Image.captured_at)
     )
     images_result = await db.execute(images_query)
     images = images_result.scalars().unique().all()
@@ -1529,8 +1514,8 @@ async def export_spatial(
             JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i
                 ON i.camera_id = di.camera_id
-                AND i.uploaded_at::date >= di.start_date
-                AND (di.end_date IS NULL OR i.uploaded_at::date <= di.end_date)
+                AND i.captured_at::date >= di.start_date
+                AND (di.end_date IS NULL OR i.captured_at::date <= di.end_date)
                 AND i.status = 'classified'
             LEFT JOIN detections d
                 ON d.image_id = i.id

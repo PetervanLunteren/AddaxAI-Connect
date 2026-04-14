@@ -32,17 +32,17 @@ class TestBuildFilters:
     def test_start_date(self):
         dt = datetime(2025, 1, 1)
         v, u, pv, params = _build_filters(None, dt, None)
-        assert "i.uploaded_at >= :start_date" in v
-        assert "i.uploaded_at >= :start_date" in u
-        assert "i.uploaded_at >= :start_date" in pv
+        assert "i.captured_at >= :start_date" in v
+        assert "i.captured_at >= :start_date" in u
+        assert "i.captured_at >= :start_date" in pv
         assert params["start_date"] == dt
 
     def test_end_date(self):
         dt = datetime(2025, 12, 31)
         v, u, pv, params = _build_filters(None, None, dt)
-        assert "i.uploaded_at <= :end_date" in v
-        assert "i.uploaded_at <= :end_date" in u
-        assert "i.uploaded_at <= :end_date" in pv
+        assert "i.captured_at <= :end_date" in v
+        assert "i.captured_at <= :end_date" in u
+        assert "i.captured_at <= :end_date" in pv
         assert params["end_date"] == dt
 
     def test_camera_ids(self):

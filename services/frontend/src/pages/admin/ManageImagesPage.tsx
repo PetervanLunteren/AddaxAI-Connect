@@ -32,7 +32,7 @@ import { camerasApi } from '../../api/cameras';
 import { imagesApi } from '../../api/images';
 import type { ImageListItem } from '../../api/types';
 
-type SortColumn = 'filename' | 'camera_name' | 'uploaded_at';
+type SortColumn = 'filename' | 'camera_name' | 'captured_at';
 
 const SortableHeader: React.FC<{
   label: string;
@@ -72,7 +72,7 @@ export const ManageImagesPage: React.FC = () => {
   const [verifiedFilter, setVerifiedFilter] = useState('');
   const [speciesFilter, setSpeciesFilter] = useState('');
   const [sort, setSort] = useState<{ column: SortColumn; direction: 'asc' | 'desc' }>({
-    column: 'uploaded_at',
+    column: 'captured_at',
     direction: 'desc',
   });
   const [selectedUuids, setSelectedUuids] = useState<Set<string>>(new Set());
@@ -109,7 +109,7 @@ export const ManageImagesPage: React.FC = () => {
   const sortByMap: Record<SortColumn, string> = {
     filename: 'filename',
     camera_name: 'camera_name',
-    uploaded_at: 'uploaded_at',
+    captured_at: 'captured_at',
   };
 
   // Fetch images
@@ -419,7 +419,7 @@ export const ManageImagesPage: React.FC = () => {
                 <SortableHeader label="Camera" column="camera_name" sort={sort} onSort={handleSort} />
               </TableHead>
               <TableHead>
-                <SortableHeader label="Date" column="uploaded_at" sort={sort} onSort={handleSort} />
+                <SortableHeader label="Date" column="captured_at" sort={sort} onSort={handleSort} />
               </TableHead>
               <TableHead className="w-12 text-center">Verified</TableHead>
               <TableHead className="w-12 text-center">Hidden</TableHead>
@@ -461,9 +461,7 @@ export const ManageImagesPage: React.FC = () => {
                 </TableCell>
                 <TableCell className="text-sm">{image.camera_name}</TableCell>
                 <TableCell className="text-sm whitespace-nowrap">
-                  {image.datetime_captured
-                    ? formatTimestamp(image.datetime_captured)
-                    : formatTimestamp(image.uploaded_at)}
+                  {formatTimestamp(image.captured_at)}
                 </TableCell>
                 <TableCell className="text-center">
                   {image.is_verified && (

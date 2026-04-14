@@ -23,7 +23,7 @@ from shared.classification_threshold import CLASSIFICATION_THRESHOLD_FILTER_SQL
 _INDEPENDENCE_CTE = """
 WITH raw_obs AS (
     -- Verified: human observations
-    SELECT i.camera_id, ho.species, i.uploaded_at as ts, ho.count as cnt
+    SELECT i.camera_id, ho.species, i.captured_at as ts, ho.count as cnt
     FROM human_observations ho
     JOIN images i ON ho.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
@@ -31,7 +31,7 @@ WITH raw_obs AS (
       {verified_filters}
     UNION ALL
     -- Unverified: AI classifications
-    SELECT i.camera_id, cl.species, i.uploaded_at as ts, 1 as cnt
+    SELECT i.camera_id, cl.species, i.captured_at as ts, 1 as cnt
     FROM classifications cl
     JOIN detections d ON cl.detection_id = d.id
     JOIN images i ON d.image_id = i.id
@@ -43,7 +43,7 @@ WITH raw_obs AS (
       {unverified_filters}
     UNION ALL
     -- Unverified: person/vehicle detections (no classification)
-    SELECT i.camera_id, d.category as species, i.uploaded_at as ts, 1 as cnt
+    SELECT i.camera_id, d.category as species, i.captured_at as ts, 1 as cnt
     FROM detections d
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
@@ -116,15 +116,15 @@ def _build_filters(
         params["species_filter"] = species_filter
 
     if start_date:
-        verified_parts.append("AND i.uploaded_at >= :start_date")
-        unverified_parts.append("AND i.uploaded_at >= :start_date")
-        pv_parts.append("AND i.uploaded_at >= :start_date")
+        verified_parts.append("AND i.captured_at >= :start_date")
+        unverified_parts.append("AND i.captured_at >= :start_date")
+        pv_parts.append("AND i.captured_at >= :start_date")
         params["start_date"] = start_date
 
     if end_date:
-        verified_parts.append("AND i.uploaded_at <= :end_date")
-        unverified_parts.append("AND i.uploaded_at <= :end_date")
-        pv_parts.append("AND i.uploaded_at <= :end_date")
+        verified_parts.append("AND i.captured_at <= :end_date")
+        unverified_parts.append("AND i.captured_at <= :end_date")
+        pv_parts.append("AND i.captured_at <= :end_date")
         params["end_date"] = end_date
 
     if camera_ids:
@@ -246,17 +246,12 @@ async def get_independent_hourly_activity(
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
-    # event_start values are stored as server-local time mistagged as
-    # UTC, so AT TIME ZONE 'UTC' strips the wrong UTC tag and returns
-    # the naive local timestamp. Mirrors the Python idiom in
-    # routers/statistics.py:405-415, makes the hour extraction
-    # independent of the database session timezone.
     query = f"""
     {cte_sql}
-    SELECT EXTRACT(hour FROM event_start AT TIME ZONE 'UTC')::int as hour,
+    SELECT EXTRACT(hour FROM event_start)::int as hour,
            SUM(event_count)::int as count
     FROM events
-    GROUP BY EXTRACT(hour FROM event_start AT TIME ZONE 'UTC')
+    GROUP BY EXTRACT(hour FROM event_start)
     ORDER BY hour
     """
 
@@ -406,7 +401,7 @@ async def compute_event_assignments(
             AND we.species = ic.species AND we.ts = ic.ts
         JOIN event_boundaries eb ON we.pool_id = eb.pool_id
             AND we.species = eb.species AND we.event_id = eb.event_id
-        JOIN images i ON i.camera_id = we.camera_id AND i.uploaded_at = we.ts
+        JOIN images i ON i.camera_id = we.camera_id AND i.captured_at = we.ts
         JOIN cameras c ON i.camera_id = c.id
         WHERE c.project_id = ANY(:project_ids)
     )

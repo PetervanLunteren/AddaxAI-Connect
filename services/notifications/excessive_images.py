@@ -51,14 +51,11 @@ def send_excessive_image_alerts() -> None:
         logger.info("No users with excessive image alerts enabled")
         return
 
-    # Compute "yesterday" in the server's local timezone, then convert the
-    # day boundary to UTC for the SQL WHERE clause (images.uploaded_at is UTC).
+    # Compute "yesterday" in the server's local timezone as naive day boundaries.
+    # Image.captured_at is stored naive in the same interpretation, so the comparison
+    # is apples-to-apples and the filter hits the index.
     yesterday_local = (datetime.now(tz) - timedelta(days=1)).date()
-    start_of_day_local = datetime(
-        yesterday_local.year, yesterday_local.month, yesterday_local.day,
-        tzinfo=tz,
-    )
-    start_of_day = start_of_day_local.astimezone(timezone.utc)
+    start_of_day = datetime(yesterday_local.year, yesterday_local.month, yesterday_local.day)
     end_of_day = start_of_day + timedelta(days=1)
 
     logger.info(
@@ -235,8 +232,8 @@ def _get_cameras_over_threshold(
             FROM images i
             JOIN cameras c ON i.camera_id = c.id
             WHERE c.project_id = :project_id
-              AND i.uploaded_at >= :start_of_day
-              AND i.uploaded_at < :end_of_day
+              AND i.captured_at >= :start_of_day
+              AND i.captured_at < :end_of_day
             GROUP BY c.id
             HAVING COUNT(*) >= :threshold
             ORDER BY COUNT(*) DESC

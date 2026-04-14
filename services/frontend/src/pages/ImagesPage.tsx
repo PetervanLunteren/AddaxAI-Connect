@@ -441,7 +441,7 @@ export const ImagesPage: React.FC = () => {
                     {/* Timestamp */}
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3" />
-                      <span>{formatTimestamp(image.datetime_captured || image.uploaded_at)}</span>
+                      <span>{formatTimestamp(image.captured_at)}</span>
                     </div>
                   </div>
                 </CardContent>

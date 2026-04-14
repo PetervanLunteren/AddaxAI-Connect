@@ -12,19 +12,6 @@ from sqlalchemy import select, func, and_, union_all, literal
 from shared.classification_threshold import classification_passes_threshold
 
 
-def _local_hour(ts_column):
-    """
-    Extract the local hour from a TIMESTAMPTZ column whose values are
-    stored as server-local time mistagged as UTC. The Postgres
-    timezone('UTC', ts) function returns the naive timestamp in UTC,
-    which strips the wrong UTC tag and gives the local value back.
-    Mirrors the Python idiom in routers/statistics.py:405-415 so the
-    hour we extract is always local, regardless of the database
-    session timezone.
-    """
-    return func.extract('hour', func.timezone('UTC', ts_column))
-
-
 async def get_preferred_species_counts(
     db: AsyncSession,
     project_ids: List[int],
@@ -55,11 +42,11 @@ async def get_preferred_species_counts(
     ]
 
     if start_date:
-        verified_filters.append(Image.uploaded_at >= start_date)
-        unverified_filters.append(Image.uploaded_at >= start_date)
+        verified_filters.append(Image.captured_at >= start_date)
+        unverified_filters.append(Image.captured_at >= start_date)
     if end_date:
-        verified_filters.append(Image.uploaded_at <= end_date)
-        unverified_filters.append(Image.uploaded_at <= end_date)
+        verified_filters.append(Image.captured_at <= end_date)
+        unverified_filters.append(Image.captured_at <= end_date)
     if camera_ids:
         verified_filters.append(Image.camera_id.in_(camera_ids))
         unverified_filters.append(Image.camera_id.in_(camera_ids))
@@ -75,9 +62,9 @@ async def get_preferred_species_counts(
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
         pv_filters.append(func.lower(Detection.category) == species_filter.lower())
     if start_date:
-        pv_filters.append(Image.uploaded_at >= start_date)
+        pv_filters.append(Image.captured_at >= start_date)
     if end_date:
-        pv_filters.append(Image.uploaded_at <= end_date)
+        pv_filters.append(Image.captured_at <= end_date)
     if camera_ids:
         pv_filters.append(Image.camera_id.in_(camera_ids))
 
@@ -184,13 +171,13 @@ async def get_preferred_unique_species(
     ]
 
     if start_date:
-        verified_filters.append(Image.uploaded_at >= start_date)
-        unverified_filters.append(Image.uploaded_at >= start_date)
-        pv_filters.append(Image.uploaded_at >= start_date)
+        verified_filters.append(Image.captured_at >= start_date)
+        unverified_filters.append(Image.captured_at >= start_date)
+        pv_filters.append(Image.captured_at >= start_date)
     if end_date:
-        verified_filters.append(Image.uploaded_at <= end_date)
-        unverified_filters.append(Image.uploaded_at <= end_date)
-        pv_filters.append(Image.uploaded_at <= end_date)
+        verified_filters.append(Image.captured_at <= end_date)
+        unverified_filters.append(Image.captured_at <= end_date)
+        pv_filters.append(Image.captured_at <= end_date)
     if camera_ids:
         verified_filters.append(Image.camera_id.in_(camera_ids))
         unverified_filters.append(Image.camera_id.in_(camera_ids))
@@ -268,7 +255,7 @@ async def get_preferred_hourly_activity(
     """
     Get hourly activity counts (0-23) from preferred data source.
 
-    Uses image upload time for hour extraction.
+    Uses image capture time for hour extraction.
     For verified images: counts from HumanObservation
     For unverified: counts from Classification
 
@@ -293,13 +280,13 @@ async def get_preferred_hourly_activity(
     ]
 
     if start_date:
-        verified_filters.append(Image.uploaded_at >= start_date)
-        unverified_filters.append(Image.uploaded_at >= start_date)
-        pv_filters.append(Image.uploaded_at >= start_date)
+        verified_filters.append(Image.captured_at >= start_date)
+        unverified_filters.append(Image.captured_at >= start_date)
+        pv_filters.append(Image.captured_at >= start_date)
     if end_date:
-        verified_filters.append(Image.uploaded_at <= end_date)
-        unverified_filters.append(Image.uploaded_at <= end_date)
-        pv_filters.append(Image.uploaded_at <= end_date)
+        verified_filters.append(Image.captured_at <= end_date)
+        unverified_filters.append(Image.captured_at <= end_date)
+        pv_filters.append(Image.captured_at <= end_date)
     if species_filter:
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
@@ -312,19 +299,19 @@ async def get_preferred_hourly_activity(
     # Verified: group by hour, sum counts from HumanObservation
     verified_query = (
         select(
-            _local_hour(Image.uploaded_at).label('hour'),
+            func.extract('hour', Image.captured_at).label('hour'),
             func.sum(HumanObservation.count).label('count')
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(and_(*verified_filters))
-        .group_by(_local_hour(Image.uploaded_at))
+        .group_by(func.extract('hour', Image.captured_at))
     )
 
     # Unverified: group by hour, count classifications
     unverified_query = (
         select(
-            _local_hour(Image.uploaded_at).label('hour'),
+            func.extract('hour', Image.captured_at).label('hour'),
             func.count(Classification.id).label('count')
         )
         .join(Detection, Classification.detection_id == Detection.id)
@@ -338,13 +325,13 @@ async def get_preferred_hourly_activity(
                 classification_passes_threshold(),
             )
         )
-        .group_by(_local_hour(Image.uploaded_at))
+        .group_by(func.extract('hour', Image.captured_at))
     )
 
     # Person/vehicle: group by hour, count detections
     pv_query = (
         select(
-            _local_hour(Image.uploaded_at).label('hour'),
+            func.extract('hour', Image.captured_at).label('hour'),
             func.count(Detection.id).label('count')
         )
         .join(Image, Detection.image_id == Image.id)
@@ -356,7 +343,7 @@ async def get_preferred_hourly_activity(
                 Detection.confidence >= Project.detection_threshold
             )
         )
-        .group_by(_local_hour(Image.uploaded_at))
+        .group_by(func.extract('hour', Image.captured_at))
     )
 
     # Combine and sum
@@ -408,13 +395,13 @@ async def get_preferred_species_first_dates(
     ]
 
     if start_date:
-        verified_filters.append(Image.uploaded_at >= start_date)
-        unverified_filters.append(Image.uploaded_at >= start_date)
-        pv_filters.append(Image.uploaded_at >= start_date)
+        verified_filters.append(Image.captured_at >= start_date)
+        unverified_filters.append(Image.captured_at >= start_date)
+        pv_filters.append(Image.captured_at >= start_date)
     if end_date:
-        verified_filters.append(Image.uploaded_at <= end_date)
-        unverified_filters.append(Image.uploaded_at <= end_date)
-        pv_filters.append(Image.uploaded_at <= end_date)
+        verified_filters.append(Image.captured_at <= end_date)
+        unverified_filters.append(Image.captured_at <= end_date)
+        pv_filters.append(Image.captured_at <= end_date)
     if camera_ids:
         verified_filters.append(Image.camera_id.in_(camera_ids))
         unverified_filters.append(Image.camera_id.in_(camera_ids))
@@ -424,7 +411,7 @@ async def get_preferred_species_first_dates(
     verified_query = (
         select(
             HumanObservation.species.label('species'),
-            func.min(func.date(Image.uploaded_at)).label('first_date')
+            func.min(func.date(Image.captured_at)).label('first_date')
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -436,7 +423,7 @@ async def get_preferred_species_first_dates(
     unverified_query = (
         select(
             Classification.species.label('species'),
-            func.min(func.date(Image.uploaded_at)).label('first_date')
+            func.min(func.date(Image.captured_at)).label('first_date')
         )
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
@@ -456,7 +443,7 @@ async def get_preferred_species_first_dates(
     pv_query = (
         select(
             Detection.category.label('species'),
-            func.min(func.date(Image.uploaded_at)).label('first_date')
+            func.min(func.date(Image.captured_at)).label('first_date')
         )
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -519,13 +506,13 @@ async def get_preferred_species_camera_matrix(
     ]
 
     if start_date:
-        verified_filters.append(Image.uploaded_at >= start_date)
-        unverified_filters.append(Image.uploaded_at >= start_date)
-        pv_filters.append(Image.uploaded_at >= start_date)
+        verified_filters.append(Image.captured_at >= start_date)
+        unverified_filters.append(Image.captured_at >= start_date)
+        pv_filters.append(Image.captured_at >= start_date)
     if end_date:
-        verified_filters.append(Image.uploaded_at <= end_date)
-        unverified_filters.append(Image.uploaded_at <= end_date)
-        pv_filters.append(Image.uploaded_at <= end_date)
+        verified_filters.append(Image.captured_at <= end_date)
+        unverified_filters.append(Image.captured_at <= end_date)
+        pv_filters.append(Image.captured_at <= end_date)
     if camera_ids:
         verified_filters.append(Image.camera_id.in_(camera_ids))
         unverified_filters.append(Image.camera_id.in_(camera_ids))
@@ -637,13 +624,13 @@ async def get_preferred_daily_trend(
     ]
 
     if start_date:
-        verified_filters.append(Image.uploaded_at >= start_date)
-        unverified_filters.append(Image.uploaded_at >= start_date)
-        pv_filters.append(Image.uploaded_at >= start_date)
+        verified_filters.append(Image.captured_at >= start_date)
+        unverified_filters.append(Image.captured_at >= start_date)
+        pv_filters.append(Image.captured_at >= start_date)
     if end_date:
-        verified_filters.append(Image.uploaded_at <= end_date)
-        unverified_filters.append(Image.uploaded_at <= end_date)
-        pv_filters.append(Image.uploaded_at <= end_date)
+        verified_filters.append(Image.captured_at <= end_date)
+        unverified_filters.append(Image.captured_at <= end_date)
+        pv_filters.append(Image.captured_at <= end_date)
     if species_filter:
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
@@ -656,19 +643,19 @@ async def get_preferred_daily_trend(
     # Verified: group by date, sum counts
     verified_query = (
         select(
-            func.date(Image.uploaded_at).label('date'),
+            func.date(Image.captured_at).label('date'),
             func.sum(HumanObservation.count).label('count')
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(and_(*verified_filters))
-        .group_by(func.date(Image.uploaded_at))
+        .group_by(func.date(Image.captured_at))
     )
 
     # Unverified: group by date, count classifications
     unverified_query = (
         select(
-            func.date(Image.uploaded_at).label('date'),
+            func.date(Image.captured_at).label('date'),
             func.count(Classification.id).label('count')
         )
         .join(Detection, Classification.detection_id == Detection.id)
@@ -682,13 +669,13 @@ async def get_preferred_daily_trend(
                 classification_passes_threshold(),
             )
         )
-        .group_by(func.date(Image.uploaded_at))
+        .group_by(func.date(Image.captured_at))
     )
 
     # Person/vehicle: group by date, count detections
     pv_query = (
         select(
-            func.date(Image.uploaded_at).label('date'),
+            func.date(Image.captured_at).label('date'),
             func.count(Detection.id).label('count')
         )
         .join(Image, Detection.image_id == Image.id)
@@ -700,7 +687,7 @@ async def get_preferred_daily_trend(
                 Detection.confidence >= Project.detection_threshold
             )
         )
-        .group_by(func.date(Image.uploaded_at))
+        .group_by(func.date(Image.captured_at))
     )
 
     # Combine and sum

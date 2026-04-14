@@ -10,7 +10,7 @@ from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import Session
 
 from shared.models import (
-    Image, Camera, Detection, Classification, Project, HumanObservation
+    Image, Camera, CameraHealthReport, Detection, Classification, Project, HumanObservation
 )
 from shared.classification_threshold import classification_passes_threshold
 from sqlalchemy import union_all
@@ -66,8 +66,8 @@ def get_overview_stats(
         .where(
             and_(
                 Camera.project_id == project_id,
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
     ).scalar_one()
@@ -132,7 +132,7 @@ def get_overview_stats(
     verified_first_seen = (
         select(
             HumanObservation.species.label('species'),
-            func.min(Image.uploaded_at).label('first_seen')
+            func.min(Image.captured_at).label('first_seen')
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -147,7 +147,7 @@ def get_overview_stats(
     unverified_first_seen = (
         select(
             Classification.species.label('species'),
-            func.min(Image.uploaded_at).label('first_seen')
+            func.min(Image.captured_at).label('first_seen')
         )
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
@@ -166,7 +166,7 @@ def get_overview_stats(
     pv_first_seen = (
         select(
             Detection.category.label('species'),
-            func.min(Image.uploaded_at).label('first_seen')
+            func.min(Image.captured_at).label('first_seen')
         )
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -246,8 +246,8 @@ def get_species_distribution(
             and_(
                 Camera.project_id == project_id,
                 Image.is_verified == True,
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
         .group_by(HumanObservation.species)
@@ -269,8 +269,8 @@ def get_species_distribution(
                 Image.is_verified == False,
                 Detection.confidence >= detection_threshold,
                 classification_passes_threshold(),
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
         .group_by(Classification.species)
@@ -290,8 +290,8 @@ def get_species_distribution(
                 Image.is_verified == False,
                 Detection.category.in_(['person', 'vehicle']),
                 Detection.confidence >= detection_threshold,
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
         .group_by(Detection.category)
@@ -355,28 +355,27 @@ def get_camera_health_summary(
     battery_values = []
     sd_values = []
 
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+    # Pair each camera with the timestamp of its latest health report. reported_at is
+    # naive camera-clock; a few-hour drift from UTC is irrelevant for a 7-day window.
+    camera_ids = [c.id for c in cameras]
+    last_reported_by_camera: dict[int, datetime] = {}
+    if camera_ids:
+        rows = db.execute(
+            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
+            .where(CameraHealthReport.camera_id.in_(camera_ids))
+            .group_by(CameraHealthReport.camera_id)
+        ).all()
+        last_reported_by_camera = {cam_id: ts for cam_id, ts in rows}
+
+    cutoff = datetime.utcnow() - timedelta(days=7)
 
     for camera in cameras:
-        # Check if camera has never reported (use status field)
-        if camera.status == 'never_reported':
+        last_reported_at = last_reported_by_camera.get(camera.id)
+        if last_reported_at is None:
             never_reported_cameras.append({'name': camera.name})
             continue
 
-        # Check activity status for cameras that have reported before
-        is_active = False
-        if camera.last_daily_report_at:
-            if camera.last_daily_report_at >= cutoff_date:
-                is_active = True
-        elif camera.config and camera.config.get('last_report_timestamp'):
-            try:
-                last_report = datetime.fromisoformat(camera.config['last_report_timestamp'])
-                if last_report >= cutoff_date:
-                    is_active = True
-            except (ValueError, TypeError):
-                pass
-
-        if is_active:
+        if last_reported_at >= cutoff:
             active += 1
         else:
             inactive_cameras.append({'name': camera.name})
@@ -470,7 +469,7 @@ def get_notable_detections(
             Classification.confidence.label('classification_confidence'),
             Detection.confidence.label('detection_confidence'),
             Camera.name.label('camera_name'),
-            Image.uploaded_at,
+            Image.captured_at,
             Image.uuid.label('image_uuid')
         )
         .join(Detection, Classification.detection_id == Detection.id)
@@ -482,8 +481,8 @@ def get_notable_detections(
                 Camera.project_id == project_id,
                 Detection.confidence >= detection_threshold,
                 classification_passes_threshold(),
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
         .order_by(desc(Classification.confidence))
@@ -496,7 +495,7 @@ def get_notable_detections(
         {
             'species': row.species,
             'camera': row.camera_name,
-            'timestamp': row.uploaded_at.isoformat() if row.uploaded_at else None,
+            'timestamp': row.captured_at.isoformat() if row.captured_at else None,
             'confidence': round(row.classification_confidence * 100, 1),
             'image_uuid': row.image_uuid
         }
@@ -540,7 +539,7 @@ def get_activity_summary(
     # Query 1: Verified images - use HumanObservation.count
     verified_query = (
         select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.extract('hour', Image.captured_at).label('hour'),
             func.sum(HumanObservation.count).label('count')
         )
         .select_from(HumanObservation)
@@ -550,17 +549,17 @@ def get_activity_summary(
             and_(
                 Camera.project_id == project_id,
                 Image.is_verified == True,
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
-        .group_by(func.extract('hour', Image.uploaded_at))
+        .group_by(func.extract('hour', Image.captured_at))
     )
 
     # Query 2: Unverified images - use AI Classification count
     unverified_query = (
         select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.extract('hour', Image.captured_at).label('hour'),
             func.count(Classification.id).label('count')
         )
         .select_from(Classification)
@@ -574,17 +573,17 @@ def get_activity_summary(
                 Image.is_verified == False,
                 Detection.confidence >= detection_threshold,
                 classification_passes_threshold(),
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
-        .group_by(func.extract('hour', Image.uploaded_at))
+        .group_by(func.extract('hour', Image.captured_at))
     )
 
     # Query 3: Person/vehicle detections (unverified images)
     pv_query = (
         select(
-            func.extract('hour', Image.uploaded_at).label('hour'),
+            func.extract('hour', Image.captured_at).label('hour'),
             func.count(Detection.id).label('count')
         )
         .select_from(Detection)
@@ -596,11 +595,11 @@ def get_activity_summary(
                 Image.is_verified == False,
                 Detection.category.in_(['person', 'vehicle']),
                 Detection.confidence >= detection_threshold,
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
-        .group_by(func.extract('hour', Image.uploaded_at))
+        .group_by(func.extract('hour', Image.captured_at))
     )
 
     # Combine and aggregate by hour
@@ -654,19 +653,19 @@ def get_images_timeline(
 
     query = (
         select(
-            func.date(Image.uploaded_at).label('date'),
+            func.date(Image.captured_at).label('date'),
             func.count(Image.id).label('count')
         )
         .join(Camera)
         .where(
             and_(
                 Camera.project_id == project_id,
-                Image.uploaded_at >= start_dt,
-                Image.uploaded_at <= end_dt
+                Image.captured_at >= start_dt,
+                Image.captured_at <= end_dt
             )
         )
-        .group_by(func.date(Image.uploaded_at))
-        .order_by(func.date(Image.uploaded_at))
+        .group_by(func.date(Image.captured_at))
+        .order_by(func.date(Image.captured_at))
     )
 
     rows = db.execute(query).all()

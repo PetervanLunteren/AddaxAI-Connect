@@ -21,7 +21,7 @@ from shared.models import (
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
-from db_operations import create_notification_log
+from db_operations import create_notification_log, get_server_timezone
 
 logger = get_logger("notifications.battery_digest")
 settings = get_settings()
@@ -42,6 +42,9 @@ def send_daily_battery_digest() -> None:
     logger.info("Starting daily battery digest")
 
     with get_sync_session() as db:
+        tz = get_server_timezone(db)
+        digest_date = datetime.now(tz).date().isoformat()
+
         # Get all users with Telegram configured
         query = (
             select(ProjectNotificationPreference, User, Project)
@@ -125,7 +128,7 @@ def send_daily_battery_digest() -> None:
                     'project_name': project.name,
                     'camera_count': low_battery_count,
                     'threshold': battery_threshold,
-                    'digest_date': datetime.now(timezone.utc).isoformat()
+                    'digest_date': digest_date,
                 }
 
                 # Send via Telegram

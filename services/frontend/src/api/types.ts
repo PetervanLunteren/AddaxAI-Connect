@@ -53,8 +53,7 @@ export interface ImageListItem {
   filename: string;
   camera_id: number;
   camera_name: string;
-  uploaded_at: string;
-  datetime_captured: string | null;  // EXIF DateTimeOriginal if available
+  captured_at: string;
   status: string;
   detection_count: number;
   top_species: string | null;
@@ -160,7 +159,7 @@ export interface ImageDetail {
   camera_id: number;
   camera_name: string;
   camera_location: { lat: number; lon: number } | null;
-  uploaded_at: string;
+  captured_at: string;
   storage_path: string;
   status: string;
   image_metadata: Record<string, any>;

@@ -3,8 +3,9 @@ EXIF metadata extraction using exiftool
 """
 import subprocess
 import json
+import re
 from typing import Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from shared.logger import get_logger
 from utils import convert_gps_dms_to_decimal, format_datetime_exif
@@ -40,6 +41,8 @@ def extract_exif(filepath: str) -> dict:
                 '-Make',
                 '-Model',
                 '-DateTimeOriginal',
+                '-OffsetTimeOriginal',
+                '-OffsetTime',
                 '-GPSLatitude',
                 '-GPSLongitude',
                 '-ImageWidth',
@@ -155,3 +158,54 @@ def get_datetime_original(exif: dict, filepath: str, allow_fallback: bool = Fals
         return mtime
     else:
         raise ValueError(f"DateTimeOriginal missing in EXIF and fallback not allowed")
+
+
+# Matches "+HH:MM" / "-HH:MM" and "+HHMM" / "-HHMM" forms that exiftool emits.
+_EXIF_OFFSET_RE = re.compile(r'^([+\-])(\d{2}):?(\d{2})$')
+
+
+def _parse_exif_offset(raw: str) -> Optional[timedelta]:
+    """Parse an EXIF OffsetTime string (e.g. '+01:00') into a timedelta."""
+    if not raw:
+        return None
+    match = _EXIF_OFFSET_RE.match(raw.strip())
+    if not match:
+        return None
+    sign, hours, minutes = match.groups()
+    delta = timedelta(hours=int(hours), minutes=int(minutes))
+    return -delta if sign == '-' else delta
+
+
+def check_exif_offset(exif: dict, captured_at: datetime) -> None:
+    """
+    Log a warning when the EXIF OffsetTimeOriginal / OffsetTime tag on this
+    image disagrees with the configured server timezone at the captured
+    instant. Does not mutate captured_at; the server timezone remains the
+    canonical interpretation of camera clocks.
+    """
+    raw_offset = exif.get('OffsetTimeOriginal') or exif.get('OffsetTime')
+    if not raw_offset:
+        return
+
+    camera_offset = _parse_exif_offset(raw_offset)
+    if camera_offset is None:
+        logger.warning(
+            "Unparseable EXIF OffsetTimeOriginal tag",
+            raw_offset=raw_offset,
+        )
+        return
+
+    # Ask the server for its configured offset at the captured instant.
+    from db_operations import get_server_timezone
+    server_tz = get_server_timezone()
+    server_offset = server_tz.utcoffset(captured_at)
+    if server_offset is None or server_offset == camera_offset:
+        return
+
+    logger.warning(
+        "EXIF offset disagrees with server timezone",
+        camera_offset=raw_offset,
+        server_tz=str(server_tz),
+        server_offset=str(server_offset),
+        captured_at=captured_at.isoformat(),
+    )
