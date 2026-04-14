@@ -5,7 +5,7 @@ Uses synchronous database sessions for scheduled job compatibility.
 All queries are filtered by project_id for per-project reports.
 """
 from typing import Dict, Any, List, Optional
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import Session
 
@@ -43,8 +43,10 @@ def get_overview_stats(
         - new_species: Species first detected in date range
     """
     # Convert dates to datetime for comparison
-    start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-    end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+    # captured_at is naive camera-clock, interpreted under ServerSettings.timezone,
+    # so day boundaries here are naive too.
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
 
     # Get project detection threshold
     project = db.execute(
@@ -225,8 +227,10 @@ def get_species_distribution(
     Returns:
         List of {'species': str, 'count': int} sorted by count descending
     """
-    start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-    end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+    # captured_at is naive camera-clock, interpreted under ServerSettings.timezone,
+    # so day boundaries here are naive too.
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
 
     # Get project detection threshold
     project = db.execute(
@@ -454,8 +458,10 @@ def get_notable_detections(
     Returns:
         List of detection details with species, camera, timestamp, confidence
     """
-    start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-    end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+    # captured_at is naive camera-clock, interpreted under ServerSettings.timezone,
+    # so day boundaries here are naive too.
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
 
     # Get project detection threshold
     project = db.execute(
@@ -527,8 +533,10 @@ def get_activity_summary(
         - peak_hour: Hour with most activity (0-23)
         - hourly_distribution: List of 24 counts
     """
-    start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-    end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+    # captured_at is naive camera-clock, interpreted under ServerSettings.timezone,
+    # so day boundaries here are naive too.
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
 
     # Get project detection threshold
     project = db.execute(
@@ -648,8 +656,10 @@ def get_images_timeline(
     Returns:
         List of {'date': str, 'count': int} sorted by date
     """
-    start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-    end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+    # captured_at is naive camera-clock, interpreted under ServerSettings.timezone,
+    # so day boundaries here are naive too.
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
 
     query = (
         select(
