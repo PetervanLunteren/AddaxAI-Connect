@@ -170,13 +170,17 @@ function ActivityClock({ hours, sunBands }: ActivityClockProps) {
       {hoveredEntry && (
         <g style={{ pointerEvents: 'none' }}>
           {/* Card background — drawn on top of the bars so the text stays
-              readable even when the count label is wider than the inner circle */}
+              readable even when the count label is wider than the inner
+              circle. fillOpacity 0.85 lets the bars underneath show through
+              faintly, so the chart still reads as a whole even while
+              hovering. */}
           <rect
             x={cx - 35}
             y={cy - 14}
             width={70}
             height={28}
             rx={3}
+            fillOpacity={0.85}
             style={{
               fill: 'hsl(var(--card))',
               stroke: 'hsl(var(--border))',
