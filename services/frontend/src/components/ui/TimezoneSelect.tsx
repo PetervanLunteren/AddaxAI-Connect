@@ -102,7 +102,7 @@ function buildTimezoneOptions(): TimezoneGroup[] {
     return collator.compare(a.iana, b.iana);
   });
 
-  return [buildFixedOffsetGroup(), { label: '', options }];
+  return [buildFixedOffsetGroup(), { label: 'Locations', options }];
 }
 
 const customStyles: StylesConfig<TimezoneOption, false, GroupBase<TimezoneOption>> = {
@@ -137,22 +137,13 @@ const customStyles: StylesConfig<TimezoneOption, false, GroupBase<TimezoneOption
       backgroundColor: 'hsl(var(--primary))',
     },
   }),
-  groupHeading: (provided, state) => {
-    // Hide the heading entirely for the flat (unlabeled) group so it renders
-    // without a stray empty row above the list.
-    const hasLabel = Boolean(state.data.label);
-    return {
-      ...provided,
-      color: 'hsl(var(--muted-foreground))',
-      fontSize: '0.75rem',
-      fontWeight: 600,
-      textTransform: 'uppercase',
-      display: hasLabel ? undefined : 'none',
-      padding: hasLabel ? undefined : 0,
-      margin: hasLabel ? undefined : 0,
-      height: hasLabel ? undefined : 0,
-    };
-  },
+  groupHeading: (provided) => ({
+    ...provided,
+    color: 'hsl(var(--muted-foreground))',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+  }),
   input: (provided) => ({
     ...provided,
     color: 'hsl(var(--foreground))',
