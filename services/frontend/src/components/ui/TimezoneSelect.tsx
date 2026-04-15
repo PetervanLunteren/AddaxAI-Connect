@@ -1,13 +1,25 @@
 /**
- * Searchable timezone selector using react-select
- * Styled to match the application theme (same as MultiSelect)
+ * Searchable timezone selector using react-select.
+ *
+ * Each option reads as "🇰🇪 Kenya, Nairobi (UTC+03:00)". Country names are
+ * localized via Intl.DisplayNames so a Dutch browser shows "Kenia", a
+ * German browser shows "Kenia", etc. Flags are computed at render time
+ * from the ISO alpha-2 code via regional indicator symbols.
+ *
+ * Search matches country, city, and IANA name. The fixed UTC offset
+ * options (Etc/GMT*) live in their own group at the top; every other
+ * zone lives in a single flat, alphabetically sorted group.
  */
 import React, { useMemo } from 'react';
 import Select, { SingleValue, StylesConfig, GroupBase, FilterOptionOption } from 'react-select';
+import { TIMEZONE_COUNTRY } from '../../geodata/timezone-countries';
 
 interface TimezoneOption {
   label: string;
   value: string;
+  country: string;
+  city: string;
+  iana: string;
 }
 
 interface TimezoneGroup {
@@ -22,66 +34,75 @@ interface TimezoneSelectProps {
   className?: string;
 }
 
+// Module-scoped instances so they are built once per page load, not per option.
+const regionNames = new Intl.DisplayNames(undefined, { type: 'region' });
+const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
+
+/** Convert an ISO 3166-1 alpha-2 code like "KE" to its flag emoji 🇰🇪. */
+function countryFlag(code: string): string {
+  // Regional Indicator Symbol Letter A is U+1F1E6, 'A' is U+0041.
+  return code
+    .toUpperCase()
+    .replace(/./g, (c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 0x41));
+}
+
+/** Current UTC offset for a zone, formatted as UTC+03:00 / UTC-08:00 / UTC+05:30. */
+function formatOffset(tz: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    timeZoneName: 'longOffset',
+  }).formatToParts(new Date());
+  const raw = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+  // Intl emits "GMT+03:00" / "GMT-08:00" / "GMT" (for UTC itself).
+  if (raw === 'GMT') return 'UTC+00:00';
+  return raw.replace('GMT', 'UTC');
+}
+
 function buildFixedOffsetGroup(): TimezoneGroup {
-  // Fixed UTC offsets without DST, using Etc/GMT± IANA names
-  // Note: IANA convention inverts the sign (Etc/GMT-4 = UTC+4)
+  // Fixed UTC offsets without DST, using Etc/GMT± IANA names.
+  // Note: IANA convention inverts the sign (Etc/GMT-4 = UTC+4).
   const offsets: TimezoneOption[] = [];
-
   for (let i = -12; i <= 14; i++) {
-    if (i === 0) {
-      offsets.push({ label: 'UTC (fixed, no daylight saving)', value: 'UTC' });
-    } else {
-      const sign = i > 0 ? '+' : '';
-      const ianaSign = i > 0 ? '-' : '+';
-      const ianaValue = `Etc/GMT${ianaSign}${Math.abs(i)}`;
-      offsets.push({ label: `UTC${sign}${i} (fixed, no daylight saving)`, value: ianaValue });
-    }
+    const label =
+      i === 0
+        ? 'UTC (fixed, no daylight saving)'
+        : `UTC${i > 0 ? '+' : ''}${i} (fixed, no daylight saving)`;
+    const value = i === 0 ? 'UTC' : `Etc/GMT${i > 0 ? '-' : '+'}${Math.abs(i)}`;
+    offsets.push({ label, value, country: '', city: label, iana: value });
   }
-
   return { label: 'Fixed offset', options: offsets };
 }
 
 function buildTimezoneOptions(): TimezoneGroup[] {
-  const timezones = Intl.supportedValuesOf('timeZone');
-  const groups: Record<string, TimezoneOption[]> = {};
+  const options: TimezoneOption[] = [];
 
-  for (const tz of timezones) {
-    const parts = tz.split('/');
-    const region = parts[0];
-    // City name: take last part, replace underscores with spaces
-    const city = parts[parts.length - 1].replace(/_/g, ' ');
+  for (const tz of Intl.supportedValuesOf('timeZone')) {
+    // Etc/* zones are handled in the fixed-offset group above.
+    if (tz.startsWith('Etc/')) continue;
 
-    // Skip Etc/* zones - we handle these in the fixed offset group
-    if (region === 'Etc') continue;
+    const city = tz.split('/').pop()!.replace(/_/g, ' ');
+    const isoCode = TIMEZONE_COUNTRY[tz];
+    const countryName = isoCode ? regionNames.of(isoCode) ?? '' : '';
+    const flag = isoCode ? countryFlag(isoCode) : '';
+    const offset = formatOffset(tz);
 
-    // Compute current UTC offset
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz,
-      timeZoneName: 'shortOffset',
-    });
-    const offsetPart = formatter.formatToParts(new Date())
-      .find(p => p.type === 'timeZoneName');
-    const offset = offsetPart?.value ?? '';
-    const utcOffset = offset.replace('GMT', 'UTC');
+    const label = countryName
+      ? `${flag} ${countryName}, ${city} (${offset})`
+      : `${city} (${offset})`;
 
-    const label = `${city} (${utcOffset})`;
-
-    if (!groups[region]) groups[region] = [];
-    groups[region].push({ label, value: tz });
+    options.push({ label, value: tz, country: countryName, city, iana: tz });
   }
 
-  // Sort options within each group alphabetically by label
-  for (const region of Object.keys(groups)) {
-    groups[region].sort((a, b) => a.label.localeCompare(b.label));
-  }
+  // Flat sort: by localized country name, then city, then IANA as tiebreaker.
+  options.sort((a, b) => {
+    const byCountry = collator.compare(a.country, b.country);
+    if (byCountry !== 0) return byCountry;
+    const byCity = collator.compare(a.city, b.city);
+    if (byCity !== 0) return byCity;
+    return collator.compare(a.iana, b.iana);
+  });
 
-  // Build geographic groups sorted alphabetically
-  const geographicGroups = Object.keys(groups)
-    .sort()
-    .map(region => ({ label: region, options: groups[region] }));
-
-  // Fixed offset group first, then geographic groups
-  return [buildFixedOffsetGroup(), ...geographicGroups];
+  return [buildFixedOffsetGroup(), { label: '', options }];
 }
 
 const customStyles: StylesConfig<TimezoneOption, false, GroupBase<TimezoneOption>> = {
@@ -116,13 +137,22 @@ const customStyles: StylesConfig<TimezoneOption, false, GroupBase<TimezoneOption
       backgroundColor: 'hsl(var(--primary))',
     },
   }),
-  groupHeading: (provided) => ({
-    ...provided,
-    color: 'hsl(var(--muted-foreground))',
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-  }),
+  groupHeading: (provided, state) => {
+    // Hide the heading entirely for the flat (unlabeled) group so it renders
+    // without a stray empty row above the list.
+    const hasLabel = Boolean(state.data.label);
+    return {
+      ...provided,
+      color: 'hsl(var(--muted-foreground))',
+      fontSize: '0.75rem',
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      display: hasLabel ? undefined : 'none',
+      padding: hasLabel ? undefined : 0,
+      margin: hasLabel ? undefined : 0,
+      height: hasLabel ? undefined : 0,
+    };
+  },
   input: (provided) => ({
     ...provided,
     color: 'hsl(var(--foreground))',
@@ -145,10 +175,10 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
 }) => {
   const groupedOptions = useMemo(() => buildTimezoneOptions(), []);
 
-  // Find the current value in the grouped options
+  // Find the current value in the grouped options.
   const selectedOption = useMemo(() => {
     for (const group of groupedOptions) {
-      const found = group.options.find(opt => opt.value === value);
+      const found = group.options.find((opt) => opt.value === value);
       if (found) return found;
     }
     return null;
@@ -158,22 +188,20 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
     if (option) onChange(option.value);
   };
 
-  // Custom filter: search on city name and IANA value, not the offset in parentheses
-  // This prevents "UTC" from matching every option via "(UTC+X)" in the label
-  // Fixed-offset entries (containing "fixed, no daylight saving") match on their full label
+  // Match on country, city, and IANA name. Skipping offset matching keeps
+  // "+3" or "UTC+03" from returning dozens of unrelated zones at a glance.
+  // Fixed-offset entries have no country or IANA city, so fall back to the
+  // full label for those.
   const filterOption = (option: FilterOptionOption<TimezoneOption>, inputValue: string) => {
+    if (!inputValue) return true;
     const search = inputValue.toLowerCase();
-    const value = option.value.toLowerCase();
-    const label = option.label.toLowerCase();
-
-    // Fixed-offset entries: match on full label (e.g., "UTC+4 (fixed, no daylight saving)")
-    if (label.includes('no dst')) {
-      return label.includes(search);
-    }
-
-    // Geographic entries: match on IANA value or city name (before the parentheses)
-    const cityPart = label.split('(')[0].trim();
-    return value.includes(search) || cityPart.includes(search);
+    const data = option.data;
+    return (
+      data.country.toLowerCase().includes(search) ||
+      data.city.toLowerCase().includes(search) ||
+      data.iana.toLowerCase().includes(search) ||
+      data.label.toLowerCase().includes(search)
+    );
   };
 
   return (
