@@ -108,15 +108,14 @@ export const ProjectsPage: React.FC = () => {
           )}
         </div>
 
-        {/* Setup incomplete banner (server admins only) */}
-        {isServerAdmin && setupStatus && !setupStatus.ready && (
+        {/* Setup incomplete banner (server admins only). Timezone is seeded
+            automatically from the browser on first login, so it is not listed
+            here and the banner no longer gates on it. */}
+        {isServerAdmin && setupStatus && (!setupStatus.country_code || !setupStatus.taxonomy_mapping) && (
           <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">
               Server setup incomplete.{' '}
-              {!setupStatus.timezone && (
-                <><Link to="/server/settings" className="underline font-medium">Set the camera timezone</Link>. </>
-              )}
               {!setupStatus.country_code && (
                 <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
               )}
