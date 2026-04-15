@@ -440,7 +440,7 @@ export const CamerasPage: React.FC = () => {
   return (
     <div>
       {/* Header with title and admin actions */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <div>
           <h1 className="text-2xl font-bold mb-0">Cameras</h1>
           <p className="text-sm text-gray-600 mt-1">
@@ -463,7 +463,7 @@ export const CamerasPage: React.FC = () => {
 
       {/* Shared search + filters toolbar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-0">
           {isFiltered && (
             <span className="text-sm text-muted-foreground whitespace-nowrap">
               {filteredCameras.length} of {cameras.length} cameras
