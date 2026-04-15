@@ -51,6 +51,18 @@ async def _get_independence_interval(db: AsyncSession, project_id: Optional[int]
     return result.scalar_one_or_none() or 0
 
 
+async def _server_now(db: AsyncSession) -> datetime:
+    """
+    Return the current wall-clock time in the server's declared timezone, as a naive
+    datetime. Use this whenever constructing a bound that will be compared against
+    Image.captured_at or CameraHealthReport.reported_at, both of which are stored
+    naive and interpreted under ServerSettings.timezone.
+    """
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+    return datetime.now(tz).replace(tzinfo=None)
+
+
 class StatisticsOverview(BaseModel):
     """Dashboard overview statistics"""
     total_images: int
@@ -134,8 +146,9 @@ async def get_overview(
     # Total unique species (preferring human observations for verified images)
     total_species = await get_preferred_total_species_count(db, accessible_project_ids, camera_ids=camera_id_list)
 
-    # Images today (filtered by project)
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Images today (filtered by project). "Today" is the server's local calendar day,
+    # matching the naive captured_at convention.
+    today_start = (await _server_now(db)).replace(hour=0, minute=0, second=0, microsecond=0)
     today_conditions = [
         Image.captured_at >= today_start,
         Camera.project_id.in_(accessible_project_ids),
@@ -202,8 +215,8 @@ async def get_images_timeline(
         List of data points with date and count
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    # Calculate date range
-    end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Calculate date range in the server's local calendar day (matches naive captured_at).
+    end_date = (await _server_now(db)).replace(hour=0, minute=0, second=0, microsecond=0)
     num_days = days if days is not None else 30
     start_date = end_date - timedelta(days=num_days) if num_days > 0 else None
 
@@ -959,9 +972,10 @@ async def get_detection_trend(
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
     interval = await _get_independence_interval(db, project_id)
 
-    # Default to last 30 days
+    # Default to last 30 days. Use the server's local wall clock so the window
+    # lines up with the naive captured_at convention.
     if not start_date and not end_date:
-        end_dt = datetime.now(timezone.utc)
+        end_dt = await _server_now(db)
         start_dt = end_dt - timedelta(days=30)
     else:
         start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
