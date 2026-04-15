@@ -54,6 +54,7 @@ import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
 import { CameraFilters, defaultCameraFilters, type CameraFilterState } from '../components/CameraFilters';
 import { cn } from '../lib/utils';
+import { formatRelative } from '../utils/datetime';
 import { useDropzone } from 'react-dropzone';
 
 type SortColumn = 'name' | 'tags' | 'status' | 'battery' | 'signal' | 'sd_used' | 'last_report' | 'last_image' | 'location';
@@ -316,18 +317,6 @@ export const CamerasPage: React.FC = () => {
     return '#882000';
   };
 
-  const formatTimestamp = (timestamp: string | null) => {
-    if (!timestamp) return 'Never';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays <= 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
-  };
-
   const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
@@ -349,8 +338,8 @@ export const CamerasPage: React.FC = () => {
           ...(c.tags || []),
           ...(c.custom_fields ? Object.keys(c.custom_fields).concat(Object.values(c.custom_fields)) : []),
           getSignalLabel(c.signal_quality),
-          formatTimestamp(c.last_report_timestamp),
-          formatTimestamp(c.last_image_timestamp),
+          formatRelative(c.last_report_timestamp),
+          formatRelative(c.last_image_timestamp),
           c.location ? 'known' : 'unknown',
           c.battery_percentage !== null ? `${c.battery_percentage}%` : 'N/A',
           c.sd_utilization_percentage !== null ? `${Math.round(c.sd_utilization_percentage)}%` : 'N/A',
@@ -768,7 +757,7 @@ export const CamerasPage: React.FC = () => {
                             className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: getTimestampColor(camera.last_report_timestamp) }}
                           />
-                          <span className="text-sm">{formatTimestamp(camera.last_report_timestamp)}</span>
+                          <span className="text-sm">{formatRelative(camera.last_report_timestamp)}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -777,7 +766,7 @@ export const CamerasPage: React.FC = () => {
                             className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: getTimestampColor(camera.last_image_timestamp) }}
                           />
-                          <span className="text-sm">{formatTimestamp(camera.last_image_timestamp)}</span>
+                          <span className="text-sm">{formatRelative(camera.last_image_timestamp)}</span>
                         </div>
                       </TableCell>
                       <TableCell>

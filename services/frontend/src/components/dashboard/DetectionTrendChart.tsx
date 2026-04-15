@@ -19,6 +19,7 @@ import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
+import { formatDateShort, formatMonth } from '../../utils/datetime';
 import { getSpeciesColor } from '../../utils/species-colors';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
@@ -122,7 +123,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         let label = key;
         if (granularity === 'month') {
           const [y, m] = key.split('-');
-          label = new Date(Number(y), Number(m) - 1).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+          label = formatMonth(new Date(Number(y), Number(m) - 1));
         }
         return { date: label, count };
       });
@@ -159,7 +160,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
   // Format labels based on granularity
   const formatLabel = (d: { date: string }) => {
     if (granularity === 'day') {
-      return new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      return formatDateShort(d.date);
     }
     return d.date; // Week/month labels are already formatted
   };

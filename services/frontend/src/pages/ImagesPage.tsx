@@ -14,6 +14,7 @@ import { camerasApi } from '../api/cameras';
 import { statisticsApi } from '../api/statistics';
 import { ImageDetailModal } from '../components/ImageDetailModal';
 import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
+import { formatDateTime } from '../utils/datetime';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
@@ -192,25 +193,6 @@ export const ImagesPage: React.FC = () => {
     filters.verified !== '' ||
     filters.liked !== '' ||
     filters.needs_review !== '';
-
-  const formatTimestamp = (timestamp: string) => {
-    // Handle EXIF format: "2024:12:22 10:30:45" -> "2024-12-22T10:30:45"
-    const exifFormatted = timestamp.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-    const date = new Date(exifFormatted);
-
-    if (isNaN(date.getTime())) {
-      return timestamp; // Return original if can't parse
-    }
-
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  };
 
   // Set species context using the full species list for consistent colors app-wide
   useMemo(() => {
@@ -441,7 +423,7 @@ export const ImagesPage: React.FC = () => {
                     {/* Timestamp */}
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3" />
-                      <span>{formatTimestamp(image.captured_at)}</span>
+                      <span>{formatDateTime(image.captured_at)}</span>
                     </div>
                   </div>
                 </CardContent>

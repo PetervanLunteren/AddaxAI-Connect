@@ -29,6 +29,7 @@ import {
 } from '../components/ui/Dialog';
 import { Button } from '../components/ui/Button';
 import type { ProjectDocument } from '../api/types';
+import { formatDate } from '../utils/datetime';
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -204,7 +205,7 @@ export const DocumentsPage: React.FC = () => {
                     {doc.uploaded_by_email || '-'}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                    {new Date(doc.uploaded_at).toLocaleDateString()}
+                    {formatDate(doc.uploaded_at)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">

@@ -31,6 +31,7 @@ import { imageAdminApi } from '../../api/imageAdmin';
 import { camerasApi } from '../../api/cameras';
 import { imagesApi } from '../../api/images';
 import type { ImageListItem } from '../../api/types';
+import { formatDateTime } from '../../utils/datetime';
 
 type SortColumn = 'filename' | 'camera_name' | 'captured_at';
 
@@ -224,20 +225,6 @@ export const ManageImagesPage: React.FC = () => {
       column,
       direction: prev.column === column && prev.direction === 'desc' ? 'asc' : 'desc',
     }));
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    const exifFormatted = timestamp.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3');
-    const date = new Date(exifFormatted);
-    if (isNaN(date.getTime())) return timestamp;
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
   };
 
   const totalPages = imagesData?.pages ?? 1;
@@ -461,7 +448,7 @@ export const ManageImagesPage: React.FC = () => {
                 </TableCell>
                 <TableCell className="text-sm">{image.camera_name}</TableCell>
                 <TableCell className="text-sm whitespace-nowrap">
-                  {formatTimestamp(image.captured_at)}
+                  {formatDateTime(image.captured_at)}
                 </TableCell>
                 <TableCell className="text-center">
                   {image.is_verified && (

@@ -38,6 +38,7 @@ import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { cn } from '../lib/utils';
+import { formatDateTime } from '../utils/datetime';
 
 interface CameraDetailSheetProps {
   camera: Camera | null;
@@ -242,12 +243,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     return 'No signal';
   };
 
-  const formatTimestamp = (timestamp: string | null) => {
-    if (!timestamp) return 'Never';
-    const date = new Date(timestamp);
-    return date.toLocaleString();
-  };
-
   const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
@@ -332,11 +327,11 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Last report</span>
-                  <span>{formatTimestamp(camera.last_report_timestamp)}</span>
+                  <span>{formatDateTime(camera.last_report_timestamp, 'Never')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Last image</span>
-                  <span>{formatTimestamp(camera.last_image_timestamp)}</span>
+                  <span>{formatDateTime(camera.last_image_timestamp, 'Never')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Location</span>

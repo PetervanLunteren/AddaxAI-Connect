@@ -31,6 +31,7 @@ import {
 import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
 import type { ProjectUserInfo, UserWithMemberships } from '../api/types';
+import { formatDate } from '../utils/datetime';
 
 export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -244,7 +245,7 @@ export const ProjectUsersPage: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(user.added_at).toLocaleDateString()}
+                      {formatDate(user.added_at)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">

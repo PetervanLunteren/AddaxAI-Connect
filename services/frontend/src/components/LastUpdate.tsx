@@ -5,39 +5,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../api/statistics';
 import { useProject } from '../contexts/ProjectContext';
-
-/**
- * Format a date as relative time string
- * @param date - ISO date string, EXIF format string (YYYY:MM:DD HH:MM:SS), or Date object
- * @returns Relative time string like "5s ago", "2m ago", "1h ago", etc.
- */
-const formatRelativeTime = (date: string | Date): string => {
-  const now = new Date();
-  const then = new Date(date);
-  const diffSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
-
-  if (diffSeconds < 60) {
-    return `${diffSeconds}s ago`;
-  }
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) {
-    return `${diffMinutes}m ago`;
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `${diffHours}h ago`;
-  }
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) {
-    return `${diffDays}d ago`;
-  }
-
-  // Format as date for > 7 days
-  return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
+import { formatRelative } from '../utils/datetime';
 
 export const LastUpdate: React.FC = () => {
   const { selectedProject } = useProject();
@@ -69,7 +37,7 @@ export const LastUpdate: React.FC = () => {
   return (
     <div className="px-4 py-3 border-t border-border">
       <p className="text-xs text-muted-foreground">
-        Last update: {formatRelativeTime(data.last_update)}
+        Last update: {formatRelative(data.last_update)}
       </p>
     </div>
   );

@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from '../../components/ui/Dialog';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
+import { formatDateTime } from '../../utils/datetime';
 import { uploadFile } from '../../api/devtools';
 import {
   getRejectedFiles,
@@ -324,11 +325,6 @@ export const FileManagementPage: React.FC = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const formatTimestamp = (timestamp: number): string => {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleString();
-  };
-
   const reasonLabels: Record<string, string> = {
     unknown_camera: 'Unknown Camera',
     no_camera_exif: 'No Camera EXIF Data',
@@ -597,7 +593,7 @@ export const FileManagementPage: React.FC = () => {
                             {formatFileSize(file.size_bytes)}
                           </td>
                           <td className="py-2 px-2 whitespace-nowrap text-muted-foreground hidden lg:table-cell">
-                            {formatTimestamp(file.timestamp)}
+                            {formatDateTime(file.timestamp * 1000)}
                           </td>
                         </tr>
                       ))}
@@ -675,7 +671,7 @@ export const FileManagementPage: React.FC = () => {
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Rejected at</label>
                   <p className="text-sm mt-1">
-                    {new Date(selectedFile.rejected_at).toLocaleString()}
+                    {formatDateTime(selectedFile.rejected_at)}
                   </p>
                 </div>
               )}

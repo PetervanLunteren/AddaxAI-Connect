@@ -23,6 +23,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import { Select, SelectItem } from './ui/Select';
 import { camerasApi } from '../api/cameras';
 import type { HealthReportPoint } from '../api/types';
+import { formatDate, formatDateShort } from '../utils/datetime';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler, annotationPlugin);
@@ -120,9 +121,7 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
     }
 
     return {
-      labels: data.reports.map((r) =>
-        new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      ),
+      labels: data.reports.map((r) => formatDateShort(r.date)),
       datasets: [
         {
           label: config.label,
@@ -262,8 +261,8 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
       {data?.reports && data.reports.length > 0 && (
         <p className="text-sm text-muted-foreground">
           {data.reports.length} report{data.reports.length !== 1 ? 's' : ''} from{' '}
-          {new Date(data.reports[0].date).toLocaleDateString()} to{' '}
-          {new Date(data.reports[data.reports.length - 1].date).toLocaleDateString()}
+          {formatDate(data.reports[0].date)} to{' '}
+          {formatDate(data.reports[data.reports.length - 1].date)}
         </p>
       )}
     </div>
