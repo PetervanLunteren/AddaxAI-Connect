@@ -461,6 +461,33 @@ export const CamerasPage: React.FC = () => {
         )}
       </div>
 
+      {/* Shared search + filters toolbar (drives both table and map views) */}
+      {cameras && cameras.length > 0 && (
+        <div className="flex items-center gap-3 mb-4">
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredCameras.length} of {cameras.length} cameras
+            </span>
+          )}
+          <div className="relative max-w-sm ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search cameras..."
+              className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <CameraFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearAll={handleClearFilters}
+            tagOptions={tagOptions}
+          />
+        </div>
+      )}
+
       {/* Tab navigation */}
       <div className="flex border-b mb-6">
         <button
@@ -491,32 +518,7 @@ export const CamerasPage: React.FC = () => {
 
       {/* Map view */}
       {viewMode === 'map' && cameras && cameras.length > 0 && (
-        <>
-          <div className="flex items-center gap-3 mb-4">
-            {isFiltered && (
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                {filteredCameras.length} of {cameras.length} cameras
-              </span>
-            )}
-            <div className="relative max-w-sm ml-auto">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search cameras..."
-                className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-            <CameraFilters
-              filters={filters}
-              onFilterChange={handleFilterChange}
-              onClearAll={handleClearFilters}
-              tagOptions={tagOptions}
-            />
-          </div>
-          <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
-        </>
+        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
       )}
 
       {/* Table view content */}
@@ -628,33 +630,6 @@ export const CamerasPage: React.FC = () => {
           </div>
         );
       })()}
-
-      {/* Search + filters toolbar */}
-      {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-4">
-          {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredCameras.length} of {cameras.length} cameras
-            </span>
-          )}
-          <div className="relative max-w-sm ml-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search cameras..."
-              className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <CameraFilters
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onClearAll={handleClearFilters}
-            tagOptions={tagOptions}
-          />
-        </div>
-      )}
 
       {/* Camera table */}
       {isLoading ? (
