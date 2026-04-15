@@ -5,9 +5,9 @@
  * Server admins see all projects, regular users see their assigned projects.
  * Server admins and project admins can manage their projects.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Camera, AlertCircle, Info, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
 import { useAuth } from '../hooks/useAuth';
@@ -20,6 +20,7 @@ import { UserMenu } from '../components/UserMenu';
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuth();
   const { projects, loading, isServerAdmin } = useProject();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -30,6 +31,26 @@ export const ProjectsPage: React.FC = () => {
     queryFn: adminApi.getSetupStatus,
     enabled: isServerAdmin,
   });
+
+  // On first-ever load for a server admin, seed the server timezone from the
+  // browser so they don't have to visit the settings page just to save a value.
+  // They can still change it later in Server Settings if the browser guessed wrong.
+  const autoSeededTimezone = useRef(false);
+  useEffect(() => {
+    if (autoSeededTimezone.current) return;
+    if (!isServerAdmin || !setupStatus || setupStatus.timezone) return;
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!browserTz) return;
+    autoSeededTimezone.current = true;
+    adminApi.updateServerSettings({ timezone: browserTz })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['setup-status'] });
+        queryClient.invalidateQueries({ queryKey: ['server-settings'] });
+      })
+      .catch(() => {
+        autoSeededTimezone.current = false;
+      });
+  }, [isServerAdmin, setupStatus, queryClient]);
 
   const handleLogout = async () => {
     await logout();
