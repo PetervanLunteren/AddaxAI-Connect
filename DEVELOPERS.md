@@ -245,6 +245,20 @@ To apply migrations on a running server:
 bash scripts/update-database.sh
 ```
 
+## Timestamp conventions
+
+Two column kinds, do not mix them up:
+
+- **Camera-clock** (`Image.captured_at`, `CameraHealthReport.reported_at`): naive `TIMESTAMP`, holds the camera's wall-clock reading as-is, interpreted under `ServerSettings.timezone`. Ingestion never converts or anchors it. Never infer the tz from GPS, the server setting is canonical.
+- **Server wall-clock** (`verified_at`, `liked_at`, `sent_at`, any `server_default=func.now()`): aware `TIMESTAMPTZ`, always UTC.
+
+Rules:
+
+- Filters on camera-clock columns must use naive datetimes. Use `_server_now(db)` from `services/api/routers/statistics.py`, or `datetime.now(ZoneInfo(server_tz)).replace(tzinfo=None)`. Passing `datetime.now(timezone.utc)` crashes with `can't subtract offset-naive and offset-aware datetimes`.
+- Never reintroduce `AT TIME ZONE 'UTC'` on these columns, that was a fix-on-read hack for the pre-refactor mistagged-UTC storage and is gone.
+- When serializing a camera-clock value to ISO 8601, localize first with `.replace(tzinfo=ZoneInfo(server_tz))` so the output carries the correct DST-aware offset.
+- Server wall-clock filters stay aware UTC as before.
+
 ## Infrastructure deployment
 
 See [docs/deployment.md](docs/deployment.md) for deployment, and [docs/update-guide.md](docs/update-guide.md) for updates.
