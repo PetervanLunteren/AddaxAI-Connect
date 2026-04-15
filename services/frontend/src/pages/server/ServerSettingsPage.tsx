@@ -344,12 +344,12 @@ export const ServerSettingsPage: React.FC = () => {
     >
       <Card>
         <CardContent className="pt-6">
-          {/* Camera timezone */}
+          {/* Camera clock timezone */}
           <div className="flex items-center gap-8">
             <div className="w-1/2 shrink-0">
-              <label className="text-sm font-medium block">Camera timezone</label>
+              <label className="text-sm font-medium block">Camera clock timezone</label>
               <p className="text-sm text-muted-foreground mt-1">
-                Timezone the cameras are set to. Used for exports and activity charts. If your camera uses a fixed UTC offset, pick one of the "UTC±X fixed" options. If it follows a regional timezone with daylight saving, pick the city name.
+                Whatever timezone the cameras were set to when installed. Independent of the server location and the browser. Pick a "UTC±X fixed" option if the cameras run on a fixed offset without daylight saving, or a city name for a regional zone that follows daylight saving. Used for activity charts and export timestamps.
               </p>
             </div>
             <div className="flex-1">
