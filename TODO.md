@@ -38,9 +38,12 @@ Open follow-ups:
 - [x] Could a reference photo be attached to each camera to help identify its location in the field? We can have an upload feature in the camera slideout. 
 - [x] Could a “Performance” tab be added, including a confusion matrix summarizing corrected annotations (false positives, false negatives, misclassifications)? Shipped as a Performance page with both an instance-level aggregate (per-species human vs AI counts) and an image-level top-1 confusion matrix. 
 - [x] despite having the setting, Connect's activity pattern chart doesn't actually use the timezone — it extracts EXTRACT(hour FROM uploaded_at) from UTC directly, which is a known inconsistency in their code. So Connect's activity chart is arguably broken for non-UTC zones. Fix this. And then update the colours in the activity pattern (night, dusk, day) based on the timezone settings! 
-- [ ] can we set the default timezone for a new server to the browser settings of the server admin on first login? default filled by the browser on project creation
-- [ ] make caption or title of setting timezone more explicit. "Whatever the cameras were set to."
-- [ ] write the new tz logic and convenstions to the DEVELOPERS.md
+- [x] can we set the default timezone for a new server to the browser settings of the server admin on first login? default filled by the browser on project creation
+- [x] make caption or title of setting timezone more explicit. "Whatever the cameras were set to."
+- [x] write the new tz logic and convenstions to the DEVELOPERS.md
+- [x] SHould we make the dates in the UI table of cameras (last image, last report) more like this "3 Apr, 2026" instead of only digits (confusing hwihc is dd and mm). Makes sense?
+- [x] Add the country or region to the TZ dropdown too and make sure the search also does that. So not only "Nairobi" but something like Kenya, Nairobi. What do you think? How would users search? By country, city, or continent? What is good UI UX?
+- [x] The activity pattern in the dashboard has a card with times and detection counts that show up woth hover. Can we make this card alpha 0.85? Then we still see whats below it (vaguely). 
 
 
 ## Possible future features
