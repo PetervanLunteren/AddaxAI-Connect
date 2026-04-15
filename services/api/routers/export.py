@@ -622,7 +622,10 @@ async def export_camtrap_dp(
     for cam_id, cam_deps in deployments_by_camera.items():
         camera_identifiers[cam_id] = cam_deps[0]["camera_identifier"]
 
-    # Pre-compute event assignments if independence interval is active
+    # Pre-compute event assignments if independence interval is active. The
+    # independence CTE returns naive event_start/event_end values derived from
+    # Image.captured_at. Localize them to the project timezone here so every
+    # consumer serializes ISO 8601 with the correct DST-aware offset.
     event_assignments = None
     if project.independence_interval_minutes > 0:
         from utils.independence_filter import compute_event_assignments
@@ -631,6 +634,11 @@ async def export_camtrap_dp(
             project_id=project_id,
             interval_minutes=project.independence_interval_minutes,
         )
+        for evt in event_assignments.values():
+            if evt["event_start"] is not None:
+                evt["event_start"] = evt["event_start"].replace(tzinfo=tz)
+            if evt["event_end"] is not None:
+                evt["event_end"] = evt["event_end"].replace(tzinfo=tz)
 
     # Build CSV contents
     deployments_csv = _build_deployments_csv(deployments, tz)
