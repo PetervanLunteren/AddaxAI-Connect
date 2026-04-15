@@ -383,7 +383,12 @@ async def compute_event_assignments(
 
     # Extended CTE that also returns per-image info needed for export
     query = f"""
-    {_INDEPENDENCE_CTE.format(verified_filters="", unverified_filters="", pv_filters="")}
+    {_INDEPENDENCE_CTE.format(
+        verified_filters="",
+        unverified_filters="",
+        pv_filters="",
+        classification_filter=CLASSIFICATION_THRESHOLD_FILTER_SQL.strip(),
+    )}
     , event_boundaries AS (
         SELECT pool_id, species, event_id,
                MIN(ts) as event_start,
