@@ -12,7 +12,7 @@
  */
 import React, { useMemo } from 'react';
 import Select, { SingleValue, StylesConfig, GroupBase, FilterOptionOption } from 'react-select';
-import { TIMEZONE_COUNTRY } from '../../geodata/timezone-countries';
+import { TIMEZONE_COUNTRY, IANA_ALIAS } from '../../geodata/timezone-countries';
 
 interface TimezoneOption {
   label: string;
@@ -47,19 +47,18 @@ function countryFlag(code: string): string {
 }
 
 /**
- * Resolve a timezone name to its IANA canonical form. Browsers return both
- * legacy aliases (Asia/Saigon, Europe/Kiev, America/Louisville) and their
- * canonical equivalents (Asia/Ho_Chi_Minh, Europe/Kyiv,
- * America/Kentucky/Louisville) from Intl.supportedValuesOf. The IANA
- * country mapping is keyed on canonical names only, so we canonicalize
- * before lookup and dedupe so the canonical entry wins.
+ * Resolve a timezone name to its preferred display name. Browsers surface
+ * both deprecated aliases (Asia/Saigon, Europe/Kiev, America/Louisville)
+ * and canonical names (Asia/Ho_Chi_Minh, Europe/Kyiv,
+ * America/Kentucky/Louisville) from Intl.supportedValuesOf. We prefer
+ * whichever name has a direct entry in TIMEZONE_COUNTRY; only fall back
+ * to the IANA backward map when neither the input nor its canonical is
+ * a real country-bound zone. This preserves Europe/Amsterdam as NL even
+ * though IANA's backward file calls it an alias for Europe/Brussels.
  */
-function canonicalizeTimezone(tz: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-US', { timeZone: tz }).resolvedOptions().timeZone;
-  } catch {
-    return tz;
-  }
+function resolveTimezone(tz: string): string {
+  if (TIMEZONE_COUNTRY[tz]) return tz;
+  return IANA_ALIAS[tz] ?? tz;
 }
 
 /** Current UTC offset for a zone, formatted as UTC+03:00 / UTC-08:00 / UTC+05:30. */
@@ -94,14 +93,18 @@ function buildTimezoneOptions(): TimezoneGroup[] {
   const seen = new Set<string>();
 
   for (const rawTz of Intl.supportedValuesOf('timeZone')) {
-    // Etc/* zones are handled in the fixed-offset group above.
-    if (rawTz.startsWith('Etc/')) continue;
+    // Etc/* zones, the bare 'UTC' string, and any aliases that resolve
+    // to a fixed offset are handled in the fixed-offset group above.
+    if (rawTz === 'UTC' || rawTz.startsWith('Etc/')) continue;
 
-    // Resolve legacy aliases (Asia/Saigon, Europe/Kiev, America/Louisville,
-    // ...) to their canonical form, then dedupe so each canonical zone
-    // appears exactly once in the list.
-    const tz = canonicalizeTimezone(rawTz);
-    if (tz.startsWith('Etc/') || seen.has(tz)) continue;
+    // Resolve legacy aliases through the static IANA backward map. The
+    // resolver prefers whichever form has a direct entry in
+    // TIMEZONE_COUNTRY, so canonical zones like Europe/Amsterdam keep
+    // their NL country even though IANA's backward file calls them an
+    // alias for Europe/Brussels.
+    const tz = resolveTimezone(rawTz);
+    if (tz === 'UTC' || tz.startsWith('Etc/')) continue;
+    if (seen.has(tz)) continue;
     seen.add(tz);
 
     const city = tz.split('/').pop()!.replace(/_/g, ' ');
@@ -190,14 +193,14 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
 }) => {
   const groupedOptions = useMemo(() => buildTimezoneOptions(), []);
 
-  // Find the current value in the grouped options. Canonicalize first so a
-  // legacy alias saved in the DB (e.g. Asia/Saigon) still matches its
-  // canonical entry (Asia/Ho_Chi_Minh).
+  // Find the current value in the grouped options. Resolve legacy aliases
+  // first so a saved value like Asia/Saigon still matches its preferred
+  // entry (Asia/Ho_Chi_Minh).
   const selectedOption = useMemo(() => {
     if (!value) return null;
-    const canonical = canonicalizeTimezone(value);
+    const resolved = resolveTimezone(value);
     for (const group of groupedOptions) {
-      const found = group.options.find((opt) => opt.value === canonical);
+      const found = group.options.find((opt) => opt.value === resolved);
       if (found) return found;
     }
     return null;
