@@ -46,6 +46,22 @@ function countryFlag(code: string): string {
     .replace(/./g, (c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 0x41));
 }
 
+/**
+ * Resolve a timezone name to its IANA canonical form. Browsers return both
+ * legacy aliases (Asia/Saigon, Europe/Kiev, America/Louisville) and their
+ * canonical equivalents (Asia/Ho_Chi_Minh, Europe/Kyiv,
+ * America/Kentucky/Louisville) from Intl.supportedValuesOf. The IANA
+ * country mapping is keyed on canonical names only, so we canonicalize
+ * before lookup and dedupe so the canonical entry wins.
+ */
+function canonicalizeTimezone(tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: tz }).resolvedOptions().timeZone;
+  } catch {
+    return tz;
+  }
+}
+
 /** Current UTC offset for a zone, formatted as UTC+03:00 / UTC-08:00 / UTC+05:30. */
 function formatOffset(tz: string): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -75,10 +91,18 @@ function buildFixedOffsetGroup(): TimezoneGroup {
 
 function buildTimezoneOptions(): TimezoneGroup[] {
   const options: TimezoneOption[] = [];
+  const seen = new Set<string>();
 
-  for (const tz of Intl.supportedValuesOf('timeZone')) {
+  for (const rawTz of Intl.supportedValuesOf('timeZone')) {
     // Etc/* zones are handled in the fixed-offset group above.
-    if (tz.startsWith('Etc/')) continue;
+    if (rawTz.startsWith('Etc/')) continue;
+
+    // Resolve legacy aliases (Asia/Saigon, Europe/Kiev, America/Louisville,
+    // ...) to their canonical form, then dedupe so each canonical zone
+    // appears exactly once in the list.
+    const tz = canonicalizeTimezone(rawTz);
+    if (tz.startsWith('Etc/') || seen.has(tz)) continue;
+    seen.add(tz);
 
     const city = tz.split('/').pop()!.replace(/_/g, ' ');
     const isoCode = TIMEZONE_COUNTRY[tz];
@@ -166,10 +190,14 @@ export const TimezoneSelect: React.FC<TimezoneSelectProps> = ({
 }) => {
   const groupedOptions = useMemo(() => buildTimezoneOptions(), []);
 
-  // Find the current value in the grouped options.
+  // Find the current value in the grouped options. Canonicalize first so a
+  // legacy alias saved in the DB (e.g. Asia/Saigon) still matches its
+  // canonical entry (Asia/Ho_Chi_Minh).
   const selectedOption = useMemo(() => {
+    if (!value) return null;
+    const canonical = canonicalizeTimezone(value);
     for (const group of groupedOptions) {
-      const found = group.options.find((opt) => opt.value === value);
+      const found = group.options.find((opt) => opt.value === canonical);
       if (found) return found;
     }
     return null;
