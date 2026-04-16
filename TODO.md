@@ -48,4 +48,6 @@ Open follow-ups:
 
 ## Possible future features
 - [ ] Allow manual upload of all SD card images that were not transmitted, in order to benefit from automatic recognition and centralize all data on the server?
+- [ ] multi language
+- [ ] make phone friendly
 
