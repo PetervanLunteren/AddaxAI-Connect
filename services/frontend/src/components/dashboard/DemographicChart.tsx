@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import chroma from 'chroma-js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
@@ -18,31 +19,32 @@ import type { DateRange } from './DateRangeFilter';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Colors per value. Order matches the dropdown options.
-const SEX_COLORS: Record<string, string> = {
-  unknown: '#0f6064',
-  male: '#ff8945',
-  female: '#71b7ba',
-};
-const LIFE_STAGE_COLORS: Record<string, string> = {
-  unknown: '#0f6064',
-  adult: '#ff8945',
-  subadult: '#71b7ba',
-  juvenile: '#882000',
-};
-const BEHAVIOR_COLORS: Record<string, string> = {
-  unknown: '#0f6064',
-  traveling: '#ff8945',
-  foraging: '#71b7ba',
-  resting: '#882000',
-  vigilance: '#0f6064',
-  drinking: '#ff8945',
-  grooming: '#71b7ba',
-  courtship: '#882000',
-  nursing: '#0f6064',
-  aggression: '#ff8945',
-  marking: '#71b7ba',
-};
+// Map each value to a point on the app's teal→yellow gradient, sorted
+// alphabetically: first key gets #0f6064 (dark teal), last key gets
+// #f9f871 (light yellow). Same palette endpoints as the detection-rate
+// map in color-scale.ts, just reversed so categorical keys read dark→light
+// instead of low→high.
+function buildGradientPalette(keys: string[]): Record<string, string> {
+  const sorted = [...keys].sort();
+  const colors = chroma.scale(['#0f6064', '#f9f871']).mode('lab').colors(sorted.length);
+  return Object.fromEntries(sorted.map((key, i) => [key, colors[i]]));
+}
+
+const SEX_COLORS = buildGradientPalette(['female', 'male', 'unknown']);
+const LIFE_STAGE_COLORS = buildGradientPalette(['adult', 'juvenile', 'subadult', 'unknown']);
+const BEHAVIOR_COLORS = buildGradientPalette([
+  'aggression',
+  'courtship',
+  'drinking',
+  'foraging',
+  'grooming',
+  'marking',
+  'nursing',
+  'resting',
+  'traveling',
+  'unknown',
+  'vigilance',
+]);
 
 interface DemographicChartProps {
   dateRange: DateRange;
