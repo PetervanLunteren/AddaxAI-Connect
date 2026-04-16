@@ -60,6 +60,8 @@ services:
       - addaxai-network
 
   # MinIO Bucket Initialization
+  # When COLD_TIER_ENDPOINT is set, also registers the remote tier and installs
+  # a tag-based ILM rule so objects carrying tag `tier=cold` transition there.
   minio-init:
     image: minio/mc:latest
     container_name: addaxai-minio-init
@@ -76,6 +78,14 @@ services:
       /usr/bin/mc mb --ignore-existing minio/models;
       /usr/bin/mc mb --ignore-existing minio/project-images;
       /usr/bin/mc mb --ignore-existing minio/project-documents;
+      /usr/bin/mc version enable minio/raw-images;
+      if [ -n '${COLD_TIER_ENDPOINT:-}' ]; then
+        /usr/bin/mc admin tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --region '${COLD_TIER_REGION:-eu-central-2}' 2>&1 | grep -v -i 'already exists' || true;
+        /usr/bin/mc ilm rule add --transition-days 0 --transition-tier '${COLD_TIER_NAME:-WASABI_COLD}' --tags 'tier=cold' minio/raw-images 2>&1 | grep -v -i 'already exists' || true;
+        echo 'Cold tier configured';
+      else
+        echo 'Cold tier not configured (COLD_TIER_ENDPOINT empty)';
+      fi;
       echo 'MinIO buckets created successfully';
       "
     networks:
@@ -330,6 +340,72 @@ services:
         condition: service_healthy
       notifications:
         condition: service_started
+    networks:
+      - addaxai-network
+
+  # MinIO Cold-tier Watchdog
+  # Daily check: if local raw-images exceeds COLD_TIER_HOT_BUDGET_GB, tags the
+  # oldest objects with tier=cold so the ILM rule transitions them off-box.
+  minio-tier-watchdog:
+    build:
+      context: .
+      dockerfile: services/minio-tier-watchdog/Dockerfile
+    container_name: addaxai-minio-tier-watchdog
+    restart: unless-stopped
+    profiles: [deepfaune, speciesnet]
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      COLD_TIER_ENDPOINT: ${COLD_TIER_ENDPOINT:-}
+      COLD_TIER_HOT_BUDGET_GB: ${COLD_TIER_HOT_BUDGET_GB:-80}
+      COLD_TIER_TICK_SECONDS: ${COLD_TIER_TICK_SECONDS:-86400}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data/minio:/data:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - addaxai-network
+
+  # Dev-only mock cold tier (enable via COMPOSE_PROFILES=deepfaune,dev-cold-mock)
+  # Lets local development exercise the hot → cold transition without a real
+  # Wasabi account. Point COLD_TIER_ENDPOINT at http://minio-cold-mock:9000.
+  minio-cold-mock:
+    image: minio/minio:latest
+    container_name: addaxai-minio-cold-mock
+    profiles: [dev-cold-mock]
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9100:9000"
+      - "127.0.0.1:9101:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ./data/minio-cold-mock:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - addaxai-network
+
+  minio-cold-mock-init:
+    image: minio/mc:latest
+    container_name: addaxai-minio-cold-mock-init
+    profiles: [dev-cold-mock]
+    depends_on:
+      - minio-cold-mock
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set coldmock http://minio-cold-mock:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb --ignore-existing coldmock/${COLD_TIER_BUCKET:-cold-mock};
+      echo 'Cold-mock bucket ready';
+      "
     networks:
       - addaxai-network
 

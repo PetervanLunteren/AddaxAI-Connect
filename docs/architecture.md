@@ -6,7 +6,7 @@
 |---|---|---|
 | Database | PostgreSQL 15 + PostGIS 3.3 | Spatial queries for GPS coordinates |
 | Queue | Redis | FIFO lists with BRPOP, pub/sub for WebSocket events |
-| Object storage | MinIO | S3-compatible API, self-hosted, stores images and crops |
+| Object storage | MinIO | S3-compatible API, self-hosted; raw images transition to a remote cold tier under a size budget, transparent to readers |
 | API | FastAPI | Async Python, automatic OpenAPI docs |
 | Authentication | FastAPI-Users | Email verification, password reset, JWT tokens |
 | Frontend | React + Vite + TypeScript | Component-based UI with hot reload |
@@ -60,7 +60,7 @@ All services run as Docker containers on a single host, connected through a shar
 ### Infrastructure
 - **PostgreSQL + PostGIS** is the central database for all application data
 - **Redis** handles message queues between services and pub/sub for real-time WebSocket events
-- **MinIO** provides S3-compatible storage for raw images, crops, thumbnails, and annotated images
+- **MinIO** provides S3-compatible storage for raw images, crops, thumbnails, and annotated images. Recent raw images live on the server; older ones transition to a remote cold tier under a configurable size budget. Reads remain transparent via the local MinIO API.
 
 ### Application
 - **API** (FastAPI, port 8000) serves REST endpoints, WebSocket connections, and authentication. Interactive API docs (Swagger UI) are available at `/api/docs` on your server.

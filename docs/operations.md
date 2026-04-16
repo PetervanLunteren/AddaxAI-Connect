@@ -77,6 +77,38 @@ docker compose exec minio mc du local/crops
 docker compose exec minio mc du local/thumbnails
 ```
 
+## Cold storage tier
+
+Older raw images can transition from local MinIO to a remote S3-compatible cold tier (Wasabi recommended) once on-disk `raw-images` exceeds a configurable budget. Reads stay on the same `raw-images` bucket; MinIO transparently fetches cold objects, so no application code changes. Thumbnails, crops, project documents, and models always stay hot.
+
+Tiering is enabled when `COLD_TIER_ENDPOINT` is set in `.env`. Configure the cold-tier vars in `ansible/group_vars/dev.yml` (vault-encrypt the access keys) and re-run the playbook. Leave `cold_tier_endpoint` blank to keep everything local.
+
+Confirm the tier is registered and the ILM rule is installed:
+
+```bash
+docker compose exec minio mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+docker compose exec minio mc admin tier ls local
+docker compose exec minio mc ilm rule ls local/raw-images
+```
+
+Inspect a single object's tier. Look at the `Storage class` field; `STANDARD` is hot and the tier name (e.g. `WASABI_COLD`) is cold.
+
+```bash
+docker compose exec minio mc stat local/raw-images/<key>
+```
+
+Read the watchdog log. Each tick reports `hot=X GB, budget=Y GB` and, if over budget, how many objects were tagged for transition.
+
+```bash
+docker compose logs minio-tier-watchdog --tail 50
+```
+
+Change the budget by editing `cold_tier_hot_budget_gb` in `ansible/group_vars/dev.yml`, re-running the playbook, and restarting the watchdog (`docker compose restart minio-tier-watchdog`).
+
+Pause tiering with `docker compose stop minio-tier-watchdog`. Already-cold objects stay readable through the MinIO tier rule.
+
+One-time Wasabi setup: create an account, create a bucket in your chosen region (e.g. `eu-central-2`, `s3.eu-central-2.wasabisys.com`), create a bucket-scoped IAM key, fill the cold-tier vars.
+
 ## Restarting services
 
 ```bash

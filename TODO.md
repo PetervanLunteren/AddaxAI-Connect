@@ -50,12 +50,4 @@ Open follow-ups:
 - [ ] Allow manual upload of all SD card images that were not transmitted, in order to benefit from automatic recognition and centralize all data on the server?
 - [ ] multi language
 - [ ] make phone friendly
-- [ ] investigate the option to have a cold storage MinIO because we are heading towards the max storage on our Ubuntu servers (160GB). I was thinking of https://www.transip.nl/bestel/block-storage/configureren/prm/989de7170ee2b85b115e1bfcd4b2ab86a2e07131 TrasnIP block storage of 2TB HDD. I understand that this is a cold storage, so latency is bad. But my idea was the following: keep postgres DB on server itself, store all MinIO on the cold storage, and keep something like the most recent 20GB of thumbs on server and most recent 50GB images on server for fast access. Then a daily check would remove the overflow images from these minIO storages. If thumb or image cant be found on fast access, fetch it from cold storage. What do you think of this plan? any htings I'm forgetting? How does TrasnIP block storage work? Is there an API we can use? Do you see any difficulties? Do web queries and investagte. Make ti thourough.  Instructions:
-* Switch to plan mode, I want this task to be done with "plan mode on"
-* Read all MD file in root to get a understanding of the project. 
-* If something is unclear at any point, stop and ask before continuing.
-* Prioritize simplicity and clarity over perfection. The code must be clean, easy to read, and understandable for collaborators. Avoid unnecessary complexity.
-* I'm not in a rush. Please be precise and do the task thoroughly. 
-* Please ask me any question for clarification. I would rather that you ask too many questions than assume certain details. 
-* Ask me clarifying questions before beginning. Based on the conventions set out in CONVENTIONS.md and your knowledge, give your recommended solution to each questions you ask me. The minimum number of questions to ask me is 10
 

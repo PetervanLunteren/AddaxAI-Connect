@@ -29,6 +29,19 @@ mail_password: ""                         # SMTP password or app password
 # Initial server admin account
 admin_email: ""                           # Email for the first user account (gets server admin access)
 
+# Cold storage tier (S3-compatible). Leave cold_tier_endpoint blank to keep everything on local disk.
+# When enabled, a daily watchdog tags the oldest raw-images for transition once local disk usage
+# exceeds cold_tier_hot_budget_gb; a MinIO ILM rule moves tagged objects to the cold bucket.
+# Reads stay transparent. Thumbnails, crops, and project assets always stay hot.
+cold_tier_endpoint: ""                    # e.g. "https://s3.eu-central-2.wasabisys.com"
+cold_tier_bucket: ""                      # Bucket name in the cold provider
+cold_tier_region: "eu-central-2"          # Region of the cold bucket
+cold_tier_access_key: ""                  # Cold-tier access key (vault-encrypt when filled in)
+cold_tier_secret_key: ""                  # Cold-tier secret key (vault-encrypt when filled in)
+cold_tier_name: "WASABI_COLD"             # MinIO tier alias name (cosmetic)
+cold_tier_hot_budget_gb: 80               # GB of raw-images to keep on-disk; the watchdog tiers the excess
+cold_tier_tick_seconds: 86400             # Watchdog interval in seconds (86400 = daily)
+
 # ============================================================
 # Defaults — usually fine as-is
 # ============================================================
