@@ -101,12 +101,16 @@ The Postgres volume is unchanged. If origin ships migrations that haven't been a
 bash scripts/update-database.sh
 ```
 
-This runs `alembic upgrade head` inside the API container and then a deployment-period backfill script. Check the output for errors. If the DB schema was frozen on an older alembic revision, every pending migration from that revision through to the latest head runs in sequence.
+This runs three things in sequence: a `docker compose build --no-cache api` (redundant right after step 4 but not harmful, just extra time), `alembic upgrade head` inside the API container, and a deployment-period backfill script. If the DB schema was frozen on an older alembic revision, every pending migration from that revision through to the latest head runs in sequence.
+
+The command output does not always show a "Running upgrade X -> Y" line per migration; the real confirmation is the `alembic_version` table after the fact (see next step).
 
 ### 6. Verify
 
+**Containers up:**
+
 ```bash
-docker compose ps
+docker compose --profile deepfaune ps
 ```
 
 Every container should be `Up`. Healthchecks on postgres/redis/minio should read `(healthy)`. Tail a couple of logs to confirm no import or startup errors:
@@ -116,11 +120,39 @@ docker compose logs api --tail 30
 docker compose logs ingestion --tail 20
 ```
 
-Hit the API directly for a simple 200/401 check (401 is fine, means auth middleware is alive):
+**API responding:**
 
 ```bash
-curl -s -o /dev/null -w "api: %{http_code}\n" http://localhost:8000/api/cameras
+for ep in /api/cameras /api/images /api/statistics/last-update; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000$ep)
+  printf "%-35s %s\n" "$ep" "$code"
+done
 ```
+
+All three should be `401` (auth gate alive, routers loaded, no 500s).
+
+**Migrations applied:**
+
+```bash
+docker compose exec -T postgres psql -U addaxai -d addaxai_connect -c 'SELECT version_num FROM alembic_version;'
+```
+
+The version should match the latest alembic revision file under `services/api/alembic/versions/`. If it is still on an older revision, the migrations did not actually run; scroll back through the `update-database.sh` output for the exception.
+
+**Data intact:**
+
+```bash
+docker compose exec -T postgres psql -U addaxai -d addaxai_connect <<'SQL'
+SELECT 'images' AS t, COUNT(*) FROM images
+UNION ALL SELECT 'cameras', COUNT(*) FROM cameras
+UNION ALL SELECT 'users', COUNT(*) FROM users
+UNION ALL SELECT 'camera_health_reports', COUNT(*) FROM camera_health_reports;
+SELECT uuid, captured_at, image_metadata->>'DateTimeOriginal' AS exif_dto
+FROM images ORDER BY captured_at DESC LIMIT 3;
+SQL
+```
+
+Row counts should match what was in the DB before the reclone (the Postgres bind mount was never touched). `captured_at` values should read as naive local datetimes with no `+00` or other offset suffix, and should match the EXIF `DateTimeOriginal` string exactly apart from the `:` to `-` separator in the date part. A mismatch would indicate the captured_at naive-local migration misfired.
 
 ## Gotchas observed during this reclone
 
