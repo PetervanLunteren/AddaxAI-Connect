@@ -128,6 +128,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   useEffect(() => {
     if (!isOpen || !imageUuid) return;
 
+    // Reset the loaded flag on every image change so the bbox draw effect
+    // reruns when the new <img> finishes loading. Without this the flag
+    // stays true across cached-image navigation and onLoad becomes a no-op,
+    // leaving the canvas blank or with stale dimensions even though the
+    // "Showing AI predictions" chip is visible.
+    setImageLoaded(false);
+
     // Check cache SYNCHRONOUSLY first - this prevents the loader flash
     const cachedUrl = getImageBlobUrl(fullImageUrl);
     if (cachedUrl) {
@@ -151,7 +158,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
     return () => {
       cancelled = true;
-      setImageLoaded(false);
     };
   }, [isOpen, imageUuid, fullImageUrl, getImageBlobUrl, getOrFetchImage]);
 
