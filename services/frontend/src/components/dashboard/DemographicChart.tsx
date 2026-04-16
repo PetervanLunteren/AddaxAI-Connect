@@ -19,15 +19,22 @@ import type { DateRange } from './DateRangeFilter';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Map each value to a point on the app's teal→yellow gradient, sorted
-// alphabetically: first key gets #0f6064 (dark teal), last key gets
-// #f9f871 (light yellow). Same palette endpoints as the detection-rate
-// map in color-scale.ts, just reversed so categorical keys read dark→light
-// instead of low→high.
+// Map each value to a point on the app's teal→yellow gradient. The
+// 'unknown' bucket is always pinned to #0f6064 (dark teal) since it is
+// the catch-all and reads as the anchor across all three field types.
+// Remaining keys are sorted alphabetically and gradient from the next
+// shade toward #f9f871 (light yellow). Same palette endpoints as the
+// detection-rate map in color-scale.ts.
 function buildGradientPalette(keys: string[]): Record<string, string> {
-  const sorted = [...keys].sort();
-  const colors = chroma.scale(['#0f6064', '#f9f871']).mode('lab').colors(sorted.length);
-  return Object.fromEntries(sorted.map((key, i) => [key, colors[i]]));
+  const others = keys.filter((k) => k !== 'unknown').sort();
+  // Generate one extra slot so 'unknown' can take the dark-teal endpoint
+  // without colliding with the first 'other' key.
+  const colors = chroma.scale(['#0f6064', '#f9f871']).mode('lab').colors(others.length + 1);
+  const palette: Record<string, string> = { unknown: colors[0] };
+  others.forEach((key, i) => {
+    palette[key] = colors[i + 1];
+  });
+  return palette;
 }
 
 const SEX_COLORS = buildGradientPalette(['female', 'male', 'unknown']);
