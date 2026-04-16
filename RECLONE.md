@@ -40,6 +40,25 @@ Do not use this when the server has unpushed local work you care about. Push tho
 
 ## Procedure
 
+### 0. Capture a pre-flight snapshot
+
+Before anything destructive, record what should survive so the state can be compared afterwards. Copy the output to a scratch file, terminal scrollback, or a sticky note.
+
+```bash
+ls -lah data/ models/ backup*.sql 2>/dev/null
+du -sh data/* models/ 2>/dev/null
+
+docker compose exec -T postgres psql -U addaxai -d addaxai_connect <<'SQL'
+SELECT 'images' AS t, COUNT(*) FROM images
+UNION ALL SELECT 'cameras', COUNT(*) FROM cameras
+UNION ALL SELECT 'users', COUNT(*) FROM users
+UNION ALL SELECT 'camera_health_reports', COUNT(*) FROM camera_health_reports;
+SELECT version_num FROM alembic_version;
+SQL
+```
+
+The directory sizes and row counts must match the same queries in step 6, since neither the Postgres bind mount, the MinIO bind mount, nor the models directory is touched by any step of this procedure. The pre-reclone `alembic_version` is useful as a starting reference; the post-reclone value should be at or ahead of it.
+
 ### 1. Stop containers and tear down the diverged git state
 
 ```bash
