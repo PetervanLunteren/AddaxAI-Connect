@@ -129,14 +129,21 @@ def check_cold_tier_watchdog() -> ServiceStatus:
                 message="Cold tier disabled (COLD_TIER_ENDPOINT empty)",
             )
         if state == "ok":
-            hot = payload.get("hot_gb", "?")
-            budget = payload.get("budget_gb", "?")
-            tagged = payload.get("tagged_count", 0)
+            hot_gb = payload.get("hot_gb", "?")
+            budget_gb = payload.get("budget_gb", "?")
+            objects_hot = payload.get("objects_hot", 0)
+            objects_cold = payload.get("objects_cold", 0)
+            total = objects_hot + objects_cold
+            pct_cold = (objects_cold / total * 100) if total else 0.0
             ts = payload.get("timestamp", "?")
             return ServiceStatus(
                 name="cold-tier-watchdog",
                 status="healthy",
-                message=f"Last tick {ts}: hot={hot} GB, budget={budget} GB, tagged {tagged} this tick",
+                message=(
+                    f"Last tick {ts}: "
+                    f"{hot_gb} GB used of {budget_gb} GB budget, "
+                    f"{objects_hot} hot / {objects_cold} cold ({pct_cold:.1f}% cold)"
+                ),
             )
         err = payload.get("error", "unknown error")
         return ServiceStatus(

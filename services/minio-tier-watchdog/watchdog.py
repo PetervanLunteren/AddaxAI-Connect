@@ -70,24 +70,32 @@ def tick(client, log):
         "budget_gb": budget_gb,
         "tagged_count": 0,
         "tagged_gb": 0.0,
+        "objects_hot": 0,
+        "objects_cold": 0,
     }
-    if current <= budget_bytes:
-        log.info("under budget, no-op")
-        return result
 
-    excess = current - budget_bytes
-    log.info(
-        "over budget by %.2f GB, selecting oldest STANDARD objects",
-        excess / (1024 ** 3),
-    )
-
+    # Walk the bucket once: count per storage class and collect hot candidates.
     candidates = []
     paginator = client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=BUCKET):
         for obj in page.get("Contents", []):
-            if obj.get("StorageClass", "STANDARD") != "STANDARD":
-                continue  # already transitioned to a remote tier
-            candidates.append((obj["LastModified"], obj["Size"], obj["Key"]))
+            storage_class = obj.get("StorageClass", "STANDARD")
+            if storage_class == "STANDARD":
+                result["objects_hot"] += 1
+                candidates.append((obj["LastModified"], obj["Size"], obj["Key"]))
+            else:
+                result["objects_cold"] += 1
+
+    if current <= budget_bytes:
+        log.info("under budget, no-op (hot=%d, cold=%d objects)",
+                 result["objects_hot"], result["objects_cold"])
+        return result
+
+    excess = current - budget_bytes
+    log.info(
+        "over budget by %.2f GB, selecting oldest of %d STANDARD objects",
+        excess / (1024 ** 3), result["objects_hot"],
+    )
     candidates.sort(key=lambda r: r[0])
 
     tagged_count = 0
