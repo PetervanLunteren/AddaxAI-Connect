@@ -107,7 +107,7 @@
   poll: 10
 
 - name: Start Docker Compose services
-  command: docker compose up -d --force-recreate
+  command: docker compose up -d --build --force-recreate
   args:
     chdir: "{{ app_directory | default('/opt/addaxai-connect') }}"
   become_user: "{{ app_user | default('ubuntu') }}"
