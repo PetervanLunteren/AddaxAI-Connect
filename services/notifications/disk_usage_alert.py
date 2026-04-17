@@ -8,13 +8,14 @@ level resets the tracker, so a subsequent re-crossing will email again.
 import os
 import socket
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional, Tuple
 
 import redis
 from sqlalchemy import select
 
 from shared.config import get_settings
 from shared.database import get_sync_session
+from shared.email_renderer import render_email
 from shared.logger import get_logger
 from shared.models import User
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
@@ -71,16 +72,26 @@ def _load_last_level(redis_client) -> int:
         return 0
 
 
-def _server_admin_emails() -> List[tuple[int, str]]:
+def _alert_recipient() -> Optional[Tuple[int, str]]:
+    """Resolve the single admin email to notify, or None if not configured.
+
+    Reads ADMIN_EMAIL (populated from the ansible admin_email var in .env).
+    Disk alerts go only to the server owner, not to every superuser.
+    """
+    target = os.environ.get("ADMIN_EMAIL", "").strip()
+    if not target:
+        return None
     with get_sync_session() as db:
-        rows = db.execute(
+        user = db.execute(
             select(User).where(
-                User.is_superuser == True,
+                User.email == target,
                 User.is_active == True,
                 User.is_verified == True,
             )
-        ).scalars().all()
-        return [(u.id, u.email) for u in rows if u.email]
+        ).scalar_one_or_none()
+    if not user:
+        return None
+    return (user.id, user.email)
 
 
 def _format_gb(n: int) -> str:
@@ -89,35 +100,35 @@ def _format_gb(n: int) -> str:
 
 def _build_email(pct: float, total: int, used: int, free: int,
                  level: int, hostname: str) -> tuple[str, str, str]:
-    subject = f"[AddaxAI] Disk on {hostname} crossed {level}% ({pct:.1f}% used)"
+    subject = f"{hostname} - Disk usage alert ({level}% crossed)"
+
+    total_gb = _format_gb(total)
+    used_gb = _format_gb(used)
+    free_gb = _format_gb(free)
 
     text_body = (
-        f"Disk usage on {hostname} has crossed the {level}% threshold.\n"
+        f"{hostname} - Disk usage alert\n"
+        f"Crossed {level}% threshold\n"
+        f"{'=' * 50}\n"
         f"\n"
-        f"Total:   {_format_gb(total)}\n"
-        f"Used:    {_format_gb(used)} ({pct:.1f}%)\n"
-        f"Free:    {_format_gb(free)}\n"
+        f"{pct:.1f}% of root filesystem used\n"
         f"\n"
-        f"Suggested actions:\n"
-        f"  - docker builder prune -af  (reclaim build cache)\n"
-        f"  - Check docs/operations.md > Cold storage tier for cold-tier status\n"
-        f"  - Review data/minio/ and data/postgres/ growth\n"
+        f"Total: {total_gb}\n"
+        f"Used:  {used_gb}\n"
+        f"Free:  {free_gb}\n"
         f"\n"
-        f"This alert will not repeat while usage stays at or above {level}%.\n"
-        f"If usage drops below {level}% and crosses it again, a new alert is sent.\n"
+        f"This alert will not repeat while usage stays at or above {level}%. "
+        f"If usage drops below {level}% and later crosses it again, a fresh alert is sent.\n"
     )
 
-    html_body = (
-        f"<h2>Disk usage on {hostname} crossed {level}%</h2>"
-        f"<p><strong>{pct:.1f}% used</strong> "
-        f"— {_format_gb(used)} of {_format_gb(total)}, {_format_gb(free)} free.</p>"
-        f"<h3>Suggested actions</h3>"
-        f"<ul>"
-        f"<li><code>docker builder prune -af</code> (reclaim build cache)</li>"
-        f"<li>Check the Cold storage tier section of <code>docs/operations.md</code></li>"
-        f"<li>Review growth of <code>data/minio/</code> and <code>data/postgres/</code></li>"
-        f"</ul>"
-        f"<p>This alert will not repeat while usage stays at or above {level}%.</p>"
+    html_body, _ = render_email(
+        "disk_usage_alert.html",
+        hostname=hostname,
+        threshold=level,
+        pct=pct,
+        total_gb=total_gb,
+        used_gb=used_gb,
+        free_gb=free_gb,
     )
     return subject, text_body, html_body
 
@@ -154,12 +165,15 @@ def check_disk_usage_and_alert() -> None:
         return
 
     # current > last_level → fire alert for `current`
-    admins = _server_admin_emails()
-    if not admins:
-        logger.warning("Disk crossed threshold but no active server admins to notify",
-                       threshold_level=current, pct=round(pct, 1))
+    recipient = _alert_recipient()
+    if not recipient:
+        logger.warning(
+            "Disk crossed threshold but ADMIN_EMAIL is unset or does not match an active verified user",
+            threshold_level=current, pct=round(pct, 1),
+        )
         redis_client.set(REDIS_KEY, current)
         return
+    user_id, user_email = recipient
 
     hostname = settings.domain_name or socket.gethostname()
     subject, text_body, html_body = _build_email(pct, total, used, free, current, hostname)
@@ -174,28 +188,27 @@ def check_disk_usage_and_alert() -> None:
     }
 
     email_queue = RedisQueue(QUEUE_NOTIFICATION_EMAIL)
-    queued = 0
-    for user_id, user_email in admins:
-        try:
-            log_id = create_notification_log(
-                user_id=user_id,
-                notification_type="disk_usage_alert",
-                channel="email",
-                trigger_data=trigger_data,
-                message_content=text_body[:1000],
-            )
-            email_queue.publish({
-                "notification_log_id": log_id,
-                "to_email": user_email,
-                "subject": subject,
-                "body_text": text_body,
-                "body_html": html_body,
-            })
-            queued += 1
-        except Exception:
-            logger.exception("Failed to queue disk alert",
-                             user_id=user_id, user_email=user_email)
+    try:
+        log_id = create_notification_log(
+            user_id=user_id,
+            notification_type="disk_usage_alert",
+            channel="email",
+            trigger_data=trigger_data,
+            message_content=text_body[:1000],
+        )
+        email_queue.publish({
+            "notification_log_id": log_id,
+            "to_email": user_email,
+            "subject": subject,
+            "body_text": text_body,
+            "body_html": html_body,
+        })
+    except Exception:
+        logger.exception("Failed to queue disk alert",
+                         user_id=user_id, user_email=user_email)
+        return
 
     redis_client.set(REDIS_KEY, current)
     logger.info("Disk usage alert queued",
-                threshold_level=current, pct=round(pct, 1), admins_notified=queued)
+                threshold_level=current, pct=round(pct, 1),
+                recipient=user_email)
