@@ -31,6 +31,7 @@
   stat:
     path: "{{ app_directory | default('/opt/addaxai-connect') }}/.git"
   register: repo_exists
+  tags: [env-refresh]
 
 - name: Remove existing non-git directory (auto-clean for fresh deployments)
   file:
@@ -94,6 +95,7 @@
   when:
     - repo_exists.stat.exists
     - git_repo is defined
+  tags: [env-refresh]
 
 - name: Set up git safe directory (for root and app user access)
   command: git config --global --add safe.directory "{{ app_directory | default('/opt/addaxai-connect') }}"

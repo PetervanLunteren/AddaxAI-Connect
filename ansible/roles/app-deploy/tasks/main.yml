@@ -10,6 +10,7 @@
     owner: "{{ app_user | default('ubuntu') }}"
     group: "{{ app_user | default('ubuntu') }}"
     mode: '0600'
+  tags: [env-refresh]
 
 - name: Create required directories for volumes
   file:
@@ -112,6 +113,7 @@
   become_user: "{{ app_user | default('ubuntu') }}"
   register: docker_up
   changed_when: "'Started' in docker_up.stdout or 'Created' in docker_up.stdout or 'Recreated' in docker_up.stdout"
+  tags: [env-refresh]
 
 - name: Wait for services to be healthy
   command: docker compose ps --format json
@@ -123,6 +125,7 @@
   retries: 5
   delay: 10
   changed_when: false
+  tags: [env-refresh]
 
 - name: Fix ownership of FTPS upload directory (after git deploy overwrites it)
   file:
