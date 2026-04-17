@@ -357,6 +357,7 @@ services:
     restart: unless-stopped
     profiles: [deepfaune, speciesnet]
     environment:
+      REDIS_URL: ${REDIS_URL}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -369,6 +370,14 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - addaxai-network
 

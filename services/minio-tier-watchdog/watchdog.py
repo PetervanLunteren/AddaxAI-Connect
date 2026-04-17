@@ -5,13 +5,20 @@ COLD_TIER_HOT_BUDGET_GB, tags the oldest STANDARD-class objects with
 `tier=cold` until the projected hot footprint drops back under budget.
 A MinIO ILM rule (installed by minio-init) then transitions any tagged
 object to the remote cold tier.
+
+After each tick (success or failure) the watchdog writes a status
+payload to Redis at `cold_tier:status` so both the Docker healthcheck
+and the API /api/health/services endpoint can surface problems.
 """
+import json
 import logging
 import os
 import subprocess
 import time
+from datetime import datetime, timezone
 
 import boto3
+import redis
 from botocore.client import Config
 
 
@@ -19,6 +26,7 @@ BUCKET = "raw-images"
 HOT_PATH = "/data/raw-images"
 TAG_KEY = "tier"
 TAG_VALUE = "cold"
+STATUS_KEY = "cold_tier:status"
 
 
 def make_client():
@@ -44,15 +52,28 @@ def hot_bytes() -> int:
     return int(result.stdout.split()[0])
 
 
+def write_status(redis_client, tick_seconds: int, payload: dict):
+    payload["timestamp"] = datetime.now(timezone.utc).isoformat()
+    # TTL at 3x tick interval so the key disappears if the watchdog dies
+    ttl = max(tick_seconds * 3, 300)
+    redis_client.set(STATUS_KEY, json.dumps(payload), ex=ttl)
+
+
 def tick(client, log):
     budget_gb = float(os.environ.get("COLD_TIER_HOT_BUDGET_GB", "80"))
     budget_bytes = int(budget_gb * (1024 ** 3))
 
     current = hot_bytes()
     log.info("hot=%.2f GB, budget=%.2f GB", current / (1024 ** 3), budget_gb)
+    result = {
+        "hot_gb": round(current / (1024 ** 3), 3),
+        "budget_gb": budget_gb,
+        "tagged_count": 0,
+        "tagged_gb": 0.0,
+    }
     if current <= budget_bytes:
         log.info("under budget, no-op")
-        return
+        return result
 
     excess = current - budget_bytes
     log.info(
@@ -92,6 +113,9 @@ def tick(client, log):
         tagged_bytes / (1024 ** 3),
         (current - tagged_bytes) / (1024 ** 3),
     )
+    result["tagged_count"] = tagged_count
+    result["tagged_gb"] = round(tagged_bytes / (1024 ** 3), 3)
+    return result
 
 
 def main():
@@ -104,10 +128,16 @@ def main():
     tick_seconds = int(os.environ.get("COLD_TIER_TICK_SECONDS", "86400"))
     log.info("watchdog starting; tick_seconds=%d", tick_seconds)
 
+    redis_client = redis.from_url(os.environ["REDIS_URL"])
+
     if not os.environ.get("COLD_TIER_ENDPOINT"):
         log.info("COLD_TIER_ENDPOINT not set; idling (nothing to transition to)")
+        write_status(redis_client, 86400, {"status": "idle",
+                     "message": "cold tier disabled (COLD_TIER_ENDPOINT empty)"})
         while True:
             time.sleep(3600)
+            write_status(redis_client, 86400, {"status": "idle",
+                         "message": "cold tier disabled (COLD_TIER_ENDPOINT empty)"})
 
     # Crash early on auth or connectivity errors (CONVENTIONS.md #1)
     client = make_client()
@@ -115,9 +145,12 @@ def main():
 
     while True:
         try:
-            tick(client, log)
-        except Exception:
+            result = tick(client, log)
+            write_status(redis_client, tick_seconds, {"status": "ok", **result})
+        except Exception as exc:
             log.exception("tick failed, will retry next interval")
+            write_status(redis_client, tick_seconds,
+                         {"status": "error", "error": f"{type(exc).__name__}: {exc}"})
         time.sleep(tick_seconds)
 
 

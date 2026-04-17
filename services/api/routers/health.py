@@ -3,8 +3,9 @@ Health check endpoints for monitoring system services.
 
 Provides service status information for server admins.
 """
-import httpx
+import json
 from typing import List, Literal
+import httpx
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,6 +104,55 @@ async def check_http_service(name: str, url: str) -> ServiceStatus:
         )
 
 
+def check_cold_tier_watchdog() -> ServiceStatus:
+    """Check cold-tier watchdog status from Redis.
+
+    The watchdog writes `cold_tier:status` on every tick with a TTL of
+    3x its tick interval. A missing key means the watchdog hasn't ticked
+    recently (container down or Wasabi unreachable for multiple cycles).
+    """
+    try:
+        queue = RedisQueue("health-check")
+        raw = queue.client.get("cold_tier:status")
+        if not raw:
+            return ServiceStatus(
+                name="cold-tier-watchdog",
+                status="unhealthy",
+                message="No recent status in Redis (watchdog down or never ticked)",
+            )
+        payload = json.loads(raw)
+        state = payload.get("status")
+        if state == "idle":
+            return ServiceStatus(
+                name="cold-tier-watchdog",
+                status="healthy",
+                message="Cold tier disabled (COLD_TIER_ENDPOINT empty)",
+            )
+        if state == "ok":
+            hot = payload.get("hot_gb", "?")
+            budget = payload.get("budget_gb", "?")
+            tagged = payload.get("tagged_count", 0)
+            ts = payload.get("timestamp", "?")
+            return ServiceStatus(
+                name="cold-tier-watchdog",
+                status="healthy",
+                message=f"Last tick {ts}: hot={hot} GB, budget={budget} GB, tagged {tagged} this tick",
+            )
+        err = payload.get("error", "unknown error")
+        return ServiceStatus(
+            name="cold-tier-watchdog",
+            status="unhealthy",
+            message=f"Last tick failed: {err}",
+        )
+    except Exception as e:
+        logger.error("Cold-tier watchdog health check failed", error=str(e))
+        return ServiceStatus(
+            name="cold-tier-watchdog",
+            status="unhealthy",
+            message=f"Redis error: {str(e)}",
+        )
+
+
 def check_worker_service(name: str, queue_name: str) -> ServiceStatus:
     """
     Check if worker service is alive by checking queue depth.
@@ -176,6 +226,7 @@ async def get_services_health(
     services.append(check_worker_service("classification", "detection-complete"))
     services.append(check_worker_service("notifications", "notification-events"))
     services.append(check_worker_service("notifications-telegram", "notification-telegram"))
+    services.append(check_cold_tier_watchdog())
 
     logger.info(
         "Health check completed",
