@@ -1,4 +1,4 @@
-"""Disk usage alert — hourly check, email server admins on threshold crossing.
+"""Disk usage alert. Hourly check, emails the admin on threshold crossing.
 
 Reads host-root disk stats from the `/host` bind-mount, compares %used
 against DISK_ALERT_THRESHOLDS (default "80,90,95"), and emits one email
@@ -44,7 +44,7 @@ def _disk_pct_used() -> tuple[float, int, int, int]:
     """Return (pct_used, total_bytes, used_bytes, free_bytes) for host root.
 
     When /host isn't mounted (e.g. running outside the normal compose stack),
-    fall back to the container's own root so the job doesn't crash — callers
+    fall back to the container's own root so the job doesn't crash; callers
     see a reasonable number rather than a failed scheduled job.
     """
     path = HOST_ROOT if os.path.isdir(HOST_ROOT) else "/"
