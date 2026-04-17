@@ -94,7 +94,7 @@ Where is production hosted?
 
 ## Key decisions (final)
 
-1. **Provider:** Wasabi Amsterdam (`s3.eu-central-2.wasabisys.com`, region `eu-central-2`). Fallback: Scaleway Amsterdam One Zone-IA if Wasabi has a blocker. Avoid Scaleway Glacier, avoid AWS Glacier Deep Archive.
+1. **Provider:** Wasabi Amsterdam (`s3.eu-central-1.wasabisys.com`, region `eu-central-1`). Fallback: Scaleway Amsterdam One Zone-IA if Wasabi has a blocker. Avoid Scaleway Glacier, avoid AWS Glacier Deep Archive.
 2. **Mechanism:** MinIO built-in ILM with a remote-tier transition.
 3. **Scope:** only `raw-images` is tiered.
 4. **Policy:** age rule at 60 days + daily size-safety-valve script.
@@ -139,8 +139,8 @@ Added environment variables (`.env` / `ansible/group_vars/dev.yml`):
 |-----------------------------|-----------------------------------------------|-----------------------------------------------------------------------|
 | `COLD_TIER_ENABLED`         | `false` (default) / `true`                    | Master switch. When false, no tier registration, no watchdog.         |
 | `COLD_TIER_PROVIDER`        | `wasabi`                                      | Free text, used only in logs.                                         |
-| `COLD_TIER_ENDPOINT`        | `https://s3.eu-central-2.wasabisys.com`       | Remote S3 endpoint.                                                   |
-| `COLD_TIER_REGION`          | `eu-central-2`                                |                                                                       |
+| `COLD_TIER_ENDPOINT`        | `https://s3.eu-central-1.wasabisys.com`       | Remote S3 endpoint.                                                   |
+| `COLD_TIER_REGION`          | `eu-central-1`                                |                                                                       |
 | `COLD_TIER_BUCKET`          | `addaxai-connect-prod-cold`                   | Must be unique per environment (prod vs dev different buckets).       |
 | `COLD_TIER_ACCESS_KEY`      | (vault-encrypted)                             | Bucket-scoped IAM key.                                                |
 | `COLD_TIER_SECRET_KEY`      | (vault-encrypted)                             |                                                                       |
@@ -168,7 +168,7 @@ Added environment variables (`.env` / `ansible/group_vars/dev.yml`):
    - Estimate how much data the first transition will move (= everything older than 60 days). That sizes the Wasabi monthly cost.
    - Sanity-check Wasabi's 90-day minimum retention: 90 d × ~€0.007/GB/month is fine for long-lived data; partial rollback would still bill through the 90-day floor.
 2. **Wasabi account + bucket.**
-   - Sign up at [wasabi.com](https://wasabi.com), pick the Amsterdam region (`eu-central-2`).
+   - Sign up at [wasabi.com](https://wasabi.com), pick the Amsterdam region (`eu-central-1`).
    - Create two buckets: `addaxai-connect-dev-cold` and `addaxai-connect-prod-cold`. Different buckets so dev experiments never touch prod data.
    - Create an IAM policy scoped to one bucket each, permissions: `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`, `s3:GetBucketLocation`. Do **not** grant bucket-create, tag, or policy permissions.
    - Generate one access key per environment. Store the key pair in 1Password (or equivalent). Never commit.
@@ -382,8 +382,8 @@ Only after Phase 2 passes.
 - Ansible-vault is the single source of truth for keys. Example snippet (actual values encrypted):
   ```yaml
   cold_tier_enabled: true
-  cold_tier_endpoint: "https://s3.eu-central-2.wasabisys.com"
-  cold_tier_region: "eu-central-2"
+  cold_tier_endpoint: "https://s3.eu-central-1.wasabisys.com"
+  cold_tier_region: "eu-central-1"
   cold_tier_bucket: "addaxai-connect-dev-cold"
   cold_tier_access_key: !vault |
     $ANSIBLE_VAULT;1.1;AES256

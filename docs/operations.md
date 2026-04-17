@@ -107,7 +107,7 @@ Change the budget by editing `cold_tier_hot_budget_gb` in `ansible/group_vars/de
 
 Pause tiering with `docker compose stop minio-tier-watchdog`. Already-cold objects stay readable through the MinIO tier rule.
 
-One-time Wasabi setup: create an account, create a bucket in your chosen region (e.g. `eu-central-2`, `s3.eu-central-2.wasabisys.com`), create a bucket-scoped IAM key, fill the cold-tier vars.
+One-time Wasabi setup: create an account, create a bucket in your chosen region (e.g. Amsterdam is `eu-central-1`, endpoint `s3.eu-central-1.wasabisys.com`), create a bucket-scoped IAM key, fill the cold-tier vars.
 
 ## Restarting services
 

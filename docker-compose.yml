@@ -81,7 +81,7 @@ services:
       /usr/bin/mc version enable minio/raw-images;
       if [ -n '${COLD_TIER_ENDPOINT:-}' ]; then
         /usr/bin/mc admin tier update minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' || \
-          /usr/bin/mc admin tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --region '${COLD_TIER_REGION:-eu-central-2}' || true;
+          /usr/bin/mc admin tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --region '${COLD_TIER_REGION:-eu-central-1}' || true;
         /usr/bin/mc ilm rule add --transition-days 0 --transition-tier '${COLD_TIER_NAME:-WASABI_COLD}' --tags 'tier=cold' minio/raw-images || true;
         echo 'Cold tier configured';
       else
