@@ -36,19 +36,25 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
    cd /opt/addaxai-connect && git pull origin main
    ```
 
-2. **Rebuild and start containers.** *(on the production server)* This rebuilds all service images with the new code. The correct services are selected automatically based on the `COMPOSE_PROFILES` variable in `.env`.
+2. **Sync ansible-managed config.** *(from your local machine)* This regenerates `.env` from the template and installs or updates any cron jobs that the new release ships. Idempotent, so safe to run even when nothing has changed. Point `ansible/inventory.yml` at the production server first.
+
+   ```
+   cd ansible && ansible-playbook -i inventory.yml playbook.yml --tags sync-config
+   ```
+
+3. **Rebuild and start containers.** *(on the production server)* This rebuilds all service images with the new code and picks up any `.env` changes from the previous step. The correct services are selected automatically based on the `COMPOSE_PROFILES` variable in `.env`.
 
    ```
    cd /opt/addaxai-connect && docker compose up -d --build --force-recreate
    ```
 
-3. **Run database migrations.** *(on the production server)* This applies any new Alembic migrations and backfills derived data. Watch the output carefully for errors. This is where most update issues surface.
+4. **Run database migrations.** *(on the production server)* This applies any new Alembic migrations and backfills derived data. Watch the output carefully for errors. This is where most update issues surface.
 
    ```
    cd /opt/addaxai-connect && bash scripts/update-database.sh
    ```
 
-4. **Verify on production.** *(on the production server)* Check that the frontend loads, you can log in, existing images display correctly, camera list and health data are intact, and all services show as healthy on the /server/health page. Confirm the version shown on the About page matches the latest release. Monitor the logs for a few minutes to catch any runtime errors.
+5. **Verify on production.** *(on the production server)* Check that the frontend loads, you can log in, existing images display correctly, camera list and health data are intact, and all services show as healthy on the /server/health page. Confirm the version shown on the About page matches the latest release. Monitor the logs for a few minutes to catch any runtime errors.
 
    ```
    cd /opt/addaxai-connect && docker compose logs -f --tail 50

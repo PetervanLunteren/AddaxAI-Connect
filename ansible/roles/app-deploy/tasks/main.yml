@@ -10,7 +10,7 @@
     owner: "{{ app_user | default('ubuntu') }}"
     group: "{{ app_user | default('ubuntu') }}"
     mode: '0600'
-  tags: [env-refresh]
+  tags: [env-refresh, sync-config]
 
 - name: Create required directories for volumes
   file:
@@ -170,7 +170,7 @@
     state: directory
     owner: "{{ app_user | default('ubuntu') }}"
     mode: "0755"
-  tags: [docker-prune]
+  tags: [docker-prune, sync-config]
 
 - name: Schedule weekly docker build cache prune
   cron:
@@ -181,7 +181,7 @@
     user: "{{ app_user | default('ubuntu') }}"
     job: "docker builder prune -af >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/docker-prune.log 2>&1"
     state: present
-  tags: [docker-prune]
+  tags: [docker-prune, sync-config]
 
 - name: Set up daily demo data refresh (cron)
   cron:
