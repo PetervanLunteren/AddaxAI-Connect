@@ -167,6 +167,7 @@
     state: directory
     owner: "{{ app_user | default('ubuntu') }}"
     mode: "0755"
+  tags: [docker-prune]
 
 - name: Schedule weekly docker build cache prune
   cron:
@@ -177,6 +178,7 @@
     user: "{{ app_user | default('ubuntu') }}"
     job: "docker builder prune -af >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/docker-prune.log 2>&1"
     state: present
+  tags: [docker-prune]
 
 - name: Set up daily demo data refresh (cron)
   cron:
