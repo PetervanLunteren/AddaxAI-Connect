@@ -157,7 +157,7 @@ def check_disk_usage_and_alert() -> None:
     admins = _server_admin_emails()
     if not admins:
         logger.warning("Disk crossed threshold but no active server admins to notify",
-                       level=current, pct=round(pct, 1))
+                       threshold_level=current, pct=round(pct, 1))
         redis_client.set(REDIS_KEY, current)
         return
 
@@ -198,4 +198,4 @@ def check_disk_usage_and_alert() -> None:
 
     redis_client.set(REDIS_KEY, current)
     logger.info("Disk usage alert queued",
-                level=current, pct=round(pct, 1), admins_notified=queued)
+                threshold_level=current, pct=round(pct, 1), admins_notified=queued)
