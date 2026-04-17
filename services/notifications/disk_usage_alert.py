@@ -82,16 +82,16 @@ def _alert_recipient() -> Optional[Tuple[int, str]]:
     if not target:
         return None
     with get_sync_session() as db:
-        user = db.execute(
-            select(User).where(
+        row = db.execute(
+            select(User.id, User.email).where(
                 User.email == target,
                 User.is_active == True,
                 User.is_verified == True,
             )
-        ).scalar_one_or_none()
-    if not user:
+        ).first()
+    if not row:
         return None
-    return (user.id, user.email)
+    return (row.id, row.email)
 
 
 def _format_gb(n: int) -> str:
