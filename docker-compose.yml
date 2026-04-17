@@ -387,46 +387,6 @@ services:
     networks:
       - addaxai-network
 
-  # Dev-only mock cold tier (enable via COMPOSE_PROFILES=deepfaune,dev-cold-mock)
-  # Lets local development exercise the hot → cold transition without a real
-  # Wasabi account. Point COLD_TIER_ENDPOINT at http://minio-cold-mock:9000.
-  minio-cold-mock:
-    image: minio/minio:latest
-    container_name: addaxai-minio-cold-mock
-    profiles: [dev-cold-mock]
-    command: server /data --console-address ":9001"
-    ports:
-      - "127.0.0.1:9100:9000"
-      - "127.0.0.1:9101:9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - ./data/minio-cold-mock:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - addaxai-network
-
-  minio-cold-mock-init:
-    image: minio/mc:latest
-    container_name: addaxai-minio-cold-mock-init
-    profiles: [dev-cold-mock]
-    depends_on:
-      - minio-cold-mock
-    entrypoint: >
-      /bin/sh -c "
-      sleep 10;
-      /usr/bin/mc alias set coldmock http://minio-cold-mock:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
-      /usr/bin/mc mb --ignore-existing coldmock/${COLD_TIER_BUCKET:-cold-mock};
-      echo 'Cold-mock bucket ready';
-      "
-    networks:
-      - addaxai-network
-
   # Email Notifications Worker
   notifications-email:
     build:
