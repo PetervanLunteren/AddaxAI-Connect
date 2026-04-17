@@ -8,7 +8,7 @@ level resets the tracker, so a subsequent re-crossing will email again.
 import os
 import socket
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import redis
 from sqlalchemy import select
@@ -72,26 +72,21 @@ def _load_last_level(redis_client) -> int:
         return 0
 
 
-def _alert_recipient() -> Optional[Tuple[int, str]]:
-    """Resolve the single admin email to notify, or None if not configured.
+def _alert_recipients() -> List[Tuple[int, str]]:
+    """Resolve all active verified server admins for disk alerts.
 
-    Reads ADMIN_EMAIL (populated from the ansible admin_email var in .env).
-    Disk alerts go only to the server owner, not to every superuser.
+    Returns a list of (user_id, email) tuples. Scalar select avoids
+    DetachedInstanceError when callers use the values after the session closes.
     """
-    target = os.environ.get("ADMIN_EMAIL", "").strip()
-    if not target:
-        return None
     with get_sync_session() as db:
-        row = db.execute(
+        rows = db.execute(
             select(User.id, User.email).where(
-                User.email == target,
+                User.is_superuser == True,
                 User.is_active == True,
                 User.is_verified == True,
             )
-        ).first()
-    if not row:
-        return None
-    return (row.id, row.email)
+        ).all()
+    return [(r.id, r.email) for r in rows if r.email]
 
 
 def _format_gb(n: int) -> str:
@@ -165,15 +160,14 @@ def check_disk_usage_and_alert() -> None:
         return
 
     # current > last_level → fire alert for `current`
-    recipient = _alert_recipient()
-    if not recipient:
+    recipients = _alert_recipients()
+    if not recipients:
         logger.warning(
-            "Disk crossed threshold but ADMIN_EMAIL is unset or does not match an active verified user",
+            "Disk crossed threshold but no active verified server admins to notify",
             threshold_level=current, pct=round(pct, 1),
         )
         redis_client.set(REDIS_KEY, current)
         return
-    user_id, user_email = recipient
 
     hostname = settings.domain_name or socket.gethostname()
     subject, text_body, html_body = _build_email(pct, total, used, free, current, hostname)
@@ -188,27 +182,29 @@ def check_disk_usage_and_alert() -> None:
     }
 
     email_queue = RedisQueue(QUEUE_NOTIFICATION_EMAIL)
-    try:
-        log_id = create_notification_log(
-            user_id=user_id,
-            notification_type="disk_usage_alert",
-            channel="email",
-            trigger_data=trigger_data,
-            message_content=text_body[:1000],
-        )
-        email_queue.publish({
-            "notification_log_id": log_id,
-            "to_email": user_email,
-            "subject": subject,
-            "body_text": text_body,
-            "body_html": html_body,
-        })
-    except Exception:
-        logger.exception("Failed to queue disk alert",
-                         user_id=user_id, user_email=user_email)
-        return
+    queued = 0
+    for user_id, user_email in recipients:
+        try:
+            log_id = create_notification_log(
+                user_id=user_id,
+                notification_type="disk_usage_alert",
+                channel="email",
+                trigger_data=trigger_data,
+                message_content=text_body[:1000],
+            )
+            email_queue.publish({
+                "notification_log_id": log_id,
+                "to_email": user_email,
+                "subject": subject,
+                "body_text": text_body,
+                "body_html": html_body,
+            })
+            queued += 1
+        except Exception:
+            logger.exception("Failed to queue disk alert",
+                             user_id=user_id, user_email=user_email)
 
     redis_client.set(REDIS_KEY, current)
     logger.info("Disk usage alert queued",
                 threshold_level=current, pct=round(pct, 1),
-                recipient=user_email)
+                admins_notified=queued)
