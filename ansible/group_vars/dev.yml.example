@@ -42,6 +42,11 @@ cold_tier_name: "WASABI_COLD"             # MinIO tier alias name (cosmetic)
 cold_tier_hot_budget_gb: 80               # GB of raw-images to keep on-disk; the watchdog tiers the excess
 cold_tier_tick_seconds: 86400             # Watchdog interval in seconds (86400 = daily)
 
+# Disk usage alert thresholds (comma-separated percentages). Server admins receive
+# a one-shot email when the root filesystem crosses any of these. A drop below a
+# level re-arms it so the next crossing sends a fresh alert.
+disk_alert_thresholds: "80,90,95"
+
 # ============================================================
 # Defaults — usually fine as-is
 # ============================================================

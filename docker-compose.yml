@@ -289,9 +289,14 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       DOMAIN_NAME: ${DOMAIN_NAME}
+      DISK_ALERT_THRESHOLDS: ${DISK_ALERT_THRESHOLDS:-80,90,95}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
+    volumes:
+      # Read-only host-root mount so the disk usage alert can measure the
+      # actual disk, not the container's overlay filesystem.
+      - /:/host:ro
     depends_on:
       postgres:
         condition: service_healthy
