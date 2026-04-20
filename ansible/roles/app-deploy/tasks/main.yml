@@ -183,6 +183,16 @@
     state: present
   tags: [docker-prune, sync-config]
 
+- name: Schedule daily backup to Wasabi
+  cron:
+    name: "AddaxAI backup"
+    hour: "2"
+    minute: "0"
+    user: "{{ app_user | default('ubuntu') }}"
+    job: "cd {{ app_directory | default('/opt/addaxai-connect') }} && bash scripts/backup.sh >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/backup.log 2>&1"
+    state: present
+  tags: [backup, sync-config]
+
 - name: Set up daily demo data refresh (cron)
   cron:
     name: "Refresh demo data"

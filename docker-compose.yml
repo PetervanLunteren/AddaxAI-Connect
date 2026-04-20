@@ -51,6 +51,9 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - ./data/minio:/data
+      # Read-only host-image mounts so scripts/backup.sh can mc-mirror them.
+      - ./data/project-images:/host/project-images:ro
+      - ./data/reference-images:/host/reference-images:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -123,6 +126,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
       FTPS_UPLOAD_DIR: /uploads
       # FTPS connection for upload testing
       FTPS_HOST: ${FTPS_HOST:-host.docker.internal}

@@ -4,6 +4,7 @@ Health check endpoints for monitoring system services.
 Provides service status information for server admins.
 """
 import json
+import os
 from typing import List, Literal
 import httpx
 from fastapi import APIRouter, Depends
@@ -160,6 +161,54 @@ def check_cold_tier_watchdog() -> ServiceStatus:
         )
 
 
+def check_backup() -> ServiceStatus:
+    """Check automated backup status from Redis.
+
+    The host-side backup script writes `backup:last_run` on every run with a
+    3-day TTL. A missing key when backups are enabled means the cron hasn't
+    run in ~3 days (failure or misconfiguration).
+    """
+    enabled = os.environ.get("BACKUP_ENABLED", "false").lower() == "true"
+    try:
+        queue = RedisQueue("health-check")
+        raw = queue.client.get("backup:last_run")
+        if not raw:
+            if not enabled:
+                return ServiceStatus(
+                    name="backup",
+                    status="healthy",
+                    message="Backups disabled (BACKUP_ENABLED=false)",
+                )
+            return ServiceStatus(
+                name="backup",
+                status="unhealthy",
+                message="No recent backup run (last expected at 02:00 UTC)",
+            )
+        payload = json.loads(raw)
+        state = payload.get("status")
+        ts = payload.get("timestamp", "?")
+        duration = payload.get("duration_s", "?")
+        if state == "ok":
+            return ServiceStatus(
+                name="backup",
+                status="healthy",
+                message=f"Last backup {ts} (took {duration}s)",
+            )
+        err = payload.get("error", "unknown error")
+        return ServiceStatus(
+            name="backup",
+            status="unhealthy",
+            message=f"Last backup failed at {ts}: {err}",
+        )
+    except Exception as e:
+        logger.error("Backup health check failed", error=str(e))
+        return ServiceStatus(
+            name="backup",
+            status="unhealthy",
+            message=f"Redis error: {str(e)}",
+        )
+
+
 def check_worker_service(name: str, queue_name: str) -> ServiceStatus:
     """
     Check if worker service is alive by checking queue depth.
@@ -234,6 +283,7 @@ async def get_services_health(
     services.append(check_worker_service("notifications", "notification-events"))
     services.append(check_worker_service("notifications-telegram", "notification-telegram"))
     services.append(check_cold_tier_watchdog())
+    services.append(check_backup())
 
     logger.info(
         "Health check completed",

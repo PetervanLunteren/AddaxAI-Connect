@@ -47,6 +47,18 @@ cold_tier_tick_seconds: 86400             # Watchdog interval in seconds (86400 
 # level re-arms it so the next crossing sends a fresh alert.
 disk_alert_thresholds: "80,90,95"
 
+# Automated daily backups to a Wasabi bucket (02:00 UTC). Leave backup_enabled
+# false to skip. When enabled, scripts/backup.sh dumps postgres + mirrors every
+# authoritative MinIO bucket and host image dir into backup_bucket under a
+# path prefixed by the server's domain_name. Retention is set by a Wasabi
+# lifecycle rule (see docs/operations.md), not by this script.
+backup_enabled: false                     # true to enable the daily cron
+backup_endpoint: ""                       # e.g. "https://s3.eu-central-1.wasabisys.com" (Wasabi Amsterdam)
+backup_bucket: ""                         # Dedicated backup bucket (separate from the cold-tier bucket)
+backup_region: "eu-central-1"             # Region of the backup bucket
+backup_access_key: ""                     # Bucket-scoped IAM key; vault-encrypt when filled in
+backup_secret_key: ""                     # Bucket-scoped IAM secret; vault-encrypt when filled in
+
 # ============================================================
 # Defaults — usually fine as-is
 # ============================================================

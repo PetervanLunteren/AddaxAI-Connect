@@ -1,0 +1,98 @@
+#!/bin/bash
+# Daily backup to Wasabi.
+#
+# Dumps postgres, mirrors every authoritative MinIO bucket, and mirrors the
+# host-side project-images + reference-images directories. No .env, no Redis,
+# no model weights (those are regenerable). Retention is handled by a Wasabi
+# bucket lifecycle rule, not by this script.
+#
+# Scheduled by ansible at 02:00 UTC. Run manually for testing.
+
+set -euo pipefail
+
+APP_DIR="/opt/addaxai-connect"
+LOG_PREFIX() { date -u +'%Y-%m-%d %H:%M:%S UTC'; }
+log()  { echo "[$(LOG_PREFIX)] $*"; }
+
+cd "$APP_DIR"
+
+# Load BACKUP_* (and REDIS_PASSWORD for status write) from the deployed .env.
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+
+if [ "${BACKUP_ENABLED:-false}" != "true" ]; then
+  log "BACKUP_ENABLED is not true; skipping"
+  exit 0
+fi
+
+HOST="${BACKUP_HOST_PREFIX:-$(hostname)}"
+DATE="$(date -u +%F)"
+BUCKET="$BACKUP_BUCKET"
+START_EPOCH="$(date +%s)"
+
+redis_set_status() {
+  # Write status to Redis so /api/health/services can surface it.
+  local status="$1"
+  local error_msg="${2:-}"
+  local now_iso duration payload
+  now_iso="$(date -u +'%Y-%m-%dT%H:%M:%S+00:00')"
+  duration="$(( $(date +%s) - START_EPOCH ))"
+  if [ -n "$error_msg" ]; then
+    payload=$(printf '{"status":"%s","timestamp":"%s","duration_s":%d,"error":"%s"}' \
+      "$status" "$now_iso" "$duration" "${error_msg//\"/\\\"}")
+  else
+    payload=$(printf '{"status":"%s","timestamp":"%s","duration_s":%d}' \
+      "$status" "$now_iso" "$duration")
+  fi
+  # 3-day TTL: if no backup runs for 3 days, key disappears and health flips.
+  docker compose exec -T redis redis-cli -a "$REDIS_PASSWORD" \
+    SET backup:last_run "$payload" EX 259200 > /dev/null 2>&1 || true
+}
+
+on_error() {
+  local line=$1
+  local msg="backup failed at line $line"
+  log "ERROR: $msg"
+  redis_set_status "error" "$msg"
+  exit 1
+}
+trap 'on_error $LINENO' ERR
+
+log "Starting backup to wasabi://$BUCKET/$HOST/ (date=$DATE)"
+
+# Register the backup-side Wasabi alias inside the minio container. Use a
+# unique alias name so we don't collide with the existing cold-tier alias.
+docker compose exec -T minio mc alias set backup-target \
+  "$BACKUP_ENDPOINT" "$BACKUP_ACCESS_KEY" "$BACKUP_SECRET_KEY" > /dev/null
+
+# Register the local MinIO alias so we can read from buckets.
+docker compose exec -T minio mc alias set local \
+  "http://localhost:9000" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" > /dev/null
+
+log "Dumping postgres"
+docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
+  | gzip \
+  | docker compose exec -T minio mc pipe "backup-target/$BUCKET/$HOST/postgres/$DATE.sql.gz"
+log "Postgres dump uploaded"
+
+# MinIO buckets. Live mirror into a single prefix; Wasabi versioning + the
+# lifecycle rule (noncurrent-version-expiration 90 days) handles history.
+for MINIO_BUCKET in raw-images crops thumbnails project-images project-documents models; do
+  log "Mirroring minio/$MINIO_BUCKET"
+  docker compose exec -T minio mc mirror --overwrite --remove \
+    "local/$MINIO_BUCKET" "backup-target/$BUCKET/$HOST/minio/$MINIO_BUCKET" > /dev/null
+done
+log "All MinIO buckets mirrored"
+
+# Host image dirs, bind-mounted into the minio container read-only at /host/*.
+for HOST_DIR in project-images reference-images; do
+  log "Mirroring host/$HOST_DIR"
+  docker compose exec -T minio mc mirror --overwrite --remove \
+    "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR" > /dev/null
+done
+log "Host image dirs mirrored"
+
+redis_set_status "ok"
+log "Backup complete in $(( $(date +%s) - START_EPOCH ))s"
