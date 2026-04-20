@@ -106,6 +106,42 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
         If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
 
+    **Cold storage tier (optional)**
+
+    When the disk fills up with raw images, the server can move old ones to a remote S3 bucket (Wasabi works well). Reads stay transparent: the UI fetches cold images without the user noticing. Leave `cold_tier_endpoint` empty to skip this for now. You can enable it later. Setup steps are in [Cold storage tier](operations.md#cold-storage-tier).
+
+    | Variable | Example | Description |
+    |---------|---------|-------------|
+    | `cold_tier_endpoint` | `"https://s3.eu-central-1.wasabisys.com"` | Endpoint of the remote S3 bucket. Empty means cold tier is off. |
+    | `cold_tier_bucket` | `"my-server-cold"` | Bucket name on the remote provider. |
+    | `cold_tier_region` | `"eu-central-1"` | Region code of the bucket. Amsterdam on Wasabi is `eu-central-1`. |
+    | `cold_tier_access_key` | `"AKIA..."` | Access key for the bucket. Vault-encrypt once filled in. |
+    | `cold_tier_secret_key` | `"secret..."` | Secret key for the bucket. Vault-encrypt once filled in. |
+    | `cold_tier_name` | `"WASABI_COLD"` | Name MinIO uses for the tier internally. Default is fine. |
+    | `cold_tier_hot_budget_gb` | `80` | How many GB of raw images to keep on the server. Extra goes to the remote bucket. |
+    | `cold_tier_tick_seconds` | `86400` | How often the watchdog checks disk usage. 86400 is once a day. |
+
+    **Automated backups (optional)**
+
+    Daily backup of the database and every MinIO bucket to a separate Wasabi bucket. You need this if you want to spin up a new server from a backup later. Keep it off if you don't need backups yet. Setup steps are in [Automated backups](operations.md#automated-backups).
+
+    | Variable | Example | Description |
+    |---------|---------|-------------|
+    | `backup_enabled` | `true` | `true` to run the daily backup cron. `false` skips it. |
+    | `backup_endpoint` | `"https://s3.eu-central-1.wasabisys.com"` | Endpoint of the backup provider. |
+    | `backup_bucket` | `"my-server-backups"` | Dedicated backup bucket. Do not reuse the cold-tier bucket. |
+    | `backup_region` | `"eu-central-1"` | Region code of the backup bucket. |
+    | `backup_access_key` | `"AKIA..."` | Access key for the backup bucket. Vault-encrypt. |
+    | `backup_secret_key` | `"secret..."` | Secret key for the backup bucket. Vault-encrypt. |
+
+    **Disk usage alerts (optional)**
+
+    Server admins get an email when the root filesystem crosses a percentage. One email per threshold crossing. The default is sensible for most servers.
+
+    | Variable | Example | Description |
+    |---------|---------|-------------|
+    | `disk_alert_thresholds` | `"80,90,95"` | Comma-separated percentages. One email per crossing. Empty string disables alerts. |
+
 6.  **Add server to known_hosts**
 
     ```bash

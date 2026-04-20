@@ -153,26 +153,9 @@ docker compose exec minio mc ls backup-target/$BACKUP_BUCKET/<domain_name>/postg
 docker compose exec minio mc du backup-target/$BACKUP_BUCKET/<domain_name>/minio/raw-images
 ```
 
-### Restore runbook
+### Restore from a backup
 
-To cold-start a new server from a backup:
-
-1. **Before provisioning**, set `backup_enabled: false` in the new server's `group_vars` file. This stops the 02:00 UTC cron from firing mid-restore and overwriting the good backup with a half-populated state. Flip it back to `true` after the restore is verified.
-2. **Provision the new VM** and run `ansible-playbook -i inventory.yml playbook.yml` against it. Ansible regenerates `.env` from your `group_vars` (so every secret, Wasabi credential, and hostname lands from your local source of truth), builds containers, and applies the base DB schema.
-3. **Restore everything in one command.** SSH into the new server:
-   ```
-   cd /opt/addaxai-connect
-   bash scripts/restore.sh <source-domain>             # latest dump
-   bash scripts/restore.sh <source-domain> 2026-04-17  # specific day
-   ```
-   `<source-domain>` is the `domain_name` of the server you're restoring *from* (e.g. `prod.addaxai.com`). The script pulls the selected postgres dump, loads it, applies any pending Alembic migrations, mirrors all six MinIO buckets back into local MinIO, mirrors the host image directories back to disk, and restarts the api. The whole run typically takes a few minutes.
-4. **Safety guard**: the script refuses to run if the users table has any rows, so you can't accidentally wipe a healthy server. To bypass (only on a server you genuinely want overwritten), pass `--force`.
-5. **Verify**: log into the web UI with a user from the restored DB, open a project, open a recent image. Then re-enable the backup cron:
-   ```
-   # on your laptop
-   # flip backup_enabled: true in group_vars
-   ansible-playbook -i inventory.yml playbook.yml --tags env-refresh
-   ```
+To spin up a new server from one of these backups, see the [restore guide](restore-guide.md). Before you start, set `backup_enabled: false` in `group_vars` so the 02:00 UTC cron does not overwrite the good backup with a half-restored state. Flip it back on after the restore is verified.
 
 ## Restarting services
 
