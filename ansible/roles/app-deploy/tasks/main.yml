@@ -170,7 +170,7 @@
     state: directory
     owner: "{{ app_user | default('ubuntu') }}"
     mode: "0755"
-  tags: [docker-prune, sync-config]
+  tags: [docker-prune, sync-config, env-refresh]
 
 - name: Schedule weekly docker build cache prune
   cron:
@@ -181,7 +181,7 @@
     user: "{{ app_user | default('ubuntu') }}"
     job: "docker builder prune -af >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/docker-prune.log 2>&1"
     state: present
-  tags: [docker-prune, sync-config]
+  tags: [docker-prune, sync-config, env-refresh]
 
 - name: Schedule daily backup to Wasabi
   cron:
@@ -191,7 +191,7 @@
     user: "{{ app_user | default('ubuntu') }}"
     job: "cd {{ app_directory | default('/opt/addaxai-connect') }} && bash scripts/backup.sh >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/backup.log 2>&1"
     state: present
-  tags: [backup, sync-config]
+  tags: [backup, sync-config, env-refresh]
 
 - name: Set up daily demo data refresh (cron)
   cron:
