@@ -16,11 +16,23 @@ log()  { echo "[$(LOG_PREFIX)] $*"; }
 
 cd "$APP_DIR"
 
-# Load BACKUP_* (and REDIS_PASSWORD for status write) from the deployed .env.
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
+# Load the vars we need from .env without using `source`. `source .env` breaks
+# on values with unquoted spaces (e.g. Gmail app passwords like
+# "pguc htvu fawt bfxo" on MAIL_PASSWORD), which is valid for docker-compose
+# but not for bash.
+env_get() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }
+
+BACKUP_ENABLED="$(env_get BACKUP_ENABLED)"
+BACKUP_ENDPOINT="$(env_get BACKUP_ENDPOINT)"
+BACKUP_BUCKET="$(env_get BACKUP_BUCKET)"
+BACKUP_ACCESS_KEY="$(env_get BACKUP_ACCESS_KEY)"
+BACKUP_SECRET_KEY="$(env_get BACKUP_SECRET_KEY)"
+BACKUP_HOST_PREFIX="$(env_get BACKUP_HOST_PREFIX)"
+POSTGRES_USER="$(env_get POSTGRES_USER)"
+POSTGRES_DB="$(env_get POSTGRES_DB)"
+MINIO_ROOT_USER="$(env_get MINIO_ROOT_USER)"
+MINIO_ROOT_PASSWORD="$(env_get MINIO_ROOT_PASSWORD)"
+REDIS_PASSWORD="$(env_get REDIS_PASSWORD)"
 
 if [ "${BACKUP_ENABLED:-false}" != "true" ]; then
   log "BACKUP_ENABLED is not true; skipping"
