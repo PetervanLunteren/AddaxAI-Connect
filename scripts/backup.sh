@@ -97,7 +97,13 @@ docker compose exec -T minio mc ilm rule add \
   "backup-target/$BUCKET" > /dev/null
 
 log "Dumping postgres"
-docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
+# --clean --if-exists makes the dump self-cleaning: DROP IF EXISTS before every
+# CREATE, so `restore.sh` can pipe it into any state (empty or populated) without
+# dropping the DB first. --no-owner and --no-privileges make the dump portable
+# across DB users (e.g. restore runs with different password after a rebuild).
+docker compose exec -T postgres pg_dump \
+  --clean --if-exists --no-owner --no-privileges \
+  -U "$POSTGRES_USER" "$POSTGRES_DB" \
   | gzip \
   | docker compose exec -T minio mc pipe "backup-target/$BUCKET/$HOST/postgres/$DATE.sql.gz"
 log "Postgres dump uploaded"

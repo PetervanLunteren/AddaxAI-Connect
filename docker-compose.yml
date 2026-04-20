@@ -51,9 +51,11 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - ./data/minio:/data
-      # Read-only host-image mounts so scripts/backup.sh can mc-mirror them.
-      - ./data/project-images:/host/project-images:ro
-      - ./data/reference-images:/host/reference-images:ro
+      # Host image dirs, mounted rw so scripts/backup.sh reads from them and
+      # scripts/restore.sh writes back to them. Neither script ever deletes in
+      # the source direction, so there's no write hazard during backup.
+      - ./data/project-images:/host/project-images
+      - ./data/reference-images:/host/reference-images
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s

@@ -157,36 +157,22 @@ docker compose exec minio mc du backup-target/$BACKUP_BUCKET/<domain_name>/minio
 
 To cold-start a new server from a backup:
 
-1. **Provision a new VM** and run `ansible-playbook -i inventory.yml playbook.yml` against it. Ansible regenerates `.env` from your `group_vars/dev.yml` (so all secrets, Wasabi credentials, etc. land from your local source of truth).
-2. **Alias the backup bucket** inside the new server's MinIO container:
+1. **Before provisioning**, set `backup_enabled: false` in the new server's `group_vars` file. This stops the 02:00 UTC cron from firing mid-restore and overwriting the good backup with a half-populated state. Flip it back to `true` after the restore is verified.
+2. **Provision the new VM** and run `ansible-playbook -i inventory.yml playbook.yml` against it. Ansible regenerates `.env` from your `group_vars` (so every secret, Wasabi credential, and hostname lands from your local source of truth), builds containers, and applies the base DB schema.
+3. **Restore everything in one command.** SSH into the new server:
    ```
-   docker compose exec minio mc alias set backup-target \
-     "$BACKUP_ENDPOINT" "$BACKUP_ACCESS_KEY" "$BACKUP_SECRET_KEY"
-   docker compose exec minio mc alias set local \
-     "http://localhost:9000" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+   cd /opt/addaxai-connect
+   bash scripts/restore.sh <source-domain>             # latest dump
+   bash scripts/restore.sh <source-domain> 2026-04-17  # specific day
    ```
-3. **Restore the postgres dump** (pick the latest date):
+   `<source-domain>` is the `domain_name` of the server you're restoring *from* (e.g. `prod.addaxai.com`). The script pulls the selected postgres dump, loads it, applies any pending Alembic migrations, mirrors all six MinIO buckets back into local MinIO, mirrors the host image directories back to disk, and restarts the api. The whole run typically takes a few minutes.
+4. **Safety guard**: the script refuses to run if the users table has any rows, so you can't accidentally wipe a healthy server. To bypass (only on a server you genuinely want overwritten), pass `--force`.
+5. **Verify**: log into the web UI with a user from the restored DB, open a project, open a recent image. Then re-enable the backup cron:
    ```
-   docker compose exec minio mc cp \
-     backup-target/<bucket>/<old-domain>/postgres/2026-04-17.sql.gz /tmp/db.sql.gz
-   docker compose exec -T minio gunzip -c /tmp/db.sql.gz \
-     | docker compose exec -T postgres psql -U addaxai addaxai_connect
+   # on your laptop
+   # flip backup_enabled: true in group_vars
+   ansible-playbook -i inventory.yml playbook.yml --tags env-refresh
    ```
-4. **Restore each MinIO bucket**:
-   ```
-   for B in raw-images crops thumbnails project-images project-documents models; do
-     docker compose exec minio mc mirror --overwrite \
-       backup-target/<bucket>/<old-domain>/minio/$B local/$B
-   done
-   ```
-5. **Restore host image dirs**:
-   ```
-   for D in project-images reference-images; do
-     docker compose exec minio mc mirror --overwrite \
-       backup-target/<bucket>/<old-domain>/$D /host/$D
-   done
-   ```
-6. **Verify**: `docker compose restart api` then log into the web UI, confirm projects + cameras + a sample image render.
 
 ## Restarting services
 
