@@ -83,6 +83,19 @@ docker compose exec -T minio mc alias set backup-target \
 docker compose exec -T minio mc alias set local \
   "http://localhost:9000" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" > /dev/null
 
+# Idempotent bucket setup. On a freshly provisioned server, first backup run
+# enables versioning and installs the 90-day retention rule. On subsequent
+# runs everything is a no-op. Any Wasabi-side drift (e.g. console edits) gets
+# reconciled back. This is the same remove-all + re-add pattern the cold-tier
+# minio-init uses for its ILM rule.
+log "Ensuring backup bucket has versioning + 90-day retention rule"
+docker compose exec -T minio mc version enable "backup-target/$BUCKET" > /dev/null
+docker compose exec -T minio mc ilm rule remove --all --force "backup-target/$BUCKET" > /dev/null
+docker compose exec -T minio mc ilm rule add \
+  --noncurrentversion-expiration-days 90 \
+  --expired-object-delete-marker \
+  "backup-target/$BUCKET" > /dev/null
+
 log "Dumping postgres"
 docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
   | gzip \
