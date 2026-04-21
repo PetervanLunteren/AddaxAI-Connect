@@ -99,7 +99,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     **Cold storage tier (optional)**
 
-    When the disk fills up, overflow into remote storage. Reads stay transparent, old images add ~100 ms latency. Leave as defaults to skip. Can enable later if needed.
+    These settings enable overflow to remote storage when the disk fills up. Leave as defaults to skip. Can enable later if needed.
 
     | Variable | Example | Description |
     |---------|---------|-------------|
@@ -114,7 +114,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     **Automated backups (optional)**
 
-    Daily backup of the database and all images to remote storage. Needed if you want to restore a new server from a backup. Leave as defaults to skip. Can enable later if needed.
+    These settings enable daily backups of the database and all images to remote storage. Needed if you want to restore a new server from a backup. Leave as defaults to skip. Can enable later if needed.
 
     | Variable | Example | Description |
     |---------|---------|-------------|
