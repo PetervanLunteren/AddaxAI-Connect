@@ -125,14 +125,6 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `backup_access_key` | `"AKIA..."` | Access key for the backup bucket. |
     | `backup_secret_key` | `"secret..."` | Secret key for the backup bucket. |
 
-    **Disk usage alerts (optional)**
-
-    Server admins get an email when the root filesystem crosses a percentage. One email per threshold crossing. The default is sensible for most servers.
-
-    | Variable | Example | Description |
-    |---------|---------|-------------|
-    | `disk_alert_thresholds` | `"80,90,95"` | Comma-separated percentages. One email per crossing. Empty string disables alerts. |
-
 6.  **Add server to known_hosts**
 
     ```bash
