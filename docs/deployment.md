@@ -109,7 +109,6 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `cold_tier_region` | `"eu-central-1"` | Region code of the bucket. |
     | `cold_tier_access_key` | `"AKIA..."` | Access key for the bucket. |
     | `cold_tier_secret_key` | `"secret..."` | Secret key for the bucket. |
-    | `cold_tier_name` | `"WASABI_COLD"` | Name MinIO uses for the tier internally. Default is fine. |
     | `cold_tier_hot_budget_gb` | `80` | How many GB of raw images to keep on the server. Extra goes to the remote bucket. |
     | `cold_tier_tick_seconds` | `86400` | How often the watchdog checks disk usage. 86400 is once a day. |
 

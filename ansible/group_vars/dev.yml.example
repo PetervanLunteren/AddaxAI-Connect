@@ -38,7 +38,6 @@ cold_tier_bucket: ""                      # Bucket name in the cold provider
 cold_tier_region: "eu-central-1"          # Region of the cold bucket (Wasabi Amsterdam)
 cold_tier_access_key: ""                  # Cold-tier access key
 cold_tier_secret_key: ""                  # Cold-tier secret key
-cold_tier_name: "WASABI_COLD"             # MinIO tier alias name (cosmetic)
 cold_tier_hot_budget_gb: 80               # GB of raw-images to keep on-disk; the watchdog tiers the excess
 cold_tier_tick_seconds: 86400             # Watchdog interval in seconds (86400 = daily)
 
