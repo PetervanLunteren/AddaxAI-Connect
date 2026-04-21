@@ -8,7 +8,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 - An SSH key pair (most cloud providers let you add your public key during VM creation)
 - [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) installed on your local machine
 - A [supported camera](camera-requirements.md), or one that can be added
-- Optional: a [Wasabi](https://wasabi.com) or other S3-compatible object storage account. Only needed if you want cold storage for old raw images or automated backups of the full server (see the Cold storage and Backups tables in step 5 below). You can skip it now and enable either feature later.
+- Optional: an S3-compatible object storage account (for example [Wasabi](https://wasabi.com)). Only needed if you want cold storage for old raw images or automated backups of the full server. You can skip it now and enable either feature later.
 
 ## Setup
 
