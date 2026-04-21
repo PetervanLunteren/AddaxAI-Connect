@@ -378,6 +378,11 @@ class ServerSettings(Base):
     timezone = Column(String(50), nullable=True)  # NULL = not configured yet
     speciesnet_country_code = Column(String(10), nullable=True)   # ISO 3166-1 alpha-3
     speciesnet_admin1_region = Column(String(20), nullable=True)  # ISO 3166-2 (US states)
+    # Email server admins when the automated backup or cold-tier migration fails.
+    # Both default TRUE. Gated at runtime by BACKUP_ENABLED / COLD_TIER_ENDPOINT
+    # so a server that has the feature off never sends alerts about it.
+    notify_backup_failures = Column(Boolean, nullable=False, server_default="true")
+    notify_cold_tier_failures = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

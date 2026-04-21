@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
 import { CountrySelect } from '../../components/ui/CountrySelect';
@@ -111,6 +112,12 @@ export const ServerSettingsPage: React.FC = () => {
   const [geoSaveStatus, setGeoSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [geoError, setGeoError] = useState<string | null>(null);
 
+  // --- Infrastructure alerts state ---
+  const [notifyBackupFailures, setNotifyBackupFailures] = useState(true);
+  const [notifyColdTierFailures, setNotifyColdTierFailures] = useState(true);
+  const [infraSaveStatus, setInfraSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [infraError, setInfraError] = useState<string | null>(null);
+
   // --- Taxonomy state ---
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showMapping, setShowMapping] = useState(false);
@@ -148,9 +155,16 @@ export const ServerSettingsPage: React.FC = () => {
     if (serverSettings?.speciesnet_admin1_region) {
       setAdmin1Region(serverSettings.speciesnet_admin1_region);
     }
+    if (serverSettings) {
+      setNotifyBackupFailures(serverSettings.notify_backup_failures);
+      setNotifyColdTierFailures(serverSettings.notify_cold_tier_failures);
+    }
   }, [serverSettings]);
 
   const hasTimezoneChanges = timezone !== (serverSettings?.timezone ?? '') && timezone !== '';
+  const hasInfraChanges =
+    notifyBackupFailures !== (serverSettings?.notify_backup_failures ?? true)
+    || notifyColdTierFailures !== (serverSettings?.notify_cold_tier_failures ?? true);
 
   // --- Geofencing logic ---
   const hasGeoChanges = countryCode !== (serverSettings?.speciesnet_country_code ?? '')
@@ -179,6 +193,31 @@ export const ServerSettingsPage: React.FC = () => {
     updateGeoMutation.mutate({
       speciesnet_country_code: countryCode,
       speciesnet_admin1_region: admin1Region,
+    });
+  };
+
+  // --- Infrastructure alerts logic ---
+  const updateInfraMutation = useMutation({
+    mutationFn: (data: { notify_backup_failures: boolean; notify_cold_tier_failures: boolean }) =>
+      adminApi.updateServerSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['server-settings'] });
+      setInfraSaveStatus('success');
+      setTimeout(() => setInfraSaveStatus('idle'), 2000);
+    },
+    onError: (error: any) => {
+      setInfraError(error.response?.data?.detail || error.message || 'Failed to save');
+      setInfraSaveStatus('error');
+      setTimeout(() => setInfraSaveStatus('idle'), 3000);
+    },
+  });
+
+  const handleSaveInfra = () => {
+    setInfraSaveStatus('saving');
+    setInfraError(null);
+    updateInfraMutation.mutate({
+      notify_backup_failures: notifyBackupFailures,
+      notify_cold_tier_failures: notifyColdTierFailures,
     });
   };
 
@@ -442,6 +481,74 @@ export const ServerSettingsPage: React.FC = () => {
               <div className="border-t my-6" />
               <div className="flex justify-end">
                 <p className="text-sm text-[#0f6064]">Timezone saved</p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Infrastructure alerts */}
+      <Card className="mt-6 mb-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label className="text-sm font-medium block">Infrastructure alerts</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Email server admins when a scheduled infrastructure job fails. Defaults on when the feature is configured. No effect on servers where the feature is disabled.
+              </p>
+            </div>
+            <div className="flex-1 space-y-3">
+              <Checkbox
+                id="notify-backup-failures"
+                checked={notifyBackupFailures}
+                onChange={setNotifyBackupFailures}
+                label="Email me when an automated backup fails"
+              />
+              <Checkbox
+                id="notify-cold-tier-failures"
+                checked={notifyColdTierFailures}
+                onChange={setNotifyColdTierFailures}
+                label="Email me when a cold-tier migration fails"
+              />
+            </div>
+          </div>
+
+          {infraError && (
+            <>
+              <div className="border-t my-6" />
+              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {infraError}
+              </div>
+            </>
+          )}
+
+          {hasInfraChanges && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveInfra}
+                  disabled={infraSaveStatus === 'saving'}
+                >
+                  {infraSaveStatus === 'saving' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save changes'
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+
+          {infraSaveStatus === 'success' && !hasInfraChanges && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex justify-end">
+                <p className="text-sm text-[#0f6064]">Infrastructure alerts saved</p>
               </div>
             </>
           )}

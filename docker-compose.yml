@@ -296,6 +296,10 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       DOMAIN_NAME: ${DOMAIN_NAME}
       DISK_ALERT_THRESHOLDS: ${DISK_ALERT_THRESHOLDS:-80,90,95}
+      # For infra_alert.py. ADMIN_EMAIL is needed for the TEMP success mails.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+      COLD_TIER_ENDPOINT: ${COLD_TIER_ENDPOINT:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}

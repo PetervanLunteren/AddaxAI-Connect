@@ -1412,6 +1412,8 @@ class ServerSettingsResponse(BaseModel):
     timezone: Optional[str] = None
     speciesnet_country_code: Optional[str] = None
     speciesnet_admin1_region: Optional[str] = None
+    notify_backup_failures: bool = True
+    notify_cold_tier_failures: bool = True
 
 
 class ServerSettingsUpdateRequest(BaseModel):
@@ -1419,6 +1421,8 @@ class ServerSettingsUpdateRequest(BaseModel):
     timezone: Optional[str] = None
     speciesnet_country_code: Optional[str] = None
     speciesnet_admin1_region: Optional[str] = None
+    notify_backup_failures: Optional[bool] = None
+    notify_cold_tier_failures: Optional[bool] = None
 
 
 @router.get(
@@ -1445,6 +1449,8 @@ async def get_server_settings(
         timezone=settings.timezone,
         speciesnet_country_code=settings.speciesnet_country_code,
         speciesnet_admin1_region=settings.speciesnet_admin1_region,
+        notify_backup_failures=settings.notify_backup_failures,
+        notify_cold_tier_failures=settings.notify_cold_tier_failures,
     )
 
 
@@ -1505,6 +1511,10 @@ async def update_server_settings(
         settings.speciesnet_country_code = data.speciesnet_country_code
     if data.speciesnet_admin1_region is not None:
         settings.speciesnet_admin1_region = data.speciesnet_admin1_region.strip() or None
+    if data.notify_backup_failures is not None:
+        settings.notify_backup_failures = data.notify_backup_failures
+    if data.notify_cold_tier_failures is not None:
+        settings.notify_cold_tier_failures = data.notify_cold_tier_failures
 
     await db.commit()
 
@@ -1514,6 +1524,8 @@ async def update_server_settings(
         timezone=settings.timezone,
         speciesnet_country_code=settings.speciesnet_country_code,
         speciesnet_admin1_region=settings.speciesnet_admin1_region,
+        notify_backup_failures=settings.notify_backup_failures,
+        notify_cold_tier_failures=settings.notify_cold_tier_failures,
     )
 
 

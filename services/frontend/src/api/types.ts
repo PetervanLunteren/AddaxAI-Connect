@@ -332,6 +332,8 @@ export interface ServerSettings {
   timezone: string | null;
   speciesnet_country_code: string | null;
   speciesnet_admin1_region: string | null;
+  notify_backup_failures: boolean;
+  notify_cold_tier_failures: boolean;
 }
 
 // Project user management

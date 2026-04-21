@@ -24,6 +24,7 @@ from email_report import send_daily_reports, send_weekly_reports, send_monthly_r
 from excessive_images import send_excessive_image_alerts
 from project_inactivity import send_project_inactivity_alerts
 from disk_usage_alert import check_disk_usage_and_alert
+from infra_alert import check_infra_alerts
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -163,6 +164,17 @@ def main() -> None:
         name='Check disk usage hourly, email admins on threshold crossing'
     )
 
+    # Infra alerts (cold tier + backup) - daily at 03:00 UTC, one hour after the
+    # backup cron so the new backup:last_run key is fresh when we check it.
+    scheduler.add_job(
+        check_infra_alerts,
+        'cron',
+        hour=3,
+        minute=0,
+        id='infra_alerts',
+        name='Daily infra alert check at 03:00 UTC'
+    )
+
     scheduler.start()
 
     logger.info("Scheduled daily battery digest at 12:00 UTC")
@@ -170,6 +182,7 @@ def main() -> None:
     logger.info("Scheduled excessive image alerts at 06:30 UTC")
     logger.info("Scheduled project inactivity alerts at 06:00 UTC")
     logger.info("Scheduled disk usage alert check hourly")
+    logger.info("Scheduled infra alert check daily at 03:00 UTC")
 
     # Listen to notification events queue
     queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)

@@ -30,6 +30,12 @@ Open follow-ups:
 #         and to the two `mc mirror` loops (marked with `# TEMP:`).
 #       Grep `# TEMP:` across the repo to find all of them.
 
+# TODO: revert TEMP success-email branch in services/notifications/infra_alert.py.
+#       Once cold-tier + backup have run clean for a week, drop the two TEMP blocks
+#       marked `# TEMP: also email admin_email on status=ok`. After removal the
+#       infra_alert job only emails server admins on failure, which is the
+#       permanent behavior. Grep `# TEMP:` to find.
+
 
 
 # prio 1
