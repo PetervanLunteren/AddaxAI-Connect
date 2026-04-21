@@ -18,6 +18,24 @@ Open follow-ups:
 - [ ] does the exsessive image notification work? 
 - [ ] CHECK IF RESOLVED AFTER DELETING AN EMPTY IMAGE FROM CURATION (trigger check) - There is an inconsistency between the “Camera” and “Map” tabs: some deleted locations (test data) still appear on the map.
 
+
+
+
+# TODO: test the backup plan from end to end by setting up a new server from a old backup. 
+
+# TODO: revert TEMP verbose logging once cold-tier + backup verification is done.
+#       - services/minio-tier-watchdog/watchdog.py: re-enable the boto3/botocore/urllib3 silencer
+#         (the commented-out `for noisy in (...): logging.getLogger(noisy).setLevel(logging.WARNING)` block).
+#       - scripts/backup.sh: re-add `> /dev/null` to every mc call in the bucket setup block
+#         and to the two `mc mirror` loops (marked with `# TEMP:`).
+#       Grep `# TEMP:` across the repo to find all of them.
+
+
+
+# prio 1
+- [ ] the email report it looks like the Never reported cameras are bad. But this is usually by design. Can we make this not red, but just a note or caption or something like that? What do you propose in terms of UX UI? Also, if we have cameras that dont send any daily reports (i.e., no battery status, not any status): how do theyt show up in the weekly reports? It shouldnt be red or bad, just a note. Investigate. 
+- [ ] The DEV dashboard card "Detection categories" doesnt work. Its all 0's. Investigate! 
+
 ## TODO Priority 2
 - [x] is it difficult to have the Activity pattern in the dashboard resemble a clock with hours around it? 
 - [x] it seems like the exessive images alert doesnt work. For PWN (ssh pwn - only read! do not write or execute - real data), i have set an alarm for 25 images, but I can see that camera "Zeepoort NO" has sent more on apr 6 and 8 (41 and 46). Why didnt I get an alarm email? Check the DB, the logs, and figure out whats going on. Investigate and report back. 

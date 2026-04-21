@@ -131,11 +131,12 @@ def main():
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
-    # boto3 + botocore + urllib3 are extremely chatty at DEBUG (full signature
-    # computation and HTTP headers per request). Pin them to WARNING so the
-    # watchdog's own logger keeps DEBUG useful for our logic.
-    for noisy in ("boto3", "botocore", "urllib3", "s3transfer"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+    # TEMP: boto3 + botocore + urllib3 silencer disabled so every S3 call
+    # (signatures, headers, retries) shows in the log while we debug the
+    # cold-tier + backup flows. Restore the original three lines once
+    # verification is done. See TODO.md.
+    # for noisy in ("boto3", "botocore", "urllib3", "s3transfer"):
+    #     logging.getLogger(noisy).setLevel(logging.WARNING)
     log = logging.getLogger("tier-watchdog")
 
     tick_seconds = int(os.environ.get("COLD_TIER_TICK_SECONDS", "86400"))

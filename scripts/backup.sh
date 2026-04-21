@@ -88,13 +88,17 @@ docker compose exec -T minio mc alias set local \
 # runs everything is a no-op. Any Wasabi-side drift (e.g. console edits) gets
 # reconciled back. This is the same remove-all + re-add pattern the cold-tier
 # minio-init uses for its ILM rule.
+# TEMP: stdout redirects to /dev/null are removed in this block so every mc
+# call prints what it does (per-object uploads, retention rule output, alias
+# confirmation). Revert by re-adding `> /dev/null` after every mc invocation
+# once cold-tier and backup verification is done. See TODO.md.
 log "Ensuring backup bucket has versioning + 90-day retention rule"
-docker compose exec -T minio mc version enable "backup-target/$BUCKET" > /dev/null
-docker compose exec -T minio mc ilm rule remove --all --force "backup-target/$BUCKET" > /dev/null
+docker compose exec -T minio mc version enable "backup-target/$BUCKET"
+docker compose exec -T minio mc ilm rule remove --all --force "backup-target/$BUCKET"
 docker compose exec -T minio mc ilm rule add \
   --noncurrentversion-expiration-days 90 \
   --expired-object-delete-marker \
-  "backup-target/$BUCKET" > /dev/null
+  "backup-target/$BUCKET"
 
 log "Dumping postgres"
 # --clean --if-exists makes the dump self-cleaning: DROP IF EXISTS before every
@@ -112,16 +116,18 @@ log "Postgres dump uploaded"
 # lifecycle rule (noncurrent-version-expiration 90 days) handles history.
 for MINIO_BUCKET in raw-images crops thumbnails project-images project-documents models; do
   log "Mirroring minio/$MINIO_BUCKET"
+  # TEMP: verbose mirror (no `> /dev/null`). See TODO.md.
   docker compose exec -T minio mc mirror --overwrite --remove \
-    "local/$MINIO_BUCKET" "backup-target/$BUCKET/$HOST/minio/$MINIO_BUCKET" > /dev/null
+    "local/$MINIO_BUCKET" "backup-target/$BUCKET/$HOST/minio/$MINIO_BUCKET"
 done
 log "All MinIO buckets mirrored"
 
 # Host image dirs, bind-mounted into the minio container read-only at /host/*.
 for HOST_DIR in project-images reference-images; do
   log "Mirroring host/$HOST_DIR"
+  # TEMP: verbose mirror (no `> /dev/null`). See TODO.md.
   docker compose exec -T minio mc mirror --overwrite --remove \
-    "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR" > /dev/null
+    "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR"
 done
 log "Host image dirs mirrored"
 
