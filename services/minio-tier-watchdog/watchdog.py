@@ -144,14 +144,14 @@ def main():
 
     redis_client = redis.from_url(os.environ["REDIS_URL"])
 
-    if not os.environ.get("COLD_TIER_ENDPOINT"):
-        log.info("COLD_TIER_ENDPOINT not set; idling (nothing to transition to)")
+    if os.environ.get("COLD_TIER_ENABLED", "false").lower() != "true":
+        log.info("COLD_TIER_ENABLED is not true; idling (nothing to transition to)")
         write_status(redis_client, 86400, {"status": "idle",
-                     "message": "cold tier disabled (COLD_TIER_ENDPOINT empty)"})
+                     "message": "cold tier disabled (COLD_TIER_ENABLED=false)"})
         while True:
             time.sleep(3600)
             write_status(redis_client, 86400, {"status": "idle",
-                         "message": "cold tier disabled (COLD_TIER_ENDPOINT empty)"})
+                         "message": "cold tier disabled (COLD_TIER_ENABLED=false)"})
 
     # Crash early on auth or connectivity errors (CONVENTIONS.md #1)
     client = make_client()

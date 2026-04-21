@@ -104,7 +104,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     | Variable | Example | Description |
     |---------|---------|-------------|
-    | `cold_tier_endpoint` | `"https://s3.eu-central-1.wasabisys.com"` | Endpoint of the remote S3 bucket. Empty means cold tier is off. |
+    | `cold_tier_enabled` | `true` | `true` to run the cold tier. `false` skips it. |
+    | `cold_tier_endpoint` | `"https://s3.eu-central-1.wasabisys.com"` | Endpoint of the remote S3 bucket. |
     | `cold_tier_bucket` | `"my-server-cold"` | Bucket name on the remote provider. |
     | `cold_tier_region` | `"eu-central-1"` | Region code of the bucket. |
     | `cold_tier_access_key` | `"AKIA..."` | Access key for the bucket. |

@@ -127,7 +127,7 @@ def check_cold_tier_watchdog() -> ServiceStatus:
             return ServiceStatus(
                 name="cold-tier-watchdog",
                 status="healthy",
-                message="Cold tier disabled (COLD_TIER_ENDPOINT empty)",
+                message="Cold tier disabled (COLD_TIER_ENABLED=false)",
             )
         if state == "ok":
             hot_gb = payload.get("hot_gb", "?")

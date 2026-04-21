@@ -4,7 +4,7 @@ Sends an email to every verified server admin when either feature's last run
 ended in error (or when the backup cron key disappeared, which means the
 scheduled run did not happen at all). The two toggles on ServerSettings
 gate each feature independently. When the underlying feature is disabled
-(BACKUP_ENABLED=false or COLD_TIER_ENDPOINT empty), no alert fires even if
+(BACKUP_ENABLED=false or COLD_TIER_ENABLED=false), no alert fires even if
 the toggle is on.
 
 TEMP: during initial verification the same job also emails `admin_email`
@@ -177,7 +177,7 @@ def _temp_email_admin(subject: str, text_body: str, html_body: str,
 
 
 def _check_cold_tier(redis_client, hostname: str, notify_on_failure: bool) -> None:
-    if not os.environ.get("COLD_TIER_ENDPOINT"):
+    if os.environ.get("COLD_TIER_ENABLED", "false").lower() != "true":
         return
     payload = _load_status(redis_client, COLD_TIER_REDIS_KEY)
     if payload is None:

@@ -65,7 +65,7 @@ services:
       - addaxai-network
 
   # MinIO Bucket Initialization
-  # When COLD_TIER_ENDPOINT is set, also registers the remote tier and installs
+  # When COLD_TIER_ENABLED=true, also registers the remote tier and installs
   # a tag-based ILM rule so objects carrying tag `tier=cold` transition there.
   minio-init:
     image: minio/mc:latest
@@ -84,7 +84,7 @@ services:
       /usr/bin/mc mb --ignore-existing minio/project-images;
       /usr/bin/mc mb --ignore-existing minio/project-documents;
       /usr/bin/mc version enable minio/raw-images;
-      if [ -n '${COLD_TIER_ENDPOINT:-}' ]; then
+      if [ '${COLD_TIER_ENABLED:-false}' = 'true' ]; then
         /usr/bin/mc ilm tier update minio '${COLD_TIER_NAME:-WASABI_COLD}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' || \
           /usr/bin/mc ilm tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --region '${COLD_TIER_REGION:-eu-central-1}' || true;
         /usr/bin/mc ilm rule remove --all --force minio/raw-images || true;
@@ -92,7 +92,7 @@ services:
         /usr/bin/mc ilm rule add --noncurrentversion-expiration-days 1 --expired-object-delete-marker minio/raw-images || true;
         echo 'Cold tier configured';
       else
-        echo 'Cold tier not configured (COLD_TIER_ENDPOINT empty)';
+        echo 'Cold tier disabled (COLD_TIER_ENABLED=false)';
       fi;
       echo 'MinIO buckets created successfully';
       "
@@ -299,7 +299,7 @@ services:
       # For infra_alert.py. ADMIN_EMAIL is needed for the TEMP success mails.
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
-      COLD_TIER_ENDPOINT: ${COLD_TIER_ENDPOINT:-}
+      COLD_TIER_ENABLED: ${COLD_TIER_ENABLED:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -376,6 +376,7 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      COLD_TIER_ENABLED: ${COLD_TIER_ENABLED:-false}
       COLD_TIER_ENDPOINT: ${COLD_TIER_ENDPOINT:-}
       COLD_TIER_HOT_BUDGET_GB: ${COLD_TIER_HOT_BUDGET_GB:-80}
       COLD_TIER_TICK_SECONDS: ${COLD_TIER_TICK_SECONDS:-86400}

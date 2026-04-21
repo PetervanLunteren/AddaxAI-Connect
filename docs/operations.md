@@ -81,7 +81,7 @@ docker compose exec minio mc du local/thumbnails
 
 Older raw images can transition from local MinIO to a remote S3-compatible cold tier (Wasabi recommended) once on-disk `raw-images` exceeds a configurable budget. Reads stay on the same `raw-images` bucket; MinIO transparently fetches cold objects, so no application code changes. Thumbnails, crops, project documents, and models always stay hot.
 
-Tiering is enabled when `COLD_TIER_ENDPOINT` is set in `.env`. Configure the cold-tier vars in `ansible/group_vars/dev.yml` and re-run the playbook. Leave `cold_tier_endpoint` blank to keep everything local.
+Tiering is enabled when `COLD_TIER_ENABLED=true` in `.env`. Configure the cold-tier vars in `ansible/group_vars/dev.yml` and re-run the playbook. Leave `cold_tier_enabled: false` to keep everything local.
 
 Confirm the tier is registered and the ILM rule is installed:
 
