@@ -40,7 +40,6 @@ cold_tier_region: "eu-central-1"          # Region of the cold bucket (Wasabi Am
 cold_tier_access_key: ""                  # Cold-tier access key
 cold_tier_secret_key: ""                  # Cold-tier secret key
 cold_tier_hot_budget_gb: 80               # GB of raw-images to keep on-disk; the watchdog tiers the excess
-cold_tier_tick_seconds: 86400             # Watchdog interval in seconds (86400 = daily)
 
 # Disk usage alert thresholds (comma-separated percentages). Server admins receive
 # a one-shot email when the root filesystem crosses any of these. A drop below a
