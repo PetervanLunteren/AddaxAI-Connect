@@ -151,11 +151,13 @@
   become_user: "{{ app_user | default('ubuntu') }}"
   register: db_init
   changed_when: "'✅ Database initialized!' in db_init.stdout"
+  tags: [env-refresh]
 
 - name: Display database initialization result
   debug:
     var: db_init.stdout_lines
   when: db_init is defined
+  tags: [env-refresh]
 
 - name: Populate demo data
   command: docker compose exec -T api python /app/scripts/populate_demo_data.py
