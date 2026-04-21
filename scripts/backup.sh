@@ -94,7 +94,9 @@ docker compose exec -T minio mc alias set local \
 # once cold-tier and backup verification is done. See TODO.md.
 log "Ensuring backup bucket has versioning + 90-day retention rule"
 docker compose exec -T minio mc version enable "backup-target/$BUCKET"
-docker compose exec -T minio mc ilm rule remove --all --force "backup-target/$BUCKET"
+# `rule remove --all --force` errors on a truly fresh bucket that has no
+# lifecycle config yet. That's not a failure, it's first-run state. Tolerate.
+docker compose exec -T minio mc ilm rule remove --all --force "backup-target/$BUCKET" || true
 docker compose exec -T minio mc ilm rule add \
   --noncurrentversion-expiration-days 90 \
   --expired-object-delete-marker \
