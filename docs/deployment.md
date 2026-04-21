@@ -107,8 +107,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `cold_tier_endpoint` | `"https://s3.eu-central-1.wasabisys.com"` | Endpoint of the remote S3 bucket. Empty means cold tier is off. |
     | `cold_tier_bucket` | `"my-server-cold"` | Bucket name on the remote provider. |
     | `cold_tier_region` | `"eu-central-1"` | Region code of the bucket. |
-    | `cold_tier_access_key` | `"AKIA..."` | Access key for the bucket. Vault-encrypt once filled in. |
-    | `cold_tier_secret_key` | `"secret..."` | Secret key for the bucket. Vault-encrypt once filled in. |
+    | `cold_tier_access_key` | `"AKIA..."` | Access key for the bucket. |
+    | `cold_tier_secret_key` | `"secret..."` | Secret key for the bucket. |
     | `cold_tier_name` | `"WASABI_COLD"` | Name MinIO uses for the tier internally. Default is fine. |
     | `cold_tier_hot_budget_gb` | `80` | How many GB of raw images to keep on the server. Extra goes to the remote bucket. |
     | `cold_tier_tick_seconds` | `86400` | How often the watchdog checks disk usage. 86400 is once a day. |
@@ -123,8 +123,8 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     | `backup_endpoint` | `"https://s3.eu-central-1.wasabisys.com"` | Endpoint of the backup provider. |
     | `backup_bucket` | `"my-server-backups"` | Dedicated backup bucket. Do not reuse the cold-tier bucket. |
     | `backup_region` | `"eu-central-1"` | Region code of the backup bucket. |
-    | `backup_access_key` | `"AKIA..."` | Access key for the backup bucket. Vault-encrypt. |
-    | `backup_secret_key` | `"secret..."` | Secret key for the backup bucket. Vault-encrypt. |
+    | `backup_access_key` | `"AKIA..."` | Access key for the backup bucket. |
+    | `backup_secret_key` | `"secret..."` | Secret key for the backup bucket. |
 
     **Disk usage alerts (optional)**
 
