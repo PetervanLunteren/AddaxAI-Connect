@@ -109,7 +109,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     **Cold storage tier (optional)**
 
-    When the disk fills up with raw images, the server can move old ones to a remote S3 bucket (Wasabi works well). Reads stay transparent: the UI fetches cold images without the user noticing. Leave `cold_tier_endpoint` empty to skip this for now. You can enable it later. Setup steps are in [Cold storage tier](operations.md#cold-storage-tier).
+    When the disk fills up, overflow into remote storage. Reads stay transparent, old images add ~100 ms latency. Leave as defaults to skip. Can enable later if needed.
 
     | Variable | Example | Description |
     |---------|---------|-------------|
