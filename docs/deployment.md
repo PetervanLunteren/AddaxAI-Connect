@@ -97,16 +97,6 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
         "
         ```
 
-    ??? tip "Email not sending after deployment?"
-
-        Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
-
-        ```bash
-        python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('<mail_server>', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
-        ```
-
-        If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
-
     **Cold storage tier (optional)**
 
     When the disk fills up, overflow into remote storage. Reads stay transparent, old images add ~100 ms latency. Leave as defaults to skip. Can enable later if needed.
@@ -190,6 +180,16 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     This can take 30-60 minutes since it builds all Docker images on the server. Good time to go outside and do some bird watching. When you see lots of green texts, checkmarks and `failed=0`, the server is deployed.
 
     ![Screenshot 2026-03-23 at 14 36 48](https://github.com/user-attachments/assets/5454f891-8358-4deb-a77e-2f9411dbb897)
+
+    ??? tip "Email not sending after deployment?"
+
+        Some cloud providers (DigitalOcean, AWS, Google Cloud) block outbound SMTP ports (25, 465, 587) by default to prevent spam. You can check with:
+
+        ```bash
+        python3 -c "import socket; [print(f'Port {p}:', 'OPEN' if socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect_ex(('<mail_server>', p)) == 0 else 'BLOCKED') for p in [25, 465, 587]]"
+        ```
+
+        If ports are blocked, submit a support ticket to your cloud provider requesting SMTP access for transactional emails.
 
 Your server is live! Time to put it to work. Continue with the **[setup guide](setup-guide.md)** to register your account, configure settings, and start processing images.
 
