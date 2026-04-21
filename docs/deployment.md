@@ -124,7 +124,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     **Automated backups (optional)**
 
-    Daily backup of the database and every MinIO bucket to a separate Wasabi bucket. You need this if you want to spin up a new server from a backup later. Keep it off if you don't need backups yet. Setup steps are in [Automated backups](operations.md#automated-backups).
+    Daily backup of the database and all images to remote storage. Needed if you want to restore a new server from a backup. Leave as defaults to skip. Can enable later if needed.
 
     | Variable | Example | Description |
     |---------|---------|-------------|
