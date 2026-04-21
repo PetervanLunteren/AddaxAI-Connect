@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
-import { Checkbox } from '../../components/ui/Checkbox';
+import { Switch } from '../../components/ui/Switch';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { TimezoneSelect } from '../../components/ui/TimezoneSelect';
 import { CountrySelect } from '../../components/ui/CountrySelect';
@@ -455,10 +455,11 @@ export const ServerSettingsPage: React.FC = () => {
               </p>
             </div>
             <div className="flex-1">
-              <Checkbox
+              <Switch
                 id="notify-backup-failures"
                 checked={notifyBackupFailures}
                 onChange={setNotifyBackupFailures}
+                aria-label="Backup failure alerts"
               />
             </div>
           </div>
@@ -474,10 +475,11 @@ export const ServerSettingsPage: React.FC = () => {
               </p>
             </div>
             <div className="flex-1">
-              <Checkbox
+              <Switch
                 id="notify-cold-tier-failures"
                 checked={notifyColdTierFailures}
                 onChange={setNotifyColdTierFailures}
+                aria-label="Cold-tier failure alerts"
               />
             </div>
           </div>
