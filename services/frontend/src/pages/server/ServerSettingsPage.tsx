@@ -412,8 +412,8 @@ export const ServerSettingsPage: React.FC = () => {
               <label className="text-sm font-medium block">Telegram notifications</label>
               <p className="text-sm text-muted-foreground mt-1">
                 {isTelegramConfigured && telegramConfig
-                  ? <>Bot <code className="text-xs bg-muted px-1 py-0.5 rounded">@{telegramConfig.bot_username}</code> is active. Users can configure Telegram notifications in their project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
-                  : 'Configure a Telegram bot to enable instant notifications.'}
+                  ? <>Bot <code className="text-xs bg-muted px-1 py-0.5 rounded">@{telegramConfig.bot_username}</code> is active. Users link their own chat from project settings. <button onClick={() => setShowProfilePicModal(true)} className="text-primary hover:underline">Add a profile picture</button>.</>
+                  : 'Send alerts to Telegram. One bot per server. Users link their own chat from project settings.'}
               </p>
             </div>
             <div className="flex-1">
@@ -443,6 +443,85 @@ export const ServerSettingsPage: React.FC = () => {
               )}
             </div>
           </div>
+
+          <div className="border-t my-6" />
+
+          {/* Backup failure alerts */}
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label htmlFor="notify-backup-failures" className="text-sm font-medium block cursor-pointer">Backup failure alerts</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Email server admins when the daily automated backup fails or does not run. Does nothing on servers where automated backup is disabled.
+              </p>
+            </div>
+            <div className="flex-1">
+              <Checkbox
+                id="notify-backup-failures"
+                checked={notifyBackupFailures}
+                onChange={setNotifyBackupFailures}
+              />
+            </div>
+          </div>
+
+          <div className="border-t my-6" />
+
+          {/* Cold-tier failure alerts */}
+          <div className="flex items-center gap-8">
+            <div className="w-1/2 shrink-0">
+              <label htmlFor="notify-cold-tier-failures" className="text-sm font-medium block cursor-pointer">Cold-tier failure alerts</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Email server admins when the cold-tier watchdog cannot reach the remote bucket, crashes, or stops ticking. Does nothing on servers where the cold tier is disabled.
+              </p>
+            </div>
+            <div className="flex-1">
+              <Checkbox
+                id="notify-cold-tier-failures"
+                checked={notifyColdTierFailures}
+                onChange={setNotifyColdTierFailures}
+              />
+            </div>
+          </div>
+
+          {/* Infra save block */}
+          {infraError && (
+            <>
+              <div className="border-t my-6" />
+              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {infraError}
+              </div>
+            </>
+          )}
+
+          {hasInfraChanges && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSaveInfra}
+                  disabled={infraSaveStatus === 'saving'}
+                >
+                  {infraSaveStatus === 'saving' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save changes'
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+
+          {infraSaveStatus === 'success' && !hasInfraChanges && (
+            <>
+              <div className="border-t my-6" />
+              <div className="flex justify-end">
+                <p className="text-sm text-[#0f6064]">Alerts saved</p>
+              </div>
+            </>
+          )}
 
           {/* Save button */}
           {tzError && (
@@ -481,74 +560,6 @@ export const ServerSettingsPage: React.FC = () => {
               <div className="border-t my-6" />
               <div className="flex justify-end">
                 <p className="text-sm text-[#0f6064]">Timezone saved</p>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Infrastructure alerts */}
-      <Card className="mt-6 mb-6">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
-              <label className="text-sm font-medium block">Infrastructure alerts</label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Email server admins when a scheduled infrastructure job fails. Defaults on when the feature is configured. No effect on servers where the feature is disabled.
-              </p>
-            </div>
-            <div className="flex-1 space-y-3">
-              <Checkbox
-                id="notify-backup-failures"
-                checked={notifyBackupFailures}
-                onChange={setNotifyBackupFailures}
-                label="Email me when an automated backup fails"
-              />
-              <Checkbox
-                id="notify-cold-tier-failures"
-                checked={notifyColdTierFailures}
-                onChange={setNotifyColdTierFailures}
-                label="Email me when a cold-tier migration fails"
-              />
-            </div>
-          </div>
-
-          {infraError && (
-            <>
-              <div className="border-t my-6" />
-              <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                {infraError}
-              </div>
-            </>
-          )}
-
-          {hasInfraChanges && (
-            <>
-              <div className="border-t my-6" />
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleSaveInfra}
-                  disabled={infraSaveStatus === 'saving'}
-                >
-                  {infraSaveStatus === 'saving' ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save changes'
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
-
-          {infraSaveStatus === 'success' && !hasInfraChanges && (
-            <>
-              <div className="border-t my-6" />
-              <div className="flex justify-end">
-                <p className="text-sm text-[#0f6064]">Infrastructure alerts saved</p>
               </div>
             </>
           )}

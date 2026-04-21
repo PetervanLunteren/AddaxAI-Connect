@@ -7,7 +7,7 @@ interface CheckboxProps {
   id: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
-  label: string;
+  label?: string;
   className?: string;
 }
 
@@ -27,12 +27,14 @@ export const Checkbox: React.FC<CheckboxProps> = ({
         onChange={(e) => onChange(e.target.checked)}
         className="w-5 h-5 rounded border-border text-primary focus:ring-2 focus:ring-primary focus:ring-offset-0 accent-primary cursor-pointer"
       />
-      <label
-        htmlFor={id}
-        className="text-sm font-medium cursor-pointer select-none"
-      >
-        {label}
-      </label>
+      {label && (
+        <label
+          htmlFor={id}
+          className="text-sm font-medium cursor-pointer select-none"
+        >
+          {label}
+        </label>
+      )}
     </div>
   );
 };
