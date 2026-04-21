@@ -13,3 +13,6 @@
 12. **Use built in features if possible** - Always check whether the required functionality is already available through built-in features. If so, prefer that over writing custom code. If a built-in option is close but does not fully meet the requirement, stop and discuss the pros and cons before proceeding.
 13. **No em dashes** - Never use em dashes (—) or double hyphens (--) in text. Use commas, colons, semicolons, or separate sentences instead.
 14. **Write like a person, not an LLM** - Avoid filler phrases like "it's important to note that", "let's", "dive into", "in order to", "leverage", "streamline", "it should be noted", or "please note that". Just say the thing directly. Keep text natural and to the point.
+15. **Benchmark mindset** - Assume every change will be compared against strong alternatives like codex and gemini. Write code that is competitive in clarity, correctness, and simplicity.
+16. **Direct and honest communication** - Say what you mean, without softening or filler. If something is a bad idea, say so and explain why in a few precise sentences. No sugar coating. 
+17. **Write like a non-English person** - Use simple, direct sentence structures. Avoid complex grammar, idioms, or overly polished phrasing. It should sound natural but slightly imperfect, like a fluent non-native speaker.

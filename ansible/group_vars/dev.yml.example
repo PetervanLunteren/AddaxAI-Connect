@@ -10,7 +10,7 @@ db_password: "changeme_db123"                                       # Database p
 minio_password: "changeme_minio123"                                 # MinIO storage admin password
 redis_password: "changeme_redis123"                                 # Redis password
 jwt_secret: "changeme_jwt_secret_very_long_random_string_123"       # Secret key for signing JWT tokens
-monitoring_password: "changeme_monitoring123"                        # Password for monitoring tools
+monitoring_password: "changeme_monitoring123"                       # Password for monitoring tools
 
 # Classification model
 classification_model: ""                  # "deepfaune" (38 European species) or "speciesnet" (2,498 global species)
@@ -34,9 +34,9 @@ admin_email: ""                           # Email for the first user account (ge
 # exceeds cold_tier_hot_budget_gb; a MinIO ILM rule moves tagged objects to the cold bucket.
 # Reads stay transparent. Thumbnails, crops, and project assets always stay hot.
 cold_tier_enabled: false                  # true to enable the cold tier
-cold_tier_endpoint: ""                    # e.g. "https://s3.eu-central-1.wasabisys.com" (Wasabi Amsterdam)
+cold_tier_endpoint: ""                    # e.g. "https://s3.eu-central-1.wasabisys.com"
 cold_tier_bucket: ""                      # Bucket name in the cold provider
-cold_tier_region: "eu-central-1"          # Region of the cold bucket (Wasabi Amsterdam)
+cold_tier_region: "eu-central-1"          # Region of the cold bucket
 cold_tier_access_key: ""                  # Cold-tier access key
 cold_tier_secret_key: ""                  # Cold-tier secret key
 cold_tier_hot_budget_gb: 80               # GB of raw-images to keep on-disk; the watchdog tiers the excess
@@ -46,13 +46,13 @@ cold_tier_hot_budget_gb: 80               # GB of raw-images to keep on-disk; th
 # level re-arms it so the next crossing sends a fresh alert.
 disk_alert_thresholds: "80,90,95"
 
-# Automated daily backups to a Wasabi bucket (02:00 UTC). Leave backup_enabled
+# Automated daily backups to a S3 bucket (02:00 UTC). Leave backup_enabled
 # false to skip. When enabled, scripts/backup.sh dumps postgres + mirrors every
 # authoritative MinIO bucket and host image dir into backup_bucket under a
-# path prefixed by the server's domain_name. Retention is set by a Wasabi
+# path prefixed by the server's domain_name. Retention is set by a the S3
 # lifecycle rule (see docs/operations.md), not by this script.
 backup_enabled: false                     # true to enable the daily cron
-backup_endpoint: ""                       # e.g. "https://s3.eu-central-1.wasabisys.com" (Wasabi Amsterdam)
+backup_endpoint: ""                       # e.g. "https://s3.eu-central-1.wasabisys.com"
 backup_bucket: ""                         # Dedicated backup bucket (separate from the cold-tier bucket)
 backup_region: "eu-central-1"             # Region of the backup bucket
 backup_access_key: ""                     # Bucket-scoped IAM key
