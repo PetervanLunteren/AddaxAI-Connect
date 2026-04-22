@@ -17,20 +17,26 @@ Set `backup_enabled: false` in `ansible/group_vars/dev.yml`. This keeps the new 
 
 You turn it back on at the end.
 
-## 2. Provision the new VM and run ansible
+## 2. Point ansible at the new VM
 
 *(on your laptop)*
 
-Point `ansible/inventory.yml` at the new VM's IP. Then run the full playbook. This installs Docker, pulls the repo, renders `.env` from your group_vars, starts all containers with an empty database and empty MinIO buckets.
+Open `ansible/inventory.yml` and set `ansible_host` to the new VM's IPv4 address. This is what decides which server the playbook targets. Double-check the IP before you run anything, a typo here points the playbook at the wrong live server.
+
+## 3. Run the playbook on the new VM
+
+*(on your laptop)*
+
+Run the full playbook. This installs Docker, pulls the repo, renders `.env` from your group_vars, starts all containers with an empty database and empty MinIO buckets.
 
 ```bash
 ssh-keyscan -H <new_vm_ipv4> >> ~/.ssh/known_hosts
-cd ansible && ansible-playbook -i inventory.yml playbook.yml
+ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
 ```
 
 Follow the same DNS record step from the [deployment guide](deployment.md) when the playbook pauses for it.
 
-## 3. Restore the data
+## 4. Restore the data
 
 *(on the new server)*
 
@@ -52,7 +58,7 @@ bash scripts/restore.sh <old-domain> --force
 
 Runtime is usually a few minutes.
 
-## 4. Verify
+## 5. Verify
 
 *(in a browser)*
 
@@ -69,14 +75,14 @@ If something is off, check logs:
 docker compose logs -f --tail 50
 ```
 
-## 5. Re-enable backups
+## 6. Re-enable backups
 
 *(on your laptop, after verify passed)*
 
 Flip `backup_enabled: true` back in `ansible/group_vars/dev.yml`. Apply it without rebuilding everything:
 
 ```bash
-cd ansible && ansible-playbook -i inventory.yml playbook.yml --tags env-refresh
+ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --tags env-refresh
 ```
 
 The cron now runs nightly at 02:00 UTC. Confirm with `crontab -l` on the server.
