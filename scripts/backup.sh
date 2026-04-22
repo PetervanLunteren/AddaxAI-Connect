@@ -16,6 +16,20 @@ log()  { echo "[$(LOG_PREFIX)] $*"; }
 
 cd "$APP_DIR"
 
+# Self-guard: restore.sh drops a .restore-in-progress file while it runs. Skip
+# this backup if it's there (and fresh) so we don't mirror a half-restored
+# state over the good remote backup. Ignore the lock if it's stale (>6 h),
+# which means restore.sh probably died without cleaning up.
+LOCK_FILE="$APP_DIR/.restore-in-progress"
+if [ -f "$LOCK_FILE" ]; then
+  lock_age_s=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE") ))
+  if [ "$lock_age_s" -lt 21600 ]; then
+    log "restore in progress (lock ${lock_age_s}s old); skipping backup"
+    exit 0
+  fi
+  log "WARNING: ignoring stale restore lock at $LOCK_FILE (${lock_age_s}s old)"
+fi
+
 # Load the vars we need from .env without using `source`. `source .env` breaks
 # on values with unquoted spaces (e.g. Gmail app passwords like
 # "pguc htvu fawt bfxo" on MAIL_PASSWORD), which is valid for docker-compose

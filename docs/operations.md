@@ -155,7 +155,7 @@ docker compose exec minio mc du backup-target/$BACKUP_BUCKET/<domain_name>/minio
 
 ### Restore from a backup
 
-To spin up a new server from one of these backups, see the [restore guide](restore-guide.md). Before you start, set `backup_enabled: false` in `group_vars` so the 02:00 UTC cron does not overwrite the good backup with a half-restored state. Flip it back on after the restore is verified.
+To spin up a new server from one of these backups, see the [restore guide](restore-guide.md). The restore script self-guards the 02:00 UTC cron via a lock file, so no manual toggling of `backup_enabled` is needed.
 
 ## Restarting services
 

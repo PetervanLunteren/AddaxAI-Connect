@@ -12,9 +12,10 @@
 # Pre-reqs (already true after ansible-playbook on a fresh VM):
 #   - .env has BACKUP_ENDPOINT, BACKUP_BUCKET, BACKUP_ACCESS_KEY, BACKUP_SECRET_KEY set
 #   - docker compose up is running
-#   - Set `backup_enabled: false` in group_vars and redeploy *before* restore,
-#     then flip it back after the restore is verified. This prevents the 02:00
-#     UTC cron from overwriting the good backup with a half-restored state.
+#
+# Self-guard: creates .restore-in-progress in APP_DIR at start and removes it
+# on exit. scripts/backup.sh skips when that file exists (fresh), so the 02:00
+# UTC cron cannot overwrite the good backup with a half-restored state.
 
 set -euo pipefail
 
@@ -30,6 +31,10 @@ on_error() {
 trap 'on_error $LINENO' ERR
 
 cd "$APP_DIR"
+
+LOCK_FILE="$APP_DIR/.restore-in-progress"
+touch "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
 
 # ---- argument parsing ----
 SRC_DOMAIN=""

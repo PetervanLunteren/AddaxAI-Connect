@@ -9,21 +9,13 @@ How to spin up a new AddaxAI Connect server from a Wasabi backup. Use this when 
 - The backup bucket credentials (same `backup_*` vars used on the old server).
 - About 45 minutes total. Most of that is ansible provisioning the VM.
 
-## 1. Disable the backup cron
-
-*(on your laptop, before provisioning)*
-
-Set `backup_enabled: false` in `ansible/group_vars/dev.yml`. This keeps the new server from overwriting the good backup with a half-restored state at 02:00 UTC.
-
-You turn it back on at the end.
-
-## 2. Point ansible at the new VM
+## 1. Point ansible at the new VM
 
 *(on your laptop)*
 
 Open `ansible/inventory.yml` and set `ansible_host` to the new VM's IPv4 address. This is what decides which server the playbook targets. Double-check the IP before you run anything, a typo here points the playbook at the wrong live server.
 
-## 3. Run the playbook on the new VM
+## 2. Run the playbook on the new VM
 
 *(on your laptop)*
 
@@ -36,11 +28,11 @@ ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
 
 Follow the same DNS record step from the [deployment guide](deployment.md) when the playbook pauses for it.
 
-## 4. Restore the data
+## 3. Restore the data
 
 *(on the new server)*
 
-SSH in and run the restore script. Give it the old server's `domain_name` as the source. The script pulls the latest postgres dump, loads it, applies any pending Alembic migrations, mirrors every MinIO bucket back, mirrors the host image directories back, and restarts the api.
+SSH in and run the restore script. Give it the old server's `domain_name` as the source. The script pulls the latest postgres dump, loads it, applies any pending Alembic migrations, mirrors every MinIO bucket back, mirrors the host image directories back, and restarts the api. While it runs it drops a `.restore-in-progress` lock file so the 02:00 UTC backup cron skips until the restore finishes.
 
 ```bash
 ssh ubuntu@<new_vm_ipv4>
@@ -58,7 +50,7 @@ bash scripts/restore.sh <old-domain> --force
 
 Runtime is usually a few minutes.
 
-## 5. Verify
+## 4. Verify
 
 *(in a browser)*
 
@@ -74,18 +66,6 @@ If something is off, check logs:
 ```bash
 docker compose logs -f --tail 50
 ```
-
-## 6. Re-enable backups
-
-*(on your laptop, after verify passed)*
-
-Flip `backup_enabled: true` back in `ansible/group_vars/dev.yml`. Apply it without rebuilding everything:
-
-```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --tags env-refresh
-```
-
-The cron now runs nightly at 02:00 UTC. Confirm with `crontab -l` on the server.
 
 ## Restore a specific day
 
