@@ -46,6 +46,8 @@ bash scripts/restore.sh <old-domain>
 
 Example: `bash scripts/restore.sh prod.addaxai.com`.
 
+The new server's nightly backup cron stays paused for 24 h after ansible runs, so there is no rush to get restore in before 02:00 UTC. The script also drops a lock file while it runs so a cron firing mid-restore would skip anyway.
+
 ## 5. Verify
 
 *(in a browser)*

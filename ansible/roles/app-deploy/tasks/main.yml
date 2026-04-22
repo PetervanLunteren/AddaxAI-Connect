@@ -3,6 +3,24 @@
 # Note: docker-compose.yml comes from git repository (single source of truth)
 # Only .env is templated to inject secrets and environment-specific values
 
+- name: Check if fresh-server marker exists
+  stat:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/.fresh-server"
+  register: fresh_marker
+
+# Dropped only on first-ever deploy (when the marker is missing). scripts/backup.sh
+# skips for 24 h after this file is created so the nightly cron cannot overwrite
+# the good remote backup while the operator is still running restore.sh. Later
+# ansible runs (env-refresh, config tweaks) leave the existing marker alone.
+- name: Create fresh-server marker on first deploy
+  file:
+    path: "{{ app_directory | default('/opt/addaxai-connect') }}/.fresh-server"
+    state: touch
+    owner: "{{ app_user | default('ubuntu') }}"
+    group: "{{ app_user | default('ubuntu') }}"
+    mode: '0644'
+  when: not fresh_marker.stat.exists
+
 - name: Create .env file from template
   template:
     src: .env.j2

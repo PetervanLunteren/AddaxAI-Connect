@@ -30,6 +30,20 @@ if [ -f "$LOCK_FILE" ]; then
   log "WARNING: ignoring stale restore lock at $LOCK_FILE (${lock_age_s}s old)"
 fi
 
+# Fresh-server guard: ansible app-deploy drops .fresh-server on first
+# provision. Skip backups for 24 h after that so a nightly cron cannot
+# overwrite the good remote backup while the operator is still getting
+# around to running restore.sh. `touch` the file manually to extend the
+# quiet period; `rm` it to force backups to resume.
+FRESH_FILE="$APP_DIR/.fresh-server"
+if [ -f "$FRESH_FILE" ]; then
+  fresh_age_s=$(( $(date +%s) - $(stat -c %Y "$FRESH_FILE") ))
+  if [ "$fresh_age_s" -lt 86400 ]; then
+    log "server freshly provisioned (${fresh_age_s}s ago); skipping backup for first 24h"
+    exit 0
+  fi
+fi
+
 # Load the vars we need from .env without using `source`. `source .env` breaks
 # on values with unquoted spaces (e.g. Gmail app passwords like
 # "pguc htvu fawt bfxo" on MAIL_PASSWORD), which is valid for docker-compose
