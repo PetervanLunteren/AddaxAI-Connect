@@ -97,24 +97,26 @@ docker compose exec -T minio mc alias set backup-target \
 docker compose exec -T minio mc alias set local \
   "http://localhost:9000" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" > /dev/null
 
-# Idempotent bucket setup. On a freshly provisioned server, first backup run
-# enables versioning and installs the 90-day retention rule. On subsequent
-# runs everything is a no-op. Any Wasabi-side drift (e.g. console edits) gets
-# reconciled back. This is the same remove-all + re-add pattern the cold-tier
-# minio-init uses for its ILM rule.
+# Bucket setup. If the bucket already has a lifecycle rule, leave it alone.
+# This lets multiple servers share the same backup bucket without rewriting
+# the bucket-wide lifecycle config every night. The first run on a fresh
+# bucket enables versioning and installs the 90-day noncurrent-version
+# expiration rule. Every later run (on any host pointing at this bucket)
+# sees the rule and skips.
 # TEMP: stdout redirects to /dev/null are removed in this block so every mc
 # call prints what it does (per-object uploads, retention rule output, alias
 # confirmation). Revert by re-adding `> /dev/null` after every mc invocation
 # once cold-tier and backup verification is done. See TODO.md.
-log "Ensuring backup bucket has versioning + 90-day retention rule"
-docker compose exec -T minio mc version enable "backup-target/$BUCKET"
-# `rule remove --all --force` errors on a truly fresh bucket that has no
-# lifecycle config yet. That's not a failure, it's first-run state. Tolerate.
-docker compose exec -T minio mc ilm rule remove --all --force "backup-target/$BUCKET" || true
-docker compose exec -T minio mc ilm rule add \
-  --noncurrentversion-expiration-days 90 \
-  --expired-object-delete-marker \
-  "backup-target/$BUCKET"
+if docker compose exec -T minio mc ilm rule ls "backup-target/$BUCKET" 2>&1 | grep -q Enabled; then
+  log "Backup bucket lifecycle already configured, skipping install"
+else
+  log "Configuring backup bucket: versioning + 90-day retention rule"
+  docker compose exec -T minio mc version enable "backup-target/$BUCKET"
+  docker compose exec -T minio mc ilm rule add \
+    --noncurrentversion-expiration-days 90 \
+    --expired-object-delete-marker \
+    "backup-target/$BUCKET"
+fi
 
 log "Dumping postgres"
 # --clean --if-exists makes the dump self-cleaning: DROP IF EXISTS before every
