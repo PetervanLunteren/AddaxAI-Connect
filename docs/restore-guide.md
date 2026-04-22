@@ -21,18 +21,25 @@ Open `ansible/inventory.yml` and set `ansible_host` to the new VM's IPv4 address
 
 In `ansible/group_vars/dev.yml`, set `domain_name` to a domain that is not in use yet. 
 
-## 3. Run the playbook on the new VM
+## 3. Add the new VM to known_hosts
 
 *(on your laptop)*
 
-Run the full playbook. 
-
 ```bash
 ssh-keyscan -H <new_vm_ipv4> >> ~/.ssh/known_hosts
+```
+
+## 4. Run the playbook on the new VM
+
+*(on your laptop)*
+
+Run the full playbook.
+
+```bash
 ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
 ```
 
-## 4. Restore the data
+## 5. Restore the data
 
 *(on the new server)*
 
@@ -46,9 +53,7 @@ bash scripts/restore.sh <old-domain>
 
 Example: `bash scripts/restore.sh prod.addaxai.com`.
 
-The new server's nightly backup cron stays paused for 24 h after ansible runs, so there is no rush to get restore in before 02:00 UTC. The script also drops a lock file while it runs so a cron firing mid-restore would skip anyway.
-
-## 5. Verify
+## 6. Verify
 
 *(in a browser)*
 
