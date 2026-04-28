@@ -21,16 +21,13 @@ export const ResetPassword: React.FC = () => {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 text-center">
-            <p className="text-red-600 mb-4">Invalid reset link</p>
-            <Link to="/forgot-password" className="text-blue-600 hover:text-blue-500">
-              Request a new reset link
-            </Link>
-          </div>
+      <AuthLayout title="Invalid reset link" subtitle="The link is missing or malformed">
+        <div className="text-center">
+          <Link to="/forgot-password" className="text-blue-600 hover:text-blue-500 font-medium">
+            Request a new reset link
+          </Link>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
@@ -73,23 +70,18 @@ export const ResetPassword: React.FC = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Password reset!</h2>
-              <p className="text-gray-600 mb-6">
-                Your password has been successfully reset. Redirecting to login...
-              </p>
-            </div>
+      <AuthLayout title="Password reset" subtitle="Redirecting to login...">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+            <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
+          <p className="text-gray-600">
+            Your password has been successfully reset.
+          </p>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 

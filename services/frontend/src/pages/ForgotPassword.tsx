@@ -29,32 +29,24 @@ export const ForgotPassword: React.FC = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h2>
-              <p className="text-gray-600 mb-6">
-                If an account exists with <strong>{email}</strong>, we've sent password reset instructions.
-              </p>
-              <p className="text-sm text-gray-500 mb-6">
-                The reset link will expire in 1 hour.
-              </p>
-              <Link
-                to="/login"
-                className="text-blue-600 hover:text-blue-500 font-medium"
-              >
-                Return to login
-              </Link>
-            </div>
+      <AuthLayout title="Check your email" subtitle="The reset link will expire in 1 hour">
+        <div className="text-center">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+            <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
+          <p className="text-gray-600 mb-6">
+            If an account exists with <strong>{email}</strong>, password reset instructions have been sent.
+          </p>
+          <Link
+            to="/login"
+            className="text-blue-600 hover:text-blue-500 font-medium"
+          >
+            Return to login
+          </Link>
         </div>
-      </div>
+      </AuthLayout>
     );
   }
 
