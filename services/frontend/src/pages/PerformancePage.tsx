@@ -195,7 +195,7 @@ const AggregateContent: React.FC<{ rows: PerformanceData['aggregate'] }> = ({ ro
   }
   return (
     <div className="space-y-3">
-      <div className="inline-block max-h-[60vh] overflow-auto border border-input rounded-md">
+      <div className="block max-w-full max-h-[60vh] overflow-auto border border-input rounded-md">
         <table className="text-sm">
           <thead className="sticky top-0 bg-background border-b">
             <tr>
@@ -308,7 +308,7 @@ const MatrixContent: React.FC<{ data: PerformanceData; projectId: number }> = ({
         <span className="text-muted-foreground">classes by frequency</span>
       </div>
 
-      <div className="inline-block max-h-[70vh] overflow-auto border border-input rounded-md">
+      <div className="block max-w-full max-h-[70vh] overflow-auto border border-input rounded-md">
         <table className="text-xs border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead>
             <tr>
@@ -461,7 +461,7 @@ const MetricsContent: React.FC<{ data: PerformanceData; projectId: number }> = (
         <span className="text-muted-foreground">classes by support</span>
       </div>
 
-      <div className="inline-block max-h-[60vh] overflow-auto border border-input rounded-md">
+      <div className="block max-w-full max-h-[60vh] overflow-auto border border-input rounded-md">
         <table className="text-sm">
           <thead className="sticky top-0 bg-background border-b">
             <tr>
