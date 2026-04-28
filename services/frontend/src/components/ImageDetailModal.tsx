@@ -418,7 +418,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           <>
           <div className="grid md:grid-cols-3 gap-6">
           {/* Image Display */}
-          <div className="md:col-span-2">
+          <div className="md:col-span-2 min-w-0">
             <div className="relative">
               {imageBlobUrl ? (
                 <>
@@ -426,7 +426,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     ref={imageRef}
                     src={imageBlobUrl}
                     alt={imageDetail.filename}
-                    className="w-full h-auto rounded-lg"
+                    className="block w-full max-w-full h-auto rounded-lg"
                     style={imageFilter ? { filter: imageFilter } : undefined}
                     onLoad={() => setImageLoaded(true)}
                   />
@@ -475,7 +475,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           </div>
 
           {/* Details Panel */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             {/* Header with action buttons */}
             <div className="flex items-center justify-between gap-1">
               <div className="flex items-center gap-1">
