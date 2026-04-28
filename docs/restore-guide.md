@@ -43,10 +43,15 @@ ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
 
 *(on the new server)*
 
-SSH in and run the restore script. Give it the old server's `domain_name` as the source. 
+SSH in:
 
 ```bash
 ssh ubuntu@<new_vm_ipv4>
+```
+
+Then on the new server, run the restore script. Give it the old server's `domain_name` as the source.
+
+```bash
 cd /opt/addaxai-connect
 bash scripts/restore.sh <old-domain>
 ```

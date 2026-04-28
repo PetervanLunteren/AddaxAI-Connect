@@ -7,7 +7,9 @@
 #
 # Pulls the postgres dump and every MinIO bucket + host image dir that was
 # captured by scripts/backup.sh and loads them into the current server. Refuses
-# to run when the users table has any rows unless --force is passed.
+# to run when the users table has any active rows unless --force is passed.
+# (The ansible deploy seeds an inactive system@addaxai.com bookkeeping user;
+# that one does not count as "populated".)
 #
 # Pre-reqs (already true after ansible-playbook on a fresh VM):
 #   - .env has BACKUP_ENDPOINT, BACKUP_BUCKET, BACKUP_ACCESS_KEY, BACKUP_SECRET_KEY set
@@ -75,13 +77,15 @@ for v in BACKUP_ENDPOINT BACKUP_BUCKET BACKUP_ACCESS_KEY BACKUP_SECRET_KEY \
 done
 
 # ---- safety: refuse to restore onto a populated server ----
+# Count active users only. ansible app-deploy seeds one inactive system user
+# (system@addaxai.com, is_active=false) that is bookkeeping, not real usage.
 USER_COUNT="$(docker compose exec -T postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc 'SELECT COUNT(*) FROM users' \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc 'SELECT COUNT(*) FROM users WHERE is_active = true' \
   2>/dev/null || echo 0)"
 USER_COUNT="$(echo "$USER_COUNT" | tr -d '[:space:]')"
 
 if [ "$USER_COUNT" -gt 0 ] && [ "$FORCE" != "true" ]; then
-  die "refusing to restore onto a populated server (users table has $USER_COUNT rows). Pass --force to override."
+  die "refusing to restore onto a populated server ($USER_COUNT active users). Pass --force to override."
 fi
 
 # ---- mc aliases ----
@@ -137,19 +141,30 @@ log "Applying any pending Alembic migrations"
 bash scripts/update-database.sh > /dev/null
 log "Schema is at HEAD"
 
+# Mirror only when the source prefix has at least one object. mc mirror errors
+# on a missing source ("Object does not exist"), and the dev/demo flow leaves
+# several buckets (crops, models, project-*) empty until real activity happens.
+mirror_if_present() {
+  local src="$1"
+  local dst="$2"
+  if docker compose exec -T minio mc ls "$src/" 2>/dev/null | grep -q .; then
+    docker compose exec -T minio mc mirror --overwrite --remove "$src" "$dst" > /dev/null
+  else
+    log "  (empty in backup, skipping)"
+  fi
+}
+
 # ---- MinIO buckets ----
 for BUCKET in raw-images crops thumbnails project-images project-documents models; do
   log "Mirroring minio/$BUCKET"
-  docker compose exec -T minio mc mirror --overwrite --remove \
-    "$SRC_PREFIX/minio/$BUCKET" "local/$BUCKET" > /dev/null
+  mirror_if_present "$SRC_PREFIX/minio/$BUCKET" "local/$BUCKET"
 done
 log "All MinIO buckets restored"
 
 # ---- Host image dirs ----
 for HOST_DIR in project-images reference-images; do
   log "Mirroring host/$HOST_DIR"
-  docker compose exec -T minio mc mirror --overwrite --remove \
-    "$SRC_PREFIX/$HOST_DIR" "/host/$HOST_DIR" > /dev/null
+  mirror_if_present "$SRC_PREFIX/$HOST_DIR" "/host/$HOST_DIR"
 done
 log "Host image dirs restored"
 
