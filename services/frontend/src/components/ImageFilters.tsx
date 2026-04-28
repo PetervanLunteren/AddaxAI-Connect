@@ -82,7 +82,7 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
       </Button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 border rounded-md bg-background shadow-lg z-50 p-4 space-y-4">
+        <div className="absolute mt-2 z-50 p-4 space-y-4 border rounded-md bg-background shadow-lg left-0 sm:left-auto sm:right-0 w-[calc(100vw-2rem)] sm:w-96">
           {/* Cameras */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Cameras</label>
