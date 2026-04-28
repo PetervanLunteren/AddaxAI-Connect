@@ -104,12 +104,15 @@ export const ServerAdminManagementPage: React.FC = () => {
     >
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               <CardTitle>Server Administrators</CardTitle>
             </div>
-            <Button onClick={() => setShowAddModal(true)}>
+            <Button
+              onClick={() => setShowAddModal(true)}
+              className="self-start whitespace-nowrap"
+            >
               <UserPlus className="h-4 w-4 mr-2" />
               Add Server Admin
             </Button>

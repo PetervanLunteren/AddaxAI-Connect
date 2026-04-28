@@ -169,12 +169,15 @@ export const ProjectUsersPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-0">Users</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage user access and permissions</p>
         </div>
-        <Button onClick={() => setShowAddUserModal(true)}>
+        <Button
+          onClick={() => setShowAddUserModal(true)}
+          className="self-start whitespace-nowrap"
+        >
           <UserPlus className="h-4 w-4 mr-2" />
           Add user
         </Button>
