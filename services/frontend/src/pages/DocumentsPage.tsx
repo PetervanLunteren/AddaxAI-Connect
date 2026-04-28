@@ -137,7 +137,7 @@ export const DocumentsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-0">Documents</h1>
           <p className="text-sm text-gray-600 mt-1">
@@ -145,7 +145,10 @@ export const DocumentsPage: React.FC = () => {
           </p>
         </div>
         {canAdminCurrentProject && (
-          <Button onClick={() => { setShowUploadDialog(true); setUploadFile(null); setUploadDescription(''); setUploadError(null); }}>
+          <Button
+            onClick={() => { setShowUploadDialog(true); setUploadFile(null); setUploadDescription(''); setUploadError(null); }}
+            className="self-start whitespace-nowrap"
+          >
             <Upload className="h-4 w-4 mr-2" />
             Upload document
           </Button>
