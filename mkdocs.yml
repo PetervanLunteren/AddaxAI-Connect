@@ -45,6 +45,7 @@ nav:
     - Setup guide: setup-guide.md
     - Camera requirements: camera-requirements.md
     - SpeciesNet setup: speciesnet-setup.md
+    - Install on phone: install-on-phone.md
   - Running your server:
     - Operations and monitoring: operations.md
     - Update guide: update-guide.md
