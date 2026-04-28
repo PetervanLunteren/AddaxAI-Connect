@@ -417,8 +417,8 @@ export const ProjectSettingsPage: React.FC = () => {
                 Hide species predictions below this confidence. Use the per-species overrides to filter noisy species.
               </p>
             </div>
-            <div className="flex-1 flex items-center gap-3">
-              <div className="flex-[2] flex items-center gap-3">
+            <div className="flex-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div className="w-full flex items-center gap-3 sm:flex-[2]">
                 <input
                   type="range"
                   min="0"
@@ -436,7 +436,7 @@ export const ProjectSettingsPage: React.FC = () => {
                   {(classificationDefault * 100).toFixed(0)}%
                 </span>
               </div>
-              <div className="flex-1 flex justify-end">
+              <div className="w-full flex sm:flex-1 sm:justify-end">
                 <Button
                   variant="outline"
                   size="sm"
@@ -552,15 +552,15 @@ export const ProjectSettingsPage: React.FC = () => {
                     Cameras in a group are treated as one location for the independence interval, preventing double counts from overlapping views or both ends of a wildlife crossing.
                   </p>
                 </div>
-                <div className="flex-1 flex items-center gap-3">
-                  <div className="flex-[2]">
+                <div className="flex-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="w-full sm:flex-[2]">
                     <span className="text-sm text-muted-foreground">
                       {pendingGroups.length > 0
                         ? `${pendingGroups.length} group${pendingGroups.length !== 1 ? 's' : ''}, ${pendingGroups.reduce((sum, g) => sum + g.camera_ids.length, 0)} cameras grouped`
                         : 'No groups configured'}
                     </span>
                   </div>
-                  <div className="flex-1 flex justify-end">
+                  <div className="w-full flex sm:flex-1 sm:justify-end">
                     <Button
                       variant="outline"
                       size="sm"
