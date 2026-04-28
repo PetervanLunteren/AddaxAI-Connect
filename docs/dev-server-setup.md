@@ -56,12 +56,6 @@ Verify you can connect:
 ssh dev
 ```
 
-If the snapshot had a different SSH key, you may need to add yours first:
-
-```bash
-doctl compute ssh <DROPLET_ID> --ssh-command "cat >> ~/.ssh/authorized_keys" < ~/.ssh/id_rsa.pub
-```
-
 ## 4. Point DNS to the new droplet
 
 Add an A record in your DNS provider:

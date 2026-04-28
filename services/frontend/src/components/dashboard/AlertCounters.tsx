@@ -53,7 +53,7 @@ export const AlertCounters: React.FC<AlertCountersProps> = ({ projectId, cameraI
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">Detection categories</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Breakdown by detection type
+          Images grouped by what is in them
         </p>
       </CardHeader>
       <CardContent>

@@ -439,6 +439,9 @@ def _generate_text_report(data: Dict[str, Any]) -> str:
             lines.append("  Cameras needing attention:")
             for cam in health['low_battery_cameras'][:5]:
                 lines.append(f"    - {cam['name']}: {cam['battery']}%")
+        if health.get('never_reported', 0) > 0:
+            lines.append(f"Not sending daily reports ({health['never_reported']})")
+            lines.append("  Battery and SD status not available for these cameras.")
         lines.append("")
 
     # Activity

@@ -79,7 +79,7 @@
             </tr>
         </table>
 
-        {% if cameras.low_battery_count > 0 or cameras.high_sd_count > 0 or cameras.inactive > 0 or cameras.never_reported > 0 %}
+        {% if cameras.low_battery_count > 0 or cameras.high_sd_count > 0 or cameras.inactive > 0 %}
         <!-- Warning details -->
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 12px;">
             <tr>
@@ -111,15 +111,6 @@
                         {% if cameras.inactive > 3 %}...{% endif %}
                     </p>
                     {% endif %}
-                    {% if cameras.never_reported > 0 %}
-                    <p style="font-size: 13px; font-weight: 600; color: #882000; margin: {% if cameras.low_battery_count > 0 or cameras.high_sd_count > 0 or cameras.inactive > 0 %}8px{% else %}0{% endif %} 0 4px 0;">Never reported ({{ cameras.never_reported }})</p>
-                    <p style="font-size: 13px; color: #882000; margin: 0;">
-                        {% for cam in cameras.never_reported_cameras[:3] %}
-                        {{ cam.name }}{% if not loop.last %}, {% endif %}
-                        {% endfor %}
-                        {% if cameras.never_reported > 3 %}...{% endif %}
-                    </p>
-                    {% endif %}
                 </td>
             </tr>
         </table>
@@ -129,6 +120,24 @@
             <tr>
                 <td style="background: rgba(15, 96, 100, 0.1); border-left: 3px solid #0f6064; border-radius: 0 8px 8px 0; padding: 12px 16px;">
                     <p style="font-size: 13px; font-weight: 600; color: #0f6064; margin: 0;">&#10003; All cameras OK</p>
+                </td>
+            </tr>
+        </table>
+        {% endif %}
+
+        {% if cameras.never_reported > 0 %}
+        <!-- Soft note: cameras that do not send daily health reports (e.g. INSTAR by design) -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 8px;">
+            <tr>
+                <td style="background: #f9fafb; border-left: 3px solid #9ca3af; border-radius: 0 8px 8px 0; padding: 12px 16px;">
+                    <p style="font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 4px 0;">Not sending daily reports ({{ cameras.never_reported }})</p>
+                    <p style="font-size: 13px; color: #4b5563; margin: 0 0 4px 0;">
+                        {% for cam in cameras.never_reported_cameras[:3] %}
+                        {{ cam.name }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                        {% if cameras.never_reported > 3 %}...{% endif %}
+                    </p>
+                    <p style="font-size: 12px; color: #6b7280; margin: 0;">Battery and SD status not available for these cameras.</p>
                 </td>
             </tr>
         </table>
