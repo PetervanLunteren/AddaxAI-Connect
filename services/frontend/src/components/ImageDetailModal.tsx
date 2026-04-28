@@ -409,7 +409,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <div className="bg-background p-6 rounded-lg shadow-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto relative">
+      <div className="bg-background p-3 sm:p-6 rounded-lg shadow-lg w-[calc(100vw-1rem)] sm:w-full sm:max-w-7xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden relative">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -680,8 +680,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Keyboard shortcuts link - anchored bottom right */}
-        <div className="absolute bottom-4 right-4">
+        {/* Keyboard shortcuts link - anchored bottom right, hidden on touch screens */}
+        <div className="hidden sm:block absolute bottom-4 right-4">
           <button
             onClick={() => setShowShortcuts(!showShortcuts)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
