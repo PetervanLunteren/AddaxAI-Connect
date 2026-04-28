@@ -55,7 +55,7 @@ export const SheetContent = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'fixed top-0 right-0 h-full w-full max-w-lg bg-background border-l shadow-lg overflow-y-auto',
+      'fixed top-0 right-0 h-full w-[calc(100vw-1rem)] sm:w-full max-w-lg bg-background border-l shadow-lg overflow-y-auto',
       'animate-slide-in-from-right',
       className
     )}
