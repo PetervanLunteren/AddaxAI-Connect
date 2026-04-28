@@ -463,7 +463,7 @@ export const CamerasPage: React.FC = () => {
 
       {/* Shared search + filters toolbar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-0">
+        <div className="flex items-center gap-3 mb-0 mt-4 sm:mt-0">
           {isFiltered && (
             <span className="text-sm text-muted-foreground whitespace-nowrap">
               {filteredCameras.length} of {cameras.length} cameras
