@@ -144,27 +144,26 @@ log "Schema is at HEAD"
 # Mirror only when the source prefix has at least one object. mc mirror errors
 # on a missing source ("Object does not exist"), and the dev/demo flow leaves
 # several buckets (crops, models, project-*) empty until real activity happens.
+# Empty prefixes are silently skipped so the log stays focused on real work.
 mirror_if_present() {
-  local src="$1"
-  local dst="$2"
+  local label="$1"
+  local src="$2"
+  local dst="$3"
   if docker compose exec -T minio mc ls "$src/" 2>/dev/null | grep -q .; then
+    log "Mirroring $label"
     docker compose exec -T minio mc mirror --overwrite --remove "$src" "$dst" > /dev/null
-  else
-    log "  (empty in backup, skipping)"
   fi
 }
 
 # ---- MinIO buckets ----
 for BUCKET in raw-images crops thumbnails project-images project-documents models; do
-  log "Mirroring minio/$BUCKET"
-  mirror_if_present "$SRC_PREFIX/minio/$BUCKET" "local/$BUCKET"
+  mirror_if_present "minio/$BUCKET" "$SRC_PREFIX/minio/$BUCKET" "local/$BUCKET"
 done
 log "All MinIO buckets restored"
 
 # ---- Host image dirs ----
 for HOST_DIR in project-images reference-images; do
-  log "Mirroring host/$HOST_DIR"
-  mirror_if_present "$SRC_PREFIX/$HOST_DIR" "/host/$HOST_DIR"
+  mirror_if_present "host/$HOST_DIR" "$SRC_PREFIX/$HOST_DIR" "/host/$HOST_DIR"
 done
 log "Host image dirs restored"
 
@@ -177,5 +176,6 @@ log ""
 log "Next steps:"
 log "  1. Open the UI and log in with a user from the restored DB."
 log "  2. Spot-check: open a project, a camera, a recent image."
-log "  3. Flip backup_enabled back to true in group_vars/<host>.yml."
-log "  4. ansible-playbook --tags env-refresh."
+log ""
+log "The nightly backup cron resumes automatically once the .fresh-server"
+log "marker turns 24 h old. No manual toggle needed."
