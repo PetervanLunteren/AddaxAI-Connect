@@ -1030,7 +1030,7 @@ export const CamerasPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="max-h-96 overflow-y-auto border rounded-md">
+                  <div className="max-h-96 overflow-auto border rounded-md">
                     <table className="w-full text-sm">
                       <thead className="sticky top-0 bg-accent border-b">
                         <tr>

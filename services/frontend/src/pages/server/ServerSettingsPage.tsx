@@ -47,7 +47,7 @@ const CopyButton: React.FC<{ text: string; id: string }> = ({ text, id }) => {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center justify-center p-1 ml-1 hover:bg-accent rounded transition-colors"
+      className="inline-flex items-center justify-center p-2 ml-1 hover:bg-accent rounded transition-colors"
       title="Copy to clipboard"
     >
       {copied ? (
@@ -78,7 +78,7 @@ const DownloadButton: React.FC<{ fileName: string }> = ({ fileName }) => {
     <button
       type="button"
       onClick={handleDownload}
-      className="inline-flex items-center justify-center p-1 ml-1 hover:bg-accent rounded transition-colors"
+      className="inline-flex items-center justify-center p-2 ml-1 hover:bg-accent rounded transition-colors"
       title="Download logo"
     >
       {downloaded ? (

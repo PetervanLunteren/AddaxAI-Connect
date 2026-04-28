@@ -11,7 +11,6 @@ import {
   Download,
   FileText,
   X,
-  Menu,
   ArrowLeft,
   ChevronDown,
   ChevronRight,
@@ -70,13 +69,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-card border-r border-border transition-transform duration-300',
+          'fixed top-0 left-0 z-50 flex flex-col h-[100dvh] w-64 bg-card border-r border-border transition-transform duration-300',
           'lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-16 px-6 border-b border-border">
+        <div className="flex items-center justify-between h-16 px-6 border-b border-border shrink-0">
           <div className="flex items-center space-x-3">
             <Camera className="h-6 w-6 text-primary" />
             <span className="text-lg font-semibold">AddaxAI Connect</span>
@@ -90,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-4 space-y-1 mt-4">
+        <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1 mt-4">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -156,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </nav>
 
         {/* Bottom section with project info, Last Update, and User info */}
-        <div className="absolute bottom-0 left-0 right-0 bg-card">
+        <div className="shrink-0 bg-card">
           {/* Current Project Display with Back to Projects */}
           {selectedProject && (
             <div className="px-4 py-3 border-t border-border bg-muted/30">
@@ -184,17 +183,3 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   );
 };
 
-interface MobileMenuButtonProps {
-  onClick: () => void;
-}
-
-export const MobileMenuButton: React.FC<MobileMenuButtonProps> = ({ onClick }) => {
-  return (
-    <button
-      onClick={onClick}
-      className="lg:hidden fixed top-4 left-4 z-30 p-2 rounded-md bg-card border border-border shadow-md hover:bg-accent"
-    >
-      <Menu className="h-5 w-5" />
-    </button>
-  );
-};
