@@ -14,7 +14,7 @@ interface AuthLayoutProps {
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, children }) => {
   return (
     <div
-      className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 bg-cover bg-center bg-no-repeat relative"
+      className="min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-cover bg-center bg-no-repeat relative"
       style={{
         backgroundImage: "url('/auth-background.webp'), url('/auth-background.jpg')",
       }}
@@ -46,7 +46,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
       </div>
 
       <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white bg-opacity-95 backdrop-blur-sm py-8 px-4 shadow-2xl sm:rounded-lg sm:px-10">
+        <div className="bg-white bg-opacity-95 backdrop-blur-sm py-8 px-4 shadow-2xl rounded-lg sm:px-10">
           {children}
         </div>
       </div>
