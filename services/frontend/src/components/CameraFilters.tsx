@@ -100,7 +100,7 @@ export const CameraFilters: React.FC<CameraFiltersProps> = ({
       </Button>
 
       {isOpen && (
-        <div className="absolute mt-2 z-50 p-4 space-y-4 border rounded-md bg-background shadow-lg left-0 sm:left-auto sm:right-0 w-[calc(100vw-2rem)] sm:w-80">
+        <div className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-lg border-t bg-background shadow-lg p-4 space-y-4 sm:absolute sm:bottom-auto sm:inset-x-auto sm:right-0 sm:mt-2 sm:w-80 sm:max-h-none sm:rounded-md sm:border">
           {/* Status */}
           <SelectDropdown
             label="Status"
