@@ -39,7 +39,6 @@ Open follow-ups:
 - [ ] 
 - [ ] add instruction on how to make it an app-feel in iphone
 - [ ] can we do something similar for android phones? Where we can have it feel like an app without having it in the app store? (like we did for apple iphones)?
-- [ ] Why is "Empty" a class in the "set overrides" for the cls conf thresh in the project settings? Mistake?
 
 ## Possible future features
 - [ ] Allow manual upload of all SD card images that were not transmitted, in order to benefit from automatic recognition and centralize all data on the server?

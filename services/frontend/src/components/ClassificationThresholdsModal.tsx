@@ -43,8 +43,9 @@ export function ClassificationThresholdsModal({
   const { selectedProject } = useProject();
 
   // Same source set as VerificationPanel's allSpeciesOptions, minus
-  // person/vehicle (detection categories, not classification species)
-  // and minus AI-on-current-image (no current image on the settings page).
+  // person/vehicle/empty (not classifier outputs, so no per-class
+  // threshold applies) and minus AI-on-current-image (no current
+  // image on the settings page).
   const projectId = selectedProject?.id;
   const includedSpecies = selectedProject?.included_species ?? null;
   const needsGlobalCatalog = !includedSpecies || includedSpecies.length === 0;
@@ -63,7 +64,7 @@ export function ClassificationThresholdsModal({
   const speciesList = React.useMemo(() => {
     const byValue = new Map<string, { value: string; label: string }>();
     const add = (value: string) => {
-      if (value === 'person' || value === 'vehicle') return;
+      if (value === 'person' || value === 'vehicle' || value === 'empty') return;
       if (!byValue.has(value)) {
         byValue.set(value, { value, label: normalizeLabel(value) });
       }
