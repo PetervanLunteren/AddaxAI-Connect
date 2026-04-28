@@ -42,8 +42,8 @@ export const Sheet: React.FC<SheetProps> = ({ open, onOpenChange, children }) =>
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
       />
-      {/* Content */}
-      <div className="relative z-50 h-full">{children}</div>
+      {/* Content - pointer-events-none lets outside clicks reach the backdrop */}
+      <div className="relative z-50 h-full pointer-events-none">{children}</div>
     </div>
   );
 };
@@ -55,7 +55,7 @@ export const SheetContent = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'fixed top-0 right-0 h-full w-[calc(100vw-1rem)] sm:w-full max-w-lg bg-background border-l shadow-lg overflow-y-auto',
+      'fixed top-0 right-0 h-full w-[calc(100vw-1rem)] sm:w-full max-w-lg bg-background border-l shadow-lg overflow-y-auto pointer-events-auto',
       'animate-slide-in-from-right',
       className
     )}
