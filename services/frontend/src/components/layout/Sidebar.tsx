@@ -160,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           {selectedProject && (
             <div className="px-4 py-3 border-t border-border bg-muted/30">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-muted-foreground">Current Project</p>
+                <p className="text-xs font-medium text-muted-foreground">Current project</p>
                 <NavLink
                   to="/projects"
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"

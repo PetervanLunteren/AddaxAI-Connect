@@ -42,7 +42,7 @@ export const PipelineStatus: React.FC<PipelineStatusProps> = ({ projectId }) => 
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm">Processing Pipeline</span>
+          <span className="font-medium text-sm">Processing pipeline</span>
           <span
             className={`text-xs px-2 py-0.5 rounded-full font-medium ${
               isHealthy

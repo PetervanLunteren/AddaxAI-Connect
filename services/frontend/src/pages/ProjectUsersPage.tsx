@@ -297,7 +297,7 @@ export const ProjectUsersPage: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Email address</Label>
               <input
                 id="email"
                 type="email"
@@ -389,7 +389,7 @@ export const ProjectUsersPage: React.FC = () => {
               {updateRoleMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Update Role
+              Update role
             </Button>
           </DialogFooter>
         </DialogContent>

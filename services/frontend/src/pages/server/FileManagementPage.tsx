@@ -326,17 +326,17 @@ export const FileManagementPage: React.FC = () => {
   };
 
   const reasonLabels: Record<string, string> = {
-    unknown_camera: 'Unknown Camera',
-    no_camera_exif: 'No Camera EXIF Data',
-    unsupported_camera: 'Unsupported Camera',
+    unknown_camera: 'Unknown camera',
+    no_camera_exif: 'No camera EXIF data',
+    unsupported_camera: 'Unsupported camera',
     missing_device_id: 'Missing camera ID',
     missing_imei: 'Missing camera ID',
-    missing_datetime: 'Missing DateTime',
-    validation_failed: 'Validation Failed',
+    missing_datetime: 'Missing datetime',
+    validation_failed: 'Validation failed',
     duplicate: 'Duplicate',
-    parse_failed: 'Parse Failed',
-    unsupported_file_type: 'Unsupported File Type',
-    exif_extraction_failed: 'EXIF Extraction Failed',
+    parse_failed: 'Parse failed',
+    unsupported_file_type: 'Unsupported file type',
+    exif_extraction_failed: 'EXIF extraction failed',
   };
 
   return (

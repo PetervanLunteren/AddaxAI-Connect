@@ -132,14 +132,14 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Project Name */}
             <div>
               <label htmlFor="name" className="text-sm font-medium block mb-1">
-                Project Name <span className="text-destructive">*</span>
+                Project name <span className="text-destructive">*</span>
               </label>
               <input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Wildlife Monitoring"
+                placeholder="e.g., Wildlife monitoring"
                 className="w-full px-3 py-2 border rounded-md"
                 required
               />
@@ -163,7 +163,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
             {/* Image Upload */}
             <div>
               <label className="text-sm font-medium block mb-1">
-                Project Image (optional)
+                Project image (optional)
               </label>
 
               {imagePreview ? (
@@ -221,7 +221,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ open, on
                   Creating...
                 </>
               ) : (
-                'Create Project'
+                'Create project'
               )}
             </Button>
           </DialogFooter>

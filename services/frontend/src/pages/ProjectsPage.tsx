@@ -67,7 +67,7 @@ export const ProjectsPage: React.FC = () => {
               <Camera className="h-8 w-8 text-primary" />
               <div>
                 <h1 className="text-xl font-bold">AddaxAI Connect</h1>
-                <p className="text-xs text-muted-foreground">Wildlife Monitoring Projects</p>
+                <p className="text-xs text-muted-foreground">Wildlife monitoring projects</p>
               </div>
             </div>
             <div className="flex items-center gap-4">

@@ -99,7 +99,7 @@ export const ServerAdminManagementPage: React.FC = () => {
 
   return (
     <ServerPageLayout
-      title="Server Admin Management"
+      title="Server admin management"
       description="Manage server administrators. Server admins have access to all projects and can manage users."
     >
       <Card>
@@ -107,14 +107,14 @@ export const ServerAdminManagementPage: React.FC = () => {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
-              <CardTitle>Server Administrators</CardTitle>
+              <CardTitle>Server administrators</CardTitle>
             </div>
             <Button
               onClick={() => setShowAddModal(true)}
               className="self-start whitespace-nowrap"
             >
               <UserPlus className="h-4 w-4 mr-2" />
-              Add Server Admin
+              Add server admin
             </Button>
           </div>
           <CardDescription>
@@ -151,14 +151,14 @@ export const ServerAdminManagementPage: React.FC = () => {
                           style={{ backgroundColor: '#0f60641a', color: '#0f6064' }}
                         >
                           <Shield className="h-3 w-3" />
-                          Server Admin
+                          Server admin
                         </span>
                         {serverAdmin.is_pending_invitation ? (
                           <span
                             className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium"
                             style={{ backgroundColor: '#8820001a', color: '#882000' }}
                           >
-                            Pending Invitation
+                            Pending invitation
                           </span>
                         ) : (
                           <>
@@ -220,7 +220,7 @@ export const ServerAdminManagementPage: React.FC = () => {
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Server Admin</DialogTitle>
+            <DialogTitle>Add server admin</DialogTitle>
             <DialogDescription>
               Enter an email address to add a server admin. If the user already exists, they'll be promoted. If they're new, an invitation will be sent.
             </DialogDescription>
@@ -228,7 +228,7 @@ export const ServerAdminManagementPage: React.FC = () => {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Email address</Label>
               <input
                 id="email"
                 type="email"
@@ -336,7 +336,7 @@ export const ServerAdminManagementPage: React.FC = () => {
               {cancelInvitationMutation.isPending && (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
-              Cancel Invitation
+              Cancel invitation
             </Button>
           </DialogFooter>
         </DialogContent>

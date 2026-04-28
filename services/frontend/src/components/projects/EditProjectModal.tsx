@@ -159,14 +159,14 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
             {/* Project Name */}
             <div>
               <label htmlFor="name" className="text-sm font-medium block mb-1">
-                Project Name <span className="text-destructive">*</span>
+                Project name <span className="text-destructive">*</span>
               </label>
               <input
                 id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Wildlife Monitoring"
+                placeholder="e.g., Wildlife monitoring"
                 className="w-full px-3 py-2 border rounded-md"
                 required
               />
@@ -190,7 +190,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
             {/* Image Upload/Replace */}
             <div>
               <label className="text-sm font-medium block mb-1">
-                Project Image
+                Project image
               </label>
 
               {showNewImage ? (
@@ -280,7 +280,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
                   Saving...
                 </>
               ) : (
-                'Save Changes'
+                'Save changes'
               )}
             </Button>
           </DialogFooter>

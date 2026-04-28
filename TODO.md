@@ -39,7 +39,6 @@ Open follow-ups:
 - [ ] 
 - [ ] add instruction on how to make it an app-feel in iphone
 - [ ] can we do something similar for android phones? Where we can have it feel like an app without having it in the app store? (like we did for apple iphones)?
-- [ ] remove the title case through out the app. **No Title Case** - Use natural English capitalisation. That means only capitalising the first word of sentences and proper nouns (like "Peter van Lunteren", "Utrecht", "MegaDetector", "SpeciesNet", "Today, I was walking in the park.",  "Things I love about Amsterdam.", "Cities visited"). Do capitalize the first letter of headers (e.g., "Detections per 100 trap-days", "Species selection", "Observations"). 
 - [ ] make sure the slideouts (e.g., the camera information slideout) closes when you click outside of the slideout. Now you need to click the cross. 
 - [ ] Why is "Empty" a class in the "set overrides" for the cls conf thresh in the project settings? Mistake?
 

@@ -204,7 +204,7 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Project
+                  Delete project
                 </>
               )}
             </Button>

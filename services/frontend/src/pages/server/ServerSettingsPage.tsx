@@ -851,7 +851,7 @@ export const ServerSettingsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium mb-2">
-                    Bot Token
+                    Bot token
                   </label>
                   <input
                     type="text"
@@ -886,7 +886,7 @@ export const ServerSettingsPage: React.FC = () => {
                         Configuring...
                       </>
                     ) : (
-                      'Configure Bot'
+                      'Configure bot'
                     )}
                   </button>
                 </div>
@@ -945,7 +945,7 @@ export const ServerSettingsPage: React.FC = () => {
                         Sending...
                       </>
                     ) : (
-                      'Send Test Message'
+                      'Send test message'
                     )}
                   </button>
                 </div>

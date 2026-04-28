@@ -26,7 +26,7 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   classification: 'Classification worker',
   notifications: 'Notifications worker',
   'notifications-telegram': 'Telegram notifications worker',
-  'processing-pipeline': 'Processing Pipeline',
+  'processing-pipeline': 'Processing pipeline',
 };
 
 const ServiceStatusBadge: React.FC<{ status: ServiceStatus }> = ({ status }) => {
