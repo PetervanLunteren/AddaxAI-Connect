@@ -438,7 +438,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   {/* AI prediction banner — visible only when bboxes are shown */}
                   {showBboxes && imageDetail.detections.length > 0 && (
                     <div
-                      className="absolute top-3 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1 pointer-events-none"
+                      className="hidden sm:flex absolute top-3 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-xs font-medium text-white items-center gap-1 pointer-events-none"
                       style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
                     >
                       <Sparkles className="h-3 w-3" />

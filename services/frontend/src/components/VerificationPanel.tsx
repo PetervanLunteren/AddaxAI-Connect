@@ -642,7 +642,7 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
               </div>
 
               {/* Row 3: sex, age, behaviour */}
-              <div className="flex items-center gap-1 overflow-hidden">
+              <div className="flex flex-wrap items-center gap-1">
                 <select
                   value={obs.sex}
                   onChange={(e) => setObservations(prev =>
