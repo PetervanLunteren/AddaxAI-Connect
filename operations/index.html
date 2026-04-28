@@ -1,0 +1,1393 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://petervanlunteren.github.io/AddaxAI-Connect/operations/">
+      
+      
+        <link rel="prev" href="../install-on-phone/">
+      
+      
+        <link rel="next" href="../update-guide/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Operations and monitoring - AddaxAI Connect docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/custom.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#operations-and-monitoring" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AddaxAI Connect docs" class="md-header__button md-logo" aria-label="AddaxAI Connect docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AddaxAI Connect docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Operations and monitoring
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/PetervanLunteren/AddaxAI-Connect" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PetervanLunteren/AddaxAI-Connect
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AddaxAI Connect docs" class="md-nav__button md-logo" aria-label="AddaxAI Connect docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AddaxAI Connect docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/PetervanLunteren/AddaxAI-Connect" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PetervanLunteren/AddaxAI-Connect
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../setup-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Setup guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../camera-requirements/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Camera requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../speciesnet-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SpeciesNet setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install-on-phone/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install on phone
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running your server
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Running your server
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations and monitoring
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations and monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#system-health-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System health page
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-service-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking service status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-the-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring the pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disk-and-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk and storage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cold-storage-tier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cold storage tier
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automated-backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automated backups
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automated backups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-time-wasabi-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-time Wasabi setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-the-cron" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify the cron
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restore-from-a-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restore from a backup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#restarting-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restarting services
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common issues
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../update-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Update guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../restore-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Restore guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev-server-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dev server setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#system-health-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System health page
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#viewing-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing logs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-service-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking service status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-the-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring the pipeline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disk-and-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk and storage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cold-storage-tier" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cold storage tier
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automated-backups" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automated backups
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Automated backups">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-time-wasabi-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-time Wasabi setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-the-cron" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify the cron
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restore-from-a-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restore from a backup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#restarting-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restarting services
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common issues
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="operations-and-monitoring">Operations and monitoring</h1>
+<p>Once your server is running, here is how to check that everything is healthy and diagnose issues.</p>
+<h2 id="system-health-page">System health page</h2>
+<p>The web interface has a built-in health page at <code>Server settings &gt; System health</code> (server admins only). It checks connectivity to all infrastructure services (PostgreSQL, Redis, MinIO), verifies that the API and frontend are responding, and shows queue depth for each worker. It also reports whether the processing pipeline has pending images.</p>
+<p><img alt="System health page" src="https://github.com/user-attachments/assets/c244fc1e-7419-4d83-bb69-e44578f2b79b" /></p>
+<p>If a service shows as unhealthy, check its logs (see below).</p>
+<h2 id="viewing-logs">Viewing logs</h2>
+<p>All services write structured JSON to stdout, captured by Docker. Use <code>docker compose logs</code> on the server to inspect them.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># View recent logs for a specific service</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>api<span class="w"> </span>--tail<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>ingestion<span class="w"> </span>--tail<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>detection<span class="w"> </span>--tail<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Follow logs in real time</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>api
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Follow all services at once</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>--tail<span class="w"> </span><span class="m">20</span>
+</code></pre></div>
+<p>Each log entry includes a timestamp, service name, and log level. Most entries also carry correlation IDs (<code>image_id</code>, <code>request_id</code>, <code>user_id</code>) so you can trace a single image or request across services.</p>
+<h2 id="checking-service-status">Checking service status</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># See which containers are running</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>ps
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Check if any container is restarting (sign of a crash loop)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>docker<span class="w"> </span>compose<span class="w"> </span>ps<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-i<span class="w"> </span>restarting
+</code></pre></div>
+<p>All services should show <code>Up</code> or <code>running</code>. If a container shows <code>Restarting</code> or <code>Exit</code>, check its logs.</p>
+<h2 id="monitoring-the-pipeline">Monitoring the pipeline</h2>
+<p>Images flow through the pipeline in order: ingestion, detection, classification, notifications. If images are uploading but not appearing in the web interface, you can narrow down where they are stuck.</p>
+<p><strong>Check queue depths</strong> from the System health page, or from the command line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Check how many messages are waiting in each queue</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>redis<span class="w"> </span>redis-cli<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REDIS_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span>LLEN<span class="w"> </span>image-ingested
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>redis<span class="w"> </span>redis-cli<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REDIS_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span>LLEN<span class="w"> </span>detection-complete
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>redis<span class="w"> </span>redis-cli<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REDIS_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span>LLEN<span class="w"> </span>classification-complete
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>redis<span class="w"> </span>redis-cli<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REDIS_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span>LLEN<span class="w"> </span>notification-events
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>redis<span class="w"> </span>redis-cli<span class="w"> </span>-a<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$REDIS_PASSWORD</span><span class="s2">&quot;</span><span class="w"> </span>LLEN<span class="w"> </span>failed-jobs
+</code></pre></div>
+<p>A growing <code>image-ingested</code> queue means detection is falling behind or stuck. A growing <code>detection-complete</code> queue means classification is the bottleneck. The <code>failed-jobs</code> queue collects messages that could not be processed after repeated failures.</p>
+<h2 id="file-management">File management</h2>
+<p>The <code>File management</code> page (hamburger menu, server admins only) shows rejected files and their rejection reasons. Common reasons: no matching camera profile, missing GPS or timestamp metadata, wrong file format, or file too large. You can delete rejected files or move them back for reprocessing from this page.</p>
+<p><img alt="File management page" src="https://github.com/user-attachments/assets/e1651680-7fce-4a27-8a21-10cb59e21408" /></p>
+<h2 id="disk-and-storage">Disk and storage</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Check disk usage on the server</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>df<span class="w"> </span>-h
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Check MinIO bucket sizes (from inside the container)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span><span class="nb">alias</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="nb">local</span><span class="w"> </span>http://localhost:9000<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MINIO_ROOT_USER</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MINIO_ROOT_PASSWORD</span><span class="s2">&quot;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span>du<span class="w"> </span>local/raw-images
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span>du<span class="w"> </span>local/crops
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span>du<span class="w"> </span>local/thumbnails
+</code></pre></div>
+<h2 id="cold-storage-tier">Cold storage tier</h2>
+<p>Older raw images can transition from local MinIO to a remote S3-compatible cold tier (Wasabi recommended) once on-disk <code>raw-images</code> exceeds a configurable budget. Reads stay on the same <code>raw-images</code> bucket; MinIO transparently fetches cold objects, so no application code changes. Thumbnails, crops, project documents, and models always stay hot.</p>
+<p>Tiering is enabled when <code>COLD_TIER_ENABLED=true</code> in <code>.env</code>. Configure the cold-tier vars in <code>ansible/group_vars/dev.yml</code> and re-run the playbook. Leave <code>cold_tier_enabled: false</code> to keep everything local.</p>
+<p>Confirm the tier is registered and the ILM rule is installed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span><span class="nb">alias</span><span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="nb">local</span><span class="w"> </span>http://localhost:9000<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MINIO_ROOT_USER</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MINIO_ROOT_PASSWORD</span><span class="s2">&quot;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span>admin<span class="w"> </span>tier<span class="w"> </span>ls<span class="w"> </span><span class="nb">local</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span>ilm<span class="w"> </span>rule<span class="w"> </span>ls<span class="w"> </span>local/raw-images
+</code></pre></div>
+<p>Inspect a single object's tier. Look at the <code>Storage class</code> field; <code>STANDARD</code> is hot and the tier name (e.g. <code>WASABI_COLD</code>) is cold.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>minio<span class="w"> </span>mc<span class="w"> </span>stat<span class="w"> </span>local/raw-images/&lt;key&gt;
+</code></pre></div>
+<p>Read the watchdog log. Each tick reports <code>hot=X GB, budget=Y GB</code> and, if over budget, how many objects were tagged for transition.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>minio-tier-watchdog<span class="w"> </span>--tail<span class="w"> </span><span class="m">50</span>
+</code></pre></div>
+<p>Change the budget by editing <code>cold_tier_hot_budget_gb</code> in <code>ansible/group_vars/dev.yml</code>, re-running the playbook, and restarting the watchdog (<code>docker compose restart minio-tier-watchdog</code>).</p>
+<p>Pause tiering with <code>docker compose stop minio-tier-watchdog</code>. Already-cold objects stay readable through the MinIO tier rule.</p>
+<p>One-time Wasabi setup: create an account, create a bucket in your chosen region (e.g. Amsterdam is <code>eu-central-1</code>, endpoint <code>s3.eu-central-1.wasabisys.com</code>), create a bucket-scoped IAM key, fill the cold-tier vars.</p>
+<h2 id="automated-backups">Automated backups</h2>
+<p>A host-side cron runs <code>scripts/backup.sh</code> daily at 02:00 UTC. The script dumps postgres, mirrors every authoritative MinIO bucket, and mirrors the host-side <code>data/project-images/</code> and <code>data/reference-images/</code> directories into a dedicated Wasabi bucket. Together with the ansible group_vars file on your local machine, this is everything needed to cold-start a replacement server.</p>
+<p>Explicitly not backed up: <code>.env</code> (regenerated by ansible on restore), <code>data/redis/</code> (transient queue state), <code>models/</code> (re-downloaded on first worker boot), <code>uploads/</code> (FTPS staging), TLS certs (certbot regenerates).</p>
+<h3 id="one-time-wasabi-setup">One-time Wasabi setup</h3>
+<ol>
+<li>Create a <strong>new</strong> Wasabi bucket in the same region as your cold-tier bucket (e.g. <code>addaxai-connect-backups-prod</code> in <code>eu-central-1</code>). Keep this separate from the cold-tier bucket so a compromise of one doesn't touch the other.</li>
+<li>Create a <strong>bucket-scoped IAM access key</strong> with these permissions: <code>s3:ListBucket</code>, <code>s3:GetObject</code>, <code>s3:GetObjectVersion</code>, <code>s3:PutObject</code>, <code>s3:PutBucketVersioning</code>, <code>s3:PutLifecycleConfiguration</code>, <code>s3:GetLifecycleConfiguration</code>. The last three are needed on first backup run so the script can enable versioning and install the 90-day retention rule itself (see below). No <code>DeleteObject</code>; Wasabi's lifecycle rule handles expiration, and the backup script never needs to delete.</li>
+<li>Fill these ansible vars in <code>group_vars/dev.yml</code>:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>backup_enabled: true
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>backup_endpoint: &quot;https://s3.eu-central-1.wasabisys.com&quot;
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>backup_bucket: &quot;addaxai-connect-backups-prod&quot;
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>backup_region: &quot;eu-central-1&quot;
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>backup_access_key: &quot;...&quot;
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>backup_secret_key: &quot;...&quot;
+</code></pre></div></li>
+<li>Run <code>ansible-playbook -i inventory.yml playbook.yml --tags env-refresh</code>. This writes the new <code>BACKUP_*</code> lines to <code>.env</code> on the server, installs the daily cron, and recreates the affected containers.</li>
+</ol>
+<p>Versioning and the 90-day retention lifecycle rule on the Wasabi bucket are applied automatically by <code>scripts/backup.sh</code> on its first run (and reconciled on every subsequent run). No manual <code>mc</code> commands needed.</p>
+<h3 id="verify-the-cron">Verify the cron</h3>
+<p>Crontab entry: <code>crontab -l</code> should show <code>0 2 * * * cd /opt/addaxai-connect &amp;&amp; bash scripts/backup.sh &gt;&gt; ...</code>.</p>
+<p>System health page will show a <code>backup</code> row that flips to unhealthy if no successful run is recorded within 3 days.</p>
+<h3 id="manual-test">Manual test</h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ssh &lt;server&gt;
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>cd /opt/addaxai-connect
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>bash scripts/backup.sh
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>tail /opt/addaxai-connect/logs/backup.log
+</code></pre></div>
+<p>Then verify the bucket contents from the <code>minio</code> container:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>docker compose exec minio mc ls backup-target/$BACKUP_BUCKET/&lt;domain_name&gt;/postgres/
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>docker compose exec minio mc du backup-target/$BACKUP_BUCKET/&lt;domain_name&gt;/minio/raw-images
+</code></pre></div></p>
+<h3 id="restore-from-a-backup">Restore from a backup</h3>
+<p>To spin up a new server from one of these backups, see the <a href="../restore-guide/">restore guide</a>. The restore script self-guards the 02:00 UTC cron via a lock file, so no manual toggling of <code>backup_enabled</code> is needed.</p>
+<h2 id="restarting-services">Restarting services</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Restart a single service</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>detection
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Restart everything</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>docker<span class="w"> </span>compose<span class="w"> </span>down<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+</code></pre></div>
+<p>Restarting a worker is safe. It will pick up where it left off since messages stay in the Redis queue until a worker acknowledges them.</p>
+<h2 id="common-issues">Common issues</h2>
+<p><strong>Images uploading but not showing up:</strong> check the ingestion logs and the File management page. Most likely a missing camera profile or missing metadata.</p>
+<p><strong>Detection is slow or stuck:</strong> check <code>docker compose logs detection --tail 20</code>. The detection worker processes one image at a time. If the queue is growing, the worker may have crashed. Restart it with <code>docker compose restart detection</code>.</p>
+<p><strong>Emails not sending:</strong> check <code>docker compose logs notifications-email --tail 20</code>. Verify SMTP settings in <code>.env</code>. Some cloud providers block outbound SMTP ports by default (see the <a href="../deployment/#troubleshooting">deployment troubleshooting</a> section).</p>
+<p><strong>Telegram not working:</strong> check <code>docker compose logs notifications-telegram --tail 20</code>. The bot token must be configured in Server settings, and each user must link their account from the Notifications page.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "search.suggest", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
