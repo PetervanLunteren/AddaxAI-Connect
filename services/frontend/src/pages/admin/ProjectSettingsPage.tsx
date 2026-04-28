@@ -376,8 +376,8 @@ export const ProjectSettingsPage: React.FC = () => {
       <Card>
         <CardContent className="pt-6">
           {/* Detection Confidence Threshold */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
                 Detection confidence threshold
               </label>
@@ -408,8 +408,8 @@ export const ProjectSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Classification Confidence Threshold */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
                 Classification confidence threshold
               </label>
@@ -455,8 +455,8 @@ export const ProjectSettingsPage: React.FC = () => {
             <>
               <div className="border-t my-6" />
 
-              <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">
                     Species filtering
                   </label>
@@ -480,8 +480,8 @@ export const ProjectSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Privacy blur */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
                 Blur people and vehicles
               </label>
@@ -513,8 +513,8 @@ export const ProjectSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Independence Interval */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
                 Independence interval
               </label>
@@ -543,8 +543,8 @@ export const ProjectSettingsPage: React.FC = () => {
           {independenceInterval > 0 && (
             <>
               <div className="border-t my-6" />
-              <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">
                     Camera groups
                   </label>

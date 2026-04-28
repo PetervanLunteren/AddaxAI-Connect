@@ -151,7 +151,7 @@ export const ExportsPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="inline-flex rounded-md overflow-hidden border border-input">
                 {formatOptions.map((opt) => (
                   <button
@@ -205,7 +205,7 @@ export const ExportsPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="inline-flex rounded-md overflow-hidden border border-input">
                 {spatialFormatOptions.map((opt) => (
                   <button
@@ -259,7 +259,7 @@ export const ExportsPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <Checkbox
                 id="include-media"
                 checked={includeMedia}

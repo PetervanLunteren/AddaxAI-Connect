@@ -384,8 +384,8 @@ export const ServerSettingsPage: React.FC = () => {
       <Card>
         <CardContent className="pt-6">
           {/* Camera clock timezone */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">Camera clock timezone</label>
               <p className="text-sm text-muted-foreground mt-1">
                 Whatever timezone the cameras were set to when installed. Independent of the server location and the browser. Pick a "UTC±X fixed" option if the cameras run on a fixed offset without daylight saving, or a city name for a regional zone that follows daylight saving. Used for activity charts and export timestamps.
@@ -407,8 +407,8 @@ export const ServerSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Telegram notifications */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">Telegram notifications</label>
               <p className="text-sm text-muted-foreground mt-1">
                 {isTelegramConfigured && telegramConfig
@@ -447,8 +447,8 @@ export const ServerSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Backup failure alerts */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label htmlFor="notify-backup-failures" className="text-sm font-medium block cursor-pointer">Backup failure alerts</label>
               <p className="text-sm text-muted-foreground mt-1">
                 Email server admins when the daily automated backup fails or does not run. Does nothing on servers where automated backup is disabled.
@@ -467,8 +467,8 @@ export const ServerSettingsPage: React.FC = () => {
           <div className="border-t my-6" />
 
           {/* Cold-tier failure alerts */}
-          <div className="flex items-center gap-8">
-            <div className="w-1/2 shrink-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
               <label htmlFor="notify-cold-tier-failures" className="text-sm font-medium block cursor-pointer">Cold-tier failure alerts</label>
               <p className="text-sm text-muted-foreground mt-1">
                 Email server admins when the cold-tier watchdog cannot reach the remote bucket, crashes, or stops ticking. Does nothing on servers where the cold tier is disabled.
@@ -575,8 +575,8 @@ export const ServerSettingsPage: React.FC = () => {
           <Card className="mt-6 mb-6">
             <CardContent className="pt-6">
               {/* Country */}
-              <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Country</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     Select the country where cameras are deployed. Filters out species that do not occur in this country. Only applies to new analyses, not retroactively.
@@ -602,8 +602,8 @@ export const ServerSettingsPage: React.FC = () => {
               {countryCode === 'USA' && (
                 <>
                   <div className="border-t my-6" />
-                  <div className="flex items-center gap-8">
-                    <div className="w-1/2 shrink-0">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                    <div className="w-full sm:w-1/2 sm:shrink-0">
                       <label className="text-sm font-medium block">State</label>
                       <p className="text-sm text-muted-foreground mt-1">
                         Optionally narrow geofencing to a specific US state.
@@ -670,8 +670,8 @@ export const ServerSettingsPage: React.FC = () => {
           {/* Taxonomy mapping card */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-start gap-8">
-                <div className="w-1/2 shrink-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Taxonomy mapping</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     Upload a CSV with <code className="text-xs bg-muted px-1 py-0.5 rounded">latin</code> and <code className="text-xs bg-muted px-1 py-0.5 rounded">common</code> columns. You can generate one with Dan Morris's <a href="https://dmorris.net/speciesnet-taxonomy-mapper/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">taxonomy mapper tool</a>. Saving a new file replaces the existing mapping and reprocesses unverified classifications.
