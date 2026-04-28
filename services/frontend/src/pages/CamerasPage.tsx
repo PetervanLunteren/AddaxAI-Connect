@@ -440,7 +440,7 @@ export const CamerasPage: React.FC = () => {
   return (
     <div>
       {/* Header with title and admin actions */}
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-1">
         <div>
           <h1 className="text-2xl font-bold mb-0">Cameras</h1>
           <p className="text-sm text-gray-600 mt-1">
@@ -448,12 +448,12 @@ export const CamerasPage: React.FC = () => {
           </p>
         </div>
         {isServerAdmin && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={openImportDialog}>
+          <div className="flex gap-2 self-start">
+            <Button variant="outline" onClick={openImportDialog} className="whitespace-nowrap">
               <Upload className="h-4 w-4 mr-2" />
               Import CSV
             </Button>
-            <Button onClick={() => setShowAddDialog(true)}>
+            <Button onClick={() => setShowAddDialog(true)} className="whitespace-nowrap">
               <Plus className="h-4 w-4 mr-2" />
               Add camera
             </Button>
