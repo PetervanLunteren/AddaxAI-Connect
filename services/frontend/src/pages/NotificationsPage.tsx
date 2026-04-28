@@ -244,8 +244,8 @@ export const NotificationsPage: React.FC = () => {
             <CardContent className="pt-6">
 
               {/* Species alerts row */}
-              <div className={`flex items-center gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
-                <div className="w-1/2 shrink-0">
+              <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked
@@ -258,8 +258,8 @@ export const NotificationsPage: React.FC = () => {
                     }
                   </p>
                 </div>
-                <div className="flex-1 flex items-center gap-3">
-                  <div className="flex-[2]">
+                <div className="w-full flex flex-col gap-2 sm:flex-1 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="w-full sm:flex-[2]">
                     <MultiSelect
                       options={speciesOptions}
                       value={telegramNotifySpecies}
@@ -267,7 +267,7 @@ export const NotificationsPage: React.FC = () => {
                       placeholder="Select species to notify about..."
                     />
                   </div>
-                  <div className="flex-1 flex justify-end">
+                  <div className="w-full flex sm:flex-1 sm:justify-end">
                     {isTelegramLinked ? (
                       <Button
                         variant="outline"
@@ -327,8 +327,8 @@ export const NotificationsPage: React.FC = () => {
               <div className="border-t my-6" />
 
               {/* Email reports row */}
-              <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Project updates</label>
                   <p className="text-sm text-muted-foreground mt-1">Receive a scheduled email with a summary of your project, including the number of new images, species detected, and camera activity since the last report.</p>
                 </div>
@@ -351,8 +351,8 @@ export const NotificationsPage: React.FC = () => {
               {canAdminCurrentProject && (
                 <>
                   <div className="border-t my-6" />
-                  <div className="flex items-center gap-8">
-                    <div className="w-1/2 shrink-0">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                    <div className="w-full sm:w-1/2 sm:shrink-0">
                       <label className="text-sm font-medium block">Project inactivity alert</label>
                       <p className="text-sm text-muted-foreground mt-1">Receive an email if this project receives zero images in 48 hours. This usually means something is wrong with the server or network.</p>
                     </div>
@@ -375,8 +375,8 @@ export const NotificationsPage: React.FC = () => {
               <div className="border-t my-6" />
 
               {/* Excessive image alerts row */}
-              <div className="flex items-center gap-8">
-                <div className="w-1/2 shrink-0">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Excessive image alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">Receive an email alert when a camera exceeds a daily image threshold. This usually indicates a problem like waving grass or direct sunlight triggering the sensor repeatedly.</p>
                 </div>
