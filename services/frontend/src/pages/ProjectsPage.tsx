@@ -85,7 +85,7 @@ export const ProjectsPage: React.FC = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
-        <div className="mb-6 flex items-start justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold">Projects</h2>
             <p className="text-muted-foreground mt-1">
@@ -101,6 +101,7 @@ export const ProjectsPage: React.FC = () => {
               onClick={() => setShowCreateModal(true)}
               disabled={setupStatus && !setupStatus.ready}
               title={setupStatus && !setupStatus.ready ? 'Server setup incomplete. Complete the setup steps below before creating a project.' : undefined}
+              className="self-start whitespace-nowrap"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add project
