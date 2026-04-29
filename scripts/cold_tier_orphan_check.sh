@@ -23,7 +23,10 @@
 # One-liner from your laptop (no interactive ssh needed):
 #   ssh pwn 'cd /opt/addaxai-connect && git pull --ff-only origin main > /dev/null && bash scripts/cold_tier_orphan_check.sh'
 
-set -euo pipefail
+# pipefail intentionally off: the per-prefix `sort -r | head -1` pipe gives
+# `sort` a SIGPIPE the moment `head` exits, which under pipefail kills the
+# whole script silently inside the command substitution.
+set -eu
 
 DAYS=14
 DELETE=false
