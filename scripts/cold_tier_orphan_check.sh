@@ -22,7 +22,6 @@
 
 set -euo pipefail
 
-APP_DIR="/opt/addaxai-connect"
 DAYS=14
 DELETE=false
 
@@ -34,7 +33,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-cd "$APP_DIR"
+# The script runs `docker compose exec` against the minio container, so it
+# only works on a deployed server where the stack is up. Try the standard
+# install path first, fall back to the current dir for non-default setups.
+if [ -f "/opt/addaxai-connect/.env" ]; then
+  cd "/opt/addaxai-connect"
+elif [ -f "./.env" ] && [ -f "./docker-compose.yml" ]; then
+  :
+else
+  echo "Run this on a deployed server (a directory with .env and docker-compose.yml)." >&2
+  echo "Typical: ssh into the server, cd /opt/addaxai-connect, then run." >&2
+  exit 1
+fi
+
 env_get() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }
 
 BKT=$(env_get COLD_TIER_BUCKET)
