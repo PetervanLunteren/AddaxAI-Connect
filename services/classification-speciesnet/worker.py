@@ -6,7 +6,7 @@ Consumes detections from the detection queue, runs species classification, and s
 import os
 
 from shared.logger import get_logger, set_image_id
-from shared.queue import RedisQueue, QUEUE_DETECTION_COMPLETE, QUEUE_CLASSIFICATION_COMPLETE, QUEUE_NOTIFICATION_EVENTS
+from shared.queue import RedisQueue, QUEUE_DETECTION_COMPLETE, QUEUE_NOTIFICATION_EVENTS
 from config import get_settings
 from model_loader import load_model
 from classifier import run_classification
@@ -64,15 +64,6 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
         if num_detections == 0:
             logger.info("No detections to classify, skipping", image_uuid=image_uuid)
             update_image_status(image_uuid, "classified")
-
-            # Publish to next queue (for alerts worker)
-            queue = RedisQueue(QUEUE_CLASSIFICATION_COMPLETE)
-            queue.publish({
-                "image_uuid": image_uuid,
-                "num_classifications": 0,
-                "classification_ids": []
-            })
-
             logger.info("Image processing complete (no detections)", image_uuid=image_uuid)
             return
 
@@ -209,14 +200,6 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
                                 )
                         except Exception as e:
                             logger.error("Failed to publish pv notification event", error=str(e))
-
-            # Publish to next queue
-            queue = RedisQueue(QUEUE_CLASSIFICATION_COMPLETE)
-            queue.publish({
-                "image_uuid": image_uuid,
-                "num_classifications": 0,
-                "classification_ids": []
-            })
 
             logger.info("Image processing complete (no animals)", image_uuid=image_uuid)
             return
@@ -468,14 +451,6 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
                                     )
             except Exception as e:
                 logger.error("Failed to publish notification event", error=str(e))
-
-        # Step 7: Publish to classification-complete queue
-        queue = RedisQueue(QUEUE_CLASSIFICATION_COMPLETE)
-        queue.publish({
-            "image_uuid": image_uuid,
-            "num_classifications": len(classifications),
-            "classification_ids": classification_ids
-        })
 
         logger.info(
             "Image processing complete",

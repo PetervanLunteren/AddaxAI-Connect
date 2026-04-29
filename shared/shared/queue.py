@@ -79,7 +79,6 @@ class RedisQueue:
 # Queue names (constants)
 QUEUE_IMAGE_INGESTED = "image-ingested"
 QUEUE_DETECTION_COMPLETE = "detection-complete"
-QUEUE_CLASSIFICATION_COMPLETE = "classification-complete"
 QUEUE_FAILED_JOBS = "failed-jobs"
 
 # Notification queues
