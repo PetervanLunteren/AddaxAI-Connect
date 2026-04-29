@@ -146,10 +146,15 @@ log "Postgres dump uploaded"
 
 # MinIO buckets. Live mirror into a single prefix; Wasabi versioning + the
 # lifecycle rule (noncurrent-version-expiration 90 days) handles history.
+# --skip-errors: keep going on per-object failures (e.g. a single corrupted
+#   xl.meta on a thumbnail). mc still logs every error so the operator can
+#   grep "<ERROR>" in logs/backup.log to see what was skipped.
+# --retry: retry transient failures (network blips, Wasabi 5xx) once before
+#   giving up on an object.
 for MINIO_BUCKET in raw-images crops thumbnails project-images project-documents models; do
   log "Mirroring minio/$MINIO_BUCKET"
   # TEMP: verbose mirror (no `> /dev/null`). See TODO.md.
-  docker compose exec -T minio mc mirror --overwrite --remove \
+  docker compose exec -T minio mc mirror --overwrite --remove --skip-errors --retry \
     "local/$MINIO_BUCKET" "backup-target/$BUCKET/$HOST/minio/$MINIO_BUCKET"
 done
 log "All MinIO buckets mirrored"
@@ -158,7 +163,7 @@ log "All MinIO buckets mirrored"
 for HOST_DIR in project-images reference-images; do
   log "Mirroring host/$HOST_DIR"
   # TEMP: verbose mirror (no `> /dev/null`). See TODO.md.
-  docker compose exec -T minio mc mirror --overwrite --remove \
+  docker compose exec -T minio mc mirror --overwrite --remove --skip-errors --retry \
     "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR"
 done
 log "Host image dirs mirrored"
