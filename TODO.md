@@ -33,7 +33,10 @@ Open follow-ups:
 
 
 # prio 1
-- [ ] 
+- [ ] "Leave empty to get alerts for all species." this is not handy. What If i want to disable the telegram for a short time? Wouldnt it just be simplest to send requests for all the one selected? If none selected, you dont get any telegram notifications. Simple mental model. 
+- [ ] The Excessive image alert email has a button "Inspect triggers". That brings you to the images page with with filters on that specific camera (good!), but also filters on "Empty" only. Why not show all images of that camera? That means tick all of the boxes in the "Labels" filter. That gives empties + all other labels. 
+- [ ] The detection trend currently doesnt show the 0 days/weeks/months. It should. Check how its done here: /Users/peter/Documents/Repos/AddaxAI-WebUI/.
+- [ ]
 
 ## TODO Priority 2
 - [ ] 
@@ -41,5 +44,5 @@ Open follow-ups:
 ## Possible future features
 - [ ] Allow manual upload of all SD card images that were not transmitted, in order to benefit from automatic recognition and centralize all data on the server?
 - [ ] multi language
-- [ ] 
+- [ ] can we make it feel native on iphone and android without having it like a normal app? You can continue an previous claude session with > claude --resume c24bfc22-4e66-4bdd-abc6-d41f92b5c0c7
 
