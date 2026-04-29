@@ -15,10 +15,13 @@
 # weeks does nothing, so its prefix can look orphaned. Raise --days, or
 # check ssh access to all live servers before running with --delete.
 #
-# Usage:
-#   bash scripts/cold_tier_orphan_check.sh                # dry-run report
-#   bash scripts/cold_tier_orphan_check.sh --days 30      # custom threshold
-#   bash scripts/cold_tier_orphan_check.sh --delete       # remove orphans
+# Usage (on a server):
+#   bash /opt/addaxai-connect/scripts/cold_tier_orphan_check.sh                # dry-run report
+#   bash /opt/addaxai-connect/scripts/cold_tier_orphan_check.sh --days 30      # custom threshold
+#   bash /opt/addaxai-connect/scripts/cold_tier_orphan_check.sh --delete       # remove orphans
+#
+# One-liner from your laptop (no interactive ssh needed):
+#   ssh pwn 'cd /opt/addaxai-connect && git pull --ff-only origin main > /dev/null && bash scripts/cold_tier_orphan_check.sh'
 
 set -euo pipefail
 
