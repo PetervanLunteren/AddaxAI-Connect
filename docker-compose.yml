@@ -74,7 +74,7 @@ services:
     depends_on:
       - minio
     entrypoint: >
-      /bin/sh -c "
+      /bin/sh -ec "
       sleep 10;
       /usr/bin/mc alias set minio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb --ignore-existing minio/raw-images;
@@ -86,10 +86,10 @@ services:
       /usr/bin/mc version enable minio/raw-images;
       if [ '${COLD_TIER_ENABLED:-false}' = 'true' ]; then
         /usr/bin/mc ilm tier update minio '${COLD_TIER_NAME:-WASABI_COLD}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' || \
-          /usr/bin/mc ilm tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --region '${COLD_TIER_REGION:-eu-central-1}' || true;
-        /usr/bin/mc ilm rule remove --all --force minio/raw-images || true;
-        /usr/bin/mc ilm rule add --transition-days 0 --transition-tier '${COLD_TIER_NAME:-WASABI_COLD}' --tags 'tier=cold' minio/raw-images || true;
-        /usr/bin/mc ilm rule add --noncurrentversion-expiration-days 1 --expired-object-delete-marker minio/raw-images || true;
+          /usr/bin/mc ilm tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --prefix '${COLD_TIER_PREFIX}/' --region '${COLD_TIER_REGION:-eu-central-1}';
+        /usr/bin/mc ilm rule remove --all --force minio/raw-images;
+        /usr/bin/mc ilm rule add --transition-days 0 --transition-tier '${COLD_TIER_NAME:-WASABI_COLD}' --tags 'tier=cold' minio/raw-images;
+        /usr/bin/mc ilm rule add --noncurrentversion-expiration-days 1 --expired-object-delete-marker minio/raw-images;
         echo 'Cold tier configured';
       else
         echo 'Cold tier disabled (COLD_TIER_ENABLED=false)';

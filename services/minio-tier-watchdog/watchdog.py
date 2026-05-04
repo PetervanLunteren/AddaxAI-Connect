@@ -89,6 +89,7 @@ def tick(client, log):
     if current <= budget_bytes:
         log.info("under budget, no-op (hot=%d, cold=%d objects)",
                  result["objects_hot"], result["objects_cold"])
+        result["status"] = "ok"
         return result
 
     excess = current - budget_bytes
@@ -123,6 +124,25 @@ def tick(client, log):
     )
     result["tagged_count"] = tagged_count
     result["tagged_gb"] = round(tagged_bytes / (1024 ** 3), 3)
+
+    # Health check against the budget contract. The watchdog runs daily and
+    # MinIO's ILM scanner runs many times per day, so on every tick after
+    # the first, hot should be at or under budget if ILM is actually moving
+    # tagged objects. The 10% margin absorbs normal between-scan lag and
+    # fresh uploads arriving between ticks. Catches missing rules, expired
+    # remote credentials, Wasabi outages, and any other reason transitions
+    # are not happening.
+    if current > budget_bytes * 1.10:
+        result["status"] = "error"
+        result["error"] = (
+            f"hot disk {current / (1024 ** 3):.2f} GB exceeds "
+            f"budget {budget_gb:.2f} GB by more than 10%. "
+            "MinIO ILM is not draining tagged objects to the cold tier. "
+            "Check `mc ilm rule ls` and `mc ilm tier ls`."
+        )
+        log.error(result["error"])
+    else:
+        result["status"] = "ok"
     return result
 
 
@@ -160,7 +180,7 @@ def main():
     while True:
         try:
             result = tick(client, log)
-            write_status(redis_client, tick_seconds, {"status": "ok", **result})
+            write_status(redis_client, tick_seconds, result)
         except Exception as exc:
             log.exception("tick failed, will retry next interval")
             write_status(redis_client, tick_seconds,

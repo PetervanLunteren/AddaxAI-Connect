@@ -3,9 +3,10 @@
 # than N days ago. Useful when several servers share one cold-tier bucket
 # and a server gets destroyed without cleaning up its tiered data.
 #
-# A "prefix" here is one of MinIO's opaque per-server folders at the bucket
-# root (e.g. `77670de2bd871c7b/`). Each live MinIO writes its tiered bodies
-# under one such prefix.
+# A "prefix" here is the per-server folder at the bucket root, set via
+# COLD_TIER_PREFIX in each server's .env (defaults to its domain_name,
+# e.g. `pwn.addaxai.com/`). MinIO writes its tiered bodies under that
+# prefix using internally-opaque object names.
 #
 # Heuristic: a live server tiers new objects often enough that its prefix
 # has fresh activity. A destroyed server's prefix goes silent. Threshold is

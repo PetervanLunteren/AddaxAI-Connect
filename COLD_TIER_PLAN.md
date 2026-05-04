@@ -141,8 +141,9 @@ Added environment variables (`.env` / `ansible/group_vars/dev.yml`):
 | `COLD_TIER_PROVIDER`        | `wasabi`                                      | Free text, used only in logs.                                         |
 | `COLD_TIER_ENDPOINT`        | `https://s3.eu-central-1.wasabisys.com`       | Remote S3 endpoint.                                                   |
 | `COLD_TIER_REGION`          | `eu-central-1`                                |                                                                       |
-| `COLD_TIER_BUCKET`          | `addaxai-connect-prod-cold`                   | Must be unique per environment (prod vs dev different buckets).       |
-| `COLD_TIER_ACCESS_KEY`      | (vault-encrypted)                             | Bucket-scoped IAM key.                                                |
+| `COLD_TIER_BUCKET`          | `addaxai-connect-cold-storage`                | One bucket can be shared across servers; per-server isolation is by `COLD_TIER_PREFIX`. |
+| `COLD_TIER_PREFIX`          | `pwn.addaxai.com` (domain_name)               | Per-server folder inside the shared bucket. MinIO refuses two registrations on the same (bucket, prefix). |
+| `COLD_TIER_ACCESS_KEY`      | (vault-encrypted)                             | One key for the shared bucket; can be scoped per-prefix in IAM if needed. |
 | `COLD_TIER_SECRET_KEY`      | (vault-encrypted)                             |                                                                       |
 | `COLD_TIER_NAME`            | `WASABI_COLD`                                 | Internal MinIO tier alias. Referenced by ILM rule.                    |
 | `COLD_TIER_AGE_DAYS`        | `60`                                          | ILM transition threshold.                                             |
@@ -169,9 +170,9 @@ Added environment variables (`.env` / `ansible/group_vars/dev.yml`):
    - Sanity-check Wasabi's 90-day minimum retention: 90 d × ~€0.007/GB/month is fine for long-lived data; partial rollback would still bill through the 90-day floor.
 2. **Wasabi account + bucket.**
    - Sign up at [wasabi.com](https://wasabi.com), pick the Amsterdam region (`eu-central-1`).
-   - Create two buckets: `addaxai-connect-dev-cold` and `addaxai-connect-prod-cold`. Different buckets so dev experiments never touch prod data.
-   - Create an IAM policy scoped to one bucket each, permissions: `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`, `s3:GetBucketLocation`. Do **not** grant bucket-create, tag, or policy permissions.
-   - Generate one access key per environment. Store the key pair in 1Password (or equivalent). Never commit.
+   - Create one shared bucket, e.g. `addaxai-connect-cold-storage`. All servers (dev, pwn, future production droplets) tier into this one bucket. Each server's transitioned objects land under its own `COLD_TIER_PREFIX/` (the server's `domain_name`), so the slices never collide. MinIO's "tier already in use" rejection is keyed on (bucket, prefix), so unique prefixes are what makes sharing safe.
+   - Create an IAM policy on this bucket with permissions: `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`, `s3:GetBucketLocation`. Do **not** grant bucket-create, tag, or policy permissions. If you want least-privilege per server, scope each server's IAM key to its own `arn:aws:s3:::bucket/<domain_name>/*` resource; the credential can otherwise be shared.
+   - Generate access keys (one per server, or one shared) and store the pair in 1Password (or equivalent). Never commit.
 3. **Ansible vault setup.**
    - `ansible-vault encrypt_string <secret> --name 'cold_tier_access_key'` and `cold_tier_secret_key`.
    - Add the encrypted strings to `group_vars/dev.yml` (and eventually `group_vars/prod.yml` if/when a separate prod inventory exists).
@@ -377,14 +378,14 @@ Only after Phase 2 passes.
 
 ## Credential & secret management
 
-- Dev and prod Wasabi buckets and IAM keys are strictly separate. No cross-environment sharing.
-- IAM policy is bucket-scoped, least-privilege (`s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`, `s3:GetBucketLocation`).
+- One Wasabi bucket can serve all servers. Per-server isolation is by `cold_tier_prefix` (defaults to `domain_name` in the env template), which becomes the folder name inside the shared bucket. MinIO refuses two registrations against the same (bucket, prefix), so each server's prefix must be unique.
+- IAM policy is bucket-scoped, least-privilege (`s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`, `s3:GetBucketLocation`). For tighter scoping you can issue per-server keys whose `Resource` is `arn:aws:s3:::bucket/<domain_name>/*`; not required for correctness.
 - Ansible-vault is the single source of truth for keys. Example snippet (actual values encrypted):
   ```yaml
   cold_tier_enabled: true
   cold_tier_endpoint: "https://s3.eu-central-1.wasabisys.com"
   cold_tier_region: "eu-central-1"
-  cold_tier_bucket: "addaxai-connect-dev-cold"
+  cold_tier_bucket: "addaxai-connect-cold-storage"
   cold_tier_access_key: !vault |
     $ANSIBLE_VAULT;1.1;AES256
     3862...
@@ -392,6 +393,7 @@ Only after Phase 2 passes.
     $ANSIBLE_VAULT;1.1;AES256
     1c4a...
   ```
+  The .env template adds `COLD_TIER_PREFIX={{ domain_name }}` automatically; no extra ansible variable is needed.
 - **Rotation.** Documented in `docs/cold-storage.md`: create a new IAM key, deploy new vars via ansible, confirm tier still works, revoke the old key in Wasabi. Target: quarterly.
 - **Revocation.** If a key is suspected leaked: revoke in Wasabi console immediately, then rotate. The local MinIO will start failing transitions; the watchdog log will show errors. App reads of tiered objects will also fail until the new key is deployed — this is a minor outage window for historical images only; recent images stay available.
 

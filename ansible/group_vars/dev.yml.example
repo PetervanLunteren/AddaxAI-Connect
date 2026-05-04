@@ -33,9 +33,12 @@ admin_email: ""                           # Email for the first user account (ge
 # When enabled, a daily watchdog tags the oldest raw-images for transition once local disk usage
 # exceeds cold_tier_hot_budget_gb; a MinIO ILM rule moves tagged objects to the cold bucket.
 # Reads stay transparent. Thumbnails, crops, and project assets always stay hot.
+# Servers can share one cold_tier_bucket. The per-server slice is keyed on domain_name,
+# so each server's transitioned objects land under <bucket>/<domain_name>/. Two servers
+# pointing at the same (bucket, prefix) is what fails with "tier already in use".
 cold_tier_enabled: false                  # true to enable the cold tier
 cold_tier_endpoint: ""                    # e.g. "https://s3.eu-central-1.wasabisys.com"
-cold_tier_bucket: ""                      # Bucket name in the cold provider
+cold_tier_bucket: ""                      # Bucket name in the cold provider (can be shared across servers)
 cold_tier_region: "eu-central-1"          # Region of the cold bucket
 cold_tier_access_key: ""                  # Cold-tier access key
 cold_tier_secret_key: ""                  # Cold-tier secret key

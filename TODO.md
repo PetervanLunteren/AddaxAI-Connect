@@ -36,10 +36,11 @@ Open follow-ups:
 - [ ] "Leave empty to get alerts for all species." this is not handy. What If i want to disable the telegram for a short time? Wouldnt it just be simplest to send requests for all the one selected? If none selected, you dont get any telegram notifications. Simple mental model. 
 - [ ] The Excessive image alert email has a button "Inspect triggers". That brings you to the images page with with filters on that specific camera (good!), but also filters on "Empty" only. Why not show all images of that camera? That means tick all of the boxes in the "Labels" filter. That gives empties + all other labels. 
 - [ ] The detection trend currently doesnt show the 0 days/weeks/months. It should. Check how its done here: /Users/peter/Documents/Repos/AddaxAI-WebUI/.
-- [ ]
+- [ ] In the hostory tab of the camera details slidout, we dont see the dates that did not send through any daily reports,l but it is very valuable to see the ones without any data too. So can we extend the graphs to also include all dates? How would that work? How does one normally visualise NA values in a graph? If difficult, just show the date ticks without any points or lines. 
 
 ## TODO Priority 2
-- [ ] 
+- [ ] Invalidate other sessions on password change. Today JWTs are stateless with 1-hour lifetime, so changing the password in browser A leaves browser B's token valid until it expires. OWASP expects revocation here. Plan: add a `password_changed_at` timestamp on `User`, write it in `services/api/auth/routes.py` change-password and in the fastapi-users password-reset hook, then subclass `JWTStrategy` to reject tokens whose `iat < user.password_changed_at`. Small change, also gives a foundation for a future "log out everywhere" button.
+
 
 ## Possible future features
 - [ ] Allow manual upload of all SD card images that were not transmitted, in order to benefit from automatic recognition and centralize all data on the server?
