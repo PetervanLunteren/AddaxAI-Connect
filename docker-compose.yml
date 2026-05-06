@@ -66,36 +66,28 @@ services:
 
   # MinIO Bucket Initialization
   # When COLD_TIER_ENABLED=true, also registers the remote tier and installs
-  # a tag-based ILM rule so objects carrying tag `tier=cold` transition there.
+  # tag-based ILM rules so objects carrying tag `tier=cold` transition there.
+  # Recreates the tier registration on bucket/endpoint change.
   minio-init:
     image: minio/mc:latest
     container_name: addaxai-minio-init
     profiles: [deepfaune, speciesnet, demo]
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -ec "
-      sleep 10;
-      /usr/bin/mc alias set minio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
-      /usr/bin/mc mb --ignore-existing minio/raw-images;
-      /usr/bin/mc mb --ignore-existing minio/crops;
-      /usr/bin/mc mb --ignore-existing minio/thumbnails;
-      /usr/bin/mc mb --ignore-existing minio/models;
-      /usr/bin/mc mb --ignore-existing minio/project-images;
-      /usr/bin/mc mb --ignore-existing minio/project-documents;
-      /usr/bin/mc version enable minio/raw-images;
-      if [ '${COLD_TIER_ENABLED:-false}' = 'true' ]; then
-        /usr/bin/mc ilm tier update minio '${COLD_TIER_NAME:-WASABI_COLD}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' || \
-          /usr/bin/mc ilm tier add s3 minio '${COLD_TIER_NAME:-WASABI_COLD}' --endpoint '${COLD_TIER_ENDPOINT}' --access-key '${COLD_TIER_ACCESS_KEY}' --secret-key '${COLD_TIER_SECRET_KEY}' --bucket '${COLD_TIER_BUCKET}' --prefix '${COLD_TIER_PREFIX}/' --region '${COLD_TIER_REGION:-eu-central-1}';
-        /usr/bin/mc ilm rule remove --all --force minio/raw-images;
-        /usr/bin/mc ilm rule add --transition-days 0 --transition-tier '${COLD_TIER_NAME:-WASABI_COLD}' --tags 'tier=cold' minio/raw-images;
-        /usr/bin/mc ilm rule add --noncurrentversion-expiration-days 1 --expired-object-delete-marker minio/raw-images;
-        echo 'Cold tier configured';
-      else
-        echo 'Cold tier disabled (COLD_TIER_ENABLED=false)';
-      fi;
-      echo 'MinIO buckets created successfully';
-      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      COLD_TIER_ENABLED: ${COLD_TIER_ENABLED:-false}
+      COLD_TIER_NAME: ${COLD_TIER_NAME:-WASABI_COLD}
+      COLD_TIER_ENDPOINT: ${COLD_TIER_ENDPOINT:-}
+      COLD_TIER_REGION: ${COLD_TIER_REGION:-eu-central-1}
+      COLD_TIER_BUCKET: ${COLD_TIER_BUCKET:-}
+      COLD_TIER_PREFIX: ${COLD_TIER_PREFIX:-}
+      COLD_TIER_ACCESS_KEY: ${COLD_TIER_ACCESS_KEY:-}
+      COLD_TIER_SECRET_KEY: ${COLD_TIER_SECRET_KEY:-}
+    volumes:
+      - ./services/minio-init/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     networks:
       - addaxai-network
 
