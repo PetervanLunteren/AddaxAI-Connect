@@ -90,7 +90,29 @@ export const ImagesPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  // Initialize filters from URL query params (e.g. ?camera_id=5&show_empty=true)
+  // Fetch labels for filter dropdown (species + person/vehicle + empty)
+  const { data: rawLabelOptions, isLoading: speciesLoading } = useQuery({
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Pin Empty, Person, Vehicle at the top; rest alphabetical
+  const speciesOptions = React.useMemo(() => {
+    if (!rawLabelOptions) return [];
+    const pinned = ['empty', 'person', 'vehicle'];
+    const pinnedOptions = pinned
+      .map(v => rawLabelOptions.find(s => s.value === v))
+      .filter((s): s is NonNullable<typeof s> => !!s);
+    const rest = rawLabelOptions
+      .filter(s => !pinned.includes(s.value as string))
+      .sort((a, b) => (a.label as string).localeCompare(b.label as string));
+    return [...pinnedOptions, ...rest];
+  }, [rawLabelOptions]);
+
+  // Initialize filters from URL query params (e.g. ?camera_id=5&show_empty=true).
+  // Placed after rawLabelOptions so the dep array can reference it without
+  // hitting the TDZ during render.
   useEffect(() => {
     if (!cameras || !rawLabelOptions) return;
     const cameraIdParam = searchParams.get('camera_id');
@@ -142,26 +164,6 @@ export const ImagesPage: React.FC = () => {
       setSearchParams(searchParams, { replace: true });
     }
   }, [cameras, rawLabelOptions]);
-
-  // Fetch labels for filter dropdown (species + person/vehicle + empty)
-  const { data: rawLabelOptions, isLoading: speciesLoading } = useQuery({
-    queryKey: ['species', projectId],
-    queryFn: () => imagesApi.getSpecies(projectId),
-    enabled: projectId !== undefined,
-  });
-
-  // Pin Empty, Person, Vehicle at the top; rest alphabetical
-  const speciesOptions = React.useMemo(() => {
-    if (!rawLabelOptions) return [];
-    const pinned = ['empty', 'person', 'vehicle'];
-    const pinnedOptions = pinned
-      .map(v => rawLabelOptions.find(s => s.value === v))
-      .filter((s): s is NonNullable<typeof s> => !!s);
-    const rest = rawLabelOptions
-      .filter(s => !pinned.includes(s.value as string))
-      .sort((a, b) => (a.label as string).localeCompare(b.label as string));
-    return [...pinnedOptions, ...rest];
-  }, [rawLabelOptions]);
 
   // Fetch overview for date bounds
   const { data: overview } = useQuery({
