@@ -209,6 +209,10 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
   const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    // Index-mode hover so the tooltip fires on the nearest x value rather
+    // than only when the cursor is on top of an actual point. Without this,
+    // null-valued days have no marker and hovering them does nothing.
+    interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
       tooltip: {
