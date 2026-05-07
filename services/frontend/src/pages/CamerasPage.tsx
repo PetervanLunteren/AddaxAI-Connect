@@ -53,17 +53,23 @@ import {
 import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
 import { CameraFilters, defaultCameraFilters, type CameraFilterState } from '../components/CameraFilters';
+import { ColumnPicker } from '../components/cameras/ColumnPicker';
+import {
+  CAMERA_COLUMNS,
+  loadVisibleColumns,
+  saveVisibleColumns,
+  type ColumnId,
+} from '../components/cameras/columnDefs';
 import { cn } from '../lib/utils';
 import { formatRelative } from '../utils/datetime';
+import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
 import { useDropzone } from 'react-dropzone';
-
-type SortColumn = 'name' | 'tags' | 'status' | 'battery' | 'signal' | 'sd_used' | 'last_report' | 'last_image' | 'location';
 
 const SortableHeader: React.FC<{
   label: string;
-  column: SortColumn;
-  sort: { column: SortColumn | null; direction: 'asc' | 'desc' };
-  onSort: (column: SortColumn) => void;
+  column: ColumnId;
+  sort: { column: ColumnId | null; direction: 'asc' | 'desc' };
+  onSort: (column: ColumnId) => void;
 }> = ({ label, column, sort, onSort }) => {
   const isActive = sort.column === column;
   return (
@@ -119,10 +125,21 @@ export const CamerasPage: React.FC = () => {
   // Filter/sort state
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<CameraFilterState>(defaultCameraFilters);
-  const [sort, setSort] = useState<{ column: SortColumn | null; direction: 'asc' | 'desc' }>({
+  const [sort, setSort] = useState<{ column: ColumnId | null; direction: 'asc' | 'desc' }>({
     column: null,
     direction: 'asc',
   });
+
+  // Visible columns persist per-browser, same pattern as cameras-view-mode.
+  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => loadVisibleColumns());
+  useEffect(() => {
+    saveVisibleColumns(visibleColumns);
+  }, [visibleColumns]);
+  const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
+  const visibleColumnDefs = useMemo(
+    () => CAMERA_COLUMNS.filter((c) => visibleColumnSet.has(c.id)),
+    [visibleColumnSet],
+  );
 
   // Fetch cameras for current project
   const { data: cameras, isLoading } = useQuery({
@@ -248,7 +265,7 @@ export const CamerasPage: React.FC = () => {
 
   const handleClearFilters = () => setFilters(defaultCameraFilters);
 
-  const handleSort = (column: SortColumn) => {
+  const handleSort = (column: ColumnId) => {
     setSort((prev) =>
       prev.column === column
         ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
@@ -396,21 +413,25 @@ export const CamerasPage: React.FC = () => {
       );
     }
 
-    // Sort (nulls last)
+    // Sort (nulls last). Non-sortable columns return null and fall through
+    // to the unsorted branch below if the user somehow ends up sorting on one.
     if (sort.column) {
       const dir = sort.direction === 'asc' ? 1 : -1;
       result.sort((a, b) => {
         const getValue = (c: Camera): string | number | null => {
           switch (sort.column) {
             case 'name': return c.name.toLowerCase();
+            case 'device_id': return (c.device_id || '').toLowerCase() || null;
             case 'tags': return (c.tags || []).join(', ').toLowerCase() || null;
             case 'status': return c.status;
             case 'battery': return c.battery_percentage;
             case 'signal': return c.signal_quality;
             case 'sd_used': return c.sd_utilization_percentage;
+            case 'temperature': return c.temperature;
             case 'last_report': return c.last_report_timestamp;
             case 'last_image': return c.last_image_timestamp;
             case 'location': return c.location ? 1 : 0;
+            case 'sim_expiry': return c.sim_expiry_date;
             default: return null;
           }
         };
@@ -431,6 +452,145 @@ export const CamerasPage: React.FC = () => {
   const isFiltered = searchQuery.trim() !== '' ||
     !!filters.status || !!filters.tag ||
     !!filters.battery || !!filters.signal || !!filters.sd_usage || !!filters.location;
+
+  // Per-column cell renderer. Lives inside the component so it closes over
+  // the format helpers (getStatusBadge, getBatteryColor, etc.) that are
+  // already defined above. Each ColumnId returns the cell body, not the
+  // wrapping <TableCell>.
+  const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
+    switch (id) {
+      case 'name':
+        return camera.name;
+      case 'device_id':
+        return camera.device_id ? (
+          <span className="font-mono text-xs">{camera.device_id}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'tags':
+        return camera.tags && camera.tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {camera.tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+            {camera.tags.length > 2 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                +{camera.tags.length - 2}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'status':
+        return getStatusBadge(camera.status);
+      case 'battery':
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: getBatteryColor(camera.battery_percentage) }}
+            />
+            <span className="text-sm">
+              {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
+            </span>
+          </div>
+        );
+      case 'signal':
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
+            />
+            <span className="text-sm">{getSignalLabel(camera.signal_quality)}</span>
+          </div>
+        );
+      case 'sd_used':
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
+            />
+            <span className="text-sm">
+              {camera.sd_utilization_percentage !== null
+                ? `${Math.round(camera.sd_utilization_percentage)}%`
+                : 'N/A'}
+            </span>
+          </div>
+        );
+      case 'temperature':
+        return (
+          <span className="text-sm">
+            {camera.temperature !== null ? `${camera.temperature} °C` : 'N/A'}
+          </span>
+        );
+      case 'last_report':
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: getTimestampColor(camera.last_report_timestamp) }}
+            />
+            <span className="text-sm">{formatRelative(camera.last_report_timestamp)}</span>
+          </div>
+        );
+      case 'last_image':
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: getTimestampColor(camera.last_image_timestamp) }}
+            />
+            <span className="text-sm">{formatRelative(camera.last_image_timestamp)}</span>
+          </div>
+        );
+      case 'location':
+        return (
+          <div className="flex items-center gap-1.5">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: camera.location ? '#0f6064' : '#882000' }}
+            />
+            <span className="text-sm">{camera.location ? 'Known' : 'Unknown'}</span>
+            {camera.location && (
+              <a
+                href={getGoogleMapsUrl(camera.location)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+          </div>
+        );
+      case 'notes':
+        return camera.notes ? (
+          <span
+            className="text-sm text-muted-foreground block max-w-[16rem] truncate"
+            title={camera.notes}
+          >
+            {camera.notes}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'sim_expiry':
+        return (
+          <span className={`text-sm ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
+            {formatSimExpiryStatus(camera.sim_expiry_date)}
+          </span>
+        );
+    }
+  };
 
   if (!currentProject) {
     return (
@@ -488,6 +648,12 @@ export const CamerasPage: React.FC = () => {
             onClearAll={handleClearFilters}
             tagOptions={tagOptions}
           />
+          {viewMode === 'table' && (
+            <ColumnPicker
+              visible={visibleColumns}
+              onChange={setVisibleColumns}
+            />
+          )}
         </div>
       )}
 
@@ -646,21 +812,29 @@ export const CamerasPage: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead><SortableHeader label="Name" column="name" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Tags" column="tags" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Status" column="status" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Battery" column="battery" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Signal" column="signal" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="SD used" column="sd_used" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Last report" column="last_report" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Last image" column="last_image" sort={sort} onSort={handleSort} /></TableHead>
-                    <TableHead><SortableHeader label="Location" column="location" sort={sort} onSort={handleSort} /></TableHead>
+                    {visibleColumnDefs.map((col) => (
+                      <TableHead key={col.id}>
+                        {col.sortable ? (
+                          <SortableHeader
+                            label={col.label}
+                            column={col.id}
+                            sort={sort}
+                            onSort={handleSort}
+                          />
+                        ) : (
+                          col.label
+                        )}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCameras.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell
+                        colSpan={visibleColumnDefs.length}
+                        className="text-center py-8 text-muted-foreground"
+                      >
                         No cameras match your filters.
                       </TableCell>
                     </TableRow>
@@ -671,102 +845,14 @@ export const CamerasPage: React.FC = () => {
                       className="cursor-pointer"
                       onClick={() => handleRowClick(camera)}
                     >
-                      <TableCell className="font-medium">{camera.name}</TableCell>
-                      <TableCell>
-                        {camera.tags && camera.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {camera.tags.slice(0, 2).map((tag) => (
-                              <span
-                                key={tag}
-                                className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                            {camera.tags.length > 2 && (
-                              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-                                +{camera.tags.length - 2}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(camera.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: getBatteryColor(camera.battery_percentage) }}
-                          />
-                          <span className="text-sm">
-                            {camera.battery_percentage !== null
-                              ? `${camera.battery_percentage}%`
-                              : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
-                          />
-                          <span className="text-sm">{getSignalLabel(camera.signal_quality)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
-                          />
-                          <span className="text-sm">
-                            {camera.sd_utilization_percentage !== null
-                              ? `${Math.round(camera.sd_utilization_percentage)}%`
-                              : 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: getTimestampColor(camera.last_report_timestamp) }}
-                          />
-                          <span className="text-sm">{formatRelative(camera.last_report_timestamp)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: getTimestampColor(camera.last_image_timestamp) }}
-                          />
-                          <span className="text-sm">{formatRelative(camera.last_image_timestamp)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: camera.location ? '#0f6064' : '#882000' }}
-                          />
-                          <span className="text-sm">{camera.location ? 'Known' : 'Unknown'}</span>
-                          {camera.location && (
-                            <a
-                              href={getGoogleMapsUrl(camera.location)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          )}
-                        </div>
-                      </TableCell>
+                      {visibleColumnDefs.map((col) => (
+                        <TableCell
+                          key={col.id}
+                          className={col.id === 'name' ? 'font-medium' : undefined}
+                        >
+                          {renderCameraCell(col.id, camera)}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   ))}
                 </TableBody>

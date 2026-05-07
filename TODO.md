@@ -33,7 +33,7 @@ Open follow-ups:
 
 
 # prio 1
-- [ ] Make cols in the camera page customizable. Which ones to view in the page. How would that look in terms of UX UI? A modal? A slideout? A popover? How do well known mature apps do it? What do you recommend? Lets make a plan! 
+- [x] Customizable cameras-table columns. "Columns" dropdown next to Filters, checkbox per column, persists per-browser via localStorage. 13 columns available (the original 9 plus Camera ID, Temperature, Notes, SIM expiry); Name is locked on. Reorder, custom_fields keys, and DB-backed cross-device sync are tracked as future enhancements.
 - [ ] Add export to CSV from the cameras page, where it exports the entire cameras table.
 - [ ] Add option for batch updates for the cameras. Handy for example new expiry dates etc. 
 - [ ] Add key board short cuts for "Add camera" button, so one can make it quick qworkflow to add multiple cameras. 
