@@ -980,31 +980,15 @@ export const CamerasPage: React.FC = () => {
 
                     <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
                       <div>
-                        <p className="text-sm font-medium">Optionally add a name and notes</p>
+                        <p className="text-sm font-medium">Optionally add a name, notes, or SIM expiry</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Add <code className="bg-background px-1 rounded">Name</code> and <code className="bg-background px-1 rounded">Notes</code> columns. Empty names default to the camera ID.
+                          Add <code className="bg-background px-1 rounded">Name</code>, <code className="bg-background px-1 rounded">Notes</code>, or <code className="bg-background px-1 rounded">SimExpiryDate</code> columns. Empty names default to the camera ID. SIM expiry dates use <code className="bg-background px-1 rounded">YYYY-MM-DD</code>; rows with a malformed date are rejected so you can fix them.
                         </p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`CameraID,Name,Notes
-860946063660255,,
-860946063660256,Camera north,Oak tree`}
-                      </pre>
-                    </div>
-
-                    <div className="border-t border-border/50" />
-
-                    <div className="grid grid-cols-[1fr,1.2fr] gap-x-4 items-start">
-                      <div>
-                        <p className="text-sm font-medium">Track SIM expiry dates</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Add a <code className="bg-background px-1 rounded">SimExpiryDate</code> column with dates in <code className="bg-background px-1 rounded">YYYY-MM-DD</code> format. Rows with a malformed date are rejected so you can fix them, the column itself is optional.
-                        </p>
-                      </div>
-                      <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
-{`CameraID,Name,SimExpiryDate
-860946063660255,,2026-08-31
-860946063660256,Camera north,2026-12-15`}
+{`CameraID,Name,Notes,SimExpiryDate
+860946063660255,,,
+860946063660256,Camera north,Oak tree,2026-12-15`}
                       </pre>
                     </div>
 
