@@ -50,6 +50,34 @@ interface CameraDetailSheetProps {
   onUpdate?: (updatedCamera: Camera) => void;
 }
 
+// Human-readable status for the SIM expiry date. Used both as a hint under the
+// admin's date input and as the read-only label for non-admins.
+function formatSimExpiryStatus(date: string | null | undefined): string {
+  if (!date) return 'Not set';
+  const expiry = new Date(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+  const days = Math.round((expiry.getTime() - today.getTime()) / 86400000);
+  if (days < 0) return `Expired ${Math.abs(days)} day${days === -1 ? '' : 's'} ago`;
+  if (days === 0) return 'Expires today';
+  return `Expires in ${days} day${days === 1 ? '' : 's'}`;
+}
+
+// Tailwind class that highlights the SIM expiry status. Red for expired,
+// orange for inside the 2-month alert window, muted otherwise.
+function simExpiryStatusClass(date: string | null | undefined): string {
+  if (!date) return 'text-muted-foreground';
+  const expiry = new Date(date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expiry.setHours(0, 0, 0, 0);
+  const days = Math.round((expiry.getTime() - today.getTime()) / 86400000);
+  if (days < 0) return 'text-destructive font-medium';
+  if (days <= 60) return 'text-orange-600 font-medium';
+  return 'text-muted-foreground';
+}
+
 type TabType = 'overview' | 'history' | 'details' | 'notes' | 'actions';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
@@ -86,6 +114,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       setEditForm({
         friendly_name: camera.name,
         notes: camera.notes || '',
+        sim_expiry_date: camera.sim_expiry_date,
       });
       // Initialize metadata fields from camera.custom_fields
       const meta = camera.custom_fields || {};
@@ -105,7 +134,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const notesModified = camera && (
     editForm.friendly_name !== camera.name ||
     editForm.notes !== (camera.notes || '') ||
-    tagsChanged
+    tagsChanged ||
+    (editForm.sim_expiry_date ?? null) !== (camera.sim_expiry_date ?? null)
   );
 
   // Update mutation
@@ -207,6 +237,11 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     }
     cleanedData.custom_fields = custom_fields;
     cleanedData.tags = editTags;
+
+    // SIM expiry: send the value (or null when cleared). The API uses
+    // model_fields_set on this key so an explicit null clears the column
+    // while an omitted key leaves the existing value alone.
+    cleanedData.sim_expiry_date = editForm.sim_expiry_date || null;
 
     updateMutation.mutate(cleanedData);
   };
@@ -488,6 +523,33 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         <span className="text-sm text-muted-foreground">No tags</span>
                       )}
                     </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">SIM expiry date</label>
+                  {canAdmin ? (
+                    <>
+                      <input
+                        type="date"
+                        value={editForm.sim_expiry_date || ''}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            sim_expiry_date: e.target.value || null,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                      />
+                      <p className={`text-xs mt-1 ${simExpiryStatusClass(editForm.sim_expiry_date)}`}>
+                        {formatSimExpiryStatus(editForm.sim_expiry_date)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className={`text-sm mt-1 ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
+                      {camera.sim_expiry_date
+                        ? `${camera.sim_expiry_date} (${formatSimExpiryStatus(camera.sim_expiry_date)})`
+                        : 'Not set'}
+                    </p>
                   )}
                 </div>
                 <div>

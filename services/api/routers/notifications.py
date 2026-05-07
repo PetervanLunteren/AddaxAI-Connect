@@ -12,7 +12,13 @@ from pydantic import BaseModel
 from shared.models import User, ProjectNotificationPreference, Project
 from shared.database import get_async_session
 from auth.users import current_verified_user
-from auth.permissions import can_access_project
+from auth.permissions import can_access_project, can_admin_project
+
+
+# Notification toggles that only project admins (or server admins) may flip.
+# Non-admins who try to change these keys are rejected with 403 even if the
+# frontend hides the row, so the API does not rely on the UI for enforcement.
+ADMIN_ONLY_NOTIFICATION_KEYS = {"sim_expiry", "project_inactivity"}
 
 
 router = APIRouter(prefix="/api/projects", tags=["notifications"])
@@ -186,6 +192,26 @@ async def update_notification_preferences(
         )
     )
     prefs = result.scalar_one_or_none()
+
+    # Admin-only notification toggles. A non-admin echoing the existing value
+    # back is fine (the frontend may include unchanged keys), but any actual
+    # change must come from a project admin or server admin. Existing values
+    # are preserved when the frontend omits the keys, so non-admins whose UI
+    # hides these rows do not accidentally clear them.
+    if data.notification_channels is not None:
+        is_admin_user = await can_admin_project(current_user, project_id, db)
+        if not is_admin_user:
+            existing_channels = (prefs.notification_channels or {}) if prefs else {}
+            for key in ADMIN_ONLY_NOTIFICATION_KEYS:
+                incoming = data.notification_channels.get(key)
+                existing = existing_channels.get(key)
+                if incoming is not None and incoming != existing:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Only project admins can change the '{key}' notification toggle",
+                    )
+                if existing is not None:
+                    data.notification_channels[key] = existing
 
     if not prefs:
         # Create new preferences with defaults

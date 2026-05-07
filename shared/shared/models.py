@@ -90,6 +90,10 @@ class Camera(Base):
     # Timestamps
     last_maintenance_at = Column(DateTime(timezone=True), nullable=True)
 
+    # SIM card expiry. Plain Date so the monthly cron can filter naturally and
+    # the camera form / CSV upload speak YYYY-MM-DD without timezone math.
+    sim_expiry_date = Column(Date, nullable=True)
+
     # Metadata
     tags = Column(JSON, nullable=True)
     notes = Column(Text, nullable=True)

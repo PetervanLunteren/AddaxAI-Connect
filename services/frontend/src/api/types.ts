@@ -23,6 +23,7 @@ export interface Camera {
   sent_images?: number;
   reference_image_url: string | null;
   reference_thumbnail_url: string | null;
+  sim_expiry_date: string | null;  // YYYY-MM-DD or null
 }
 
 // Camera health history types

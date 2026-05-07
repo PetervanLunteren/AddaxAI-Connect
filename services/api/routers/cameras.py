@@ -44,6 +44,7 @@ class CameraResponse(BaseModel):
     sent_images: Optional[int] = None
     reference_image_url: Optional[str] = None
     reference_thumbnail_url: Optional[str] = None
+    sim_expiry_date: Optional[str] = None  # YYYY-MM-DD or null
 
     class Config:
         from_attributes = True
@@ -57,6 +58,7 @@ class CreateCameraRequest(BaseModel):
     custom_fields: Optional[dict] = None
     tags: Optional[List[str]] = None
     project_id: int
+    sim_expiry_date: Optional[date] = None
 
 
 class UpdateCameraRequest(BaseModel):
@@ -65,6 +67,7 @@ class UpdateCameraRequest(BaseModel):
     custom_fields: Optional[dict] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
+    sim_expiry_date: Optional[date] = None
 
 
 class CameraImportRow(BaseModel):
@@ -165,6 +168,7 @@ def camera_to_response(
         sent_images=health_data.get('sent_images'),
         reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
         reference_thumbnail_url=f"/reference-images/{camera.reference_thumbnail_path}" if camera.reference_thumbnail_path else None,
+        sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
     )
 
 
@@ -490,7 +494,8 @@ async def create_camera(
         tags=normalize_tags(request.tags) if request.tags else [],
         project_id=request.project_id,
         status='inventory',
-        config={}
+        config={},
+        sim_expiry_date=request.sim_expiry_date,
     )
 
     db.add(camera)
@@ -554,6 +559,12 @@ async def update_camera(
         camera.notes = request.notes
     if request.tags is not None:
         camera.tags = normalize_tags(request.tags)
+    # Clearing must be possible (typo recovery, retired camera), so check
+    # whether the field was sent explicitly rather than only checking for
+    # not-None. An omitted field leaves the existing value alone; a null
+    # value clears the column.
+    if 'sim_expiry_date' in request.model_fields_set:
+        camera.sim_expiry_date = request.sim_expiry_date
 
     await db.commit()
     await db.refresh(camera)
@@ -742,7 +753,7 @@ async def import_cameras_csv(
         )
 
     # Columns that are not stored in custom_fields
-    reserved_columns = {'CameraID', 'Name', 'FriendlyName', 'Notes'}
+    reserved_columns = {'CameraID', 'Name', 'FriendlyName', 'Notes', 'SimExpiryDate'}
 
     # Process rows
     results: List[CameraImportRow] = []
@@ -782,6 +793,24 @@ async def import_cameras_csv(
         friendly_name = (row.get('Name') or row.get('FriendlyName') or '').strip() or None
         notes = (row.get('Notes') or '').strip()
 
+        # Optional SIM expiry. Strict YYYY-MM-DD; bad value rejects the row
+        # so the operator notices and corrects rather than silently dropping
+        # the column into custom_fields.
+        sim_expiry_raw = (row.get('SimExpiryDate') or '').strip()
+        sim_expiry_date = None
+        if sim_expiry_raw:
+            try:
+                sim_expiry_date = datetime.strptime(sim_expiry_raw, '%Y-%m-%d').date()
+            except ValueError:
+                results.append(CameraImportRow(
+                    row_number=idx,
+                    device_id=device_id,
+                    success=False,
+                    error=f"Invalid SimExpiryDate '{sim_expiry_raw}', expected YYYY-MM-DD",
+                ))
+                failed_count += 1
+                continue
+
         # Build custom_fields from all other columns
         custom_fields = {}
         for col_name, col_value in row.items():
@@ -800,7 +829,8 @@ async def import_cameras_csv(
                 custom_fields=custom_fields if custom_fields else {},
                 project_id=project_id,
                 status='inventory',
-                config={}
+                config={},
+                sim_expiry_date=sim_expiry_date,
             )
 
             db.add(camera)

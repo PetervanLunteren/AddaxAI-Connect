@@ -9,6 +9,7 @@ Also runs scheduled jobs:
 - Email reports: daily at 06:00 UTC, weekly on Monday, monthly on 1st
 - Excessive image alerts at 06:30 UTC
 - Project inactivity alerts at 06:00 UTC
+- SIM expiry alerts on the 1st at 06:15 UTC
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -23,6 +24,7 @@ from battery_digest import send_daily_battery_digest
 from email_report import send_daily_reports, send_weekly_reports, send_monthly_reports
 from excessive_images import send_excessive_image_alerts
 from project_inactivity import send_project_inactivity_alerts
+from sim_expiry import send_sim_expiry_alerts
 from disk_usage_alert import check_disk_usage_and_alert
 from infra_alert import check_infra_alerts
 
@@ -153,6 +155,19 @@ def main() -> None:
         minute=0,
         id='project_inactivity_alerts',
         name='Send project inactivity alerts at 06:00 UTC'
+    )
+
+    # SIM expiry alerts - monthly on the 1st at 06:15 UTC. Sits 15 min after
+    # the monthly email_reports job at 06:00 so the two cron jobs do not slam
+    # the SMTP queue at the same instant.
+    scheduler.add_job(
+        send_sim_expiry_alerts,
+        'cron',
+        day=1,
+        hour=6,
+        minute=15,
+        id='sim_expiry_alerts',
+        name='Send SIM expiry alerts on the 1st at 06:15 UTC'
     )
 
     # Disk usage alert - hourly

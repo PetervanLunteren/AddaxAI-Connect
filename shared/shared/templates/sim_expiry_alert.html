@@ -1,0 +1,79 @@
+{% extends "base_email.html" %}
+
+{% block title %}{{ project_name }} - SIM expiry alert{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
+<p style="font-size: 16px; font-weight: 500; margin: 0; color: #1f2937;">SIM expiry alert</p>
+<p style="font-size: 14px; color: #6b7280; margin: 4px 0 0 0;">{{ date_label }}</p>
+{% endblock %}
+
+{% block content %}
+<!-- Summary stat -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td align="center" style="padding: 10px;">
+            <p style="font-size: 36px; font-weight: 700; color: #882000; line-height: 1.2; margin: 0;">{{ camera_count }}</p>
+            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">SIM card{{ 's' if camera_count != 1 else '' }} expiring on or before {{ threshold_label }}</p>
+        </td>
+    </tr>
+</table>
+<p style="font-size: 14px; color: #6b7280; text-align: center; margin: 8px 0 0 0;">Update each camera's SIM expiry date once the card is renewed. Cameras stay on this list until their date moves past the two-month window.</p>
+{% endblock %}
+
+{% block extra_sections %}
+<!-- Camera list -->
+<tr>
+    <td style="padding: 24px; border-top: 1px solid #e5e7eb;">
+        <h2 style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 16px 0;">Cameras</h2>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            {% for cam in cameras %}
+            <tr>
+                <td style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                    <!-- Camera name + ID -->
+                    <p style="font-size: 15px; font-weight: 600; color: #1f2937; margin: 0;">
+                        {{ cam.name }}
+                        {% if cam.device_id %}
+                        <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.device_id }}</span>
+                        {% endif %}
+                    </p>
+                    <!-- Status chip -->
+                    <p style="font-size: 14px; margin: 4px 0 0 0;">
+                        {% if cam.status == 'expired' %}
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: rgba(136, 32, 0, 0.12); color: #882000; font-weight: 600; font-size: 12px;">{{ cam.status_label }}</span>
+                        {% elif cam.status == 'expiring_soon' %}
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: rgba(255, 137, 69, 0.15); color: #b35a1a; font-weight: 600; font-size: 12px;">{{ cam.status_label }}</span>
+                        {% else %}
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: rgba(15, 96, 100, 0.10); color: #0f6064; font-weight: 600; font-size: 12px;">{{ cam.status_label }}</span>
+                        {% endif %}
+                        <span style="color: #6b7280; font-size: 13px;"> &middot; {{ cam.sim_expiry_date }}</span>
+                    </p>
+                    <!-- Notes -->
+                    {% if cam.notes %}
+                    <p style="font-size: 13px; color: #9ca3af; font-style: italic; margin: 4px 0 0 0;">{{ cam.notes }}</p>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </td>
+</tr>
+{% endblock %}
+
+{% block cta %}
+<tr>
+    <td style="padding: 24px; text-align: center;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+            <tr>
+                <td style="background: #0f6064; border-radius: 8px;">
+                    <a href="{{ cameras_url }}" style="display: inline-block; padding: 12px 28px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">Open camera list</a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_link %}
+<p style="margin: 0;"><a href="{{ settings_url }}" style="color: #0f6064; text-decoration: none;">Manage notification settings</a></p>
+{% endblock %}

@@ -43,6 +43,9 @@ export const NotificationsPage: React.FC = () => {
   // Project inactivity alerts state
   const [projectInactivityEnabled, setProjectInactivityEnabled] = useState(false);
 
+  // SIM expiry alert state (project admin only)
+  const [simExpiryEnabled, setSimExpiryEnabled] = useState(false);
+
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['notification-preferences', projectIdNum],
@@ -111,6 +114,10 @@ export const NotificationsPage: React.FC = () => {
         // Project inactivity alerts configuration
         const inactivityConfig = notificationChannels.project_inactivity || {};
         setProjectInactivityEnabled(inactivityConfig.enabled || false);
+
+        // SIM expiry alert configuration
+        const simExpiryConfig = notificationChannels.sim_expiry || {};
+        setSimExpiryEnabled(simExpiryConfig.enabled || false);
 
       } else {
         // Fall back to legacy fields if notification_channels doesn't exist
@@ -213,6 +220,9 @@ export const NotificationsPage: React.FC = () => {
       },
       project_inactivity: {
         enabled: projectInactivityEnabled
+      },
+      sim_expiry: {
+        enabled: simExpiryEnabled
       }
     };
 
@@ -360,6 +370,30 @@ export const NotificationsPage: React.FC = () => {
                       <select
                         value={projectInactivityEnabled ? 'enabled' : 'disabled'}
                         onChange={(e) => setProjectInactivityEnabled(e.target.value === 'enabled')}
+                        className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="disabled">Disabled</option>
+                        <option value="enabled">Enabled</option>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* SIM expiry alert row (project admins only) */}
+              {canAdminCurrentProject && (
+                <>
+                  <div className="border-t my-6" />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                    <div className="w-full sm:w-1/2 sm:shrink-0">
+                      <label className="text-sm font-medium block">SIM expiry alert</label>
+                      <p className="text-sm text-muted-foreground mt-1">Receive an email on the 1st of every month listing cameras in this project whose SIM card expires within the next two months or has already expired. The email keeps coming every month until the date is updated.</p>
+                    </div>
+                    <div className="flex-1 relative">
+                      <select
+                        value={simExpiryEnabled ? 'enabled' : 'disabled'}
+                        onChange={(e) => setSimExpiryEnabled(e.target.value === 'enabled')}
                         className="w-full h-10 px-3 pr-8 text-sm border border-input rounded-md bg-background text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-ring"
                       >
                         <option value="disabled">Disabled</option>

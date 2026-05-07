@@ -14,6 +14,7 @@ export interface CreateCameraRequest {
   custom_fields?: Record<string, string>;
   tags?: string[];
   project_id: number;
+  sim_expiry_date?: string | null;  // YYYY-MM-DD, null clears
 }
 
 export interface UpdateCameraRequest {
@@ -21,6 +22,7 @@ export interface UpdateCameraRequest {
   custom_fields?: Record<string, string>;
   notes?: string;
   tags?: string[];
+  sim_expiry_date?: string | null;  // YYYY-MM-DD; null clears the field
 }
 
 export interface CameraImportRow {
