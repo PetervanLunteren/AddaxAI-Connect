@@ -982,7 +982,7 @@ export const CamerasPage: React.FC = () => {
                       <div>
                         <p className="text-sm font-medium">Optionally add a name, notes, or SIM expiry</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Add <code className="bg-background px-1 rounded">Name</code>, <code className="bg-background px-1 rounded">Notes</code>, or <code className="bg-background px-1 rounded">SimExpiryDate</code> columns. Empty names default to the camera ID. SIM expiry dates use <code className="bg-background px-1 rounded">YYYY-MM-DD</code>; rows with a malformed date are rejected so you can fix them.
+                          Add <code className="bg-background px-1 rounded">Name</code>, <code className="bg-background px-1 rounded">Notes</code>, or <code className="bg-background px-1 rounded">SimExpiryDate</code> columns. Empty names default to the camera ID. SIM expiry dates use <code className="bg-background px-1 rounded">YYYY-MM-DD</code>.
                         </p>
                       </div>
                       <pre className="text-[11px] leading-relaxed bg-background p-2 rounded overflow-x-auto">
