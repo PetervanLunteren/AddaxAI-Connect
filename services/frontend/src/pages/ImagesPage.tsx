@@ -92,7 +92,7 @@ export const ImagesPage: React.FC = () => {
 
   // Initialize filters from URL query params (e.g. ?camera_id=5&show_empty=true)
   useEffect(() => {
-    if (!cameras) return;
+    if (!cameras || !rawLabelOptions) return;
     const cameraIdParam = searchParams.get('camera_id');
     const showEmptyParam = searchParams.get('show_empty');
     const speciesParam = searchParams.get('species');
@@ -111,9 +111,14 @@ export const ImagesPage: React.FC = () => {
       }
     }
 
-    // Backward compat: ?show_empty=true → select the "Empty" label
+    // The excessive-images email links here with show_empty=true. Tick every
+    // label so the user lands on all images of the camera, not just the
+    // empties that triggered the alert.
     if (showEmptyParam === 'true') {
-      updates.species = [{ label: 'Empty', value: 'empty' }];
+      updates.species = rawLabelOptions.map(opt => ({
+        label: opt.label,
+        value: opt.value,
+      }));
     }
 
     // Deep link from the Performance page confusion matrix.
@@ -136,7 +141,7 @@ export const ImagesPage: React.FC = () => {
       searchParams.delete('verified');
       setSearchParams(searchParams, { replace: true });
     }
-  }, [cameras]);
+  }, [cameras, rawLabelOptions]);
 
   // Fetch labels for filter dropdown (species + person/vehicle + empty)
   const { data: rawLabelOptions, isLoading: speciesLoading } = useQuery({
