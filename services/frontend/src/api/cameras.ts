@@ -99,6 +99,31 @@ export const camerasApi = {
   },
 
   /**
+   * Download every camera in a project as a CSV file. Resolves once the
+   * browser has been pushed an attachment download.
+   */
+  exportCSV: async (projectId: number): Promise<void> => {
+    const response = await apiClient.get('/api/cameras/export-csv', {
+      params: { project_id: projectId },
+      responseType: 'blob',
+    });
+    const blob = response.data as Blob;
+    // Pull the filename from Content-Disposition when present, fall back to a
+    // sensible default if the header is missing or malformed.
+    const disposition = response.headers?.['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] ?? `cameras_${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+  /**
    * Get all unique tags across cameras in a project
    */
   getTags: async (projectId?: number): Promise<string[]> => {

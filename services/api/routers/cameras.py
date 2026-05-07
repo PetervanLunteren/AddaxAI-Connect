@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, delete as sql_delete
 from pydantic import BaseModel
@@ -651,6 +652,143 @@ async def delete_camera(
 
     await db.delete(camera)
     await db.commit()
+
+
+@router.get("/export-csv")
+async def export_cameras_csv(
+    project_id: int = Query(..., description="Project to export"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Export every camera in a project as a CSV snapshot.
+
+    Returns one row per camera with the writable identity columns (matching
+    the import format so a round-trip via Import CSV works for those
+    fields), the operational snapshot from the last health report, and one
+    column per unique custom_fields key seen in the project. Available to
+    any project member; same threshold as viewing the cameras list.
+    """
+    if project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You do not have access to project {project_id}",
+        )
+
+    project = (await db.execute(
+        select(Project).where(Project.id == project_id)
+    )).scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project {project_id} not found",
+        )
+
+    cameras = (await db.execute(
+        select(Camera)
+        .where(Camera.project_id == project_id)
+        .order_by(Camera.name)
+    )).scalars().all()
+
+    # Same aggregations the list endpoint uses, so the CSV's last-image and
+    # last-report timestamps line up with what the user sees on screen.
+    camera_ids = [c.id for c in cameras]
+    last_captured_map: dict[int, datetime] = {}
+    last_reported_map: dict[int, datetime] = {}
+    if camera_ids:
+        captured_rows = await db.execute(
+            select(Image.camera_id, func.max(Image.captured_at))
+            .where(Image.camera_id.in_(camera_ids))
+            .group_by(Image.camera_id)
+        )
+        last_captured_map = {cam_id: ts for cam_id, ts in captured_rows.all()}
+
+        reported_rows = await db.execute(
+            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
+            .where(CameraHealthReport.camera_id.in_(camera_ids))
+            .group_by(CameraHealthReport.camera_id)
+        )
+        last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    custom_keys = sorted({
+        key
+        for c in cameras
+        if isinstance(c.custom_fields, dict)
+        for key in c.custom_fields.keys()
+    })
+
+    fixed_headers = [
+        # Writable identity columns. These names match the CSV import
+        # reserved-columns set so a snapshot can be edited and re-imported.
+        'CameraID', 'Name', 'Notes', 'Tags', 'SimExpiryDate',
+        # Identity (read-only on import today; safe to round-trip if added later).
+        'Manufacturer', 'Model', 'HardwareRevision',
+        # Operational snapshot, read-only.
+        'Status', 'BatteryPercent', 'SignalQuality', 'SDUsedPercent',
+        'TemperatureC', 'LastReportTimestamp', 'LastImageTimestamp',
+        # Location split out so spreadsheets can plot or filter.
+        'LocationLat', 'LocationLon',
+        # Lifecycle timestamps.
+        'InstalledAt', 'LastMaintenanceAt', 'CreatedAt',
+    ]
+    headers = fixed_headers + custom_keys
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(headers)
+
+    for camera in cameras:
+        health = camera.config.get('last_health_report', {}) if camera.config else {}
+        gps = camera.config.get('gps_from_report') if camera.config else None
+        last_captured = last_captured_map.get(camera.id)
+        last_reported = last_reported_map.get(camera.id)
+        custom = camera.custom_fields if isinstance(camera.custom_fields, dict) else {}
+
+        row = [
+            camera.device_id or '',
+            camera.name or '',
+            camera.notes or '',
+            ','.join(camera.tags) if camera.tags else '',
+            camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else '',
+            camera.manufacturer or '',
+            camera.model or '',
+            camera.hardware_revision or '',
+            _camera_status(last_reported),
+            health.get('battery_percentage', '') if health else '',
+            health.get('signal_quality', '') if health else '',
+            (
+                f"{round(health['sd_utilization_percentage'], 1)}"
+                if health and health.get('sd_utilization_percentage') is not None
+                else ''
+            ),
+            health.get('temperature') if health and health.get('temperature') is not None else '',
+            _localize(last_reported, tz) or '',
+            _localize(last_captured, tz) or '',
+            gps['lat'] if isinstance(gps, dict) and gps.get('lat') is not None else '',
+            gps['lon'] if isinstance(gps, dict) and gps.get('lon') is not None else '',
+            camera.installed_at.isoformat() if camera.installed_at else '',
+            camera.last_maintenance_at.isoformat() if camera.last_maintenance_at else '',
+            camera.created_at.isoformat() if camera.created_at else '',
+        ]
+        for key in custom_keys:
+            value = custom.get(key, '')
+            row.append(value if value is not None else '')
+        writer.writerow(row)
+
+    csv_bytes = buffer.getvalue().encode('utf-8-sig')  # BOM keeps Excel happy
+    safe_name = ''.join(ch if ch.isalnum() or ch in '-_' else '_' for ch in project.name).strip('_')
+    filename = f"cameras_{safe_name or 'project'}_{date.today().isoformat()}.csv"
+    return Response(
+        content=csv_bytes,
+        media_type='text/csv; charset=utf-8',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+        },
+    )
 
 
 @router.post(

@@ -34,7 +34,7 @@ Open follow-ups:
 
 # prio 1
 - [x] Customizable cameras-table columns. "Columns" dropdown next to Filters, checkbox per column, persists per-browser via localStorage. 13 columns available (the original 9 plus Camera ID, Temperature, Notes, SIM expiry); Name is locked on. Reorder, custom_fields keys, and DB-backed cross-device sync are tracked as future enhancements.
-- [ ] Add export to CSV from the cameras page, where it exports the entire cameras table.
+- [x] CSV export from the cameras page. "Export CSV" button on the toolbar (visible to any project member). One row per camera with writable identity columns (round-trippable with the existing import) plus an operational snapshot and one column per unique custom_fields key. UTF-8 BOM for Excel.
 - [ ] Add option for batch updates for the cameras. Handy for example new expiry dates etc. 
 - [ ] Add key board short cuts for "Add camera" button, so one can make it quick qworkflow to add multiple cameras. 
 - [ ] add a test to see the notificaitons for sim expiry date. Set a few this month and a few next month. 

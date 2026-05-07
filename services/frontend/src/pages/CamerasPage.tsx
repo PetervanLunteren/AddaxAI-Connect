@@ -21,6 +21,7 @@ import {
   Map as MapIcon,
   Table as TableIcon,
   Search,
+  Download,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -172,6 +173,13 @@ export const CamerasPage: React.FC = () => {
     },
     onError: (error: any) => {
       alert(`Failed to import CSV: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const exportMutation = useMutation({
+    mutationFn: (projectId: number) => camerasApi.exportCSV(projectId),
+    onError: (error: any) => {
+      alert(`Failed to export CSV: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -654,6 +662,22 @@ export const CamerasPage: React.FC = () => {
               onChange={setVisibleColumns}
             />
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => currentProject && exportMutation.mutate(currentProject.id)}
+            disabled={exportMutation.isPending || !currentProject}
+            className="whitespace-nowrap"
+            title="Download every camera in this project as CSV"
+          >
+            {exportMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1.5" />
+            )}
+            Export CSV
+          </Button>
         </div>
       )}
 
