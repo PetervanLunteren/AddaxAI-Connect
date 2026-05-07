@@ -77,6 +77,36 @@ class TestThresholdCheck:
         assert check_threshold(event, 0.0) is False
 
 
+def species_matches(notify_species, event_species):
+    """
+    Mirrors rule_engine.py:
+        notify_species = type_config.get('notify_species')
+        if not notify_species or species not in notify_species:
+            return None
+    Returns True if the species would be notified, False otherwise.
+    """
+    if not notify_species or event_species not in notify_species:
+        return False
+    return True
+
+
+class TestSpeciesFilter:
+    def test_empty_list_blocks_all(self):
+        assert species_matches([], "fox") is False
+
+    def test_none_blocks_all(self):
+        assert species_matches(None, "fox") is False
+
+    def test_species_in_list_passes(self):
+        assert species_matches(["fox", "deer"], "fox") is True
+
+    def test_species_not_in_list_blocked(self):
+        assert species_matches(["fox", "deer"], "wolf") is False
+
+    def test_single_item_list_passes(self):
+        assert species_matches(["fox"], "fox") is True
+
+
 class TestOriginalBugScenario:
     def test_bug_scenario_new_format(self):
         event = {

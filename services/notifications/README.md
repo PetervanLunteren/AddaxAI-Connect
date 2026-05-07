@@ -66,7 +66,7 @@ Event structure:
 ## Rule Engine
 
 Simple toggle-based rules (MVP):
-- **Species detection**: User's `notify_species` is null (all) OR contains species
+- **Species detection**: `notify_species` must be a non-empty list that contains the detected species. An empty or null list means no notifications.
 - **Low battery**: User's `notify_low_battery` is true AND battery <= user's `battery_threshold`
 - **System health**: User's `notify_system_health` is true (typically admins only)
 
