@@ -28,6 +28,21 @@ import { formatDate, formatDateShort } from '../utils/datetime';
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler, annotationPlugin);
 
+// Walk every date between `from` and `to` inclusive in UTC and emit the
+// "YYYY-MM-DD" key. Used to dense-fill the chart so days without a daily
+// report still render an x-axis tick (with no point or line, since the
+// tooltip and dataset null entries make the gap visible).
+function denseDateRange(from: string, to: string): string[] {
+  const out: string[] = [];
+  const cursor = new Date(from);
+  const end = new Date(to);
+  while (cursor.getTime() <= end.getTime()) {
+    out.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
 const SIGNAL_QUALITY_BANDS = [
   { label: 'Excellent', yMin: 20, yMax: 31, color: 'rgba(15, 96, 100, 0.10)' },
   { label: 'Good', yMin: 15, yMax: 20, color: 'rgba(113, 183, 186, 0.10)' },
@@ -114,28 +129,59 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
 
   const config = METRIC_CONFIG[selectedMetric];
 
+  // Build a dense date list across the active range and merge observed
+  // reports onto it. Days with no report carry a null value, which makes
+  // chart.js break the line and skip the marker at that x position. The
+  // axis tick still renders, so missing days remain visible.
+  const dense = useMemo(() => {
+    let fromDate: string;
+    let toDate: string;
+    if (timeRange === 'custom') {
+      if (!customStartDate || !customEndDate) return [];
+      fromDate = customStartDate;
+      toDate = customEndDate;
+    } else {
+      const days = parseInt(timeRange, 10);
+      const today = new Date();
+      toDate = today.toISOString().slice(0, 10);
+      today.setUTCDate(today.getUTCDate() - days);
+      fromDate = today.toISOString().slice(0, 10);
+    }
+
+    const observed = new Map<string, HealthReportPoint>();
+    data?.reports?.forEach((r) => observed.set(r.date, r));
+
+    return denseDateRange(fromDate, toDate).map((date) => ({
+      date,
+      report: observed.get(date) ?? null,
+    }));
+  }, [data, timeRange, customStartDate, customEndDate]);
+
   // Prepare chart data
   const chartData: ChartData<'line'> = useMemo(() => {
-    if (!data?.reports) {
+    if (dense.length === 0) {
       return { labels: [], datasets: [] };
     }
 
     return {
-      labels: data.reports.map((r) => formatDateShort(r.date)),
+      labels: dense.map((d) => formatDateShort(d.date)),
       datasets: [
         {
           label: config.label,
-          data: data.reports.map((r) => r[config.field] as number | null),
+          data: dense.map((d) =>
+            d.report ? (d.report[config.field] as number | null) : null,
+          ),
           borderColor: config.color,
           backgroundColor: `${config.color}33`,
           tension: 0.3,
           fill: true,
-          pointRadius: data.reports.length < 30 ? 3 : 0,
+          pointRadius: dense.length < 30 ? 3 : 0,
           pointHoverRadius: 5,
+          spanGaps: false,
         },
       ],
     };
-  }, [data, config]);
+  }, [dense, config]);
 
   const signalAnnotations = selectedMetric === 'signal'
     ? Object.fromEntries(
@@ -258,11 +304,10 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
       </div>
 
       {/* Summary stats */}
-      {data?.reports && data.reports.length > 0 && (
+      {data?.reports && data.reports.length > 0 && dense.length > 0 && (
         <p className="text-sm text-muted-foreground">
-          {data.reports.length} report{data.reports.length !== 1 ? 's' : ''} from{' '}
-          {formatDate(data.reports[0].date)} to{' '}
-          {formatDate(data.reports[data.reports.length - 1].date)}
+          {data.reports.length} report{data.reports.length !== 1 ? 's' : ''} across {dense.length} day{dense.length !== 1 ? 's' : ''}, from{' '}
+          {formatDate(dense[0].date)} to {formatDate(dense[dense.length - 1].date)}
         </p>
       )}
     </div>
