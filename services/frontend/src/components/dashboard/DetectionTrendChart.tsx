@@ -48,12 +48,42 @@ function getOptimalGranularity(startDate: string | null, endDate: string | null)
   return 'month';
 }
 
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+// ISO week key, "YYYY-WNN", anchored on the Thursday of the week so it lines
+// up with calendar weeks regardless of where the input date falls.
+function getWeekKey(dateStr: string): string {
+  const d = new Date(dateStr);
+  const temp = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  temp.setDate(temp.getDate() + 3 - ((temp.getDay() + 6) % 7));
+  const yearStart = new Date(temp.getFullYear(), 0, 1);
+  const weekNum = Math.ceil((((temp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${temp.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+function getMonthKey(dateStr: string): string {
+  return dateStr.slice(0, 7); // "YYYY-MM"
+}
+
+// Generate every bucket key between `from` and `to` inclusive at the given
+// granularity. Walks day-by-day in UTC and dedupes so week and month keys
+// come out without gaps even though those bins span irregular calendar days.
+function denseRangeKeys(
+  from: Date,
+  to: Date,
+  keyOf: (dateStr: string) => string,
+): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  const cursor = new Date(from);
+  while (cursor.getTime() <= to.getTime()) {
+    const iso = cursor.toISOString().slice(0, 10);
+    const k = keyOf(iso);
+    if (!seen.has(k)) {
+      seen.add(k);
+      keys.push(k);
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return keys;
 }
 
 export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRange, projectId, cameraIds }) => {
@@ -94,40 +124,33 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     enabled: projectId !== undefined && selectedSpecies !== null,
   });
 
-  // Group data by granularity
+  // Bucket observed counts and zero-fill every bin in the date range so days,
+  // weeks, or months without detections still show on the chart.
   const data = useMemo(() => {
     if (!rawData) return null;
-    if (granularity === 'day') return rawData;
 
-    const groups = new Map<string, number>();
+    const keyOf: (d: string) => string =
+      granularity === 'day'
+        ? (d) => d
+        : granularity === 'week'
+          ? getWeekKey
+          : getMonthKey;
 
+    const bucketed = new Map<string, number>();
     rawData.forEach((point) => {
-      const date = new Date(point.date);
-      let key: string;
-
-      if (granularity === 'week') {
-        const week = getWeekNumber(date);
-        const year = date.getFullYear();
-        key = `${year}-W${week.toString().padStart(2, '0')}`;
-      } else {
-        // Month key: sortable YYYY-MM format
-        key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      }
-
-      groups.set(key, (groups.get(key) ?? 0) + point.count);
+      const k = keyOf(point.date);
+      bucketed.set(k, (bucketed.get(k) ?? 0) + point.count);
     });
 
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, count]) => {
-        let label = key;
-        if (granularity === 'month') {
-          const [y, m] = key.split('-');
-          label = formatMonth(new Date(Number(y), Number(m) - 1));
-        }
-        return { date: label, count };
-      });
-  }, [rawData, granularity]);
+    // Filter range wins; fall back to the first/last observed dates so the
+    // chart still has a span when no explicit range is set.
+    const from = dateRange.startDate ?? rawData[0]?.date ?? null;
+    const to = dateRange.endDate ?? rawData[rawData.length - 1]?.date ?? null;
+    if (!from || !to) return [];
+
+    const keys = denseRangeKeys(new Date(from), new Date(to), keyOf);
+    return keys.map((key) => ({ key, count: bucketed.get(key) ?? 0 }));
+  }, [rawData, granularity, dateRange.startDate, dateRange.endDate]);
 
   // Use species color if selected, otherwise teal
   const lineColor =
@@ -157,16 +180,19 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     return gradient;
   };
 
-  // Format labels based on granularity
-  const formatLabel = (d: { date: string }) => {
-    if (granularity === 'day') {
-      return formatDateShort(d.date);
+  // Format raw bucket keys for display. Day keys become short dates, week
+  // keys stay as "YYYY-WNN", month keys become localized "Mon YYYY".
+  const formatLabel = (key: string) => {
+    if (granularity === 'day') return formatDateShort(key);
+    if (granularity === 'month') {
+      const [y, m] = key.split('-');
+      return formatMonth(new Date(Number(y), Number(m) - 1));
     }
-    return d.date; // Week/month labels are already formatted
+    return key;
   };
 
   const chartData: ChartData<'line'> = {
-    labels: data?.map(formatLabel) ?? [],
+    labels: data?.map((d) => formatLabel(d.key)) ?? [],
     datasets: [
       {
         label: 'Detections',
