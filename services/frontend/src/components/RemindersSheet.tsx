@@ -264,7 +264,7 @@ const ReminderEditDialog: React.FC<ReminderEditDialogProps> = ({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={5}
-              placeholder="e.g. Project ends Friday. Email John Doe to talk about next steps."
+              placeholder="e.g., The breeding season is about to start, do not forget to remove the cameras before it is too late."
               className="w-full px-3 py-2 border rounded-md text-sm"
             />
           </div>
