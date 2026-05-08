@@ -4,7 +4,8 @@ Statistics endpoints for dashboard metrics and charts.
 from typing import List, Optional, Any, Dict, Tuple
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func, and_, desc, text
@@ -27,6 +28,8 @@ from utils.preferred_counts import (
     get_preferred_daily_trend,
     get_preferred_species_first_dates,
     get_preferred_species_camera_matrix,
+    get_naive_occupancy,
+    get_detection_history,
 )
 from utils.independence_filter import (
     get_independent_species_counts,
@@ -1142,6 +1145,180 @@ async def get_occupancy_matrix(
         cameras=cameras,
         species=species_list,
         matrix=matrix,
+    )
+
+
+class NaiveOccupancyPoint(BaseModel):
+    """Naive occupancy for a single species in a window."""
+    species: str
+    sites_detected: int
+    sites_total: int
+    proportion: float  # sites_detected / sites_total, 0.0 when sites_total == 0
+
+
+class NaiveOccupancyMetadata(BaseModel):
+    """
+    Parameters that produced a naive-occupancy response. Surfacing every
+    threshold and the date window makes the chart number reproducible from the
+    raw data and the detection-history CSV export.
+    """
+    window_start: str  # ISO date
+    window_end: str
+    sites_total: int
+    project_ids: List[int]
+    detection_threshold: Optional[float]  # null when multiple projects with different settings
+    classification_threshold_default: Optional[float]  # null when multiple projects, or unset
+    independence_interval_minutes_recorded: int  # declared but NOT applied to naive occupancy
+    note: str = (
+        "Naive occupancy is uncorrected for imperfect detection probability. "
+        "Use the detection-history CSV with unmarked / camtrapR to estimate psi."
+    )
+
+
+class NaiveOccupancyResponse(BaseModel):
+    points: List[NaiveOccupancyPoint]
+    metadata: NaiveOccupancyMetadata
+
+
+@router.get(
+    "/naive-occupancy",
+    response_model=NaiveOccupancyResponse,
+)
+async def get_naive_occupancy_endpoint(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
+    top_n: int = Query(15, ge=1, le=50, description="Maximum number of species to return"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Naive occupancy per species: proportion of active camera sites where the
+    species was detected at least once during the window.
+
+    "Naive" because no correction is made for imperfect detection probability
+    (MacKenzie et al. 2002). For estimated occupancy psi, export the
+    detection-history CSV and run unmarked::occu() / camtrapR.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+
+    # Default to last 30 days, matching /detection-trend convention.
+    if not start_date and not end_date:
+        end_dt = await _server_now(db)
+        start_dt = end_dt - timedelta(days=30)
+    else:
+        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else await _server_now(db) - timedelta(days=30)
+        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else await _server_now(db)
+
+    points_raw, sites_total = await get_naive_occupancy(
+        db=db,
+        project_ids=accessible_project_ids,
+        start_date=start_dt,
+        end_date=end_dt,
+        camera_ids=camera_id_list,
+        top_n=top_n,
+    )
+    points = [
+        NaiveOccupancyPoint(
+            species=p["species"],
+            sites_detected=p["sites_detected"],
+            sites_total=sites_total,
+            proportion=(p["sites_detected"] / sites_total) if sites_total > 0 else 0.0,
+        )
+        for p in points_raw
+    ]
+
+    # Surface per-project thresholds in the metadata only when a single project
+    # is in scope; cross-project views can't summarise into one number.
+    detection_threshold: Optional[float] = None
+    classification_threshold_default: Optional[float] = None
+    if len(accessible_project_ids) == 1:
+        proj_row = (await db.execute(
+            select(Project.detection_threshold, Project.classification_thresholds)
+            .where(Project.id == accessible_project_ids[0])
+        )).one_or_none()
+        if proj_row is not None:
+            detection_threshold = float(proj_row.detection_threshold)
+            cthresholds = proj_row.classification_thresholds or {}
+            default = cthresholds.get("default") if isinstance(cthresholds, dict) else None
+            classification_threshold_default = float(default) if default is not None else None
+
+    interval = await _get_independence_interval(db, project_id)
+
+    return NaiveOccupancyResponse(
+        points=points,
+        metadata=NaiveOccupancyMetadata(
+            window_start=start_dt.date().isoformat(),
+            window_end=end_dt.date().isoformat(),
+            sites_total=sites_total,
+            project_ids=accessible_project_ids,
+            detection_threshold=detection_threshold,
+            classification_threshold_default=classification_threshold_default,
+            independence_interval_minutes_recorded=interval,
+        ),
+    )
+
+
+@router.get("/detection-history.csv")
+async def get_detection_history_csv(
+    project_id: int = Query(..., description="Project to export from (single project required)"),
+    start_date: date = Query(..., description="Window start (YYYY-MM-DD)"),
+    end_date: date = Query(..., description="Window end (YYYY-MM-DD)"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    occasion_length_days: int = Query(1, ge=1, le=30, description="Length of one occasion in days"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Stream a Camtrap-DP-flavoured detection-history CSV for the given project
+    and window. One row per (active camera site, occasion, observed species).
+
+    Cell encoding for the `detected` column:
+    - `1` — at least one detection of that species at that camera in that occasion
+    - `0` — camera was active that occasion, no detection of that species
+    - empty — camera was not active that occasion (NA in unmarked / camtrapR)
+
+    Designed to drop into R via `read.csv() |> tidyr::pivot_wider(names_from = occasion, values_from = detected)`.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    if not accessible_project_ids:
+        raise HTTPException(status_code=403, detail="No access to this project.")
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+
+    # Build the streaming generator. Each yielded chunk is one CSV line.
+    async def stream():
+        header = "locationID,locationName,latitude,longitude,occasion,occasion_start,occasion_end,species,detected\n"
+        yield header
+        async for row in get_detection_history(
+            db=db,
+            project_ids=accessible_project_ids,
+            start_date=start_date,
+            end_date=end_date,
+            camera_ids=camera_id_list,
+            occasion_length_days=occasion_length_days,
+        ):
+            # CSV escape camera name in case it contains a comma or quote.
+            name = row["locationName"] or ""
+            if any(ch in name for ch in (',', '"', '\n', '\r')):
+                name = '"' + name.replace('"', '""') + '"'
+            lat = "" if row["latitude"] is None else f"{row['latitude']:.6f}"
+            lon = "" if row["longitude"] is None else f"{row['longitude']:.6f}"
+            detected_cell = "" if row["detected"] is None else str(row["detected"])
+            yield (
+                f"{row['locationID']},{name},{lat},{lon},"
+                f"{row['occasion']},{row['occasion_start']},{row['occasion_end']},"
+                f"{row['species']},{detected_cell}\n"
+            )
+
+    filename = f"detection-history-project-{project_id}-{start_date}-to-{end_date}.csv"
+    return StreamingResponse(
+        stream(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

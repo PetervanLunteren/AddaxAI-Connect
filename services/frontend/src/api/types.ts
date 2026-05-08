@@ -559,6 +559,37 @@ export interface IndependenceSummaryResponse {
   species: IndependenceSummarySpecies[];
 }
 
+// Naive occupancy (per-species presence/absence proportion at active sites)
+export interface NaiveOccupancyPoint {
+  species: string;
+  sites_detected: number;
+  sites_total: number;
+  proportion: number;
+}
+
+export interface NaiveOccupancyMetadata {
+  window_start: string;  // YYYY-MM-DD
+  window_end: string;    // YYYY-MM-DD
+  sites_total: number;
+  project_ids: number[];
+  detection_threshold: number | null;
+  classification_threshold_default: number | null;
+  independence_interval_minutes_recorded: number;
+  note: string;
+}
+
+export interface NaiveOccupancyResponse {
+  points: NaiveOccupancyPoint[];
+  metadata: NaiveOccupancyMetadata;
+}
+
+export interface NaiveOccupancyFilters {
+  start_date?: string;
+  end_date?: string;
+  camera_ids?: string;
+  top_n?: number;
+}
+
 // Taxonomy mapping
 export interface TaxonomyMappingEntry {
   id: number;

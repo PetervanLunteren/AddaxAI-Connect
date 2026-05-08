@@ -28,6 +28,7 @@ import {
   DateRange,
   ActivityPatternChart,
   DetectionTrendChart,
+  NaiveOccupancyChart,
   AlertCounters,
   SpeciesComparisonChart,
   DashboardFilters,
@@ -284,6 +285,9 @@ export const Dashboard: React.FC = () => {
         </Card>
         <DetectionTrendChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
       </div>
+
+      {/* Naive occupancy: per-species presence/absence proportion across active sites */}
+      <NaiveOccupancyChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
 
       {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">

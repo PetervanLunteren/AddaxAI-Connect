@@ -15,6 +15,8 @@ import type {
   DateRangeFilters,
   DetectionTrendPoint,
   DetectionTrendFilters,
+  NaiveOccupancyResponse,
+  NaiveOccupancyFilters,
   PipelineStatusResponse,
   DetectionCountResponse,
   IndependenceSummaryResponse,
@@ -140,6 +142,51 @@ export const statisticsApi = {
 
     const response = await apiClient.get<DetectionTrendPoint[]>(url);
     return response.data;
+  },
+
+  /**
+   * Naive occupancy per species: sites_detected / sites_total over a window.
+   */
+  getNaiveOccupancy: async (
+    projectId?: number,
+    filters?: NaiveOccupancyFilters,
+  ): Promise<NaiveOccupancyResponse> => {
+    const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.top_n !== undefined) params.append('top_n', filters.top_n.toString());
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/naive-occupancy?${queryString}`
+      : '/api/statistics/naive-occupancy';
+
+    const response = await apiClient.get<NaiveOccupancyResponse>(url);
+    return response.data;
+  },
+
+  /**
+   * Build the URL for the detection-history CSV download. The browser hits
+   * this directly (no axios wrapper) so the response streams as a download.
+   * Returns the URL or null if required params are missing.
+   */
+  getDetectionHistoryCsvUrl: (
+    projectId: number,
+    startDate: string,
+    endDate: string,
+    options?: { cameraIds?: string; occasionLengthDays?: number },
+  ): string => {
+    const params = new URLSearchParams();
+    params.append('project_id', projectId.toString());
+    params.append('start_date', startDate);
+    params.append('end_date', endDate);
+    if (options?.cameraIds) params.append('camera_ids', options.cameraIds);
+    if (options?.occasionLengthDays !== undefined) {
+      params.append('occasion_length_days', options.occasionLengthDays.toString());
+    }
+    return `/api/statistics/detection-history.csv?${params.toString()}`;
   },
 
   /**

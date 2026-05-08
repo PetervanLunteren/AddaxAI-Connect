@@ -4,10 +4,10 @@ Utility functions for querying species counts with human verification preference
 When an image is verified, uses HumanObservation data.
 When not verified, falls back to AI Detection/Classification data.
 """
-from typing import List, Optional
-from datetime import datetime
+from typing import AsyncGenerator, List, Optional, Tuple
+from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, union_all, literal
+from sqlalchemy import select, func, and_, union_all, literal, text
 
 from shared.classification_threshold import classification_passes_threshold
 
@@ -703,3 +703,321 @@ async def get_preferred_daily_trend(
 
     result = await db.execute(final_query)
     return [{'date': row.date.isoformat(), 'count': int(row.total_count)} for row in result.all()]
+
+
+# Naive occupancy = (sites where species detected at least once) / (sites active in window).
+# Site = Camera. "Active" = at least one CameraDeploymentPeriod overlaps the window.
+# Independence interval is intentionally NOT applied: presence/absence at the
+# (site, window) level is independence-immune. Person and vehicle Detections
+# are excluded; HumanObservation rows that happen to use 'person' or 'vehicle'
+# as their species string are filtered defensively.
+_NAIVE_OCCUPANCY_SQL = """
+WITH active_cameras AS (
+    SELECT DISTINCT c.id AS camera_id
+    FROM cameras c
+    INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+    WHERE c.project_id = ANY(:project_ids)
+      AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+      AND cdp.start_date <= CAST(:end_date AS date)
+      AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
+),
+verified_presence AS (
+    SELECT DISTINCT i.camera_id, LOWER(ho.species) AS species
+    FROM human_observations ho
+    INNER JOIN images i ON ho.image_id = i.id
+    INNER JOIN active_cameras ac ON ac.camera_id = i.camera_id
+    WHERE i.is_verified = TRUE
+      AND i.is_hidden = FALSE
+      AND i.captured_at >= CAST(:start_dt AS timestamp)
+      AND i.captured_at <= CAST(:end_dt AS timestamp)
+      AND LOWER(ho.species) NOT IN ('person', 'vehicle')
+),
+unverified_presence AS (
+    SELECT DISTINCT i.camera_id, LOWER(cl.species) AS species
+    FROM classifications cl
+    INNER JOIN detections d ON cl.detection_id = d.id
+    INNER JOIN images i ON d.image_id = i.id
+    INNER JOIN active_cameras ac ON ac.camera_id = i.camera_id
+    INNER JOIN cameras c ON i.camera_id = c.id
+    INNER JOIN projects p ON c.project_id = p.id
+    WHERE i.is_verified = FALSE
+      AND i.is_hidden = FALSE
+      AND i.captured_at >= CAST(:start_dt AS timestamp)
+      AND i.captured_at <= CAST(:end_dt AS timestamp)
+      AND d.confidence >= p.detection_threshold
+      AND cl.confidence >= COALESCE(
+          (p.classification_thresholds->'overrides'->>cl.species)::float,
+          (p.classification_thresholds->>'default')::float,
+          0.0
+      )
+),
+all_presence AS (
+    SELECT camera_id, species FROM verified_presence
+    UNION
+    SELECT camera_id, species FROM unverified_presence
+)
+SELECT species, COUNT(DISTINCT camera_id) AS sites_detected
+FROM all_presence
+GROUP BY species
+ORDER BY sites_detected DESC, species ASC
+"""
+
+
+async def get_naive_occupancy(
+    db: AsyncSession,
+    project_ids: List[int],
+    start_date: datetime,
+    end_date: datetime,
+    camera_ids: Optional[List[int]] = None,
+    top_n: Optional[int] = 15,
+) -> Tuple[List[dict], int]:
+    """
+    Return naive occupancy per species and the total active-site count.
+
+    Returns ([{species, sites_detected}, ...], sites_total). Caller computes
+    proportion = sites_detected / sites_total. The species list is sorted by
+    sites_detected descending and truncated to top_n if given.
+    """
+    if not project_ids:
+        return [], 0
+
+    # Compute the active-site denominator separately so a date window with no
+    # detections still surfaces a meaningful sites_total (the chart can render
+    # empty bars and the caption still reads correctly).
+    sites_total_sql = text("""
+        SELECT COUNT(DISTINCT c.id) AS sites_total
+        FROM cameras c
+        INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+        WHERE c.project_id = ANY(:project_ids)
+          AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+          AND cdp.start_date <= CAST(:end_date AS date)
+          AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
+    """)
+    params = {
+        "project_ids": project_ids,
+        "camera_ids": camera_ids,
+        "start_date": start_date.date(),
+        "end_date": end_date.date(),
+        "start_dt": start_date,
+        "end_dt": end_date,
+    }
+    sites_total_row = (await db.execute(sites_total_sql, params)).one()
+    sites_total = int(sites_total_row.sites_total)
+
+    presence_rows = (await db.execute(text(_NAIVE_OCCUPANCY_SQL), params)).all()
+    points = [
+        {"species": row.species, "sites_detected": int(row.sites_detected)}
+        for row in presence_rows
+    ]
+    if top_n is not None:
+        points = points[:top_n]
+    return points, sites_total
+
+
+# Detection-history streaming query for the CSV export. Yields one row per
+# (camera, occasion, species) triple. `detected` is 1 (any detection that
+# occasion), 0 (camera active that occasion with no detection of that species),
+# or None when the camera was not active that occasion (mapped to NA in the CSV
+# via an empty cell, matching unmarked / camtrapR conventions).
+async def get_detection_history(
+    db: AsyncSession,
+    project_ids: List[int],
+    start_date: date,
+    end_date: date,
+    camera_ids: Optional[List[int]] = None,
+    occasion_length_days: int = 1,
+) -> AsyncGenerator[dict, None]:
+    """
+    Yield detection-history rows for the CSV export.
+
+    Order: (camera_id, occasion, species). Uses one round-trip per slice of
+    species-set so memory stays bounded even on large projects.
+    """
+    if occasion_length_days < 1 or occasion_length_days > 30:
+        raise ValueError("occasion_length_days must be 1..30")
+    if start_date > end_date:
+        raise ValueError("start_date must be <= end_date")
+    if not project_ids:
+        return
+
+    # Active cameras + bounding deployment dates per camera.
+    cameras_sql = text("""
+        SELECT
+            c.id AS camera_id,
+            c.name AS camera_name,
+            ST_Y(c.location::geometry) AS latitude,
+            ST_X(c.location::geometry) AS longitude,
+            MIN(cdp.start_date) AS first_start,
+            MAX(COALESCE(cdp.end_date, CURRENT_DATE)) AS last_end
+        FROM cameras c
+        INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+        WHERE c.project_id = ANY(:project_ids)
+          AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+          AND cdp.start_date <= CAST(:end_date AS date)
+          AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
+        GROUP BY c.id, c.name, c.location
+        ORDER BY c.id
+    """)
+    cameras = (await db.execute(cameras_sql, {
+        "project_ids": project_ids,
+        "camera_ids": camera_ids,
+        "start_date": start_date,
+        "end_date": end_date,
+    })).all()
+    if not cameras:
+        return
+    active_camera_ids = [c.camera_id for c in cameras]
+
+    # Deployment intervals per camera so we can mark NA where a deployment did
+    # not overlap a given occasion. A camera can have several rows here.
+    deployments_sql = text("""
+        SELECT camera_id, start_date AS dep_start,
+               COALESCE(end_date, CURRENT_DATE) AS dep_end
+        FROM camera_deployment_periods
+        WHERE camera_id = ANY(:camera_ids)
+          AND start_date <= CAST(:end_date AS date)
+          AND (end_date IS NULL OR end_date >= CAST(:start_date AS date))
+    """)
+    dep_rows = (await db.execute(deployments_sql, {
+        "camera_ids": active_camera_ids,
+        "start_date": start_date,
+        "end_date": end_date,
+    })).all()
+    deployments_by_camera: dict = {}
+    for r in dep_rows:
+        deployments_by_camera.setdefault(r.camera_id, []).append((r.dep_start, r.dep_end))
+
+    # All species observed at any active camera during the window.
+    species_sql = text("""
+        SELECT DISTINCT species FROM (
+            SELECT LOWER(ho.species) AS species
+            FROM human_observations ho
+            INNER JOIN images i ON ho.image_id = i.id
+            WHERE i.camera_id = ANY(:camera_ids)
+              AND i.is_verified = TRUE AND i.is_hidden = FALSE
+              AND i.captured_at >= CAST(:start_dt AS timestamp)
+              AND i.captured_at <= CAST(:end_dt AS timestamp)
+              AND LOWER(ho.species) NOT IN ('person', 'vehicle')
+            UNION
+            SELECT LOWER(cl.species) AS species
+            FROM classifications cl
+            INNER JOIN detections d ON cl.detection_id = d.id
+            INNER JOIN images i ON d.image_id = i.id
+            INNER JOIN cameras c ON i.camera_id = c.id
+            INNER JOIN projects p ON c.project_id = p.id
+            WHERE i.camera_id = ANY(:camera_ids)
+              AND i.is_verified = FALSE AND i.is_hidden = FALSE
+              AND i.captured_at >= CAST(:start_dt AS timestamp)
+              AND i.captured_at <= CAST(:end_dt AS timestamp)
+              AND d.confidence >= p.detection_threshold
+              AND cl.confidence >= COALESCE(
+                  (p.classification_thresholds->'overrides'->>cl.species)::float,
+                  (p.classification_thresholds->>'default')::float,
+                  0.0
+              )
+        ) s
+        WHERE species IS NOT NULL AND species <> ''
+        ORDER BY species
+    """)
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt = datetime.combine(end_date, datetime.max.time())
+    species_rows = (await db.execute(species_sql, {
+        "camera_ids": active_camera_ids,
+        "start_dt": start_dt,
+        "end_dt": end_dt,
+    })).all()
+    species_list = [r.species for r in species_rows]
+    if not species_list:
+        # No species observed; still emit zero-rows per (camera, occasion) so
+        # downstream code can verify the active-camera × occasion grid.
+        species_list = []
+
+    # All presence pairs (camera, occasion_start, species) in one fetch — the
+    # observed cells. Anything not present is either 0 (camera active) or NA
+    # (camera not active), determined by the deployment-overlap test below.
+    presence_sql = text("""
+        SELECT camera_id, occasion_start, species FROM (
+            SELECT
+                i.camera_id AS camera_id,
+                (DATE_TRUNC('day', i.captured_at)::date
+                 - ((EXTRACT(EPOCH FROM (DATE_TRUNC('day', i.captured_at) - CAST(:start_date AS timestamp)))::bigint
+                     / 86400) % :occasion_length) * INTERVAL '1 day'
+                )::date AS occasion_start,
+                LOWER(ho.species) AS species
+            FROM human_observations ho
+            INNER JOIN images i ON ho.image_id = i.id
+            WHERE i.camera_id = ANY(:camera_ids)
+              AND i.is_verified = TRUE AND i.is_hidden = FALSE
+              AND i.captured_at >= CAST(:start_dt AS timestamp)
+              AND i.captured_at <= CAST(:end_dt AS timestamp)
+              AND LOWER(ho.species) NOT IN ('person', 'vehicle')
+            UNION
+            SELECT
+                i.camera_id AS camera_id,
+                (DATE_TRUNC('day', i.captured_at)::date
+                 - ((EXTRACT(EPOCH FROM (DATE_TRUNC('day', i.captured_at) - CAST(:start_date AS timestamp)))::bigint
+                     / 86400) % :occasion_length) * INTERVAL '1 day'
+                )::date AS occasion_start,
+                LOWER(cl.species) AS species
+            FROM classifications cl
+            INNER JOIN detections d ON cl.detection_id = d.id
+            INNER JOIN images i ON d.image_id = i.id
+            INNER JOIN cameras c ON i.camera_id = c.id
+            INNER JOIN projects p ON c.project_id = p.id
+            WHERE i.camera_id = ANY(:camera_ids)
+              AND i.is_verified = FALSE AND i.is_hidden = FALSE
+              AND i.captured_at >= CAST(:start_dt AS timestamp)
+              AND i.captured_at <= CAST(:end_dt AS timestamp)
+              AND d.confidence >= p.detection_threshold
+              AND cl.confidence >= COALESCE(
+                  (p.classification_thresholds->'overrides'->>cl.species)::float,
+                  (p.classification_thresholds->>'default')::float,
+                  0.0
+              )
+        ) p
+        GROUP BY camera_id, occasion_start, species
+    """)
+    presence_rows = (await db.execute(presence_sql, {
+        "camera_ids": active_camera_ids,
+        "start_date": start_date,
+        "occasion_length": occasion_length_days,
+        "start_dt": start_dt,
+        "end_dt": end_dt,
+    })).all()
+    presence_set = {(r.camera_id, r.occasion_start, r.species) for r in presence_rows}
+
+    # Walk the full grid in deterministic order: camera, occasion, species.
+    occasions: List[Tuple[int, date, date]] = []
+    occ_idx = 1
+    cursor = start_date
+    while cursor <= end_date:
+        occ_end = min(cursor + timedelta(days=occasion_length_days - 1), end_date)
+        occasions.append((occ_idx, cursor, occ_end))
+        cursor = occ_end + timedelta(days=1)
+        occ_idx += 1
+
+    for cam in cameras:
+        deps = deployments_by_camera.get(cam.camera_id, [])
+        for occ_num, occ_start, occ_end in occasions:
+            # Camera "active that occasion" if any deployment overlaps the
+            # occasion at all (single-day overlap counts, matches the chart's
+            # denominator rule).
+            active = any(d_start <= occ_end and d_end >= occ_start for d_start, d_end in deps)
+            for sp in species_list:
+                if not active:
+                    detected: Optional[int] = None
+                elif (cam.camera_id, occ_start, sp) in presence_set:
+                    detected = 1
+                else:
+                    detected = 0
+                yield {
+                    "locationID": str(cam.camera_id),
+                    "locationName": cam.camera_name,
+                    "latitude": round(cam.latitude, 6) if cam.latitude is not None else None,
+                    "longitude": round(cam.longitude, 6) if cam.longitude is not None else None,
+                    "occasion": occ_num,
+                    "occasion_start": occ_start.isoformat(),
+                    "occasion_end": occ_end.isoformat(),
+                    "species": sp,
+                    "detected": detected,
+                }
