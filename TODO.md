@@ -42,6 +42,97 @@ Open follow-ups:
 - [ ] See email from Quentin with TODOs
 - [ ]
 
+
+
+
+> Naïve occupancy metric
+We frequently use the naïve occupancy metric (i.e., the proportion of sites where a species is detected out of the total number of sampled sites). Could a visualization on the dashboard represent this? eg: bar plot comparing species?
+- [ ] Have a look at how AddaxAI-WbUI does its insight pages. That way we have a little bit more room for analysis page wide. The dasboard is for quick views, the insights are for deeper analysis. WOuld you think something like this would work for AddaxAI Connect too? If so, how? WHich ones would make sense to move to a separate insights page? My thoughts are:
+- Move the Naive occupancy to a separate page under insights. More room for an elaborate analysis. 
+- move map to insights,
+- move performace to insights, and make it two pages (just like AddaxAI WebUI - skip the redundant one)
+- Make the same activity overlap as WebUI and remove the Species activity comparison from the dasboard () redundant then.
+- Should we make a deployment timeline just like at AddaxAI-WebUI?
+
+For all, use the same format, filters, "ABout this view" section etc. It must feel the same in AddaxAI Connect as in AddaxAI WebUI.
+
+What do you think? Are there any difficulties? Anything worth flagging? Your honest opinion. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Detection categories summaries are always zero…
+
+image.png
+
+Detection map visualization
+On the detection map, points with no detections are difficult to distinguish from those with detections due to low contrast. Could the visualization be improved—for example, by displaying no-detection sites as transparent or hollow circles?
+
+image.png
+Activity pattern comparison graph
+This graph is very useful, but differences in the number of detections between species make it difficult to read. Would it be possible to compare relative frequencies instead of absolute counts? Additionally, the color contrast could be improved for better readability.
+
+image.png
+Confusion matrix navigation
+Clicking on a cell in the confusion matrix is very helpful for reviewing images and understanding misclassifications. However, the link currently leads to all images of the species rather than only those corresponding to the selected cell (e.g., false negatives). Could this be corrected so that it filters images based on the specific AI vs. human classification outcome?
+
+image.png
+Notifications
+Currently, notifications can be configured by species. Could we also select specific cameras for which alerts should be triggered?
+
+Would it be possible to enable email notifications?
+
+image.png
+Data labeling and classification
+In some cases, species cannot be identified. Could an “Undetermined” or “Unknown” category be added for labeling?
+
+image.png
+In cases where the system correctly identifies a general category (e.g., “bird”), could we allow a secondary manual classification to refine the species (e.g., “Black Stork”), even if it is not recognized by the AI model?
+These manual refinements would not need to affect performance metrics but should be reflected in the dashboard and available as filters when browsing images.
+A similar example is the “Mustelids” category, which could be split into multiple clearly identifiable species.
+
+image.png
+
+Image management
+Could a zoom function be added when viewing images?
+
+Would it be possible to manually delete images without affecting the associated statistics and performance metrics?
+In other words, the metadata would remain, but the image file would be removed. This would help free up significant storage space on the server. In practice, images are rarely revisited after initial review, and we could download them in bulk to local storage before deletion.
+This would be especially useful for removing empty images that take up unnecessary space.
+
+Could a filter be added to browse images based on detection or classification confidence?
+This would make it easier to identify borderline cases. For example: Select raccoon images with classification confidence > 80%.
+
+Could a “Select all” option be implemented for filtered image sets, with batch actions such as:
+
+Deleting selected images (e.g., empty images)
+
+Downloading all selected images at once
+
+image.png
+
+General questions
+During the last meeting, I asked about the possibility of manually uploading images, to open the use of Addax with non-connected camera traps. However, I understand that this was not aligned with Addax’s current development priorities. As it would be a real game changer, do you think this significant improvement could be technically implemented in the future ?
+
+Would it be possible to obtain the phone numbers associated with the SIM cards in order to test the remote control of the devices?
+
+
+
+
+
+
+
 ## TODO Priority 2
 - [ ] 
 
