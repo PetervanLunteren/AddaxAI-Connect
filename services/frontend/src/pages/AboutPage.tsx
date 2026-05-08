@@ -32,7 +32,7 @@ export const AboutPage: React.FC = () => {
     >
       <Card>
         <CardHeader>
-          <img src="/logo-wide.svg" alt="AddaxAI Connect" className="h-10 w-auto" />
+          <img src="/logo-wide.svg" alt="AddaxAI Connect" className="h-20 w-auto self-start" />
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
