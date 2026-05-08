@@ -66,7 +66,7 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <AuthLayout title="AddaxAI Connect" subtitle={isDemoMode ? "Explore the platform with a demo account" : "Sign in to your account"}>
+    <AuthLayout subtitle={isDemoMode ? "Explore the platform with a demo account" : "Sign in to your account"}>
       <div className="space-y-6">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">

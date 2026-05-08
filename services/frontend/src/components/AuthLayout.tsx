@@ -6,7 +6,7 @@
 import React from 'react';
 
 interface AuthLayoutProps {
-  title: string;
+  title?: string;
   subtitle?: string;
   children: React.ReactNode;
 }
@@ -30,14 +30,16 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
             <img
               src="/logo-wide.svg"
               alt="AddaxAI Connect"
-              className="h-12 w-auto"
+              className="h-20 w-auto"
             />
           </div>
         </div>
 
-        <h2 className="mt-6 text-center text-3xl font-bold text-white drop-shadow-lg">
-          {title}
-        </h2>
+        {title && (
+          <h2 className="mt-6 text-center text-3xl font-bold text-white drop-shadow-lg">
+            {title}
+          </h2>
+        )}
         {subtitle && (
           <p className="mt-2 text-center text-sm text-gray-100 drop-shadow">
             {subtitle}
