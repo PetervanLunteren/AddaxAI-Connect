@@ -17,6 +17,8 @@ import { CountrySelect } from '../../components/ui/CountrySelect';
 import { StateSelect } from '../../components/ui/StateSelect';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../components/ui/Toaster';
 import { adminApi } from '../../api/admin';
 
 // Generate random 5-character hash for bot username
@@ -92,6 +94,7 @@ const DownloadButton: React.FC<{ fileName: string }> = ({ fileName }) => {
 
 export const ServerSettingsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // --- Timezone state ---
   const [timezone, setTimezone] = useState('');
@@ -316,10 +319,10 @@ export const ServerSettingsPage: React.FC = () => {
       setShowConfigModal(false);
       setBotToken('');
       setBotUsername(generateBotUsername());
-      alert('Telegram bot configured successfully!');
+      toast.success('Telegram bot configured');
     },
     onError: (error: any) => {
-      alert(`Failed to configure Telegram: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to configure Telegram: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -328,10 +331,10 @@ export const ServerSettingsPage: React.FC = () => {
     mutationFn: adminApi.unconfigureTelegram,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['telegram-config'] });
-      alert('Telegram bot removed successfully');
+      toast.success('Telegram bot removed');
     },
     onError: (error: any) => {
-      alert(`Failed to remove Telegram: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to remove Telegram: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -340,34 +343,32 @@ export const ServerSettingsPage: React.FC = () => {
     mutationFn: ({ chatId, message }: { chatId: string; message: string }) =>
       adminApi.sendTestTelegramMessage(chatId, message),
     onSuccess: () => {
-      alert('Test message sent successfully!');
+      toast.success('Test message sent');
       setShowTestModal(false);
       setTestChatId('');
     },
     onError: (error: any) => {
-      alert(`Failed to send test message: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to send test message: ${error.response?.data?.detail || error.message}`);
     },
   });
+
+  const [showUnconfigureConfirm, setShowUnconfigureConfirm] = useState(false);
 
   const handleConfigure = (e: React.FormEvent) => {
     e.preventDefault();
     if (!botToken) {
-      alert('Please enter the bot token');
+      toast.error('Please enter the bot token');
       return;
     }
     configureMutation.mutate({ bot_token: botToken, bot_username: botUsername });
   };
 
-  const handleUnconfigure = () => {
-    if (confirm('Are you sure you want to remove Telegram configuration? This will disable all Telegram notifications.')) {
-      unconfigureMutation.mutate();
-    }
-  };
+  const handleUnconfigure = () => setShowUnconfigureConfirm(true);
 
   const handleSendTest = (e: React.FormEvent) => {
     e.preventDefault();
     if (!testChatId) {
-      alert('Please enter a chat ID');
+      toast.error('Please enter a chat ID');
       return;
     }
     const message = 'This is a test message from AddaxAI Connect!';
@@ -1022,6 +1023,20 @@ export const ServerSettingsPage: React.FC = () => {
             </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={showUnconfigureConfirm}
+        onClose={() => setShowUnconfigureConfirm(false)}
+        onConfirm={() => {
+          setShowUnconfigureConfirm(false);
+          unconfigureMutation.mutate();
+        }}
+        title="Remove Telegram configuration"
+        body="This disables all Telegram notifications for every project on this server."
+        confirmLabel="Remove"
+        variant="destructive"
+        isPending={unconfigureMutation.isPending}
+      />
     </ServerPageLayout>
   );
 };

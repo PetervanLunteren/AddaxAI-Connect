@@ -61,6 +61,7 @@ import {
   BulkSetSimExpiryDialog,
   BulkSetNotesDialog,
 } from '../components/cameras/BulkEditDialogs';
+import { useToast } from '../components/ui/Toaster';
 import {
   CAMERA_COLUMNS,
   loadVisibleColumns,
@@ -99,6 +100,7 @@ const SortableHeader: React.FC<{
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { selectedProject: currentProject, canAdminCurrentProject, isServerAdmin } = useProject();
 
   // View mode state (table or map)
@@ -172,7 +174,7 @@ export const CamerasPage: React.FC = () => {
       resetAddForm();
     },
     onError: (error: any) => {
-      alert(`Failed to create camera: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to create camera: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -186,14 +188,14 @@ export const CamerasPage: React.FC = () => {
       setCsvFile(null);
     },
     onError: (error: any) => {
-      alert(`Failed to import CSV: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to import CSV: ${error.response?.data?.detail || error.message}`);
     },
   });
 
   const exportMutation = useMutation({
     mutationFn: (projectId: number) => camerasApi.exportCSV(projectId),
     onError: (error: any) => {
-      alert(`Failed to export CSV: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to export CSV: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -208,10 +210,10 @@ export const CamerasPage: React.FC = () => {
     setShowBulkRemoveTags(false);
     setShowBulkSetSimExpiry(false);
     setShowBulkSetNotes(false);
-    alert(`Updated ${res.updated_count} camera${res.updated_count === 1 ? '' : 's'}`);
+    toast.success(`Updated ${res.updated_count} camera${res.updated_count === 1 ? '' : 's'}`);
   };
   const onBulkError = (error: any) => {
-    alert(`Bulk update failed: ${error.response?.data?.detail || error.message}`);
+    toast.error(`Bulk update failed: ${error.response?.data?.detail || error.message}`);
   };
 
   const bulkAddTagsMutation = useMutation({
@@ -249,11 +251,11 @@ export const CamerasPage: React.FC = () => {
 
   const handleAddCamera = () => {
     if (!newCameraDeviceId.trim()) {
-      alert('Camera ID is required');
+      toast.error('Camera ID is required');
       return;
     }
     if (!currentProject) {
-      alert('Please select a project first');
+      toast.error('Please select a project first');
       return;
     }
 
@@ -281,11 +283,11 @@ export const CamerasPage: React.FC = () => {
 
   const handleImportCSV = () => {
     if (!csvFile) {
-      alert('Please select a CSV file');
+      toast.error('Please select a CSV file');
       return;
     }
     if (!currentProject) {
-      alert('Please select a project first');
+      toast.error('Please select a project first');
       return;
     }
     importMutation.mutate({ file: csvFile, projectId: currentProject.id });
@@ -961,7 +963,7 @@ export const CamerasPage: React.FC = () => {
                               return next;
                             });
                           }}
-                          className="w-4 h-4 cursor-pointer"
+                          className="w-4 h-4 cursor-pointer accent-primary"
                         />
                       </TableHead>
                     )}
@@ -1005,7 +1007,7 @@ export const CamerasPage: React.FC = () => {
                             aria-label={`Select camera ${camera.name}`}
                             checked={selectedCameraIds.has(camera.id)}
                             onChange={() => toggleCameraSelection(camera.id)}
-                            className="w-4 h-4 cursor-pointer"
+                            className="w-4 h-4 cursor-pointer accent-primary"
                           />
                         </TableCell>
                       )}

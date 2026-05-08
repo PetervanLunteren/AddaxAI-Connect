@@ -144,6 +144,7 @@ export const BulkSetSimExpiryDialog: React.FC<SimExpiryDialogProps> = ({
               type="checkbox"
               checked={clear}
               onChange={(e) => setClear(e.target.checked)}
+              className="w-4 h-4 cursor-pointer accent-primary"
             />
             <span>Clear the SIM expiry date instead</span>
           </label>
@@ -194,7 +195,6 @@ export const BulkSetNotesDialog: React.FC<NotesDialogProps> = ({
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
           <Button
-            variant="destructive"
             onClick={() => onConfirm(notes)}
             disabled={isPending}
           >

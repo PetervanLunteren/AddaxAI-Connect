@@ -10,6 +10,8 @@ import { Loader2, Save, X, MessageCircle, ChevronDown, Link2, Unlink2 } from 'lu
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toaster';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { adminApi } from '../api/admin';
@@ -21,6 +23,7 @@ import { normalizeLabel } from '../utils/labels';
 
 export const NotificationsPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
   const { user } = useAuth();
@@ -137,10 +140,10 @@ export const NotificationsPage: React.FC = () => {
     mutationFn: (data: any) => notificationsApi.updatePreferences(projectIdNum, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notification-preferences', projectIdNum] });
-      alert('Notification preferences updated successfully!');
+      toast.success('Notification preferences updated');
     },
     onError: (error: any) => {
-      alert(`Failed to update preferences: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to update preferences: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -164,7 +167,7 @@ export const NotificationsPage: React.FC = () => {
       setShowLinkModal(true);
     },
     onError: (error: any) => {
-      alert(`Failed to generate link: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to generate link: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -178,18 +181,15 @@ export const NotificationsPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['telegram-link-status', projectIdNum] });
       queryClient.invalidateQueries({ queryKey: ['notification-preferences', projectIdNum] });
-      alert('Telegram account unlinked successfully!');
+      toast.success('Telegram account unlinked');
     },
     onError: (error: any) => {
-      alert(`Failed to unlink Telegram: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to unlink Telegram: ${error.response?.data?.detail || error.message}`);
     },
   });
 
-  const handleUnlink = () => {
-    if (confirm('Are you sure you want to unlink your Telegram account? You will need to link it again to receive notifications.')) {
-      unlinkMutation.mutate();
-    }
-  };
+  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+  const handleUnlink = () => setShowUnlinkConfirm(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -520,6 +520,20 @@ export const NotificationsPage: React.FC = () => {
               </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={showUnlinkConfirm}
+        onClose={() => setShowUnlinkConfirm(false)}
+        onConfirm={() => {
+          setShowUnlinkConfirm(false);
+          unlinkMutation.mutate();
+        }}
+        title="Unlink Telegram account"
+        body="You will need to link Telegram again to receive notifications for this project."
+        confirmLabel="Unlink"
+        variant="destructive"
+        isPending={unlinkMutation.isPending}
+      />
     </div>
   );
 };

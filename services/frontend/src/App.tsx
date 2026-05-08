@@ -9,6 +9,7 @@ import { ImageCacheProvider } from './contexts/ImageCacheContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppLayout } from './components/layout/AppLayout';
+import { Toaster } from './components/ui/Toaster';
 
 // Pages
 import { Login } from './pages/Login';
@@ -41,6 +42,7 @@ function App() {
         <AuthProvider>
           <ProjectProvider>
             <ImageCacheProvider>
+            <Toaster>
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
@@ -146,6 +148,7 @@ function App() {
               {/* 404 - redirect to projects */}
               <Route path="*" element={<Navigate to="/projects" replace />} />
             </Routes>
+            </Toaster>
             </ImageCacheProvider>
           </ProjectProvider>
         </AuthProvider>

@@ -40,6 +40,7 @@ import type { Camera } from '../api/types';
 import { cn } from '../lib/utils';
 import { formatDateTime } from '../utils/datetime';
 import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
+import { useToast } from './ui/Toaster';
 
 interface CameraDetailSheetProps {
   camera: Camera | null;
@@ -63,6 +64,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   onUpdate,
 }) => {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('notes');
@@ -121,7 +123,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       onUpdate?.(updatedCamera);
     },
     onError: (error: any) => {
-      alert(`Failed to update camera: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to update camera: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -134,7 +136,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       onClose();
     },
     onError: (error: any) => {
-      alert(`Failed to delete camera: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to delete camera: ${error.response?.data?.detail || error.message}`);
     },
   });
 

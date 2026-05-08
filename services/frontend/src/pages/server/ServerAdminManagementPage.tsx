@@ -25,12 +25,14 @@ import {
   TableRow,
 } from '../../components/ui/Table';
 import { Label } from '../../components/ui/Label';
+import { useToast } from '../../components/ui/Toaster';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { adminApi } from '../../api/admin';
 import { useAuth } from '../../hooks/useAuth';
 
 export const ServerAdminManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { user } = useAuth();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -59,7 +61,7 @@ export const ServerAdminManagementPage: React.FC = () => {
       setAddEmail('');
     },
     onError: (error: any) => {
-      alert(`Failed to add server admin: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to add server admin: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -72,7 +74,7 @@ export const ServerAdminManagementPage: React.FC = () => {
       setUserToRemove(null);
     },
     onError: (error: any) => {
-      alert(`Failed to remove server admin: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to remove server admin: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -85,7 +87,7 @@ export const ServerAdminManagementPage: React.FC = () => {
       setInvitationToCancel(null);
     },
     onError: (error: any) => {
-      alert(`Failed to cancel invitation: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to cancel invitation: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 

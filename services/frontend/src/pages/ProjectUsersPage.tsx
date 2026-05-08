@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/Dialog';
+import { useToast } from '../components/ui/Toaster';
 import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
 import type { ProjectUserInfo, UserWithMemberships } from '../api/types';
@@ -37,6 +38,7 @@ export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { canAdminCurrentProject, selectedProject } = useProject();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditRoleModal, setShowEditRoleModal] = useState(false);
@@ -64,7 +66,7 @@ export const ProjectUsersPage: React.FC = () => {
       setAddUserRole('project-viewer');
     },
     onError: (error: any) => {
-      alert(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -78,7 +80,7 @@ export const ProjectUsersPage: React.FC = () => {
       setSelectedUser(null);
     },
     onError: (error: any) => {
-      alert(`Failed to update role: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to update role: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -92,7 +94,7 @@ export const ProjectUsersPage: React.FC = () => {
       setSelectedUser(null);
     },
     onError: (error: any) => {
-      alert(`Failed to remove user: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to remove user: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 
@@ -106,7 +108,7 @@ export const ProjectUsersPage: React.FC = () => {
       setSelectedUser(null);
     },
     onError: (error: any) => {
-      alert(`Failed to cancel invitation: ${error.response?.data?.detail || 'Unknown error'}`);
+      toast.error(`Failed to cancel invitation: ${error.response?.data?.detail || 'Unknown error'}`);
     },
   });
 

@@ -29,6 +29,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '../../components/ui/Dialog';
+import { useToast } from '../../components/ui/Toaster';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
 import { formatDateTime } from '../../utils/datetime';
 import { uploadFile } from '../../api/devtools';
@@ -119,6 +120,7 @@ function UploadTreeNode({
 
 export const FileManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // Upload state
   const [fileStatuses, setFileStatuses] = useState<FileUploadStatus[]>([]);
@@ -219,7 +221,7 @@ export const FileManagementPage: React.FC = () => {
       setDeleteFilePath(null);
     },
     onError: (error: any) => {
-      alert(`Failed to delete file: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to delete file: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -230,11 +232,13 @@ export const FileManagementPage: React.FC = () => {
       setSelectedFiles(new Set());
       setShowDeleteConfirm(false);
       if (result.errors.length > 0) {
-        alert(`Deleted ${result.success_count} files. Errors: ${result.errors.join(', ')}`);
+        toast.error(`Deleted ${result.success_count} files with errors: ${result.errors.join(', ')}`);
+      } else {
+        toast.success(`Deleted ${result.success_count} files`);
       }
     },
     onError: (error: any) => {
-      alert(`Failed to delete files: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to delete files: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -245,11 +249,13 @@ export const FileManagementPage: React.FC = () => {
       setSelectedFiles(new Set());
       setShowReprocessConfirm(false);
       if (result.errors.length > 0) {
-        alert(`Reprocessed ${result.success_count} files. Errors: ${result.errors.join(', ')}`);
+        toast.error(`Reprocessed ${result.success_count} files with errors: ${result.errors.join(', ')}`);
+      } else {
+        toast.success(`Reprocessed ${result.success_count} files`);
       }
     },
     onError: (error: any) => {
-      alert(`Failed to reprocess files: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to reprocess files: ${error.response?.data?.detail || error.message}`);
     },
   });
 
