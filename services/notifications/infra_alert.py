@@ -229,6 +229,17 @@ def _check_backup(redis_client, hostname: str, notify_on_failure: bool) -> None:
     else:
         status = payload.get("status", "error")
 
+    # Deliberately-skipped runs (restore in progress, fresh-server window)
+    # write status="skipped" so we know the backup did not run on purpose.
+    # Treat the same way _check_cold_tier treats "idle": no email, no fuss.
+    if status == "skipped":
+        logger.info(
+            "Backup deliberately skipped, not alerting",
+            reason=payload.get("error"),
+            timestamp=payload.get("timestamp"),
+        )
+        return
+
     trigger = {"feature": "backup", "status": status, "payload": payload,
                "generated_at": datetime.now(timezone.utc).isoformat()}
 

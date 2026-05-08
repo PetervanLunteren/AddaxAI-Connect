@@ -194,6 +194,16 @@ def check_backup() -> ServiceStatus:
                 status="healthy",
                 message=f"Last backup {ts} (took {duration}s)",
             )
+        if state == "skipped":
+            # Backup deliberately skipped (restore in progress or freshly
+            # provisioned server). Surface as healthy with the reason so the
+            # health page does not look broken in those windows.
+            reason = payload.get("error", "skipped")
+            return ServiceStatus(
+                name="backup",
+                status="healthy",
+                message=f"Backup skipped at {ts}: {reason}",
+            )
         err = payload.get("error", "unknown error")
         return ServiceStatus(
             name="backup",

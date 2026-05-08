@@ -15,39 +15,13 @@ LOG_PREFIX() { date -u +'%Y-%m-%d %H:%M:%S UTC'; }
 log()  { echo "[$(LOG_PREFIX)] $*"; }
 
 cd "$APP_DIR"
-
-# Self-guard: restore.sh drops a .restore-in-progress file while it runs. Skip
-# this backup if it's there (and fresh) so we don't mirror a half-restored
-# state over the good remote backup. Ignore the lock if it's stale (>6 h),
-# which means restore.sh probably died without cleaning up.
-LOCK_FILE="$APP_DIR/.restore-in-progress"
-if [ -f "$LOCK_FILE" ]; then
-  lock_age_s=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE") ))
-  if [ "$lock_age_s" -lt 21600 ]; then
-    log "restore in progress (lock ${lock_age_s}s old); skipping backup"
-    exit 0
-  fi
-  log "WARNING: ignoring stale restore lock at $LOCK_FILE (${lock_age_s}s old)"
-fi
-
-# Fresh-server guard: ansible app-deploy drops .fresh-server on first
-# provision. Skip backups for 24 h after that so a nightly cron cannot
-# overwrite the good remote backup while the operator is still getting
-# around to running restore.sh. `touch` the file manually to extend the
-# quiet period; `rm` it to force backups to resume.
-FRESH_FILE="$APP_DIR/.fresh-server"
-if [ -f "$FRESH_FILE" ]; then
-  fresh_age_s=$(( $(date +%s) - $(stat -c %Y "$FRESH_FILE") ))
-  if [ "$fresh_age_s" -lt 86400 ]; then
-    log "server freshly provisioned (${fresh_age_s}s ago); skipping backup for first 24h"
-    exit 0
-  fi
-fi
+START_EPOCH="$(date +%s)"
 
 # Load the vars we need from .env without using `source`. `source .env` breaks
 # on values with unquoted spaces (e.g. Gmail app passwords like
 # "pguc htvu fawt bfxo" on MAIL_PASSWORD), which is valid for docker-compose
-# but not for bash.
+# but not for bash. Loaded before the skip-guards because we need
+# REDIS_PASSWORD to write the "skipped" status to Redis on guard trip.
 env_get() { grep -E "^$1=" .env | head -1 | cut -d= -f2-; }
 
 BACKUP_ENABLED="$(env_get BACKUP_ENABLED)"
@@ -67,13 +41,12 @@ if [ "${BACKUP_ENABLED:-false}" != "true" ]; then
   exit 0
 fi
 
-HOST="${BACKUP_HOST_PREFIX:-$(hostname)}"
-DATE="$(date -u +%F)"
-BUCKET="$BACKUP_BUCKET"
-START_EPOCH="$(date +%s)"
-
 redis_set_status() {
-  # Write status to Redis so /api/health/services can surface it.
+  # Write status to Redis so /api/health/services can surface it AND so the
+  # daily infra-alert at 03:00 UTC knows the backup state. Statuses:
+  #   ok       - completed successfully
+  #   error    - failed mid-run (trapped from ERR)
+  #   skipped  - the script bailed deliberately (restore lock, fresh server)
   local status="$1"
   local error_msg="${2:-}"
   local now_iso duration payload
@@ -90,6 +63,40 @@ redis_set_status() {
   docker compose exec -T redis redis-cli -a "$REDIS_PASSWORD" \
     SET backup:last_run "$payload" EX 259200 > /dev/null 2>&1 || true
 }
+
+# Self-guard: restore.sh drops a .restore-in-progress file while it runs. Skip
+# this backup if it's there (and fresh) so we don't mirror a half-restored
+# state over the good remote backup. Ignore the lock if it's stale (>6 h),
+# which means restore.sh probably died without cleaning up.
+LOCK_FILE="$APP_DIR/.restore-in-progress"
+if [ -f "$LOCK_FILE" ]; then
+  lock_age_s=$(( $(date +%s) - $(stat -c %Y "$LOCK_FILE") ))
+  if [ "$lock_age_s" -lt 21600 ]; then
+    log "restore in progress (lock ${lock_age_s}s old); skipping backup"
+    redis_set_status "skipped" "restore in progress (lock ${lock_age_s}s old)"
+    exit 0
+  fi
+  log "WARNING: ignoring stale restore lock at $LOCK_FILE (${lock_age_s}s old)"
+fi
+
+# Fresh-server guard: ansible app-deploy drops .fresh-server on first
+# provision. Skip backups for 24 h after that so a nightly cron cannot
+# overwrite the good remote backup while the operator is still getting
+# around to running restore.sh. `touch` the file manually to extend the
+# quiet period; `rm` it to force backups to resume.
+FRESH_FILE="$APP_DIR/.fresh-server"
+if [ -f "$FRESH_FILE" ]; then
+  fresh_age_s=$(( $(date +%s) - $(stat -c %Y "$FRESH_FILE") ))
+  if [ "$fresh_age_s" -lt 86400 ]; then
+    log "server freshly provisioned (${fresh_age_s}s ago); skipping backup for first 24h"
+    redis_set_status "skipped" "server freshly provisioned (${fresh_age_s}s ago); backups paused for first 24h"
+    exit 0
+  fi
+fi
+
+HOST="${BACKUP_HOST_PREFIX:-$(hostname)}"
+DATE="$(date -u +%F)"
+BUCKET="$BACKUP_BUCKET"
 
 on_error() {
   local line=$1
