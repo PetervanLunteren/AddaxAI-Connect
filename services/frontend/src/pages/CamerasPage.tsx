@@ -25,6 +25,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  ChevronDown,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -36,6 +37,12 @@ import {
   TableRow,
 } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../components/ui/DropdownMenu';
 import {
   Dialog,
   DialogContent,
@@ -688,14 +695,25 @@ export const CamerasPage: React.FC = () => {
         </div>
         {isServerAdmin && (
           <div className="flex gap-2 self-start">
-            <Button variant="outline" onClick={openImportDialog} className="whitespace-nowrap">
-              <Upload className="h-4 w-4 mr-2" />
-              Import CSV
-            </Button>
-            <Button onClick={() => setShowAddDialog(true)} className="whitespace-nowrap">
-              <Plus className="h-4 w-4 mr-2" />
-              Add camera
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="whitespace-nowrap">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add camera
+                  <ChevronDown className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setShowAddDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add a single camera
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={openImportDialog}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import from CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
