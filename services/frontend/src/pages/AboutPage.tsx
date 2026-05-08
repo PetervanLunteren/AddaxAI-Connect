@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { ExternalLink, Tag } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 import { versionApi } from '../api/version';
@@ -32,12 +32,7 @@ export const AboutPage: React.FC = () => {
     >
       <Card>
         <CardHeader>
-          <div className="flex items-center space-x-3">
-            <img src="/logo-square-no-text.png" alt="" className="h-9 w-9 rounded" />
-            <CardTitle>
-              AddaxAI Connect
-            </CardTitle>
-          </div>
+          <img src="/logo-wide.svg" alt="AddaxAI Connect" className="h-10 w-auto" />
         </CardHeader>
         <CardContent className="space-y-4">
           <div>

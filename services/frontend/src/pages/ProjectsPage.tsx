@@ -63,12 +63,9 @@ export const ProjectsPage: React.FC = () => {
       <header className="border-b bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src="/logo-square-no-text.png" alt="" className="h-9 w-9 rounded" />
-              <div>
-                <h1 className="text-xl font-bold">AddaxAI Connect</h1>
-                <p className="text-xs text-muted-foreground">Wildlife monitoring projects</p>
-              </div>
+            <div className="flex flex-col gap-1">
+              <img src="/logo-wide.svg" alt="AddaxAI Connect" className="h-10 w-auto" />
+              <p className="text-xs text-muted-foreground">Wildlife monitoring projects</p>
             </div>
             <div className="flex items-center gap-4">
               {user && (
