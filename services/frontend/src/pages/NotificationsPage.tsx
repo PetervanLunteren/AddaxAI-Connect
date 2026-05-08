@@ -434,7 +434,7 @@ export const NotificationsPage: React.FC = () => {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
                     <div className="w-full sm:w-1/2 sm:shrink-0">
                       <label className="text-sm font-medium block">Scheduled reminders</label>
-                      <p className="text-sm text-muted-foreground mt-1">Schedule a one-shot email to yourself on a future date. Useful for project end dates, seasonal cleanup deadlines, hardware swaps. The email lands only with you.</p>
+                      <p className="text-sm text-muted-foreground mt-1">Schedule a one-shot email to your future self. Useful for project end dates, seasonal cleanup deadlines, hardware swaps. The email lands only with you.</p>
                     </div>
                     <div className="flex-1">
                       <Button

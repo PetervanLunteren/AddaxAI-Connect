@@ -92,9 +92,9 @@ export const RemindersSheet: React.FC<RemindersSheetProps> = ({ open, onClose, p
           <SheetHeader>
             <SheetTitle>Scheduled reminders</SheetTitle>
             <SheetDescription>
-              Schedule a one-shot email to yourself on a future date. The email
-              arrives on that date and does not repeat. Useful for project end
-              dates, seasonal cleanup deadlines, hardware swaps.
+              Schedule a one-shot email to your future self. The email arrives
+              on that date and does not repeat. Useful for project end dates,
+              seasonal cleanup deadlines, hardware swaps.
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
@@ -157,15 +157,23 @@ export const RemindersSheet: React.FC<RemindersSheetProps> = ({ open, onClose, p
                 {historyOpen && (
                   <ul className="mt-2 divide-y border rounded-md text-muted-foreground">
                     {history.map((r) => {
-                      const status = r.cancelled_at
-                        ? `Cancelled ${r.cancelled_at.slice(0, 10)}`
-                        : `Sent ${r.sent_at?.slice(0, 10)}`;
+                      const isCancelled = !!r.cancelled_at;
+                      const stampDate = (isCancelled ? r.cancelled_at : r.sent_at)?.slice(0, 10);
                       return (
                         <li key={r.id} className="p-3">
                           <div className="flex items-center gap-2 flex-wrap text-xs">
                             <span className="font-medium">{r.send_on}</span>
                             <span>·</span>
-                            <span>{status}</span>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                                isCancelled
+                                  ? 'bg-muted text-muted-foreground'
+                                  : 'bg-primary/10 text-primary'
+                              }`}
+                            >
+                              {isCancelled ? 'Cancelled' : 'Sent'}
+                            </span>
+                            {stampDate && <span>{stampDate}</span>}
                           </div>
                           <p className="text-sm mt-1 whitespace-pre-wrap break-words">{r.message}</p>
                         </li>
