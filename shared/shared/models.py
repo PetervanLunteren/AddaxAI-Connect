@@ -294,6 +294,11 @@ class User(Base):
     is_superuser = Column(Boolean, default=False, nullable=False)  # Server admin flag (FastAPI-Users compatible)
     is_verified = Column(Boolean, default=False, nullable=False)
 
+    # Stamp of the most recent password change. The JWT strategy rejects any
+    # token whose iat (issued-at) is strictly before this. NULL means the user
+    # has never changed their password, so every token is accepted.
+    password_changed_at = Column(DateTime(timezone=True), nullable=True)
+
     # Note: role and project_id removed - now handled via ProjectMembership table
 
 

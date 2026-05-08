@@ -36,14 +36,13 @@ Open follow-ups:
 - [x] Customizable cameras-table columns
 - [x] Add export to CSV from the cameras page
 - [x] Bulk-edit cameras. 
-- [x] Scheduled project reminders. Project admins set a date + message on the notifications page; daily 06:45 UTC cron emails the creator on the date. One-shot only, past dates rejected, sent / cancelled rows live in a History accordion.
-- [ ] Check the Synature graph for 'Life in the area' at https://synature.ai/product. Can we make something similar for ourt dashboard? 
+- [x] Scheduled project reminders.
 - [ ] Add logos to all the pages and emails and whatever needed with the new logos. 
 - [ ] See email from Quentin with TODOs
 - [ ]
 
 ## TODO Priority 2
-- [ ] Invalidate other sessions on password change. Today JWTs are stateless with 1-hour lifetime, so changing the password in browser A leaves browser B's token valid until it expires. OWASP expects revocation here. Plan: add a `password_changed_at` timestamp on `User`, write it in `services/api/auth/routes.py` change-password and in the fastapi-users password-reset hook, then subclass `JWTStrategy` to reject tokens whose `iat < user.password_changed_at`. Small change, also gives a foundation for a future "log out everywhere" button.
+- [x] Invalidate other sessions on password change. Added password_changed_at on User; subclassed JWTStrategy to reject tokens whose iat is older. Change-password endpoint returns a fresh token so the caller's session keeps working while every other open tab is logged out on its next request. Reset-password flow stamps too. Foundation for a future "log out everywhere" button is in place.
 
 
 ## Possible future features

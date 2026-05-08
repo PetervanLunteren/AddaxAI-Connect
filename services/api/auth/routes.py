@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from .users import fastapi_users, auth_backend, current_verified_user
+from .users import fastapi_users, auth_backend, current_verified_user, get_jwt_strategy
 from .schemas import UserRead, UserCreate, UserUpdate
 from .user_manager import UserManager, get_user_manager
 from shared.models import User, UserInvitation, Project
@@ -112,9 +112,22 @@ def get_auth_router() -> APIRouter:
                 detail=e.reason if hasattr(e, "reason") else str(e),
             )
 
-        # Hash and update
+        # Hash, stamp password_changed_at, and persist. The stamp is what
+        # the JWT strategy compares against to invalidate every other open
+        # session. Stamped server-side so the timestamp is monotonic.
         hashed = user_manager.password_helper.hash(request_body.new_password)
-        await user_manager.user_db.update(user, {"hashed_password": hashed})
+        now_utc = datetime.now(timezone.utc)
+        updated_user = await user_manager.user_db.update(
+            user,
+            {"hashed_password": hashed, "password_changed_at": now_utc},
+        )
+
+        # Issue a fresh token so the caller's CURRENT session keeps working.
+        # Without this the user would be logged out of the very tab they
+        # just used to change their password (its old token has iat <
+        # password_changed_at). Every OTHER session still gets invalidated
+        # because their tokens were issued before now_utc.
+        new_token = await get_jwt_strategy().write_token(updated_user)
 
         logger.info(
             "Password changed successfully",
@@ -122,7 +135,11 @@ def get_auth_router() -> APIRouter:
             email=user.email,
         )
 
-        return {"message": "Password changed"}
+        return {
+            "message": "Password changed",
+            "access_token": new_token,
+            "token_type": "bearer",
+        }
 
     # Custom invitation token validation endpoint
     @router.get(

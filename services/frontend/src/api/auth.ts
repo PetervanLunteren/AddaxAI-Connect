@@ -152,11 +152,25 @@ export const resetPassword = async (token: string, password: string): Promise<vo
 };
 
 /**
- * Change password for authenticated user
+ * Change password for authenticated user.
+ *
+ * The backend invalidates every other JWT for this user the instant the
+ * password changes (it stamps password_changed_at and the JWT strategy
+ * rejects any token issued before then). To keep the CURRENT browser
+ * session usable, the response returns a fresh access_token; we swap it
+ * into localStorage so the next request rides the new token instead of
+ * the now-invalid old one.
  */
 export const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-  await apiClient.post('/auth/change-password', {
-    current_password: currentPassword,
-    new_password: newPassword,
-  });
+  const response = await apiClient.post<{ access_token?: string; token_type?: string }>(
+    '/auth/change-password',
+    {
+      current_password: currentPassword,
+      new_password: newPassword,
+    },
+  );
+  const newToken = response.data?.access_token;
+  if (newToken) {
+    localStorage.setItem('access_token', newToken);
+  }
 };

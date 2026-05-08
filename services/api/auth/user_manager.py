@@ -134,6 +134,28 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
             # Re-raise to ensure the error is not silently swallowed
             raise
 
+    async def on_after_reset_password(
+        self,
+        user: User,
+        request: Optional[Request] = None,
+    ) -> None:
+        """
+        Called after a password is reset via the email token flow.
+
+        Stamps password_changed_at so the JWT strategy invalidates any
+        token that was issued before the reset. The user is logged out
+        during this flow anyway, so we do not need to mint a new token
+        here; they re-login on the next page.
+        """
+        await self.user_db.update(
+            user, {"password_changed_at": datetime.now(timezone.utc)}
+        )
+        logger.info(
+            "Password reset completed; password_changed_at stamped",
+            email=user.email,
+            user_id=user.id,
+        )
+
     async def on_after_request_verify(
         self,
         user: User,
