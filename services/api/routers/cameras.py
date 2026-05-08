@@ -411,6 +411,171 @@ async def export_cameras_csv(
     )
 
 
+# Bulk-edit endpoints. Declared before /{camera_id} so FastAPI matches the
+# literal segment first (otherwise "bulk-add-tags" gets coerced to camera_id:
+# int and 422s, same gotcha that bit /export-csv).
+
+class BulkCameraIdsRequest(BaseModel):
+    """Common payload prefix: every bulk action operates on a list of cameras."""
+    camera_ids: List[int]
+
+
+class BulkAddTagsRequest(BulkCameraIdsRequest):
+    tags: List[str]
+
+
+class BulkRemoveTagsRequest(BulkCameraIdsRequest):
+    tags: List[str]
+
+
+class BulkSetSimExpiryRequest(BulkCameraIdsRequest):
+    # Explicit null clears the column on every selected camera. Omitted in the
+    # body would parse as null too, so the frontend always sends the field.
+    sim_expiry_date: Optional[date] = None
+
+
+class BulkSetNotesRequest(BulkCameraIdsRequest):
+    # Empty string is a valid clear; the frontend confirms the destructive
+    # nature in the dialog before firing.
+    notes: str
+
+
+class BulkUpdateResponse(BaseModel):
+    updated_count: int
+
+
+async def _load_bulk_cameras(
+    db: AsyncSession, camera_ids: List[int],
+) -> List[Camera]:
+    """
+    Fetch the cameras for a bulk request and reject empty lists or stale IDs.
+
+    Caller must still verify project-admin access on every distinct project
+    referenced by the loaded cameras.
+    """
+    if not camera_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="camera_ids must not be empty",
+        )
+
+    requested = set(camera_ids)
+    result = await db.execute(
+        select(Camera).where(Camera.id.in_(requested))
+    )
+    cameras = list(result.scalars().all())
+
+    found = {c.id for c in cameras}
+    missing = sorted(requested - found)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown camera IDs: {missing}",
+        )
+
+    return cameras
+
+
+async def _verify_admin_on_all_projects(
+    user: User, cameras: List[Camera], db: AsyncSession,
+) -> None:
+    """Reject the request if the user is not a project admin (or server
+    admin) on every distinct project the bulk selection touches."""
+    project_ids = {c.project_id for c in cameras if c.project_id is not None}
+    for project_id in project_ids:
+        if not await can_admin_project(user, project_id, db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Project admin access required for project {project_id}",
+            )
+
+
+@router.post("/bulk-add-tags", response_model=BulkUpdateResponse)
+async def bulk_add_tags(
+    request: BulkAddTagsRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Append the given tags to every selected camera. Existing tags are kept,
+    duplicates collapse via normalize_tags."""
+    if not request.tags:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tags must not be empty",
+        )
+
+    cameras = await _load_bulk_cameras(db, request.camera_ids)
+    await _verify_admin_on_all_projects(current_user, cameras, db)
+
+    incoming = normalize_tags(request.tags)
+    for camera in cameras:
+        merged = list(camera.tags or []) + incoming
+        camera.tags = normalize_tags(merged)
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(cameras))
+
+
+@router.post("/bulk-remove-tags", response_model=BulkUpdateResponse)
+async def bulk_remove_tags(
+    request: BulkRemoveTagsRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Remove the given tags from every selected camera. Tags not present are
+    a no-op for that row; the request never errors on a missing tag."""
+    if not request.tags:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tags must not be empty",
+        )
+
+    cameras = await _load_bulk_cameras(db, request.camera_ids)
+    await _verify_admin_on_all_projects(current_user, cameras, db)
+
+    to_remove = set(normalize_tags(request.tags))
+    for camera in cameras:
+        camera.tags = [t for t in (camera.tags or []) if t not in to_remove]
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(cameras))
+
+
+@router.post("/bulk-set-sim-expiry", response_model=BulkUpdateResponse)
+async def bulk_set_sim_expiry(
+    request: BulkSetSimExpiryRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Set sim_expiry_date on every selected camera. null clears the column."""
+    cameras = await _load_bulk_cameras(db, request.camera_ids)
+    await _verify_admin_on_all_projects(current_user, cameras, db)
+
+    for camera in cameras:
+        camera.sim_expiry_date = request.sim_expiry_date
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(cameras))
+
+
+@router.post("/bulk-set-notes", response_model=BulkUpdateResponse)
+async def bulk_set_notes(
+    request: BulkSetNotesRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Replace notes on every selected camera with the given string. Empty
+    string clears the field."""
+    cameras = await _load_bulk_cameras(db, request.camera_ids)
+    await _verify_admin_on_all_projects(current_user, cameras, db)
+
+    for camera in cameras:
+        camera.notes = request.notes
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(cameras))
+
+
 @router.get(
     "/{camera_id}",
     response_model=CameraResponse,

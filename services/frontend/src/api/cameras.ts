@@ -39,6 +39,10 @@ export interface BulkImportResponse {
   results: CameraImportRow[];
 }
 
+export interface BulkUpdateResponse {
+  updated_count: number;
+}
+
 export const camerasApi = {
   /**
    * Get all cameras with health status (optionally filtered by project)
@@ -95,6 +99,56 @@ export const camerasApi = {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  },
+
+  /**
+   * Append the given tags to every selected camera. Existing tags are
+   * kept; duplicates collapse via the backend's normalize_tags helper.
+   */
+  bulkAddTags: async (cameraIds: number[], tags: string[]): Promise<BulkUpdateResponse> => {
+    const response = await apiClient.post<BulkUpdateResponse>(
+      '/api/cameras/bulk-add-tags',
+      { camera_ids: cameraIds, tags },
+    );
+    return response.data;
+  },
+
+  /**
+   * Remove the given tags from every selected camera. Tags not present
+   * on a row are a no-op for that row.
+   */
+  bulkRemoveTags: async (cameraIds: number[], tags: string[]): Promise<BulkUpdateResponse> => {
+    const response = await apiClient.post<BulkUpdateResponse>(
+      '/api/cameras/bulk-remove-tags',
+      { camera_ids: cameraIds, tags },
+    );
+    return response.data;
+  },
+
+  /**
+   * Set sim_expiry_date on every selected camera. Pass null to clear.
+   */
+  bulkSetSimExpiry: async (
+    cameraIds: number[],
+    simExpiryDate: string | null,
+  ): Promise<BulkUpdateResponse> => {
+    const response = await apiClient.post<BulkUpdateResponse>(
+      '/api/cameras/bulk-set-sim-expiry',
+      { camera_ids: cameraIds, sim_expiry_date: simExpiryDate },
+    );
+    return response.data;
+  },
+
+  /**
+   * Replace notes on every selected camera with the given string. Empty
+   * string clears the field on each row.
+   */
+  bulkSetNotes: async (cameraIds: number[], notes: string): Promise<BulkUpdateResponse> => {
+    const response = await apiClient.post<BulkUpdateResponse>(
+      '/api/cameras/bulk-set-notes',
+      { camera_ids: cameraIds, notes },
+    );
     return response.data;
   },
 

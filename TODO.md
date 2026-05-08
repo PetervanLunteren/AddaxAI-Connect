@@ -33,10 +33,11 @@ Open follow-ups:
 
 
 # prio 1
-- [x] Customizable cameras-table columns. "Columns" dropdown next to Filters, checkbox per column, persists per-browser via localStorage. 13 columns available (the original 9 plus Camera ID, Temperature, Notes, SIM expiry); Name is locked on. Reorder, custom_fields keys, and DB-backed cross-device sync are tracked as future enhancements.
-- [x] CSV export from the cameras page. "Export CSV" button on the toolbar (visible to any project member). One row per camera with writable identity columns (round-trippable with the existing import) plus an operational snapshot and one column per unique custom_fields key. UTF-8 BOM for Excel.
-- [ ] Add option for batch updates for the cameras. Handy for example new expiry dates etc. 
+- [x] Customizable cameras-table columns. 
+- [x] Add export to CSV from the cameras page, where it exports the entire cameras table.
+- [x] Bulk-edit cameras. Row checkboxes plus an inline action bar above the cameras table (admin only). Four actions: add tags, remove tags, set SIM expiry (incl. clear), set notes. Backend: four POST endpoints under /api/cameras/bulk-* mirroring the image_admin pattern, each guarded by can_admin_project on every project the selection touches.
 - [ ] Add key board short cuts for "Add camera" button, so one can make it quick qworkflow to add multiple cameras. 
+- [ ] Now that we have been working on new features and buttons on the cameras page, perhaps it would be good look have a look at the buttons and how we can make it less noisy. How would other mature apps solve this? Perhaps just by icons and hover texts? Or icons with dropdowns and several options? Which one would you merge together? Perhaps '+' would show 'add single camera (form)' and 'add bulk cameras (CSV)'? More things to merge? Or just as spearate icons. I dont know. Do some suggestions and give me your recommendations based on other platforms and your view on UX and UI.  
 - [ ] add a test to see the notificaitons for sim expiry date. Set a few this month and a few next month. 
 - [ ] Add an option for project admins at project level to schedule custom notifications. I'm thnking a date and a text field. Herte you can add a reminder for something like "The project is about to end, make sure to contact John Doe to talk about the next steps", or "The breeding season is about to finish! Dont for get to remove the caermas before its too late." Would that make sense? 
 - [ ] Check the Synature graph for 'Life in the area' at https://synature.ai/product. Can we make something similar for ourt dashboard? 
