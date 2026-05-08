@@ -2,7 +2,7 @@
  * Lightweight toast notifications.
  *
  * Replaces in-browser alert() popups across the app. Toasts stack in the
- * bottom-left corner and auto-dismiss after a few seconds. Two kinds:
+ * bottom-right corner and auto-dismiss after a few seconds. Two kinds:
  * success (teal) and error (destructive). No external dependency.
  *
  * Usage:
@@ -53,7 +53,7 @@ export const Toaster: React.FC<{ children: React.ReactNode }> = ({ children }) =
     <ToastContext.Provider value={value}>
       {children}
       <div
-        className="fixed bottom-4 left-4 z-[100] flex flex-col gap-2 max-w-sm w-[calc(100vw-2rem)] sm:w-auto"
+        className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm w-[calc(100vw-2rem)] sm:w-auto"
         role="status"
         aria-live="polite"
       >
