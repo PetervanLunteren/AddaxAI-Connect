@@ -37,12 +37,13 @@ Open follow-ups:
 - [x] Add export to CSV from the cameras page
 - [x] Bulk-edit cameras. 
 - [x] Scheduled project reminders.
-- [ ] Add logos to all the pages and emails and whatever needed with the new logos. 
+- [x] Invalidate other sessions on password change.
+- [x] Add logos.
 - [ ] See email from Quentin with TODOs
 - [ ]
 
 ## TODO Priority 2
-- [x] Invalidate other sessions on password change. Added password_changed_at on User; subclassed JWTStrategy to reject tokens whose iat is older. Change-password endpoint returns a fresh token so the caller's session keeps working while every other open tab is logged out on its next request. Reset-password flow stamps too. Foundation for a future "log out everywhere" button is in place.
+- [ ] 
 
 
 ## Possible future features
