@@ -49,6 +49,11 @@ class CreateReminderRequest(BaseModel):
     message: str
 
 
+class UpdateReminderRequest(BaseModel):
+    send_on: Optional[date] = None
+    message: Optional[str] = None
+
+
 async def _server_today(db: AsyncSession) -> date:
     """Resolve "today" in the configured server timezone so the past-date
     rejection behaves the same way the daily cron behaves."""
@@ -87,11 +92,11 @@ async def list_reminders(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
-    """List every reminder for a project (active + sent + cancelled).
+    """List the current user's own reminders for a project.
 
-    Active first by send_on ascending, then sent / cancelled rows by
-    sent_at / cancelled_at descending so the most recent history is at the
-    top of that subsection.
+    Reminders are per-creator: an admin only sees the rows they created.
+    The cron emails the creator on send_on, so showing the list to other
+    admins would just confuse them about who'll receive the email.
     """
     if not await can_admin_project(current_user, project_id, db):
         raise HTTPException(
@@ -110,29 +115,21 @@ async def list_reminders(
 
     rows = (await db.execute(
         select(ProjectReminder)
-        .where(ProjectReminder.project_id == project_id)
+        .where(
+            ProjectReminder.project_id == project_id,
+            ProjectReminder.created_by_user_id == current_user.id,
+        )
         .order_by(ProjectReminder.send_on.asc(), ProjectReminder.id.asc())
     )).scalars().all()
 
-    # Resolve creator + canceller emails in one batch so the response is
-    # human-readable without N round-trips.
-    user_ids = set()
-    for r in rows:
-        user_ids.add(r.created_by_user_id)
-        if r.cancelled_by_user_id is not None:
-            user_ids.add(r.cancelled_by_user_id)
-    emails: dict[int, str] = {}
-    if user_ids:
-        user_rows = (await db.execute(
-            select(User.id, User.email).where(User.id.in_(user_ids))
-        )).all()
-        emails = {uid: email for uid, email in user_rows}
-
+    # Cancellation only happens via the same user, so we already know the
+    # canceller email == current_user.email when present. Keep the field
+    # populated for symmetry with the audit row.
     return [
         _serialize(
             r,
-            emails.get(r.created_by_user_id),
-            emails.get(r.cancelled_by_user_id) if r.cancelled_by_user_id else None,
+            current_user.email,
+            current_user.email if r.cancelled_by_user_id else None,
         )
         for r in rows
     ]
@@ -199,6 +196,93 @@ async def create_reminder(
     return _serialize(reminder, current_user.email, None)
 
 
+async def _load_own_reminder(
+    db: AsyncSession,
+    project_id: int,
+    reminder_id: int,
+    current_user: User,
+) -> ProjectReminder:
+    """Fetch a reminder owned by the current user. 404 (not 403) if it
+    belongs to someone else, so we don't leak the existence of other
+    admins' reminders."""
+    reminder = (await db.execute(
+        select(ProjectReminder).where(
+            and_(
+                ProjectReminder.id == reminder_id,
+                ProjectReminder.project_id == project_id,
+                ProjectReminder.created_by_user_id == current_user.id,
+            )
+        )
+    )).scalar_one_or_none()
+    if not reminder:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reminder not found",
+        )
+    return reminder
+
+
+@router.patch(
+    "/{project_id}/reminders/{reminder_id}",
+    response_model=ReminderResponse,
+)
+async def update_reminder(
+    project_id: int,
+    reminder_id: int,
+    request: UpdateReminderRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Edit the date or message of an unscheduled reminder. Sent and
+    cancelled rows are immutable; the caller can only edit a reminder
+    they created themselves."""
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project admin access required",
+        )
+
+    reminder = await _load_own_reminder(db, project_id, reminder_id, current_user)
+
+    if reminder.sent_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reminder has already been sent",
+        )
+    if reminder.cancelled_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reminder has already been cancelled",
+        )
+
+    if request.message is not None:
+        message = request.message.strip()
+        if not message:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reminder message must not be empty",
+            )
+        if len(message) > MAX_MESSAGE_LENGTH:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Reminder message must be {MAX_MESSAGE_LENGTH} characters or fewer",
+            )
+        reminder.message = message
+
+    if request.send_on is not None:
+        today = await _server_today(db)
+        if request.send_on < today:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reminder date must be today or later",
+            )
+        reminder.send_on = request.send_on
+
+    await db.commit()
+    await db.refresh(reminder)
+    return _serialize(reminder, current_user.email, None)
+
+
 @router.delete(
     "/{project_id}/reminders/{reminder_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -217,19 +301,8 @@ async def cancel_reminder(
             detail="Project admin access required",
         )
 
-    reminder = (await db.execute(
-        select(ProjectReminder).where(
-            and_(
-                ProjectReminder.id == reminder_id,
-                ProjectReminder.project_id == project_id,
-            )
-        )
-    )).scalar_one_or_none()
-    if not reminder:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Reminder not found",
-        )
+    reminder = await _load_own_reminder(db, project_id, reminder_id, current_user)
+
     if reminder.sent_at is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

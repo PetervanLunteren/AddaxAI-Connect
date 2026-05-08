@@ -40,6 +40,18 @@ export const remindersApi = {
     return response.data;
   },
 
+  update: async (
+    projectId: number,
+    reminderId: number,
+    payload: { send_on?: string; message?: string },
+  ): Promise<Reminder> => {
+    const response = await apiClient.patch<Reminder>(
+      `/api/projects/${projectId}/reminders/${reminderId}`,
+      payload,
+    );
+    return response.data;
+  },
+
   cancel: async (projectId: number, reminderId: number): Promise<void> => {
     await apiClient.delete(
       `/api/projects/${projectId}/reminders/${reminderId}`,
