@@ -40,7 +40,7 @@ Open follow-ups:
 - [x] Invalidate other sessions on password change.
 - [x] Add logos.
 - [ ] See email from Quentin with TODOs
-- [ ]
+- [ ] PLace the current project name and the back link above the sidebar menu options, below the logo. In between. Can we make it more modern feel? Perhaps first preview a few on the dev server and then I can select one. 
 
 
 
