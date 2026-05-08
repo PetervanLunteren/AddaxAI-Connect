@@ -10,6 +10,7 @@ Also runs scheduled jobs:
 - Excessive image alerts at 06:30 UTC
 - Project inactivity alerts at 06:00 UTC
 - SIM expiry alerts on the 1st at 06:15 UTC
+- Scheduled project reminders daily at 06:45 UTC
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -25,6 +26,7 @@ from email_report import send_daily_reports, send_weekly_reports, send_monthly_r
 from excessive_images import send_excessive_image_alerts
 from project_inactivity import send_project_inactivity_alerts
 from sim_expiry import send_sim_expiry_alerts
+from reminders import send_due_reminders
 from disk_usage_alert import check_disk_usage_and_alert
 from infra_alert import check_infra_alerts
 
@@ -168,6 +170,17 @@ def main() -> None:
         minute=15,
         id='sim_expiry_alerts',
         name='Send SIM expiry alerts on the 1st at 06:15 UTC'
+    )
+
+    # Scheduled project reminders - daily at 06:45 UTC. Spaced 15 min after
+    # the excessive-image alerts (06:30) so the SMTP queue is not slammed.
+    scheduler.add_job(
+        send_due_reminders,
+        'cron',
+        hour=6,
+        minute=45,
+        id='project_reminders',
+        name='Send due project reminders at 06:45 UTC daily',
     )
 
     # Disk usage alert - hourly

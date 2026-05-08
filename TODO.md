@@ -33,13 +33,10 @@ Open follow-ups:
 
 
 # prio 1
-- [x] Customizable cameras-table columns. 
-- [x] Add export to CSV from the cameras page, where it exports the entire cameras table.
-- [x] Bulk-edit cameras. Row checkboxes plus an inline action bar above the cameras table (admin only). Four actions: add tags, remove tags, set SIM expiry (incl. clear), set notes. Backend: four POST endpoints under /api/cameras/bulk-* mirroring the image_admin pattern, each guarded by can_admin_project on every project the selection touches.
-- [ ] Add key board short cuts for "Add camera" button, so one can make it quick qworkflow to add multiple cameras. 
-- [ ] Now that we have been working on new features and buttons on the cameras page, perhaps it would be good look have a look at the buttons and how we can make it less noisy. How would other mature apps solve this? Perhaps just by icons and hover texts? Or icons with dropdowns and several options? Which one would you merge together? Perhaps '+' would show 'add single camera (form)' and 'add bulk cameras (CSV)'? More things to merge? Or just as spearate icons. I dont know. Do some suggestions and give me your recommendations based on other platforms and your view on UX and UI.  
-- [ ] add a test to see the notificaitons for sim expiry date. Set a few this month and a few next month. 
-- [ ] Add an option for project admins at project level to schedule custom notifications. I'm thnking a date and a text field. Herte you can add a reminder for something like "The project is about to end, make sure to contact John Doe to talk about the next steps", or "The breeding season is about to finish! Dont for get to remove the caermas before its too late." Would that make sense? 
+- [x] Customizable cameras-table columns
+- [x] Add export to CSV from the cameras page
+- [x] Bulk-edit cameras. 
+- [x] Scheduled project reminders. Project admins set a date + message on the notifications page; daily 06:45 UTC cron emails the creator on the date. One-shot only, past dates rejected, sent / cancelled rows live in a History accordion.
 - [ ] Check the Synature graph for 'Life in the area' at https://synature.ai/product. Can we make something similar for ourt dashboard? 
 - [ ] Add logos to all the pages and emails and whatever needed with the new logos. 
 - [ ] See email from Quentin with TODOs

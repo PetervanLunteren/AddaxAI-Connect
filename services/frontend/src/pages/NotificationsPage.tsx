@@ -6,14 +6,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, Save, X, MessageCircle, ChevronDown, Link2, Unlink2 } from 'lucide-react';
+import { Loader2, Save, X, MessageCircle, ChevronDown, ChevronRight, Link2, Unlink2, Plus, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toaster';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
+import { remindersApi, type Reminder } from '../api/reminders';
 import { adminApi } from '../api/admin';
 import { speciesApi } from '../api/species';
 import QRCode from 'react-qr-code';
@@ -48,6 +49,14 @@ export const NotificationsPage: React.FC = () => {
 
   // SIM expiry alert state (project admin only)
   const [simExpiryEnabled, setSimExpiryEnabled] = useState(false);
+
+  // Scheduled reminders state (project admin only)
+  const [showAddReminder, setShowAddReminder] = useState(false);
+  const [reminderDate, setReminderDate] = useState('');
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [reminderToCancel, setReminderToCancel] = useState<Reminder | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -185,6 +194,51 @@ export const NotificationsPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(`Failed to unlink Telegram: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  // Scheduled reminders. Only project admins fetch the list; viewers do
+  // not see the section at all so the query stays gated.
+  const { data: reminders } = useQuery({
+    queryKey: ['project-reminders', projectIdNum],
+    queryFn: () => remindersApi.list(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0 && canAdminCurrentProject,
+  });
+
+  const activeReminders = useMemo(
+    () => (reminders || []).filter((r) => !r.sent_at && !r.cancelled_at),
+    [reminders],
+  );
+  const historyReminders = useMemo(
+    () => (reminders || []).filter((r) => r.sent_at || r.cancelled_at),
+    [reminders],
+  );
+
+  const createReminderMutation = useMutation({
+    mutationFn: ({ sendOn, message }: { sendOn: string; message: string }) =>
+      remindersApi.create(projectIdNum, sendOn, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-reminders', projectIdNum] });
+      setShowAddReminder(false);
+      setReminderDate('');
+      setReminderMessage('');
+      toast.success('Reminder scheduled');
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to schedule reminder: ${error.response?.data?.detail || error.message}`);
+    },
+  });
+
+  const cancelReminderMutation = useMutation({
+    mutationFn: (reminderId: number) => remindersApi.cancel(projectIdNum, reminderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-reminders', projectIdNum] });
+      setReminderToCancel(null);
+      toast.success('Reminder cancelled');
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to cancel reminder: ${error.response?.data?.detail || error.message}`);
+      setReminderToCancel(null);
     },
   });
 
@@ -405,6 +459,102 @@ export const NotificationsPage: React.FC = () => {
                 </>
               )}
 
+              {/* Scheduled reminders (project admins only). One-shot
+                  emails to whoever creates them; the list is shared so
+                  admins can see what other admins already scheduled. */}
+              {canAdminCurrentProject && (
+                <>
+                  <div className="border-t my-6" />
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex-1 min-w-[12rem]">
+                        <label className="text-sm font-medium block">Scheduled reminders</label>
+                        <p className="text-sm text-muted-foreground mt-1">Schedule a one-shot email reminder for yourself on a future date. Useful for project end dates, seasonal cleanup deadlines, hardware swaps. Only the user who creates the reminder receives the email.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAddReminder(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1.5" />
+                        Add reminder
+                      </Button>
+                    </div>
+
+                    {activeReminders.length > 0 ? (
+                      <ul className="divide-y border rounded-md">
+                        {activeReminders.map((r) => (
+                          <li key={r.id} className="p-3 flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium">{r.send_on}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  Created by {r.created_by_email || `user ${r.created_by_user_id}`}
+                                </span>
+                              </div>
+                              <p className="text-sm mt-1 whitespace-pre-wrap break-words">
+                                {r.message}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReminderToCancel(r)}
+                              className="text-muted-foreground"
+                              aria-label="Cancel reminder"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No scheduled reminders.</p>
+                    )}
+
+                    {historyReminders.length > 0 && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setHistoryOpen((o) => !o)}
+                          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                        >
+                          {historyOpen ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          History ({historyReminders.length})
+                        </button>
+                        {historyOpen && (
+                          <ul className="mt-2 divide-y border rounded-md text-muted-foreground">
+                            {historyReminders.map((r) => {
+                              const status = r.cancelled_at
+                                ? `Cancelled ${r.cancelled_at.slice(0, 10)}${r.cancelled_by_email ? ` by ${r.cancelled_by_email}` : ''}`
+                                : `Sent ${r.sent_at?.slice(0, 10)}`;
+                              return (
+                                <li key={r.id} className="p-3">
+                                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                                    <span className="font-medium">{r.send_on}</span>
+                                    <span>·</span>
+                                    <span>{status}</span>
+                                    <span>·</span>
+                                    <span>Created by {r.created_by_email || `user ${r.created_by_user_id}`}</span>
+                                  </div>
+                                  <p className="text-sm mt-1 whitespace-pre-wrap break-words">{r.message}</p>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
               {/* Divider */}
               <div className="border-t my-6" />
 
@@ -533,6 +683,86 @@ export const NotificationsPage: React.FC = () => {
         confirmLabel="Unlink"
         variant="destructive"
         isPending={unlinkMutation.isPending}
+      />
+
+      {/* Add-reminder dialog */}
+      <Dialog open={showAddReminder} onOpenChange={(o) => !o && setShowAddReminder(false)}>
+        <DialogContent onClose={() => setShowAddReminder(false)}>
+          <DialogHeader>
+            <DialogTitle>Add a scheduled reminder</DialogTitle>
+            <DialogDescription>
+              Pick a future date and write the message you want to send yourself. The email arrives in your inbox on that date and does not repeat.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Date</label>
+              <input
+                type="date"
+                value={reminderDate}
+                min={todayIso}
+                onChange={(e) => setReminderDate(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Message</label>
+              <textarea
+                value={reminderMessage}
+                onChange={(e) => setReminderMessage(e.target.value)}
+                rows={5}
+                placeholder="e.g. Project ends Friday. Email John Doe to talk about next steps."
+                className="w-full px-3 py-2 border rounded-md text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddReminder(false)}
+              disabled={createReminderMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                createReminderMutation.mutate({
+                  sendOn: reminderDate,
+                  message: reminderMessage,
+                })
+              }
+              disabled={
+                createReminderMutation.isPending ||
+                !reminderDate ||
+                reminderMessage.trim().length === 0
+              }
+            >
+              {createReminderMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Schedule reminder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel-reminder confirmation */}
+      <ConfirmDialog
+        open={reminderToCancel !== null}
+        onClose={() => setReminderToCancel(null)}
+        onConfirm={() => {
+          if (reminderToCancel) cancelReminderMutation.mutate(reminderToCancel.id);
+        }}
+        title="Cancel this reminder?"
+        body={
+          reminderToCancel
+            ? `The reminder for ${reminderToCancel.send_on} will not be sent.`
+            : ''
+        }
+        confirmLabel="Cancel reminder"
+        cancelLabel="Keep it"
+        variant="destructive"
+        isPending={cancelReminderMutation.isPending}
       />
     </div>
   );

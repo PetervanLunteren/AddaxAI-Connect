@@ -360,6 +360,41 @@ class NotificationLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
 
+class ProjectReminder(Base):
+    """
+    One-shot scheduled reminder tied to a project.
+
+    Project admins create rows; the daily cron at 06:45 UTC fires every row
+    where send_on <= today AND sent_at IS NULL AND cancelled_at IS NULL,
+    emails the creator, and stamps sent_at. Cancelled rows stay in the
+    table so admins can audit what was set up and never deleted in the
+    normal flow.
+    """
+    __tablename__ = "project_reminders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    send_on = Column(Date, nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    created_by_user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    cancelled_by_user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
 class TelegramConfig(Base):
     """System-wide Telegram bot configuration (admin only, single row)"""
     __tablename__ = "telegram_config"

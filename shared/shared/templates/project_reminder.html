@@ -1,0 +1,26 @@
+{% extends "base_email.html" %}
+
+{% block title %}{{ project_name }} - Reminder{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
+<p style="font-size: 16px; font-weight: 500; margin: 0; color: #1f2937;">Scheduled reminder</p>
+<p style="font-size: 14px; color: #6b7280; margin: 4px 0 0 0;">{{ date_label }}</p>
+{% endblock %}
+
+{% block content %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td style="padding: 18px 16px; background: rgba(15, 96, 100, 0.06); border-radius: 8px;">
+            <p style="font-size: 15px; line-height: 1.5; color: #1f2937; margin: 0; white-space: pre-wrap;">{{ message }}</p>
+        </td>
+    </tr>
+</table>
+<p style="font-size: 13px; color: #9ca3af; text-align: center; margin: 12px 0 0 0;">You set up this reminder yourself. It will not repeat.</p>
+{% endblock %}
+
+{% block cta %}{% endblock %}
+
+{% block footer_link %}
+<p style="margin: 0;"><a href="{{ settings_url }}" style="color: #0f6064; text-decoration: none;">Manage scheduled reminders</a></p>
+{% endblock %}
