@@ -28,7 +28,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <img src="/logo-wide.svg" alt="AddaxAI Connect" className="h-7 w-auto shrink-0" />
+            <img src="/logo-wide.png" alt="AddaxAI Connect" className="h-7 w-auto shrink-0" />
           </div>
         </div>
 

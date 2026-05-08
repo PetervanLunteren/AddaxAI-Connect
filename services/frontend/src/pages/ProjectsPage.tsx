@@ -63,7 +63,7 @@ export const ProjectsPage: React.FC = () => {
       <header className="border-b bg-card">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <img src="/logo-wide.svg" alt="AddaxAI Connect" className="h-10 w-auto" />
+            <img src="/logo-wide.png" alt="AddaxAI Connect" className="h-10 w-auto" />
             <div className="flex items-center gap-4">
               {user && (
                 <UserMenu
