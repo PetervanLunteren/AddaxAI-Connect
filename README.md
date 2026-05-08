@@ -1,7 +1,6 @@
 <p align="center">
-  <img src="https://github.com/PetervanLunteren/EcoAssist-metadata/blob/main/AddaxAI-logo/logo_incl_text_bottom.png" width="40%" />
+  <img src="docs/assets/logo-wide.png" width="40%" alt="AddaxAI Connect" />
 </p>
-<h1 align="center">Connect</h1>
 
 <br>
 

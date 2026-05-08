@@ -2,7 +2,7 @@
  * Main application layout with sidebar
  */
 import React, { useState } from 'react';
-import { Camera, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 
 interface AppLayoutProps {
@@ -28,7 +28,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2 min-w-0">
-            <Camera className="h-5 w-5 shrink-0 text-primary" />
+            <img src="/logo-square-no-text.png" alt="" className="h-6 w-6 shrink-0 rounded" />
             <span className="truncate font-semibold">AddaxAI Connect</span>
           </div>
         </div>

@@ -6,7 +6,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Camera, ExternalLink, Tag } from 'lucide-react';
+import { ExternalLink, Tag } from 'lucide-react';
 import { ServerPageLayout } from '../components/layout/ServerPageLayout';
 import { versionApi } from '../api/version';
 
@@ -33,7 +33,7 @@ export const AboutPage: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center space-x-3">
-            <Camera className="h-8 w-8 text-primary" />
+            <img src="/logo-square-no-text.png" alt="" className="h-9 w-9 rounded" />
             <CardTitle>
               AddaxAI Connect
             </CardTitle>

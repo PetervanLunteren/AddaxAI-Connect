@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Camera, AlertCircle, Info, Plus } from 'lucide-react';
+import { Loader2, AlertCircle, Info, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
@@ -64,7 +64,7 @@ export const ProjectsPage: React.FC = () => {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Camera className="h-8 w-8 text-primary" />
+              <img src="/logo-square-no-text.png" alt="" className="h-9 w-9 rounded" />
               <div>
                 <h1 className="text-xl font-bold">AddaxAI Connect</h1>
                 <p className="text-xs text-muted-foreground">Wildlife monitoring projects</p>
