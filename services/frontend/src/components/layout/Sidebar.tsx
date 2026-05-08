@@ -75,7 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-16 px-6 border-b border-border shrink-0">
+        <div className="flex items-center justify-between h-20 px-6 border-b border-border shrink-0">
           <div className="flex items-center space-x-3">
             <img src="/logo-wide.png" alt="AddaxAI Connect" className="h-[54px] w-auto" />
           </div>
