@@ -19,11 +19,12 @@ import {
   Settings,
   Map,
   ListChecks,
-  Target,
   BarChart3,
-  Activity,
-  CalendarRange,
   Grid3x3,
+  Lightbulb,
+  GanttChartSquare,
+  LineChart,
+  Table2,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -53,14 +54,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/documents`, icon: FileText, label: 'Documents' },
   ];
 
-  // Insights group - deeper analytical views, mirroring AddaxAI WebUI.
+  // Insights group - deeper analytical views, ordered + iconed identically
+  // to AddaxAI WebUI's Insights submenu so the two products feel the same
+  // here. Naive occupancy is Connect-only (WebUI does not have it) and
+  // appears last in the group.
   const insightsItems = [
-    { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
-    { to: `/projects/${projectId}/insights/activity-overlap`, icon: Activity, label: 'Activity overlap' },
-    { to: `/projects/${projectId}/insights/deployment-timeline`, icon: CalendarRange, label: 'Deployment timeline' },
     { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
+    { to: `/projects/${projectId}/insights/deployment-timeline`, icon: GanttChartSquare, label: 'Deployment timeline' },
+    { to: `/projects/${projectId}/insights/activity-overlap`, icon: LineChart, label: 'Activity overlap' },
     { to: `/projects/${projectId}/insights/confusion-matrix`, icon: Grid3x3, label: 'Confusion matrix' },
-    { to: `/projects/${projectId}/insights/per-class-performance`, icon: Target, label: 'Per-class performance' },
+    { to: `/projects/${projectId}/insights/per-class-performance`, icon: Table2, label: 'Per-class performance' },
+    { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
   ];
 
   // Admin tools - visible to project admins and server admins
@@ -129,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               className="flex items-center justify-between w-full px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
             >
               <div className="flex items-center space-x-3">
-                <BarChart3 className="h-5 w-5" />
+                <Lightbulb className="h-5 w-5" />
                 <span>Insights</span>
               </div>
               {insightsOpen ? (
