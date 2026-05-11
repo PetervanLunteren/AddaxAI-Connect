@@ -99,7 +99,11 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
   };
 
   return (
-    <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
+    // Leaflet's panes use z-indexes up to 1000 within its own stacking
+    // context. Lift the entire controls bar above that so the MultiSelect
+    // popup, the date-range popover, and the native species select all
+    // render on top of the map below.
+    <div className="relative z-[1100] mb-4 p-4 bg-white rounded-lg border border-gray-200">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
         {/* View mode selector */}
         <div>
