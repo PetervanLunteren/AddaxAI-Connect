@@ -590,6 +590,60 @@ export interface NaiveOccupancyFilters {
   top_n?: number;
 }
 
+// Activity overlap (Insights -> Activity overlap)
+export type DielClass = 'diurnal' | 'nocturnal' | 'crepuscular' | 'cathemeral';
+export type DeltaEstimator = 'delta1' | 'delta4';
+export type SampleSizeWarning = 'low_n_30' | 'low_n_50' | 'low_n_75';
+export type TimeAxis = 'clock' | 'sun';
+
+export interface SunBands {
+  dawn: number;
+  sunrise: number;
+  sunset: number;
+  dusk: number;
+}
+
+export interface SpeciesActivity {
+  label: string;
+  n: number;
+  raw_detection_times: number[];
+  kde_density: number[];
+  diel_class: DielClass;
+  diel_density_by_phase: Record<string, number>;
+  sample_size_warning: SampleSizeWarning | null;
+  dropped_polar: number;
+}
+
+export interface OverlapStat {
+  delta_estimator: DeltaEstimator;
+  delta: number;
+  ci_low: number;
+  ci_high: number;
+  bootstrap_reps: number;
+  min_n: number;
+}
+
+export interface ActivityOverlapResponse {
+  species_a: SpeciesActivity;
+  species_b: SpeciesActivity | null;
+  overlap: OverlapStat | null;
+  sun_bands: SunBands | null;
+  sun_bands_reference_date: string | null;
+  anchor_sun_bands: SunBands | null;
+  time_axis: TimeAxis;
+  project_timezone: string;
+  independence_interval_minutes_recorded: number;
+}
+
+export interface ActivityOverlapFilters {
+  species_a: string;
+  species_b?: string;
+  camera_ids?: string;
+  start_date?: string;
+  end_date?: string;
+  time_axis?: TimeAxis;
+}
+
 // Taxonomy mapping
 export interface TaxonomyMappingEntry {
   id: number;

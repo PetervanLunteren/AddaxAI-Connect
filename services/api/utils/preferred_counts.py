@@ -705,6 +705,119 @@ async def get_preferred_daily_trend(
     return [{'date': row.date.isoformat(), 'count': int(row.total_count)} for row in result.all()]
 
 
+async def get_preferred_species_detection_times(
+    db: AsyncSession,
+    project_ids: List[int],
+    species_filter: str,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    camera_ids: Optional[List[int]] = None,
+) -> List[tuple]:
+    """
+    Detection times for a single species, preferring human observations
+    on verified images and AI on unverified. Returns a list of
+    (fractional_hour_in_day, capture_date) tuples ready to feed into the
+    von Mises KDE in services/api/utils/activity_analysis.py.
+
+    Person and vehicle Detections are matched on Detection.category when
+    species_filter is "person" or "vehicle" (mirrors the dashboard
+    convention so the user can pick those as the "species" in the chart
+    if they want).
+    """
+    from shared.models import (
+        Image, Camera, Project, Detection, Classification, HumanObservation,
+    )
+
+    sp = species_filter.lower()
+
+    # Verified path: HumanObservation matching the species. Image.captured_at
+    # is naive (server tz); the caller already has start/end in that frame.
+    verified_query = (
+        select(Image.captured_at.label("captured_at"))
+        .join(Image, HumanObservation.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            and_(
+                Image.is_verified == True,
+                Image.is_hidden == False,
+                Camera.project_id.in_(project_ids),
+                func.lower(HumanObservation.species) == sp,
+            )
+        )
+    )
+
+    # Unverified path: Classification gated by the project's detection and
+    # per-species classification thresholds.
+    unverified_query = (
+        select(Image.captured_at.label("captured_at"))
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(
+            and_(
+                Image.is_verified == False,
+                Image.is_hidden == False,
+                Camera.project_id.in_(project_ids),
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
+                func.lower(Classification.species) == sp,
+            )
+        )
+    )
+
+    # Person / vehicle Detections do not produce Classification rows in
+    # the current pipeline, so they only flow through this branch.
+    pv_query = None
+    if sp in ("person", "vehicle"):
+        pv_query = (
+            select(Image.captured_at.label("captured_at"))
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .where(
+                and_(
+                    Image.is_verified == False,
+                    Image.is_hidden == False,
+                    Camera.project_id.in_(project_ids),
+                    Detection.confidence >= Project.detection_threshold,
+                    func.lower(Detection.category) == sp,
+                )
+            )
+        )
+
+    if start_date is not None:
+        verified_query = verified_query.where(Image.captured_at >= start_date)
+        unverified_query = unverified_query.where(Image.captured_at >= start_date)
+        if pv_query is not None:
+            pv_query = pv_query.where(Image.captured_at >= start_date)
+    if end_date is not None:
+        verified_query = verified_query.where(Image.captured_at <= end_date)
+        unverified_query = unverified_query.where(Image.captured_at <= end_date)
+        if pv_query is not None:
+            pv_query = pv_query.where(Image.captured_at <= end_date)
+    if camera_ids:
+        verified_query = verified_query.where(Image.camera_id.in_(camera_ids))
+        unverified_query = unverified_query.where(Image.camera_id.in_(camera_ids))
+        if pv_query is not None:
+            pv_query = pv_query.where(Image.camera_id.in_(camera_ids))
+
+    union_query = (
+        union_all(verified_query, unverified_query, pv_query)
+        if pv_query is not None
+        else union_all(verified_query, unverified_query)
+    )
+
+    result = await db.execute(select(union_query.subquery().c.captured_at))
+    rows = result.all()
+    out = []
+    for r in rows:
+        dt: datetime = r.captured_at
+        hour = dt.hour + dt.minute / 60.0 + dt.second / 3600.0
+        out.append((hour, dt.date()))
+    return out
+
+
 # Naive occupancy = (sites where species detected at least once) / (sites active in window).
 # Site = Camera. "Active" = at least one CameraDeploymentPeriod overlaps the window.
 # Independence interval is intentionally NOT applied: presence/absence at the

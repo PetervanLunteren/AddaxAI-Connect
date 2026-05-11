@@ -35,6 +35,7 @@ import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { NaiveOccupancyPage } from './pages/insights/NaiveOccupancyPage';
 import { InsightsMapPage } from './pages/insights/MapPage';
 import { InsightsPerformancePage } from './pages/insights/PerformancePage';
+import { ActivityOverlapPage } from './pages/insights/ActivityOverlapPage';
 
 function App() {
   return (
@@ -140,6 +141,7 @@ function App() {
                 {/* Insights section */}
                 <Route path="insights" element={<Navigate to="insights/naive-occupancy" replace />} />
                 <Route path="insights/naive-occupancy" element={<NaiveOccupancyPage />} />
+                <Route path="insights/activity-overlap" element={<ActivityOverlapPage />} />
                 <Route path="insights/map" element={<InsightsMapPage />} />
                 <Route path="insights/performance" element={<InsightsPerformancePage />} />
                 <Route path="notifications" element={<NotificationsPage />} />

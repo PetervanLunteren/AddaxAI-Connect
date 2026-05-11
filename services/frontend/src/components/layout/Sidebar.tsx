@@ -21,6 +21,7 @@ import {
   ListChecks,
   Target,
   BarChart3,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -53,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // Insights group - deeper analytical views, mirroring AddaxAI WebUI.
   const insightsItems = [
     { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
+    { to: `/projects/${projectId}/insights/activity-overlap`, icon: Activity, label: 'Activity overlap' },
     { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
     { to: `/projects/${projectId}/insights/performance`, icon: Target, label: 'Performance' },
   ];

@@ -30,6 +30,25 @@ from utils.preferred_counts import (
     get_preferred_species_camera_matrix,
     get_naive_occupancy,
     get_detection_history,
+    get_preferred_species_detection_times,
+)
+from utils.activity_analysis import (
+    BOOTSTRAP_REPS,
+    KDE_GRID_SAMPLES,
+    SunBands,
+    bootstrap_overlap_ci,
+    classify_diel,
+    estimator_label,
+    fit_circular_kde,
+    sample_size_warning,
+)
+from utils.sun_time import (
+    compute_anchor_bands,
+    compute_anchors,
+    compute_sun_bands,
+    per_date_sun_phases,
+    reference_date_for_sun,
+    transform_to_sun_time,
 )
 from utils.independence_filter import (
     get_independent_species_counts,
@@ -61,9 +80,16 @@ async def _server_now(db: AsyncSession) -> datetime:
     Image.captured_at or CameraHealthReport.reported_at, both of which are stored
     naive and interpreted under ServerSettings.timezone.
     """
-    from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
     return datetime.now(tz).replace(tzinfo=None)
+
+
+async def get_server_timezone(db: AsyncSession) -> str:
+    """Re-export of the canonical helper from routers.admin so other
+    activity-overlap-style endpoints can resolve the tz without a circular
+    import dance at call sites."""
+    from routers.admin import get_server_timezone as _impl
+    return await _impl(db)
 
 
 class StatisticsOverview(BaseModel):
@@ -1259,6 +1285,263 @@ async def get_naive_occupancy_endpoint(
             classification_threshold_default=classification_threshold_default,
             independence_interval_minutes_recorded=interval,
         ),
+    )
+
+
+class SpeciesActivity(BaseModel):
+    """Per-species inputs to the activity-overlap chart."""
+
+    label: str
+    n: int
+    raw_detection_times: List[float]
+    kde_density: List[float]
+    diel_class: str  # diurnal | nocturnal | crepuscular | cathemeral
+    diel_density_by_phase: Dict[str, float]
+    sample_size_warning: Optional[str] = None  # low_n_30 | low_n_50 | low_n_75
+    dropped_polar: int = 0
+
+
+class OverlapStat(BaseModel):
+    """Pairwise activity-overlap coefficient with bootstrap CI."""
+
+    delta_estimator: str  # delta1 | delta4
+    delta: float
+    ci_low: float
+    ci_high: float
+    bootstrap_reps: int
+    min_n: int
+
+
+class ActivityOverlapResponse(BaseModel):
+    """Full payload for the Insights -> Activity overlap page."""
+
+    species_a: SpeciesActivity
+    species_b: Optional[SpeciesActivity] = None
+    overlap: Optional[OverlapStat] = None
+    sun_bands: Optional[SunBands] = None
+    sun_bands_reference_date: Optional[str] = None
+    anchor_sun_bands: Optional[SunBands] = None
+    time_axis: str = "clock"  # clock | sun
+    project_timezone: str
+    independence_interval_minutes_recorded: int
+
+
+_RAW_DETECTION_TIME_CAP = 5000  # bound rug payload on huge datasets
+
+
+async def _avg_camera_location(
+    db: AsyncSession,
+    project_ids: List[int],
+    camera_ids: Optional[List[int]],
+) -> Optional[Tuple[float, float]]:
+    """Mean lat/lon across cameras with a location, restricted to the
+    project + (optional) camera-id filter. None when no usable points."""
+    if not project_ids:
+        return None
+    sql = """
+        SELECT
+            AVG(ST_Y(location::geometry)) AS lat,
+            AVG(ST_X(location::geometry)) AS lon
+        FROM cameras
+        WHERE project_id = ANY(:project_ids)
+          AND location IS NOT NULL
+          AND (CAST(:camera_ids AS integer[]) IS NULL OR id = ANY(CAST(:camera_ids AS integer[])))
+    """
+    row = (await db.execute(text(sql), {
+        "project_ids": project_ids,
+        "camera_ids": camera_ids,
+    })).one()
+    if row.lat is None or row.lon is None:
+        return None
+    return float(row.lat), float(row.lon)
+
+
+def _build_species_activity(
+    label: str,
+    times: List[float],
+    diel_bands: Optional[SunBands],
+    *,
+    dropped_polar: int = 0,
+) -> SpeciesActivity:
+    """Fit KDE, classify diel, cap the rug payload."""
+    import numpy as np
+
+    n = len(times)
+    times_arr = np.asarray(times, dtype=np.float64)
+    grid_hours, density = fit_circular_kde(times_arr)
+    diel_class, density_by_phase = classify_diel(grid_hours, density, diel_bands)
+
+    if n > _RAW_DETECTION_TIME_CAP:
+        rng = np.random.default_rng(seed=hash(label) & 0xFFFFFFFF)
+        sampled = rng.choice(times_arr, size=_RAW_DETECTION_TIME_CAP, replace=False)
+        raw_for_payload = sorted(float(x) for x in sampled)
+    else:
+        raw_for_payload = [float(x) for x in times]
+
+    return SpeciesActivity(
+        label=label,
+        n=n,
+        raw_detection_times=raw_for_payload,
+        kde_density=[float(x) for x in density],
+        diel_class=diel_class,
+        diel_density_by_phase=density_by_phase,
+        sample_size_warning=sample_size_warning(n),
+        dropped_polar=dropped_polar,
+    )
+
+
+@router.get(
+    "/activity-overlap",
+    response_model=ActivityOverlapResponse,
+)
+async def get_activity_overlap(
+    project_id: int = Query(..., description="Project to analyse (single)"),
+    species_a: str = Query(..., description="First species name"),
+    species_b: Optional[str] = Query(None, description="Second species name (optional)"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
+    time_axis: str = Query("clock", description="clock | sun"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Activity-overlap chart for 1 or 2 species, with optional Vazquez 2019
+    sun-time transformation. Falls back to clock mode silently when no
+    camera location or every observation's date falls in a polar window.
+
+    Math: von Mises circular KDE on a 240-point grid, percentile-bootstrap
+    CI on Δ, Bennie 2014 diel classification. See utils/activity_analysis.py.
+    """
+    import numpy as np
+
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    if not accessible_project_ids:
+        raise HTTPException(status_code=403, detail="No access to this project.")
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+
+    # Default to last 30 days if no window is given, matching the other
+    # statistics endpoints. captured_at is naive so the window is naive too.
+    if not start_date and not end_date:
+        end_dt = await _server_now(db)
+        start_dt = end_dt - timedelta(days=30)
+    else:
+        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    # Single-reference clock sun bands. Best-effort: any failure produces None
+    # and the chart simply renders without twilight bands.
+    tz_name = await get_server_timezone(db)
+    location = await _avg_camera_location(db, accessible_project_ids, camera_id_list)
+    sun_bands: Optional[SunBands] = None
+    sun_bands_reference_date: Optional[str] = None
+    if location is not None:
+        lat, lon = location
+        ref_date = reference_date_for_sun(
+            start_dt.date() if start_dt else None,
+            end_dt.date() if end_dt else None,
+        )
+        bands = compute_sun_bands(
+            lat=lat, lon=lon, reference_date=ref_date, tz_name=tz_name,
+        )
+        if bands is not None:
+            sun_bands = SunBands(
+                dawn=bands[0], sunrise=bands[1], sunset=bands[2], dusk=bands[3]
+            )
+            sun_bands_reference_date = ref_date.isoformat()
+
+    interval = await _get_independence_interval(db, project_id)
+
+    obs_a = await get_preferred_species_detection_times(
+        db=db,
+        project_ids=accessible_project_ids,
+        species_filter=species_a,
+        start_date=start_dt,
+        end_date=end_dt,
+        camera_ids=camera_id_list,
+    )
+    obs_b: List[Tuple[float, date]] = []
+    if species_b:
+        obs_b = await get_preferred_species_detection_times(
+            db=db,
+            project_ids=accessible_project_ids,
+            species_filter=species_b,
+            start_date=start_dt,
+            end_date=end_dt,
+            camera_ids=camera_id_list,
+        )
+
+    # Decide whether sun mode can actually be delivered. Falls back to clock
+    # when no location or every date is polar.
+    effective_axis = "clock"
+    anchor_sun_bands: Optional[SunBands] = None
+    hours_a: List[float]
+    hours_b: List[float]
+    dropped_a = 0
+    dropped_b = 0
+
+    if time_axis == "sun" and location is not None and (obs_a or obs_b):
+        lat, lon = location
+        all_dates = [d for _, d in obs_a] + [d for _, d in obs_b]
+        phases = per_date_sun_phases(all_dates, lat=lat, lon=lon, tz_name=tz_name)
+        anchors = compute_anchors(phases)
+        anchor_bands_tuple = compute_anchor_bands(phases)
+        if anchors is not None and anchor_bands_tuple is not None:
+            anchor_sunrise, anchor_sunset = anchors
+            hours_a, dropped_a = transform_to_sun_time(
+                obs_a, phases,
+                anchor_sunrise=anchor_sunrise, anchor_sunset=anchor_sunset,
+            )
+            hours_b, dropped_b = transform_to_sun_time(
+                obs_b, phases,
+                anchor_sunrise=anchor_sunrise, anchor_sunset=anchor_sunset,
+            )
+            dawn, sunrise, sunset, dusk = anchor_bands_tuple
+            anchor_sun_bands = SunBands(
+                dawn=dawn, sunrise=sunrise, sunset=sunset, dusk=dusk
+            )
+            effective_axis = "sun"
+        else:
+            hours_a = [h for h, _ in obs_a]
+            hours_b = [h for h, _ in obs_b]
+    else:
+        hours_a = [h for h, _ in obs_a]
+        hours_b = [h for h, _ in obs_b]
+
+    # Diel classification uses whichever bands match the rendered axis.
+    diel_bands = anchor_sun_bands if effective_axis == "sun" else sun_bands
+
+    activity_a = _build_species_activity(species_a, hours_a, diel_bands, dropped_polar=dropped_a)
+    activity_b = None
+    overlap = None
+    if species_b:
+        activity_b = _build_species_activity(species_b, hours_b, diel_bands, dropped_polar=dropped_b)
+        if len(hours_a) > 0 and len(hours_b) > 0:
+            delta, ci_low, ci_high = bootstrap_overlap_ci(
+                np.asarray(hours_a, dtype=np.float64),
+                np.asarray(hours_b, dtype=np.float64),
+            )
+            min_n = min(len(hours_a), len(hours_b))
+            overlap = OverlapStat(
+                delta_estimator=estimator_label(min_n),
+                delta=delta,
+                ci_low=ci_low,
+                ci_high=ci_high,
+                bootstrap_reps=BOOTSTRAP_REPS,
+                min_n=min_n,
+            )
+
+    return ActivityOverlapResponse(
+        species_a=activity_a,
+        species_b=activity_b,
+        overlap=overlap,
+        sun_bands=sun_bands,
+        sun_bands_reference_date=sun_bands_reference_date,
+        anchor_sun_bands=anchor_sun_bands,
+        time_axis=effective_axis,
+        project_timezone=tz_name,
+        independence_interval_minutes_recorded=interval,
     )
 
 

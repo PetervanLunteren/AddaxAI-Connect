@@ -17,6 +17,8 @@ import type {
   DetectionTrendFilters,
   NaiveOccupancyResponse,
   NaiveOccupancyFilters,
+  ActivityOverlapResponse,
+  ActivityOverlapFilters,
   PipelineStatusResponse,
   DetectionCountResponse,
   IndependenceSummaryResponse,
@@ -141,6 +143,27 @@ export const statisticsApi = {
       : '/api/statistics/detection-trend';
 
     const response = await apiClient.get<DetectionTrendPoint[]>(url);
+    return response.data;
+  },
+
+  /**
+   * Activity overlap for 1 or 2 species (KDE + bootstrap CI + diel class).
+   */
+  getActivityOverlap: async (
+    projectId: number,
+    filters: ActivityOverlapFilters,
+  ): Promise<ActivityOverlapResponse> => {
+    const params = new URLSearchParams();
+    params.append('project_id', projectId.toString());
+    params.append('species_a', filters.species_a);
+    if (filters.species_b) params.append('species_b', filters.species_b);
+    if (filters.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.time_axis) params.append('time_axis', filters.time_axis);
+    const response = await apiClient.get<ActivityOverlapResponse>(
+      `/api/statistics/activity-overlap?${params.toString()}`,
+    );
     return response.data;
   },
 
