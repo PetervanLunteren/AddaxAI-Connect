@@ -730,10 +730,13 @@ async def get_preferred_species_detection_times(
 
     sp = species_filter.lower()
 
-    # Verified path: HumanObservation matching the species. Image.captured_at
-    # is naive (server tz); the caller already has start/end in that frame.
+    # Verified path: HumanObservation matching the species. select_from()
+    # is required because Image.captured_at is the only selected column —
+    # without it, SQLAlchemy cannot infer that HumanObservation belongs in
+    # the FROM clause and the join target is ambiguous.
     verified_query = (
         select(Image.captured_at.label("captured_at"))
+        .select_from(HumanObservation)
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(
@@ -750,6 +753,7 @@ async def get_preferred_species_detection_times(
     # per-species classification thresholds.
     unverified_query = (
         select(Image.captured_at.label("captured_at"))
+        .select_from(Classification)
         .join(Detection, Classification.detection_id == Detection.id)
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
@@ -772,6 +776,7 @@ async def get_preferred_species_detection_times(
     if sp in ("person", "vehicle"):
         pv_query = (
             select(Image.captured_at.label("captured_at"))
+            .select_from(Detection)
             .join(Image, Detection.image_id == Image.id)
             .join(Camera, Image.camera_id == Camera.id)
             .join(Project, Camera.project_id == Project.id)
