@@ -1,30 +1,58 @@
 /**
- * Deployment timeline chart — row-per-camera Gantt + concurrent-cameras strip.
+ * Deployment timeline chart with two view modes.
  *
- * One `<svg>` hosts three regions stacked vertically:
- *   - Top: x-axis with month / year ticks.
- *   - Middle: one row per camera, light-teal outer bar per deployment,
- *             solid teal bar per trap-night interval clipped to the window.
- *   - Bottom: step-function area chart of concurrent active cameras.
+ * One `<svg>` hosts:
+ *   - Top axis with month / year ticks.
+ *   - Middle, one row per camera, prefixed with a status dot.
+ *     - Deployment mode: light outer bar per CDP, solid inner segments for
+ *       image-observed activity, vertical ticks at CDP boundaries.
+ *     - Heatmap mode: a per-day rect grid coloured by image count, with
+ *       a faint CDP-window guideline behind it. Switches to weekly bins
+ *       when the visible window spans more than a year, so day cells stay
+ *       legible on long ranges.
+ *   - Bottom, step-function area chart of how many cameras delivered at
+ *     least one image each day.
  *
- * Drag-to-zoom on the chart writes back into the parent's date filter.
- *
- * Adapted from AddaxAI WebUI's DeploymentTimelineChart. Connect has no
- * subfolder concept, so each deployment renders as a single bar (no
- * multi-track stacking inside a row).
+ * Drag-to-zoom on the chart writes back to the parent's date filter.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { TimelineResponse } from '../../api/types';
+import type {
+  CdpTransition,
+  HeatmapPoint,
+  TimelineResponse,
+} from '../../api/types';
+import { STATUS_COLORS } from '../../utils/camera-colors';
 
 const BAR_INNER = '#0f6064';
 const BAR_OUTER = 'rgba(15, 96, 100, 0.18)';
+const BAR_OUTER_HEATMAP = 'rgba(15, 96, 100, 0.08)';
 const CONCURRENT_FILL = 'rgba(15, 96, 100, 0.18)';
 const CONCURRENT_STROKE = '#0f6064';
 const GRID_STROKE = 'rgba(0, 0, 0, 0.06)';
 const AXIS_TEXT = 'rgba(0, 0, 0, 0.65)';
 const HOVER_FILL = 'rgba(0, 0, 0, 0.05)';
+const TRANSITION_STROKE = 'rgba(15, 96, 100, 0.7)';
+
+// Heatmap intensity ramp: same hue as the inner bar, varying alpha so the
+// rest of the chart stays in one colour family. Tuned to one or two images
+// being visible without dominating, eleven-plus being solid.
+const HEATMAP_BINS: Array<{ min: number; fill: string }> = [
+  { min: 11, fill: 'rgba(15, 96, 100, 0.90)' },
+  { min: 5, fill: 'rgba(15, 96, 100, 0.65)' },
+  { min: 2, fill: 'rgba(15, 96, 100, 0.40)' },
+  { min: 1, fill: 'rgba(15, 96, 100, 0.20)' },
+];
+
+function heatmapFill(count: number): string | null {
+  if (count <= 0) return null;
+  for (const bin of HEATMAP_BINS) {
+    if (count >= bin.min) return bin.fill;
+  }
+  return null;
+}
 
 type Density = 'normal' | 'compact';
+type ViewMode = 'deployment' | 'heatmap';
 
 interface DensityConfig {
   rowHeight: number;
@@ -35,8 +63,8 @@ interface DensityConfig {
 }
 
 const DENSITY: Record<Density, DensityConfig> = {
-  normal: { rowHeight: 24, rowGap: 4, barHeight: 14, labelWidth: 160, showLabels: true },
-  compact: { rowHeight: 8, rowGap: 1, barHeight: 6, labelWidth: 24, showLabels: false },
+  normal: { rowHeight: 24, rowGap: 4, barHeight: 14, labelWidth: 180, showLabels: true },
+  compact: { rowHeight: 8, rowGap: 1, barHeight: 6, labelWidth: 28, showLabels: false },
 };
 
 const CONCURRENT_HEIGHT = 70;
@@ -45,6 +73,8 @@ const RIGHT_PADDING = 16;
 const TOP_PADDING = 4;
 const SECTION_GAP = 14;
 const CONCURRENT_Y_LABEL_WIDTH = 28;
+const STATUS_DOT_GAP = 6;
+const WEEKLY_BIN_DAY_THRESHOLD = 365;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -118,8 +148,16 @@ function thinTicks(ticks: MonthTick[], plotWidth: number): Set<number> {
 interface DeploymentTimelineChartProps {
   data: TimelineResponse;
   density?: Density;
+  viewMode?: ViewMode;
   /** Fired with YYYY-MM-DD strings when the user drag-zooms on the chart. */
   onZoom?: (from: string, to: string) => void;
+  /**
+   * Optional per-site grouping key. When supplied, a thin divider with the
+   * group label is drawn between adjacent rows whose key differs. Use it
+   * for "group by camera tag" so cameras carrying the same tag cluster
+   * visually inside one chart rather than splitting into multiple cards.
+   */
+  groupKeyForSite?: (siteId: string | null) => string | null;
 }
 
 const ZOOM_DRAG_THRESHOLD_PX = 4;
@@ -131,10 +169,16 @@ interface HoverInfo {
   subtitle: string;
 }
 
+interface CameraHeatmap {
+  cellsByMs: Map<number, number>;
+}
+
 export function DeploymentTimelineChart({
   data,
   density = 'normal',
+  viewMode = 'deployment',
   onZoom,
+  groupKeyForSite,
 }: DeploymentTimelineChartProps) {
   const cfg = DENSITY[density];
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -151,16 +195,15 @@ export function DeploymentTimelineChart({
     return () => ro.disconnect();
   }, []);
 
-  // Compute x-axis bounds. Fall back to the first/last deployment dates if
-  // the metadata fields are missing (defensive).
+  // Compute x-axis bounds. Use effective_end so a fully-silent open CDP
+  // does not stretch the chart out to today.
   const { xMinMs, xMaxMs } = useMemo(() => {
     let lo = data.date_range_from ? parseDate(data.date_range_from) : Infinity;
     let hi = data.date_range_to ? parseDate(data.date_range_to) : -Infinity;
     for (const site of data.sites) {
       for (const dep of site.deployments) {
         lo = Math.min(lo, parseDate(dep.configured_start));
-        const end = dep.configured_end ?? data.date_range_to;
-        if (end) hi = Math.max(hi, parseDate(end));
+        hi = Math.max(hi, parseDate(dep.effective_end));
         for (const iv of dep.intervals) {
           lo = Math.min(lo, parseDate(iv.start));
           hi = Math.max(hi, parseDate(iv.end));
@@ -172,7 +215,6 @@ export function DeploymentTimelineChart({
       lo = today - 30 * MS_PER_DAY;
       hi = today;
     }
-    // Pad by 2% on each side so bars don't touch the chart edges.
     const span = Math.max(MS_PER_DAY, hi - lo);
     const pad = span * 0.02;
     return { xMinMs: lo - pad, xMaxMs: hi + pad };
@@ -193,6 +235,24 @@ export function DeploymentTimelineChart({
   const ticks = useMemo(() => generateMonthTicks(xMinMs, xMaxMs), [xMinMs, xMaxMs]);
   const tickKeep = useMemo(() => thinTicks(ticks, plotWidth), [ticks, plotWidth]);
 
+  // Pre-index per-camera heatmap counts by epoch ms so each row render is
+  // a cheap lookup. When the visible range is long, bin the cell ms to the
+  // start of each ISO week so we render seven-day blocks instead of pixel-
+  // smearing 365 day cells.
+  const visibleDays = Math.max(1, Math.round((xMaxMs - xMinMs) / MS_PER_DAY));
+  const useWeeklyBins = viewMode === 'heatmap' && visibleDays > WEEKLY_BIN_DAY_THRESHOLD;
+  const cellSpanMs = useWeeklyBins ? 7 * MS_PER_DAY : MS_PER_DAY;
+
+  const heatmapByCamera = useMemo(() => {
+    if (viewMode !== 'heatmap') return new Map<number, CameraHeatmap>();
+    return buildHeatmapIndex(data.heatmap, useWeeklyBins);
+  }, [data.heatmap, viewMode, useWeeklyBins]);
+
+  const transitionsByCamera = useMemo(
+    () => groupTransitionsByCamera(data.cdp_transitions),
+    [data.cdp_transitions],
+  );
+
   const concurrentMax = useMemo(
     () => Math.max(1, data.metrics.max_concurrent_cameras),
     [data],
@@ -202,8 +262,7 @@ export function DeploymentTimelineChart({
   const concurrentYToPx = (count: number) =>
     concurrentBottom - (count / concurrentMax) * CONCURRENT_HEIGHT;
 
-  // Build the area-chart polyline as a step function, with the
-  // bottom-anchored points so the polygon fills underneath cleanly.
+  // Step-function area chart of cameras delivering at least one image per day.
   const concurrentPath = useMemo(() => {
     const pts = data.concurrent_cameras;
     if (pts.length === 0) return '';
@@ -215,8 +274,8 @@ export function DeploymentTimelineChart({
     for (let i = 1; i < pts.length; i++) {
       const nextX = xToPx(parseDate(pts[i].date));
       const nextY = concurrentYToPx(pts[i].count);
-      parts.push(`L ${nextX} ${prevY}`);  // step right
-      parts.push(`L ${nextX} ${nextY}`);  // step down/up
+      parts.push(`L ${nextX} ${prevY}`);
+      parts.push(`L ${nextX} ${nextY}`);
       prevX = nextX;
       prevY = nextY;
     }
@@ -254,10 +313,16 @@ export function DeploymentTimelineChart({
     setDrag(null);
   };
 
+  // Pixel width of one heatmap cell, capped at 1 so a sub-pixel range
+  // does not collapse the whole row to a single line.
+  const cellWidthPx = Math.max(
+    1,
+    Math.floor(plotWidth * (cellSpanMs / Math.max(1, xMaxMs - xMinMs))),
+  );
+
   return (
     <div ref={containerRef} className="w-full overflow-x-hidden">
       <svg width={width} height={totalHeight} role="img" aria-label="Deployment timeline">
-        {/* Month ticks + grid lines */}
         {ticks.map((t, i) => {
           const x = xToPx(t.ms);
           if (x < plotLeft || x > plotLeft + plotWidth) return null;
@@ -286,89 +351,188 @@ export function DeploymentTimelineChart({
           );
         })}
 
-        {/* Per-camera rows */}
         {data.sites.map((site, rowIdx) => {
           const rowTop =
             TOP_PADDING + AXIS_HEIGHT + rowIdx * (cfg.rowHeight + cfg.rowGap);
           const barY = rowTop + (cfg.rowHeight - cfg.barHeight) / 2;
+          const cameraId = site.site_id !== null ? Number(site.site_id) : -1;
+          const groupKey = groupKeyForSite ? groupKeyForSite(site.site_id) : null;
+          const prevSite = rowIdx > 0 ? data.sites[rowIdx - 1] : null;
+          const prevGroupKey = prevSite && groupKeyForSite
+            ? groupKeyForSite(prevSite.site_id)
+            : null;
+          const showGroupDivider =
+            groupKeyForSite !== undefined &&
+            (rowIdx === 0 || groupKey !== prevGroupKey);
+          const heatmap = heatmapByCamera.get(cameraId);
+          const transitions = transitionsByCamera.get(cameraId) ?? [];
+          const dotColor = STATUS_COLORS[site.camera_status] ?? '#9ca3af';
+          const labelText = site.site_name.length > 24
+            ? site.site_name.slice(0, 23) + '…'
+            : site.site_name;
+
           return (
             <g key={site.site_id ?? rowIdx}>
+              {showGroupDivider && groupKey && (
+                <g>
+                  <line
+                    x1={0}
+                    x2={plotLeft + plotWidth}
+                    y1={rowTop - cfg.rowGap / 2}
+                    y2={rowTop - cfg.rowGap / 2}
+                    stroke="rgba(0, 0, 0, 0.12)"
+                  />
+                  {cfg.showLabels && (
+                    <text
+                      x={4}
+                      y={rowTop - cfg.rowGap / 2 - 4}
+                      fontSize={10}
+                      fill={AXIS_TEXT}
+                      fontWeight={600}
+                    >
+                      {groupKey}
+                    </text>
+                  )}
+                </g>
+              )}
+              {/* Status dot prefix. Always rendered so the row aligns with
+                  the camera id even in compact mode where the label hides. */}
+              <circle
+                cx={plotLeft - STATUS_DOT_GAP - (cfg.showLabels ? 0 : 6)}
+                cy={rowTop + cfg.rowHeight / 2}
+                r={cfg.showLabels ? 4 : 3}
+                fill={dotColor}
+              >
+                <title>{`${site.site_name} — ${labelText} — ${labelForStatus(site.camera_status)}`}</title>
+              </circle>
               {cfg.showLabels && (
                 <text
-                  x={plotLeft - 8}
+                  x={plotLeft - STATUS_DOT_GAP - 10}
                   y={rowTop + cfg.rowHeight / 2 + 4}
                   fontSize={12}
                   textAnchor="end"
                   fill={AXIS_TEXT}
                 >
-                  {site.site_name.length > 22 ? site.site_name.slice(0, 21) + '…' : site.site_name}
+                  {labelText}
                 </text>
               )}
+
               {site.deployments.map((dep) => {
                 const startMs = parseDate(dep.configured_start);
-                const endMs = parseDate(dep.configured_end ?? formatYMD(xMaxMs));
+                const endMs = parseDate(dep.effective_end);
                 const x = xToPx(startMs);
                 const w = Math.max(1, xToPx(endMs) - x);
+                const outerFill = viewMode === 'heatmap' ? BAR_OUTER_HEATMAP : BAR_OUTER;
                 return (
                   <g key={dep.deployment_id}>
-                    {/* Outer light bar: the configured deployment window */}
                     <rect
                       x={x}
                       y={barY}
                       width={w}
                       height={cfg.barHeight}
-                      fill={BAR_OUTER}
+                      fill={outerFill}
                       rx={2}
                       onMouseEnter={() =>
                         setHover({
                           x: x + w / 2,
                           y: barY,
-                          title: `${site.site_name} • ${dep.deployment_label}`,
-                          subtitle:
-                            `${formatShortDate(startMs)} – ` +
-                            `${dep.configured_end ? formatShortDate(endMs) : 'active'}` +
-                            ` • ${dep.file_count.toLocaleString()} images`,
+                          title: `${site.site_name} · ${dep.deployment_label}`,
+                          subtitle: outerBarTooltip(dep, startMs, endMs),
                         })
                       }
                       onMouseLeave={() => setHover(null)}
                     />
-                    {/* Inner solid bars: the trap-night intervals after clipping */}
-                    {dep.intervals.map((iv, i) => {
-                      const ivStart = parseDate(iv.start);
-                      const ivEnd = parseDate(iv.end);
-                      const ix = xToPx(ivStart);
-                      const iw = Math.max(1, xToPx(ivEnd) - ix);
-                      return (
-                        <rect
-                          key={i}
-                          x={ix}
-                          y={barY}
-                          width={iw}
-                          height={cfg.barHeight}
-                          fill={BAR_INNER}
-                          rx={2}
-                          onMouseEnter={() =>
-                            setHover({
-                              x: ix + iw / 2,
-                              y: barY,
-                              title: `${site.site_name} • ${dep.deployment_label}`,
-                              subtitle:
-                                `${formatShortDate(ivStart)} – ${formatShortDate(ivEnd)}` +
-                                ` • ${iv.trap_nights} trap-night${iv.trap_nights === 1 ? '' : 's'}`,
-                            })
-                          }
-                          onMouseLeave={() => setHover(null)}
-                        />
-                      );
-                    })}
+                    {viewMode === 'deployment' &&
+                      dep.intervals.map((iv, i) => {
+                        const ivStart = parseDate(iv.start);
+                        const ivEnd = parseDate(iv.end);
+                        const ix = xToPx(ivStart);
+                        const iw = Math.max(1, xToPx(ivEnd) - ix);
+                        return (
+                          <rect
+                            key={i}
+                            x={ix}
+                            y={barY}
+                            width={iw}
+                            height={cfg.barHeight}
+                            fill={BAR_INNER}
+                            rx={2}
+                            onMouseEnter={() =>
+                              setHover({
+                                x: ix + iw / 2,
+                                y: barY,
+                                title: `${site.site_name} · ${dep.deployment_label}`,
+                                subtitle:
+                                  `${formatShortDate(ivStart)} – ${formatShortDate(ivEnd)}` +
+                                  ` · ${iv.trap_nights} day${iv.trap_nights === 1 ? '' : 's'} with images`,
+                              })
+                            }
+                            onMouseLeave={() => setHover(null)}
+                          />
+                        );
+                      })}
                   </g>
+                );
+              })}
+
+              {/* Heatmap cells, drawn on top of the outer guideline. */}
+              {viewMode === 'heatmap' && heatmap &&
+                Array.from(heatmap.cellsByMs.entries()).map(([cellMs, count]) => {
+                  const fill = heatmapFill(count);
+                  if (!fill) return null;
+                  const cx = xToPx(cellMs);
+                  if (cx + cellWidthPx < plotLeft || cx > plotLeft + plotWidth) return null;
+                  return (
+                    <rect
+                      key={cellMs}
+                      x={cx}
+                      y={barY}
+                      width={cellWidthPx}
+                      height={cfg.barHeight}
+                      fill={fill}
+                      onMouseEnter={() =>
+                        setHover({
+                          x: cx + cellWidthPx / 2,
+                          y: barY,
+                          title: `${site.site_name}`,
+                          subtitle: heatmapCellTooltip(cellMs, count, useWeeklyBins),
+                        })
+                      }
+                      onMouseLeave={() => setHover(null)}
+                    />
+                  );
+                })}
+
+              {/* CDP transition ticks. Vertical mark on the boundary day. */}
+              {transitions.map((t) => {
+                const tx = xToPx(parseDate(t.transition_date));
+                if (tx < plotLeft || tx > plotLeft + plotWidth) return null;
+                return (
+                  <line
+                    key={t.transition_date}
+                    x1={tx}
+                    x2={tx}
+                    y1={rowTop + 1}
+                    y2={rowTop + cfg.rowHeight - 1}
+                    stroke={TRANSITION_STROKE}
+                    strokeWidth={1.25}
+                    strokeDasharray="2 1"
+                    onMouseEnter={() =>
+                      setHover({
+                        x: tx,
+                        y: rowTop,
+                        title: site.site_name,
+                        subtitle: `Camera moved more than 100 m on ${formatShortDate(parseDate(t.transition_date))}`,
+                      })
+                    }
+                    onMouseLeave={() => setHover(null)}
+                  />
                 );
               })}
             </g>
           );
         })}
 
-        {/* Concurrent-cameras strip */}
         <line
           x1={plotLeft}
           x2={plotLeft + plotWidth}
@@ -379,7 +543,6 @@ export function DeploymentTimelineChart({
         {concurrentPath && (
           <path d={concurrentPath} fill={CONCURRENT_FILL} stroke={CONCURRENT_STROKE} strokeWidth={1.25} />
         )}
-        {/* y-axis label for the concurrent strip */}
         <text
           x={plotLeft - 8}
           y={concurrentTop + 12}
@@ -406,10 +569,9 @@ export function DeploymentTimelineChart({
           fill={AXIS_TEXT}
           transform={`rotate(-90 ${plotLeft - CONCURRENT_Y_LABEL_WIDTH - 6} ${(concurrentTop + concurrentBottom) / 2})`}
         >
-          Concurrent
+          Cameras with images
         </text>
 
-        {/* Drag-zoom overlay */}
         <rect
           x={plotLeft}
           y={TOP_PADDING + AXIS_HEIGHT}
@@ -436,7 +598,6 @@ export function DeploymentTimelineChart({
         )}
       </svg>
 
-      {/* Tooltip (rendered outside the SVG so it can use full HTML / wrap) */}
       {hover && (
         <div
           className="pointer-events-none absolute z-10 rounded-md border bg-popover px-2 py-1.5 text-xs shadow-md"
@@ -448,4 +609,68 @@ export function DeploymentTimelineChart({
       )}
     </div>
   );
+}
+
+function labelForStatus(status: string): string {
+  if (status === 'active') return 'Active';
+  if (status === 'inactive') return 'Inactive';
+  if (status === 'never_reported') return 'Never reported';
+  return status;
+}
+
+function outerBarTooltip(
+  dep: { configured_start: string; configured_end: string | null; effective_end: string; file_count: number },
+  startMs: number,
+  endMs: number,
+): string {
+  const range = dep.configured_end
+    ? `${formatShortDate(startMs)} – ${formatShortDate(endMs)}`
+    : `${formatShortDate(startMs)} – open (last seen ${formatShortDate(parseDate(dep.effective_end))})`;
+  return `${range} · ${dep.file_count.toLocaleString()} images`;
+}
+
+function heatmapCellTooltip(cellMs: number, count: number, weekly: boolean): string {
+  if (weekly) {
+    const end = cellMs + 6 * MS_PER_DAY;
+    return `${formatShortDate(cellMs)} – ${formatShortDate(end)} · ${count.toLocaleString()} images`;
+  }
+  return `${formatShortDate(cellMs)} · ${count.toLocaleString()} image${count === 1 ? '' : 's'}`;
+}
+
+function buildHeatmapIndex(
+  rows: HeatmapPoint[],
+  weekly: boolean,
+): Map<number, CameraHeatmap> {
+  const out = new Map<number, CameraHeatmap>();
+  for (const row of rows) {
+    const ms = parseDate(row.date);
+    const bucketMs = weekly ? mondayUtc(ms) : ms;
+    let entry = out.get(row.camera_id);
+    if (!entry) {
+      entry = { cellsByMs: new Map() };
+      out.set(row.camera_id, entry);
+    }
+    entry.cellsByMs.set(bucketMs, (entry.cellsByMs.get(bucketMs) ?? 0) + row.count);
+  }
+  return out;
+}
+
+function mondayUtc(ms: number): number {
+  const d = new Date(ms);
+  const dow = d.getUTCDay();
+  // JS getUTCDay() returns Sunday=0..Saturday=6. Shift so Monday=0.
+  const offset = (dow + 6) % 7;
+  return ms - offset * MS_PER_DAY;
+}
+
+function groupTransitionsByCamera(
+  transitions: CdpTransition[],
+): Map<number, CdpTransition[]> {
+  const out = new Map<number, CdpTransition[]>();
+  for (const t of transitions) {
+    const list = out.get(t.camera_id);
+    if (list) list.push(t);
+    else out.set(t.camera_id, [t]);
+  }
+  return out;
 }

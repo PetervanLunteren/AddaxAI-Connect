@@ -1572,6 +1572,11 @@ class TimelineDeployment(BaseModel):
     camera_model: Optional[str] = None
     configured_start: date
     configured_end: Optional[date] = None
+    # `effective_end` drives the outer bar's right edge. For closed CDPs it
+    # equals `configured_end`; for open CDPs it stops at the last image day,
+    # falling back to `configured_start` when no images exist. Replaces the
+    # old "extend open CDPs to today" rule.
+    effective_end: date
     intervals: List[TrapNightInterval]
     file_count: int
 
@@ -1580,11 +1585,25 @@ class TimelineSite(BaseModel):
     site_id: Optional[str] = None
     site_name: str
     deployments: List[TimelineDeployment]
+    last_image_day: Optional[date] = None
+    # Mirrors the Cameras-page rule (CameraHealthReport, 7-day cutoff).
+    camera_status: str = 'never_reported'
 
 
 class ConcurrentPoint(BaseModel):
     date: date
     count: int
+
+
+class HeatmapPoint(BaseModel):
+    date: date
+    camera_id: int
+    count: int
+
+
+class CdpTransition(BaseModel):
+    camera_id: int
+    transition_date: date
 
 
 class TimelineMetrics(BaseModel):
@@ -1598,6 +1617,8 @@ class TimelineMetrics(BaseModel):
 class TimelineResponse(BaseModel):
     sites: List[TimelineSite]
     concurrent_cameras: List[ConcurrentPoint]
+    heatmap: List[HeatmapPoint]
+    cdp_transitions: List[CdpTransition]
     metrics: TimelineMetrics
     date_range_from: Optional[date] = None
     date_range_to: Optional[date] = None
@@ -1617,18 +1638,21 @@ async def get_timeline(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Deployment timeline for the project. One row per camera; bars are the
-    camera's deployment periods clipped to the window. Includes a
-    concurrent-cameras sweep underneath for the area chart.
+    Deployment timeline for the project. One row per camera; outer bars
+    are the configured deployment periods, solid inner segments are days
+    when the camera delivered at least one image (gap-split when the
+    camera is silent for three or more days). Also returns a per-day
+    heatmap of image counts, the boundaries between deployments, and the
+    per-camera status pill seed.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
 
-    # `today` is the server-local calendar date so active deployments
-    # (`end_date IS NULL`) clip to the same wall-clock the rest of the app
-    # uses, matching the captured_at convention.
+    # `today` is the server-local calendar date used for date-range
+    # bookkeeping; matches the captured_at convention. Open CDPs no
+    # longer extend to today; they stop at the last seen image.
     server_now = await _server_now(db)
     payload = await get_deployment_timeline(
         db=db,

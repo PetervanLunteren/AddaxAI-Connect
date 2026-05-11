@@ -53,6 +53,7 @@ import {
 } from '../components/ui/Dialog';
 import { useProject } from '../contexts/ProjectContext';
 import { CameraDetailSheet } from '../components/CameraDetailSheet';
+import { CameraStatusBadge } from '../components/CameraStatusBadge';
 import {
   camerasApi,
   type CreateCameraRequest,
@@ -357,28 +358,6 @@ export const CamerasPage: React.FC = () => {
   const clearCameraSelection = () => setSelectedCameraIds(new Set());
 
   // Helper functions for formatting
-  const getStatusBadge = (status: string) => {
-    const colors = {
-      active: '#0f6064',
-      inactive: '#882000',
-      never_reported: '#71b7ba',
-    };
-    const labels = {
-      active: 'Active',
-      inactive: 'Inactive',
-      never_reported: 'Never reported',
-    };
-    return (
-      <span className="inline-flex items-center gap-1.5 text-sm">
-        <span
-          className="w-3 h-3 rounded-full"
-          style={{ backgroundColor: colors[status as keyof typeof colors] }}
-        />
-        {labels[status as keyof typeof labels]}
-      </span>
-    );
-  };
-
   const getBatteryColor = (percentage: number | null) => {
     if (percentage === null) return '#9ca3af';
     if (percentage > 70) return '#0f6064';
@@ -537,9 +516,8 @@ export const CamerasPage: React.FC = () => {
     !!filters.battery || !!filters.signal || !!filters.sd_usage || !!filters.location;
 
   // Per-column cell renderer. Lives inside the component so it closes over
-  // the format helpers (getStatusBadge, getBatteryColor, etc.) that are
-  // already defined above. Each ColumnId returns the cell body, not the
-  // wrapping <TableCell>.
+  // the format helpers (getBatteryColor, getSignalLabel, etc.) defined
+  // above. Each ColumnId returns the cell body, not the wrapping <TableCell>.
   const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
     switch (id) {
       case 'name':
@@ -571,7 +549,7 @@ export const CamerasPage: React.FC = () => {
           <span className="text-xs text-muted-foreground">-</span>
         );
       case 'status':
-        return getStatusBadge(camera.status);
+        return <CameraStatusBadge status={camera.status} />;
       case 'battery':
         return (
           <div className="flex items-center gap-1.5">

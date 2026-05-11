@@ -1,9 +1,11 @@
 /**
  * Insights -> Deployment timeline page.
  *
- * Row-per-camera Gantt with trap-night intervals plus a concurrent-cameras
- * area chart underneath, mirroring AddaxAI WebUI. Filters live in the URL
- * via the Phase 1 filter-url helpers.
+ * Connect-native rebuild: outer bars are configured deployment windows,
+ * solid inner segments are days when the camera delivered at least one
+ * image (gap-split when silent for three or more days). Heatmap mode
+ * swaps the inner bar for a per-day intensity grid. Per-row status dot
+ * matches the Cameras page rule (CameraHealthReport, seven-day cutoff).
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -13,7 +15,7 @@ import { Info } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
 import { statisticsApi } from '../../api/statistics';
-import type { TimelineResponse } from '../../api/types';
+import type { TimelineResponse, TimelineSite } from '../../api/types';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { DeploymentTimelineChart } from '../../components/plots/DeploymentTimelineChart';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
@@ -29,12 +31,19 @@ import {
   type FilterSchema,
 } from '../../lib/filter-url';
 
+type ViewMode = 'deployment' | 'heatmap';
+type SortBy = 'name' | 'last_image' | 'trap_nights';
+type GroupBy = 'none' | 'tag';
+
 const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
   camera_ids: 'string[]',
   density: 'string',
+  view_mode: 'string',
+  sort_by: 'string',
+  group_by: 'string',
 };
 
 const REFERENCES: PlotReference[] = [
@@ -45,6 +54,8 @@ const REFERENCES: PlotReference[] = [
     url: 'https://link.springer.com/article/10.1007/s10531-014-0712-8',
   },
 ];
+
+const NO_TAG_LABEL = 'Untagged';
 
 export const DeploymentTimelinePage: React.FC = () => {
   const { selectedProject } = useProject();
@@ -60,6 +71,13 @@ export const DeploymentTimelinePage: React.FC = () => {
   const density = ((parsed.density as string) === 'compact' ? 'compact' : 'normal') as
     | 'normal'
     | 'compact';
+  const viewMode: ViewMode = (parsed.view_mode as string) === 'heatmap' ? 'heatmap' : 'deployment';
+  const sortBy: SortBy = (() => {
+    const v = parsed.sort_by as string;
+    if (v === 'last_image' || v === 'trap_nights') return v;
+    return 'name';
+  })();
+  const groupBy: GroupBy = (parsed.group_by as string) === 'tag' ? 'tag' : 'none';
 
   const dateRange: DateRange = { startDate, endDate };
   const selectedTags: Option[] = tagValues.map((v) => ({ label: v, value: v }));
@@ -86,12 +104,18 @@ export const DeploymentTimelinePage: React.FC = () => {
     tags?: string[];
     cameraIds?: string[];
     density?: 'normal' | 'compact';
+    viewMode?: ViewMode;
+    sortBy?: SortBy;
+    groupBy?: GroupBy;
   }) => {
     const nextStart = next.startDate !== undefined ? next.startDate : startDate;
     const nextEnd = next.endDate !== undefined ? next.endDate : endDate;
     const nextTags = next.tags ?? tagValues;
     const nextCams = next.cameraIds ?? cameraIdValues;
     const nextDensity = next.density ?? density;
+    const nextView = next.viewMode ?? viewMode;
+    const nextSort = next.sortBy ?? sortBy;
+    const nextGroup = next.groupBy ?? groupBy;
     const params = filtersToSearchParams(
       {
         date_from: nextStart ?? undefined,
@@ -99,6 +123,9 @@ export const DeploymentTimelinePage: React.FC = () => {
         tags: nextTags,
         camera_ids: nextCams,
         density: nextDensity === 'normal' ? undefined : nextDensity,
+        view_mode: nextView === 'deployment' ? undefined : nextView,
+        sort_by: nextSort === 'name' ? undefined : nextSort,
+        group_by: nextGroup === 'none' ? undefined : nextGroup,
       },
       FILTER_SCHEMA,
     );
@@ -112,9 +139,10 @@ export const DeploymentTimelinePage: React.FC = () => {
   const setCameras = (cams: Option[]) =>
     writeFilters({ cameraIds: cams.map((c) => String(c.value)) });
   const setDensity = (d: 'normal' | 'compact') => writeFilters({ density: d });
+  const setViewMode = (m: ViewMode) => writeFilters({ viewMode: m });
+  const setSortBy = (s: SortBy) => writeFilters({ sortBy: s });
+  const setGroupBy = (g: GroupBy) => writeFilters({ groupBy: g });
 
-  // Effective camera_ids = union of cameras directly selected and cameras
-  // whose tags match. Empty filter => undefined; both active but no match => '0'.
   const cameraIdsFromTags = useMemo(() => {
     if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
     const ids = new Set<string>(cameraIdValues);
@@ -138,21 +166,111 @@ export const DeploymentTimelinePage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const subtitle = 'Camera deployment periods over time, with a concurrent-cameras strip';
+  // Site-level tag lookup, needed for sort-by-tag and group-by-tag. Picks
+  // the first tag alphabetically so behaviour stays stable across page
+  // reloads even when a camera carries several tags.
+  const primaryTagBySiteId = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!cameras) return out;
+    for (const c of cameras) {
+      const tags = (c.tags ?? []).slice().sort();
+      out.set(String(c.id), tags[0] ?? NO_TAG_LABEL);
+    }
+    return out;
+  }, [cameras]);
+
+  const orderedData = useMemo<TimelineResponse | undefined>(() => {
+    if (!data) return undefined;
+    const trapNightsBySite = new Map<string, number>();
+    for (const site of data.sites) {
+      const total = site.deployments.reduce(
+        (acc, dep) => acc + dep.intervals.reduce((s, iv) => s + iv.trap_nights, 0),
+        0,
+      );
+      trapNightsBySite.set(site.site_id ?? '', total);
+    }
+
+    const compareWithinGroup = (a: TimelineSite, b: TimelineSite): number => {
+      if (sortBy === 'last_image') {
+        const av = a.last_image_day ?? '';
+        const bv = b.last_image_day ?? '';
+        if (av === bv) return a.site_name.localeCompare(b.site_name);
+        return bv.localeCompare(av);
+      }
+      if (sortBy === 'trap_nights') {
+        const av = trapNightsBySite.get(a.site_id ?? '') ?? 0;
+        const bv = trapNightsBySite.get(b.site_id ?? '') ?? 0;
+        if (av === bv) return a.site_name.localeCompare(b.site_name);
+        return bv - av;
+      }
+      return a.site_name.localeCompare(b.site_name);
+    };
+
+    const sorted = [...data.sites].sort((a, b) => {
+      if (groupBy === 'tag') {
+        const at = primaryTagBySiteId.get(a.site_id ?? '') ?? NO_TAG_LABEL;
+        const bt = primaryTagBySiteId.get(b.site_id ?? '') ?? NO_TAG_LABEL;
+        if (at !== bt) return at.localeCompare(bt);
+      }
+      return compareWithinGroup(a, b);
+    });
+    return { ...data, sites: sorted };
+  }, [data, sortBy, groupBy, primaryTagBySiteId]);
+
+  const groupKeyForSite = useMemo(() => {
+    if (groupBy !== 'tag') return undefined;
+    return (siteId: string | null) => {
+      if (siteId === null) return NO_TAG_LABEL;
+      return primaryTagBySiteId.get(siteId) ?? NO_TAG_LABEL;
+    };
+  }, [groupBy, primaryTagBySiteId]);
+
+  const subtitle = 'Per-camera activity over time, with a strip showing how many cameras delivered images each day';
 
   return (
     <InsightsPageLayout
       title="Deployment timeline"
       subtitle={subtitle}
       actions={
-        <Select
-          value={density}
-          onValueChange={(v) => setDensity(v === 'compact' ? 'compact' : 'normal')}
-          className="h-9 text-sm w-32"
-        >
-          <SelectItem value="normal">Normal</SelectItem>
-          <SelectItem value="compact">Compact</SelectItem>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={viewMode}
+            onValueChange={(v) => setViewMode(v === 'heatmap' ? 'heatmap' : 'deployment')}
+            className="h-9 text-sm w-36"
+            aria-label="View mode"
+          >
+            <SelectItem value="deployment">Deployment</SelectItem>
+            <SelectItem value="heatmap">Heatmap</SelectItem>
+          </Select>
+          <Select
+            value={sortBy}
+            onValueChange={(v) => setSortBy(v as SortBy)}
+            className="h-9 text-sm w-44"
+            aria-label="Sort rows"
+          >
+            <SelectItem value="name">Sort by name</SelectItem>
+            <SelectItem value="last_image">Sort by last image</SelectItem>
+            <SelectItem value="trap_nights">Sort by trap-nights</SelectItem>
+          </Select>
+          <Select
+            value={groupBy}
+            onValueChange={(v) => setGroupBy(v as GroupBy)}
+            className="h-9 text-sm w-36"
+            aria-label="Group rows"
+          >
+            <SelectItem value="none">No grouping</SelectItem>
+            <SelectItem value="tag">Group by tag</SelectItem>
+          </Select>
+          <Select
+            value={density}
+            onValueChange={(v) => setDensity(v === 'compact' ? 'compact' : 'normal')}
+            className="h-9 text-sm w-32"
+            aria-label="Row density"
+          >
+            <SelectItem value="normal">Normal</SelectItem>
+            <SelectItem value="compact">Compact</SelectItem>
+          </Select>
+        </div>
       }
     >
       <DashboardFilters
@@ -166,28 +284,30 @@ export const DeploymentTimelinePage: React.FC = () => {
         onDateRangeChange={setDateRange}
       />
 
-      {!projectId || isLoading || !data ? (
+      {!projectId || isLoading || !orderedData ? (
         <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
           Loading...
         </div>
-      ) : data.sites.length === 0 ? (
+      ) : orderedData.sites.length === 0 ? (
         <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
           No deployments match the current filters.
         </div>
       ) : (
         <div className="rounded-lg border bg-card p-4 relative">
           <DeploymentTimelineChart
-            data={data}
+            data={orderedData}
             density={density}
+            viewMode={viewMode}
             onZoom={(from, to) => writeFilters({ startDate: from, endDate: to })}
+            groupKeyForSite={groupKeyForSite}
           />
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>{data.metrics.deployment_count} deployments across {data.metrics.site_count} cameras</span>
+            <span>{orderedData.metrics.deployment_count} deployments across {orderedData.metrics.site_count} cameras</span>
             <span aria-hidden="true">·</span>
-            <span>{data.metrics.total_trap_nights.toLocaleString()} trap-nights total</span>
+            <span>{orderedData.metrics.total_trap_nights.toLocaleString()} days with images</span>
             <span aria-hidden="true">·</span>
-            <span>peak {data.metrics.max_concurrent_cameras} concurrent</span>
+            <span>peak {orderedData.metrics.max_concurrent_cameras} cameras delivering images on a single day</span>
             <span aria-hidden="true">·</span>
             <span>Drag horizontally to zoom</span>
           </div>
@@ -198,36 +318,52 @@ export const DeploymentTimelinePage: React.FC = () => {
         plotKey="deployment-timeline"
         what={
           <p>
-            One row per camera. Each light bar is the configured deployment window for a camera at
-            a single location; the solid bar inside is the trap-night interval that fell within
-            the chosen date window. The strip at the bottom is the count of cameras simultaneously
-            active each day, as a step function.
+            One row per camera. The light outer bar is the configured deployment window. Solid
+            inner bars are days when the camera delivered at least one image. The strip below
+            counts how many cameras delivered at least one image each day. Switch to the heatmap
+            mode to see per-day image counts as colour intensity instead of bars.
           </p>
         }
         how={
           <>
             <p>
-              Connect models a camera moving more than 100 m as a new <code>CameraDeploymentPeriod</code>,
-              so the bars on one row correspond to consecutive physical placements of that camera.
-              An open (`end_date IS NULL`) deployment is clipped at the server&apos;s current date.
+              Image dates come from <code>captured_at</code> in each image, read under the server
+              timezone. Days with one or two consecutive silences stay inside a segment. A silence
+              of three or more days starts a new segment. Trap-nights for a camera is the total
+              number of days inside its segments.
             </p>
             <p>
-              Trap-nights = (end − start) + 1 days for each clipped interval. The concurrent
-              cameras series is a sweep-line over all intervals; ties on a single day collapse to
-              one point so the area chart stays clean.
+              The status dot reuses the same rule as the Cameras page, based on the most recent
+              daily health report from the camera with a seven-day cutoff. A camera can appear
+              live (green dot) while its inner bars are short, which means the camera is reachable
+              but not currently sending many images.
+            </p>
+            <p>
+              Each <code>CameraDeploymentPeriod</code> is a row segment with its own outer bar.
+              A vertical tick on the row marks the day the camera was moved more than 100 m to a
+              new location. Open periods (no end date) stop at the last image seen, so a camera
+              that went quiet does not draw a green ribbon to today.
+            </p>
+            <p>
+              The heatmap mode auto-switches to weekly bins when the visible window spans more
+              than a year, so day cells stay legible on long ranges.
             </p>
           </>
         }
         settings={
-          data
+          orderedData
             ? [
                 {
                   label: 'Window',
-                  detail: `${data.date_range_from ?? '–'} to ${data.date_range_to ?? '–'} (clipped to the date filter when set).`,
+                  detail: `${orderedData.date_range_from ?? '–'} to ${orderedData.date_range_to ?? '–'} (clipped to the date filter when set).`,
                 },
                 {
                   label: 'Cameras shown',
-                  detail: `${data.metrics.site_count} (set by the camera-tag filter).`,
+                  detail: `${orderedData.metrics.site_count} (set by the camera and tag filters).`,
+                },
+                {
+                  label: 'View',
+                  detail: `${viewMode === 'heatmap' ? 'Heatmap' : 'Deployment'} mode, sorted by ${sortLabel(sortBy)}${groupBy === 'tag' ? ', grouped by camera tag' : ''}.`,
                 },
               ]
             : undefined
@@ -237,3 +373,9 @@ export const DeploymentTimelinePage: React.FC = () => {
     </InsightsPageLayout>
   );
 };
+
+function sortLabel(s: SortBy): string {
+  if (s === 'last_image') return 'last image';
+  if (s === 'trap_nights') return 'trap-nights';
+  return 'camera name';
+}

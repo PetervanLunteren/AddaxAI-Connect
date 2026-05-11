@@ -604,19 +604,38 @@ export interface TimelineDeployment {
   camera_model: string | null;
   configured_start: string;
   configured_end: string | null;
+  // Right edge of the outer bar. Equals `configured_end` for closed CDPs;
+  // for open CDPs stops at the last image day (or `configured_start` when
+  // the camera has never delivered an image inside the CDP).
+  effective_end: string;
   intervals: TrapNightInterval[];
   file_count: number;
 }
+
+export type CameraLivenessStatus = 'active' | 'inactive' | 'never_reported';
 
 export interface TimelineSite {
   site_id: string | null;
   site_name: string;
   deployments: TimelineDeployment[];
+  last_image_day: string | null;
+  camera_status: CameraLivenessStatus;
 }
 
 export interface ConcurrentPoint {
   date: string;
   count: number;
+}
+
+export interface HeatmapPoint {
+  date: string;
+  camera_id: number;
+  count: number;
+}
+
+export interface CdpTransition {
+  camera_id: number;
+  transition_date: string;
 }
 
 export interface TimelineMetrics {
@@ -630,6 +649,8 @@ export interface TimelineMetrics {
 export interface TimelineResponse {
   sites: TimelineSite[];
   concurrent_cameras: ConcurrentPoint[];
+  heatmap: HeatmapPoint[];
+  cdp_transitions: CdpTransition[];
   metrics: TimelineMetrics;
   date_range_from: string | null;
   date_range_to: string | null;

@@ -19,6 +19,7 @@ from auth.permissions import can_admin_project
 from auth.project_access import get_accessible_project_ids, narrow_to_project
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
+from utils.camera_status import camera_status as _camera_status
 
 logger = get_logger(__name__)
 
@@ -120,18 +121,6 @@ def normalize_tags(tags: Optional[List[str]]) -> List[str]:
             seen.add(tag)
             result.append(tag)
     return result
-
-
-def _camera_status(last_reported_at: Optional[datetime]) -> str:
-    """
-    Classify a camera as 'active', 'inactive' or 'never_reported' based on when its
-    most recent health report arrived. A few-hour drift from the true local-vs-UTC
-    offset is irrelevant for a 7-day window, so the cutoff is computed naive.
-    """
-    if last_reported_at is None:
-        return 'never_reported'
-    cutoff = datetime.utcnow() - timedelta(days=7)
-    return 'active' if last_reported_at >= cutoff else 'inactive'
 
 
 def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
