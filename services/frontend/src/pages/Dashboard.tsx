@@ -1,9 +1,15 @@
 /**
  * Dashboard page with statistics and charts
  */
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { Option } from '../components/ui/MultiSelect';
+import {
+  filtersFromSearchParams,
+  filtersToSearchParams,
+  type FilterSchema,
+} from '../lib/filter-url';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -28,9 +34,7 @@ import {
   DateRange,
   ActivityPatternChart,
   DetectionTrendChart,
-  NaiveOccupancyChart,
   AlertCounters,
-  SpeciesComparisonChart,
   DashboardFilters,
 } from '../components/dashboard';
 import { DemographicChart } from '../components/dashboard/DemographicChart';
@@ -47,18 +51,60 @@ ChartJS.register(
   Legend
 );
 
+const FILTER_SCHEMA: FilterSchema = {
+  date_from: 'date',
+  date_to: 'date',
+  tags: 'string[]',
+};
+
 export const Dashboard: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
-  // Global date range filter
-  const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: null,
-    endDate: null,
-  });
+  // Filter state lives in the URL so dashboard views are sharable and
+  // survive a refresh. `replace: true` keeps the back button history clean
+  // when the user edits the date range or toggles tag chips.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
 
-  // Camera tag filters
-  const [selectedTags, setSelectedTags] = useState<Option[]>([]);
+  const dateRange: DateRange = useMemo(
+    () => ({
+      startDate: (parsed.date_from as string) || null,
+      endDate: (parsed.date_to as string) || null,
+    }),
+    [parsed.date_from, parsed.date_to],
+  );
+  const tagValues: string[] = useMemo(
+    () => (Array.isArray(parsed.tags) ? parsed.tags : []),
+    [parsed.tags],
+  );
+  const selectedTags: Option[] = useMemo(
+    () => tagValues.map((v) => ({ label: v, value: v })),
+    [tagValues],
+  );
+
+  const setDateRange = (range: DateRange) => {
+    const next = filtersToSearchParams(
+      {
+        date_from: range.startDate ?? undefined,
+        date_to: range.endDate ?? undefined,
+        tags: tagValues,
+      },
+      FILTER_SCHEMA,
+    );
+    setSearchParams(next, { replace: true });
+  };
+  const setSelectedTags = (tags: Option[]) => {
+    const next = filtersToSearchParams(
+      {
+        date_from: dateRange.startDate ?? undefined,
+        date_to: dateRange.endDate ?? undefined,
+        tags: tags.map((t) => String(t.value)),
+      },
+      FILTER_SCHEMA,
+    );
+    setSearchParams(next, { replace: true });
+  };
 
   // Fetch cameras for tag-to-cameraId mapping
   const { data: cameras } = useQuery({
@@ -286,9 +332,6 @@ export const Dashboard: React.FC = () => {
         <DetectionTrendChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
       </div>
 
-      {/* Naive occupancy: per-species presence/absence proportion across active sites */}
-      <NaiveOccupancyChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
-
       {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
         <ActivityPatternChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
@@ -316,10 +359,7 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* Row 3: Species activity comparison (full width) */}
-      <SpeciesComparisonChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
-
-      {/* Row 4: Demographics + Verification progress */}
+      {/* Row 3: Demographics + Verification progress */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <DemographicChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
         <VerificationProgressCard dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />

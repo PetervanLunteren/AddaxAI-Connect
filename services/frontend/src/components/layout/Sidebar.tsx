@@ -19,7 +19,8 @@ import {
   Settings,
   Map,
   ListChecks,
-  Target
+  Target,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -36,17 +37,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { selectedProject, isServerAdmin, isProjectAdmin } = useProject();
   const { projectId } = useParams<{ projectId: string }>();
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
 
-  // Navigation items (all project-specific)
+  // Navigation items (all project-specific). Map and Performance now live
+  // under the collapsible Insights group below.
   const navItems = [
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
-    { to: `/projects/${projectId}/map`, icon: Map, label: 'Map' },
-    { to: `/projects/${projectId}/performance`, icon: Target, label: 'Performance' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
     { to: `/projects/${projectId}/exports`, icon: Download, label: 'Exports' },
     { to: `/projects/${projectId}/documents`, icon: FileText, label: 'Documents' },
+  ];
+
+  // Insights group - deeper analytical views, mirroring AddaxAI WebUI.
+  const insightsItems = [
+    { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
+    { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
+    { to: `/projects/${projectId}/insights/performance`, icon: Target, label: 'Performance' },
   ];
 
   // Admin tools - visible to project admins and server admins
@@ -107,6 +115,47 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <span>{item.label}</span>
             </NavLink>
           ))}
+
+          {/* Insights section (collapsible) */}
+          <div className="mt-2">
+            <button
+              onClick={() => setInsightsOpen(!insightsOpen)}
+              className="flex items-center justify-between w-full px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <BarChart3 className="h-5 w-5" />
+                <span>Insights</span>
+              </div>
+              {insightsOpen ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
+
+            {insightsOpen && (
+              <div className="ml-4 mt-1 space-y-1">
+                {insightsItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      )
+                    }
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Admin Tools Section (project admin or server admin) */}
           {isProjectAdmin && (

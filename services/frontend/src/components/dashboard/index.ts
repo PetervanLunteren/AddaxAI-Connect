@@ -8,6 +8,5 @@ export { ActivityPatternChart } from './ActivityPatternChart';
 export { DetectionTrendChart } from './DetectionTrendChart';
 export { AlertCounters } from './AlertCounters';
 export { PipelineStatus } from './PipelineStatus';
-export { SpeciesComparisonChart } from './SpeciesComparisonChart';
 export { NaiveOccupancyChart } from './NaiveOccupancyChart';
 export { DashboardFilters } from './DashboardFilters';

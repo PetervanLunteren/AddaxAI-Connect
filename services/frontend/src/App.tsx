@@ -32,8 +32,9 @@ import { HealthPage } from './pages/server/HealthPage';
 import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
-import { DetectionRateMapPage } from './pages/DetectionRateMapPage';
-import { PerformancePage } from './pages/PerformancePage';
+import { NaiveOccupancyPage } from './pages/insights/NaiveOccupancyPage';
+import { InsightsMapPage } from './pages/insights/MapPage';
+import { InsightsPerformancePage } from './pages/insights/PerformancePage';
 
 function App() {
   return (
@@ -132,8 +133,15 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="images" element={<ImagesPage />} />
-                <Route path="map" element={<DetectionRateMapPage />} />
-                <Route path="performance" element={<PerformancePage />} />
+                {/* Legacy single-page routes redirect into Insights so old
+                    bookmarks keep working. */}
+                <Route path="map" element={<Navigate to="../insights/map" replace />} />
+                <Route path="performance" element={<Navigate to="../insights/performance" replace />} />
+                {/* Insights section */}
+                <Route path="insights" element={<Navigate to="insights/naive-occupancy" replace />} />
+                <Route path="insights/naive-occupancy" element={<NaiveOccupancyPage />} />
+                <Route path="insights/map" element={<InsightsMapPage />} />
+                <Route path="insights/performance" element={<InsightsPerformancePage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="exports" element={<ExportsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
