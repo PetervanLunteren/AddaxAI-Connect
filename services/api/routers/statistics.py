@@ -1421,6 +1421,13 @@ async def get_activity_overlap(
         raise HTTPException(status_code=403, detail="No access to this project.")
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
 
+    # If the user picked the same species for A and B, drop B and run the
+    # single-species path. Two identical curves overlap with Δ = 1 by
+    # definition and the bootstrap would be wasted work (it can be very
+    # slow on populous species).
+    if species_b is not None and species_b.lower() == species_a.lower():
+        species_b = None
+
     # Default to last 30 days if no window is given, matching the other
     # statistics endpoints. captured_at is naive so the window is naive too.
     if not start_date and not end_date:

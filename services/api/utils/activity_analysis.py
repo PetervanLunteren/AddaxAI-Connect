@@ -48,6 +48,12 @@ DEFAULT_KAPPA: float = 5.0
 # Bootstrap reps for the Δ confidence interval. Canonical is 10 000; 1000
 # keeps the interactive endpoint snappy.
 BOOTSTRAP_REPS: int = 1000
+# Upper bound on per-rep resample size. Each rep refits a KDE on N points
+# over a 240-cell grid, so cost grows linearly in N. With 1000 reps and
+# n=10k a request can take well over a minute; capping at 2000 brings worst
+# case down to a few seconds while leaving the Δ point estimate (computed
+# on the full dataset, not subsampled) untouched.
+MAX_BOOTSTRAP_N: int = 2000
 # Bennie et al. 2014 density-in-phase threshold for diel classification.
 DIEL_THRESHOLD: float = 0.70
 
@@ -111,12 +117,19 @@ def bootstrap_overlap_ci(
     samples: int = KDE_GRID_SAMPLES,
     kappa: float = DEFAULT_KAPPA,
     seed: int = 42,
+    max_n: int = MAX_BOOTSTRAP_N,
 ) -> tuple[float, float, float]:
     """
-    Δ point estimate plus percentile-bootstrap 95% CI. Each species is
-    resampled with replacement, KDE refit, Δ recomputed; the 2.5 / 97.5
-    percentiles of the bootstrap distribution form the CI. Fixed seed for
-    deterministic results.
+    Δ point estimate plus percentile-bootstrap 95% CI.
+
+    The point estimate uses every observation in `times_a` / `times_b`. Each
+    bootstrap rep then resamples (with replacement) from at most `max_n`
+    observations per species so the total cost stays bounded by
+    reps × max_n × samples rather than scaling with the raw dataset size.
+    For n ≤ max_n the rep matches the conventional non-parametric bootstrap
+    sample size n exactly; above that, a one-time random pre-sample (drawn
+    from the same seeded rng) trims each species to `max_n` points before
+    the resampling loop. Fixed seed = deterministic results.
     """
     times_a = np.asarray(times_a, dtype=np.float64)
     times_b = np.asarray(times_b, dtype=np.float64)
@@ -130,10 +143,15 @@ def bootstrap_overlap_ci(
     delta_point = overlap_coefficient(density_a, density_b, samples=samples)
 
     rng = np.random.default_rng(seed)
+    pool_a = times_a if n_a <= max_n else rng.choice(times_a, size=max_n, replace=False)
+    pool_b = times_b if n_b <= max_n else rng.choice(times_b, size=max_n, replace=False)
+    rep_n_a = len(pool_a)
+    rep_n_b = len(pool_b)
+
     deltas = np.empty(reps, dtype=np.float64)
     for i in range(reps):
-        sample_a = rng.choice(times_a, size=n_a, replace=True)
-        sample_b = rng.choice(times_b, size=n_b, replace=True)
+        sample_a = rng.choice(pool_a, size=rep_n_a, replace=True)
+        sample_b = rng.choice(pool_b, size=rep_n_b, replace=True)
         _, da = fit_circular_kde(sample_a, samples=samples, kappa=kappa)
         _, db = fit_circular_kde(sample_b, samples=samples, kappa=kappa)
         deltas[i] = overlap_coefficient(da, db, samples=samples)

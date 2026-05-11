@@ -64,11 +64,13 @@ export const ActivityOverlapFilterBar: React.FC<ActivityOverlapFilterBarProps> =
             className="w-full h-9 text-sm"
           >
             <SelectItem value="">None (single species)</SelectItem>
-            {speciesOptions.map((s) => (
-              <SelectItem key={s} value={s}>
-                {normalizeLabel(s)}
-              </SelectItem>
-            ))}
+            {speciesOptions
+              .filter((s) => s !== values.speciesA)
+              .map((s) => (
+                <SelectItem key={s} value={s}>
+                  {normalizeLabel(s)}
+                </SelectItem>
+              ))}
           </Select>
         </div>
         <div>
