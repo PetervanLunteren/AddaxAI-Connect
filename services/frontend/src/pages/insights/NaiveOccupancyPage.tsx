@@ -160,15 +160,13 @@ export const NaiveOccupancyPage: React.FC = () => {
         </a>
       }
     >
-      <div className="flex items-center justify-end gap-2">
-        <DashboardFilters
-          tags={selectedTags}
-          onTagsChange={setTags}
-          tagOptions={tagOptions || []}
-          dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-        />
-      </div>
+      <DashboardFilters
+        tags={selectedTags}
+        onTagsChange={setTags}
+        tagOptions={tagOptions || []}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+      />
       <div className="rounded-lg border bg-card p-4">
         <NaiveOccupancyChart
           dateRange={dateRange}

@@ -37,7 +37,7 @@ export const ActivityOverlapFilterBar: React.FC<ActivityOverlapFilterBarProps> =
   const tagsAsOptions: Option[] = tagOptions.map((t) => ({ label: t, value: t }));
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3">
+    <div className="rounded-lg border bg-card pt-2 pb-3 px-3 space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">

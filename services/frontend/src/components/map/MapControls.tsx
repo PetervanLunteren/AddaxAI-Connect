@@ -103,11 +103,11 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
     // context. Lift the entire controls bar above that so the MultiSelect
     // popup, the date-range popover, and the native species select all
     // render on top of the map below.
-    <div className="relative z-[1100] mb-4 p-4 bg-white rounded-lg border border-gray-200">
+    <div className="relative z-[1100] mb-4 rounded-lg border bg-card pt-2 pb-3 px-3">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
         {/* View mode selector */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
             View mode
           </label>
           <div className="flex w-full rounded-md shadow-sm" role="group">
@@ -154,7 +154,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
         </div>
 
         <div>
-          <label htmlFor="species-filter" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="species-filter" className="block text-xs font-medium text-muted-foreground mb-1">
             Species
           </label>
           <div className="relative">
@@ -177,7 +177,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
             Camera tags
           </label>
           <MultiSelect
@@ -189,7 +189,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
             Date range
           </label>
           <DateRangePicker
@@ -204,7 +204,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
             Map style
           </label>
           <div className="flex w-full rounded-md shadow-sm" role="group">

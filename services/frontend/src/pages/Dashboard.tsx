@@ -265,22 +265,22 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with date filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
-          <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends. Observation counts are based on MaxN, the peak number of individuals per species visible in a single image within each event, summed across all events.</p>
-        </div>
-        <DashboardFilters
-          tags={selectedTags}
-          onTagsChange={setSelectedTags}
-          tagOptions={tagOptions ?? []}
-          dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-          minDate={overview?.first_image_date}
-          maxDate={overview?.last_image_date}
-        />
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
+        <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends. Observation counts are based on MaxN, the peak number of individuals per species visible in a single image within each event, summed across all events.</p>
       </div>
+
+      {/* Filter bar — always visible, matching the Insights pages */}
+      <DashboardFilters
+        tags={selectedTags}
+        onTagsChange={setSelectedTags}
+        tagOptions={tagOptions ?? []}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        minDate={overview?.first_image_date}
+        maxDate={overview?.last_image_date}
+      />
 
       {/* Summary Cards */}
       <div className="grid gap-6 md:grid-cols-3">

@@ -145,15 +145,13 @@ export const DeploymentTimelinePage: React.FC = () => {
         </Select>
       }
     >
-      <div className="flex items-center justify-end gap-2">
-        <DashboardFilters
-          tags={selectedTags}
-          onTagsChange={setTags}
-          tagOptions={tagOptions || []}
-          dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-        />
-      </div>
+      <DashboardFilters
+        tags={selectedTags}
+        onTagsChange={setTags}
+        tagOptions={tagOptions || []}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+      />
 
       {!projectId || isLoading || !data ? (
         <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
