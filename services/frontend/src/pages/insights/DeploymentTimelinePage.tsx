@@ -207,14 +207,6 @@ export const DeploymentTimelinePage: React.FC = () => {
             </p>
           </>
         }
-        caveats={
-          <p>
-            Image counts are attributed at the camera level, not split across overlapping
-            deployments, so the &ldquo;images&rdquo; tooltip on the outer bar is shared across
-            every deployment of that camera in the window. Splitting it per deployment would
-            require an explicit camera-deployment join in the image table — a future enhancement.
-          </p>
-        }
         settings={
           data
             ? [

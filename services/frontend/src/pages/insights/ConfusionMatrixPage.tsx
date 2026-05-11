@@ -263,13 +263,6 @@ export const ConfusionMatrixPage: React.FC = () => {
             shows a person or vehicle.
           </p>
         }
-        caveats={
-          <p>
-            Multi-species images are attributed to their most-numerous species on each side, so a
-            frame with three deer and one fox lands in the deer row. Per-class precision, recall,
-            and F1 derived from this matrix live on the Per-class performance page.
-          </p>
-        }
         references={REFERENCES}
       />
     </InsightsPageLayout>

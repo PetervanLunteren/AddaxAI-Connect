@@ -215,20 +215,6 @@ export const NaiveOccupancyPage: React.FC = () => {
             </p>
           </>
         }
-        caveats={
-          <>
-            <p>
-              Naive occupancy is biased low when detection probability is less than one. For an
-              estimated occupancy &psi; that corrects for imperfect detection, run the
-              detection-history CSV through R&apos;s <code>unmarked::occu()</code> or{' '}
-              <code>camtrapR</code>.
-            </p>
-            <p>
-              A camera that physically moved across deployments is counted as one site here, not
-              two locations. Camtrap-DP&apos;s <code>locationID</code> is a future enhancement.
-            </p>
-          </>
-        }
         settings={
           meta
             ? [

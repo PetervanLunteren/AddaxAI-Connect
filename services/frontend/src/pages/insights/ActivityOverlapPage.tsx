@@ -303,21 +303,6 @@ export const ActivityOverlapPage: React.FC = () => {
             </p>
           </>
         }
-        caveats={
-          <>
-            <p>
-              Naïvely overlapping two activity patterns can mislead when sample sizes are very
-              different or when the two species are sampled at different sites or seasons. The
-              chart caps the rug at 5000 raw ticks per species so massive datasets stay
-              responsive; the KDE itself uses every observation.
-            </p>
-            <p>
-              Independence interval is recorded but not applied here — KDE smoothing over
-              continuous time already handles temporal autocorrelation more gracefully than
-              an event-deduplication step would.
-            </p>
-          </>
-        }
         settings={
           data
             ? [

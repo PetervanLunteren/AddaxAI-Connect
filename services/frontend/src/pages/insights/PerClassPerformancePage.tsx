@@ -209,11 +209,11 @@ export const PerClassPerformancePage: React.FC = () => {
         what={
           <p>
             Each row reports per-class metrics derived from the confusion matrix.
-            <strong> Support</strong> is the number of verified images where this class is the
-            human top-1. <strong>Precision</strong> is the fraction of images predicted as this
-            class that were actually this class. <strong>Recall</strong> is the fraction of images
-            that actually were this class that the AI caught. <strong>F1</strong> combines
-            precision and recall into a single balanced score using their harmonic mean.
+            Support is the number of verified images where this class is the human
+            top-1. Precision is the fraction of images predicted as this class that
+            were actually this class. Recall is the fraction of images that actually
+            were this class that the AI caught. F1 combines precision and recall into
+            a single balanced score using their harmonic mean.
           </p>
         }
         how={
@@ -222,14 +222,6 @@ export const PerClassPerformancePage: React.FC = () => {
             and weak classes are easy to spot. Click any row to open the underlying verified
             images in the Images tab. The macro and weighted averages at the bottom are computed
             across <em>all</em> classes regardless of how many rows the top filter is showing.
-          </p>
-        }
-        caveats={
-          <p>
-            Cells involving <em>empty</em>, <em>person</em>, or <em>vehicle</em> reflect detection
-            errors rather than classification errors, since detection is what decides whether an
-            image is empty or shows a person or vehicle. Multi-species images are attributed to
-            their most-numerous species.
           </p>
         }
         references={REFERENCES}

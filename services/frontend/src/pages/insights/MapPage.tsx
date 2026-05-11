@@ -34,12 +34,11 @@ export const InsightsMapPage: React.FC = () => {
         what={
           <p>
             One coloured cell per camera deployment, mapped to the deployment&apos;s
-            recorded GPS. Three view modes choose how the cells are drawn:{' '}
-            <strong>hexbins</strong> aggregate nearby deployments onto a hex grid,{' '}
-            <strong>points</strong> show each deployment individually, and{' '}
-            <strong>clusters</strong> group nearby points into a single circle with the
-            count inside. The species and camera-tag filters narrow which detections
-            and which sites enter the calculation.
+            recorded GPS. Three view modes choose how the cells are drawn: hexbins
+            aggregate nearby deployments onto a hex grid, points show each deployment
+            individually, and clusters group nearby points into a single circle with
+            the count inside. The species and camera-tag filters narrow which
+            detections and which sites enter the calculation.
           </p>
         }
         how={
@@ -50,17 +49,9 @@ export const InsightsMapPage: React.FC = () => {
             the project&apos;s detection-confidence threshold and per-species classification
             thresholds; verified human observations override the AI on the same image.
             Person and vehicle detections are counted alongside animals, so restrict via
-            the species filter for a wildlife-only view. Colour scaling is{' '}
-            <strong>per-render</strong>, meaning the legend rescales to the range of the
-            currently visible cells rather than an absolute scale shared across projects.
-          </p>
-        }
-        caveats={
-          <p>
-            Detection rates are not corrected for imperfect detection. Two cameras with
-            identical trap-days but different effective detection probabilities will
-            show different rates even at equal true densities. The map is a
-            relative-effort view, not an abundance estimate.
+            the species filter for a wildlife-only view. Colour scaling is per-render,
+            meaning the legend rescales to the range of the currently visible cells
+            rather than an absolute scale shared across projects.
           </p>
         }
         references={REFERENCES}
