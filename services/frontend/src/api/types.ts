@@ -590,6 +590,56 @@ export interface NaiveOccupancyFilters {
   top_n?: number;
 }
 
+// Deployment timeline (Insights -> Deployment timeline)
+export interface TrapNightInterval {
+  start: string;  // YYYY-MM-DD
+  end: string;
+  trap_nights: number;
+}
+
+export interface TimelineDeployment {
+  deployment_id: string;
+  deployment_label: string;
+  camera_model: string | null;
+  configured_start: string;
+  configured_end: string | null;
+  intervals: TrapNightInterval[];
+  file_count: number;
+}
+
+export interface TimelineSite {
+  site_id: string | null;
+  site_name: string;
+  deployments: TimelineDeployment[];
+}
+
+export interface ConcurrentPoint {
+  date: string;
+  count: number;
+}
+
+export interface TimelineMetrics {
+  site_count: number;
+  deployment_count: number;
+  total_trap_nights: number;
+  median_deployment_length_days: number | null;
+  max_concurrent_cameras: number;
+}
+
+export interface TimelineResponse {
+  sites: TimelineSite[];
+  concurrent_cameras: ConcurrentPoint[];
+  metrics: TimelineMetrics;
+  date_range_from: string | null;
+  date_range_to: string | null;
+}
+
+export interface TimelineFilters {
+  camera_ids?: string;
+  start_date?: string;
+  end_date?: string;
+}
+
 // Activity overlap (Insights -> Activity overlap)
 export type DielClass = 'diurnal' | 'nocturnal' | 'crepuscular' | 'cathemeral';
 export type DeltaEstimator = 'delta1' | 'delta4';

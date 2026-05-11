@@ -50,6 +50,7 @@ from utils.sun_time import (
     reference_date_for_sun,
     transform_to_sun_time,
 )
+from utils.timeline import get_deployment_timeline
 from utils.independence_filter import (
     get_independent_species_counts,
     get_independent_event_counts,
@@ -1550,6 +1551,87 @@ async def get_activity_overlap(
         project_timezone=tz_name,
         independence_interval_minutes_recorded=interval,
     )
+
+
+class TrapNightInterval(BaseModel):
+    start: date
+    end: date
+    trap_nights: int
+
+
+class TimelineDeployment(BaseModel):
+    deployment_id: str
+    deployment_label: str
+    camera_model: Optional[str] = None
+    configured_start: date
+    configured_end: Optional[date] = None
+    intervals: List[TrapNightInterval]
+    file_count: int
+
+
+class TimelineSite(BaseModel):
+    site_id: Optional[str] = None
+    site_name: str
+    deployments: List[TimelineDeployment]
+
+
+class ConcurrentPoint(BaseModel):
+    date: date
+    count: int
+
+
+class TimelineMetrics(BaseModel):
+    site_count: int
+    deployment_count: int
+    total_trap_nights: int
+    median_deployment_length_days: Optional[float] = None
+    max_concurrent_cameras: int
+
+
+class TimelineResponse(BaseModel):
+    sites: List[TimelineSite]
+    concurrent_cameras: List[ConcurrentPoint]
+    metrics: TimelineMetrics
+    date_range_from: Optional[date] = None
+    date_range_to: Optional[date] = None
+
+
+@router.get(
+    "/timeline",
+    response_model=TimelineResponse,
+)
+async def get_timeline(
+    project_id: int = Query(..., description="Project to analyse (single)"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Deployment timeline for the project. One row per camera; bars are the
+    camera's deployment periods clipped to the window. Includes a
+    concurrent-cameras sweep underneath for the area chart.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    if not accessible_project_ids:
+        raise HTTPException(status_code=403, detail="No access to this project.")
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+
+    # `today` is the server-local calendar date so active deployments
+    # (`end_date IS NULL`) clip to the same wall-clock the rest of the app
+    # uses, matching the captured_at convention.
+    server_now = await _server_now(db)
+    payload = await get_deployment_timeline(
+        db=db,
+        project_ids=accessible_project_ids,
+        camera_ids=camera_id_list,
+        date_from=start_date,
+        date_to=end_date,
+        today=server_now.date(),
+    )
+    return TimelineResponse(**payload)
 
 
 @router.get("/detection-history.csv")

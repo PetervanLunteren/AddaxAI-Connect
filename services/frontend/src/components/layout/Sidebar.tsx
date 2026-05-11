@@ -22,6 +22,7 @@ import {
   Target,
   BarChart3,
   Activity,
+  CalendarRange,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -55,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const insightsItems = [
     { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
     { to: `/projects/${projectId}/insights/activity-overlap`, icon: Activity, label: 'Activity overlap' },
+    { to: `/projects/${projectId}/insights/deployment-timeline`, icon: CalendarRange, label: 'Deployment timeline' },
     { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
     { to: `/projects/${projectId}/insights/performance`, icon: Target, label: 'Performance' },
   ];

@@ -4,10 +4,11 @@ Vazquez sun-time transformation. Pure-Python unit tests; no DB.
 Pattern mirrors tests/api/test_naive_occupancy.py."""
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 
 import numpy as np
 import pytest
+from sqlalchemy.dialects import postgresql
 
 _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "services", "api"))
 if _api not in sys.path:
@@ -263,3 +264,88 @@ class TestSunTime:
         assert out == date(2024, 6, 15)
         out = reference_date_for_sun(date(2024, 3, 5), None)
         assert out == date(2024, 3, 5)
+
+
+class _FakeResult:
+    def all(self):
+        return []
+
+
+class _CompileAssertingSession:
+    """AsyncSession stand-in whose execute() forces SQLAlchemy to compile
+    the query against the postgres dialect.
+
+    Compilation is where JOIN-inference and missing-select_from bugs raise
+    InvalidRequestError, so calling .compile() here surfaces structural
+    problems that pure-Python unit tests miss without needing a live
+    database. The return value is an empty fake result so the caller's
+    iteration / row handling code runs through cleanly.
+    """
+
+    def __init__(self) -> None:
+        self.compiled_queries: list[str] = []
+
+    async def execute(self, query, params=None):
+        compiled = query.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": False},
+        )
+        self.compiled_queries.append(str(compiled))
+        return _FakeResult()
+
+
+class TestQueryCompilation:
+    """Compile every query the new helpers issue against the postgres dialect.
+    These tests would have caught the v1 missing-select_from regression
+    before deploy. No DB connection needed."""
+
+    @pytest.mark.asyncio
+    async def test_detection_times_query_compiles_for_wildlife(self):
+        # Import inside the test so the api/utils/preferred_counts module
+        # picks up the same sys.path additions the other tests rely on.
+        api_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "services", "api")
+        )
+        if api_path not in sys.path:
+            sys.path.insert(0, api_path)
+        from utils.preferred_counts import get_preferred_species_detection_times
+
+        db = _CompileAssertingSession()
+        out = await get_preferred_species_detection_times(
+            db=db,  # type: ignore[arg-type]
+            project_ids=[1],
+            species_filter="fox",
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 12, 31),
+            camera_ids=[1, 2, 3],
+        )
+        assert out == []
+        assert len(db.compiled_queries) == 1
+        sql = db.compiled_queries[0]
+        # Sanity: the union of the verified + unverified branches actually
+        # made it through compilation. (No person/vehicle branch for "fox".)
+        assert "human_observations" in sql.lower()
+        assert "classifications" in sql.lower()
+
+    @pytest.mark.asyncio
+    async def test_detection_times_query_compiles_for_person(self):
+        api_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "services", "api")
+        )
+        if api_path not in sys.path:
+            sys.path.insert(0, api_path)
+        from utils.preferred_counts import get_preferred_species_detection_times
+
+        db = _CompileAssertingSession()
+        out = await get_preferred_species_detection_times(
+            db=db,  # type: ignore[arg-type]
+            project_ids=[1],
+            species_filter="person",
+            start_date=None,
+            end_date=None,
+            camera_ids=None,
+        )
+        assert out == []
+        sql = db.compiled_queries[0]
+        # Person triggers the third branch joining Detection.category.
+        assert "detections" in sql.lower()

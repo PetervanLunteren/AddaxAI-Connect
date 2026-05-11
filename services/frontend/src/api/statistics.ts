@@ -19,6 +19,8 @@ import type {
   NaiveOccupancyFilters,
   ActivityOverlapResponse,
   ActivityOverlapFilters,
+  TimelineResponse,
+  TimelineFilters,
   PipelineStatusResponse,
   DetectionCountResponse,
   IndependenceSummaryResponse,
@@ -143,6 +145,24 @@ export const statisticsApi = {
       : '/api/statistics/detection-trend';
 
     const response = await apiClient.get<DetectionTrendPoint[]>(url);
+    return response.data;
+  },
+
+  /**
+   * Deployment timeline: per-camera Gantt + concurrent-cameras strip.
+   */
+  getTimeline: async (
+    projectId: number,
+    filters?: TimelineFilters,
+  ): Promise<TimelineResponse> => {
+    const params = new URLSearchParams();
+    params.append('project_id', projectId.toString());
+    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    const response = await apiClient.get<TimelineResponse>(
+      `/api/statistics/timeline?${params.toString()}`,
+    );
     return response.data;
   },
 
