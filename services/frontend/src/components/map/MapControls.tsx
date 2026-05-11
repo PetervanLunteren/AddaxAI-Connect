@@ -40,7 +40,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
 
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         {/* View mode selector */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -112,7 +112,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
           </div>
         </div>
 
-        <div className="md:col-span-2">
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Date range
           </label>

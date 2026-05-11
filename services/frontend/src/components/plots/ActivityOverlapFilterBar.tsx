@@ -38,7 +38,7 @@ export const ActivityOverlapFilterBar: React.FC<ActivityOverlapFilterBarProps> =
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
             Species A
@@ -74,7 +74,7 @@ export const ActivityOverlapFilterBar: React.FC<ActivityOverlapFilterBarProps> =
               ))}
           </Select>
         </div>
-        <div className="md:col-span-2">
+        <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
             Date range
           </label>
