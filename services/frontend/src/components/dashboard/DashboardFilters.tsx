@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { DateRangePicker } from '../ui/DateRangePicker';
 import { MultiSelect, Option } from '../ui/MultiSelect';
 import type { DateRange } from './DateRangeFilter';
 import { useMobileDropdownTop } from '../../hooks/useMobileDropdownTop';
@@ -87,28 +88,18 @@ export const DashboardFilters: React.FC<DashboardFiltersProps> = ({
             />
           </div>
 
-          {/* Date range */}
+          {/* Date range — single popover with a two-month calendar */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Date range</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={dateRange.startDate || ''}
-                onChange={(e) => onDateRangeChange({ ...dateRange, startDate: e.target.value || null })}
-                min={minDate || undefined}
-                max={maxDate || undefined}
-                className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <span className="text-sm text-muted-foreground">to</span>
-              <input
-                type="date"
-                value={dateRange.endDate || ''}
-                onChange={(e) => onDateRangeChange({ ...dateRange, endDate: e.target.value || null })}
-                min={minDate || undefined}
-                max={maxDate || undefined}
-                className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
+            <DateRangePicker
+              from={dateRange.startDate}
+              to={dateRange.endDate}
+              onChange={({ from, to }) =>
+                onDateRangeChange({ startDate: from ?? null, endDate: to ?? null })
+              }
+              minDate={minDate}
+              maxDate={maxDate}
+            />
           </div>
 
           {/* Clear all */}

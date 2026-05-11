@@ -13,6 +13,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+// react-day-picker's default stylesheet must load before our index.css
+// so the brand-teal `--rdp-*` overrides in index.css win the cascade.
+import 'react-day-picker/style.css';
 import './styles/index.css';
 import { queryClient } from './lib/query-client';
 import { logUnhandledError, logUnhandledRejection } from './utils/logger';

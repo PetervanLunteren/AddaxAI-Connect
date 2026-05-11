@@ -8,6 +8,7 @@
 import React from 'react';
 import { Select, SelectItem } from '../ui/Select';
 import { MultiSelect, type Option } from '../ui/MultiSelect';
+import { DateRangePicker } from '../ui/DateRangePicker';
 import type { TimeAxis } from '../../api/types';
 import { normalizeLabel } from '../../utils/labels';
 
@@ -73,26 +74,16 @@ export const ActivityOverlapFilterBar: React.FC<ActivityOverlapFilterBarProps> =
               ))}
           </Select>
         </div>
-        <div>
+        <div className="md:col-span-2">
           <label className="text-xs font-medium text-muted-foreground mb-1 block">
-            Date from
+            Date range
           </label>
-          <input
-            type="date"
-            value={values.startDate ?? ''}
-            onChange={(e) => onChange({ ...values, startDate: e.target.value || null })}
-            className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground mb-1 block">
-            Date to
-          </label>
-          <input
-            type="date"
-            value={values.endDate ?? ''}
-            onChange={(e) => onChange({ ...values, endDate: e.target.value || null })}
-            className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          <DateRangePicker
+            from={values.startDate}
+            to={values.endDate}
+            onChange={({ from, to }) =>
+              onChange({ ...values, startDate: from ?? null, endDate: to ?? null })
+            }
           />
         </div>
       </div>
