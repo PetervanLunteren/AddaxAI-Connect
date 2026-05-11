@@ -402,7 +402,7 @@ export function DeploymentTimelineChart({
                 r={cfg.showLabels ? 4 : 3}
                 fill={dotColor}
               >
-                <title>{`${site.site_name} — ${labelText} — ${labelForStatus(site.camera_status)}`}</title>
+                <title>{`${site.site_name} · ${labelForStatus(site.camera_status)}`}</title>
               </circle>
               {cfg.showLabels && (
                 <text
