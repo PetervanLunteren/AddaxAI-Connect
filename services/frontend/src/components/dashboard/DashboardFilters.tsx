@@ -32,12 +32,17 @@ export const DashboardFilters: React.FC<DashboardFiltersProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const mobileTop = useMobileDropdownTop(containerRef, isOpen);
 
-  // Close on click outside
+  // Close on click outside. Radix popovers (the DateRangePicker calendar)
+  // render in a Portal at document.body, outside containerRef, so we
+  // explicitly keep the filters open when the click landed inside any
+  // Radix popper wrapper.
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = e.target as Element | null;
+      if (!containerRef.current || !target) return;
+      if (containerRef.current.contains(target)) return;
+      if (target.closest('[data-radix-popper-content-wrapper]')) return;
+      setIsOpen(false);
     };
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
