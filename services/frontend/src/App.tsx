@@ -34,7 +34,8 @@ import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { NaiveOccupancyPage } from './pages/insights/NaiveOccupancyPage';
 import { InsightsMapPage } from './pages/insights/MapPage';
-import { InsightsPerformancePage } from './pages/insights/PerformancePage';
+import { ConfusionMatrixPage } from './pages/insights/ConfusionMatrixPage';
+import { PerClassPerformancePage } from './pages/insights/PerClassPerformancePage';
 import { ActivityOverlapPage } from './pages/insights/ActivityOverlapPage';
 import { DeploymentTimelinePage } from './pages/insights/DeploymentTimelinePage';
 
@@ -136,16 +137,19 @@ function App() {
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="images" element={<ImagesPage />} />
                 {/* Legacy single-page routes redirect into Insights so old
-                    bookmarks keep working. */}
+                    bookmarks keep working. The old combined performance page
+                    now lands on the confusion matrix. */}
                 <Route path="map" element={<Navigate to="../insights/map" replace />} />
-                <Route path="performance" element={<Navigate to="../insights/performance" replace />} />
+                <Route path="performance" element={<Navigate to="../insights/confusion-matrix" replace />} />
                 {/* Insights section */}
                 <Route path="insights" element={<Navigate to="insights/naive-occupancy" replace />} />
                 <Route path="insights/naive-occupancy" element={<NaiveOccupancyPage />} />
                 <Route path="insights/activity-overlap" element={<ActivityOverlapPage />} />
                 <Route path="insights/deployment-timeline" element={<DeploymentTimelinePage />} />
                 <Route path="insights/map" element={<InsightsMapPage />} />
-                <Route path="insights/performance" element={<InsightsPerformancePage />} />
+                <Route path="insights/confusion-matrix" element={<ConfusionMatrixPage />} />
+                <Route path="insights/per-class-performance" element={<PerClassPerformancePage />} />
+                <Route path="insights/performance" element={<Navigate to="../insights/confusion-matrix" replace />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="exports" element={<ExportsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />

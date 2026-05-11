@@ -23,6 +23,7 @@ import {
   BarChart3,
   Activity,
   CalendarRange,
+  Grid3x3,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
@@ -58,7 +59,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/insights/activity-overlap`, icon: Activity, label: 'Activity overlap' },
     { to: `/projects/${projectId}/insights/deployment-timeline`, icon: CalendarRange, label: 'Deployment timeline' },
     { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
-    { to: `/projects/${projectId}/insights/performance`, icon: Target, label: 'Performance' },
+    { to: `/projects/${projectId}/insights/confusion-matrix`, icon: Grid3x3, label: 'Confusion matrix' },
+    { to: `/projects/${projectId}/insights/per-class-performance`, icon: Target, label: 'Per-class performance' },
   ];
 
   // Admin tools - visible to project admins and server admins
