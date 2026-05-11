@@ -9,16 +9,7 @@
 import React from 'react';
 import { DetectionRateMap } from '../../components/map';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
-import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
-
-const REFERENCES: PlotReference[] = [
-  {
-    citation:
-      "Rovero, F., & Marshall, A. R. (2009). Camera trapping photographic rate as an index of " +
-      "density in forest ungulates. Journal of Applied Ecology, 46(5), 1011–1017.",
-    url: 'https://besjournals.onlinelibrary.wiley.com/doi/10.1111/j.1365-2664.2009.01705.x',
-  },
-];
+import { PlotExplainer } from '../../components/plots/PlotExplainer';
 
 export const InsightsMapPage: React.FC = () => {
   return (
@@ -50,7 +41,6 @@ export const InsightsMapPage: React.FC = () => {
             in view, not a fixed scale across projects.
           </p>
         }
-        references={REFERENCES}
       />
     </InsightsPageLayout>
   );
