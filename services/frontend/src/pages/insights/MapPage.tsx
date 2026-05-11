@@ -43,15 +43,11 @@ export const InsightsMapPage: React.FC = () => {
         }
         how={
           <p>
-            Detection rate = detections in the window / trap-days, where trap-days =
-            (end_date − start_date + 1) for closed deployments, or
-            (CURRENT_DATE − start_date + 1) for active ones. The unverified path applies
-            the project&apos;s detection-confidence threshold and per-species classification
-            thresholds; verified human observations override the AI on the same image.
-            Person and vehicle detections are counted alongside animals, so restrict via
-            the species filter for a wildlife-only view. Colour scaling is per-render,
-            meaning the legend rescales to the range of the currently visible cells
-            rather than an absolute scale shared across projects.
+            Detection rate = detections in the window divided by the days the camera
+            was deployed. Active deployments count up to today. Detections below the
+            project&apos;s confidence threshold are dropped, and a human-verified
+            image always wins over the AI. Colours rescale to fit the cells currently
+            in view, not a fixed scale across projects.
           </p>
         }
         references={REFERENCES}
