@@ -303,13 +303,13 @@ export const DeploymentTimelinePage: React.FC = () => {
           />
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>{orderedData.metrics.deployment_count} deployments across {orderedData.metrics.site_count} cameras</span>
+            <span>{orderedData.metrics.site_count} cameras</span>
             <span aria-hidden="true">·</span>
             <span>{orderedData.metrics.total_trap_nights.toLocaleString()} days with images</span>
             <span aria-hidden="true">·</span>
-            <span>peak {orderedData.metrics.max_concurrent_cameras} cameras delivering images on a single day</span>
+            <span>busiest day {orderedData.metrics.max_concurrent_cameras} cameras</span>
             <span aria-hidden="true">·</span>
-            <span>Drag horizontally to zoom</span>
+            <span>Drag to zoom in</span>
           </div>
         </div>
       )}
@@ -318,35 +318,35 @@ export const DeploymentTimelinePage: React.FC = () => {
         plotKey="deployment-timeline"
         what={
           <p>
-            One row per camera. The light outer bar is the configured deployment window. Solid
-            inner bars are days when the camera delivered at least one image. The strip below
-            counts how many cameras delivered at least one image each day. Switch to the heatmap
-            mode to see per-day image counts as colour intensity instead of bars.
+            One row per camera. A solid green bar marks a stretch of days the camera delivered
+            images. Empty space inside a row means the camera was silent for three or more days
+            in a row. The strip below counts how many cameras delivered images on each day.
+            Heatmap mode replaces the bars with one cell per day, coloured by how many images
+            arrived that day.
           </p>
         }
         how={
           <>
             <p>
-              Image dates come from <code>captured_at</code> in each image, read under the server
-              timezone. Days with one or two consecutive silences stay inside a segment. A silence
-              of three or more days starts a new segment. Trap-nights for a camera is the total
-              number of days inside its segments.
+              Image dates come from <code>captured_at</code> in each image, read under the
+              server timezone. A silence of one or two days is treated as part of the same
+              stretch. A silence of three or more days starts a new stretch, drawn with a gap.
+              Days with images counts the inclusive length of every stretch and sums them.
             </p>
             <p>
-              The status dot reuses the same rule as the Cameras page, based on the most recent
-              daily health report from the camera with a seven-day cutoff. A camera can appear
-              live (green dot) while its inner bars are short, which means the camera is reachable
-              but not currently sending many images.
+              The status dot on the left uses the same rule as the Cameras page, based on the
+              most recent daily health report with a seven-day cutoff. A camera can show a green
+              dot and still have a short bar, meaning the camera is reachable but is not sending
+              many images right now.
             </p>
             <p>
-              Each <code>CameraDeploymentPeriod</code> is a row segment with its own outer bar.
-              A vertical tick on the row marks the day the camera was moved more than 100 m to a
-              new location. Open periods (no end date) stop at the last image seen, so a camera
-              that went quiet does not draw a green ribbon to today.
+              A faint vertical tick on a row marks the day the camera was moved more than 100 m
+              to a new location. The bar does not break at a move because the camera kept
+              delivering images on both sides of it.
             </p>
             <p>
-              The heatmap mode auto-switches to weekly bins when the visible window spans more
-              than a year, so day cells stay legible on long ranges.
+              Heatmap mode auto-switches to weekly cells once the visible range goes past a
+              year, so the cells stay readable on long timelines.
             </p>
           </>
         }

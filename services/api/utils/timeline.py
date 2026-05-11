@@ -111,7 +111,6 @@ async def get_deployment_timeline(
     sites_by_camera: dict[int, dict] = {}
     cdp_transitions: list[dict] = []
     previous_cdp_by_camera: dict[int, bool] = {}
-    interval_lengths: list[int] = []
 
     # CDP rows arrive ordered by (camera_name, start_date) so the per-camera
     # loop naturally walks deployments in chronological order.
@@ -144,15 +143,10 @@ async def get_deployment_timeline(
         clip_end = min(effective_end, date_to) if date_to else effective_end
         clipped = clip_segments_to_window(segments, clip_start, clip_end)
 
-        intervals: list[dict] = []
-        for seg_start, seg_end in clipped:
-            nights = (seg_end - seg_start).days + 1
-            intervals.append({
-                "start": seg_start,
-                "end": seg_end,
-                "trap_nights": nights,
-            })
-            interval_lengths.append(nights)
+        intervals: list[dict] = [
+            {"start": s, "end": e, "trap_nights": (e - s).days + 1}
+            for s, e in clipped
+        ]
 
         file_count = sum(
             counts_by_camera_date.get((camera_id, d), 0)
@@ -175,10 +169,24 @@ async def get_deployment_timeline(
         site = sites_by_camera.get(camera_id)
         if site is None:
             all_days = days_by_camera.get(camera_id, [])
+            # Camera-level intervals: split the camera's full day list by the
+            # same gap rule, ignoring CDP boundaries. This is what the chart
+            # draws as one solid ribbon per camera. CDP boundaries show as
+            # ticks on top, not as visual gaps.
+            site_segments = split_into_segments(all_days) if all_days else []
+            if date_from is not None or date_to is not None:
+                lo = date_from if date_from is not None else date(1, 1, 1)
+                hi = date_to if date_to is not None else date(9999, 12, 31)
+                site_segments = clip_segments_to_window(site_segments, lo, hi)
+            site_intervals = [
+                {"start": s, "end": e, "trap_nights": (e - s).days + 1}
+                for s, e in site_segments
+            ]
             sites_by_camera[camera_id] = {
                 "site_id": str(camera_id),
                 "site_name": row.camera_name,
                 "deployments": [deployment],
+                "intervals": site_intervals,
                 "last_image_day": all_days[-1] if all_days else None,
                 "camera_status": camera_status(last_reported_by_camera.get(camera_id)),
             }
@@ -187,15 +195,20 @@ async def get_deployment_timeline(
 
     sites = sorted(sites_by_camera.values(), key=lambda s: s["site_name"].lower())
 
-    # 5. Concurrent-cameras strip and metrics.
+    # 5. Concurrent-cameras strip and metrics. Trap-night totals come from
+    #    the per-camera segments so the visible bars and the caption number
+    #    always agree (per-CDP intervals can overlap across CDPs on the
+    #    same day during a within-day move).
     concurrent = concurrent_from_daily(daily_rows)
     total_trap_nights = sum(
         iv["trap_nights"]
         for s in sites
-        for d in s["deployments"]
-        for iv in d["intervals"]
+        for iv in s.get("intervals", [])
     )
-    median_len = float(median(interval_lengths)) if interval_lengths else None
+    site_interval_lengths = [
+        iv["trap_nights"] for s in sites for iv in s.get("intervals", [])
+    ]
+    median_len = float(median(site_interval_lengths)) if site_interval_lengths else None
     max_concurrent = max((p["count"] for p in concurrent), default=0)
 
     # Observed x-axis span. Use effective_end so a fully-silent open CDP
@@ -205,8 +218,8 @@ async def get_deployment_timeline(
     for s in sites:
         for d in s["deployments"]:
             ends.append(d["effective_end"])
-            for iv in d["intervals"]:
-                ends.append(iv["end"])
+        for iv in s.get("intervals", []):
+            ends.append(iv["end"])
     date_range_from = min(starts) if starts else None
     date_range_to = max(ends) if ends else None
     if date_from is not None and date_range_from is not None:

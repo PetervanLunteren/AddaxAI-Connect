@@ -24,14 +24,13 @@ import type {
 import { STATUS_COLORS } from '../../utils/camera-colors';
 
 const BAR_INNER = '#0f6064';
-const BAR_OUTER = 'rgba(15, 96, 100, 0.18)';
 const BAR_OUTER_HEATMAP = 'rgba(15, 96, 100, 0.08)';
 const CONCURRENT_FILL = 'rgba(15, 96, 100, 0.18)';
 const CONCURRENT_STROKE = '#0f6064';
 const GRID_STROKE = 'rgba(0, 0, 0, 0.06)';
 const AXIS_TEXT = 'rgba(0, 0, 0, 0.65)';
 const HOVER_FILL = 'rgba(0, 0, 0, 0.05)';
-const TRANSITION_STROKE = 'rgba(15, 96, 100, 0.7)';
+const TRANSITION_STROKE = 'rgba(0, 0, 0, 0.25)';
 
 // Heatmap intensity ramp: same hue as the inner bar, varying alpha so the
 // rest of the chart stays in one colour family. Tuned to one or two images
@@ -417,63 +416,59 @@ export function DeploymentTimelineChart({
                 </text>
               )}
 
-              {site.deployments.map((dep) => {
-                const startMs = parseDate(dep.configured_start);
-                const endMs = parseDate(dep.effective_end);
-                const x = xToPx(startMs);
-                const w = Math.max(1, xToPx(endMs) - x);
-                const outerFill = viewMode === 'heatmap' ? BAR_OUTER_HEATMAP : BAR_OUTER;
-                return (
-                  <g key={dep.deployment_id}>
+              {/* Per-camera image-observed segments. One solid bar per
+                  stretch of days with images. Gaps in the row are days
+                  the camera was silent for three or more days. */}
+              {viewMode === 'deployment' &&
+                site.intervals.map((iv, i) => {
+                  const ivStart = parseDate(iv.start);
+                  const ivEnd = parseDate(iv.end);
+                  const ix = xToPx(ivStart);
+                  const iw = Math.max(1, xToPx(ivEnd) - ix);
+                  return (
                     <rect
-                      x={x}
+                      key={i}
+                      x={ix}
                       y={barY}
-                      width={w}
+                      width={iw}
                       height={cfg.barHeight}
-                      fill={outerFill}
+                      fill={BAR_INNER}
                       rx={2}
                       onMouseEnter={() =>
                         setHover({
-                          x: x + w / 2,
+                          x: ix + iw / 2,
                           y: barY,
-                          title: `${site.site_name} · ${dep.deployment_label}`,
-                          subtitle: outerBarTooltip(dep, startMs, endMs),
+                          title: site.site_name,
+                          subtitle:
+                            `${formatShortDate(ivStart)} – ${formatShortDate(ivEnd)}` +
+                            ` · ${iv.trap_nights} day${iv.trap_nights === 1 ? '' : 's'} with images`,
                         })
                       }
                       onMouseLeave={() => setHover(null)}
                     />
-                    {viewMode === 'deployment' &&
-                      dep.intervals.map((iv, i) => {
-                        const ivStart = parseDate(iv.start);
-                        const ivEnd = parseDate(iv.end);
-                        const ix = xToPx(ivStart);
-                        const iw = Math.max(1, xToPx(ivEnd) - ix);
-                        return (
-                          <rect
-                            key={i}
-                            x={ix}
-                            y={barY}
-                            width={iw}
-                            height={cfg.barHeight}
-                            fill={BAR_INNER}
-                            rx={2}
-                            onMouseEnter={() =>
-                              setHover({
-                                x: ix + iw / 2,
-                                y: barY,
-                                title: `${site.site_name} · ${dep.deployment_label}`,
-                                subtitle:
-                                  `${formatShortDate(ivStart)} – ${formatShortDate(ivEnd)}` +
-                                  ` · ${iv.trap_nights} day${iv.trap_nights === 1 ? '' : 's'} with images`,
-                              })
-                            }
-                            onMouseLeave={() => setHover(null)}
-                          />
-                        );
-                      })}
-                  </g>
-                );
-              })}
+                  );
+                })}
+
+              {/* Heatmap mode still needs a faint guideline per CDP so
+                  empty days are visible behind the cells. */}
+              {viewMode === 'heatmap' &&
+                site.deployments.map((dep) => {
+                  const startMs = parseDate(dep.configured_start);
+                  const endMs = parseDate(dep.effective_end);
+                  const x = xToPx(startMs);
+                  const w = Math.max(1, xToPx(endMs) - x);
+                  return (
+                    <rect
+                      key={dep.deployment_id}
+                      x={x}
+                      y={barY}
+                      width={w}
+                      height={cfg.barHeight}
+                      fill={BAR_OUTER_HEATMAP}
+                      rx={2}
+                    />
+                  );
+                })}
 
               {/* Heatmap cells, drawn on top of the outer guideline. */}
               {viewMode === 'heatmap' && heatmap &&
@@ -569,7 +564,7 @@ export function DeploymentTimelineChart({
           fill={AXIS_TEXT}
           transform={`rotate(-90 ${plotLeft - CONCURRENT_Y_LABEL_WIDTH - 6} ${(concurrentTop + concurrentBottom) / 2})`}
         >
-          Cameras with images
+          Cameras active
         </text>
 
         <rect
@@ -616,17 +611,6 @@ function labelForStatus(status: string): string {
   if (status === 'inactive') return 'Inactive';
   if (status === 'never_reported') return 'Never reported';
   return status;
-}
-
-function outerBarTooltip(
-  dep: { configured_start: string; configured_end: string | null; effective_end: string; file_count: number },
-  startMs: number,
-  endMs: number,
-): string {
-  const range = dep.configured_end
-    ? `${formatShortDate(startMs)} – ${formatShortDate(endMs)}`
-    : `${formatShortDate(startMs)} – open (last seen ${formatShortDate(parseDate(dep.effective_end))})`;
-  return `${range} · ${dep.file_count.toLocaleString()} images`;
 }
 
 function heatmapCellTooltip(cellMs: number, count: number, weekly: boolean): string {

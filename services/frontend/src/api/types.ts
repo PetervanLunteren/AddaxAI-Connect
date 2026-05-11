@@ -618,6 +618,9 @@ export interface TimelineSite {
   site_id: string | null;
   site_name: string;
   deployments: TimelineDeployment[];
+  // Per-camera image-observed segments, gap-split with the same rule the
+  // backend applies. The chart renders these as the solid bar per row.
+  intervals: TrapNightInterval[];
   last_image_day: string | null;
   camera_status: CameraLivenessStatus;
 }
