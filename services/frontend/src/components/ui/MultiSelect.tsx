@@ -102,9 +102,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center justify-between w-full border border-input rounded-md h-10 px-3 text-sm bg-background hover:border-input focus:outline-none focus:ring-2 focus:ring-ring"
       >
-        <span className={value.length > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-          {triggerLabel}
-        </span>
+        <span className="text-foreground">{triggerLabel}</span>
         {isOpen
           ? <ChevronUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           : <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
