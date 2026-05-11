@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
+import { DateRangePicker } from './ui/DateRangePicker';
 import { MultiSelect, Option } from './ui/MultiSelect';
 import { useMobileDropdownTop } from '../hooks/useMobileDropdownTop';
 
@@ -45,12 +46,17 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const mobileTop = useMobileDropdownTop(containerRef, isOpen);
 
-  // Close on click outside
+  // Close on click outside. Radix popovers (the DateRangePicker calendar)
+  // render in a Portal at document.body, outside containerRef, so we
+  // explicitly keep the filters open when the click landed inside any
+  // Radix popper wrapper.
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = e.target as Element | null;
+      if (!containerRef.current || !target) return;
+      if (containerRef.current.contains(target)) return;
+      if (target.closest('[data-radix-popper-content-wrapper]')) return;
+      setIsOpen(false);
     };
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
@@ -176,25 +182,16 @@ export const ImageFilters: React.FC<ImageFiltersProps> = ({
           {/* Date range */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Date range</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={filters.start_date}
-                onChange={(e) => onFilterChange('start_date', e.target.value)}
-                min={minDate || undefined}
-                max={maxDate || undefined}
-                className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <span className="text-sm text-muted-foreground">to</span>
-              <input
-                type="date"
-                value={filters.end_date}
-                onChange={(e) => onFilterChange('end_date', e.target.value)}
-                min={minDate || undefined}
-                max={maxDate || undefined}
-                className="flex-1 h-9 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
+            <DateRangePicker
+              from={filters.start_date || null}
+              to={filters.end_date || null}
+              onChange={({ from, to }) => {
+                onFilterChange('start_date', from ?? '');
+                onFilterChange('end_date', to ?? '');
+              }}
+              minDate={minDate}
+              maxDate={maxDate}
+            />
           </div>
 
           {/* Clear all */}

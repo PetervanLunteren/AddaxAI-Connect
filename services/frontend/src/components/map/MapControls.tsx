@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Circle, Hexagon, Group, Map, Satellite, Navigation, ChevronDown } from 'lucide-react';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
+import { DateRangePicker } from '../ui/DateRangePicker';
 import { imagesApi } from '../../api/images';
 
 interface MapControlsProps {
@@ -34,20 +35,6 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
     onFiltersChange({
       ...filters,
       species: value || undefined,
-    });
-  };
-
-  const handleStartDateChange = (value: string) => {
-    onFiltersChange({
-      ...filters,
-      start_date: value || undefined,
-    });
-  };
-
-  const handleEndDateChange = (value: string) => {
-    onFiltersChange({
-      ...filters,
-      end_date: value || undefined,
     });
   };
 
@@ -125,33 +112,18 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
           </div>
         </div>
 
-        <div>
-          <label htmlFor="start-date-filter" className="block text-sm font-medium text-gray-700 mb-1">
-            Start date
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Date range
           </label>
-          <input
-            id="start-date-filter"
-            type="date"
-            value={startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
-            min={minDate || undefined}
-            max={maxDate || undefined}
-            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="end-date-filter" className="block text-sm font-medium text-gray-700 mb-1">
-            End date
-          </label>
-          <input
-            id="end-date-filter"
-            type="date"
-            value={endDate}
-            onChange={(e) => handleEndDateChange(e.target.value)}
-            min={minDate || undefined}
-            max={maxDate || undefined}
-            className="w-full h-10 px-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <DateRangePicker
+            from={startDate || null}
+            to={endDate || null}
+            onChange={({ from, to }) =>
+              onFiltersChange({ ...filters, start_date: from, end_date: to })
+            }
+            minDate={minDate}
+            maxDate={maxDate}
           />
         </div>
 

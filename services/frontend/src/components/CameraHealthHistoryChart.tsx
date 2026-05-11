@@ -21,6 +21,7 @@ import {
 import type { ChartData } from 'chart.js';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import { Select, SelectItem } from './ui/Select';
+import { DateRangePicker } from './ui/DateRangePicker';
 import { camerasApi } from '../api/cameras';
 import type { HealthReportPoint } from '../api/types';
 import { formatDate, formatDateShort } from '../utils/datetime';
@@ -270,19 +271,14 @@ export const CameraHealthHistoryChart: React.FC<CameraHealthHistoryChartProps> =
         </Select>
 
         {timeRange === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={(e) => setCustomStartDate(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-            />
-            <span className="text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={(e) => setCustomEndDate(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          <div className="w-64">
+            <DateRangePicker
+              from={customStartDate || null}
+              to={customEndDate || null}
+              onChange={({ from, to }) => {
+                setCustomStartDate(from ?? '');
+                setCustomEndDate(to ?? '');
+              }}
             />
           </div>
         )}

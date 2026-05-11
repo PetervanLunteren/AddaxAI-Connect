@@ -1,7 +1,6 @@
 /**
  * Dashboard components barrel export
  */
-export { DateRangeFilter } from './DateRangeFilter';
 export type { DateRange } from './DateRangeFilter';
 
 export { ActivityPatternChart } from './ActivityPatternChart';
