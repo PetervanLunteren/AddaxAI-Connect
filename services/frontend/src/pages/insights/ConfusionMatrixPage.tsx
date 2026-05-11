@@ -8,7 +8,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Target } from 'lucide-react';
+import { Info, Loader2, Target } from 'lucide-react';
 
 import { performanceApi, type PerformanceData } from '../../api/performance';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -230,6 +230,14 @@ export const ConfusionMatrixPage: React.FC = () => {
           <PerformanceSummaryCards data={data} />
           <div className="rounded-lg border bg-card p-4">
             <Matrix data={data} projectId={projectIdNum} />
+            <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              <span>Based on {data.total_verified_images.toLocaleString()} verified image{data.total_verified_images === 1 ? '' : 's'}</span>
+              <span aria-hidden="true">·</span>
+              <span>{data.matrix_classes.length} class{data.matrix_classes.length === 1 ? '' : 'es'}</span>
+              <span aria-hidden="true">·</span>
+              <span>Click any non-zero cell to open the underlying images</span>
+            </div>
           </div>
         </>
       )}

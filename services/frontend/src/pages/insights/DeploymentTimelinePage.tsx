@@ -8,6 +8,7 @@
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
@@ -127,11 +128,7 @@ export const DeploymentTimelinePage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const subtitle = data
-    ? `${data.metrics.deployment_count} deployments across ${data.metrics.site_count} cameras, ` +
-      `${data.metrics.total_trap_nights.toLocaleString()} trap-nights total, ` +
-      `peak ${data.metrics.max_concurrent_cameras} concurrent`
-    : 'Camera deployment periods over time, with a concurrent-cameras strip';
+  const subtitle = 'Camera deployment periods over time, with a concurrent-cameras strip';
 
   return (
     <InsightsPageLayout
@@ -173,9 +170,16 @@ export const DeploymentTimelinePage: React.FC = () => {
             density={density}
             onZoom={(from, to) => writeFilters({ startDate: from, endDate: to, tags: tagValues, density })}
           />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Drag horizontally on the chart to zoom the date range. Hover bars for trap-night counts.
-          </p>
+          <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            <span>{data.metrics.deployment_count} deployments across {data.metrics.site_count} cameras</span>
+            <span aria-hidden="true">·</span>
+            <span>{data.metrics.total_trap_nights.toLocaleString()} trap-nights total</span>
+            <span aria-hidden="true">·</span>
+            <span>peak {data.metrics.max_concurrent_cameras} concurrent</span>
+            <span aria-hidden="true">·</span>
+            <span>Drag horizontally to zoom</span>
+          </div>
         </div>
       )}
 

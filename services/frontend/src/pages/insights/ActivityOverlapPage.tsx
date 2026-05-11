@@ -12,6 +12,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
+import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
@@ -219,6 +220,20 @@ export const ActivityOverlapPage: React.FC = () => {
           <div className="rounded-lg border bg-card p-4">
             <div className="h-[420px]">
               <ActivityOverlapChart data={data} />
+            </div>
+            <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              <span>Timezone {data.project_timezone}</span>
+              <span aria-hidden="true">·</span>
+              <span>Independence interval {data.independence_interval_minutes_recorded} min</span>
+              <span aria-hidden="true">·</span>
+              <span>Axis {data.time_axis === 'sun' ? 'sun (Vazquez 2019 anchored)' : 'clock'}</span>
+              {data.time_axis === 'clock' && data.sun_bands_reference_date && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>Sun bands drawn for {data.sun_bands_reference_date}</span>
+                </>
+              )}
             </div>
           </div>
 

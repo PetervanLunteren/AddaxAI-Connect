@@ -8,7 +8,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Download } from 'lucide-react';
+import { Download, Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
@@ -131,9 +131,7 @@ export const NaiveOccupancyPage: React.FC = () => {
 
   const captionWindow =
     meta?.window_start && meta?.window_end ? `${meta.window_start} to ${meta.window_end}` : '';
-  const subtitle = meta
-    ? `n=${meta.sites_total} active sites${captionWindow ? ', window ' + captionWindow : ''}, uncorrected for detection probability`
-    : 'Sites where each species was detected at least once / total active sites';
+  const subtitle = 'Sites where each species was detected at least once / total active sites';
 
   return (
     <InsightsPageLayout
@@ -178,6 +176,20 @@ export const NaiveOccupancyPage: React.FC = () => {
           cameraIds={cameraIdsFromTags}
           onMetadataChange={setMeta}
         />
+        {meta && (
+          <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            <span>n = {meta.sites_total} active sites</span>
+            {captionWindow && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>Window {captionWindow}</span>
+              </>
+            )}
+            <span aria-hidden="true">·</span>
+            <span>Uncorrected for detection probability</span>
+          </div>
+        )}
       </div>
       <PlotExplainer
         plotKey="naive-occupancy"

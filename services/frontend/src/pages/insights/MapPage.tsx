@@ -33,26 +33,34 @@ export const InsightsMapPage: React.FC = () => {
         plotKey="detection-rate-map"
         what={
           <p>
-            Each marker is one camera deployment, coloured by its detection rate
-            (detections per trap-day). Markers fall on the deployment&apos;s recorded GPS
-            location. Filter by species or date range using the controls inside the map.
+            One coloured cell per camera deployment, mapped to the deployment&apos;s
+            recorded GPS. Three view modes choose how the cells are drawn:{' '}
+            <strong>hexbins</strong> aggregate nearby deployments onto a hex grid,{' '}
+            <strong>points</strong> show each deployment individually, and{' '}
+            <strong>clusters</strong> group nearby points into a single circle with the
+            count inside. The species and camera-tag filters narrow which detections
+            and which sites enter the calculation.
           </p>
         }
         how={
           <p>
             Detection rate = detections in the window / trap-days, where trap-days =
-            (end_date - start_date + 1) for closed deployments, or
-            (CURRENT_DATE - start_date + 1) for active ones. Person and vehicle detections
-            are counted alongside animals; restrict via the species filter if you want a
-            wildlife-only view.
+            (end_date − start_date + 1) for closed deployments, or
+            (CURRENT_DATE − start_date + 1) for active ones. The unverified path applies
+            the project&apos;s detection-confidence threshold and per-species classification
+            thresholds; verified human observations override the AI on the same image.
+            Person and vehicle detections are counted alongside animals, so restrict via
+            the species filter for a wildlife-only view. Colour scaling is{' '}
+            <strong>per-render</strong>, meaning the legend rescales to the range of the
+            currently visible cells rather than an absolute scale shared across projects.
           </p>
         }
         caveats={
           <p>
-            Detection rates are not corrected for imperfect detection. Two cameras with the
-            same trap-days but different effective detection probabilities will show
-            different rates even at equal true densities. The map is a relative-effort view,
-            not an abundance estimate.
+            Detection rates are not corrected for imperfect detection. Two cameras with
+            identical trap-days but different effective detection probabilities will
+            show different rates even at equal true densities. The map is a
+            relative-effort view, not an abundance estimate.
           </p>
         }
         references={REFERENCES}

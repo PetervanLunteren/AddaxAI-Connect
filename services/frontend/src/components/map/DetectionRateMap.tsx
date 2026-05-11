@@ -3,6 +3,7 @@
  * Displays camera deployments with detection rates as colored markers or hexbins
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Info } from 'lucide-react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { useQuery } from '@tanstack/react-query';
@@ -353,10 +354,17 @@ export function DetectionRateMap() {
         <FullscreenControl />
       </MapContainer>
 
-      {/* View mode description */}
+      {/* Info footer — mirrors the WebUI pattern: thin border-t row with an
+          Info icon prefix and concise contextual metadata about what the
+          viewer is currently seeing. */}
       {visibleDeployments && visibleDeployments.length > 0 && (
-        <div className="mt-3 text-sm text-gray-600">
-          {getViewDescription()}
+        <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {visibleDeployments.length} deployment{visibleDeployments.length === 1 ? '' : 's'} shown
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>{getViewDescription()}</span>
         </div>
       )}
     </div>
