@@ -33,6 +33,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
+  camera_ids: 'string[]',
   density: 'string',
 };
 
@@ -55,47 +56,13 @@ export const DeploymentTimelinePage: React.FC = () => {
   const startDate = (parsed.date_from as string) || null;
   const endDate = (parsed.date_to as string) || null;
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
+  const cameraIdValues = Array.isArray(parsed.camera_ids) ? parsed.camera_ids : [];
   const density = ((parsed.density as string) === 'compact' ? 'compact' : 'normal') as
     | 'normal'
     | 'compact';
 
   const dateRange: DateRange = { startDate, endDate };
   const selectedTags: Option[] = tagValues.map((v) => ({ label: v, value: v }));
-
-  const writeFilters = (next: {
-    startDate: string | null;
-    endDate: string | null;
-    tags: string[];
-    density: 'normal' | 'compact';
-  }) => {
-    const params = filtersToSearchParams(
-      {
-        date_from: next.startDate ?? undefined,
-        date_to: next.endDate ?? undefined,
-        tags: next.tags,
-        density: next.density === 'normal' ? undefined : next.density,
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(params, { replace: true });
-  };
-
-  const setDateRange = (range: DateRange) =>
-    writeFilters({
-      startDate: range.startDate,
-      endDate: range.endDate,
-      tags: tagValues,
-      density,
-    });
-  const setTags = (tags: Option[]) =>
-    writeFilters({
-      startDate,
-      endDate,
-      tags: tags.map((t) => String(t.value)),
-      density,
-    });
-  const setDensity = (d: 'normal' | 'compact') =>
-    writeFilters({ startDate, endDate, tags: tagValues, density: d });
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -107,15 +74,58 @@ export const DeploymentTimelinePage: React.FC = () => {
     queryFn: () => camerasApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
+  const selectedCameras: Option[] = useMemo(() => {
+    if (!cameras) return cameraIdValues.map((id) => ({ label: id, value: id }));
+    const byId = new Map(cameras.map((c) => [String(c.id), c.name]));
+    return cameraIdValues.map((id) => ({ label: byId.get(id) ?? id, value: id }));
+  }, [cameraIdValues, cameras]);
 
+  const writeFilters = (next: {
+    startDate?: string | null;
+    endDate?: string | null;
+    tags?: string[];
+    cameraIds?: string[];
+    density?: 'normal' | 'compact';
+  }) => {
+    const nextStart = next.startDate !== undefined ? next.startDate : startDate;
+    const nextEnd = next.endDate !== undefined ? next.endDate : endDate;
+    const nextTags = next.tags ?? tagValues;
+    const nextCams = next.cameraIds ?? cameraIdValues;
+    const nextDensity = next.density ?? density;
+    const params = filtersToSearchParams(
+      {
+        date_from: nextStart ?? undefined,
+        date_to: nextEnd ?? undefined,
+        tags: nextTags,
+        camera_ids: nextCams,
+        density: nextDensity === 'normal' ? undefined : nextDensity,
+      },
+      FILTER_SCHEMA,
+    );
+    setSearchParams(params, { replace: true });
+  };
+
+  const setDateRange = (range: DateRange) =>
+    writeFilters({ startDate: range.startDate, endDate: range.endDate });
+  const setTags = (tags: Option[]) =>
+    writeFilters({ tags: tags.map((t) => String(t.value)) });
+  const setCameras = (cams: Option[]) =>
+    writeFilters({ cameraIds: cams.map((c) => String(c.value)) });
+  const setDensity = (d: 'normal' | 'compact') => writeFilters({ density: d });
+
+  // Effective camera_ids = union of cameras directly selected and cameras
+  // whose tags match. Empty filter => undefined; both active but no match => '0'.
   const cameraIdsFromTags = useMemo(() => {
-    if (tagValues.length === 0 || !cameras) return undefined;
-    const tagSet = new Set(tagValues);
-    const matchingIds = cameras
-      .filter((c) => c.tags?.some((tag) => tagSet.has(tag)))
-      .map((c) => c.id);
-    return matchingIds.join(',') || '0';
-  }, [tagValues, cameras]);
+    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
+    const ids = new Set<string>(cameraIdValues);
+    if (tagValues.length > 0 && cameras) {
+      const tagSet = new Set(tagValues);
+      for (const c of cameras) {
+        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      }
+    }
+    return ids.size === 0 ? '0' : Array.from(ids).join(',');
+  }, [tagValues, cameraIdValues, cameras]);
 
   const { data, isLoading } = useQuery<TimelineResponse>({
     queryKey: ['statistics', 'timeline', projectId, startDate, endDate, cameraIdsFromTags],
@@ -146,6 +156,9 @@ export const DeploymentTimelinePage: React.FC = () => {
       }
     >
       <DashboardFilters
+        cameras={selectedCameras}
+        onCamerasChange={setCameras}
+        cameraOptions={cameras ?? []}
         tags={selectedTags}
         onTagsChange={setTags}
         tagOptions={tagOptions || []}
@@ -166,7 +179,7 @@ export const DeploymentTimelinePage: React.FC = () => {
           <DeploymentTimelineChart
             data={data}
             density={density}
-            onZoom={(from, to) => writeFilters({ startDate: from, endDate: to, tags: tagValues, density })}
+            onZoom={(from, to) => writeFilters({ startDate: from, endDate: to })}
           />
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />

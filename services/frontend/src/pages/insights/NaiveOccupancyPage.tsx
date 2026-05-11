@@ -33,6 +33,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
+  camera_ids: 'string[]',
 };
 
 const REFERENCES: PlotReference[] = [
@@ -69,33 +70,14 @@ export const NaiveOccupancyPage: React.FC = () => {
     () => (Array.isArray(parsed.tags) ? parsed.tags : []),
     [parsed.tags],
   );
-
-  const setDateRange = (range: DateRange) => {
-    const next = filtersToSearchParams(
-      {
-        date_from: range.startDate ?? undefined,
-        date_to: range.endDate ?? undefined,
-        tags: tagValues,
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(next, { replace: true });
-  };
-  const setTags = (tags: Option[]) => {
-    const next = filtersToSearchParams(
-      {
-        date_from: dateRange.startDate ?? undefined,
-        date_to: dateRange.endDate ?? undefined,
-        tags: tags.map((t) => String(t.value)),
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(next, { replace: true });
-  };
-
+  const cameraIdValues: string[] = useMemo(
+    () => (Array.isArray(parsed.camera_ids) ? parsed.camera_ids : []),
+    [parsed.camera_ids],
+  );
   const selectedTags: Option[] = tagValues.map((v) => ({ label: v, value: v }));
 
-  // Fetch cameras to map tags -> camera ids (same pattern as Dashboard)
+  // Fetch cameras to map tags -> camera ids and to label the explicit
+  // Cameras MultiSelect.
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
@@ -106,15 +88,48 @@ export const NaiveOccupancyPage: React.FC = () => {
     queryFn: () => camerasApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
+  const selectedCameras: Option[] = useMemo(() => {
+    if (!cameras) return cameraIdValues.map((id) => ({ label: id, value: id }));
+    const byId = new Map(cameras.map((c) => [String(c.id), c.name]));
+    return cameraIdValues.map((id) => ({ label: byId.get(id) ?? id, value: id }));
+  }, [cameraIdValues, cameras]);
 
+  const writeFilters = (next: {
+    dateRange?: DateRange;
+    tags?: string[];
+    cameraIds?: string[];
+  }) => {
+    const params = filtersToSearchParams(
+      {
+        date_from: (next.dateRange ?? dateRange).startDate ?? undefined,
+        date_to: (next.dateRange ?? dateRange).endDate ?? undefined,
+        tags: next.tags ?? tagValues,
+        camera_ids: next.cameraIds ?? cameraIdValues,
+      },
+      FILTER_SCHEMA,
+    );
+    setSearchParams(params, { replace: true });
+  };
+  const setDateRange = (range: DateRange) => writeFilters({ dateRange: range });
+  const setTags = (tags: Option[]) =>
+    writeFilters({ tags: tags.map((t) => String(t.value)) });
+  const setCameras = (cams: Option[]) =>
+    writeFilters({ cameraIds: cams.map((c) => String(c.value)) });
+
+  // Effective camera_ids passed to the API: union of cameras directly
+  // selected and cameras whose tags match. Empty = pass undefined (all
+  // cameras). '0' sentinel when both filters are active but no match.
   const cameraIdsFromTags = useMemo(() => {
-    if (tagValues.length === 0 || !cameras) return undefined;
-    const tagSet = new Set(tagValues);
-    const matchingIds = cameras
-      .filter((c) => c.tags?.some((tag) => tagSet.has(tag)))
-      .map((c) => c.id);
-    return matchingIds.join(',') || '0';
-  }, [tagValues, cameras]);
+    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
+    const ids = new Set<string>(cameraIdValues);
+    if (tagValues.length > 0 && cameras) {
+      const tagSet = new Set(tagValues);
+      for (const c of cameras) {
+        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      }
+    }
+    return ids.size === 0 ? '0' : Array.from(ids).join(',');
+  }, [tagValues, cameraIdValues, cameras]);
 
   const [meta, setMeta] = useState<NaiveOccupancyMetadata | null>(null);
 
@@ -161,6 +176,9 @@ export const NaiveOccupancyPage: React.FC = () => {
       }
     >
       <DashboardFilters
+        cameras={selectedCameras}
+        onCamerasChange={setCameras}
+        cameraOptions={cameras ?? []}
         tags={selectedTags}
         onTagsChange={setTags}
         tagOptions={tagOptions || []}
