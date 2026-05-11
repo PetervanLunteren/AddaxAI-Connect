@@ -245,6 +245,7 @@ export interface DetectionRateMapFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
+  camera_ids?: string;  // Comma-separated camera IDs
 }
 
 export interface Project {

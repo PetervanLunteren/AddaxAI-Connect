@@ -478,6 +478,7 @@ async def get_detection_rate_map(
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -513,6 +514,7 @@ async def get_detection_rate_map(
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     interval = await _get_independence_interval(db, project_id)
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
 
     # Build SQL query with conditional filters
     # Use UNION to combine verified (human observations) and unverified (AI) counts
@@ -538,6 +540,7 @@ async def get_detection_rate_map(
                 AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN human_observations ho ON ho.image_id = i.id
             WHERE c.project_id = ANY(:project_ids)
+              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
             GROUP BY cdp.id
         ),
         unverified_counts AS (
@@ -570,6 +573,7 @@ async def get_detection_rate_map(
             LEFT JOIN detections d ON d.image_id = i.id
             LEFT JOIN classifications cl ON cl.detection_id = d.id
             WHERE c.project_id = ANY(:project_ids)
+              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
             GROUP BY cdp.id
         ),
         pv_counts AS (
@@ -594,6 +598,7 @@ async def get_detection_rate_map(
                 AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN detections d ON d.image_id = i.id AND d.category IN ('person', 'vehicle')
             WHERE c.project_id = ANY(:project_ids)
+              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
             GROUP BY cdp.id
         ),
         combined_counts AS (
@@ -632,6 +637,7 @@ async def get_detection_rate_map(
             FROM camera_deployment_periods cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(:project_ids)
+              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
               AND NOT (ST_X(cdp.location::geometry) = 0 AND ST_Y(cdp.location::geometry) = 0)
               AND (cdp.end_date IS NULL OR cdp.end_date >= cdp.start_date)
         )
@@ -666,6 +672,7 @@ async def get_detection_rate_map(
             "start_date": start_date,
             "end_date": end_date,
             "project_ids": accessible_project_ids,
+            "camera_ids": camera_id_list,
         }
     )
     rows = result.fetchall()

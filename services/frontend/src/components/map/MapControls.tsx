@@ -2,12 +2,16 @@
  * Map controls component
  * Provides filters for species and date range, and view mode selection
  */
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Circle, Hexagon, Group, Map, Satellite, Navigation, ChevronDown } from 'lucide-react';
 import type { DetectionRateMapFilters } from '../../api/types';
 import { Button } from '../ui/Button';
 import { DateRangePicker } from '../ui/DateRangePicker';
+import { MultiSelect, type Option } from '../ui/MultiSelect';
 import { imagesApi } from '../../api/images';
+import { camerasApi } from '../../api/cameras';
+import { useProject } from '../../contexts/ProjectContext';
 
 interface MapControlsProps {
   filters: DetectionRateMapFilters;
@@ -21,6 +25,9 @@ interface MapControlsProps {
 }
 
 export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChange, baseLayer, onBaseLayerChange, minDate, maxDate }: MapControlsProps) {
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id;
+
   const species = filters.species || '';
   const startDate = filters.start_date || '';
   const endDate = filters.end_date || '';
@@ -31,6 +38,59 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
     queryFn: () => imagesApi.getSpecies(),
   });
 
+  // Fetch cameras and tag options so the camera-tag filter can map from
+  // selected tag labels to a comma-separated list of camera IDs the
+  // backend understands. Same pattern as DashboardFilters.
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
+  });
+  const { data: tagOptions } = useQuery({
+    queryKey: ['camera-tags', projectId],
+    queryFn: () => camerasApi.getTags(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Selected tags live in the URL-style `camera_ids` string the same
+  // way other surfaces do; for display we reverse-map IDs to the tags
+  // those cameras have. This is approximate when one tag covers multiple
+  // cameras, so we maintain selection by tag locally via a derived set.
+  const selectedTagValues = useMemo(() => {
+    if (!filters.camera_ids || !cameras) return new Set<string>();
+    const idSet = new Set(filters.camera_ids.split(',').map((s) => s.trim()));
+    const tagsCovered = new Set<string>();
+    for (const c of cameras) {
+      if (idSet.has(String(c.id))) {
+        for (const t of c.tags ?? []) tagsCovered.add(t);
+      }
+    }
+    return tagsCovered;
+  }, [filters.camera_ids, cameras]);
+  const selectedTags: Option[] = useMemo(
+    () => Array.from(selectedTagValues).map((v) => ({ label: v, value: v })),
+    [selectedTagValues],
+  );
+  const allTagOptions: Option[] = useMemo(
+    () => (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+    [tagOptions],
+  );
+
+  const handleTagsChange = (tags: Option[]) => {
+    if (tags.length === 0 || !cameras) {
+      onFiltersChange({ ...filters, camera_ids: undefined });
+      return;
+    }
+    const tagSet = new Set(tags.map((t) => String(t.value)));
+    const matching = cameras
+      .filter((c) => c.tags?.some((tag) => tagSet.has(tag)))
+      .map((c) => c.id);
+    // '0' = no match (forces an empty backend result, same convention
+    // DashboardFilters uses) so an active filter never silently shows
+    // unfiltered data.
+    onFiltersChange({ ...filters, camera_ids: matching.join(',') || '0' });
+  };
+
   const handleSpeciesChange = (value: string) => {
     onFiltersChange({
       ...filters,
@@ -40,7 +100,7 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
 
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
         {/* View mode selector */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -110,6 +170,18 @@ export function MapControls({ filters, onFiltersChange, viewMode, onViewModeChan
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Camera tags
+          </label>
+          <MultiSelect
+            options={allTagOptions}
+            value={selectedTags}
+            onChange={handleTagsChange}
+            placeholder="All cameras"
+          />
         </div>
 
         <div>

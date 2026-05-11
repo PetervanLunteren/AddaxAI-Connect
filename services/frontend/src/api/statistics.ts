@@ -94,6 +94,7 @@ export const statisticsApi = {
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
 
     const queryString = params.toString();
     const url = queryString
