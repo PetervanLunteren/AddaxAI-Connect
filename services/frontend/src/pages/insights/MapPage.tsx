@@ -79,7 +79,7 @@ export const InsightsMapPage: React.FC = () => {
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
   };
-  const onFilterChange = (key: string, value: FilterValue) => writeAll({ [key]: value });
+  const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
     writeAll({
       camera_ids: undefined,

@@ -72,7 +72,12 @@ export type FilterValue = string | string[] | undefined;
 export interface FilterBarProps {
   fields: FilterFieldDef[];
   values: Record<string, FilterValue>;
-  onChange: (key: string, value: FilterValue) => void;
+  /**
+   * Called with a partial values map every time a field changes. Always
+   * a patch (`{ key: value }` or `{ fromKey, toKey }` for date-range) so
+   * multi-key writes apply atomically.
+   */
+  onChange: (patch: Record<string, FilterValue>) => void;
   onClearAll: () => void;
   displayControls?: DisplayControlDef[];
   displayValues?: Record<string, string>;
@@ -194,7 +199,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 const FieldCell: React.FC<{
   field: FilterFieldDef;
   values: Record<string, FilterValue>;
-  onChange: (key: string, value: FilterValue) => void;
+  onChange: (patch: Record<string, FilterValue>) => void;
 }> = ({ field, values, onChange }) => (
   <div className="space-y-1.5 flex-1 min-w-[12rem]">
     <label className="text-xs font-medium text-muted-foreground">
@@ -207,7 +212,7 @@ const FieldCell: React.FC<{
 const FieldControl: React.FC<{
   field: FilterFieldDef;
   values: Record<string, FilterValue>;
-  onChange: (key: string, value: FilterValue) => void;
+  onChange: (patch: Record<string, FilterValue>) => void;
 }> = ({ field, values, onChange }) => {
   if (field.kind === 'multi-select') {
     const selected = asStringArray(values[field.key]);
@@ -219,10 +224,10 @@ const FieldControl: React.FC<{
         options={field.options}
         value={selectedOptions}
         onChange={(opts) =>
-          onChange(
-            field.key,
-            opts.length === 0 ? undefined : opts.map((o) => String(o.value)),
-          )
+          onChange({
+            [field.key]:
+              opts.length === 0 ? undefined : opts.map((o) => String(o.value)),
+          })
         }
         placeholder={field.placeholder ?? 'Any'}
         isLoading={field.isLoading}
@@ -233,7 +238,7 @@ const FieldControl: React.FC<{
     return (
       <NativeSelect
         value={asString(values[field.key])}
-        onChange={(v) => onChange(field.key, v === '' ? undefined : v)}
+        onChange={(v) => onChange({ [field.key]: v === '' ? undefined : v })}
         placeholder={field.placeholder ?? 'All'}
         options={field.options}
       />
@@ -244,10 +249,12 @@ const FieldControl: React.FC<{
       <DateRangePicker
         from={asString(values[field.fromKey]) || null}
         to={asString(values[field.toKey]) || null}
-        onChange={({ from, to }) => {
-          onChange(field.fromKey, from || undefined);
-          onChange(field.toKey, to || undefined);
-        }}
+        onChange={({ from, to }) =>
+          onChange({
+            [field.fromKey]: from || undefined,
+            [field.toKey]: to || undefined,
+          })
+        }
         minDate={field.minDate}
         maxDate={field.maxDate}
       />
@@ -261,7 +268,9 @@ const FieldControl: React.FC<{
       value={asString(values[field.key])}
       placeholder={field.placeholder}
       onChange={(e) =>
-        onChange(field.key, e.target.value === '' ? undefined : e.target.value)
+        onChange({
+          [field.key]: e.target.value === '' ? undefined : e.target.value,
+        })
       }
     />
   );
@@ -293,7 +302,7 @@ const NativeSelect: React.FC<{
 const MorePopover: React.FC<{
   fields: FilterFieldDef[];
   values: Record<string, FilterValue>;
-  onChange: (key: string, value: FilterValue) => void;
+  onChange: (patch: Record<string, FilterValue>) => void;
   activeCount: number;
 }> = ({ fields, values, onChange, activeCount }) => {
   const [open, setOpen] = useState(false);
@@ -363,7 +372,7 @@ const fieldKey = (field: FilterFieldDef): string =>
 function buildChips(
   fields: FilterFieldDef[],
   values: Record<string, FilterValue>,
-  onChange: (key: string, value: FilterValue) => void,
+  onChange: (patch: Record<string, FilterValue>) => void,
 ): ChipDescriptor[] {
   const chips: ChipDescriptor[] = [];
   for (const field of fields) {
@@ -378,7 +387,7 @@ function buildChips(
             label: byValue.get(value) ?? value,
             onRemove: () => {
               const next = selected.filter((v) => v !== value);
-              onChange(field.key, next.length === 0 ? undefined : next);
+              onChange({ [field.key]: next.length === 0 ? undefined : next });
             },
           });
         }
@@ -389,7 +398,7 @@ function buildChips(
         chips.push({
           key: `${field.key}:summary`,
           label: summary,
-          onRemove: () => onChange(field.key, undefined),
+          onRemove: () => onChange({ [field.key]: undefined }),
         });
       }
     } else if (field.kind === 'select') {
@@ -399,7 +408,7 @@ function buildChips(
       chips.push({
         key: `${field.key}:${value}`,
         label: match?.label ?? value,
-        onRemove: () => onChange(field.key, undefined),
+        onRemove: () => onChange({ [field.key]: undefined }),
       });
     } else if (field.kind === 'date-range') {
       const from = asString(values[field.fromKey]);
@@ -408,14 +417,14 @@ function buildChips(
         chips.push({
           key: `${field.fromKey}:${from}`,
           label: `From ${from}`,
-          onRemove: () => onChange(field.fromKey, undefined),
+          onRemove: () => onChange({ [field.fromKey]: undefined }),
         });
       }
       if (to) {
         chips.push({
           key: `${field.toKey}:${to}`,
           label: `To ${to}`,
-          onRemove: () => onChange(field.toKey, undefined),
+          onRemove: () => onChange({ [field.toKey]: undefined }),
         });
       }
     } else if (field.kind === 'search') {
@@ -424,7 +433,7 @@ function buildChips(
       chips.push({
         key: `${field.key}:${value}`,
         label: value,
-        onRemove: () => onChange(field.key, undefined),
+        onRemove: () => onChange({ [field.key]: undefined }),
       });
     }
   }

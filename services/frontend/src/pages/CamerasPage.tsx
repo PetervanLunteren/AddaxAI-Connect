@@ -213,8 +213,7 @@ export const CamerasPage: React.FC = () => {
       replace: true,
     });
   };
-  const onFilterChange = (key: string, value: FilterValue) =>
-    writeAll({ [key]: value });
+  const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
     writeAll({
       status: undefined,

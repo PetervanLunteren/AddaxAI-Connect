@@ -143,8 +143,7 @@ export const ActivityOverlapPage: React.FC = () => {
       replace: true,
     });
   };
-  const onFilterChange = (key: string, value: FilterValue) =>
-    writeAll({ [key]: value });
+  const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
     writeAll({
       species_a: undefined,
@@ -160,7 +159,7 @@ export const ActivityOverlapPage: React.FC = () => {
   // shows a chart instead of an empty state.
   useEffect(() => {
     if (!speciesA && speciesList && speciesList.length > 0) {
-      onFilterChange('species_a', speciesList[0].species);
+      onFilterChange({ species_a: speciesList[0].species });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speciesList, speciesA]);

@@ -113,8 +113,7 @@ export const DeploymentTimelinePage: React.FC = () => {
     });
   };
 
-  const onFilterChange = (key: string, value: FilterValue) =>
-    writeAll({ [key]: value });
+  const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () => {
     // Keep display controls; only wipe the four data filters.
     writeAll({

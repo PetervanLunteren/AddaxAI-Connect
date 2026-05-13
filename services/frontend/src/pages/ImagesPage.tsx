@@ -82,8 +82,8 @@ export const ImagesPage: React.FC = () => {
     [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview],
   );
 
-  const onFilterChange = (key: string, value: FilterValue) => {
-    const next = { ...filterValues, [key]: value };
+  const onFilterChange = (patch: Record<string, FilterValue>) => {
+    const next = { ...filterValues, ...patch };
     setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), { replace: true });
     setPage(1);
   };

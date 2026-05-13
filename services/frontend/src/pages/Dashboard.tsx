@@ -112,8 +112,8 @@ export const Dashboard: React.FC = () => {
     [dateRange, tagValues, cameraIdValues],
   );
 
-  const onFilterChange = (key: string, value: FilterValue) => {
-    const next = { ...filterValues, [key]: value };
+  const onFilterChange = (patch: Record<string, FilterValue>) => {
+    const next = { ...filterValues, ...patch };
     setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), {
       replace: true,
     });
