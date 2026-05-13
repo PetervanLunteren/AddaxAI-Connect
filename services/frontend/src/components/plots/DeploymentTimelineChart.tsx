@@ -196,25 +196,35 @@ export function DeploymentTimelineChart({
     return () => ro.disconnect();
   }, []);
 
-  // Compute x-axis bounds. Use effective_end so a fully-silent open CDP
-  // does not stretch the chart out to today.
+  // Compute x-axis bounds. Trust the backend's `date_range_from / to`,
+  // which it has already clipped to the active date filter. Iterating
+  // CDP configured_start values would expand the axis back to dates
+  // outside the user's zoom window, which is exactly what drag-to-zoom
+  // should avoid.
   const { xMinMs, xMaxMs } = useMemo(() => {
-    let lo = data.date_range_from ? parseDate(data.date_range_from) : Infinity;
-    let hi = data.date_range_to ? parseDate(data.date_range_to) : -Infinity;
-    for (const site of data.sites) {
-      for (const dep of site.deployments) {
-        lo = Math.min(lo, parseDate(dep.configured_start));
-        hi = Math.max(hi, parseDate(dep.effective_end));
-        for (const iv of dep.intervals) {
-          lo = Math.min(lo, parseDate(iv.start));
-          hi = Math.max(hi, parseDate(iv.end));
+    let lo: number;
+    let hi: number;
+    if (data.date_range_from && data.date_range_to) {
+      lo = parseDate(data.date_range_from);
+      hi = parseDate(data.date_range_to);
+    } else {
+      lo = Infinity;
+      hi = -Infinity;
+      for (const site of data.sites) {
+        for (const dep of site.deployments) {
+          lo = Math.min(lo, parseDate(dep.configured_start));
+          hi = Math.max(hi, parseDate(dep.effective_end));
+          for (const iv of dep.intervals) {
+            lo = Math.min(lo, parseDate(iv.start));
+            hi = Math.max(hi, parseDate(iv.end));
+          }
         }
       }
-    }
-    if (!isFinite(lo) || !isFinite(hi)) {
-      const today = Date.now();
-      lo = today - 30 * MS_PER_DAY;
-      hi = today;
+      if (!isFinite(lo) || !isFinite(hi)) {
+        const today = Date.now();
+        lo = today - 30 * MS_PER_DAY;
+        hi = today;
+      }
     }
     const span = Math.max(MS_PER_DAY, hi - lo);
     const pad = span * 0.02;
