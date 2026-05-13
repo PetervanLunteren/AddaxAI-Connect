@@ -192,7 +192,7 @@ export const DeploymentTimelinePage: React.FC = () => {
 
   return (
     <InsightsPageLayout
-      title="Deployment timeline"
+      title="Timeline"
       subtitle={subtitle}
       actions={
         <div className="flex flex-wrap items-center gap-2">

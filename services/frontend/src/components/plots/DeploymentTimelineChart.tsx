@@ -189,33 +189,34 @@ export function DeploymentTimelineChart({
   }, []);
 
   // Compute x-axis bounds. Trust the backend's `date_range_from / to`,
-  // which it has already clipped to the active date filter. Iterating
-  // CDP configured_start values would expand the axis back to dates
-  // outside the user's zoom window, which is exactly what drag-to-zoom
-  // should avoid.
+  // which it has already clipped to the active date filter. Each "day"
+  // occupies a full day width, so the upper bound is the start of the
+  // day AFTER `date_range_to`. Iterating CDP configured_start values
+  // would expand the axis back to dates outside the user's zoom window,
+  // which is exactly what drag-to-zoom should avoid.
   const { xMinMs, xMaxMs } = useMemo(() => {
     let lo: number;
     let hi: number;
     if (data.date_range_from && data.date_range_to) {
       lo = parseDate(data.date_range_from);
-      hi = parseDate(data.date_range_to);
+      hi = parseDate(data.date_range_to) + MS_PER_DAY;
     } else {
       lo = Infinity;
       hi = -Infinity;
       for (const site of data.sites) {
         for (const dep of site.deployments) {
           lo = Math.min(lo, parseDate(dep.configured_start));
-          hi = Math.max(hi, parseDate(dep.effective_end));
+          hi = Math.max(hi, parseDate(dep.effective_end) + MS_PER_DAY);
           for (const iv of dep.intervals) {
             lo = Math.min(lo, parseDate(iv.start));
-            hi = Math.max(hi, parseDate(iv.end));
+            hi = Math.max(hi, parseDate(iv.end) + MS_PER_DAY);
           }
         }
       }
       if (!isFinite(lo) || !isFinite(hi)) {
         const today = Date.now();
         lo = today - 30 * MS_PER_DAY;
-        hi = today;
+        hi = today + MS_PER_DAY;
       }
     }
     const span = Math.max(MS_PER_DAY, hi - lo);
@@ -266,6 +267,9 @@ export function DeploymentTimelineChart({
     concurrentBottom - (count / concurrentMax) * CONCURRENT_HEIGHT;
 
   // Step-function area chart of cameras delivering at least one image per day.
+  // Each point's count holds until end-of-day, then drops; the polygon
+  // closes one day after the final point so the last bar's full day is
+  // covered. Same start-of-next-day rule as the inner bars.
   const concurrentPath = useMemo(() => {
     const pts = data.concurrent_cameras;
     if (pts.length === 0) return '';
@@ -282,7 +286,9 @@ export function DeploymentTimelineChart({
       prevX = nextX;
       prevY = nextY;
     }
-    parts.push(`L ${prevX} ${concurrentBottom}`);
+    const tailX = xToPx(parseDate(pts[pts.length - 1].date) + MS_PER_DAY);
+    parts.push(`L ${tailX} ${prevY}`);
+    parts.push(`L ${tailX} ${concurrentBottom}`);
     parts.push('Z');
     return parts.join(' ');
   }, [data, xMinMs, xMaxMs, plotWidth]);
@@ -369,7 +375,7 @@ export function DeploymentTimelineChart({
         width={width}
         height={totalHeight}
         role="img"
-        aria-label="Deployment timeline"
+        aria-label="Timeline"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -440,15 +446,16 @@ export function DeploymentTimelineChart({
                 </text>
               )}
 
-              {/* Per-camera image-observed segments. One solid bar per
-                  stretch of days with images. Gaps in the row are days
-                  the camera was silent for three or more days. */}
+              {/* Per-camera image-observed segments. Each segment runs
+                  from the start-of-day of `iv.start` to the start-of-day
+                  AFTER `iv.end`, so a single day always fills a full day
+                  width and never collapses into a thin line. */}
               {viewMode === 'deployment' &&
                 site.intervals.map((iv, i) => {
-                  const ivStart = parseDate(iv.start);
-                  const ivEnd = parseDate(iv.end);
-                  const ix = xToPx(ivStart);
-                  const iw = Math.max(1, xToPx(ivEnd) - ix);
+                  const ivStartMs = parseDate(iv.start);
+                  const ivEndMs = parseDate(iv.end);
+                  const ix = xToPx(ivStartMs);
+                  const iw = Math.max(1, xToPx(ivEndMs + MS_PER_DAY) - ix);
                   return (
                     <rect
                       key={i}
@@ -464,8 +471,8 @@ export function DeploymentTimelineChart({
                           y: barY,
                           title: site.site_name,
                           subtitle:
-                            `${formatShortDate(ivStart)} – ${formatShortDate(ivEnd)}` +
-                            ` · ${iv.trap_nights} day${iv.trap_nights === 1 ? '' : 's'} with images`,
+                            `${formatShortDate(ivStartMs)} – ${formatShortDate(ivEndMs)}` +
+                            ` · ${iv.trap_nights} day${iv.trap_nights === 1 ? '' : 's'} with signal`,
                         })
                       }
                       onMouseLeave={() => setHover(null)}
@@ -474,11 +481,12 @@ export function DeploymentTimelineChart({
                 })}
 
               {/* Heatmap mode still needs a faint guideline per CDP so
-                  empty days are visible behind the cells. */}
+                  empty days are visible behind the cells. Same start-of-
+                  next-day rule as the bars. */}
               {viewMode === 'heatmap' &&
                 site.deployments.map((dep) => {
                   const startMs = parseDate(dep.configured_start);
-                  const endMs = parseDate(dep.effective_end);
+                  const endMs = parseDate(dep.effective_end) + MS_PER_DAY;
                   const x = xToPx(startMs);
                   const w = Math.max(1, xToPx(endMs) - x);
                   return (

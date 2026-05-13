@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // appears last in the group.
   const insightsItems = [
     { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
-    { to: `/projects/${projectId}/insights/deployment-timeline`, icon: GanttChartSquare, label: 'Deployment timeline' },
+    { to: `/projects/${projectId}/insights/deployment-timeline`, icon: GanttChartSquare, label: 'Timeline' },
     { to: `/projects/${projectId}/insights/activity-overlap`, icon: LineChart, label: 'Activity overlap' },
     { to: `/projects/${projectId}/insights/confusion-matrix`, icon: Grid3x3, label: 'Confusion matrix' },
     { to: `/projects/${projectId}/insights/per-class-performance`, icon: Table2, label: 'Per-class performance' },
