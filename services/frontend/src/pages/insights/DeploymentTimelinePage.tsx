@@ -21,7 +21,7 @@ import {
   DeploymentTimelineChart,
   HEATMAP_BINS,
 } from '../../components/plots/DeploymentTimelineChart';
-import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
+import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import {
   FilterBar,
   type DisplayControlDef,
@@ -46,15 +46,6 @@ const FILTER_SCHEMA: FilterSchema = {
   view_mode: 'string',
   sort_by: 'string',
 };
-
-const REFERENCES: PlotReference[] = [
-  {
-    citation:
-      'Meek, P. D., Ballard, G., Claridge, A., et al. (2014). Recommended guiding principles for ' +
-      'reporting on camera trapping research. Biodiversity and Conservation, 23(9), 2321–2343.',
-    url: 'https://link.springer.com/article/10.1007/s10531-014-0712-8',
-  },
-];
 
 export const DeploymentTimelinePage: React.FC = () => {
   const { selectedProject } = useProject();
@@ -311,30 +302,15 @@ export const DeploymentTimelinePage: React.FC = () => {
           </p>
         }
         how={
-          <>
-            <p>
-              Sign of life is built from two sources, read under the server timezone. Image
-              dates come from <code>captured_at</code> in each image. Health-report dates come
-              from <code>reported_at</code> in each daily report. Either one keeps the day
-              filled. Only fully consecutive signal days merge into a continuous segment, so
-              any gap day breaks the bar.
-            </p>
-            <p>
-              The status dot on the left uses the same rule as the Cameras page, based on the
-              most recent daily health report with a seven-day cutoff.
-            </p>
-            <p>
-              A faint vertical tick on a row marks the day the camera was moved more than 100 m
-              to a new location. The bar does not break at a move because the camera kept
-              giving signals on both sides of it.
-            </p>
-            <p>
-              Heatmap mode auto-switches to weekly cells once the visible range goes past a
-              year, so the cells stay readable on long timelines.
-            </p>
-          </>
+          <p>
+            A day is filled when the camera sent at least one image or one daily check-in that
+            day. A day with neither leaves a gap, so visible gaps mean the camera went silent.
+            The status dot follows the Cameras-page rule (green if the camera has checked in
+            within the last week). Faint ticks mark the day a camera was moved more than 100 m.
+            In heatmap mode, day cells switch to weekly cells once the visible range goes past
+            a year.
+          </p>
         }
-        references={REFERENCES}
       />
     </InsightsPageLayout>
   );
