@@ -22,7 +22,7 @@ import {
 } from '../../components/ui/FilterBar';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
-import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
+import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel } from '../../utils/labels';
 import { gradientStyle } from '../../utils/performance-metrics';
 import {
@@ -33,11 +33,19 @@ import {
 
 const OTHER_LABEL = 'other';
 
+type MatrixMode = 'counts' | 'recall' | 'precision';
+
 const TOP_N_VALUES: { value: string; label: string }[] = [
   { value: '10', label: '10 classes' },
   { value: '20', label: '20 classes' },
   { value: '50', label: '50 classes' },
   { value: 'all', label: 'All classes' },
+];
+
+const MODE_VALUES: { value: MatrixMode; label: string }[] = [
+  { value: 'counts', label: 'Counts' },
+  { value: 'recall', label: 'Recall (row %)' },
+  { value: 'precision', label: 'Precision (column %)' },
 ];
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -46,16 +54,19 @@ const FILTER_SCHEMA: FilterSchema = {
   tags: 'string[]',
   camera_ids: 'string[]',
   top_n: 'string',
+  mode: 'string',
 };
 
-const REFERENCES: PlotReference[] = [
-  {
-    citation:
-      'Sokolova, M., & Lapalme, G. (2009). A systematic analysis of performance measures for ' +
-      'classification tasks. Information Processing & Management, 45(4), 427–437.',
-    url: 'https://doi.org/10.1016/j.ipm.2009.03.002',
-  },
-];
+const PCT = new Intl.NumberFormat('en', {
+  style: 'percent',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+function formatPct(value: number): string {
+  const s = PCT.format(value);
+  return s === '100.0%' ? '100%' : s;
+}
 
 const asString = (v: string | string[] | undefined): string =>
   typeof v === 'string' ? v : '';
@@ -141,7 +152,8 @@ function buildFoldedMatrix(data: PerformanceData, topN: number | null): FoldedMa
 const Matrix: React.FC<{
   folded: FoldedMatrix;
   projectId: number;
-}> = ({ folded, projectId }) => {
+  mode: MatrixMode;
+}> = ({ folded, projectId, mode }) => {
   const navigate = useNavigate();
 
   const rowMaxes = folded.matrix.map((row) =>
@@ -227,8 +239,32 @@ const Matrix: React.FC<{
               </th>
               {folded.classes.map((predCls, c) => {
                 const count = folded.matrix[r][c];
+                const rowTotal = folded.rowTotals[r];
+                const colTotal = folded.colTotals[c];
                 const isZero = count === 0;
                 const clickable = !isZero && cls !== OTHER_LABEL;
+
+                // Mode-specific cell value and intensity. counts uses the
+                // row-normalised count for intensity; recall uses the row
+                // ratio (which is itself the intensity); precision uses the
+                // column ratio.
+                let ratio = 0;
+                if (mode === 'recall' && rowTotal > 0) ratio = count / rowTotal;
+                else if (mode === 'precision' && colTotal > 0) ratio = count / colTotal;
+                const intensity =
+                  mode === 'counts'
+                    ? rowMaxes[r] > 0 ? count / rowMaxes[r] : 0
+                    : ratio;
+                const cellValue =
+                  isZero
+                    ? ''
+                    : mode === 'counts'
+                      ? count.toLocaleString()
+                      : formatPct(ratio);
+                const tooltipValue =
+                  mode === 'counts'
+                    ? `${count} verified image${count === 1 ? '' : 's'}`
+                    : `${count} (${formatPct(ratio)} ${mode === 'recall' ? 'of row' : 'of column'})`;
                 return (
                   <td
                     key={predCls}
@@ -240,18 +276,18 @@ const Matrix: React.FC<{
                       minWidth: CELL_SIZE,
                       maxWidth: CELL_SIZE,
                       height: CELL_SIZE,
-                      ...gradientStyle(rowMaxes[r] > 0 ? count / rowMaxes[r] : 0),
+                      ...gradientStyle(intensity),
                     }}
                     onClick={clickable ? () => handleCellClick(cls) : undefined}
                     title={
                       isZero
                         ? undefined
-                        : `${count} verified images where humans saw ${normalizeLabel(cls)} and the AI predicted ${normalizeLabel(predCls)}${
-                            clickable ? '. Click to open them in the Images tab.' : '.'
+                        : `${normalizeLabel(cls)} → ${normalizeLabel(predCls)}: ${tooltipValue}${
+                            clickable ? '. Click to open them in the Images tab.' : ''
                           }`
                     }
                   >
-                    {isZero ? '' : count}
+                    {cellValue}
                   </td>
                 );
               })}
@@ -283,6 +319,9 @@ export const ConfusionMatrixPage: React.FC = () => {
     topNRaw === '10' || topNRaw === '20' || topNRaw === '50' || topNRaw === 'all'
       ? topNRaw
       : '20';
+  const modeRaw = asString(parsed.mode);
+  const mode: MatrixMode =
+    modeRaw === 'recall' || modeRaw === 'precision' ? modeRaw : 'counts';
 
   const filterValues: Record<string, FilterValue> = {
     camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
@@ -295,6 +334,7 @@ export const ConfusionMatrixPage: React.FC = () => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
       top_n: topNValue === '20' ? undefined : topNValue,
+      mode: mode === 'counts' ? undefined : mode,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
@@ -384,6 +424,11 @@ export const ConfusionMatrixPage: React.FC = () => {
   const displayControls = useMemo<DisplayControlDef[]>(
     () => [
       {
+        key: 'mode',
+        label: 'Cell values',
+        options: MODE_VALUES,
+      },
+      {
         key: 'top_n',
         label: 'Show top',
         options: TOP_N_VALUES,
@@ -392,7 +437,7 @@ export const ConfusionMatrixPage: React.FC = () => {
     [],
   );
 
-  const displayValues: Record<string, string> = { top_n: topNValue };
+  const displayValues: Record<string, string> = { top_n: topNValue, mode };
 
   const folded = useMemo<FoldedMatrix | null>(() => {
     if (!data) return null;
@@ -440,7 +485,7 @@ export const ConfusionMatrixPage: React.FC = () => {
         <>
           <PerformanceSummaryCards data={data} />
           <div className="rounded-lg border bg-card p-4 space-y-3">
-            <Matrix folded={folded} projectId={projectIdNum} />
+            <Matrix folded={folded} projectId={projectIdNum} mode={mode} />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
               <span>Based on {data.total_verified_images.toLocaleString()} verified image{data.total_verified_images === 1 ? '' : 's'}</span>
@@ -480,7 +525,6 @@ export const ConfusionMatrixPage: React.FC = () => {
             column so the totals still add up.
           </p>
         }
-        references={REFERENCES}
       />
     </InsightsPageLayout>
   );

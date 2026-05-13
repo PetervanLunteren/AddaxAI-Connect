@@ -14,7 +14,7 @@ import { performanceApi, type PerformanceData } from '../../api/performance';
 import { Card, CardContent } from '../../components/ui/Card';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
-import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
+import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import { normalizeLabel } from '../../utils/labels';
 import {
   computeDetailedMetrics,
@@ -27,15 +27,6 @@ const TOP_N_OPTIONS: { value: number | null; label: string }[] = [
   { value: 20, label: '20' },
   { value: 50, label: '50' },
   { value: null, label: 'all' },
-];
-
-const REFERENCES: PlotReference[] = [
-  {
-    citation:
-      'Sokolova, M., & Lapalme, G. (2009). A systematic analysis of performance measures for ' +
-      'classification tasks. Information Processing & Management, 45(4), 427–437.',
-    url: 'https://doi.org/10.1016/j.ipm.2009.03.002',
-  },
 ];
 
 const MetricsTable: React.FC<{ data: PerformanceData; projectId: number }> = ({ data, projectId }) => {
@@ -218,13 +209,12 @@ export const PerClassPerformancePage: React.FC = () => {
         }
         how={
           <p>
-            The F1 cell is colour-scaled from light yellow (low) to dark teal (high) so strong
-            and weak classes are easy to spot. Click any row to open the underlying verified
-            images in the Images tab. The macro and weighted averages at the bottom are computed
-            across <em>all</em> classes regardless of how many rows the top filter is showing.
+            The F1 cell is colour-scaled from pale teal (low) to dark teal (high) so strong and
+            weak classes are easy to spot. Click any row to open the underlying verified images
+            in the Images tab. The macro and weighted averages at the bottom are computed across
+            <em> all</em> classes regardless of how many rows the top filter is showing.
           </p>
         }
-        references={REFERENCES}
       />
     </InsightsPageLayout>
   );
