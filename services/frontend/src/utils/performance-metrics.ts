@@ -55,6 +55,41 @@ export function gradientStyle(t: number): React.CSSProperties {
   };
 }
 
+// Diverging palette for the F1 column on Per-class performance: F1 ranges
+// [0, 1] where 0 is bad and 1 is good, so a single-hue ramp under-
+// communicates the meaning. Mirrors AddaxAI WebUI's f1DivergingColor:
+// red (#882000) → mid teal (#71b7ba) → dark teal (#0f6064). Aligns with
+// the project status palette so the colour is visually consistent.
+const STATUS_BAD = { r: 0x88, g: 0x20, b: 0x00 };
+const STATUS_MID = { r: 0x71, g: 0xb7, b: 0xba };
+const STATUS_GOOD = { r: 0x0f, g: 0x60, b: 0x64 };
+
+export function f1DivergingColor(value: number | null): React.CSSProperties {
+  if (value === null) return {};
+  const clamped = Math.max(0, Math.min(1, value));
+  // First half blends BAD → MID; second half blends MID → GOOD.
+  let r: number;
+  let g: number;
+  let b: number;
+  if (clamped < 0.5) {
+    const t = clamped * 2;
+    r = lerp(STATUS_BAD.r, STATUS_MID.r, t);
+    g = lerp(STATUS_BAD.g, STATUS_MID.g, t);
+    b = lerp(STATUS_BAD.b, STATUS_MID.b, t);
+  } else {
+    const t = (clamped - 0.5) * 2;
+    r = lerp(STATUS_MID.r, STATUS_GOOD.r, t);
+    g = lerp(STATUS_MID.g, STATUS_GOOD.g, t);
+    b = lerp(STATUS_MID.b, STATUS_GOOD.b, t);
+  }
+  // Black text near the mid teal, white text near both ends.
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return {
+    backgroundColor: `rgb(${r}, ${g}, ${b})`,
+    color: lum > 0.55 ? '#1f2937' : '#ffffff',
+  };
+}
+
 export function computeDetailedMetrics(data: PerformanceData): DetailedMetrics {
   const perClass: ClassMetrics[] = data.matrix_classes.map((cls, i) => {
     const tp = data.matrix[i][i];
