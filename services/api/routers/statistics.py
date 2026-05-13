@@ -1429,14 +1429,12 @@ async def get_activity_overlap(
     if species_b is not None and species_b.lower() == species_a.lower():
         species_b = None
 
-    # Default to last 30 days if no window is given, matching the other
-    # statistics endpoints. captured_at is naive so the window is naive too.
-    if not start_date and not end_date:
-        end_dt = await _server_now(db)
-        start_dt = end_dt - timedelta(days=30)
-    else:
-        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
-        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+    # No date filter = all available data. KDE quality scales with
+    # sample size and diel patterns are stable over time, so older
+    # detections are still useful here. captured_at is naive so the
+    # window is naive too.
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
 
     # Single-reference clock sun bands. Best-effort: any failure produces None
     # and the chart simply renders without twilight bands.
