@@ -36,7 +36,6 @@ import {
 
 type ViewMode = 'deployment' | 'heatmap';
 type SortBy = 'name' | 'last_image' | 'trap_nights';
-type GroupBy = 'none' | 'tag';
 
 const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
@@ -46,7 +45,6 @@ const FILTER_SCHEMA: FilterSchema = {
   density: 'string',
   view_mode: 'string',
   sort_by: 'string',
-  group_by: 'string',
 };
 
 const REFERENCES: PlotReference[] = [
@@ -57,8 +55,6 @@ const REFERENCES: PlotReference[] = [
     url: 'https://link.springer.com/article/10.1007/s10531-014-0712-8',
   },
 ];
-
-const NO_TAG_LABEL = 'Untagged';
 
 export const DeploymentTimelinePage: React.FC = () => {
   const { selectedProject } = useProject();
@@ -80,7 +76,6 @@ export const DeploymentTimelinePage: React.FC = () => {
     if (v === 'last_image' || v === 'trap_nights') return v;
     return 'name';
   })();
-  const groupBy: GroupBy = (parsed.group_by as string) === 'tag' ? 'tag' : 'none';
 
   const dateRange: DateRange = { startDate, endDate };
   const selectedTags: Option[] = tagValues.map((v) => ({ label: v, value: v }));
@@ -109,7 +104,6 @@ export const DeploymentTimelinePage: React.FC = () => {
     density?: 'normal' | 'compact';
     viewMode?: ViewMode;
     sortBy?: SortBy;
-    groupBy?: GroupBy;
   }) => {
     const nextStart = next.startDate !== undefined ? next.startDate : startDate;
     const nextEnd = next.endDate !== undefined ? next.endDate : endDate;
@@ -118,7 +112,6 @@ export const DeploymentTimelinePage: React.FC = () => {
     const nextDensity = next.density ?? density;
     const nextView = next.viewMode ?? viewMode;
     const nextSort = next.sortBy ?? sortBy;
-    const nextGroup = next.groupBy ?? groupBy;
     const params = filtersToSearchParams(
       {
         date_from: nextStart ?? undefined,
@@ -128,7 +121,6 @@ export const DeploymentTimelinePage: React.FC = () => {
         density: nextDensity === 'normal' ? undefined : nextDensity,
         view_mode: nextView === 'deployment' ? undefined : nextView,
         sort_by: nextSort === 'name' ? undefined : nextSort,
-        group_by: nextGroup === 'none' ? undefined : nextGroup,
       },
       FILTER_SCHEMA,
     );
@@ -144,7 +136,6 @@ export const DeploymentTimelinePage: React.FC = () => {
   const setDensity = (d: 'normal' | 'compact') => writeFilters({ density: d });
   const setViewMode = (m: ViewMode) => writeFilters({ viewMode: m });
   const setSortBy = (s: SortBy) => writeFilters({ sortBy: s });
-  const setGroupBy = (g: GroupBy) => writeFilters({ groupBy: g });
 
   const cameraIdsFromTags = useMemo(() => {
     if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
@@ -169,31 +160,15 @@ export const DeploymentTimelinePage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  // Site-level tag lookup, needed for sort-by-tag and group-by-tag. Picks
-  // the first tag alphabetically so behaviour stays stable across page
-  // reloads even when a camera carries several tags.
-  const primaryTagBySiteId = useMemo(() => {
-    const out = new Map<string, string>();
-    if (!cameras) return out;
-    for (const c of cameras) {
-      const tags = (c.tags ?? []).slice().sort();
-      out.set(String(c.id), tags[0] ?? NO_TAG_LABEL);
-    }
-    return out;
-  }, [cameras]);
-
   const orderedData = useMemo<TimelineResponse | undefined>(() => {
     if (!data) return undefined;
     const trapNightsBySite = new Map<string, number>();
     for (const site of data.sites) {
-      const total = site.deployments.reduce(
-        (acc, dep) => acc + dep.intervals.reduce((s, iv) => s + iv.trap_nights, 0),
-        0,
-      );
+      const total = site.intervals.reduce((s, iv) => s + iv.trap_nights, 0);
       trapNightsBySite.set(site.site_id ?? '', total);
     }
 
-    const compareWithinGroup = (a: TimelineSite, b: TimelineSite): number => {
+    const compare = (a: TimelineSite, b: TimelineSite): number => {
       if (sortBy === 'last_image') {
         const av = a.last_image_day ?? '';
         const bv = b.last_image_day ?? '';
@@ -209,24 +184,9 @@ export const DeploymentTimelinePage: React.FC = () => {
       return a.site_name.localeCompare(b.site_name);
     };
 
-    const sorted = [...data.sites].sort((a, b) => {
-      if (groupBy === 'tag') {
-        const at = primaryTagBySiteId.get(a.site_id ?? '') ?? NO_TAG_LABEL;
-        const bt = primaryTagBySiteId.get(b.site_id ?? '') ?? NO_TAG_LABEL;
-        if (at !== bt) return at.localeCompare(bt);
-      }
-      return compareWithinGroup(a, b);
-    });
+    const sorted = [...data.sites].sort(compare);
     return { ...data, sites: sorted };
-  }, [data, sortBy, groupBy, primaryTagBySiteId]);
-
-  const groupKeyForSite = useMemo(() => {
-    if (groupBy !== 'tag') return undefined;
-    return (siteId: string | null) => {
-      if (siteId === null) return NO_TAG_LABEL;
-      return primaryTagBySiteId.get(siteId) ?? NO_TAG_LABEL;
-    };
-  }, [groupBy, primaryTagBySiteId]);
+  }, [data, sortBy]);
 
   const subtitle = 'Per-camera activity over time, with a strip showing how many cameras delivered images each day';
 
@@ -254,15 +214,6 @@ export const DeploymentTimelinePage: React.FC = () => {
             <SelectItem value="name">Sort by name</SelectItem>
             <SelectItem value="last_image">Sort by last image</SelectItem>
             <SelectItem value="trap_nights">Sort by trap-nights</SelectItem>
-          </Select>
-          <Select
-            value={groupBy}
-            onValueChange={(v) => setGroupBy(v as GroupBy)}
-            className="h-9 text-sm w-36"
-            aria-label="Group rows"
-          >
-            <SelectItem value="none">No grouping</SelectItem>
-            <SelectItem value="tag">Group by tag</SelectItem>
           </Select>
           <Select
             value={density}
@@ -317,7 +268,6 @@ export const DeploymentTimelinePage: React.FC = () => {
             density={density}
             viewMode={viewMode}
             onZoom={(from, to) => writeFilters({ startDate: from, endDate: to })}
-            groupKeyForSite={groupKeyForSite}
           />
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />

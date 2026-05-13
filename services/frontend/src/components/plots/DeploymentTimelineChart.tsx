@@ -152,13 +152,6 @@ interface DeploymentTimelineChartProps {
   viewMode?: ViewMode;
   /** Fired with YYYY-MM-DD strings when the user drag-zooms on the chart. */
   onZoom?: (from: string, to: string) => void;
-  /**
-   * Optional per-site grouping key. When supplied, a thin divider with the
-   * group label is drawn between adjacent rows whose key differs. Use it
-   * for "group by camera tag" so cameras carrying the same tag cluster
-   * visually inside one chart rather than splitting into multiple cards.
-   */
-  groupKeyForSite?: (siteId: string | null) => string | null;
 }
 
 const ZOOM_DRAG_THRESHOLD_PX = 4;
@@ -179,7 +172,6 @@ export function DeploymentTimelineChart({
   density = 'normal',
   viewMode = 'deployment',
   onZoom,
-  groupKeyForSite,
 }: DeploymentTimelineChartProps) {
   const cfg = DENSITY[density];
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -417,14 +409,6 @@ export function DeploymentTimelineChart({
             TOP_PADDING + AXIS_HEIGHT + rowIdx * (cfg.rowHeight + cfg.rowGap);
           const barY = rowTop + (cfg.rowHeight - cfg.barHeight) / 2;
           const cameraId = site.site_id !== null ? Number(site.site_id) : -1;
-          const groupKey = groupKeyForSite ? groupKeyForSite(site.site_id) : null;
-          const prevSite = rowIdx > 0 ? data.sites[rowIdx - 1] : null;
-          const prevGroupKey = prevSite && groupKeyForSite
-            ? groupKeyForSite(prevSite.site_id)
-            : null;
-          const showGroupDivider =
-            groupKeyForSite !== undefined &&
-            (rowIdx === 0 || groupKey !== prevGroupKey);
           const heatmap = heatmapByCamera.get(cameraId);
           const transitions = transitionsByCamera.get(cameraId) ?? [];
           const dotColor = STATUS_COLORS[site.camera_status] ?? '#9ca3af';
@@ -434,28 +418,6 @@ export function DeploymentTimelineChart({
 
           return (
             <g key={site.site_id ?? rowIdx}>
-              {showGroupDivider && groupKey && (
-                <g>
-                  <line
-                    x1={0}
-                    x2={plotLeft + plotWidth}
-                    y1={rowTop - cfg.rowGap / 2}
-                    y2={rowTop - cfg.rowGap / 2}
-                    stroke="rgba(0, 0, 0, 0.12)"
-                  />
-                  {cfg.showLabels && (
-                    <text
-                      x={4}
-                      y={rowTop - cfg.rowGap / 2 - 4}
-                      fontSize={10}
-                      fill={AXIS_TEXT}
-                      fontWeight={600}
-                    >
-                      {groupKey}
-                    </text>
-                  )}
-                </g>
-              )}
               {/* Status dot prefix. Always rendered so the row aligns with
                   the camera id even in compact mode where the label hides. */}
               <circle
