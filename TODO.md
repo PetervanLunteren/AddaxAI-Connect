@@ -47,16 +47,23 @@ Open follow-ups:
 
 > Naïve occupancy metric
 We frequently use the naïve occupancy metric (i.e., the proportion of sites where a species is detected out of the total number of sampled sites). Could a visualization on the dashboard represent this? eg: bar plot comparing species?
-- [ ] Have a look at how AddaxAI-WbUI does its insight pages. That way we have a little bit more room for analysis page wide. The dasboard is for quick views, the insights are for deeper analysis. WOuld you think something like this would work for AddaxAI Connect too? If so, how? WHich ones would make sense to move to a separate insights page? My thoughts are:
-- Move the Naive occupancy to a separate page under insights. More room for an elaborate analysis. 
-- move map to insights,
-- move performace to insights, and make it two pages (just like AddaxAI WebUI - skip the redundant one)
-- Make the same activity overlap as WebUI and remove the Species activity comparison from the dasboard () redundant then.
-- Should we make a deployment timeline just like at AddaxAI-WebUI?
+
+- [ ] Add option to remove the user list (except the server admins) for when running a dev server. Now all the real users are still on dev.  
 
 For all, use the same format, filters, "ABout this view" section etc. It must feel the same in AddaxAI Connect as in AddaxAI WebUI.
 
 What do you think? Are there any difficulties? Anything worth flagging? Your honest opinion. 
+
+Instructions:
+* Codex will review your output once you are done, so make sure you exceed his expectations
+* do not sugar coat, be honest and clear
+* Switch to plan mode, I want this task to be done with "plan mode on"
+* Read all MD file in root to get a understanding of the project. 
+* If something is unclear at any point, stop and ask before continuing.
+* Prioritize simplicity and clarity over perfection. The code must be clean, easy to read, and understandable for collaborators. Avoid unnecessary complexity.
+* I'm not in a rush. Please be precise and do the task thoroughly. 
+* Please ask me any question for clarification. I would rather that you ask too many questions than assume certain details. 
+* Ask me clarifying questions before beginning. Based on the conventions set out in CONVENTIONS.md and your knowledge, give your recommended solution to each questions you ask me. The minimum number of questions to ask me is 3
 
 
 
