@@ -34,20 +34,22 @@ const TRANSITION_STROKE = 'rgba(0, 0, 0, 0.25)';
 
 // Heatmap intensity ramp: same hue as the inner bar, varying alpha so the
 // rest of the chart stays in one colour family. Tuned to one or two images
-// being visible without dominating, eleven-plus being solid.
-const HEATMAP_BINS: Array<{ min: number; fill: string }> = [
-  { min: 11, fill: 'rgba(15, 96, 100, 0.90)' },
-  { min: 5, fill: 'rgba(15, 96, 100, 0.65)' },
-  { min: 2, fill: 'rgba(15, 96, 100, 0.40)' },
-  { min: 1, fill: 'rgba(15, 96, 100, 0.20)' },
+// being visible without dominating, eleven-plus being solid. Exported so
+// the page can render a matching legend without duplicating the table.
+export const HEATMAP_BINS: Array<{ min: number; label: string; fill: string }> = [
+  { min: 1, label: '1', fill: 'rgba(15, 96, 100, 0.20)' },
+  { min: 2, label: '2 to 4', fill: 'rgba(15, 96, 100, 0.40)' },
+  { min: 5, label: '5 to 10', fill: 'rgba(15, 96, 100, 0.65)' },
+  { min: 11, label: '11+', fill: 'rgba(15, 96, 100, 0.90)' },
 ];
 
 function heatmapFill(count: number): string | null {
   if (count <= 0) return null;
+  let chosen: string | null = null;
   for (const bin of HEATMAP_BINS) {
-    if (count >= bin.min) return bin.fill;
+    if (count >= bin.min) chosen = bin.fill;
   }
-  return null;
+  return chosen;
 }
 
 type Density = 'normal' | 'compact';
@@ -283,24 +285,26 @@ export function DeploymentTimelineChart({
     return parts.join(' ');
   }, [data, xMinMs, xMaxMs, plotWidth]);
 
-  const handleMouseDown = (e: React.MouseEvent<SVGRectElement>) => {
-    const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
+  const xFromEvent = (e: React.MouseEvent): number => {
+    const svg = (e.currentTarget as Element).closest('svg') as SVGSVGElement | null;
+    const rect = (svg ?? (e.currentTarget as SVGSVGElement)).getBoundingClientRect();
+    return e.clientX - rect.left;
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    const x = xFromEvent(e);
     if (x < plotLeft || x > plotLeft + plotWidth) return;
     setDrag({ startX: x, currentX: x });
   };
 
-  const handleMouseMove = (e: React.MouseEvent<SVGRectElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!drag) return;
-    const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    setDrag({ ...drag, currentX: x });
+    setDrag({ ...drag, currentX: xFromEvent(e) });
   };
 
-  const handleMouseUp = (e: React.MouseEvent<SVGRectElement>) => {
+  const handleMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!drag) return;
-    const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const x = xFromEvent(e);
     const dragged = Math.abs(x - drag.startX);
     if (dragged >= ZOOM_DRAG_THRESHOLD_PX && onZoom) {
       const a = Math.min(drag.startX, x);
@@ -312,6 +316,44 @@ export function DeploymentTimelineChart({
     setDrag(null);
   };
 
+  // Concurrent-strip hover: find the step value at the cursor's date and
+  // surface it in the shared tooltip. Step-function semantics, so look up
+  // the latest concurrent point whose date is <= cursor date.
+  const concurrentPoints = data.concurrent_cameras;
+  const handleConcurrentMove = (e: React.MouseEvent<SVGRectElement>) => {
+    if (drag || concurrentPoints.length === 0) return;
+    const x = xFromEvent(e);
+    if (x < plotLeft || x > plotLeft + plotWidth) {
+      setHover(null);
+      return;
+    }
+    const cursorMs = pxToMs(x);
+    let lo = 0;
+    let hi = concurrentPoints.length - 1;
+    let idx = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const midMs = parseDate(concurrentPoints[mid].date);
+      if (midMs <= cursorMs) {
+        idx = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (idx < 0) {
+      setHover(null);
+      return;
+    }
+    const point = concurrentPoints[idx];
+    setHover({
+      x,
+      y: concurrentTop,
+      title: 'Cameras active',
+      subtitle: `${formatShortDate(parseDate(point.date))} · ${point.count} of ${data.sites.length}`,
+    });
+  };
+
   // Pixel width of one heatmap cell, capped at 1 so a sub-pixel range
   // does not collapse the whole row to a single line.
   const cellWidthPx = Math.max(
@@ -321,7 +363,17 @@ export function DeploymentTimelineChart({
 
   return (
     <div ref={containerRef} className="w-full overflow-x-hidden">
-      <svg width={width} height={totalHeight} role="img" aria-label="Deployment timeline">
+      <svg
+        width={width}
+        height={totalHeight}
+        role="img"
+        aria-label="Deployment timeline"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => setDrag(null)}
+        style={{ cursor: drag ? 'ew-resize' : 'crosshair' }}
+      >
         {ticks.map((t, i) => {
           const x = xToPx(t.ms);
           if (x < plotLeft || x > plotLeft + plotWidth) return null;
@@ -567,18 +619,30 @@ export function DeploymentTimelineChart({
           Cameras active
         </text>
 
+        {/* Concurrent-strip hover capture. Transparent so it does not
+            paint, sits above the area chart, fires onMouseMove to
+            populate the shared tooltip with the day's count. */}
         <rect
           x={plotLeft}
-          y={TOP_PADDING + AXIS_HEIGHT}
+          y={concurrentTop}
           width={plotWidth}
-          height={rowsHeight + SECTION_GAP + CONCURRENT_HEIGHT}
-          fill={drag ? HOVER_FILL : 'transparent'}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => setDrag(null)}
-          style={{ cursor: drag ? 'ew-resize' : 'crosshair' }}
+          height={CONCURRENT_HEIGHT}
+          fill="transparent"
+          onMouseMove={handleConcurrentMove}
+          onMouseLeave={() => setHover(null)}
         />
+        {/* Dim overlay during drag, purely visual. pointerEvents="none"
+            so it never swallows hover events on cells / bars / ticks. */}
+        {drag && (
+          <rect
+            x={plotLeft}
+            y={TOP_PADDING + AXIS_HEIGHT}
+            width={plotWidth}
+            height={rowsHeight + SECTION_GAP + CONCURRENT_HEIGHT}
+            fill={HOVER_FILL}
+            pointerEvents="none"
+          />
+        )}
         {drag && (
           <rect
             x={Math.min(drag.startX, drag.currentX)}

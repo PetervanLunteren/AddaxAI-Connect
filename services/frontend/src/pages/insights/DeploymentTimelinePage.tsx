@@ -17,7 +17,10 @@ import { camerasApi } from '../../api/cameras';
 import { statisticsApi } from '../../api/statistics';
 import type { TimelineResponse, TimelineSite } from '../../api/types';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
-import { DeploymentTimelineChart } from '../../components/plots/DeploymentTimelineChart';
+import {
+  DeploymentTimelineChart,
+  HEATMAP_BINS,
+} from '../../components/plots/DeploymentTimelineChart';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
 import {
   DashboardFilters,
@@ -294,6 +297,21 @@ export const DeploymentTimelinePage: React.FC = () => {
         </div>
       ) : (
         <div className="rounded-lg border bg-card p-4 relative">
+          {viewMode === 'heatmap' && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>Images per day</span>
+              {HEATMAP_BINS.map((bin) => (
+                <span key={bin.min} className="inline-flex items-center gap-1">
+                  <span
+                    className="inline-block w-4 h-3 rounded-sm border border-black/10"
+                    style={{ backgroundColor: bin.fill }}
+                    aria-hidden="true"
+                  />
+                  <span>{bin.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
           <DeploymentTimelineChart
             data={orderedData}
             density={density}
