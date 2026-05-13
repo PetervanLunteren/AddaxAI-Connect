@@ -287,7 +287,11 @@ const FieldControl: React.FC<{
 const NativeSelect: React.FC<{
   value: string;
   onChange: (value: string) => void;
-  placeholder: string;
+  /** When provided, shown as a leading option with empty value (typical
+   *  for filter selects where empty = no filter). Pass `null` to render
+   *  only the real options (typical for display controls where one of
+   *  the real options is always the active state). */
+  placeholder: string | null;
   options: Array<{ value: string; label: string }>;
 }> = ({ value, onChange, placeholder, options }) => (
   <div className="relative">
@@ -296,7 +300,7 @@ const NativeSelect: React.FC<{
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
-      <option value="">{placeholder}</option>
+      {placeholder !== null && <option value="">{placeholder}</option>}
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
@@ -367,7 +371,7 @@ const DisplayPopover: React.FC<{
               <NativeSelect
                 value={values[ctrl.key] ?? ''}
                 onChange={(v) => onChange(ctrl.key, v)}
-                placeholder={ctrl.options?.[0]?.label ?? ''}
+                placeholder={null}
                 options={ctrl.options ?? []}
               />
             )}
