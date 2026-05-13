@@ -801,7 +801,7 @@ export const CamerasPage: React.FC = () => {
 
   return (
     <div>
-      {/* Header with title and admin actions */}
+      {/* Header with title and page-level actions */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-1">
         <div>
           <h1 className="text-2xl font-bold mb-0">Cameras</h1>
@@ -809,8 +809,25 @@ export const CamerasPage: React.FC = () => {
             Monitor camera health, battery levels, and connectivity status
           </p>
         </div>
-        {isServerAdmin && (
-          <div className="flex gap-2 self-start">
+        <div className="flex gap-2 self-start">
+          {cameras && cameras.length > 0 && (
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => currentProject && exportMutation.mutate(currentProject.id)}
+              disabled={exportMutation.isPending || !currentProject}
+              className="whitespace-nowrap"
+              title="Download every camera in this project as CSV"
+            >
+              {exportMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1.5" />
+              )}
+              Export CSV
+            </Button>
+          )}
+          {isServerAdmin && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="whitespace-nowrap">
@@ -830,8 +847,8 @@ export const CamerasPage: React.FC = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Shared filter bar (drives both table and map views) */}
@@ -842,36 +859,30 @@ export const CamerasPage: React.FC = () => {
             values={filterValues}
             onChange={onFilterChange}
             onClearAll={onClearAll}
+            displayControls={
+              viewMode === 'table'
+                ? [
+                    {
+                      key: 'columns',
+                      label: 'Visible columns',
+                      render: () => (
+                        <ColumnPicker
+                          visible={visibleColumns}
+                          onChange={setVisibleColumns}
+                        />
+                      ),
+                    },
+                  ]
+                : undefined
+            }
+            displayValues={{}}
+            onDisplayChange={() => {}}
           />
-          <div className="flex items-center gap-3">
-            {isFiltered && (
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                {filteredCameras.length} of {cameras.length} cameras
-              </span>
-            )}
-            {viewMode === 'table' && (
-              <ColumnPicker
-                visible={visibleColumns}
-                onChange={setVisibleColumns}
-              />
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => currentProject && exportMutation.mutate(currentProject.id)}
-              disabled={exportMutation.isPending || !currentProject}
-              className="whitespace-nowrap ml-auto"
-              title="Download every camera in this project as CSV"
-            >
-              {exportMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-1.5" />
-              )}
-              Export CSV
-            </Button>
-          </div>
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredCameras.length} of {cameras.length} cameras
+            </span>
+          )}
         </div>
       )}
 

@@ -64,7 +64,15 @@ export type FilterFieldDef =
 export type DisplayControlDef = {
   key: string;
   label: string;
-  options: Array<{ value: string; label: string }>;
+  /** Select options. Required unless `render` is provided. */
+  options?: Array<{ value: string; label: string }>;
+  /**
+   * Optional custom renderer for controls that don't fit a Select. The
+   * page owns the wiring (state, onChange); the popover just hosts the
+   * element under the same label. Useful for things like a column
+   * visibility picker on the cameras page.
+   */
+  render?: () => React.ReactNode;
 };
 
 export type FilterValue = string | string[] | undefined;
@@ -353,12 +361,16 @@ const DisplayPopover: React.FC<{
             <label className="text-xs font-medium text-muted-foreground">
               {ctrl.label}
             </label>
-            <NativeSelect
-              value={values[ctrl.key] ?? ''}
-              onChange={(v) => onChange(ctrl.key, v)}
-              placeholder={ctrl.options[0]?.label ?? ''}
-              options={ctrl.options}
-            />
+            {ctrl.render ? (
+              ctrl.render()
+            ) : (
+              <NativeSelect
+                value={values[ctrl.key] ?? ''}
+                onChange={(v) => onChange(ctrl.key, v)}
+                placeholder={ctrl.options?.[0]?.label ?? ''}
+                options={ctrl.options ?? []}
+              />
+            )}
           </div>
         ))}
       </PopoverContent>
