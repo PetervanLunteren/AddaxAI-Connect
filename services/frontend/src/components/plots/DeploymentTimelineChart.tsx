@@ -659,7 +659,7 @@ export function DeploymentTimelineChart({
 
       {hover && (
         <div
-          className="pointer-events-none absolute z-10 rounded-md border bg-popover px-2 py-1.5 text-xs shadow-md"
+          className="pointer-events-none absolute z-10 rounded-md border bg-card text-card-foreground px-2 py-1.5 text-xs shadow-md"
           style={{ left: hover.x + 8, top: hover.y - 4 }}
         >
           <div className="font-semibold">{hover.title}</div>
