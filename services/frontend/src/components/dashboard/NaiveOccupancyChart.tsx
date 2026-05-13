@@ -85,6 +85,9 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      // Single dataset with per-bar colours; a "Naive occupancy" legend
+      // swatch is noise.
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: (context) => {
