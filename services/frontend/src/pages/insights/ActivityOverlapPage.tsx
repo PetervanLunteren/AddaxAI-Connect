@@ -68,12 +68,6 @@ const SAMPLE_WARNING_LABEL: Record<SampleSizeWarning, string> = {
 const REFERENCES: PlotReference[] = [
   {
     citation:
-      'Ridout, M. S., & Linkie, M. (2009). Estimating overlap of daily activity patterns from ' +
-      'camera trap data. Journal of Agricultural, Biological, and Environmental Statistics, 14(3), 322–337.',
-    url: 'https://link.springer.com/article/10.1198/jabes.2009.08038',
-  },
-  {
-    citation:
       'Vazquez, C., Rowcliffe, J. M., Spoelstra, K., & Jansen, P. A. (2019). Comparing diel ' +
       'activity patterns of wildlife across latitudes and seasons: time transformations using ' +
       'day length. Methods in Ecology and Evolution, 10(12), 2057–2066.',
@@ -360,50 +354,31 @@ export const ActivityOverlapPage: React.FC = () => {
         plotKey="activity-overlap"
         what={
           <p>
-            Each curve is a circular von Mises kernel density estimate of detection times for the
-            chosen species, normalised so the area under the curve over 24 hours is 1. The shaded
-            region between two curves is the overlap coefficient Δ, the integrated pointwise
-            minimum, which ranges from 0 (disjoint) to 1 (identical).
+            Each curve is a smoothed picture of when a species is active across the 24-hour day,
+            built from its detection times. When two species are shown, the shaded region between
+            them is the overlap coefficient Δ, which goes from 0 (never active at the same time)
+            to 1 (identical patterns).
           </p>
         }
         how={
           <>
             <p>
-              The 240-point density grid is fit server-side with concentration parameter κ = 5,
-              equivalent to roughly a 1.7-hour bandwidth. Δ comes with a percentile bootstrap 95%
-              CI from 1000 resamples (canonical is 10 000; 1000 keeps the endpoint snappy for an
-              interactive UI). Δ₄ is the recommended estimator when the smaller sample has n ≥ 50,
-              Δ₁ below.
+              The curves smooth the raw detection times with a circular kernel so neighbouring
+              hours contribute to each other. Δ comes with a 95% confidence interval from a
+              small bootstrap. Δ₄ is reported when both species have at least 50 detections, Δ₁
+              below that.
             </p>
             <p>
-              Diel classification follows Bennie et al. 2014: dominant phase if its share of the
-              density is at least 70%, otherwise cathemeral. Sun mode applies the Vazquez et al.
-              2019 double-anchored transformation so detections collected across seasons share a
-              common reference frame; it falls back silently to clock when the project has no
-              camera coordinates or every date is polar.
+              Sun mode anchors each detection to its date's sunrise and sunset (Vazquez et al.
+              2019) so activity collected across seasons shares a common reference frame. It
+              falls back to clock time when no camera location is set.
+            </p>
+            <p>
+              Each species is labelled diurnal, nocturnal, crepuscular, or cathemeral following
+              Bennie et al. 2014: dominant phase when its share of the density is at least 70%,
+              otherwise cathemeral.
             </p>
           </>
-        }
-        settings={
-          data
-            ? [
-                {
-                  label: 'Project timezone',
-                  detail: `${data.project_timezone}. All clock-mode hours are interpreted in this timezone.`,
-                },
-                {
-                  label: 'Time axis',
-                  detail:
-                    data.time_axis === 'sun'
-                      ? 'Sun-anchored (Vazquez 2019). Hours mapped so anchor sunrise / sunset align.'
-                      : 'Clock time (raw camera-local hour of day).',
-                },
-                {
-                  label: 'Independence interval',
-                  detail: `${data.independence_interval_minutes_recorded} min on the project; not applied to KDE smoothing.`,
-                },
-              ]
-            : undefined
         }
         references={REFERENCES}
       />
