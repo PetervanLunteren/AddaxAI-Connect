@@ -1,9 +1,9 @@
 /**
- * Insights -> Naive occupancy page.
+ * Insights -> Occupancy page.
  *
- * Page owns the header, filters (date range, camera tags), the download
- * action for the detection-history CSV, and the PlotExplainer. The chart
- * component just renders the bars.
+ * Naive occupancy bar chart with shared FilterBar, top-N truncation in
+ * the Display popover, and a filter-scoped detection-history CSV button
+ * in the page actions.
  */
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -17,41 +17,40 @@ import type { NaiveOccupancyMetadata } from '../../api/types';
 import { Button } from '../../components/ui/Button';
 import {
   FilterBar,
+  type DisplayControlDef,
   type FilterFieldDef,
   type FilterValue,
 } from '../../components/ui/FilterBar';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { type DateRange } from '../../components/dashboard';
 import { NaiveOccupancyChart } from '../../components/dashboard/NaiveOccupancyChart';
-import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
+import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
   type FilterSchema,
 } from '../../lib/filter-url';
 
+const TOP_N_VALUES: { value: string; label: string }[] = [
+  { value: '10', label: '10 species' },
+  { value: '15', label: '15 species' },
+  { value: '25', label: '25 species' },
+  { value: '50', label: '50 species' },
+  { value: 'all', label: 'All species' },
+];
+
 const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
   camera_ids: 'string[]',
+  top_n: 'string',
 };
 
-const REFERENCES: PlotReference[] = [
-  {
-    citation:
-      'MacKenzie, D. I., Nichols, J. D., Lachman, G. B., Droege, S., Royle, J. A., & Langtimm, C. A. ' +
-      '(2002). Estimating site occupancy rates when detection probabilities are less than one. ' +
-      'Ecology, 83(8), 2248–2255.',
-    url: 'https://esajournals.onlinelibrary.wiley.com/doi/10.1890/0012-9658(2002)083[2248:ESORWD]2.0.CO;2',
-  },
-  {
-    citation:
-      'Niedballa, J., Sollmann, R., Courtiol, A., & Wilting, A. (2016). camtrapR: ' +
-      'An R package for efficient camera trap data management. Methods in Ecology and Evolution, 7(12), 1457–1462.',
-    url: 'https://besjournals.onlinelibrary.wiley.com/doi/10.1111/2041-210X.12600',
-  },
-];
+const asString = (v: string | string[] | undefined): string =>
+  typeof v === 'string' ? v : '';
+const asStringArray = (v: string | string[] | undefined): string[] =>
+  Array.isArray(v) ? v : [];
 
 export const NaiveOccupancyPage: React.FC = () => {
   const { selectedProject } = useProject();
@@ -62,22 +61,25 @@ export const NaiveOccupancyPage: React.FC = () => {
 
   const dateRange: DateRange = useMemo(
     () => ({
-      startDate: (parsed.date_from as string) || null,
-      endDate: (parsed.date_to as string) || null,
+      startDate: asString(parsed.date_from) || null,
+      endDate: asString(parsed.date_to) || null,
     }),
     [parsed.date_from, parsed.date_to],
   );
-  const tagValues: string[] = useMemo(
-    () => (Array.isArray(parsed.tags) ? parsed.tags : []),
-    [parsed.tags],
-  );
-  const cameraIdValues: string[] = useMemo(
-    () => (Array.isArray(parsed.camera_ids) ? parsed.camera_ids : []),
-    [parsed.camera_ids],
-  );
+  const tagValues = asStringArray(parsed.tags);
+  const cameraIdValues = asStringArray(parsed.camera_ids);
+  const topNRaw = asString(parsed.top_n);
+  const topN: number | null = (() => {
+    if (topNRaw === 'all') return null;
+    const n = Number(topNRaw);
+    if (Number.isFinite(n) && n > 0) return n;
+    return 15;
+  })();
+  const topNValue: string =
+    topNRaw === '10' || topNRaw === '15' || topNRaw === '25' || topNRaw === '50' || topNRaw === 'all'
+      ? topNRaw
+      : '15';
 
-  // Fetch cameras to map tags -> camera ids and to label the explicit
-  // Cameras MultiSelect.
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
@@ -89,24 +91,30 @@ export const NaiveOccupancyPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const filterValues = useMemo<Record<string, FilterValue>>(
-    () => ({
-      date_from: dateRange.startDate ?? undefined,
-      date_to: dateRange.endDate ?? undefined,
-      tags: tagValues.length > 0 ? tagValues : undefined,
-      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
-    }),
-    [dateRange, tagValues, cameraIdValues],
-  );
-
-  const onFilterChange = (patch: Record<string, FilterValue>) => {
-    const next = { ...filterValues, ...patch };
-    setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), {
-      replace: true,
-    });
+  const filterValues: Record<string, FilterValue> = {
+    date_from: dateRange.startDate ?? undefined,
+    date_to: dateRange.endDate ?? undefined,
+    tags: tagValues.length > 0 ? tagValues : undefined,
+    camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
   };
+
+  const writeAll = (next: Record<string, FilterValue | undefined>) => {
+    const merged: Record<string, FilterValue | undefined> = {
+      ...filterValues,
+      top_n: topNValue === '15' ? undefined : topNValue,
+      ...next,
+    };
+    setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
+  };
+  const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
-    setSearchParams(new URLSearchParams(), { replace: true });
+    writeAll({
+      date_from: undefined,
+      date_to: undefined,
+      tags: undefined,
+      camera_ids: undefined,
+    });
+  const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
 
   const filterFields = useMemo<FilterFieldDef[]>(
     () => [
@@ -136,9 +144,14 @@ export const NaiveOccupancyPage: React.FC = () => {
     [cameras, tagOptions],
   );
 
+  const displayControls = useMemo<DisplayControlDef[]>(
+    () => [{ key: 'top_n', label: 'Show top', options: TOP_N_VALUES }],
+    [],
+  );
+  const displayValues: Record<string, string> = { top_n: topNValue };
+
   // Effective camera_ids passed to the API: union of cameras directly
-  // selected and cameras whose tags match. Empty = pass undefined (all
-  // cameras). '0' sentinel when both filters are active but no match.
+  // selected and cameras whose tags match.
   const cameraIdsFromTags = useMemo(() => {
     if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
     const ids = new Set<string>(cameraIdValues);
@@ -166,12 +179,11 @@ export const NaiveOccupancyPage: React.FC = () => {
 
   const captionWindow =
     meta?.window_start && meta?.window_end ? `${meta.window_start} to ${meta.window_end}` : '';
-  const subtitle = 'Sites where each species was detected at least once / total active sites';
 
   return (
     <InsightsPageLayout
       title="Occupancy"
-      subtitle={subtitle}
+      subtitle="Share of camera sites where each species was detected"
       actions={
         <a
           href={downloadDisabled ? undefined : downloadUrl}
@@ -200,18 +212,22 @@ export const NaiveOccupancyPage: React.FC = () => {
         values={filterValues}
         onChange={onFilterChange}
         onClearAll={onClearAll}
+        displayControls={displayControls}
+        displayValues={displayValues}
+        onDisplayChange={onDisplayChange}
       />
       <div className="rounded-lg border bg-card p-4">
         <NaiveOccupancyChart
           dateRange={dateRange}
           projectId={projectId}
           cameraIds={cameraIdsFromTags}
+          topN={topN}
           onMetadataChange={setMeta}
         />
         {meta && (
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>n = {meta.sites_total} active sites</span>
+            <span>{meta.sites_total} active sites</span>
             {captionWindow && (
               <>
                 <span aria-hidden="true">·</span>
@@ -227,53 +243,19 @@ export const NaiveOccupancyPage: React.FC = () => {
         plotKey="naive-occupancy"
         what={
           <p>
-            For each species, the proportion of sampled camera sites where it was detected at least
-            once in the window. Bars are ranked descending and labelled with raw{' '}
-            <code>n_detected / n_total</code> so small samples are visible at a glance.
+            For each species, the share of camera sites where it was detected at least once in
+            the window. Bars are ranked from most-detected to least and labelled with the raw
+            "detected at X of Y sites" count so small samples are easy to spot.
           </p>
         }
         how={
-          <>
-            <p>
-              Site = camera. A camera counts as active in the window if any deployment period
-              overlaps the window, even by a single day. Person and vehicle detections are excluded.
-              Independence interval is not applied because binary presence at the (site, window)
-              level is independence-immune.
-            </p>
-            <p>
-              The unverified-image path gates on the project&apos;s detection-confidence threshold
-              and the per-species classification threshold. Verified human observations override AI
-              for the same image.
-            </p>
-          </>
+          <p>
+            A camera counts as an active site if any of its deployment periods overlaps the
+            window, even by a single day. Person and vehicle detections are excluded. Verified
+            images override the AI label for the same image. "Naive" means the chart shows raw
+            presence and does not correct for the chance that a species was there but missed.
+          </p>
         }
-        settings={
-          meta
-            ? [
-                ...(meta.detection_threshold !== null
-                  ? [
-                      {
-                        label: 'Detection threshold',
-                        detail: `${meta.detection_threshold} (sub-threshold detections are dropped before counting).`,
-                      },
-                    ]
-                  : []),
-                ...(meta.classification_threshold_default !== null
-                  ? [
-                      {
-                        label: 'Classification threshold default',
-                        detail: `${meta.classification_threshold_default} (per-species overrides applied where set).`,
-                      },
-                    ]
-                  : []),
-                {
-                  label: 'Independence interval',
-                  detail: `${meta.independence_interval_minutes_recorded} min on the project, declared but not applied to binary presence.`,
-                },
-              ]
-            : undefined
-        }
-        references={REFERENCES}
       />
     </InsightsPageLayout>
   );

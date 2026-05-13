@@ -33,6 +33,8 @@ interface NaiveOccupancyChartProps {
   dateRange: DateRange;
   projectId?: number;
   cameraIds?: string;
+  /** How many species to render. null = all species. */
+  topN: number | null;
   /** Called when the response metadata changes so the parent can render
    *  page-level info (e.g. window dates, detection threshold). */
   onMetadataChange?: (metadata: NaiveOccupancyMetadata | null) => void;
@@ -42,16 +44,17 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
   dateRange,
   projectId,
   cameraIds,
+  topN,
   onMetadataChange,
 }) => {
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'naive-occupancy', projectId, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'naive-occupancy', projectId, dateRange.startDate, dateRange.endDate, cameraIds, topN],
     queryFn: () =>
       statisticsApi.getNaiveOccupancy(projectId, {
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         camera_ids: cameraIds,
-        top_n: 15,
+        top_n: topN === null ? undefined : topN,
       }),
     enabled: projectId !== undefined,
   });
