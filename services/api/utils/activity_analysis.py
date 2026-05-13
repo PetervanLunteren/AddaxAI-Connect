@@ -45,9 +45,12 @@ KDE_GRID_SAMPLES: int = 240
 # Default von Mises concentration parameter. ~5 corresponds to a roughly
 # 1.7-hour-equivalent kernel bandwidth.
 DEFAULT_KAPPA: float = 5.0
-# Bootstrap reps for the Δ confidence interval. Canonical is 10 000; 1000
-# keeps the interactive endpoint snappy.
-BOOTSTRAP_REPS: int = 1000
+# Bootstrap reps for the Δ confidence interval. Canonical is 10 000 for
+# publication-grade CIs; 200 keeps the interactive endpoint fast (one to
+# a few seconds even on a populous species). CI widths typically agree
+# with the 1000-rep result to within ~0.01, which is well inside the
+# precision the chart shows.
+BOOTSTRAP_REPS: int = 200
 # Upper bound on per-rep resample size. Each rep refits a KDE on N points
 # over a 240-cell grid, so cost grows linearly in N. With 1000 reps and
 # n=10k a request can take well over a minute; capping at 2000 brings worst

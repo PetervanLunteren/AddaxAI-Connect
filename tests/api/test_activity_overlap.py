@@ -121,10 +121,10 @@ class TestBootstrapOverlapCi:
         assert result1 == result2
 
     def test_reps_default_matches_constant(self):
-        # Sanity check: BOOTSTRAP_REPS is the documented 1000 for an
-        # interactive UI; canonical is 10000. If this changes upstream,
-        # update the docstring and the response model echo.
-        assert BOOTSTRAP_REPS == 1000
+        # Sanity check: BOOTSTRAP_REPS is 200 for interactive use;
+        # canonical is 10000. If this changes upstream, update the
+        # docstring and the response model echo.
+        assert BOOTSTRAP_REPS == 200
 
 
 class TestEstimatorLabel:

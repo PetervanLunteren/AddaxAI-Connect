@@ -291,12 +291,9 @@ export const ActivityOverlapPage: React.FC = () => {
         <div className="rounded-lg border bg-card p-4">
           <div className="h-[420px] flex flex-col items-center justify-center gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <div className="text-sm text-muted-foreground text-center max-w-md space-y-1">
-              <p>Fitting activity curves and bootstrap overlap CI</p>
-              <p className="text-xs">
-                A wider date range or a common species can take 10-20 seconds.
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground text-center max-w-md">
+              Fitting activity curves and bootstrap overlap CI
+            </p>
           </div>
         </div>
       ) : (
