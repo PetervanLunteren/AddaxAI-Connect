@@ -4,12 +4,16 @@
 import React, { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { Option } from '../components/ui/MultiSelect';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
   type FilterSchema,
 } from '../lib/filter-url';
+import {
+  FilterBar,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../components/ui/FilterBar';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -35,7 +39,6 @@ import {
   ActivityPatternChart,
   DetectionTrendChart,
   AlertCounters,
-  DashboardFilters,
 } from '../components/dashboard';
 import { DemographicChart } from '../components/dashboard/DemographicChart';
 import { VerificationProgressCard } from '../components/dashboard/VerificationProgressCard';
@@ -79,10 +82,6 @@ export const Dashboard: React.FC = () => {
     () => (Array.isArray(parsed.tags) ? parsed.tags : []),
     [parsed.tags],
   );
-  const selectedTags: Option[] = useMemo(
-    () => tagValues.map((v) => ({ label: v, value: v })),
-    [tagValues],
-  );
   const cameraIdValues: string[] = useMemo(
     () => (Array.isArray(parsed.camera_ids) ? parsed.camera_ids : []),
     [parsed.camera_ids],
@@ -103,33 +102,24 @@ export const Dashboard: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const selectedCameras: Option[] = useMemo(() => {
-    if (!cameras) return cameraIdValues.map((id) => ({ label: id, value: id }));
-    const byId = new Map(cameras.map((c) => [String(c.id), c.name]));
-    return cameraIdValues.map((id) => ({ label: byId.get(id) ?? id, value: id }));
-  }, [cameraIdValues, cameras]);
+  const filterValues = useMemo<Record<string, FilterValue>>(
+    () => ({
+      date_from: dateRange.startDate ?? undefined,
+      date_to: dateRange.endDate ?? undefined,
+      tags: tagValues.length > 0 ? tagValues : undefined,
+      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+    }),
+    [dateRange, tagValues, cameraIdValues],
+  );
 
-  const writeFilters = (next: {
-    dateRange?: DateRange;
-    tags?: string[];
-    cameraIds?: string[];
-  }) => {
-    const params = filtersToSearchParams(
-      {
-        date_from: (next.dateRange ?? dateRange).startDate ?? undefined,
-        date_to: (next.dateRange ?? dateRange).endDate ?? undefined,
-        tags: next.tags ?? tagValues,
-        camera_ids: next.cameraIds ?? cameraIdValues,
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(params, { replace: true });
+  const onFilterChange = (key: string, value: FilterValue) => {
+    const next = { ...filterValues, [key]: value };
+    setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), {
+      replace: true,
+    });
   };
-  const setDateRange = (range: DateRange) => writeFilters({ dateRange: range });
-  const setSelectedTags = (tags: Option[]) =>
-    writeFilters({ tags: tags.map((t) => String(t.value)) });
-  const setSelectedCameras = (cams: Option[]) =>
-    writeFilters({ cameraIds: cams.map((c) => String(c.value)) });
+  const onClearAll = () =>
+    setSearchParams(new URLSearchParams(), { replace: true });
 
   // Effective camera_ids passed to the API: union of cameras directly
   // selected and cameras whose tags match. Empty set when no filter active;
@@ -152,6 +142,36 @@ export const Dashboard: React.FC = () => {
     queryFn: () => statisticsApi.getOverview(projectId, cameraIdsFromTags),
     enabled: projectId !== undefined,
   });
+
+  const filterFields = useMemo<FilterFieldDef[]>(
+    () => [
+      {
+        kind: 'multi-select',
+        key: 'camera_ids',
+        label: 'Cameras',
+        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
+        placeholder: 'All cameras',
+        summary: (n) => `${n} cameras`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'tags',
+        label: 'Camera tags',
+        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} tags`,
+      },
+      {
+        kind: 'date-range',
+        fromKey: 'date_from',
+        toKey: 'date_to',
+        label: 'Date range',
+        minDate: overview?.first_image_date,
+        maxDate: overview?.last_image_date,
+      },
+    ],
+    [cameras, tagOptions, overview],
+  );
 
   const { data: species, isLoading: speciesLoading } = useQuery({
     queryKey: ['statistics', 'species', projectId, cameraIdsFromTags],
@@ -288,17 +308,11 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Filter bar — always visible, matching the Insights pages */}
-      <DashboardFilters
-        cameras={selectedCameras}
-        onCamerasChange={setSelectedCameras}
-        cameraOptions={cameras ?? []}
-        tags={selectedTags}
-        onTagsChange={setSelectedTags}
-        tagOptions={tagOptions ?? []}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-        minDate={overview?.first_image_date}
-        maxDate={overview?.last_image_date}
+      <FilterBar
+        fields={filterFields}
+        values={filterValues}
+        onChange={onFilterChange}
+        onClearAll={onClearAll}
       />
 
       {/* Summary Cards */}

@@ -30,10 +30,11 @@ import {
   SPECIES_B_COLOR,
 } from '../../components/plots/ActivityOverlapChart';
 import {
-  ActivityOverlapFilterBar,
-  type ActivityOverlapBarValues,
-} from '../../components/plots/ActivityOverlapFilterBar';
-import type { Option } from '../../components/ui/MultiSelect';
+  FilterBar,
+  type DisplayControlDef,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../../components/ui/FilterBar';
 import { normalizeLabel } from '../../utils/labels';
 import {
   filtersFromSearchParams,
@@ -47,6 +48,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
+  camera_ids: 'string[]',
   time_axis: 'string',
 };
 
@@ -97,27 +99,8 @@ export const ActivityOverlapPage: React.FC = () => {
   const startDate = (parsed.date_from as string) || null;
   const endDate = (parsed.date_to as string) || null;
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
+  const cameraIdValues = Array.isArray(parsed.camera_ids) ? parsed.camera_ids : [];
   const timeAxis = ((parsed.time_axis as string) || 'clock') as TimeAxis;
-
-  const tags: Option[] = useMemo(
-    () => tagValues.map((v) => ({ label: v, value: v })),
-    [tagValues],
-  );
-
-  const writeFilters = (next: ActivityOverlapBarValues) => {
-    const params = filtersToSearchParams(
-      {
-        species_a: next.speciesA ?? undefined,
-        species_b: next.speciesB ?? undefined,
-        date_from: next.startDate ?? undefined,
-        date_to: next.endDate ?? undefined,
-        tags: next.tags.map((t) => String(t.value)),
-        time_axis: next.timeAxis === 'clock' ? undefined : next.timeAxis,
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(params, { replace: true });
-  };
 
   // Species options (top species in the project) — same source the
   // dashboard uses for its species dropdown.
@@ -126,22 +109,6 @@ export const ActivityOverlapPage: React.FC = () => {
     queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
     enabled: projectId !== undefined,
   });
-
-  // Auto-select the most-detected species as A on first load so the page
-  // shows a chart instead of an empty state.
-  useEffect(() => {
-    if (!speciesA && speciesList && speciesList.length > 0) {
-      writeFilters({
-        speciesA: speciesList[0].species,
-        speciesB,
-        startDate,
-        endDate,
-        tags,
-        timeAxis,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speciesList, speciesA]);
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -154,14 +121,128 @@ export const ActivityOverlapPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
+  const filterValues = useMemo<Record<string, FilterValue>>(
+    () => ({
+      species_a: speciesA ?? undefined,
+      species_b: speciesB ?? undefined,
+      date_from: startDate ?? undefined,
+      date_to: endDate ?? undefined,
+      tags: tagValues.length > 0 ? tagValues : undefined,
+      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+    }),
+    [speciesA, speciesB, startDate, endDate, tagValues, cameraIdValues],
+  );
+
+  const writeAll = (next: Record<string, FilterValue | undefined>) => {
+    const merged: Record<string, FilterValue | undefined> = {
+      ...filterValues,
+      time_axis: timeAxis === 'clock' ? undefined : timeAxis,
+      ...next,
+    };
+    setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
+      replace: true,
+    });
+  };
+  const onFilterChange = (key: string, value: FilterValue) =>
+    writeAll({ [key]: value });
+  const onClearAll = () =>
+    writeAll({
+      species_a: undefined,
+      species_b: undefined,
+      date_from: undefined,
+      date_to: undefined,
+      tags: undefined,
+      camera_ids: undefined,
+    });
+  const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
+
+  // Auto-select the most-detected species as A on first load so the page
+  // shows a chart instead of an empty state.
+  useEffect(() => {
+    if (!speciesA && speciesList && speciesList.length > 0) {
+      onFilterChange('species_a', speciesList[0].species);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speciesList, speciesA]);
+
   const cameraIdsFromTags = useMemo(() => {
-    if (tagValues.length === 0 || !cameras) return undefined;
-    const tagSet = new Set(tagValues);
-    const matchingIds = cameras
-      .filter((c) => c.tags?.some((tag) => tagSet.has(tag)))
-      .map((c) => c.id);
-    return matchingIds.join(',') || '0';
-  }, [tagValues, cameras]);
+    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
+    const ids = new Set<string>(cameraIdValues);
+    if (tagValues.length > 0 && cameras) {
+      const tagSet = new Set(tagValues);
+      for (const c of cameras) {
+        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      }
+    }
+    return ids.size === 0 ? '0' : Array.from(ids).join(',');
+  }, [tagValues, cameraIdValues, cameras]);
+
+  const speciesOptions = useMemo(
+    () =>
+      (speciesList ?? []).map((s) => ({
+        value: s.species,
+        label: normalizeLabel(s.species),
+      })),
+    [speciesList],
+  );
+
+  const filterFields = useMemo<FilterFieldDef[]>(
+    () => [
+      {
+        kind: 'select',
+        key: 'species_a',
+        label: 'Species A',
+        options: speciesOptions,
+        placeholder: 'Pick species A',
+      },
+      {
+        kind: 'select',
+        key: 'species_b',
+        label: 'Species B',
+        options: speciesOptions.filter((o) => o.value !== speciesA),
+        placeholder: 'Optional second species',
+      },
+      {
+        kind: 'multi-select',
+        key: 'camera_ids',
+        label: 'Cameras',
+        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
+        placeholder: 'All cameras',
+        summary: (n) => `${n} cameras`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'tags',
+        label: 'Camera tags',
+        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} tags`,
+      },
+      {
+        kind: 'date-range',
+        fromKey: 'date_from',
+        toKey: 'date_to',
+        label: 'Date range',
+      },
+    ],
+    [speciesOptions, speciesA, cameras, tagOptions],
+  );
+
+  const displayControls = useMemo<DisplayControlDef[]>(
+    () => [
+      {
+        key: 'time_axis',
+        label: 'Time axis',
+        options: [
+          { value: 'clock', label: 'Clock' },
+          { value: 'sun', label: 'Sun' },
+        ],
+      },
+    ],
+    [],
+  );
+
+  const displayValues = { time_axis: timeAxis };
 
   const { data, isLoading } = useQuery<ActivityOverlapResponse>({
     queryKey: [
@@ -193,18 +274,14 @@ export const ActivityOverlapPage: React.FC = () => {
 
   return (
     <InsightsPageLayout title="Activity overlap" subtitle={subtitle}>
-      <ActivityOverlapFilterBar
-        speciesOptions={(speciesList ?? []).map((s) => s.species)}
-        tagOptions={tagOptions ?? []}
-        values={{
-          speciesA,
-          speciesB,
-          startDate,
-          endDate,
-          tags,
-          timeAxis,
-        }}
-        onChange={writeFilters}
+      <FilterBar
+        fields={filterFields}
+        values={filterValues}
+        onChange={onFilterChange}
+        onClearAll={onClearAll}
+        displayControls={displayControls}
+        displayValues={displayValues}
+        onDisplayChange={onDisplayChange}
       />
 
       {!speciesA ? (

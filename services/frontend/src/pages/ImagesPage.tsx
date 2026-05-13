@@ -7,8 +7,16 @@ import { useSearchParams } from 'react-router-dom';
 import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import type { Option } from '../components/ui/MultiSelect';
-import { ImageFilters } from '../components/ImageFilters';
+import {
+  FilterBar,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../components/ui/FilterBar';
+import {
+  filtersFromSearchParams,
+  filtersToSearchParams,
+  type FilterSchema,
+} from '../lib/filter-url';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
 import { statisticsApi } from '../api/statistics';
@@ -19,6 +27,22 @@ import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
 import type { ImageListItem } from '../api/types';
+
+const FILTER_SCHEMA: FilterSchema = {
+  camera_ids: 'string[]',
+  tags: 'string[]',
+  species: 'string[]',
+  date_from: 'date',
+  date_to: 'date',
+  verified: 'string',
+  liked: 'string',
+  needs_review: 'string',
+};
+
+const asStringArray = (v: string | string[] | undefined): string[] =>
+  Array.isArray(v) ? v : [];
+const asString = (v: string | string[] | undefined): string =>
+  typeof v === 'string' ? v : '';
 
 export const ImagesPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -32,16 +56,41 @@ export const ImagesPage: React.FC = () => {
   const [nextPageFirstUuid, setNextPageFirstUuid] = useState<string | null>(null);
   const [prevPageLastUuid, setPrevPageLastUuid] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState({
-    camera_ids: [] as Option[],
-    tags: [] as Option[],
-    start_date: '',
-    end_date: '',
-    species: [] as Option[],
-    verified: '' as '' | 'true' | 'false',  // '' = all
-    liked: '' as '' | 'true' | 'false',  // '' = all
-    needs_review: '' as '' | 'true' | 'false',  // '' = all
-  });
+  // Filter state lives in the URL via FILTER_SCHEMA. The page reads from
+  // useSearchParams on every render; writes go through filtersToSearchParams.
+  const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
+  const cameraIdValues = asStringArray(parsed.camera_ids);
+  const tagValues = asStringArray(parsed.tags);
+  const speciesValues = asStringArray(parsed.species);
+  const startDate = asString(parsed.date_from);
+  const endDate = asString(parsed.date_to);
+  const verified = asString(parsed.verified) as '' | 'true' | 'false';
+  const liked = asString(parsed.liked) as '' | 'true' | 'false';
+  const needsReview = asString(parsed.needs_review) as '' | 'true' | 'false';
+
+  const filterValues = useMemo<Record<string, FilterValue>>(
+    () => ({
+      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+      tags: tagValues.length > 0 ? tagValues : undefined,
+      species: speciesValues.length > 0 ? speciesValues : undefined,
+      date_from: startDate || undefined,
+      date_to: endDate || undefined,
+      verified: verified || undefined,
+      liked: liked || undefined,
+      needs_review: needsReview || undefined,
+    }),
+    [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview],
+  );
+
+  const onFilterChange = (key: string, value: FilterValue) => {
+    const next = { ...filterValues, [key]: value };
+    setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), { replace: true });
+    setPage(1);
+  };
+  const onClearAll = () => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+    setPage(1);
+  };
 
   const limit = 24; // Images per page
 
@@ -52,26 +101,20 @@ export const ImagesPage: React.FC = () => {
 
   // Fetch images with current filters and pagination
   const { data: imagesData, isLoading: imagesLoading } = useQuery({
-    queryKey: ['images', projectId, page, filters],
+    queryKey: ['images', projectId, page, filterValues],
     queryFn: () =>
       imagesApi.getAll({
         page,
         limit,
         project_id: projectId,
-        camera_id: filters.camera_ids.length > 0
-          ? filters.camera_ids.map(c => c.value).join(',')
-          : undefined,
-        tags: filters.tags.length > 0
-          ? filters.tags.map(t => t.value).join(',')
-          : undefined,
-        start_date: filters.start_date || undefined,
-        end_date: filters.end_date || undefined,
-        species: filters.species.length > 0
-          ? filters.species.map(s => s.value).join(',')
-          : undefined,
-        verified: filters.verified || undefined,
-        liked: filters.liked || undefined,
-        needs_review: filters.needs_review || undefined,
+        camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
+        tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        species: speciesValues.length > 0 ? speciesValues.join(',') : undefined,
+        verified: verified || undefined,
+        liked: liked || undefined,
+        needs_review: needsReview || undefined,
       }),
     enabled: projectId !== undefined,
   });
@@ -110,59 +153,35 @@ export const ImagesPage: React.FC = () => {
     return [...pinnedOptions, ...rest];
   }, [rawLabelOptions]);
 
-  // Initialize filters from URL query params (e.g. ?camera_id=5&show_empty=true).
-  // Placed after rawLabelOptions so the dep array can reference it without
-  // hitting the TDZ during render.
+  // Migrate legacy deep links (e.g. ?camera_id=5&show_empty=true) into the
+  // current FILTER_SCHEMA shape on mount. Strips the legacy keys after
+  // applying so the URL stays clean.
   useEffect(() => {
     if (!cameras || !rawLabelOptions) return;
     const cameraIdParam = searchParams.get('camera_id');
     const showEmptyParam = searchParams.get('show_empty');
-    const speciesParam = searchParams.get('species');
-    const verifiedParam = searchParams.get('verified');
-    if (!cameraIdParam && !showEmptyParam && !speciesParam && !verifiedParam) return;
+    if (!cameraIdParam && !showEmptyParam) return;
 
-    const updates: Partial<typeof filters> = {};
+    const next: Record<string, FilterValue> = { ...filterValues };
 
     if (cameraIdParam) {
-      const ids = cameraIdParam.split(',');
-      const matched = cameras
-        .filter(c => ids.includes(String(c.id)))
-        .map(c => ({ label: c.name, value: c.id }));
-      if (matched.length > 0) {
-        updates.camera_ids = matched;
-      }
+      const ids = cameraIdParam
+        .split(',')
+        .filter((id) => cameras.some((c) => String(c.id) === id));
+      if (ids.length > 0) next.camera_ids = ids;
     }
 
     // The excessive-images email links here with show_empty=true. Tick every
     // label so the user lands on all images of the camera, not just the
     // empties that triggered the alert.
     if (showEmptyParam === 'true') {
-      updates.species = rawLabelOptions.map(opt => ({
-        label: opt.label,
-        value: opt.value,
-      }));
+      next.species = rawLabelOptions.map((opt) => String(opt.value));
     }
 
-    // Deep link from the Performance page confusion matrix.
-    if (speciesParam) {
-      updates.species = speciesParam
-        .split(',')
-        .filter(Boolean)
-        .map(value => ({ label: normalizeLabel(value), value }));
-    }
-    if (verifiedParam === 'true' || verifiedParam === 'false') {
-      updates.verified = verifiedParam;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      setFilters(prev => ({ ...prev, ...updates }));
-      setPage(1);
-      searchParams.delete('camera_id');
-      searchParams.delete('show_empty');
-      searchParams.delete('species');
-      searchParams.delete('verified');
-      setSearchParams(searchParams, { replace: true });
-    }
+    const params = filtersToSearchParams(next, FILTER_SCHEMA);
+    setSearchParams(params, { replace: true });
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras, rawLabelOptions]);
 
   // Fetch overview for date bounds
@@ -172,34 +191,77 @@ export const ImagesPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const handleFilterChange = (key: string, value: any) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1); // Reset to first page when filters change
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      camera_ids: [],
-      tags: [],
-      start_date: '',
-      end_date: '',
-      species: [],
-      verified: '',
-      liked: '',
-      needs_review: '',
-    });
-    setPage(1);
-  };
-
-  const hasActiveFilters =
-    filters.camera_ids.length > 0 ||
-    filters.tags.length > 0 ||
-    filters.start_date !== '' ||
-    filters.end_date !== '' ||
-    filters.species.length > 0 ||
-    filters.verified !== '' ||
-    filters.liked !== '' ||
-    filters.needs_review !== '';
+  const filterFields = useMemo<FilterFieldDef[]>(
+    () => [
+      {
+        kind: 'multi-select',
+        key: 'camera_ids',
+        label: 'Cameras',
+        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
+        placeholder: 'All cameras',
+        summary: (n) => `${n} cameras`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'tags',
+        label: 'Camera tags',
+        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} tags`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'species',
+        label: 'Labels',
+        options: speciesOptions.map((s) => ({
+          label: String(s.label),
+          value: String(s.value),
+        })),
+        placeholder: 'All labels',
+        isLoading: speciesLoading,
+        summary: (n) => `${n} labels`,
+      },
+      {
+        kind: 'date-range',
+        fromKey: 'date_from',
+        toKey: 'date_to',
+        label: 'Date range',
+        minDate: overview?.first_image_date,
+        maxDate: overview?.last_image_date,
+      },
+      {
+        kind: 'select',
+        key: 'verified',
+        label: 'Verification',
+        primary: false,
+        options: [
+          { value: 'false', label: 'Unverified' },
+          { value: 'true', label: 'Verified' },
+        ],
+      },
+      {
+        kind: 'select',
+        key: 'liked',
+        label: 'Liked',
+        primary: false,
+        options: [
+          { value: 'true', label: 'Liked' },
+          { value: 'false', label: 'Not liked' },
+        ],
+      },
+      {
+        kind: 'select',
+        key: 'needs_review',
+        label: 'Review',
+        primary: false,
+        options: [
+          { value: 'true', label: 'Needs review' },
+          { value: 'false', label: 'No review needed' },
+        ],
+      },
+    ],
+    [cameras, tagOptions, speciesOptions, speciesLoading, overview],
+  );
 
   // Set species context using the full species list for consistent colors app-wide
   useMemo(() => {
@@ -234,20 +296,16 @@ export const ImagesPage: React.FC = () => {
     const queryParams = {
       limit,
       project_id: projectId,
-      camera_id: filters.camera_ids.length > 0
-        ? filters.camera_ids.map(c => c.value).join(',')
-        : undefined,
-      start_date: filters.start_date || undefined,
-      end_date: filters.end_date || undefined,
-      species: filters.species.length > 0
-        ? filters.species.map(s => s.value).join(',')
-        : undefined,
+      camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+      species: speciesValues.length > 0 ? speciesValues.join(',') : undefined,
     };
 
     // On last image of page → prefetch next page's first image UUID
     if (currentIndex === imagesData.items.length - 1 && page < imagesData.pages) {
       queryClient.fetchQuery({
-        queryKey: ['images', projectId, page + 1, filters],
+        queryKey: ['images', projectId, page + 1, filterValues],
         queryFn: () => imagesApi.getAll({ ...queryParams, page: page + 1 }),
       }).then(data => {
         if (data?.items[0]) {
@@ -261,7 +319,7 @@ export const ImagesPage: React.FC = () => {
     // On first image of page → prefetch previous page's last image UUID
     if (currentIndex === 0 && page > 1) {
       queryClient.fetchQuery({
-        queryKey: ['images', projectId, page - 1, filters],
+        queryKey: ['images', projectId, page - 1, filterValues],
         queryFn: () => imagesApi.getAll({ ...queryParams, page: page - 1 }),
       }).then(data => {
         if (data?.items.length > 0) {
@@ -271,28 +329,20 @@ export const ImagesPage: React.FC = () => {
     } else {
       setPrevPageLastUuid(null);
     }
-  }, [selectedImageUuid, imagesData, page, filters, queryClient]);
+  }, [selectedImageUuid, imagesData, page, filterValues, queryClient]);
 
   return (
     <div className="space-y-6">
-      {/* Header with filter popover */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold mb-0">Images</h1>
-          <p className="text-sm text-gray-600 mt-1">Browse and filter captured wildlife images</p>
-        </div>
-        <ImageFilters
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onClearAll={clearFilters}
-          cameraOptions={cameras?.map(c => ({ label: c.name, value: c.id })) || []}
-          tagOptions={tagOptions?.map(t => ({ label: t, value: t })) || []}
-          speciesOptions={speciesOptions || []}
-          speciesLoading={speciesLoading}
-          minDate={overview?.first_image_date}
-          maxDate={overview?.last_image_date}
-        />
+      <div>
+        <h1 className="text-2xl font-bold mb-0">Images</h1>
+        <p className="text-sm text-gray-600 mt-1">Browse and filter captured wildlife images</p>
       </div>
+      <FilterBar
+        fields={filterFields}
+        values={filterValues}
+        onChange={onFilterChange}
+        onClearAll={onClearAll}
+      />
 
 
       {/* Image Grid */}
@@ -501,16 +551,25 @@ export const ImagesPage: React.FC = () => {
           <CardContent className="py-12">
             <div className="text-center">
               <Grid3x3 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">
-                {hasActiveFilters
-                  ? 'No images match the current filters.'
-                  : 'No images uploaded yet.'}
-              </p>
-              {hasActiveFilters && (
-                <Button variant="link" onClick={clearFilters} className="mt-2">
-                  Clear filters
-                </Button>
-              )}
+              {(() => {
+                const anyActive = Object.values(filterValues).some(
+                  (v) => (Array.isArray(v) ? v.length > 0 : Boolean(v)),
+                );
+                return (
+                  <>
+                    <p className="text-muted-foreground">
+                      {anyActive
+                        ? 'No images match the current filters.'
+                        : 'No images uploaded yet.'}
+                    </p>
+                    {anyActive && (
+                      <Button variant="link" onClick={onClearAll} className="mt-2">
+                        Clear filters
+                      </Button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>

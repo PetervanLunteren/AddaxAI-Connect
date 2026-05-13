@@ -5,14 +5,23 @@
  * bulk hide/unhide images from analysis, and permanently delete images.
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  EyeOff, Eye, Trash2, Loader2, Search, ArrowUp, ArrowDown, ArrowUpDown,
+  EyeOff, Eye, Trash2, Loader2, ArrowUp, ArrowDown, ArrowUpDown,
   ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Check,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import { Select } from '../../components/ui/Select';
+import {
+  FilterBar,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../../components/ui/FilterBar';
+import {
+  filtersFromSearchParams,
+  filtersToSearchParams,
+  type FilterSchema,
+} from '../../lib/filter-url';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +43,17 @@ import type { ImageListItem } from '../../api/types';
 import { formatDateTime } from '../../utils/datetime';
 
 type SortColumn = 'filename' | 'camera_name' | 'captured_at';
+
+const FILTER_SCHEMA: FilterSchema = {
+  search: 'string',
+  camera_id: 'string',
+  hidden: 'string',
+  verified: 'string',
+  species: 'string',
+};
+
+const asString = (v: string | string[] | undefined): string =>
+  typeof v === 'string' ? v : '';
 
 const SortableHeader: React.FC<{
   label: string;
@@ -66,12 +86,33 @@ export const ManageImagesPage: React.FC = () => {
   const projectId = selectedProject?.id;
 
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [cameraFilter, setCameraFilter] = useState('');
-  const [hiddenFilter, setHiddenFilter] = useState('');
-  const [verifiedFilter, setVerifiedFilter] = useState('');
-  const [speciesFilter, setSpeciesFilter] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const parsedFilters = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
+  const search = asString(parsedFilters.search);
+  const cameraFilter = asString(parsedFilters.camera_id);
+  const hiddenFilter = asString(parsedFilters.hidden);
+  const verifiedFilter = asString(parsedFilters.verified);
+  const speciesFilter = asString(parsedFilters.species);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  const filterValues: Record<string, FilterValue> = {
+    search: search || undefined,
+    camera_id: cameraFilter || undefined,
+    hidden: hiddenFilter || undefined,
+    verified: verifiedFilter || undefined,
+    species: speciesFilter || undefined,
+  };
+
+  const onFilterChange = (key: string, value: FilterValue) => {
+    const next = { ...filterValues, [key]: value };
+    setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), { replace: true });
+    setPage(1);
+  };
+  const onClearAll = () => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+    setPage(1);
+  };
+
   const [sort, setSort] = useState<{ column: SortColumn; direction: 'asc' | 'desc' }>({
     column: 'captured_at',
     direction: 'desc',
@@ -234,7 +275,50 @@ export const ManageImagesPage: React.FC = () => {
   const allImageUuids = currentPageUuids;
   const currentModalIndex = modalImageUuid ? allImageUuids.indexOf(modalImageUuid) : -1;
 
-  const hasActiveFilters = cameraFilter || hiddenFilter || verifiedFilter || speciesFilter || debouncedSearch;
+  const filterFields: FilterFieldDef[] = [
+    {
+      kind: 'search',
+      key: 'search',
+      label: 'Search',
+      placeholder: 'Search filename',
+    },
+    {
+      kind: 'select',
+      key: 'camera_id',
+      label: 'Camera',
+      options: (cameras ?? []).map((cam) => ({
+        value: String(cam.id),
+        label: cam.name,
+      })),
+    },
+    {
+      kind: 'select',
+      key: 'hidden',
+      label: 'Visibility',
+      options: [
+        { value: 'false', label: 'Visible' },
+        { value: 'true', label: 'Hidden' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'verified',
+      label: 'Verification',
+      options: [
+        { value: 'true', label: 'Verified' },
+        { value: 'false', label: 'Unverified' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'species',
+      label: 'Species',
+      options: (speciesOptions ?? []).map((s) => ({
+        value: String(s.value),
+        label: String(s.label),
+      })),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -254,81 +338,12 @@ export const ManageImagesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filters bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
-          value={cameraFilter}
-          onValueChange={setCameraFilter}
-          className="w-48"
-        >
-          <option value="">All cameras</option>
-          {cameras?.map((cam) => (
-            <option key={cam.id} value={cam.id}>
-              {cam.name}
-            </option>
-          ))}
-        </Select>
-
-        <Select
-          value={hiddenFilter}
-          onValueChange={setHiddenFilter}
-          className="w-40"
-        >
-          <option value="">All visibility</option>
-          <option value="false">Visible</option>
-          <option value="true">Hidden</option>
-        </Select>
-
-        <Select
-          value={verifiedFilter}
-          onValueChange={setVerifiedFilter}
-          className="w-40"
-        >
-          <option value="">All verification</option>
-          <option value="true">Verified</option>
-          <option value="false">Unverified</option>
-        </Select>
-
-        <Select
-          value={speciesFilter}
-          onValueChange={setSpeciesFilter}
-          className="w-48"
-        >
-          <option value="">All species</option>
-          {speciesOptions?.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </Select>
-
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search filename..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 h-10 rounded-md border border-input bg-background text-sm"
-          />
-        </div>
-
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setCameraFilter('');
-              setHiddenFilter('');
-              setVerifiedFilter('');
-              setSpeciesFilter('');
-              setSearch('');
-            }}
-          >
-            Clear filters
-          </Button>
-        )}
-      </div>
+      <FilterBar
+        fields={filterFields}
+        values={filterValues}
+        onChange={onFilterChange}
+        onClearAll={onClearAll}
+      />
 
       {/* Bulk action bar */}
       {selectedUuids.size > 0 && (

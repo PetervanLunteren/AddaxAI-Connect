@@ -20,7 +20,6 @@ import {
   XCircle,
   Map as MapIcon,
   Table as TableIcon,
-  Search,
   Download,
   ArrowUp,
   ArrowDown,
@@ -61,7 +60,41 @@ import {
 } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
-import { CameraFilters, defaultCameraFilters, type CameraFilterState } from '../components/CameraFilters';
+import {
+  FilterBar,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../components/ui/FilterBar';
+import {
+  filtersFromSearchParams,
+  filtersToSearchParams,
+  type FilterSchema,
+} from '../lib/filter-url';
+import { useSearchParams } from 'react-router-dom';
+
+// Local type now that the old CameraFilters component is gone.
+type CameraFilterState = {
+  status: string;
+  tag: string;
+  battery: string;
+  signal: string;
+  sd_usage: string;
+  location: string;
+};
+
+const FILTER_SCHEMA: FilterSchema = {
+  status: 'string',
+  tag: 'string',
+  battery: 'string',
+  signal: 'string',
+  sd_usage: 'string',
+  location: 'string',
+  search: 'string',
+  view_mode: 'string',
+};
+
+const asString = (v: string | string[] | undefined): string =>
+  typeof v === 'string' ? v : '';
 import { ColumnPicker } from '../components/cameras/ColumnPicker';
 import {
   BulkAddTagsDialog,
@@ -111,16 +144,9 @@ export const CamerasPage: React.FC = () => {
   const toast = useToast();
   const { selectedProject: currentProject, canAdminCurrentProject, isServerAdmin } = useProject();
 
-  // View mode state (table or map)
-  const [viewMode, setViewMode] = useState<'table' | 'map'>(() => {
-    const saved = localStorage.getItem('cameras-view-mode');
-    return saved === 'map' || saved === 'table' ? saved : 'table';
-  });
-
-  // Persist view mode preference
-  useEffect(() => {
-    localStorage.setItem('cameras-view-mode', viewMode);
-  }, [viewMode]);
+  // Filter and view-mode state live in the URL via FILTER_SCHEMA so the
+  // bar, the chip row below it, and shareable links all agree.
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
@@ -147,13 +173,60 @@ export const CamerasPage: React.FC = () => {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importResults, setImportResults] = useState<BulkImportResponse | null>(null);
 
-  // Filter/sort state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState<CameraFilterState>(defaultCameraFilters);
+  // Sort state stays local (column toggles do not deserve URL noise).
   const [sort, setSort] = useState<{ column: ColumnId | null; direction: 'asc' | 'desc' }>({
     column: null,
     direction: 'asc',
   });
+
+  const parsedFilters = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
+  const filters: CameraFilterState = {
+    status: asString(parsedFilters.status),
+    tag: asString(parsedFilters.tag),
+    battery: asString(parsedFilters.battery),
+    signal: asString(parsedFilters.signal),
+    sd_usage: asString(parsedFilters.sd_usage),
+    location: asString(parsedFilters.location),
+  };
+  const searchQuery = asString(parsedFilters.search);
+  const viewMode = (parsedFilters.view_mode === 'map' ? 'map' : 'table') as
+    | 'table'
+    | 'map';
+
+  const filterValues: Record<string, FilterValue> = {
+    status: filters.status || undefined,
+    tag: filters.tag || undefined,
+    battery: filters.battery || undefined,
+    signal: filters.signal || undefined,
+    sd_usage: filters.sd_usage || undefined,
+    location: filters.location || undefined,
+    search: searchQuery || undefined,
+  };
+
+  const writeAll = (next: Record<string, FilterValue | undefined>) => {
+    const merged: Record<string, FilterValue | undefined> = {
+      ...filterValues,
+      view_mode: viewMode === 'table' ? undefined : viewMode,
+      ...next,
+    };
+    setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
+      replace: true,
+    });
+  };
+  const onFilterChange = (key: string, value: FilterValue) =>
+    writeAll({ [key]: value });
+  const onClearAll = () =>
+    writeAll({
+      status: undefined,
+      tag: undefined,
+      battery: undefined,
+      signal: undefined,
+      sd_usage: undefined,
+      location: undefined,
+      search: undefined,
+    });
+  const setViewMode = (m: 'table' | 'map') =>
+    writeAll({ view_mode: m === 'table' ? undefined : m });
 
   // Visible columns persist per-browser, same pattern as cameras-view-mode.
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => loadVisibleColumns());
@@ -333,11 +406,77 @@ export const CamerasPage: React.FC = () => {
   });
   const tagOptions = allTags || [];
 
-  const handleFilterChange = (key: keyof CameraFilterState, value: any) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleClearFilters = () => setFilters(defaultCameraFilters);
+  const filterFields: FilterFieldDef[] = [
+    {
+      kind: 'search',
+      key: 'search',
+      label: 'Search',
+      placeholder: 'Name, device ID, tag, notes...',
+    },
+    {
+      kind: 'select',
+      key: 'status',
+      label: 'Status',
+      options: [
+        { value: 'active', label: 'Active' },
+        { value: 'inactive', label: 'Inactive' },
+        { value: 'never_reported', label: 'Never reported' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'tag',
+      label: 'Tag',
+      options: tagOptions.map((t) => ({ value: t, label: t })),
+    },
+    {
+      kind: 'select',
+      key: 'battery',
+      label: 'Battery',
+      options: [
+        { value: 'low', label: 'Low (<30%)' },
+        { value: 'medium', label: 'Medium (30-70%)' },
+        { value: 'high', label: 'High (>70%)' },
+        { value: 'unknown', label: 'Unknown' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'signal',
+      label: 'Signal quality',
+      primary: false,
+      options: [
+        { value: 'excellent', label: 'Excellent (20+)' },
+        { value: 'good', label: 'Good (15-19)' },
+        { value: 'fair', label: 'Fair (10-14)' },
+        { value: 'poor', label: 'Poor (2-9)' },
+        { value: 'no_signal', label: 'No signal (0-1)' },
+        { value: 'unknown', label: 'Unknown' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'sd_usage',
+      label: 'SD usage',
+      primary: false,
+      options: [
+        { value: 'low', label: 'Low (<50%)' },
+        { value: 'medium', label: 'Medium (50-80%)' },
+        { value: 'high', label: 'High (>80%)' },
+        { value: 'unknown', label: 'Unknown' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'location',
+      label: 'Location',
+      primary: false,
+      options: [
+        { value: 'known', label: 'Known' },
+        { value: 'unknown', label: 'Unknown' },
+      ],
+    },
+  ];
 
   const handleSort = (column: ColumnId) => {
     setSort((prev) =>
@@ -696,52 +835,44 @@ export const CamerasPage: React.FC = () => {
         )}
       </div>
 
-      {/* Shared search + filters toolbar (drives both table and map views) */}
+      {/* Shared filter bar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
-        <div className="flex items-center gap-3 mb-0 mt-4 sm:mt-0">
-          {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredCameras.length} of {cameras.length} cameras
-            </span>
-          )}
-          <div className="relative max-w-sm ml-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search cameras..."
-              className="w-full h-9 pl-9 pr-3 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-          <CameraFilters
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            onClearAll={handleClearFilters}
-            tagOptions={tagOptions}
+        <div className="space-y-3 mt-4 sm:mt-0">
+          <FilterBar
+            fields={filterFields}
+            values={filterValues}
+            onChange={onFilterChange}
+            onClearAll={onClearAll}
           />
-          {viewMode === 'table' && (
-            <ColumnPicker
-              visible={visibleColumns}
-              onChange={setVisibleColumns}
-            />
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => currentProject && exportMutation.mutate(currentProject.id)}
-            disabled={exportMutation.isPending || !currentProject}
-            className="whitespace-nowrap"
-            title="Download every camera in this project as CSV"
-          >
-            {exportMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 mr-1.5" />
+          <div className="flex items-center gap-3">
+            {isFiltered && (
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {filteredCameras.length} of {cameras.length} cameras
+              </span>
             )}
-            Export CSV
-          </Button>
+            {viewMode === 'table' && (
+              <ColumnPicker
+                visible={visibleColumns}
+                onChange={setVisibleColumns}
+              />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => currentProject && exportMutation.mutate(currentProject.id)}
+              disabled={exportMutation.isPending || !currentProject}
+              className="whitespace-nowrap ml-auto"
+              title="Download every camera in this project as CSV"
+            >
+              {exportMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1.5" />
+              )}
+              Export CSV
+            </Button>
+          </div>
         </div>
       )}
 

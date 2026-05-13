@@ -23,11 +23,11 @@ import {
 } from '../../components/plots/DeploymentTimelineChart';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
 import {
-  DashboardFilters,
-  type DateRange,
-} from '../../components/dashboard';
-import type { Option } from '../../components/ui/MultiSelect';
-import { Select, SelectItem } from '../../components/ui/Select';
+  FilterBar,
+  type DisplayControlDef,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../../components/ui/FilterBar';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -77,9 +77,6 @@ export const DeploymentTimelinePage: React.FC = () => {
     return 'name';
   })();
 
-  const dateRange: DateRange = { startDate, endDate };
-  const selectedTags: Option[] = tagValues.map((v) => ({ label: v, value: v }));
-
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
@@ -90,52 +87,109 @@ export const DeploymentTimelinePage: React.FC = () => {
     queryFn: () => camerasApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
-  const selectedCameras: Option[] = useMemo(() => {
-    if (!cameras) return cameraIdValues.map((id) => ({ label: id, value: id }));
-    const byId = new Map(cameras.map((c) => [String(c.id), c.name]));
-    return cameraIdValues.map((id) => ({ label: byId.get(id) ?? id, value: id }));
-  }, [cameraIdValues, cameras]);
 
-  const writeFilters = (next: {
-    startDate?: string | null;
-    endDate?: string | null;
-    tags?: string[];
-    cameraIds?: string[];
-    density?: 'normal' | 'compact';
-    viewMode?: ViewMode;
-    sortBy?: SortBy;
-  }) => {
-    const nextStart = next.startDate !== undefined ? next.startDate : startDate;
-    const nextEnd = next.endDate !== undefined ? next.endDate : endDate;
-    const nextTags = next.tags ?? tagValues;
-    const nextCams = next.cameraIds ?? cameraIdValues;
-    const nextDensity = next.density ?? density;
-    const nextView = next.viewMode ?? viewMode;
-    const nextSort = next.sortBy ?? sortBy;
-    const params = filtersToSearchParams(
-      {
-        date_from: nextStart ?? undefined,
-        date_to: nextEnd ?? undefined,
-        tags: nextTags,
-        camera_ids: nextCams,
-        density: nextDensity === 'normal' ? undefined : nextDensity,
-        view_mode: nextView === 'deployment' ? undefined : nextView,
-        sort_by: nextSort === 'name' ? undefined : nextSort,
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(params, { replace: true });
+  const filterValues = useMemo<Record<string, FilterValue>>(
+    () => ({
+      date_from: startDate ?? undefined,
+      date_to: endDate ?? undefined,
+      tags: tagValues.length > 0 ? tagValues : undefined,
+      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+    }),
+    [startDate, endDate, tagValues, cameraIdValues],
+  );
+
+  const writeAll = (
+    next: Record<string, FilterValue | undefined>,
+  ) => {
+    const merged: Record<string, FilterValue | undefined> = {
+      ...filterValues,
+      density: density === 'normal' ? undefined : density,
+      view_mode: viewMode === 'deployment' ? undefined : viewMode,
+      sort_by: sortBy === 'name' ? undefined : sortBy,
+      ...next,
+    };
+    setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
+      replace: true,
+    });
   };
 
-  const setDateRange = (range: DateRange) =>
-    writeFilters({ startDate: range.startDate, endDate: range.endDate });
-  const setTags = (tags: Option[]) =>
-    writeFilters({ tags: tags.map((t) => String(t.value)) });
-  const setCameras = (cams: Option[]) =>
-    writeFilters({ cameraIds: cams.map((c) => String(c.value)) });
-  const setDensity = (d: 'normal' | 'compact') => writeFilters({ density: d });
-  const setViewMode = (m: ViewMode) => writeFilters({ viewMode: m });
-  const setSortBy = (s: SortBy) => writeFilters({ sortBy: s });
+  const onFilterChange = (key: string, value: FilterValue) =>
+    writeAll({ [key]: value });
+  const onClearAll = () => {
+    // Keep display controls; only wipe the four data filters.
+    writeAll({
+      date_from: undefined,
+      date_to: undefined,
+      tags: undefined,
+      camera_ids: undefined,
+    });
+  };
+  const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
+
+  const filterFields = useMemo<FilterFieldDef[]>(
+    () => [
+      {
+        kind: 'multi-select',
+        key: 'camera_ids',
+        label: 'Cameras',
+        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
+        placeholder: 'All cameras',
+        summary: (n) => `${n} cameras`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'tags',
+        label: 'Camera tags',
+        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} tags`,
+      },
+      {
+        kind: 'date-range',
+        fromKey: 'date_from',
+        toKey: 'date_to',
+        label: 'Date range',
+      },
+    ],
+    [cameras, tagOptions],
+  );
+
+  const displayControls = useMemo<DisplayControlDef[]>(
+    () => [
+      {
+        key: 'view_mode',
+        label: 'View mode',
+        options: [
+          { value: 'deployment', label: 'Deployment' },
+          { value: 'heatmap', label: 'Heatmap' },
+        ],
+      },
+      {
+        key: 'sort_by',
+        label: 'Sort rows',
+        options: [
+          { value: 'name', label: 'Camera name' },
+          { value: 'last_image', label: 'Last image' },
+          { value: 'trap_nights', label: 'Days with images' },
+        ],
+      },
+      {
+        key: 'density',
+        label: 'Row density',
+        options: [
+          { value: 'normal', label: 'Normal' },
+          { value: 'compact', label: 'Compact' },
+        ],
+      },
+    ],
+    [],
+  );
+
+  const displayValues: Record<string, string> = {
+    view_mode: viewMode,
+    sort_by: sortBy,
+    density: density,
+  };
 
   const cameraIdsFromTags = useMemo(() => {
     if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
@@ -191,51 +245,15 @@ export const DeploymentTimelinePage: React.FC = () => {
   const subtitle = 'Per-camera activity over time, with a strip showing how many cameras delivered images each day';
 
   return (
-    <InsightsPageLayout
-      title="Timeline"
-      subtitle={subtitle}
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={viewMode}
-            onValueChange={(v) => setViewMode(v === 'heatmap' ? 'heatmap' : 'deployment')}
-            className="h-9 text-sm w-36"
-            aria-label="View mode"
-          >
-            <SelectItem value="deployment">Deployment</SelectItem>
-            <SelectItem value="heatmap">Heatmap</SelectItem>
-          </Select>
-          <Select
-            value={sortBy}
-            onValueChange={(v) => setSortBy(v as SortBy)}
-            className="h-9 text-sm w-44"
-            aria-label="Sort rows"
-          >
-            <SelectItem value="name">Sort by name</SelectItem>
-            <SelectItem value="last_image">Sort by last image</SelectItem>
-            <SelectItem value="trap_nights">Sort by trap-nights</SelectItem>
-          </Select>
-          <Select
-            value={density}
-            onValueChange={(v) => setDensity(v === 'compact' ? 'compact' : 'normal')}
-            className="h-9 text-sm w-32"
-            aria-label="Row density"
-          >
-            <SelectItem value="normal">Normal</SelectItem>
-            <SelectItem value="compact">Compact</SelectItem>
-          </Select>
-        </div>
-      }
-    >
-      <DashboardFilters
-        cameras={selectedCameras}
-        onCamerasChange={setCameras}
-        cameraOptions={cameras ?? []}
-        tags={selectedTags}
-        onTagsChange={setTags}
-        tagOptions={tagOptions || []}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
+    <InsightsPageLayout title="Timeline" subtitle={subtitle}>
+      <FilterBar
+        fields={filterFields}
+        values={filterValues}
+        onChange={onFilterChange}
+        onClearAll={onClearAll}
+        displayControls={displayControls}
+        displayValues={displayValues}
+        onDisplayChange={onDisplayChange}
       />
 
       {!projectId || isLoading || !orderedData ? (
@@ -267,7 +285,7 @@ export const DeploymentTimelinePage: React.FC = () => {
             data={orderedData}
             density={density}
             viewMode={viewMode}
-            onZoom={(from, to) => writeFilters({ startDate: from, endDate: to })}
+            onZoom={(from, to) => writeAll({ date_from: from, date_to: to })}
           />
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />

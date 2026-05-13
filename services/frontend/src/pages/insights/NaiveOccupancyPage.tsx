@@ -15,12 +15,13 @@ import { camerasApi } from '../../api/cameras';
 import { statisticsApi } from '../../api/statistics';
 import type { NaiveOccupancyMetadata } from '../../api/types';
 import { Button } from '../../components/ui/Button';
-import type { Option } from '../../components/ui/MultiSelect';
-import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import {
-  DashboardFilters,
-  type DateRange,
-} from '../../components/dashboard';
+  FilterBar,
+  type FilterFieldDef,
+  type FilterValue,
+} from '../../components/ui/FilterBar';
+import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
+import { type DateRange } from '../../components/dashboard';
 import { NaiveOccupancyChart } from '../../components/dashboard/NaiveOccupancyChart';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
 import {
@@ -74,7 +75,6 @@ export const NaiveOccupancyPage: React.FC = () => {
     () => (Array.isArray(parsed.camera_ids) ? parsed.camera_ids : []),
     [parsed.camera_ids],
   );
-  const selectedTags: Option[] = tagValues.map((v) => ({ label: v, value: v }));
 
   // Fetch cameras to map tags -> camera ids and to label the explicit
   // Cameras MultiSelect.
@@ -88,33 +88,53 @@ export const NaiveOccupancyPage: React.FC = () => {
     queryFn: () => camerasApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
-  const selectedCameras: Option[] = useMemo(() => {
-    if (!cameras) return cameraIdValues.map((id) => ({ label: id, value: id }));
-    const byId = new Map(cameras.map((c) => [String(c.id), c.name]));
-    return cameraIdValues.map((id) => ({ label: byId.get(id) ?? id, value: id }));
-  }, [cameraIdValues, cameras]);
 
-  const writeFilters = (next: {
-    dateRange?: DateRange;
-    tags?: string[];
-    cameraIds?: string[];
-  }) => {
-    const params = filtersToSearchParams(
-      {
-        date_from: (next.dateRange ?? dateRange).startDate ?? undefined,
-        date_to: (next.dateRange ?? dateRange).endDate ?? undefined,
-        tags: next.tags ?? tagValues,
-        camera_ids: next.cameraIds ?? cameraIdValues,
-      },
-      FILTER_SCHEMA,
-    );
-    setSearchParams(params, { replace: true });
+  const filterValues = useMemo<Record<string, FilterValue>>(
+    () => ({
+      date_from: dateRange.startDate ?? undefined,
+      date_to: dateRange.endDate ?? undefined,
+      tags: tagValues.length > 0 ? tagValues : undefined,
+      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+    }),
+    [dateRange, tagValues, cameraIdValues],
+  );
+
+  const onFilterChange = (key: string, value: FilterValue) => {
+    const next = { ...filterValues, [key]: value };
+    setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), {
+      replace: true,
+    });
   };
-  const setDateRange = (range: DateRange) => writeFilters({ dateRange: range });
-  const setTags = (tags: Option[]) =>
-    writeFilters({ tags: tags.map((t) => String(t.value)) });
-  const setCameras = (cams: Option[]) =>
-    writeFilters({ cameraIds: cams.map((c) => String(c.value)) });
+  const onClearAll = () =>
+    setSearchParams(new URLSearchParams(), { replace: true });
+
+  const filterFields = useMemo<FilterFieldDef[]>(
+    () => [
+      {
+        kind: 'multi-select',
+        key: 'camera_ids',
+        label: 'Cameras',
+        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
+        placeholder: 'All cameras',
+        summary: (n) => `${n} cameras`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'tags',
+        label: 'Camera tags',
+        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} tags`,
+      },
+      {
+        kind: 'date-range',
+        fromKey: 'date_from',
+        toKey: 'date_to',
+        label: 'Date range',
+      },
+    ],
+    [cameras, tagOptions],
+  );
 
   // Effective camera_ids passed to the API: union of cameras directly
   // selected and cameras whose tags match. Empty = pass undefined (all
@@ -175,15 +195,11 @@ export const NaiveOccupancyPage: React.FC = () => {
         </a>
       }
     >
-      <DashboardFilters
-        cameras={selectedCameras}
-        onCamerasChange={setCameras}
-        cameraOptions={cameras ?? []}
-        tags={selectedTags}
-        onTagsChange={setTags}
-        tagOptions={tagOptions || []}
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
+      <FilterBar
+        fields={filterFields}
+        values={filterValues}
+        onChange={onFilterChange}
+        onClearAll={onClearAll}
       />
       <div className="rounded-lg border bg-card p-4">
         <NaiveOccupancyChart

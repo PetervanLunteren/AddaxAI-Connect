@@ -22,11 +22,17 @@ import { DeploymentMarker } from './DeploymentMarker';
 import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
 import { MapLegend } from './MapLegend';
-import { MapControls } from './MapControls';
 import { FullscreenControl } from './FullscreenControl';
 import 'leaflet/dist/leaflet.css';
 
-type ViewMode = 'points' | 'hexbins' | 'clusters';
+export type ViewMode = 'points' | 'hexbins' | 'clusters';
+export type BaseLayer = 'positron' | 'satellite' | 'osm';
+
+interface DetectionRateMapProps {
+  filters: DetectionRateMapFilters;
+  viewMode: ViewMode;
+  baseLayer: BaseLayer;
+}
 
 /**
  * Component to track zoom level and map bounds changes
@@ -106,39 +112,12 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export function DetectionRateMap() {
+export function DetectionRateMap({ filters, viewMode, baseLayer }: DetectionRateMapProps) {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
-  const [filters, setFilters] = useState<DetectionRateMapFilters>({
-    start_date: '',
-    end_date: '',
-  });
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    // Restore view preference from localStorage
-    const saved = localStorage.getItem('detection-map-view-mode');
-    if (saved === 'points' || saved === 'clusters' || saved === 'hexbins') {
-      return saved as ViewMode;
-    }
-    return 'hexbins'; // Default to hexbins
-  });
   const [zoomLevel, setZoomLevel] = useState(12);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
-  const [baseLayer, setBaseLayer] = useState(() => {
-    // Restore baselayer preference from localStorage
-    const saved = localStorage.getItem('detection-map-baselayer');
-    return saved || 'positron';
-  });
-
-  // Save view mode preference
-  useEffect(() => {
-    localStorage.setItem('detection-map-view-mode', viewMode);
-  }, [viewMode]);
-
-  // Save baselayer preference
-  useEffect(() => {
-    localStorage.setItem('detection-map-baselayer', baseLayer);
-  }, [baseLayer]);
 
   const handleZoomChange = useCallback((zoom: number) => {
     setZoomLevel(zoom);
@@ -147,13 +126,6 @@ export function DetectionRateMap() {
   const handleBoundsChange = useCallback((bounds: L.LatLngBounds) => {
     setMapBounds(bounds);
   }, []);
-
-  // Fetch overview statistics for date bounds
-  const { data: overview } = useQuery({
-    queryKey: ['statistics', 'overview', projectId],
-    queryFn: () => statisticsApi.getOverview(projectId),
-    enabled: projectId !== undefined,
-  });
 
   // Fetch detection rate map data
   const { data, isLoading, error } = useQuery({
@@ -284,17 +256,6 @@ export function DetectionRateMap() {
 
   return (
     <div className="relative">
-      <MapControls
-        filters={filters}
-        onFiltersChange={setFilters}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        baseLayer={baseLayer}
-        onBaseLayerChange={setBaseLayer}
-        minDate={overview?.first_image_date}
-        maxDate={overview?.last_image_date}
-      />
-
       <MapContainer
         center={mapCenter}
         zoom={12}
