@@ -165,17 +165,15 @@ export const NaiveOccupancyPage: React.FC = () => {
   }, [tagValues, cameraIdValues, cameras]);
 
   const [meta, setMeta] = useState<NaiveOccupancyMetadata | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   // CSV uses the page's date filter when set. When the user has not
   // picked a window, fall back to the last 90 days — short enough to
   // keep occasions meaningful in unmarked / camtrapR, long enough to be
   // ecologically useful. The chart's own window is untouched, so the
   // CSV and the chart can intentionally show different ranges.
-  const handleDownload = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!projectId) {
-      e.preventDefault();
-      return;
-    }
+  const handleDownload = async () => {
+    if (!projectId || downloading) return;
     let from = dateRange.startDate;
     let to = dateRange.endDate;
     if (!from || !to) {
@@ -185,13 +183,25 @@ export const NaiveOccupancyPage: React.FC = () => {
       from = iso(past);
       to = iso(today);
     }
-    e.preventDefault();
-    window.location.href = statisticsApi.getDetectionHistoryCsvUrl(
-      projectId,
-      from,
-      to,
-      { cameraIds: cameraIdsFromTags, occasionLengthDays: 1 },
-    );
+    setDownloading(true);
+    try {
+      const { blob, filename } = await statisticsApi.downloadDetectionHistoryCsv(
+        projectId,
+        from,
+        to,
+        { cameraIds: cameraIdsFromTags, occasionLengthDays: 1 },
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const captionWindow =
@@ -202,22 +212,21 @@ export const NaiveOccupancyPage: React.FC = () => {
       title="Naive occupancy"
       subtitle="Share of camera sites where each species was detected"
       actions={
-        <a href="#" onClick={handleDownload}>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!projectId}
-            className="gap-1"
-            title={
-              dateRange.startDate && dateRange.endDate
-                ? 'Site-by-occasion CSV for unmarked or camtrapR'
-                : 'Site-by-occasion CSV for unmarked or camtrapR. Defaults to the last 90 days; set a date range above to override.'
-            }
-          >
-            <Download className="h-4 w-4" />
-            Export for R (CSV)
-          </Button>
-        </a>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!projectId || downloading}
+          onClick={handleDownload}
+          className="gap-1"
+          title={
+            dateRange.startDate && dateRange.endDate
+              ? 'Site-by-occasion CSV for unmarked or camtrapR'
+              : 'Site-by-occasion CSV for unmarked or camtrapR. Defaults to the last 90 days; set a date range above to override.'
+          }
+        >
+          <Download className="h-4 w-4" />
+          {downloading ? 'Preparing...' : 'Export for R (CSV)'}
+        </Button>
       }
     >
       <FilterBar

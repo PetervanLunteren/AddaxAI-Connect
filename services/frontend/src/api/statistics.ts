@@ -212,25 +212,35 @@ export const statisticsApi = {
   },
 
   /**
-   * Build the URL for the detection-history CSV download. The browser hits
-   * this directly (no axios wrapper) so the response streams as a download.
-   * Returns the URL or null if required params are missing.
+   * Download the detection-history CSV via the authenticated client.
+   * Returns the blob and the filename suggested by the server. Plain
+   * window.location.href would lose the JWT, so the caller cannot just
+   * point at the URL; this is the only download path.
    */
-  getDetectionHistoryCsvUrl: (
+  downloadDetectionHistoryCsv: async (
     projectId: number,
     startDate: string,
     endDate: string,
     options?: { cameraIds?: string; occasionLengthDays?: number },
-  ): string => {
-    const params = new URLSearchParams();
-    params.append('project_id', projectId.toString());
-    params.append('start_date', startDate);
-    params.append('end_date', endDate);
-    if (options?.cameraIds) params.append('camera_ids', options.cameraIds);
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const params: Record<string, string | number> = {
+      project_id: projectId,
+      start_date: startDate,
+      end_date: endDate,
+    };
+    if (options?.cameraIds) params.camera_ids = options.cameraIds;
     if (options?.occasionLengthDays !== undefined) {
-      params.append('occasion_length_days', options.occasionLengthDays.toString());
+      params.occasion_length_days = options.occasionLengthDays;
     }
-    return `/api/statistics/detection-history.csv?${params.toString()}`;
+    const response = await apiClient.get('/api/statistics/detection-history.csv', {
+      params,
+      responseType: 'blob',
+    });
+    const disposition = response.headers?.['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="?([^";]+)"?/i);
+    const filename =
+      match?.[1] ?? `detection-history-project-${projectId}-${startDate}-to-${endDate}.csv`;
+    return { blob: response.data as Blob, filename };
   },
 
   /**
