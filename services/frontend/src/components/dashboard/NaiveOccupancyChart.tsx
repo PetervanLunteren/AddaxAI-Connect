@@ -22,7 +22,6 @@ import {
 } from 'chart.js';
 import type { ChartData } from 'chart.js';
 import { statisticsApi } from '../../api/statistics';
-import { getSpeciesColor } from '../../utils/species-colors';
 import { normalizeLabel } from '../../utils/labels';
 import type { NaiveOccupancyMetadata } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
@@ -73,7 +72,7 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
         {
           label: 'Naive occupancy',
           data: points.map((p) => +(p.proportion * 100).toFixed(1)),
-          backgroundColor: points.map((p) => getSpeciesColor(p.species)),
+          backgroundColor: '#0f6064',
           borderRadius: 4,
         },
       ],
