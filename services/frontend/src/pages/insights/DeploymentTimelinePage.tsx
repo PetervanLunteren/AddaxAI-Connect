@@ -318,31 +318,30 @@ export const DeploymentTimelinePage: React.FC = () => {
         plotKey="deployment-timeline"
         what={
           <p>
-            One row per camera. A solid green bar marks a stretch of days the camera delivered
-            images. Empty space inside a row means the camera was silent for three or more days
-            in a row. The strip below counts how many cameras delivered images on each day.
-            Heatmap mode replaces the bars with one cell per day, coloured by how many images
-            arrived that day.
+            One row per camera. A day shows fill when the camera gave any sign of life that day,
+            either an image or a daily health report. A day with neither shows as a gap. The
+            strip below counts how many cameras gave a sign of life on each day. Heatmap mode
+            replaces the bars with one cell per day, coloured by how many images arrived that
+            day.
           </p>
         }
         how={
           <>
             <p>
-              Image dates come from <code>captured_at</code> in each image, read under the
-              server timezone. A silence of one or two days is treated as part of the same
-              stretch. A silence of three or more days starts a new stretch, drawn with a gap.
-              Days with images counts the inclusive length of every stretch and sums them.
+              Sign of life is built from two sources, read under the server timezone. Image
+              dates come from <code>captured_at</code> in each image. Health-report dates come
+              from <code>reported_at</code> in each daily report. Either one keeps the day
+              filled. Only fully consecutive signal days merge into a continuous segment, so
+              any gap day breaks the bar.
             </p>
             <p>
               The status dot on the left uses the same rule as the Cameras page, based on the
-              most recent daily health report with a seven-day cutoff. A camera can show a green
-              dot and still have a short bar, meaning the camera is reachable but is not sending
-              many images right now.
+              most recent daily health report with a seven-day cutoff.
             </p>
             <p>
               A faint vertical tick on a row marks the day the camera was moved more than 100 m
               to a new location. The bar does not break at a move because the camera kept
-              delivering images on both sides of it.
+              giving signals on both sides of it.
             </p>
             <p>
               Heatmap mode auto-switches to weekly cells once the visible range goes past a
@@ -350,32 +349,8 @@ export const DeploymentTimelinePage: React.FC = () => {
             </p>
           </>
         }
-        settings={
-          orderedData
-            ? [
-                {
-                  label: 'Window',
-                  detail: `${orderedData.date_range_from ?? '–'} to ${orderedData.date_range_to ?? '–'} (clipped to the date filter when set).`,
-                },
-                {
-                  label: 'Cameras shown',
-                  detail: `${orderedData.metrics.site_count} (set by the camera and tag filters).`,
-                },
-                {
-                  label: 'View',
-                  detail: `${viewMode === 'heatmap' ? 'Heatmap' : 'Deployment'} mode, sorted by ${sortLabel(sortBy)}${groupBy === 'tag' ? ', grouped by camera tag' : ''}.`,
-                },
-              ]
-            : undefined
-        }
         references={REFERENCES}
       />
     </InsightsPageLayout>
   );
 };
-
-function sortLabel(s: SortBy): string {
-  if (s === 'last_image') return 'last image';
-  if (s === 'trap_nights') return 'trap-nights';
-  return 'camera name';
-}

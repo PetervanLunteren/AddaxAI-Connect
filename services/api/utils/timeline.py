@@ -25,8 +25,9 @@ from shared.models import CameraHealthReport
 from utils.camera_status import camera_status
 from utils.timeline_activity import (
     clip_segments_to_window,
-    concurrent_from_daily,
+    concurrent_from_signal_days,
     daily_camera_counts,
+    fetch_report_days,
     split_into_segments,
 )
 
@@ -35,20 +36,20 @@ def _effective_cdp_end(
     *,
     configured_end: Optional[date],
     start_date: date,
-    capture_days_in_cdp: list[date],
+    signal_days_in_cdp: list[date],
 ) -> date:
     """Resolve the right edge of the outer bar for a single CDP.
 
     For closed CDPs the configured `end_date` wins. For open CDPs the
-    bar stops at the last day with an image, or at `start_date` when the
-    camera has never delivered an image inside the CDP. This replaces the
-    old behaviour of extending open CDPs to `today`, which made silent
-    cameras look healthy.
+    bar stops at the last day with a sign of life (image OR health
+    report), or at `start_date` when the camera has never reported
+    anything inside the CDP. Replaces the old "extend open CDPs to
+    today" rule that made silent cameras look healthy.
     """
     if configured_end is not None:
         return configured_end
-    if capture_days_in_cdp:
-        return capture_days_in_cdp[-1]
+    if signal_days_in_cdp:
+        return signal_days_in_cdp[-1]
     return start_date
 
 
@@ -84,30 +85,44 @@ async def get_deployment_timeline(
 
     camera_id_set = sorted({row.camera_id for row in cdp_rows})
 
-    # 2. Per-day image counts per camera. Single round-trip that drives:
-    #    - the inner bar segments (via the day list),
+    # 2. Per-day image counts per camera. Drives:
     #    - the per-CDP file_count (via summing rows in the CDP window),
-    #    - the heatmap payload (rows passed through unchanged),
-    #    - the concurrent-cameras strip (distinct cameras per day).
+    #    - the heatmap payload (rows passed through unchanged).
     daily_rows = await daily_camera_counts(
         db,
         camera_id_set,
         clip_start=date_from,
         clip_end=date_to,
     )
-    days_by_camera: dict[int, list[date]] = defaultdict(list)
+    image_days_by_camera: dict[int, set[date]] = defaultdict(set)
     counts_by_camera_date: dict[tuple[int, date], int] = {}
     for row in daily_rows:
-        days_by_camera[row["camera_id"]].append(row["date"])
+        image_days_by_camera[row["camera_id"]].add(row["date"])
         counts_by_camera_date[(row["camera_id"], row["date"])] = row["count"]
-    for camera_id in days_by_camera:
-        days_by_camera[camera_id].sort()
 
-    # 3. Last health-report per camera, source of the status pill. Driven
+    # 3. Per-day health reports per camera. A camera that sent a daily
+    #    report counts as alive that day even without images. Union with
+    #    image days produces the "any sign of life" set used by the bars
+    #    and the concurrent strip.
+    report_days_by_camera = await fetch_report_days(
+        db,
+        camera_id_set,
+        clip_start=date_from,
+        clip_end=date_to,
+    )
+    signal_days_by_camera: dict[int, list[date]] = {}
+    all_cameras_with_signal = set(image_days_by_camera) | set(report_days_by_camera)
+    for cid in all_cameras_with_signal:
+        merged = image_days_by_camera.get(cid, set()) | set(
+            report_days_by_camera.get(cid, [])
+        )
+        signal_days_by_camera[cid] = sorted(merged)
+
+    # 4. Last health-report per camera, source of the status pill. Driven
     #    by CameraHealthReport, identical rule to the Cameras page.
     last_reported_by_camera = await _fetch_last_reported(db, camera_id_set)
 
-    # 4. Build sites and deployments.
+    # 5. Build sites and deployments.
     sites_by_camera: dict[int, dict] = {}
     cdp_transitions: list[dict] = []
     previous_cdp_by_camera: dict[int, bool] = {}
@@ -124,21 +139,21 @@ async def get_deployment_timeline(
             })
         previous_cdp_by_camera[camera_id] = True
 
-        capture_days_in_cdp = _filter_days_to_cdp(
-            days_by_camera.get(camera_id, []),
+        signal_days_in_cdp = _filter_days_to_cdp(
+            signal_days_by_camera.get(camera_id, []),
             row.start_date,
             row.end_date,
         )
         effective_end = _effective_cdp_end(
             configured_end=row.end_date,
             start_date=row.start_date,
-            capture_days_in_cdp=capture_days_in_cdp,
+            signal_days_in_cdp=signal_days_in_cdp,
         )
 
-        # Inner segments: sort, split by gap rule, clip to the CDP window
-        # plus the optional date filter so a segment never overflows the
-        # bar it belongs to.
-        segments = split_into_segments(capture_days_in_cdp)
+        # Inner segments: split by gap rule, clip to the CDP window plus
+        # the optional date filter so a segment never overflows the bar
+        # it belongs to.
+        segments = split_into_segments(signal_days_in_cdp)
         clip_start = max(row.start_date, date_from) if date_from else row.start_date
         clip_end = min(effective_end, date_to) if date_to else effective_end
         clipped = clip_segments_to_window(segments, clip_start, clip_end)
@@ -148,11 +163,19 @@ async def get_deployment_timeline(
             for s, e in clipped
         ]
 
+        # `file_count` stays image-only; signal days drive the bars but
+        # the tooltip is about how many image rows landed in the window.
+        image_days_in_cdp_window = [
+            d
+            for d in image_days_by_camera.get(camera_id, set())
+            if row.start_date <= d
+            and (row.end_date is None or d <= row.end_date)
+            and (date_from is None or d >= date_from)
+            and (date_to is None or d <= date_to)
+        ]
         file_count = sum(
             counts_by_camera_date.get((camera_id, d), 0)
-            for d in capture_days_in_cdp
-            if (date_from is None or d >= date_from)
-            and (date_to is None or d <= date_to)
+            for d in image_days_in_cdp_window
         )
 
         deployment = {
@@ -168,12 +191,14 @@ async def get_deployment_timeline(
 
         site = sites_by_camera.get(camera_id)
         if site is None:
-            all_days = days_by_camera.get(camera_id, [])
-            # Camera-level intervals: split the camera's full day list by the
-            # same gap rule, ignoring CDP boundaries. This is what the chart
-            # draws as one solid ribbon per camera. CDP boundaries show as
+            all_signal_days = signal_days_by_camera.get(camera_id, [])
+            # Camera-level intervals: split the camera's full signal-day
+            # list, ignoring CDP boundaries. This is what the chart draws
+            # as one solid ribbon per camera. CDP boundaries show as
             # ticks on top, not as visual gaps.
-            site_segments = split_into_segments(all_days) if all_days else []
+            site_segments = (
+                split_into_segments(all_signal_days) if all_signal_days else []
+            )
             if date_from is not None or date_to is not None:
                 lo = date_from if date_from is not None else date(1, 1, 1)
                 hi = date_to if date_to is not None else date(9999, 12, 31)
@@ -182,12 +207,13 @@ async def get_deployment_timeline(
                 {"start": s, "end": e, "trap_nights": (e - s).days + 1}
                 for s, e in site_segments
             ]
+            all_image_days = sorted(image_days_by_camera.get(camera_id, set()))
             sites_by_camera[camera_id] = {
                 "site_id": str(camera_id),
                 "site_name": row.camera_name,
                 "deployments": [deployment],
                 "intervals": site_intervals,
-                "last_image_day": all_days[-1] if all_days else None,
+                "last_image_day": all_image_days[-1] if all_image_days else None,
                 "camera_status": camera_status(last_reported_by_camera.get(camera_id)),
             }
         else:
@@ -195,11 +221,10 @@ async def get_deployment_timeline(
 
     sites = sorted(sites_by_camera.values(), key=lambda s: s["site_name"].lower())
 
-    # 5. Concurrent-cameras strip and metrics. Trap-night totals come from
-    #    the per-camera segments so the visible bars and the caption number
-    #    always agree (per-CDP intervals can overlap across CDPs on the
-    #    same day during a within-day move).
-    concurrent = concurrent_from_daily(daily_rows)
+    # 6. Concurrent-cameras strip and metrics. Same signal-day source as
+    #    the bars so the strip and the bars always agree about a camera's
+    #    state on a given day.
+    concurrent = concurrent_from_signal_days(signal_days_by_camera)
     total_trap_nights = sum(
         iv["trap_nights"]
         for s in sites

@@ -31,23 +31,23 @@ class TestEffectiveCdpEnd:
         out = _effective_cdp_end(
             configured_end=date(2024, 3, 31),
             start_date=date(2024, 1, 1),
-            capture_days_in_cdp=[date(2024, 1, 5), date(2024, 1, 6)],
+            signal_days_in_cdp=[date(2024, 1, 5), date(2024, 1, 6)],
         )
         assert out == date(2024, 3, 31)
 
-    def test_open_cdp_with_images_uses_last_image(self):
+    def test_open_cdp_with_signals_uses_last_signal(self):
         out = _effective_cdp_end(
             configured_end=None,
             start_date=date(2024, 1, 1),
-            capture_days_in_cdp=[date(2024, 1, 5), date(2024, 1, 20)],
+            signal_days_in_cdp=[date(2024, 1, 5), date(2024, 1, 20)],
         )
         assert out == date(2024, 1, 20)
 
-    def test_open_cdp_no_images_falls_back_to_start(self):
+    def test_open_cdp_no_signals_falls_back_to_start(self):
         out = _effective_cdp_end(
             configured_end=None,
             start_date=date(2024, 1, 1),
-            capture_days_in_cdp=[],
+            signal_days_in_cdp=[],
         )
         assert out == date(2024, 1, 1)
 

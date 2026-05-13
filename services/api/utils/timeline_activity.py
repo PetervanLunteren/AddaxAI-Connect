@@ -1,29 +1,30 @@
-"""Image-observed activity helpers for the deployment timeline.
+"""Activity helpers for the deployment timeline.
 
-The WebUI version of this page derives its bars from folder structure on
-disk. Connect's bars are derived from `Image.captured_at` records arriving
-through the FTPS pipeline. This module wraps that derivation.
+The bars in the chart answer one question per camera per day: "was there
+any sign of life from this camera that day". A sign of life is either an
+image arrival (`Image.captured_at`) or a daily health report
+(`CameraHealthReport.reported_at`). Either one keeps the day filled.
+Days with neither show as a gap.
 
-Three pure helpers and one async DB query, kept in their own file so
-`utils/timeline.py` stays focused on shaping the response payload.
+Pure helpers plus a handful of async DB queries, kept in their own file
+so `utils/timeline.py` stays focused on shaping the response payload.
 """
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date
 from typing import Iterable, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models import Image
+from shared.models import CameraHealthReport, Image
 
 
-# A gap of `MAX_INNER_BAR_GAP_DAYS + 1` or more silent days between two
-# capture-bearing days breaks an inner bar into separate segments. With
-# the value set to 2, a 1-day or 2-day silence keeps the bar intact and
-# a 3-day silence (or longer) starts a new segment.
-MAX_INNER_BAR_GAP_DAYS = 2
+# Any silent day breaks a bar. A gap of `MAX_INNER_BAR_GAP_DAYS + 1` or
+# more silent days between two signal-bearing days splits the segment.
+# Kept as a parameter rather than inlined so the helper stays generic.
+MAX_INNER_BAR_GAP_DAYS = 0
 
 
 async def fetch_capture_days(
@@ -120,6 +121,41 @@ def clip_segments_to_window(
     return out
 
 
+async def fetch_report_days(
+    db: AsyncSession,
+    camera_ids: list[int],
+    *,
+    clip_start: Optional[date] = None,
+    clip_end: Optional[date] = None,
+) -> dict[int, list[date]]:
+    """Return sorted, distinct `reported_at::date` values per camera.
+
+    A camera that posts a daily health report counts as alive on that
+    day even when no images arrive. Returned dict mirrors the shape of
+    `fetch_capture_days` so a caller can union the two sets by camera.
+    """
+    if not camera_ids:
+        return {}
+
+    reported_date = func.date(CameraHealthReport.reported_at).label('reported_date')
+    stmt = (
+        select(CameraHealthReport.camera_id, reported_date)
+        .where(CameraHealthReport.camera_id.in_(camera_ids))
+        .group_by(CameraHealthReport.camera_id, reported_date)
+    )
+    if clip_start is not None:
+        stmt = stmt.where(reported_date >= clip_start)
+    if clip_end is not None:
+        stmt = stmt.where(reported_date <= clip_end)
+    stmt = stmt.order_by(CameraHealthReport.camera_id, reported_date)
+
+    rows = (await db.execute(stmt)).all()
+    out: dict[int, list[date]] = defaultdict(list)
+    for camera_id, reported_date_value in rows:
+        out[camera_id].append(reported_date_value)
+    return dict(out)
+
+
 async def daily_camera_counts(
     db: AsyncSession,
     camera_ids: list[int],
@@ -160,9 +196,9 @@ async def daily_camera_counts(
 def concurrent_from_daily(rows: Iterable[dict]) -> list[dict]:
     """Collapse `daily_camera_counts` into a per-day distinct-camera tally.
 
-    The new concurrent-cameras strip counts cameras that delivered at
-    least one image each day, matching the inner-bar semantics. Input is
-    assumed sorted by date (as produced by `daily_camera_counts`).
+    Counts cameras that delivered at least one image each day. Use this
+    when the concurrent strip should track image delivery; use
+    `concurrent_from_signal_days` when it should track any sign of life.
     """
     counts: dict[date, set[int]] = defaultdict(set)
     for row in rows:
@@ -170,4 +206,23 @@ def concurrent_from_daily(rows: Iterable[dict]) -> list[dict]:
     return [
         {"date": d, "count": len(camera_ids)}
         for d, camera_ids in sorted(counts.items())
+    ]
+
+
+def concurrent_from_signal_days(
+    signal_days_by_camera: dict[int, Iterable[date]],
+) -> list[dict]:
+    """Per-day count of cameras with at least one sign of life.
+
+    Sign of life is image OR daily health report (caller decides what
+    goes into `signal_days_by_camera`). Same shape as
+    `concurrent_from_daily` so the consumer is unchanged.
+    """
+    per_day: dict[date, int] = defaultdict(int)
+    for days in signal_days_by_camera.values():
+        for d in days:
+            per_day[d] += 1
+    return [
+        {"date": d, "count": c}
+        for d, c in sorted(per_day.items())
     ]
