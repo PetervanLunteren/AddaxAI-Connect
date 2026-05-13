@@ -1337,13 +1337,20 @@ class ActivityOverlapResponse(BaseModel):
 _RAW_DETECTION_TIME_CAP = 5000  # bound rug payload on huge datasets
 
 
-async def _avg_camera_location(
+async def _avg_camera_location_for_projects(
     db: AsyncSession,
     project_ids: List[int],
     camera_ids: Optional[List[int]],
 ) -> Optional[Tuple[float, float]]:
     """Mean lat/lon across cameras with a location, restricted to the
-    project + (optional) camera-id filter. None when no usable points."""
+    project + (optional) camera-id filter. None when no usable points.
+
+    Distinct from the synchronous `_avg_camera_location(camera_configs)`
+    above. Python's late-binding name resolution made the older sync
+    callsite resolve to this async version, raising
+    `TypeError: missing 2 required positional arguments`. Renamed to
+    keep the two helpers separable.
+    """
     if not project_ids:
         return None
     sql = """
@@ -1448,7 +1455,9 @@ async def get_activity_overlap(
     # Single-reference clock sun bands. Best-effort: any failure produces None
     # and the chart simply renders without twilight bands.
     tz_name = await get_server_timezone(db)
-    location = await _avg_camera_location(db, accessible_project_ids, camera_id_list)
+    location = await _avg_camera_location_for_projects(
+        db, accessible_project_ids, camera_id_list
+    )
     sun_bands: Optional[SunBands] = None
     sun_bands_reference_date: Optional[str] = None
     if location is not None:
