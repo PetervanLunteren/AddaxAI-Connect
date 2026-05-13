@@ -41,6 +41,7 @@ async function extractErrorMessage(err: any): Promise<string> {
 
 type ObservationFormat = 'csv' | 'xlsx' | 'tsv';
 type SpatialFormat = 'geojson' | 'shapefile' | 'gpkg';
+type CamerasFormat = 'csv' | 'xlsx' | 'tsv';
 
 export const ExportsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -50,6 +51,9 @@ export const ExportsPage: React.FC = () => {
   const [observationFormat, setObservationFormat] = useState<ObservationFormat>('csv');
   const [isExportingObs, setIsExportingObs] = useState(false);
   const [obsError, setObsError] = useState<string | null>(null);
+  const [camerasFormat, setCamerasFormat] = useState<CamerasFormat>('csv');
+  const [isExportingCameras, setIsExportingCameras] = useState(false);
+  const [camerasError, setCamerasError] = useState<string | null>(null);
   const [spatialFormat, setSpatialFormat] = useState<SpatialFormat>('geojson');
   const [isExportingSpatial, setIsExportingSpatial] = useState(false);
   const [spatialError, setSpatialError] = useState<string | null>(null);
@@ -76,6 +80,22 @@ export const ExportsPage: React.FC = () => {
       setObsError(await extractErrorMessage(err));
     } finally {
       setIsExportingObs(false);
+    }
+  };
+
+  const handleDownloadCameras = async () => {
+    if (!projectIdNum) return;
+
+    setIsExportingCameras(true);
+    setCamerasError(null);
+
+    try {
+      const blob = await exportApi.downloadCameras(projectIdNum, camerasFormat);
+      downloadBlob(blob, `cameras-${projectSlug}-${today}.${camerasFormat}`);
+    } catch (err: any) {
+      setCamerasError(await extractErrorMessage(err));
+    } finally {
+      setIsExportingCameras(false);
     }
   };
 
@@ -182,6 +202,60 @@ export const ExportsPage: React.FC = () => {
                   <>
                     <Download className="h-4 w-4" />
                     Download {observationFormat.toUpperCase()}
+                  </>
+                )}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cameras export card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Cameras</CardTitle>
+            <CardDescription>
+              Cameras list with identity, last health snapshot, and any custom fields (one row per camera).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {camerasError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {camerasError}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="inline-flex rounded-md overflow-hidden border border-input">
+                {formatOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setCamerasFormat(opt.value)}
+                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                      camerasFormat === opt.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-foreground hover:bg-secondary'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={handleDownloadCameras}
+                disabled={isExportingCameras}
+                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {isExportingCameras ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing export...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download {camerasFormat.toUpperCase()}
                   </>
                 )}
               </button>

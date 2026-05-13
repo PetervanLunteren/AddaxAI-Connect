@@ -36,4 +36,15 @@ export const exportApi = {
     );
     return response.data;
   },
+
+  /**
+   * Download the cameras list as CSV, TSV, or XLSX
+   */
+  downloadCameras: async (projectId: number, format: 'csv' | 'tsv' | 'xlsx' = 'csv'): Promise<Blob> => {
+    const response = await apiClient.get(
+      `/api/projects/${projectId}/export/cameras`,
+      { params: { format }, responseType: 'blob' },
+    );
+    return response.data;
+  },
 };

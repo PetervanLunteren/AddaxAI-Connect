@@ -20,7 +20,6 @@ import {
   XCircle,
   Map as MapIcon,
   Table as TableIcon,
-  Download,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -269,13 +268,6 @@ export const CamerasPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(`Failed to import CSV: ${error.response?.data?.detail || error.message}`);
-    },
-  });
-
-  const exportMutation = useMutation({
-    mutationFn: (projectId: number) => camerasApi.exportCSV(projectId),
-    onError: (error: any) => {
-      toast.error(`Failed to export CSV: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -809,25 +801,8 @@ export const CamerasPage: React.FC = () => {
             Monitor camera health, battery levels, and connectivity status
           </p>
         </div>
-        <div className="flex gap-2 self-start">
-          {cameras && cameras.length > 0 && (
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => currentProject && exportMutation.mutate(currentProject.id)}
-              disabled={exportMutation.isPending || !currentProject}
-              className="whitespace-nowrap"
-              title="Download every camera in this project as CSV"
-            >
-              {exportMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-1.5" />
-              )}
-              Export CSV
-            </Button>
-          )}
-          {isServerAdmin && (
+        {isServerAdmin && (
+          <div className="flex gap-2 self-start">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="whitespace-nowrap">
@@ -847,8 +822,8 @@ export const CamerasPage: React.FC = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Shared filter bar (drives both table and map views) */}

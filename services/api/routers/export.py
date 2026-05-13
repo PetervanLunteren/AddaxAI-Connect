@@ -26,8 +26,8 @@ from sqlalchemy.orm import selectinload
 
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
-    HumanObservation, CameraDeploymentPeriod, SpeciesTaxonomy,
-    ServerSettings,
+    HumanObservation, CameraDeploymentPeriod, CameraHealthReport,
+    SpeciesTaxonomy, ServerSettings,
 )
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
@@ -35,6 +35,7 @@ from shared.logger import get_logger
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids
 from shared.classification_threshold import effective_classification_threshold
+from utils.camera_status import camera_status
 
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
@@ -956,6 +957,157 @@ async def export_observations(
             io.BytesIO(content.encode("utf-8")),
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="observations-{slug}-{today}.csv"'},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Cameras export (CSV, TSV, XLSX). One row per camera with identity columns,
+# the operational snapshot from the last health report, and one column per
+# unique custom_fields key seen in the project. The CSV identity columns
+# mirror the bulk-import shape so a snapshot round-trips through Import CSV.
+# ---------------------------------------------------------------------------
+
+
+def _localize_naive(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
+    """Localize a naive camera-clock datetime under the server tz and return ISO 8601."""
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=tz).isoformat()
+
+
+async def _build_camera_rows(
+    db: AsyncSession,
+    project_id: int,
+    tz: ZoneInfo,
+) -> tuple[list, list]:
+    cameras = (await db.execute(
+        select(Camera)
+        .where(Camera.project_id == project_id)
+        .order_by(Camera.name)
+    )).scalars().all()
+
+    camera_ids = [c.id for c in cameras]
+    last_captured_map: Dict[int, datetime] = {}
+    last_reported_map: Dict[int, datetime] = {}
+    if camera_ids:
+        captured_rows = await db.execute(
+            select(Image.camera_id, func.max(Image.captured_at))
+            .where(Image.camera_id.in_(camera_ids))
+            .group_by(Image.camera_id)
+        )
+        last_captured_map = {cam_id: ts for cam_id, ts in captured_rows.all()}
+
+        reported_rows = await db.execute(
+            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
+            .where(CameraHealthReport.camera_id.in_(camera_ids))
+            .group_by(CameraHealthReport.camera_id)
+        )
+        last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
+
+    custom_keys = sorted({
+        key
+        for c in cameras
+        if isinstance(c.custom_fields, dict)
+        for key in c.custom_fields.keys()
+    })
+
+    headers = [
+        'CameraID', 'Name', 'Notes', 'Tags', 'SimExpiryDate',
+        'Manufacturer', 'Model', 'HardwareRevision',
+        'Status', 'BatteryPercent', 'SignalQuality', 'SDUsedPercent',
+        'TemperatureC', 'LastReportTimestamp', 'LastImageTimestamp',
+        'LocationLat', 'LocationLon',
+        'InstalledAt', 'LastMaintenanceAt', 'CreatedAt',
+    ] + custom_keys
+
+    rows: list = []
+    for camera in cameras:
+        health = camera.config.get('last_health_report', {}) if camera.config else {}
+        gps = camera.config.get('gps_from_report') if camera.config else None
+        last_captured = last_captured_map.get(camera.id)
+        last_reported = last_reported_map.get(camera.id)
+        custom = camera.custom_fields if isinstance(camera.custom_fields, dict) else {}
+
+        row = [
+            camera.device_id or '',
+            camera.name or '',
+            camera.notes or '',
+            ','.join(camera.tags) if camera.tags else '',
+            camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else '',
+            camera.manufacturer or '',
+            camera.model or '',
+            camera.hardware_revision or '',
+            camera_status(last_reported),
+            health.get('battery_percentage', '') if health else '',
+            health.get('signal_quality', '') if health else '',
+            (
+                f"{round(health['sd_utilization_percentage'], 1)}"
+                if health and health.get('sd_utilization_percentage') is not None
+                else ''
+            ),
+            health.get('temperature') if health and health.get('temperature') is not None else '',
+            _localize_naive(last_reported, tz) or '',
+            _localize_naive(last_captured, tz) or '',
+            gps['lat'] if isinstance(gps, dict) and gps.get('lat') is not None else '',
+            gps['lon'] if isinstance(gps, dict) and gps.get('lon') is not None else '',
+            camera.installed_at.isoformat() if camera.installed_at else '',
+            camera.last_maintenance_at.isoformat() if camera.last_maintenance_at else '',
+            camera.created_at.isoformat() if camera.created_at else '',
+        ]
+        for key in custom_keys:
+            value = custom.get(key, '')
+            row.append(value if value is not None else '')
+        rows.append(row)
+
+    return headers, rows
+
+
+@router.get("/cameras")
+async def export_cameras(
+    project_id: int,
+    format: str = Query("csv", pattern="^(csv|tsv|xlsx)$"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+) -> StreamingResponse:
+    """Export every camera in a project as CSV, TSV, or XLSX."""
+    if project_id not in accessible_project_ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
+
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    headers, rows = await _build_camera_rows(db, project_id, tz)
+
+    today = date.today().isoformat()
+    slug = _slugify(project.name)
+
+    if format == "xlsx":
+        content = _serialize_xlsx(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.xlsx"'},
+        )
+    elif format == "tsv":
+        content = _serialize_tsv(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/tab-separated-values",
+            headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.tsv"'},
+        )
+    else:
+        # BOM keeps Excel happy when double-clicked.
+        content = _serialize_csv(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8-sig")),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.csv"'},
         )
 
 
