@@ -182,7 +182,7 @@ export const NaiveOccupancyPage: React.FC = () => {
 
   return (
     <InsightsPageLayout
-      title="Occupancy"
+      title="Naive occupancy"
       subtitle="Share of camera sites where each species was detected"
       actions={
         <a
