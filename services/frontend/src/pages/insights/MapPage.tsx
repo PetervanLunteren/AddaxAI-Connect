@@ -202,15 +202,20 @@ export const InsightsMapPage: React.FC = () => {
       title="Map"
       subtitle="Detection rate per camera deployment, corrected for trap-days"
     >
-      <FilterBar
-        fields={filterFields}
-        values={filterValues}
-        onChange={onFilterChange}
-        onClearAll={onClearAll}
-        displayControls={displayControls}
-        displayValues={displayValues}
-        onDisplayChange={onDisplayChange}
-      />
+      {/* Leaflet's panes stack up to z-index 700 within its own context.
+          Lift the FilterBar above so the MultiSelect dropdown and the
+          More/Display popovers render on top of the map below. */}
+      <div className="relative z-[1100]">
+        <FilterBar
+          fields={filterFields}
+          values={filterValues}
+          onChange={onFilterChange}
+          onClearAll={onClearAll}
+          displayControls={displayControls}
+          displayValues={displayValues}
+          onDisplayChange={onDisplayChange}
+        />
+      </div>
       <div className="rounded-lg border bg-card p-4">
         <DetectionRateMap
           filters={mapFilters}
