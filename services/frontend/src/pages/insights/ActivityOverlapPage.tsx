@@ -12,7 +12,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Info } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
@@ -288,8 +288,16 @@ export const ActivityOverlapPage: React.FC = () => {
           Pick a species above to load the chart.
         </div>
       ) : isLoading || !data ? (
-        <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
-          Loading...
+        <div className="rounded-lg border bg-card p-4">
+          <div className="h-[420px] flex flex-col items-center justify-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="text-sm text-muted-foreground text-center max-w-md space-y-1">
+              <p>Fitting activity curves and bootstrap overlap CI</p>
+              <p className="text-xs">
+                A wider date range or a common species can take 10-20 seconds.
+              </p>
+            </div>
+          </div>
         </div>
       ) : (
         <>
