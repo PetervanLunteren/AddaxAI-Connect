@@ -1196,8 +1196,8 @@ class NaiveOccupancyMetadata(BaseModel):
     threshold and the date window makes the chart number reproducible from the
     raw data and the detection-history CSV export.
     """
-    window_start: str  # ISO date
-    window_end: str
+    window_start: Optional[str] = None  # ISO date; null when no date filter is set
+    window_end: Optional[str] = None
     sites_total: int
     project_ids: List[int]
     detection_threshold: Optional[float]  # null when multiple projects with different settings
@@ -1239,13 +1239,20 @@ async def get_naive_occupancy_endpoint(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
 
-    # Default to last 30 days, matching /detection-trend convention.
-    if not start_date and not end_date:
-        end_dt = await _server_now(db)
-        start_dt = end_dt - timedelta(days=30)
-    else:
-        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else await _server_now(db) - timedelta(days=30)
-        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else await _server_now(db)
+    # No date filter = all available data. Wide sentinel dates so the
+    # downstream SQL bound checks still run unmodified. Avoids an
+    # implicit 30-day default that surprised users into thinking they
+    # were looking at the whole project.
+    start_dt = (
+        datetime.combine(start_date, datetime.min.time())
+        if start_date is not None
+        else datetime(1900, 1, 1)
+    )
+    end_dt = (
+        datetime.combine(end_date, datetime.max.time())
+        if end_date is not None
+        else datetime(9999, 12, 31)
+    )
 
     points_raw, sites_total = await get_naive_occupancy(
         db=db,
@@ -1285,8 +1292,8 @@ async def get_naive_occupancy_endpoint(
     return NaiveOccupancyResponse(
         points=points,
         metadata=NaiveOccupancyMetadata(
-            window_start=start_dt.date().isoformat(),
-            window_end=end_dt.date().isoformat(),
+            window_start=start_date.isoformat() if start_date is not None else None,
+            window_end=end_date.isoformat() if end_date is not None else None,
             sites_total=sites_total,
             project_ids=accessible_project_ids,
             detection_threshold=detection_threshold,

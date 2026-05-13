@@ -569,8 +569,8 @@ export interface NaiveOccupancyPoint {
 }
 
 export interface NaiveOccupancyMetadata {
-  window_start: string;  // YYYY-MM-DD
-  window_end: string;    // YYYY-MM-DD
+  window_start: string | null;  // YYYY-MM-DD, null when no date filter is set
+  window_end: string | null;
   sites_total: number;
   project_ids: number[];
   detection_threshold: number | null;
