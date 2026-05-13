@@ -266,27 +266,40 @@ export function DeploymentTimelineChart({
   const concurrentYToPx = (count: number) =>
     concurrentBottom - (count / concurrentMax) * CONCURRENT_HEIGHT;
 
-  // Step-function area chart of cameras delivering at least one image per day.
-  // Each point's count holds until end-of-day, then drops; the polygon
-  // closes one day after the final point so the last bar's full day is
-  // covered. Same start-of-next-day rule as the inner bars.
+  // Per-day step area chart of cameras with a sign of life. Each point's
+  // count holds only for that one day; between two non-adjacent points
+  // the polygon drops to zero so silent stretches read as actually
+  // silent rather than as a held step value carried across the gap.
   const concurrentPath = useMemo(() => {
     const pts = data.concurrent_cameras;
     if (pts.length === 0) return '';
     const parts: string[] = [];
-    parts.push(`M ${xToPx(parseDate(pts[0].date))} ${concurrentBottom}`);
-    let prevX = xToPx(parseDate(pts[0].date));
+    const firstX = xToPx(parseDate(pts[0].date));
+    parts.push(`M ${firstX} ${concurrentBottom}`);
+    let prevDateMs = parseDate(pts[0].date);
     let prevY = concurrentYToPx(pts[0].count);
-    parts.push(`L ${prevX} ${prevY}`);
+    parts.push(`L ${firstX} ${prevY}`);
+
     for (let i = 1; i < pts.length; i++) {
-      const nextX = xToPx(parseDate(pts[i].date));
-      const nextY = concurrentYToPx(pts[i].count);
-      parts.push(`L ${nextX} ${prevY}`);
-      parts.push(`L ${nextX} ${nextY}`);
-      prevX = nextX;
-      prevY = nextY;
+      const currDateMs = parseDate(pts[i].date);
+      const currY = concurrentYToPx(pts[i].count);
+      const isAdjacent = currDateMs - prevDateMs === MS_PER_DAY;
+      if (isAdjacent) {
+        const currX = xToPx(currDateMs);
+        parts.push(`L ${currX} ${prevY}`);
+        parts.push(`L ${currX} ${currY}`);
+      } else {
+        const prevEndX = xToPx(prevDateMs + MS_PER_DAY);
+        const currX = xToPx(currDateMs);
+        parts.push(`L ${prevEndX} ${prevY}`);
+        parts.push(`L ${prevEndX} ${concurrentBottom}`);
+        parts.push(`L ${currX} ${concurrentBottom}`);
+        parts.push(`L ${currX} ${currY}`);
+      }
+      prevDateMs = currDateMs;
+      prevY = currY;
     }
-    const tailX = xToPx(parseDate(pts[pts.length - 1].date) + MS_PER_DAY);
+    const tailX = xToPx(prevDateMs + MS_PER_DAY);
     parts.push(`L ${tailX} ${prevY}`);
     parts.push(`L ${tailX} ${concurrentBottom}`);
     parts.push('Z');
@@ -324,41 +337,44 @@ export function DeploymentTimelineChart({
     setDrag(null);
   };
 
-  // Concurrent-strip hover: find the step value at the cursor's date and
-  // surface it in the shared tooltip. Step-function semantics, so look up
-  // the latest concurrent point whose date is <= cursor date.
+  // Concurrent-strip hover: look up the count for the day under the
+  // cursor. Each signal day has its own point, so if the binary search
+  // does not land on a point whose date matches the cursor's day, the
+  // cursor is in a silent gap and the count is zero.
   const concurrentPoints = data.concurrent_cameras;
   const handleConcurrentMove = (e: React.MouseEvent<SVGRectElement>) => {
-    if (drag || concurrentPoints.length === 0) return;
+    if (drag) return;
     const x = xFromEvent(e);
     if (x < plotLeft || x > plotLeft + plotWidth) {
       setHover(null);
       return;
     }
     const cursorMs = pxToMs(x);
-    let lo = 0;
-    let hi = concurrentPoints.length - 1;
-    let idx = -1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      const midMs = parseDate(concurrentPoints[mid].date);
-      if (midMs <= cursorMs) {
-        idx = mid;
-        lo = mid + 1;
-      } else {
-        hi = mid - 1;
+    const cursorDayMs = Math.floor(cursorMs / MS_PER_DAY) * MS_PER_DAY;
+    let count = 0;
+    if (concurrentPoints.length > 0) {
+      let lo = 0;
+      let hi = concurrentPoints.length - 1;
+      let idx = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const midMs = parseDate(concurrentPoints[mid].date);
+        if (midMs <= cursorDayMs) {
+          idx = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      if (idx >= 0 && parseDate(concurrentPoints[idx].date) === cursorDayMs) {
+        count = concurrentPoints[idx].count;
       }
     }
-    if (idx < 0) {
-      setHover(null);
-      return;
-    }
-    const point = concurrentPoints[idx];
     setHover({
       x,
       y: concurrentTop,
       title: 'Cameras active',
-      subtitle: `${formatShortDate(parseDate(point.date))} · ${point.count} of ${data.sites.length}`,
+      subtitle: `${formatShortDate(cursorDayMs)} · ${count} of ${data.sites.length}`,
     });
   };
 
