@@ -792,9 +792,9 @@ export const CamerasPage: React.FC = () => {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header with title and page-level actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-1">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold mb-0">Cameras</h1>
           <p className="text-sm text-gray-600 mt-1">
@@ -828,7 +828,7 @@ export const CamerasPage: React.FC = () => {
 
       {/* Shared filter bar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
-        <div className="space-y-3 mt-4 sm:mt-0">
+        <div className="space-y-3">
           <FilterBar
             fields={filterFields}
             values={filterValues}
@@ -862,7 +862,7 @@ export const CamerasPage: React.FC = () => {
       )}
 
       {/* Tab navigation */}
-      <div className="flex border-b mb-6">
+      <div className="flex border-b">
         <button
           onClick={() => setViewMode('table')}
           className={cn(
