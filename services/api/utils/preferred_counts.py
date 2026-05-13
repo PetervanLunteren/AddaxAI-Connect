@@ -958,13 +958,14 @@ async def get_detection_history(
     if not project_ids:
         return
 
-    # Active cameras + bounding deployment dates per camera.
+    # Active cameras + bounding deployment dates per camera. `Camera.location`
+    # is unused in this codebase; per-occasion GPS is read from the matching
+    # CameraDeploymentPeriod below so a moved camera reports the correct
+    # coordinates for each occasion.
     cameras_sql = text("""
         SELECT
             c.id AS camera_id,
             c.name AS camera_name,
-            ST_Y(c.location::geometry) AS latitude,
-            ST_X(c.location::geometry) AS longitude,
             MIN(cdp.start_date) AS first_start,
             MAX(COALESCE(cdp.end_date, CURRENT_DATE)) AS last_end
         FROM cameras c
@@ -973,7 +974,7 @@ async def get_detection_history(
           AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
           AND cdp.start_date <= CAST(:end_date AS date)
           AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
-        GROUP BY c.id, c.name, c.location
+        GROUP BY c.id, c.name
         ORDER BY c.id
     """)
     cameras = (await db.execute(cameras_sql, {
@@ -986,15 +987,20 @@ async def get_detection_history(
         return
     active_camera_ids = [c.camera_id for c in cameras]
 
-    # Deployment intervals per camera so we can mark NA where a deployment did
-    # not overlap a given occasion. A camera can have several rows here.
+    # Deployment intervals per camera with their per-deployment GPS so we
+    # can stamp each (camera, occasion) row with the location the camera
+    # was actually at during that occasion. A camera can have several rows
+    # here when it was moved more than 100 m mid-window.
     deployments_sql = text("""
         SELECT camera_id, start_date AS dep_start,
-               COALESCE(end_date, CURRENT_DATE) AS dep_end
+               COALESCE(end_date, CURRENT_DATE) AS dep_end,
+               ST_Y(location::geometry) AS lat,
+               ST_X(location::geometry) AS lon
         FROM camera_deployment_periods
         WHERE camera_id = ANY(:camera_ids)
           AND start_date <= CAST(:end_date AS date)
           AND (end_date IS NULL OR end_date >= CAST(:start_date AS date))
+        ORDER BY camera_id, start_date
     """)
     dep_rows = (await db.execute(deployments_sql, {
         "camera_ids": active_camera_ids,
@@ -1003,7 +1009,13 @@ async def get_detection_history(
     })).all()
     deployments_by_camera: dict = {}
     for r in dep_rows:
-        deployments_by_camera.setdefault(r.camera_id, []).append((r.dep_start, r.dep_end))
+        # Treat POINT(0 0) as missing — the backfill script writes that as a
+        # placeholder when a deployment has no usable GPS.
+        lat = r.lat if r.lat is not None and (r.lat != 0 or r.lon != 0) else None
+        lon = r.lon if lat is not None else None
+        deployments_by_camera.setdefault(r.camera_id, []).append(
+            (r.dep_start, r.dep_end, lat, lon)
+        )
 
     # All species observed at any active camera during the window.
     species_sql = text("""
@@ -1117,10 +1129,23 @@ async def get_detection_history(
     for cam in cameras:
         deps = deployments_by_camera.get(cam.camera_id, [])
         for occ_num, occ_start, occ_end in occasions:
-            # Camera "active that occasion" if any deployment overlaps the
-            # occasion at all (single-day overlap counts, matches the chart's
-            # denominator rule).
-            active = any(d_start <= occ_end and d_end >= occ_start for d_start, d_end in deps)
+            # Find the deployment that covers this occasion. Pick the first
+            # overlapping deployment with valid GPS so a moved camera reports
+            # the correct location per occasion. Fall back to any overlapping
+            # deployment when none has GPS — the camera is still "active".
+            matching: Optional[Tuple[date, date, Optional[float], Optional[float]]] = None
+            fallback_active: Optional[Tuple[date, date, Optional[float], Optional[float]]] = None
+            for d in deps:
+                d_start, d_end, _, _ = d
+                if d_start <= occ_end and d_end >= occ_start:
+                    fallback_active = fallback_active or d
+                    if d[2] is not None:
+                        matching = d
+                        break
+            chosen = matching or fallback_active
+            active = chosen is not None
+            lat = chosen[2] if chosen else None
+            lon = chosen[3] if chosen else None
             for sp in species_list:
                 if not active:
                     detected: Optional[int] = None
@@ -1131,8 +1156,8 @@ async def get_detection_history(
                 yield {
                     "locationID": str(cam.camera_id),
                     "locationName": cam.camera_name,
-                    "latitude": round(cam.latitude, 6) if cam.latitude is not None else None,
-                    "longitude": round(cam.longitude, 6) if cam.longitude is not None else None,
+                    "latitude": round(lat, 6) if lat is not None else None,
+                    "longitude": round(lon, 6) if lon is not None else None,
                     "occasion": occ_num,
                     "occasion_start": occ_start.isoformat(),
                     "occasion_end": occ_end.isoformat(),
