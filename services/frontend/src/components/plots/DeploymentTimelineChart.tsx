@@ -53,7 +53,7 @@ function heatmapFill(count: number): string | null {
 }
 
 type Density = 'normal' | 'compact';
-type ViewMode = 'deployment' | 'heatmap';
+type ViewMode = 'bars' | 'heatmap';
 
 interface DensityConfig {
   rowHeight: number;
@@ -170,7 +170,7 @@ interface CameraHeatmap {
 export function DeploymentTimelineChart({
   data,
   density = 'normal',
-  viewMode = 'deployment',
+  viewMode = 'bars',
   onZoom,
 }: DeploymentTimelineChartProps) {
   const cfg = DENSITY[density];
@@ -466,7 +466,7 @@ export function DeploymentTimelineChart({
                   from the start-of-day of `iv.start` to the start-of-day
                   AFTER `iv.end`, so a single day always fills a full day
                   width and never collapses into a thin line. */}
-              {viewMode === 'deployment' &&
+              {viewMode === 'bars' &&
                 site.intervals.map((iv, i) => {
                   const ivStartMs = parseDate(iv.start);
                   const ivEndMs = parseDate(iv.end);

@@ -34,7 +34,7 @@ import {
   type FilterSchema,
 } from '../../lib/filter-url';
 
-type ViewMode = 'deployment' | 'heatmap';
+type ViewMode = 'bars' | 'heatmap';
 type SortBy = 'name' | 'last_image' | 'trap_nights';
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -70,7 +70,7 @@ export const DeploymentTimelinePage: React.FC = () => {
   const density = ((parsed.density as string) === 'compact' ? 'compact' : 'normal') as
     | 'normal'
     | 'compact';
-  const viewMode: ViewMode = (parsed.view_mode as string) === 'heatmap' ? 'heatmap' : 'deployment';
+  const viewMode: ViewMode = (parsed.view_mode as string) === 'heatmap' ? 'heatmap' : 'bars';
   const sortBy: SortBy = (() => {
     const v = parsed.sort_by as string;
     if (v === 'last_image' || v === 'trap_nights') return v;
@@ -104,7 +104,7 @@ export const DeploymentTimelinePage: React.FC = () => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
       density: density === 'normal' ? undefined : density,
-      view_mode: viewMode === 'deployment' ? undefined : viewMode,
+      view_mode: viewMode === 'bars' ? undefined : viewMode,
       sort_by: sortBy === 'name' ? undefined : sortBy,
       ...next,
     };
@@ -159,7 +159,7 @@ export const DeploymentTimelinePage: React.FC = () => {
         key: 'view_mode',
         label: 'View mode',
         options: [
-          { value: 'deployment', label: 'Deployment' },
+          { value: 'bars', label: 'Bars' },
           { value: 'heatmap', label: 'Heatmap' },
         ],
       },
