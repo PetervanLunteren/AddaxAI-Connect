@@ -170,7 +170,7 @@ export const NaiveOccupancyPage: React.FC = () => {
 
   return (
     <InsightsPageLayout
-      title="Naive occupancy"
+      title="Occupancy"
       subtitle={subtitle}
       actions={
         <a

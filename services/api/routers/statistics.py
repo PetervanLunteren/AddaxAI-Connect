@@ -1342,33 +1342,19 @@ async def _avg_camera_location_for_projects(
     project_ids: List[int],
     camera_ids: Optional[List[int]],
 ) -> Optional[Tuple[float, float]]:
-    """Mean lat/lon across cameras with a location, restricted to the
-    project + (optional) camera-id filter. None when no usable points.
-
-    Distinct from the synchronous `_avg_camera_location(camera_configs)`
-    above. Python's late-binding name resolution made the older sync
-    callsite resolve to this async version, raising
-    `TypeError: missing 2 required positional arguments`. Renamed to
-    keep the two helpers separable.
-    """
+    """Mean lat/lon across cameras with a GPS reading, restricted to the
+    project + (optional) camera-id filter. Reads
+    `Camera.config['gps_from_report']` like the synchronous
+    `_avg_camera_location` above so both endpoints see the same source
+    of truth. The PostGIS `Camera.location` column was previously read
+    here but is unused in practice."""
     if not project_ids:
         return None
-    sql = """
-        SELECT
-            AVG(ST_Y(location::geometry)) AS lat,
-            AVG(ST_X(location::geometry)) AS lon
-        FROM cameras
-        WHERE project_id = ANY(:project_ids)
-          AND location IS NOT NULL
-          AND (CAST(:camera_ids AS integer[]) IS NULL OR id = ANY(CAST(:camera_ids AS integer[])))
-    """
-    row = (await db.execute(text(sql), {
-        "project_ids": project_ids,
-        "camera_ids": camera_ids,
-    })).one()
-    if row.lat is None or row.lon is None:
-        return None
-    return float(row.lat), float(row.lon)
+    stmt = select(Camera.config).where(Camera.project_id.in_(project_ids))
+    if camera_ids:
+        stmt = stmt.where(Camera.id.in_(camera_ids))
+    configs = (await db.execute(stmt)).scalars().all()
+    return _avg_camera_location(configs)
 
 
 def _build_species_activity(

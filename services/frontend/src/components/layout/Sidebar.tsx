@@ -63,8 +63,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/insights/deployment-timeline`, icon: GanttChartSquare, label: 'Timeline' },
     { to: `/projects/${projectId}/insights/activity-overlap`, icon: LineChart, label: 'Activity overlap' },
     { to: `/projects/${projectId}/insights/confusion-matrix`, icon: Grid3x3, label: 'Confusion matrix' },
-    { to: `/projects/${projectId}/insights/per-class-performance`, icon: Table2, label: 'Per-class performance' },
-    { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
+    { to: `/projects/${projectId}/insights/per-class-performance`, icon: Table2, label: 'Performance' },
+    { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Occupancy' },
   ];
 
   // Admin tools - visible to project admins and server admins

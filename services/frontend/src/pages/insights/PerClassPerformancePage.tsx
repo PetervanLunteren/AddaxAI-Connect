@@ -163,7 +163,7 @@ export const PerClassPerformancePage: React.FC = () => {
 
   return (
     <InsightsPageLayout
-      title="Per-class performance"
+      title="Performance"
       subtitle="Per-class precision, recall, F1, plus macro and weighted averages"
     >
       {isLoading ? (
