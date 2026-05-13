@@ -90,6 +90,11 @@ export const NaiveOccupancyPage: React.FC = () => {
     queryFn: () => camerasApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
+  const { data: overview } = useQuery({
+    queryKey: ['statistics', 'overview', projectId],
+    queryFn: () => statisticsApi.getOverview(projectId),
+    enabled: projectId !== undefined,
+  });
 
   const filterValues: Record<string, FilterValue> = {
     date_from: dateRange.startDate ?? undefined,
@@ -139,9 +144,11 @@ export const NaiveOccupancyPage: React.FC = () => {
         fromKey: 'date_from',
         toKey: 'date_to',
         label: 'Date range',
+        minDate: overview?.first_image_date,
+        maxDate: overview?.last_image_date,
       },
     ],
-    [cameras, tagOptions],
+    [cameras, tagOptions, overview],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -168,15 +175,17 @@ export const NaiveOccupancyPage: React.FC = () => {
   const [downloading, setDownloading] = useState(false);
 
   // CSV uses the page's date filter when set. When the user has not
-  // picked a window, fall back to the last 90 days — short enough to
-  // keep occasions meaningful in unmarked / camtrapR, long enough to be
-  // ecologically useful. The chart's own window is untouched, so the
-  // CSV and the chart can intentionally show different ranges.
+  // picked a window, fall back to the project's full lifetime (first
+  // image to last image) so the default download covers all available
+  // data. The chart's own window is untouched, so the CSV and the
+  // chart can intentionally show different ranges.
   const handleDownload = async () => {
     if (!projectId || downloading) return;
-    let from = dateRange.startDate;
-    let to = dateRange.endDate;
+    let from = dateRange.startDate || overview?.first_image_date;
+    let to = dateRange.endDate || overview?.last_image_date;
     if (!from || !to) {
+      // Fallback when the project has no images yet: 90-day window
+      // ending today so the request still has valid bounds.
       const today = new Date();
       const past = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
       const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -221,7 +230,7 @@ export const NaiveOccupancyPage: React.FC = () => {
           title={
             dateRange.startDate && dateRange.endDate
               ? 'Site-by-occasion CSV for unmarked or camtrapR'
-              : 'Site-by-occasion CSV for unmarked or camtrapR. Defaults to the last 90 days; set a date range above to override.'
+              : 'Site-by-occasion CSV for unmarked or camtrapR. Defaults to the full project window; set a date range above to override.'
           }
         >
           <Download className="h-4 w-4" />
