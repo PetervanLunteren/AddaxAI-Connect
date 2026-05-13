@@ -31,10 +31,11 @@ export function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-// Brand gradient from FRONTEND_CONVENTIONS.md: dark teal (high) to light
-// yellow (low).
-const GRADIENT_HIGH = { r: 0x0f, g: 0x60, b: 0x64 }; // #0f6064
-const GRADIENT_LOW = { r: 0xf9, g: 0xf8, b: 0x71 };  // #f9f871
+// Single-hue teal intensity ramp matching AddaxAI WebUI's matrixCellColor.
+// Low end is a pale teal so faint cells stay readable; high end is the
+// brand teal #0f6064. F1 column reuses the same ramp.
+const TEAL_LOW = { r: 0xe3, g: 0xf0, b: 0xf0 };  // #e3f0f0
+const TEAL_HIGH = { r: 0x0f, g: 0x60, b: 0x64 }; // #0f6064
 
 function lerp(a: number, b: number, t: number): number {
   return Math.round(a + (b - a) * t);
@@ -43,9 +44,9 @@ function lerp(a: number, b: number, t: number): number {
 export function gradientStyle(t: number): React.CSSProperties {
   if (t <= 0) return {};
   const clamped = Math.max(0, Math.min(1, t));
-  const r = lerp(GRADIENT_LOW.r, GRADIENT_HIGH.r, clamped);
-  const g = lerp(GRADIENT_LOW.g, GRADIENT_HIGH.g, clamped);
-  const b = lerp(GRADIENT_LOW.b, GRADIENT_HIGH.b, clamped);
+  const r = lerp(TEAL_LOW.r, TEAL_HIGH.r, clamped);
+  const g = lerp(TEAL_LOW.g, TEAL_HIGH.g, clamped);
+  const b = lerp(TEAL_LOW.b, TEAL_HIGH.b, clamped);
   return {
     backgroundColor: `rgb(${r}, ${g}, ${b})`,
     // Flip text colour to white once the background gets dark enough that

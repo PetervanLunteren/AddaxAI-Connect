@@ -2499,12 +2499,16 @@ class PerformanceResponse(BaseModel):
 @router.get("/performance", response_model=PerformanceResponse)
 async def get_performance(
     project_id: int = Query(..., description="Project to compute performance for"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Compare AI predictions against human verifications for a project.
+    Compare AI predictions against human verifications for a project,
+    optionally narrowed by camera ids and a captured_at date window.
 
     Returns two views computed in a single pass over the verified images:
 
@@ -2535,8 +2539,15 @@ async def get_performance(
             detail=f"Project {project_id} not found",
         )
 
+    camera_id_list = (
+        [int(x.strip()) for x in camera_ids.split(',') if x.strip()]
+        if camera_ids
+        else None
+    )
+
     # Fetch verified, classified, non-hidden images for this project with
     # their detections and human observations eagerly loaded. One query.
+    # camera_ids and date window apply when set.
     query = (
         select(Image)
         .join(Camera, Image.camera_id == Camera.id)
@@ -2551,6 +2562,16 @@ async def get_performance(
             selectinload(Image.detections).selectinload(Detection.classifications),
         )
     )
+    if camera_id_list:
+        query = query.where(Image.camera_id.in_(camera_id_list))
+    if start_date is not None:
+        query = query.where(
+            Image.captured_at >= datetime.combine(start_date, datetime.min.time())
+        )
+    if end_date is not None:
+        query = query.where(
+            Image.captured_at <= datetime.combine(end_date, datetime.max.time())
+        )
     result = await db.execute(query)
     images = result.scalars().unique().all()
 

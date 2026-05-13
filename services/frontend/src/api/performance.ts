@@ -24,11 +24,30 @@ export interface PerformanceData {
   matrix_accuracy: number;
 }
 
+export interface PerformanceFilters {
+  /** Comma-separated camera IDs */
+  camera_ids?: string;
+  /** YYYY-MM-DD */
+  start_date?: string;
+  /** YYYY-MM-DD */
+  end_date?: string;
+}
+
 export const performanceApi = {
-  get: async (projectId: number): Promise<PerformanceData> => {
+  get: async (
+    projectId: number,
+    filters?: PerformanceFilters,
+  ): Promise<PerformanceData> => {
     const response = await apiClient.get<PerformanceData>(
       '/api/statistics/performance',
-      { params: { project_id: projectId } },
+      {
+        params: {
+          project_id: projectId,
+          camera_ids: filters?.camera_ids,
+          start_date: filters?.start_date,
+          end_date: filters?.end_date,
+        },
+      },
     );
     return response.data;
   },
