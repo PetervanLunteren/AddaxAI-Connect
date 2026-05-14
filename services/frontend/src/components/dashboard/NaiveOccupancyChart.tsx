@@ -57,20 +57,29 @@ const correctedPsiMarkerPlugin: Plugin<'bar'> = {
       if (x < chartArea.left || x > chartArea.right) continue;
 
       // CI whisker through the diamond. End caps make it read as a
-      // range marker, not just a stray line.
+      // range marker, not just a stray line. Drawn twice — a wider
+      // white pass first, then the dark teal on top — so the line
+      // picks up the same white outline the diamond has and stays
+      // legible against any background.
       if (p.psi_ci_low != null && p.psi_ci_high != null) {
         const xLow = Math.max(chartArea.left, xScale.getPixelForValue(p.psi_ci_low * 100));
         const xHigh = Math.min(chartArea.right, xScale.getPixelForValue(p.psi_ci_high * 100));
+        const drawWhisker = () => {
+          ctx.beginPath();
+          ctx.moveTo(xLow, y);
+          ctx.lineTo(xHigh, y);
+          ctx.moveTo(xLow, y - CAP_HALF);
+          ctx.lineTo(xLow, y + CAP_HALF);
+          ctx.moveTo(xHigh, y - CAP_HALF);
+          ctx.lineTo(xHigh, y + CAP_HALF);
+          ctx.stroke();
+        };
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3.5;
+        drawWhisker();
         ctx.strokeStyle = '#0a3e41';
         ctx.lineWidth = 1.25;
-        ctx.beginPath();
-        ctx.moveTo(xLow, y);
-        ctx.lineTo(xHigh, y);
-        ctx.moveTo(xLow, y - CAP_HALF);
-        ctx.lineTo(xLow, y + CAP_HALF);
-        ctx.moveTo(xHigh, y - CAP_HALF);
-        ctx.lineTo(xHigh, y + CAP_HALF);
-        ctx.stroke();
+        drawWhisker();
       }
 
       // Filled diamond at psi. White stroke so the shape stays visible
@@ -143,7 +152,11 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
           data: points.map((p) => +(p.proportion * 100).toFixed(1)),
           // Light brand-teal fill so the dark diamond + CI whisker stay
           // legible whether the marker sits over the bar or past its end.
+          // Dark teal border gives the bar shape definition against the
+          // light fill.
           backgroundColor: '#a3c8ca',
+          borderColor: '#0f6064',
+          borderWidth: 1,
           borderRadius: 4,
         },
       ],
