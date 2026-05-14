@@ -37,6 +37,9 @@ const FILTER_SCHEMA: FilterSchema = {
   verified: 'string',
   liked: 'string',
   needs_review: 'string',
+  // Confusion-matrix cell-click filters. Image-level top-1, see images.py.
+  human_top: 'string',
+  ai_top: 'string',
 };
 
 const asStringArray = (v: string | string[] | undefined): string[] =>
@@ -67,6 +70,8 @@ export const ImagesPage: React.FC = () => {
   const verified = asString(parsed.verified) as '' | 'true' | 'false';
   const liked = asString(parsed.liked) as '' | 'true' | 'false';
   const needsReview = asString(parsed.needs_review) as '' | 'true' | 'false';
+  const humanTop = asString(parsed.human_top);
+  const aiTop = asString(parsed.ai_top);
 
   const filterValues = useMemo<Record<string, FilterValue>>(
     () => ({
@@ -78,8 +83,10 @@ export const ImagesPage: React.FC = () => {
       verified: verified || undefined,
       liked: liked || undefined,
       needs_review: needsReview || undefined,
+      human_top: humanTop || undefined,
+      ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview],
+    [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -115,6 +122,8 @@ export const ImagesPage: React.FC = () => {
         verified: verified || undefined,
         liked: liked || undefined,
         needs_review: needsReview || undefined,
+        human_top: humanTop || undefined,
+        ai_top: aiTop || undefined,
       }),
     enabled: projectId !== undefined,
   });
@@ -297,9 +306,15 @@ export const ImagesPage: React.FC = () => {
       limit,
       project_id: projectId,
       camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
+      tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
       species: speciesValues.length > 0 ? speciesValues.join(',') : undefined,
+      verified: verified || undefined,
+      liked: liked || undefined,
+      needs_review: needsReview || undefined,
+      human_top: humanTop || undefined,
+      ai_top: aiTop || undefined,
     };
 
     // On last image of page → prefetch next page's first image UUID

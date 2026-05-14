@@ -11,6 +11,8 @@ export interface ImageFilters {
   start_date?: string;
   end_date?: string;
   species?: string;
+  human_top?: string;  // Image-level top-1 human observation species (confusion-matrix click)
+  ai_top?: string;     // Image-level top-1 AI prediction species (confusion-matrix click)
   show_empty?: boolean;
   verified?: string;  // "true", "false", or undefined for all
   liked?: string;  // "true", "false", or undefined for all
