@@ -132,18 +132,22 @@ export const NotificationsPage: React.FC = () => {
           value: species
         })));
 
-        // Per-camera scope. null/missing => empty selection = all cameras.
-        // A stored list maps to Option chips; ids no longer in the project
-        // are dropped so a deleted camera does not haunt the picker.
-        const storedCameraIds: number[] = Array.isArray(speciesConfig.notify_cameras)
-          ? speciesConfig.notify_cameras
-          : [];
+        // Per-camera scope. Cameras now behave like notify_species: the list
+        // is required, an empty list means no alerts. Rows that pre-date this
+        // feature (notify_cameras missing or null) are read as 'every camera
+        // in the project' and the picker pre-fills with all options, so the
+        // user can see the current scope and save explicitly.
         const cameraOptionById = new Map(cameraOptions.map((opt) => [opt.value as number, opt]));
-        setTelegramNotifyCameras(
-          storedCameraIds
-            .map((cid) => cameraOptionById.get(cid))
-            .filter((opt): opt is Option => Boolean(opt))
-        );
+        const storedNotifyCameras = speciesConfig.notify_cameras;
+        if (Array.isArray(storedNotifyCameras)) {
+          setTelegramNotifyCameras(
+            storedNotifyCameras
+              .map((cid: number) => cameraOptionById.get(cid))
+              .filter((opt): opt is Option => Boolean(opt))
+          );
+        } else {
+          setTelegramNotifyCameras(cameraOptions);
+        }
 
         // Email reports configuration
         const emailReportConfig = notificationChannels.email_report || {};
@@ -236,12 +240,11 @@ export const NotificationsPage: React.FC = () => {
     // Use Telegram settings for legacy fields
     const legacySpeciesValues = isTelegramLinked ? telegramNotifySpecies.map(opt => opt.value) : [];
 
-    // Camera scope: empty selection = null (all cameras). Non-empty list of
-    // ids restricts the rule engine. Only emitted when Telegram is linked;
-    // otherwise the species_detection block is inert anyway.
-    const cameraScope: number[] | null = telegramNotifyCameras.length > 0
+    // Camera scope mirrors species: an explicit list of ids that must
+    // contain the event's camera. An empty list means no alerts.
+    const cameraScope: number[] = isTelegramLinked
       ? telegramNotifyCameras.map(opt => Number(opt.value))
-      : null;
+      : [];
 
     // Build notification_channels JSON with per-channel configuration
     const notificationChannels = {
@@ -251,7 +254,7 @@ export const NotificationsPage: React.FC = () => {
         notify_species: isTelegramLinked
           ? telegramNotifySpecies.map(opt => opt.value)
           : [],
-        notify_cameras: isTelegramLinked ? cameraScope : null,
+        notify_cameras: cameraScope,
       },
       email_report: {
         enabled: reportFrequency !== 'disabled',
@@ -305,12 +308,12 @@ export const NotificationsPage: React.FC = () => {
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked
-                      ? 'Receive an instant Telegram message with a photo each time a selected label is detected. Pick the labels you want to be alerted about. Optionally limit the alerts to specific cameras, or leave the camera list empty to include all cameras in this project.'
+                      ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. Both lists must contain at least one entry, otherwise no alerts fire.'
                       : isTelegramConfigured
-                        ? 'Receive an instant Telegram message with a photo each time a selected label is detected, optionally limited to specific cameras. Link your Telegram account to get started.'
+                        ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. Link your Telegram account to get started.'
                         : user?.is_superuser
-                          ? 'Receive an instant Telegram message with a photo each time a selected label is detected, optionally limited to specific cameras. A Telegram bot has not been configured yet.'
-                          : 'Receive an instant Telegram message with a photo each time a selected label is detected, optionally limited to specific cameras. A Telegram bot has not been configured for this server yet.'
+                          ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. A Telegram bot has not been configured yet.'
+                          : 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. A Telegram bot has not been configured for this server yet.'
                     }
                   </p>
                 </div>

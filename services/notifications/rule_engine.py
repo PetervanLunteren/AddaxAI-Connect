@@ -172,8 +172,12 @@ def _evaluate_json_preferences(
         if not notify_species or species not in notify_species:
             return None
 
-        # Camera scope. notify_cameras absent or null = all cameras (default).
-        # A list (including the empty list) restricts to those camera ids.
+        # Camera scope mirrors notify_species: when present the list must
+        # contain the event's camera_id, otherwise the event is dropped.
+        # An empty list silences every camera. Missing key or null is the
+        # legacy bypass for rows saved before this filter shipped, treated
+        # as 'every camera in the project' so existing prefs do not go
+        # dark before the user reopens the notifications page.
         notify_cameras = type_config.get('notify_cameras')
         if notify_cameras is not None:
             if event.get('camera_id') not in notify_cameras:

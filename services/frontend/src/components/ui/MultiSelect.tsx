@@ -95,9 +95,14 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
     onChange(value.filter(v => !visibleValues.has(v.value)));
   };
 
-  const triggerLabel = value.length > 0
-    ? `${value.length} ${selectedNoun ? selectedNoun + ' ' : ''}selected`
-    : placeholder;
+  // When the caller passes selectedNoun, the trigger always shows the count
+  // ('0 cameras selected', '5 cameras selected'). The placeholder only kicks
+  // in for callers that did not opt into the named-count format.
+  const triggerLabel = selectedNoun
+    ? `${value.length} ${selectedNoun} selected`
+    : value.length > 0
+      ? `${value.length} selected`
+      : placeholder;
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
