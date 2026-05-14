@@ -276,16 +276,28 @@ export const NaiveOccupancyPage: React.FC = () => {
           <p>
             For each species, the share of camera sites where it was detected at least once in
             the window. Bars are ranked from most-detected to least and labelled with the raw
-            "detected at X of Y sites" count so small samples are easy to spot.
+            "detected at X of Y sites" count so small samples are easy to spot. A small darker
+            tick on each bar marks the model-corrected occupancy that accounts for cameras
+            missing the species when it was there.
           </p>
         }
         how={
-          <p>
-            A camera counts as an active site if any of its deployment periods overlaps the
-            window, even by a single day. Person and vehicle detections are excluded. Verified
-            images override the AI label for the same image. "Naive" means the chart shows raw
-            presence and does not correct for the chance that a species was there but missed.
-          </p>
+          <>
+            <p>
+              A camera counts as an active site if any of its deployment periods overlaps the
+              window, even by a single day. Person and vehicle detections are excluded. Verified
+              images override the AI label for the same image. "Naive" means the bar shows raw
+              presence and does not correct for the chance that a species was there but missed.
+            </p>
+            <p>
+              The tick on each bar is a single-season MacKenzie 2002 occupancy fit per species
+              with constant detection probability and 7-day occasions. The tooltip reports the
+              corrected value with a 95% Wald confidence interval. The corrected number is null
+              when there are fewer than three sites, when all or no sites detected the species,
+              or when the fit doesn't converge. For publication-grade estimates with covariates,
+              export the CSV and run unmarked or camtrapR in R.
+            </p>
+          </>
         }
       />
     </InsightsPageLayout>

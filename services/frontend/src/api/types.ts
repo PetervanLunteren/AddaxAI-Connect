@@ -566,6 +566,12 @@ export interface NaiveOccupancyPoint {
   sites_detected: number;
   sites_total: number;
   proportion: number;
+  // MacKenzie 2002 single-season fit. Null when the model was skipped
+  // (too few sites) or did not converge. CI bounds are null when psi
+  // sits on a boundary (no Wald SE).
+  psi?: number | null;
+  psi_ci_low?: number | null;
+  psi_ci_high?: number | null;
 }
 
 export interface NaiveOccupancyMetadata {

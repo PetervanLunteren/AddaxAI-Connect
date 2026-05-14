@@ -30,8 +30,10 @@ from utils.preferred_counts import (
     get_preferred_species_camera_matrix,
     get_naive_occupancy,
     get_detection_history,
+    build_detection_matrix,
     get_preferred_species_detection_times,
 )
+from utils.occupancy_model import fit_single_season_occupancy
 from utils.activity_analysis import (
     BOOTSTRAP_REPS,
     KDE_GRID_SAMPLES,
@@ -1188,6 +1190,11 @@ class NaiveOccupancyPoint(BaseModel):
     sites_detected: int
     sites_total: int
     proportion: float  # sites_detected / sites_total, 0.0 when sites_total == 0
+    # Single-season MacKenzie 2002 fit (M_0). Null when the model was
+    # skipped (too few sites) or did not converge.
+    psi: Optional[float] = None
+    psi_ci_low: Optional[float] = None
+    psi_ci_high: Optional[float] = None
 
 
 class NaiveOccupancyMetadata(BaseModel):
@@ -1262,15 +1269,62 @@ async def get_naive_occupancy_endpoint(
         camera_ids=camera_id_list,
         top_n=top_n,
     )
-    points = [
-        NaiveOccupancyPoint(
-            species=p["species"],
-            sites_detected=p["sites_detected"],
-            sites_total=sites_total,
-            proportion=(p["sites_detected"] / sites_total) if sites_total > 0 else 0.0,
+    # Build the detection matrix once for the top-N species and fit the
+    # MacKenzie 2002 single-season model per species. 7-day occasions
+    # keep fits stable when daily detections are sparse; users running
+    # publication-grade analyses go through the CSV export instead.
+    species_subset = [p["species"] for p in points_raw]
+    matrices: Dict[str, list] = {}
+    if species_subset and sites_total > 0:
+        # Clamp the wide sentinels to the project's actual span so the
+        # matrix doesn't carry hundreds of empty pre-1900 occasions.
+        first_image_dt: Optional[datetime] = None
+        last_image_dt: Optional[datetime] = None
+        if accessible_project_ids:
+            ext_row = (await db.execute(
+                select(
+                    func.min(Image.captured_at),
+                    func.max(Image.captured_at),
+                )
+                .join(Camera, Image.camera_id == Camera.id)
+                .where(Camera.project_id.in_(accessible_project_ids))
+            )).one_or_none()
+            if ext_row is not None:
+                first_image_dt, last_image_dt = ext_row
+        eff_start_date = (start_dt.date() if start_date is not None
+                          else (first_image_dt.date() if first_image_dt else None))
+        eff_end_date = (end_dt.date() if end_date is not None
+                        else (last_image_dt.date() if last_image_dt else None))
+        if eff_start_date is not None and eff_end_date is not None and eff_start_date <= eff_end_date:
+            matrices = await build_detection_matrix(
+                db=db,
+                project_ids=accessible_project_ids,
+                start_date=eff_start_date,
+                end_date=eff_end_date,
+                species_subset=species_subset,
+                camera_ids=camera_id_list,
+                occasion_length_days=7,
+            )
+
+    points: List[NaiveOccupancyPoint] = []
+    for p in points_raw:
+        sp = p["species"]
+        fit = (
+            fit_single_season_occupancy(matrices[sp])
+            if sp in matrices and matrices[sp]
+            else None
         )
-        for p in points_raw
-    ]
+        points.append(
+            NaiveOccupancyPoint(
+                species=sp,
+                sites_detected=p["sites_detected"],
+                sites_total=sites_total,
+                proportion=(p["sites_detected"] / sites_total) if sites_total > 0 else 0.0,
+                psi=fit.psi if fit else None,
+                psi_ci_low=fit.psi_ci_low if fit else None,
+                psi_ci_high=fit.psi_ci_high if fit else None,
+            )
+        )
 
     # Surface per-project thresholds in the metadata only when a single project
     # is in scope; cross-project views can't summarise into one number.

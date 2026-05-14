@@ -20,13 +20,54 @@ import {
   Tooltip,
   ChartOptions,
 } from 'chart.js';
-import type { ChartData } from 'chart.js';
+import type { ChartData, Plugin } from 'chart.js';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
-import type { NaiveOccupancyMetadata } from '../../api/types';
+import type { NaiveOccupancyMetadata, NaiveOccupancyPoint } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
+// Plugin that draws a small vertical tick at each bar's corrected psi
+// value (in percent). Skipped for species without a fitted psi. Reads
+// the points array from the plugin options so the data passes through
+// Chart.js's typings cleanly without coupling to dataset internals.
+const correctedPsiMarkerPlugin: Plugin<'bar'> = {
+  id: 'correctedPsiMarker',
+  afterDatasetsDraw(chart, _args, options) {
+    const opts = options as { points?: NaiveOccupancyPoint[] };
+    const points = opts.points;
+    if (!points) return;
+    const { ctx, chartArea, scales } = chart;
+    const xScale = scales.x;
+    const yScale = scales.y;
+    if (!xScale || !yScale) return;
+    const meta = chart.getDatasetMeta(0);
+    if (!meta || !meta.data) return;
+
+    ctx.save();
+    ctx.strokeStyle = '#0a3e41';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      if (p.psi == null) continue;
+      const bar = meta.data[i] as unknown as { y: number; height: number };
+      if (!bar) continue;
+      const x = xScale.getPixelForValue(p.psi * 100);
+      if (x < chartArea.left || x > chartArea.right) continue;
+      const half = (bar.height || 16) / 2 - 1;
+      ctx.beginPath();
+      ctx.moveTo(x, bar.y - half);
+      ctx.lineTo(x, bar.y + half);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+};
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, correctedPsiMarkerPlugin);
+
+function formatPct(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
 
 interface NaiveOccupancyChartProps {
   dateRange: DateRange;
@@ -93,11 +134,18 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
             const idx = context.dataIndex;
             const p = points[idx];
             if (!p) return '';
-            const pct = (p.proportion * 100).toFixed(1);
-            return `${p.sites_detected} of ${p.sites_total} active sites (${pct}%), uncorrected for detection`;
+            const naive = `${p.sites_detected} of ${p.sites_total} active sites (${formatPct(p.proportion)}), uncorrected for detection`;
+            if (p.psi == null) return naive;
+            const ci =
+              p.psi_ci_low != null && p.psi_ci_high != null
+                ? ` (95% CI ${formatPct(p.psi_ci_low)} - ${formatPct(p.psi_ci_high)})`
+                : '';
+            return [naive, `Corrected: ${formatPct(p.psi)}${ci}`];
           },
         },
       },
+      // @ts-expect-error custom plugin options aren't in Chart.js's typings
+      correctedPsiMarker: { points },
     },
     scales: {
       x: {

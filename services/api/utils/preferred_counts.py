@@ -4,7 +4,7 @@ Utility functions for querying species counts with human verification preference
 When an image is verified, uses HumanObservation data.
 When not verified, falls back to AI Detection/Classification data.
 """
-from typing import AsyncGenerator, List, Optional, Tuple
+from typing import AsyncGenerator, Dict, List, Optional, Tuple
 from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, union_all, literal, text
@@ -937,6 +937,70 @@ async def get_naive_occupancy(
 # occasion), 0 (camera active that occasion with no detection of that species),
 # or None when the camera was not active that occasion (mapped to NA in the CSV
 # via an empty cell, matching unmarked / camtrapR conventions).
+async def build_detection_matrix(
+    db: AsyncSession,
+    project_ids: List[int],
+    start_date: date,
+    end_date: date,
+    species_subset: List[str],
+    camera_ids: Optional[List[int]] = None,
+    occasion_length_days: int = 7,
+) -> Dict[str, List[List[Optional[int]]]]:
+    """In-memory site x occasion detection matrix per species.
+
+    Same data shape `get_detection_history` streams to CSV, but
+    grouped by species and materialised so a server-side occupancy
+    fitter can iterate over it. Returns
+    `{species: [[per_occasion, ...], ...one row per active camera...]}`
+    where each cell is `1` (detected), `0` (active, no detection), or
+    `None` (camera inactive that occasion).
+
+    `species_subset` filters which species appear in the result; pass
+    the species the caller actually intends to fit. The streaming
+    generator already emits dense cells for every camera x occasion x
+    project-species combination, so the matrix is exact when the
+    caller's subset is contained in the project's observed species.
+    """
+    species_lower = {s.lower() for s in species_subset}
+    if not species_lower:
+        return {}
+
+    # (camera_id, occasion_num) -> species -> detected
+    grid: Dict[Tuple[str, int], Dict[str, Optional[int]]] = {}
+    cameras_seen: set[str] = set()
+    occasions_seen: set[int] = set()
+    async for row in get_detection_history(
+        db=db,
+        project_ids=project_ids,
+        start_date=start_date,
+        end_date=end_date,
+        camera_ids=camera_ids,
+        occasion_length_days=occasion_length_days,
+    ):
+        sp = row["species"]
+        if sp not in species_lower:
+            continue
+        key = (row["locationID"], row["occasion"])
+        cameras_seen.add(row["locationID"])
+        occasions_seen.add(row["occasion"])
+        grid.setdefault(key, {})[sp] = row["detected"]
+
+    sorted_cams = sorted(cameras_seen, key=lambda s: int(s) if s.isdigit() else s)
+    sorted_occs = sorted(occasions_seen)
+
+    out: Dict[str, List[List[Optional[int]]]] = {}
+    for sp_label in species_subset:
+        sp = sp_label.lower()
+        matrix: List[List[Optional[int]]] = []
+        for cam in sorted_cams:
+            history: List[Optional[int]] = []
+            for occ in sorted_occs:
+                history.append(grid.get((cam, occ), {}).get(sp))
+            matrix.append(history)
+        out[sp_label] = matrix
+    return out
+
+
 async def get_detection_history(
     db: AsyncSession,
     project_ids: List[int],
