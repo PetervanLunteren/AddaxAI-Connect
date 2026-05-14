@@ -141,7 +141,9 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
         {
           label: 'Naive occupancy',
           data: points.map((p) => +(p.proportion * 100).toFixed(1)),
-          backgroundColor: '#0f6064',
+          // Light brand-teal fill so the dark diamond + CI whisker stay
+          // legible whether the marker sits over the bar or past its end.
+          backgroundColor: '#a3c8ca',
           borderRadius: 4,
         },
       ],
@@ -162,13 +164,13 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
             const idx = context.dataIndex;
             const p = points[idx];
             if (!p) return '';
-            const naive = `${p.sites_detected} of ${p.sites_total} active sites (${formatPct(p.proportion)}), uncorrected for detection`;
+            const naive = `Detected at ${p.sites_detected} of ${p.sites_total} active sites (${formatPct(p.proportion)})`;
             if (p.psi == null) return naive;
             const ci =
               p.psi_ci_low != null && p.psi_ci_high != null
-                ? ` (95% CI ${formatPct(p.psi_ci_low)} - ${formatPct(p.psi_ci_high)})`
+                ? ` (95% CI ${formatPct(p.psi_ci_low)} to ${formatPct(p.psi_ci_high)})`
                 : '';
-            return [naive, `Corrected: ${formatPct(p.psi)}${ci}`];
+            return [naive, `Corrected ${formatPct(p.psi)}${ci}`];
           },
         },
       },
