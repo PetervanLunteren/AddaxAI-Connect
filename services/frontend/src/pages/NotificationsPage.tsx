@@ -6,11 +6,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
-import { Loader2, Save, X, MessageCircle, ChevronDown, Link2, Unlink2 } from 'lucide-react';
+import { Loader2, Save, MessageCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toaster';
 import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
@@ -215,19 +214,6 @@ export const NotificationsPage: React.FC = () => {
     generateTokenMutation.mutate();
   };
 
-  // Unlink Telegram mutation
-  const unlinkMutation = useMutation({
-    mutationFn: () => notificationsApi.unlinkTelegram(projectIdNum),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['telegram-link-status', projectIdNum] });
-      queryClient.invalidateQueries({ queryKey: ['notification-preferences', projectIdNum] });
-      toast.success('Telegram account unlinked');
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to unlink Telegram: ${error.response?.data?.detail || error.message}`);
-    },
-  });
-
   // Lightweight count query so the row-level summary on this page can show
   // "N scheduled reminders" without duplicating the full list logic that
   // already lives in RemindersSheet.
@@ -239,9 +225,6 @@ export const NotificationsPage: React.FC = () => {
   const activeReminderCount = (reminders || []).filter(
     (r) => !r.sent_at && !r.cancelled_at,
   ).length;
-
-  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
-  const handleUnlink = () => setShowUnlinkConfirm(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -313,103 +296,77 @@ export const NotificationsPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
 
-              {/* Species alerts row */}
-              <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+              {/* Real-time detection alerts row. Species and camera scope sit in
+                  one column on the right so they read as one notification type,
+                  not two. When Telegram is not yet linked the pickers are greyed
+                  via opacity-50 and the call-to-action sits under them. */}
+              <div className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked
-                      ? 'Receive an instant Telegram message with a photo each time a selected species is detected. Leave empty for no Telegram notifications.'
+                      ? 'Receive an instant Telegram message with a photo when a selected species is detected. Leave the camera list empty to receive alerts from every camera in this project.'
                       : isTelegramConfigured
-                        ? 'Receive an instant Telegram message with a photo each time a species is detected. Link your Telegram account to get started.'
+                        ? 'Receive an instant Telegram message with a photo when a selected species is detected. Link your Telegram account to get started.'
                         : user?.is_superuser
-                          ? 'Receive an instant Telegram message with a photo each time a species is detected. A Telegram bot has not been configured yet.'
-                          : 'Receive an instant Telegram message with a photo each time a species is detected. A Telegram bot has not been configured for this server yet.'
+                          ? 'Receive an instant Telegram message with a photo when a selected species is detected. A Telegram bot has not been configured yet.'
+                          : 'Receive an instant Telegram message with a photo when a selected species is detected. A Telegram bot has not been configured for this server yet.'
                     }
                   </p>
                 </div>
-                <div className="w-full flex flex-col gap-2 sm:flex-1 sm:flex-row sm:items-center sm:gap-3">
-                  <div className="w-full sm:flex-[2]">
-                    <MultiSelect
-                      options={speciesOptions}
-                      value={telegramNotifySpecies}
-                      onChange={setTelegramNotifySpecies}
-                      placeholder="Select species to notify about..."
-                    />
-                  </div>
-                  <div className="w-full flex sm:flex-1 sm:justify-end">
-                    {isTelegramLinked ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={handleUnlink}
-                        disabled={unlinkMutation.isPending}
-                        className="w-full whitespace-nowrap pointer-events-auto"
-                      >
-                        {unlinkMutation.isPending ? (
-                          <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Unlinking...</>
-                        ) : (
-                          'Unlink Telegram'
-                        )}
-                      </Button>
-                    ) : isTelegramConfigured ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={handleGenerateLink}
-                        disabled={generateTokenMutation.isPending}
-                        className="w-full whitespace-nowrap pointer-events-auto"
-                      >
-                        {generateTokenMutation.isPending ? (
-                          <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
-                        ) : (
-                          'Link Telegram'
-                        )}
-                      </Button>
-                    ) : user?.is_superuser ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={() => window.location.href = '/server/settings'}
-                        className="w-full whitespace-nowrap pointer-events-auto"
-                      >
-                        Configure
-                      </Button>
-                    ) : adminEmail ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={() => window.location.href = `mailto:${adminEmail}`}
-                        className="w-full whitespace-nowrap pointer-events-auto"
-                      >
-                        Contact admin
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-
-              {/* Cameras scope row. Restricts species alerts to a subset of
-                  cameras. Empty selection means alerts from every camera in
-                  this project, including ones added later. */}
-              <div className={`mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Cameras</label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Limit Telegram alerts to specific cameras. Leave empty to receive alerts from every camera in this project.
-                  </p>
-                </div>
-                <div className="w-full sm:flex-1">
+                <div className="w-full sm:flex-1 flex flex-col gap-2">
+                  <MultiSelect
+                    options={speciesOptions}
+                    value={telegramNotifySpecies}
+                    onChange={setTelegramNotifySpecies}
+                    placeholder="Select species to notify about..."
+                  />
                   <MultiSelect
                     options={cameraOptions}
                     value={telegramNotifyCameras}
                     onChange={setTelegramNotifyCameras}
                     placeholder="All cameras"
                   />
+                  {!isTelegramLinked && (
+                    <div className="flex justify-end">
+                      {isTelegramConfigured ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={handleGenerateLink}
+                          disabled={generateTokenMutation.isPending}
+                          className="whitespace-nowrap pointer-events-auto"
+                        >
+                          {generateTokenMutation.isPending ? (
+                            <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
+                          ) : (
+                            'Link Telegram'
+                          )}
+                        </Button>
+                      ) : user?.is_superuser ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={() => window.location.href = '/server/settings'}
+                          className="whitespace-nowrap pointer-events-auto"
+                        >
+                          Configure
+                        </Button>
+                      ) : adminEmail ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={() => window.location.href = `mailto:${adminEmail}`}
+                          className="whitespace-nowrap pointer-events-auto"
+                        >
+                          Contact admin
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -631,20 +588,6 @@ export const NotificationsPage: React.FC = () => {
               </div>
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={showUnlinkConfirm}
-        onClose={() => setShowUnlinkConfirm(false)}
-        onConfirm={() => {
-          setShowUnlinkConfirm(false);
-          unlinkMutation.mutate();
-        }}
-        title="Unlink Telegram account"
-        body="You will need to link Telegram again to receive notifications for this project."
-        confirmLabel="Unlink"
-        variant="destructive"
-        isPending={unlinkMutation.isPending}
-      />
 
       {/* Scheduled reminders slideout (admin only). Self-contained: it
           owns its own queries, mutations, and dialogs. */}
