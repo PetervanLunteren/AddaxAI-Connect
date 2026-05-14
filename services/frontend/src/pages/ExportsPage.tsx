@@ -1,18 +1,27 @@
 /**
- * Exports page for downloading project data in standardized formats
+ * Exports page for downloading project data in standardized formats.
+ *
+ * One Card with a row per export. Each row has a bold title and muted
+ * description on the left and a single Download button on the right
+ * that opens a dropdown of format options. The dropdown pattern is
+ * used even for single-option exports so the page reads as one tidy
+ * column of consistent controls.
  */
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Loader2, AlertCircle } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
-import { Checkbox } from '../components/ui/Checkbox';
+import { Download, Loader2, AlertCircle, ChevronDown } from 'lucide-react';
+import { Card, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '../components/ui/DropdownMenu';
 import { useProject } from '../contexts/ProjectContext';
 import { exportApi } from '../api/export';
 import { statisticsApi } from '../api/statistics';
 
-/**
- * Trigger a file download from a blob response.
- */
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -24,9 +33,6 @@ function downloadBlob(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
-/**
- * Extract an error message from a failed blob response.
- */
 async function extractErrorMessage(err: any): Promise<string> {
   if (err.response?.data instanceof Blob) {
     try {
@@ -40,25 +46,116 @@ async function extractErrorMessage(err: any): Promise<string> {
   return err.response?.data?.detail || err.message || 'Export failed';
 }
 
+interface DownloadOption {
+  value: string;
+  label: string;
+}
+
+interface DownloadDropdownProps {
+  options: DownloadOption[];
+  onSelect: (value: string) => void;
+  isLoading: boolean;
+}
+
+function DownloadDropdown({ options, onSelect, isLoading }: DownloadDropdownProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" disabled={isLoading} className="gap-2">
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Preparing export...
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              Download
+              <ChevronDown className="h-4 w-4" />
+            </>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {options.map((opt) => (
+          <DropdownMenuItem key={opt.value} onClick={() => onSelect(opt.value)}>
+            {opt.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface ExportRowProps {
+  title: string;
+  description: React.ReactNode;
+  options: DownloadOption[];
+  isLoading: boolean;
+  onSelect: (value: string) => void;
+  error: string | null;
+}
+
+function ExportRow({ title, description, options, isLoading, onSelect, error }: ExportRowProps) {
+  return (
+    <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+        <div className="w-full sm:w-1/2 sm:shrink-0">
+          <h3 className="text-sm font-medium">{title}</h3>
+          <p className="text-sm text-muted-foreground mt-1">{description}</p>
+        </div>
+        <div className="flex-1 sm:flex sm:justify-end">
+          <DownloadDropdown options={options} onSelect={onSelect} isLoading={isLoading} />
+        </div>
+      </div>
+      {error && (
+        <div className="mt-3 flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const OBSERVATION_OPTIONS: DownloadOption[] = [
+  { value: 'csv', label: 'CSV' },
+  { value: 'xlsx', label: 'XLSX' },
+  { value: 'tsv', label: 'TSV' },
+];
+const CAMERAS_OPTIONS = OBSERVATION_OPTIONS;
+const SPATIAL_OPTIONS: DownloadOption[] = [
+  { value: 'geojson', label: 'GeoJSON' },
+  { value: 'shapefile', label: 'Shapefile' },
+  { value: 'gpkg', label: 'GeoPackage' },
+];
+const CAMTRAP_DP_OPTIONS: DownloadOption[] = [
+  { value: 'metadata', label: 'Metadata only' },
+  { value: 'with-thumbnails', label: 'Metadata and thumbnails' },
+];
+const DETECTION_HISTORY_OPTIONS: DownloadOption[] = [{ value: 'csv', label: 'CSV' }];
+
 type ObservationFormat = 'csv' | 'xlsx' | 'tsv';
-type SpatialFormat = 'geojson' | 'shapefile' | 'gpkg';
 type CamerasFormat = 'csv' | 'xlsx' | 'tsv';
+type SpatialFormat = 'geojson' | 'shapefile' | 'gpkg';
+
+const SPATIAL_EXTENSIONS: Record<SpatialFormat, string> = {
+  geojson: 'geojson',
+  shapefile: 'zip',
+  gpkg: 'gpkg',
+};
 
 export const ExportsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
   const { selectedProject } = useProject();
 
-  const [observationFormat, setObservationFormat] = useState<ObservationFormat>('csv');
   const [isExportingObs, setIsExportingObs] = useState(false);
   const [obsError, setObsError] = useState<string | null>(null);
-  const [camerasFormat, setCamerasFormat] = useState<CamerasFormat>('csv');
   const [isExportingCameras, setIsExportingCameras] = useState(false);
   const [camerasError, setCamerasError] = useState<string | null>(null);
-  const [spatialFormat, setSpatialFormat] = useState<SpatialFormat>('geojson');
   const [isExportingSpatial, setIsExportingSpatial] = useState(false);
   const [spatialError, setSpatialError] = useState<string | null>(null);
-  const [includeMedia, setIncludeMedia] = useState(true);
   const [isExportingDP, setIsExportingDP] = useState(false);
   const [dpError, setDpError] = useState<string | null>(null);
   const [isExportingDh, setIsExportingDh] = useState(false);
@@ -70,15 +167,13 @@ export const ExportsPage: React.FC = () => {
     .replace(/[\s_]+/g, '-');
   const today = new Date().toISOString().split('T')[0];
 
-  const handleDownloadObservations = async () => {
+  const handleObservations = async (format: string) => {
     if (!projectIdNum) return;
-
     setIsExportingObs(true);
     setObsError(null);
-
     try {
-      const blob = await exportApi.downloadObservations(projectIdNum, observationFormat);
-      downloadBlob(blob, `observations-${projectSlug}-${today}.${observationFormat}`);
+      const blob = await exportApi.downloadObservations(projectIdNum, format as ObservationFormat);
+      downloadBlob(blob, `observations-${projectSlug}-${today}.${format}`);
     } catch (err: any) {
       setObsError(await extractErrorMessage(err));
     } finally {
@@ -86,15 +181,13 @@ export const ExportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadCameras = async () => {
+  const handleCameras = async (format: string) => {
     if (!projectIdNum) return;
-
     setIsExportingCameras(true);
     setCamerasError(null);
-
     try {
-      const blob = await exportApi.downloadCameras(projectIdNum, camerasFormat);
-      downloadBlob(blob, `cameras-${projectSlug}-${today}.${camerasFormat}`);
+      const blob = await exportApi.downloadCameras(projectIdNum, format as CamerasFormat);
+      downloadBlob(blob, `cameras-${projectSlug}-${today}.${format}`);
     } catch (err: any) {
       setCamerasError(await extractErrorMessage(err));
     } finally {
@@ -102,21 +195,14 @@ export const ExportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadSpatial = async () => {
+  const handleSpatial = async (format: string) => {
     if (!projectIdNum) return;
-
     setIsExportingSpatial(true);
     setSpatialError(null);
-
-    const extensions: Record<SpatialFormat, string> = {
-      geojson: 'geojson',
-      shapefile: 'zip',
-      gpkg: 'gpkg',
-    };
-
     try {
-      const blob = await exportApi.downloadSpatial(projectIdNum, spatialFormat);
-      downloadBlob(blob, `spatial-${projectSlug}-${today}.${extensions[spatialFormat]}`);
+      const fmt = format as SpatialFormat;
+      const blob = await exportApi.downloadSpatial(projectIdNum, fmt);
+      downloadBlob(blob, `spatial-${projectSlug}-${today}.${SPATIAL_EXTENSIONS[fmt]}`);
     } catch (err: any) {
       setSpatialError(await extractErrorMessage(err));
     } finally {
@@ -124,15 +210,26 @@ export const ExportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadDetectionHistory = async () => {
+  const handleCamtrapDP = async (selection: string) => {
     if (!projectIdNum) return;
+    const includeMedia = selection === 'with-thumbnails';
+    setIsExportingDP(true);
+    setDpError(null);
+    try {
+      const blob = await exportApi.downloadCamtrapDP(projectIdNum, includeMedia);
+      downloadBlob(blob, `camtrap-dp-${projectSlug}-${today}.zip`);
+    } catch (err: any) {
+      setDpError(await extractErrorMessage(err));
+    } finally {
+      setIsExportingDP(false);
+    }
+  };
 
+  const handleDetectionHistory = async (_value: string) => {
+    if (!projectIdNum) return;
     setIsExportingDh(true);
     setDhError(null);
-
     try {
-      // Pull the project's image window so the CSV covers all data
-      // without making the user pick a date range here.
       const overview = await statisticsApi.getOverview(projectIdNum);
       if (!overview.first_image_date || !overview.last_image_date) {
         throw new Error('No images available to build a detection history');
@@ -151,287 +248,75 @@ export const ExportsPage: React.FC = () => {
     }
   };
 
-  const handleDownloadCamtrapDP = async () => {
-    if (!projectIdNum) return;
-
-    setIsExportingDP(true);
-    setDpError(null);
-
-    try {
-      const blob = await exportApi.downloadCamtrapDP(projectIdNum, includeMedia);
-      downloadBlob(blob, `camtrap-dp-${projectSlug}-${today}.zip`);
-    } catch (err: any) {
-      setDpError(await extractErrorMessage(err));
-    } finally {
-      setIsExportingDP(false);
-    }
-  };
-
-  const formatOptions: { value: ObservationFormat; label: string }[] = [
-    { value: 'csv', label: 'CSV' },
-    { value: 'xlsx', label: 'XLSX' },
-    { value: 'tsv', label: 'TSV' },
-  ];
-
-  const spatialFormatOptions: { value: SpatialFormat; label: string }[] = [
-    { value: 'geojson', label: 'GeoJSON' },
-    { value: 'shapefile', label: 'Shapefile' },
-    { value: 'gpkg', label: 'GeoPackage' },
-  ];
-
   return (
     <div>
       <h1 className="text-2xl font-bold mb-0">Exports</h1>
-      <p className="text-sm text-gray-600 mt-1 mb-6">Export your project data in standardized formats</p>
+      <p className="text-sm text-gray-600 mt-1 mb-6">
+        Export your project data in standardized formats
+      </p>
 
-      <div className="space-y-6">
-        {/* Observations export card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Observations</CardTitle>
-            <CardDescription>
-              Species observations spreadsheet (one row per species per image).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {obsError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {obsError}
-              </div>
-            )}
+      <Card>
+        <CardContent className="pt-6">
+          <ExportRow
+            title="Observations"
+            description="Species observations spreadsheet (one row per species per image)."
+            options={OBSERVATION_OPTIONS}
+            isLoading={isExportingObs}
+            onSelect={handleObservations}
+            error={obsError}
+          />
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="inline-flex rounded-md overflow-hidden border border-input">
-                {formatOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setObservationFormat(opt.value)}
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      observationFormat === opt.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+          <div className="border-t my-6" />
 
-              <button
-                onClick={handleDownloadObservations}
-                disabled={isExportingObs}
-                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-              >
-                {isExportingObs ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing export...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download {observationFormat.toUpperCase()}
-                  </>
-                )}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+          <ExportRow
+            title="Cameras"
+            description="Cameras list with identity, last health snapshot, and any custom fields (one row per camera)."
+            options={CAMERAS_OPTIONS}
+            isLoading={isExportingCameras}
+            onSelect={handleCameras}
+            error={camerasError}
+          />
 
-        {/* Cameras export card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Cameras</CardTitle>
-            <CardDescription>
-              Cameras list with identity, last health snapshot, and any custom fields (one row per camera).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {camerasError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {camerasError}
-              </div>
-            )}
+          <div className="border-t my-6" />
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="inline-flex rounded-md overflow-hidden border border-input">
-                {formatOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setCamerasFormat(opt.value)}
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      camerasFormat === opt.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+          <ExportRow
+            title="Spatial"
+            description="Geographic point data for GIS tools (QGIS, ArcGIS)."
+            options={SPATIAL_OPTIONS}
+            isLoading={isExportingSpatial}
+            onSelect={handleSpatial}
+            error={spatialError}
+          />
 
-              <button
-                onClick={handleDownloadCameras}
-                disabled={isExportingCameras}
-                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-              >
-                {isExportingCameras ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing export...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download {camerasFormat.toUpperCase()}
-                  </>
-                )}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+          <div className="border-t my-6" />
 
-        {/* Spatial export card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Spatial</CardTitle>
-            <CardDescription>
-              Geographic point data for GIS tools (QGIS, ArcGIS).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {spatialError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {spatialError}
-              </div>
-            )}
+          <ExportRow
+            title="Detection history (R)"
+            description={
+              <>
+                Site by occasion presence/absence matrix for occupancy analysis in R with{' '}
+                <code className="bg-muted px-1 py-0.5 rounded">unmarked</code> or{' '}
+                <code className="bg-muted px-1 py-0.5 rounded">camtrapR</code>.
+              </>
+            }
+            options={DETECTION_HISTORY_OPTIONS}
+            isLoading={isExportingDh}
+            onSelect={handleDetectionHistory}
+            error={dhError}
+          />
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="inline-flex rounded-md overflow-hidden border border-input">
-                {spatialFormatOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setSpatialFormat(opt.value)}
-                    className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                      spatialFormat === opt.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
+          <div className="border-t my-6" />
 
-              <button
-                onClick={handleDownloadSpatial}
-                disabled={isExportingSpatial}
-                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-              >
-                {isExportingSpatial ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing export...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download {spatialFormatOptions.find(o => o.value === spatialFormat)?.label}
-                  </>
-                )}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Detection history CSV for R-based occupancy analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Detection history (R)</CardTitle>
-            <CardDescription>
-              Site by occasion presence/absence matrix for occupancy analysis in R with{' '}
-              <code className="bg-muted px-1 py-0.5 rounded">unmarked</code> or{' '}
-              <code className="bg-muted px-1 py-0.5 rounded">camtrapR</code>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {dhError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {dhError}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-              <button
-                onClick={handleDownloadDetectionHistory}
-                disabled={isExportingDh}
-                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-              >
-                {isExportingDh ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing export...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download CSV
-                  </>
-                )}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Camtrap DP export card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Camtrap DP</CardTitle>
-            <CardDescription>
-              Camera Trap Data Package for sharing with GBIF and biodiversity platforms.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {dpError && (
-              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {dpError}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <Checkbox
-                id="include-media"
-                checked={includeMedia}
-                onChange={setIncludeMedia}
-                label="Include thumbnails"
-              />
-
-              <button
-                onClick={handleDownloadCamtrapDP}
-                disabled={isExportingDP}
-                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
-              >
-                {isExportingDP ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Preparing export...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download Camtrap DP
-                  </>
-                )}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <ExportRow
+            title="Camtrap DP"
+            description="Camera Trap Data Package for sharing with GBIF and biodiversity platforms."
+            options={CAMTRAP_DP_OPTIONS}
+            isLoading={isExportingDP}
+            onSelect={handleCamtrapDP}
+            error={dpError}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 };
