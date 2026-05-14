@@ -20,11 +20,115 @@ import {
   Tooltip,
   ChartOptions,
 } from 'chart.js';
-import type { ChartData, Plugin } from 'chart.js';
+import type { ChartData, Plugin, TooltipModel } from 'chart.js';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
 import type { NaiveOccupancyMetadata, NaiveOccupancyPoint } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
+
+const TOOLTIP_CLASS = 'naive-occupancy-tooltip';
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getOrCreateTooltip(chart: ChartJS): HTMLDivElement | null {
+  const parent = chart.canvas.parentNode as HTMLElement | null;
+  if (!parent) return null;
+  // The tooltip is absolutely positioned within the canvas's parent.
+  if (getComputedStyle(parent).position === 'static') {
+    parent.style.position = 'relative';
+  }
+  let tooltipEl = parent.querySelector<HTMLDivElement>(`.${TOOLTIP_CLASS}`);
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = TOOLTIP_CLASS;
+    tooltipEl.style.cssText = [
+      'position: absolute',
+      'pointer-events: none',
+      'background: rgba(15, 23, 42, 0.92)',
+      'color: #ffffff',
+      'border-radius: 6px',
+      'padding: 8px 10px',
+      'font-size: 12px',
+      'line-height: 1.35',
+      'transform: translate(-50%, calc(-100% - 10px))',
+      'transition: opacity 0.12s ease',
+      'opacity: 0',
+      'z-index: 20',
+      'white-space: nowrap',
+    ].join(';');
+    parent.appendChild(tooltipEl);
+  }
+  return tooltipEl;
+}
+
+// Builds the two-row tooltip body. Each row leads with a swatch
+// (square for the naive bar value, rotated square for the corrected
+// estimate) so the icon matches what the user sees in the chart.
+function buildTooltipHtml(p: NaiveOccupancyPoint): string {
+  const title = normalizeLabel(p.species);
+  const naive =
+    `Detected at ${p.sites_detected} of ${p.sites_total} active sites ` +
+    `(${(p.proportion * 100).toFixed(1)}%)`;
+  const rectSwatch =
+    '<span style="display:inline-block;width:10px;height:10px;background:#a3c8ca;' +
+    'border:1px solid #0f6064;flex:0 0 auto"></span>';
+  const diamondSwatch =
+    '<span style="display:inline-block;width:8px;height:8px;background:#0a3e41;' +
+    'border:1px solid #ffffff;transform:rotate(45deg);margin:0 2px;flex:0 0 auto"></span>';
+  const row = (swatch: string, text: string) =>
+    `<div style="display:flex;align-items:center;gap:6px;margin:2px 0">` +
+    `${swatch}<span>${escapeHtml(text)}</span></div>`;
+
+  let body = row(rectSwatch, naive);
+  if (p.psi != null) {
+    const pct = (p.psi * 100).toFixed(1);
+    const ci =
+      p.psi_ci_low != null && p.psi_ci_high != null
+        ? ` (95% CI ${(p.psi_ci_low * 100).toFixed(1)}% to ${(p.psi_ci_high * 100).toFixed(1)}%)`
+        : '';
+    body += row(diamondSwatch, `Corrected ${pct}%${ci}`);
+  }
+  return (
+    `<div style="font-weight:600;margin-bottom:4px">${escapeHtml(title)}</div>` + body
+  );
+}
+
+function renderOccupancyTooltip(
+  ctx: { chart: ChartJS; tooltip: TooltipModel<'bar'> },
+  points: NaiveOccupancyPoint[],
+): void {
+  const { chart, tooltip } = ctx;
+  const tooltipEl = getOrCreateTooltip(chart);
+  if (!tooltipEl) return;
+
+  if (tooltip.opacity === 0) {
+    tooltipEl.style.opacity = '0';
+    return;
+  }
+  const dataIndex = tooltip.dataPoints?.[0]?.dataIndex;
+  if (dataIndex == null) {
+    tooltipEl.style.opacity = '0';
+    return;
+  }
+  const p = points[dataIndex];
+  if (!p) {
+    tooltipEl.style.opacity = '0';
+    return;
+  }
+
+  tooltipEl.innerHTML = buildTooltipHtml(p);
+  const { offsetLeft, offsetTop } = chart.canvas;
+  tooltipEl.style.left = `${offsetLeft + tooltip.caretX}px`;
+  tooltipEl.style.top = `${offsetTop + tooltip.caretY}px`;
+  tooltipEl.style.opacity = '1';
+}
 
 // Forest-plot style marker per bar: a horizontal 95% CI whisker through
 // a filled diamond at the corrected psi point estimate. Skipped when psi
@@ -148,7 +252,7 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
       labels: points.map((p) => normalizeLabel(p.species)),
       datasets: [
         {
-          label: 'Naive',
+          label: 'Naive occupancy',
           data: points.map((p) => +(p.proportion * 100).toFixed(1)),
           // Light brand-teal fill so the dark diamond + CI whisker stay
           // legible whether the marker sits over the bar or past its end.
@@ -158,19 +262,6 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
           borderColor: '#0f6064',
           borderWidth: 1,
           borderRadius: 4,
-          stack: 'occupancy',
-        },
-        {
-          // Invisible companion dataset. Stacked with zero data so it
-          // does not change the chart layout, but Chart.js still creates
-          // a tooltip item per index for it. That gives the second
-          // 'Corrected' line its own diamond swatch in the tooltip.
-          label: 'Corrected',
-          data: points.map(() => 0),
-          backgroundColor: 'transparent',
-          borderColor: 'transparent',
-          borderWidth: 0,
-          stack: 'occupancy',
         },
       ],
     };
@@ -185,55 +276,14 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
       // swatch is noise.
       legend: { display: false },
       tooltip: {
-        usePointStyle: true,
-        filter: (item) => {
-          // Hide the Corrected tooltip line when the model could not
-          // produce a stable fit for this species.
-          if (item.datasetIndex !== 1) return true;
-          const p = points[item.dataIndex];
-          return !!p && p.psi != null;
-        },
-        callbacks: {
-          label: (context) => {
-            const idx = context.dataIndex;
-            const p = points[idx];
-            if (!p) return '';
-            if (context.datasetIndex === 0) {
-              return `Detected at ${p.sites_detected} of ${p.sites_total} active sites (${formatPct(p.proportion)})`;
-            }
-            if (p.psi == null) return '';
-            const ci =
-              p.psi_ci_low != null && p.psi_ci_high != null
-                ? ` (95% CI ${formatPct(p.psi_ci_low)} to ${formatPct(p.psi_ci_high)})`
-                : '';
-            return `Corrected ${formatPct(p.psi)}${ci}`;
-          },
-          labelColor: (context) => {
-            if (context.datasetIndex === 0) {
-              return {
-                backgroundColor: '#a3c8ca',
-                borderColor: '#0f6064',
-                borderWidth: 1,
-              };
-            }
-            return {
-              backgroundColor: '#0a3e41',
-              borderColor: '#ffffff',
-              borderWidth: 1,
-            };
-          },
-          labelPointStyle: (context) => ({
-            pointStyle: context.datasetIndex === 1 ? 'rectRot' : 'rect',
-            rotation: 0,
-          }),
-        },
+        enabled: false,
+        external: (ctx) => renderOccupancyTooltip(ctx, points),
       },
       // @ts-expect-error custom plugin options aren't in Chart.js's typings
       correctedPsiMarker: { points },
     },
     scales: {
       x: {
-        stacked: true,
         beginAtZero: true,
         max: 100,
         ticks: {
@@ -245,7 +295,6 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
         },
       },
       y: {
-        stacked: true,
         grid: {
           display: false,
         },
