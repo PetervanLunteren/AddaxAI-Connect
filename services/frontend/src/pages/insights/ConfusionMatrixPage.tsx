@@ -160,10 +160,13 @@ const Matrix: React.FC<{
     row.reduce((m, n) => (n > m ? n : m), 0),
   );
 
-  const handleCellClick = (gtClass: string) => {
-    if (gtClass === OTHER_LABEL) return;
+  const handleCellClick = (gtClass: string, predClass: string) => {
+    if (gtClass === OTHER_LABEL || predClass === OTHER_LABEL) return;
+    // Image-level top-1 filters: the API mirrors the matrix construction so
+    // the cell count and the resulting list count agree.
     const params = new URLSearchParams();
-    params.set('species', gtClass);
+    params.set('human_top', gtClass);
+    params.set('ai_top', predClass);
     params.set('verified', 'true');
     navigate(`/projects/${projectId}/images?${params.toString()}`);
   };
@@ -242,7 +245,8 @@ const Matrix: React.FC<{
                 const rowTotal = folded.rowTotals[r];
                 const colTotal = folded.colTotals[c];
                 const isZero = count === 0;
-                const clickable = !isZero && cls !== OTHER_LABEL;
+                const clickable =
+                  !isZero && cls !== OTHER_LABEL && predCls !== OTHER_LABEL;
 
                 // Mode-specific cell value and intensity. counts uses the
                 // row-normalised count for intensity; recall uses the row
@@ -278,7 +282,7 @@ const Matrix: React.FC<{
                       height: CELL_SIZE,
                       ...gradientStyle(intensity),
                     }}
-                    onClick={clickable ? () => handleCellClick(cls) : undefined}
+                    onClick={clickable ? () => handleCellClick(cls, predCls) : undefined}
                     title={
                       isZero
                         ? undefined

@@ -2660,13 +2660,16 @@ async def get_performance(
         # Collect visible detections with their effective label.
         # "Visible" = passes detection_threshold AND (for animals) passes the
         # per-species classification_threshold. Mirrors images.py:598-610.
-        visible_labeled: list[tuple[str, float]] = []  # (label, classification_confidence)
-        visible_pv: list[tuple[str, float]] = []  # (category, detection_confidence)
+        # Each tuple carries the detection id so tie-breaks on equal
+        # confidence are deterministic and match the SQL /images?ai_top=...
+        # filter (id ASC).
+        visible_labeled: list[tuple[str, float, int]] = []  # (label, cls_conf, det_id)
+        visible_pv: list[tuple[str, float, int]] = []  # (category, det_conf, det_id)
         for d in image.detections:
             if d.confidence < project.detection_threshold:
                 continue
             if d.category in ("person", "vehicle"):
-                visible_pv.append((d.category, d.confidence))
+                visible_pv.append((d.category, d.confidence, d.id))
                 ai_counts[d.category] += 1
             elif d.category == "animal" and d.classifications:
                 cls = d.classifications[0]
@@ -2675,28 +2678,30 @@ async def get_performance(
                 )
                 if cls.confidence < cls_thresh:
                     continue
-                visible_labeled.append((cls.species, cls.confidence))
+                visible_labeled.append((cls.species, cls.confidence, d.id))
                 ai_counts[cls.species] += 1
 
         # ----- Matrix: image-level top-1 pairing -----
-        # Human top-1: highest-count observation, first-seen on ties.
+        # Human top-1: highest-count observation, id ASC on ties.
+        # Matches the /images?human_top=... SQL filter so cell counts and
+        # the filtered list agree.
         if image.human_observations:
-            sorted_obs = sorted(
+            top_obs = min(
                 image.human_observations,
-                key=lambda o: o.count,
-                reverse=True,
+                key=lambda o: (-o.count, o.id),
             )
-            human_top = sorted_obs[0].species
+            human_top = top_obs.species
         else:
             human_top = "empty"
 
         # AI top-1: person/vehicle take precedence if present (they're
         # what the UI shows on the grid card), otherwise highest-confidence
         # visible animal classification. Empty if no visible detections.
+        # Tie-break by detection id ASC to match the SQL filter.
         if visible_pv:
-            ai_top = max(visible_pv, key=lambda x: x[1])[0]
+            ai_top = min(visible_pv, key=lambda x: (-x[1], x[2]))[0]
         elif visible_labeled:
-            ai_top = max(visible_labeled, key=lambda x: x[1])[0]
+            ai_top = min(visible_labeled, key=lambda x: (-x[1], x[2]))[0]
         else:
             ai_top = "empty"
 

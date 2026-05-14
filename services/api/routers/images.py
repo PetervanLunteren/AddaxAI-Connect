@@ -6,8 +6,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func, and_, or_, desc, cast, Float
+from sqlalchemy.orm import selectinload, aliased
 from pydantic import BaseModel
 import io
 
@@ -307,6 +307,20 @@ async def list_images(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
+    human_top: Optional[str] = Query(
+        None,
+        description=(
+            "Image-level top-1 human observation species. Used by the "
+            "confusion matrix cell click. Silently forces verified=true."
+        ),
+    ),
+    ai_top: Optional[str] = Query(
+        None,
+        description=(
+            "Image-level top-1 AI prediction species. Used by the "
+            "confusion matrix cell click. Silently forces verified=true."
+        ),
+    ),
     show_empty: bool = Query(False),
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
@@ -404,6 +418,12 @@ async def list_images(
             if not species_filter:
                 species_filter = None  # only "empty" was selected
 
+    # The confusion-matrix cell click uses image-level top-1 filters
+    # (human_top / ai_top). Those only make sense on verified images so
+    # silently force verified=true when either is set.
+    if human_top is not None or ai_top is not None:
+        verified = "true"
+
     # Handle verification status filter
     if verified is not None:
         if verified.lower() == "true":
@@ -463,6 +483,164 @@ async def list_images(
                 Image.is_verified == True,
             )
         )
+
+    # Confusion-matrix top-1 filters. These mirror the row/column semantics
+    # used by the /performance matrix in routers/statistics.py exactly so
+    # the cell count and the resulting list count provably agree.
+    #
+    # human_top: image-level top-1 HumanObservation (count DESC, id ASC).
+    # ai_top: image-level top-1 AI prediction. Priority is
+    #   any visible person/vehicle detection (detection_confidence DESC,
+    #   detection.id ASC) > highest-confidence visible animal classification
+    #   (classification_confidence DESC, detection.id ASC) > "empty".
+    if human_top is not None:
+        if human_top == "empty":
+            filters.append(
+                ~Image.id.in_(select(HumanObservation.image_id).distinct())
+            )
+        else:
+            ho_outer = aliased(HumanObservation)
+            ho_inner = aliased(HumanObservation)
+            beats_outer = (
+                select(ho_inner.id)
+                .where(
+                    ho_inner.image_id == ho_outer.image_id,
+                    or_(
+                        ho_inner.count > ho_outer.count,
+                        and_(
+                            ho_inner.count == ho_outer.count,
+                            ho_inner.id < ho_outer.id,
+                        ),
+                    ),
+                )
+                .exists()
+            )
+            top_human_image_ids = (
+                select(ho_outer.image_id)
+                .where(
+                    ho_outer.species == human_top,
+                    ~beats_outer,
+                )
+            )
+            filters.append(Image.id.in_(top_human_image_ids))
+
+    if ai_top is not None:
+        if ai_top == "empty":
+            # No visible detections at all.
+            filters.append(~Image.id.in_(has_visible_pv))
+            filters.append(~Image.id.in_(has_visible_animal))
+        elif ai_top in ("person", "vehicle"):
+            # Top visible PV detection's category is ai_top.
+            d_outer = aliased(Detection)
+            img_outer = aliased(Image)
+            cam_outer = aliased(Camera)
+            proj_outer = aliased(Project)
+
+            d_inner = aliased(Detection)
+            img_inner = aliased(Image)
+            cam_inner = aliased(Camera)
+            proj_inner = aliased(Project)
+
+            beats_outer = (
+                select(d_inner.id)
+                .join(img_inner, d_inner.image_id == img_inner.id)
+                .join(cam_inner, img_inner.camera_id == cam_inner.id)
+                .join(proj_inner, cam_inner.project_id == proj_inner.id)
+                .where(
+                    d_inner.image_id == d_outer.image_id,
+                    d_inner.category.in_(["person", "vehicle"]),
+                    d_inner.confidence >= proj_inner.detection_threshold,
+                    or_(
+                        d_inner.confidence > d_outer.confidence,
+                        and_(
+                            d_inner.confidence == d_outer.confidence,
+                            d_inner.id < d_outer.id,
+                        ),
+                    ),
+                )
+                .exists()
+            )
+            top_pv_image_ids = (
+                select(d_outer.image_id)
+                .join(img_outer, d_outer.image_id == img_outer.id)
+                .join(cam_outer, img_outer.camera_id == cam_outer.id)
+                .join(proj_outer, cam_outer.project_id == proj_outer.id)
+                .where(
+                    d_outer.category == ai_top,
+                    d_outer.confidence >= proj_outer.detection_threshold,
+                    ~beats_outer,
+                )
+            )
+            filters.append(Image.id.in_(top_pv_image_ids))
+        else:
+            # Animal classification top-1. PV detections would beat any
+            # animal, so first require no visible PV on the image.
+            filters.append(~Image.id.in_(has_visible_pv))
+
+            d_outer = aliased(Detection)
+            cl_outer = aliased(Classification)
+            img_outer = aliased(Image)
+            cam_outer = aliased(Camera)
+            proj_outer = aliased(Project)
+
+            d_inner = aliased(Detection)
+            cl_inner = aliased(Classification)
+            img_inner = aliased(Image)
+            cam_inner = aliased(Camera)
+            proj_inner = aliased(Project)
+
+            def _passes_threshold(cl_alias, proj_alias):
+                """Effective per-species classification-threshold predicate
+                for an aliased Classification against an aliased Project."""
+                overrides = cast(
+                    proj_alias.classification_thresholds.op("->")("overrides").op("->>")(
+                        cl_alias.species
+                    ),
+                    Float,
+                )
+                default_value = cast(
+                    proj_alias.classification_thresholds.op("->>")("default"),
+                    Float,
+                )
+                effective = func.coalesce(overrides, default_value, 0.0)
+                return cl_alias.confidence >= effective
+
+            beats_outer = (
+                select(cl_inner.id)
+                .join(d_inner, cl_inner.detection_id == d_inner.id)
+                .join(img_inner, d_inner.image_id == img_inner.id)
+                .join(cam_inner, img_inner.camera_id == cam_inner.id)
+                .join(proj_inner, cam_inner.project_id == proj_inner.id)
+                .where(
+                    d_inner.image_id == d_outer.image_id,
+                    d_inner.category == "animal",
+                    d_inner.confidence >= proj_inner.detection_threshold,
+                    _passes_threshold(cl_inner, proj_inner),
+                    or_(
+                        cl_inner.confidence > cl_outer.confidence,
+                        and_(
+                            cl_inner.confidence == cl_outer.confidence,
+                            d_inner.id < d_outer.id,
+                        ),
+                    ),
+                )
+                .exists()
+            )
+            top_animal_image_ids = (
+                select(d_outer.image_id)
+                .join(cl_outer, cl_outer.detection_id == d_outer.id)
+                .join(img_outer, d_outer.image_id == img_outer.id)
+                .join(cam_outer, img_outer.camera_id == cam_outer.id)
+                .join(proj_outer, cam_outer.project_id == proj_outer.id)
+                .where(
+                    d_outer.category == "animal",
+                    d_outer.confidence >= proj_outer.detection_threshold,
+                    cl_outer.species == ai_top,
+                    _passes_threshold(cl_outer, proj_outer),
+                    ~beats_outer,
+                )
+            )
+            filters.append(Image.id.in_(top_animal_image_ids))
 
     # Build label filter condition (reused for both count and data queries).
     # Handles species, person/vehicle, and the special "empty" label.
