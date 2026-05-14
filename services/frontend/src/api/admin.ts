@@ -20,6 +20,8 @@ import type {
   ServerSettings,
   TaxonomyMappingResponse,
   ClassificationThresholds,
+  DevModeStatus,
+  PurgeNonAdminUsersResponse,
 } from './types';
 
 export const adminApi = {
@@ -326,6 +328,28 @@ export const adminApi = {
       project_name: string;
       classification_thresholds: ClassificationThresholds;
     }>(`/api/admin/projects/${projectId}/classification-thresholds`, thresholds);
+    return response.data;
+  },
+
+  /**
+   * Dev-server mode status, used to decide whether to show the dev banner.
+   */
+  getDevModeStatus: async (): Promise<DevModeStatus> => {
+    const response = await apiClient.get<DevModeStatus>('/api/admin/dev-mode-status');
+    return response.data;
+  },
+
+  /**
+   * Hard-delete every non-admin user on a dev server. Server admins stay.
+   * Caller must type the current domain to confirm.
+   */
+  purgeNonAdminUsers: async (
+    confirmDomain: string,
+  ): Promise<PurgeNonAdminUsersResponse> => {
+    const response = await apiClient.post<PurgeNonAdminUsersResponse>(
+      '/api/admin/purge-non-admin-users',
+      { confirm_domain: confirmDomain },
+    );
     return response.data;
   },
 };

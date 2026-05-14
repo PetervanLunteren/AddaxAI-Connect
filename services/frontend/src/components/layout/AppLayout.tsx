@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
+import { DevServerBanner } from '../DevServerBanner';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="lg:pl-64 min-h-screen">
+        <DevServerBanner />
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-card px-4">
           <button

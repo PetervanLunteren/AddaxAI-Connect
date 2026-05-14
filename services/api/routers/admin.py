@@ -11,16 +11,32 @@ import base64
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update, func
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, TelegramConfig, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Classification as ClassificationModel, Detection, Image
+from shared.models import (
+    User,
+    Project,
+    TelegramConfig,
+    ProjectMembership,
+    UserInvitation,
+    ServerSettings,
+    TaxonomyMapping,
+    Classification as ClassificationModel,
+    Detection,
+    Image,
+    HumanObservation,
+    ProjectReminder,
+    ProjectDocument,
+)
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.logger import get_logger
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATION_TELEGRAM
 from auth.permissions import require_server_admin
 from auth.users import current_verified_user
 from mailer.sender import get_email_sender
+from utils.dev_mode import is_dev_server, assert_dev_server
 
 settings = get_settings()
 logger = get_logger("api.admin")
@@ -1789,3 +1805,187 @@ async def clear_taxonomy_mapping(
     logger.info("Taxonomy mapping cleared", deleted_count=count, cleared_by=current_user.email)
 
     return {"deleted_count": count}
+
+
+class DevModeStatusResponse(BaseModel):
+    is_dev_server: bool
+    domain_name: Optional[str]
+    non_admin_user_count: int
+    project_membership_count: int
+    queued_notification_email_count: int
+    queued_notification_telegram_count: int
+
+
+class PurgeNonAdminUsersRequest(BaseModel):
+    confirm_domain: str
+
+
+class PurgeNonAdminUsersResponse(BaseModel):
+    deleted_users: int
+    drained_email: int
+    drained_telegram: int
+    reassigned_to_user_id: int
+
+
+def _queue_size(name: str) -> int:
+    try:
+        return RedisQueue(name).size()
+    except Exception as e:
+        logger.warning("Failed to read queue size", queue=name, error=str(e))
+        return 0
+
+
+@router.get("/dev-mode-status", response_model=DevModeStatusResponse)
+async def get_dev_mode_status(
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Report whether this server looks like a dev box and how many real users
+    are still on it. Used by the dev-server banner to decide whether to nag.
+    """
+    domain = settings.domain_name
+    dev = is_dev_server(domain)
+
+    non_admin_count = await db.scalar(
+        select(func.count()).select_from(User).where(User.is_superuser.is_(False))
+    )
+    membership_count = await db.scalar(select(func.count()).select_from(ProjectMembership))
+
+    return DevModeStatusResponse(
+        is_dev_server=dev,
+        domain_name=domain,
+        non_admin_user_count=int(non_admin_count or 0),
+        project_membership_count=int(membership_count or 0),
+        queued_notification_email_count=_queue_size(QUEUE_NOTIFICATION_EMAIL),
+        queued_notification_telegram_count=_queue_size(QUEUE_NOTIFICATION_TELEGRAM),
+    )
+
+
+@router.post("/purge-non-admin-users", response_model=PurgeNonAdminUsersResponse)
+async def purge_non_admin_users(
+    body: PurgeNonAdminUsersRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """
+    Hard-delete every non-admin user. Server admins stay.
+
+    Two gates guard this:
+      1. Typed-domain confirmation must match settings.domain_name exactly.
+      2. assert_dev_server refuses on prod-shaped hostnames, even if (1) passes.
+    """
+    domain = settings.domain_name
+    assert_dev_server(domain)
+    if body.confirm_domain != domain:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Confirmation domain does not match",
+        )
+
+    non_admin_ids_result = await db.execute(
+        select(User.id).where(User.is_superuser.is_(False))
+    )
+    non_admin_ids = [row[0] for row in non_admin_ids_result.all()]
+    if not non_admin_ids:
+        logger.info("Purge requested but no non-admin users present", caller=current_user.email)
+        return PurgeNonAdminUsersResponse(
+            deleted_users=0,
+            drained_email=0,
+            drained_telegram=0,
+            reassigned_to_user_id=current_user.id,
+        )
+
+    # NULL out optional historical attributions.
+    await db.execute(
+        update(Image)
+        .where(Image.verified_by_user_id.in_(non_admin_ids))
+        .values(verified_by_user_id=None)
+    )
+    await db.execute(
+        update(Image)
+        .where(Image.liked_by_user_id.in_(non_admin_ids))
+        .values(liked_by_user_id=None)
+    )
+    await db.execute(
+        update(Image)
+        .where(Image.needs_review_by_user_id.in_(non_admin_ids))
+        .values(needs_review_by_user_id=None)
+    )
+    await db.execute(
+        update(HumanObservation)
+        .where(HumanObservation.updated_by_user_id.in_(non_admin_ids))
+        .values(updated_by_user_id=None)
+    )
+    await db.execute(
+        update(ProjectMembership)
+        .where(ProjectMembership.added_by_user_id.in_(non_admin_ids))
+        .values(added_by_user_id=None)
+    )
+    await db.execute(
+        update(ProjectReminder)
+        .where(ProjectReminder.cancelled_by_user_id.in_(non_admin_ids))
+        .values(cancelled_by_user_id=None)
+    )
+
+    # Reassign non-nullable FKs to the caller so DELETE can proceed.
+    await db.execute(
+        update(HumanObservation)
+        .where(HumanObservation.created_by_user_id.in_(non_admin_ids))
+        .values(created_by_user_id=current_user.id)
+    )
+    await db.execute(
+        update(ProjectDocument)
+        .where(ProjectDocument.uploaded_by_user_id.in_(non_admin_ids))
+        .values(uploaded_by_user_id=current_user.id)
+    )
+    await db.execute(
+        update(ProjectReminder)
+        .where(ProjectReminder.created_by_user_id.in_(non_admin_ids))
+        .values(created_by_user_id=current_user.id)
+    )
+    await db.execute(
+        update(UserInvitation)
+        .where(UserInvitation.invited_by_user_id.in_(non_admin_ids))
+        .values(invited_by_user_id=current_user.id)
+    )
+
+    # Cascades handle project_memberships, project_notification_preferences,
+    # notification_logs, telegram_linking_tokens (all FK CASCADE on users.id).
+    delete_result = await db.execute(
+        delete(User).where(User.is_superuser.is_(False))
+    )
+    deleted_count = delete_result.rowcount or 0
+    await db.commit()
+
+    # Drain queued notifications so nothing in-flight fires after the purge.
+    drained_email = 0
+    drained_telegram = 0
+    try:
+        client = RedisQueue(QUEUE_NOTIFICATION_EMAIL).client
+        drained_email = int(client.llen(QUEUE_NOTIFICATION_EMAIL) or 0)
+        client.delete(QUEUE_NOTIFICATION_EMAIL)
+    except Exception as e:
+        logger.warning("Failed to drain email queue", error=str(e))
+    try:
+        client = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM).client
+        drained_telegram = int(client.llen(QUEUE_NOTIFICATION_TELEGRAM) or 0)
+        client.delete(QUEUE_NOTIFICATION_TELEGRAM)
+    except Exception as e:
+        logger.warning("Failed to drain telegram queue", error=str(e))
+
+    logger.info(
+        "Non-admin users purged on dev server",
+        domain=domain,
+        deleted_users=deleted_count,
+        drained_email=drained_email,
+        drained_telegram=drained_telegram,
+        caller=current_user.email,
+    )
+
+    return PurgeNonAdminUsersResponse(
+        deleted_users=deleted_count,
+        drained_email=drained_email,
+        drained_telegram=drained_telegram,
+        reassigned_to_user_id=current_user.id,
+    )
