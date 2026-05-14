@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from pydantic import BaseModel
 
-from shared.models import User, ProjectNotificationPreference, Project
+from shared.models import User, ProjectNotificationPreference, Project, Camera
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_access_project, can_admin_project
@@ -212,6 +212,29 @@ async def update_notification_preferences(
                     )
                 if existing is not None:
                     data.notification_channels[key] = existing
+
+        # Validate per-camera scope on species_detection. Cameras can only be
+        # selected from this project, so a stale id or a cross-project id is
+        # rejected loudly rather than silently broadening the rule engine.
+        species_cfg = data.notification_channels.get("species_detection")
+        if isinstance(species_cfg, dict):
+            notify_cameras = species_cfg.get("notify_cameras")
+            if isinstance(notify_cameras, list) and notify_cameras:
+                if not all(isinstance(cid, int) for cid in notify_cameras):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="notify_cameras must contain camera ids as integers",
+                    )
+                project_camera_rows = await db.execute(
+                    select(Camera.id).where(Camera.project_id == project_id)
+                )
+                project_camera_ids = {row[0] for row in project_camera_rows.all()}
+                unknown = [cid for cid in notify_cameras if cid not in project_camera_ids]
+                if unknown:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Cameras not in this project: {unknown}",
+                    )
 
     if not prefs:
         # Create new preferences with defaults

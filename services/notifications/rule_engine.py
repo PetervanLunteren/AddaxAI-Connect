@@ -172,6 +172,13 @@ def _evaluate_json_preferences(
         if not notify_species or species not in notify_species:
             return None
 
+        # Camera scope. notify_cameras absent or null = all cameras (default).
+        # A list (including the empty list) restricts to those camera ids.
+        notify_cameras = type_config.get('notify_cameras')
+        if notify_cameras is not None:
+            if event.get('camera_id') not in notify_cameras:
+                return None
+
         # Check detection confidence vs project threshold
         # Use detection_confidence (MegaDetector) if available, fall back to classification confidence
         confidence = event.get('detection_confidence', event.get('confidence'))

@@ -142,3 +142,56 @@ class TestOriginalBugScenario:
             "detection_confidence": 0.92,
         }
         assert check_threshold(event, 0.5) is False
+
+
+# ---------------------------------------------------------------------------
+# Reproduce the camera-scope logic from rule_engine._evaluate_json_preferences.
+# notify_cameras absent or null = all cameras. A list (including []) restricts
+# to those camera ids.
+# ---------------------------------------------------------------------------
+
+def check_camera_scope(event, notify_cameras):
+    """
+    Return True if the event should be BLOCKED (camera not in scope).
+    Return False if it passes.
+
+    Mirrors rule_engine.py:
+        notify_cameras = type_config.get('notify_cameras')
+        if notify_cameras is not None:
+            if event.get('camera_id') not in notify_cameras:
+                return None
+    """
+    if notify_cameras is None:
+        return False
+    return event.get('camera_id') not in notify_cameras
+
+
+class TestCameraScope:
+    """Verify per-camera filtering of species_detection events."""
+
+    def test_missing_notify_cameras_passes(self):
+        """Absent key = all cameras (legacy preferences)."""
+        event = {"species": "fox", "camera_id": 3}
+        assert check_camera_scope(event, None) is False
+
+    def test_camera_in_scope_passes(self):
+        event = {"species": "fox", "camera_id": 3}
+        assert check_camera_scope(event, [1, 3, 7]) is False
+
+    def test_camera_not_in_scope_blocked(self):
+        event = {"species": "fox", "camera_id": 9}
+        assert check_camera_scope(event, [1, 3, 7]) is True
+
+    def test_empty_list_blocks_every_camera(self):
+        """[] is an explicit 'no cameras', distinct from null."""
+        event = {"species": "fox", "camera_id": 3}
+        assert check_camera_scope(event, []) is True
+
+    def test_missing_camera_id_blocked_when_scoped(self):
+        """An event without camera_id cannot satisfy a scoped preference."""
+        event = {"species": "fox"}
+        assert check_camera_scope(event, [1, 3, 7]) is True
+
+    def test_missing_camera_id_passes_when_unscoped(self):
+        event = {"species": "fox"}
+        assert check_camera_scope(event, None) is False

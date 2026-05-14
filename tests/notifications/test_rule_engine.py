@@ -125,3 +125,36 @@ class TestOriginalBugScenario:
             "detection_confidence": 0.92,
         }
         assert check_threshold(event, 0.5) is False
+
+
+# ---------------------------------------------------------------------------
+# Camera-scope check. Mirrors the notify_cameras branch in
+# rule_engine._evaluate_json_preferences: absent / null = all cameras,
+# a list (including []) restricts to those camera ids.
+# ---------------------------------------------------------------------------
+
+def check_camera_scope(event, notify_cameras):
+    """Return True if the event should be BLOCKED, False if it passes."""
+    if notify_cameras is None:
+        return False
+    return event.get("camera_id") not in notify_cameras
+
+
+class TestCameraScope:
+    def test_missing_notify_cameras_passes(self):
+        assert check_camera_scope({"species": "fox", "camera_id": 3}, None) is False
+
+    def test_camera_in_scope_passes(self):
+        assert check_camera_scope({"species": "fox", "camera_id": 3}, [1, 3, 7]) is False
+
+    def test_camera_not_in_scope_blocked(self):
+        assert check_camera_scope({"species": "fox", "camera_id": 9}, [1, 3, 7]) is True
+
+    def test_empty_list_blocks_every_camera(self):
+        assert check_camera_scope({"species": "fox", "camera_id": 3}, []) is True
+
+    def test_missing_camera_id_blocked_when_scoped(self):
+        assert check_camera_scope({"species": "fox"}, [1, 3, 7]) is True
+
+    def test_missing_camera_id_passes_when_unscoped(self):
+        assert check_camera_scope({"species": "fox"}, None) is False

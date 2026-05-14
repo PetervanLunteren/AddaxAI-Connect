@@ -17,6 +17,7 @@ import { notificationsApi } from '../api/notifications';
 import { remindersApi } from '../api/reminders';
 import { RemindersSheet } from '../components/RemindersSheet';
 import { adminApi } from '../api/admin';
+import { camerasApi } from '../api/cameras';
 import { speciesApi } from '../api/species';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
@@ -33,6 +34,11 @@ export const NotificationsPage: React.FC = () => {
 
   // Telegram species state
   const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
+
+  // Telegram per-camera scope. Empty selection = all cameras (saved as null
+  // in notification_channels.species_detection.notify_cameras). A non-empty
+  // selection limits alerts to those camera ids.
+  const [telegramNotifyCameras, setTelegramNotifyCameras] = useState<Option[]>([]);
 
   // Telegram linking state
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -70,6 +76,20 @@ export const NotificationsPage: React.FC = () => {
   });
   const isTelegramConfigured = telegramStatus?.is_configured ?? false;
   const adminEmail = telegramStatus?.admin_email ?? null;
+
+  // Fetch cameras in this project for the per-camera scope picker
+  const { data: projectCameras } = useQuery({
+    queryKey: ['cameras', projectIdNum],
+    queryFn: () => camerasApi.getAll(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0,
+  });
+  const cameraOptions: Option[] = useMemo(() => {
+    const list = projectCameras ?? [];
+    return list
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((cam) => ({ label: cam.name, value: cam.id }));
+  }, [projectCameras]);
 
   // Fetch available species from the API (model-dependent)
   const { data: availableSpeciesData } = useQuery({
@@ -113,6 +133,19 @@ export const NotificationsPage: React.FC = () => {
           value: species
         })));
 
+        // Per-camera scope. null/missing => empty selection = all cameras.
+        // A stored list maps to Option chips; ids no longer in the project
+        // are dropped so a deleted camera does not haunt the picker.
+        const storedCameraIds: number[] = Array.isArray(speciesConfig.notify_cameras)
+          ? speciesConfig.notify_cameras
+          : [];
+        const cameraOptionById = new Map(cameraOptions.map((opt) => [opt.value as number, opt]));
+        setTelegramNotifyCameras(
+          storedCameraIds
+            .map((cid) => cameraOptionById.get(cid))
+            .filter((opt): opt is Option => Boolean(opt))
+        );
+
         // Email reports configuration
         const emailReportConfig = notificationChannels.email_report || {};
         setReportFrequency(emailReportConfig.enabled ? (emailReportConfig.frequency || 'weekly') : 'disabled');
@@ -140,7 +173,7 @@ export const NotificationsPage: React.FC = () => {
         setTelegramNotifySpecies(speciesOpts);
       }
     }
-  }, [preferences, availableSpecies]);
+  }, [preferences, availableSpecies, cameraOptions]);
 
   // Update preferences mutation
   const updateMutation = useMutation({
@@ -220,6 +253,13 @@ export const NotificationsPage: React.FC = () => {
     // Use Telegram settings for legacy fields
     const legacySpeciesValues = isTelegramLinked ? telegramNotifySpecies.map(opt => opt.value) : [];
 
+    // Camera scope: empty selection = null (all cameras). Non-empty list of
+    // ids restricts the rule engine. Only emitted when Telegram is linked;
+    // otherwise the species_detection block is inert anyway.
+    const cameraScope: number[] | null = telegramNotifyCameras.length > 0
+      ? telegramNotifyCameras.map(opt => Number(opt.value))
+      : null;
+
     // Build notification_channels JSON with per-channel configuration
     const notificationChannels = {
       species_detection: {
@@ -227,7 +267,8 @@ export const NotificationsPage: React.FC = () => {
         channels: channels,
         notify_species: isTelegramLinked
           ? telegramNotifySpecies.map(opt => opt.value)
-          : []
+          : [],
+        notify_cameras: isTelegramLinked ? cameraScope : null,
       },
       email_report: {
         enabled: reportFrequency !== 'disabled',
@@ -349,6 +390,26 @@ export const NotificationsPage: React.FC = () => {
                       </Button>
                     ) : null}
                   </div>
+                </div>
+              </div>
+
+              {/* Cameras scope row. Restricts species alerts to a subset of
+                  cameras. Empty selection means alerts from every camera in
+                  this project, including ones added later. */}
+              <div className={`mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="w-full sm:w-1/2 sm:shrink-0">
+                  <label className="text-sm font-medium block">Cameras</label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Limit Telegram alerts to specific cameras. Leave empty to receive alerts from every camera in this project.
+                  </p>
+                </div>
+                <div className="w-full sm:flex-1">
+                  <MultiSelect
+                    options={cameraOptions}
+                    value={telegramNotifyCameras}
+                    onChange={setTelegramNotifyCameras}
+                    placeholder="All cameras"
+                  />
                 </div>
               </div>
 
