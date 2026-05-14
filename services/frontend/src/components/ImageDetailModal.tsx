@@ -13,7 +13,8 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, Camera, ExternalLink, Sparkles, Sun, Contrast, RotateCcw } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, Camera, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2 } from 'lucide-react';
+import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -49,6 +50,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const verificationPanelRef = useRef<VerificationPanelRef>(null);
+  const transformRef = useRef<ReactZoomPanPinchRef>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
@@ -134,6 +136,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     // leaving the canvas blank or with stale dimensions even though the
     // "Showing AI predictions" chip is visible.
     setImageLoaded(false);
+    transformRef.current?.resetTransform(0);
 
     // Check cache SYNCHRONOUSLY first - this prevents the loader flash
     const cachedUrl = getImageBlobUrl(fullImageUrl);
@@ -334,8 +337,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     const clickY = e.clientY - rect.top;
 
     const img = imageRef.current;
-    const scaleX = canvas.width / img.naturalWidth;
-    const scaleY = canvas.height / img.naturalHeight;
+    // Use rect dimensions (post-transform) rather than canvas bitmap so
+    // click coordinates stay aligned with the displayed bboxes when the
+    // user has zoomed in via TransformWrapper.
+    const scaleX = rect.width / img.naturalWidth;
+    const scaleY = rect.height / img.naturalHeight;
 
     // Check if click is inside any detection bbox
     for (const detection of imageDetail.detections) {
@@ -422,19 +428,37 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             <div className="relative">
               {imageBlobUrl ? (
                 <>
-                  <img
-                    ref={imageRef}
-                    src={imageBlobUrl}
-                    alt={imageDetail.filename}
-                    className="block w-full max-w-full h-auto rounded-lg"
-                    style={imageFilter ? { filter: imageFilter } : undefined}
-                    onLoad={() => setImageLoaded(true)}
-                  />
-                  <canvas
-                    ref={canvasRef}
-                    className="absolute top-0 left-0 w-full h-full cursor-pointer"
-                    onClick={handleCanvasClick}
-                  />
+                  <TransformWrapper
+                    ref={transformRef}
+                    minScale={1}
+                    maxScale={5}
+                    initialScale={1}
+                    doubleClick={{ mode: 'reset' }}
+                    wheel={{ step: 0.2 }}
+                    panning={{ velocityDisabled: true }}
+                  >
+                    <TransformComponent
+                      wrapperStyle={{ width: '100%', borderRadius: '0.5rem' }}
+                      contentStyle={{ width: '100%' }}
+                    >
+                      <div className="relative w-full">
+                        <img
+                          ref={imageRef}
+                          src={imageBlobUrl}
+                          alt={imageDetail.filename}
+                          className="block w-full max-w-full h-auto rounded-lg"
+                          style={imageFilter ? { filter: imageFilter } : undefined}
+                          onLoad={() => setImageLoaded(true)}
+                          draggable={false}
+                        />
+                        <canvas
+                          ref={canvasRef}
+                          className="absolute top-0 left-0 w-full h-full cursor-pointer"
+                          onClick={handleCanvasClick}
+                        />
+                      </div>
+                    </TransformComponent>
+                  </TransformWrapper>
                   {/* AI prediction banner — visible only when bboxes are shown */}
                   {showBboxes && imageDetail.detections.length > 0 && (
                     <div
@@ -464,6 +488,36 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}
+                  </div>
+                  {/* Zoom controls */}
+                  <div
+                    className="absolute bottom-3 right-3 flex items-center gap-0.5 px-1 py-1 rounded text-white"
+                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => transformRef.current?.zoomOut()}
+                      className="p-1 rounded hover:bg-white/20"
+                      title="Zoom out"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => transformRef.current?.resetTransform()}
+                      className="p-1 rounded hover:bg-white/20"
+                      title="Fit to screen"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => transformRef.current?.zoomIn()}
+                      className="p-1 rounded hover:bg-white/20"
+                      title="Zoom in"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
                   </div>
                 </>
               ) : (

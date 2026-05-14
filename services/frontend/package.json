@@ -39,6 +39,7 @@
     "react-qr-code": "^2.0.18",
     "react-router-dom": "^6.20.0",
     "react-select": "^5.10.2",
+    "react-zoom-pan-pinch": "^3.7.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.2.1",
     "zustand": "^4.4.7"
