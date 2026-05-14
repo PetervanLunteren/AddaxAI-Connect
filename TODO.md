@@ -44,75 +44,29 @@ Open follow-ups:
 
 
 
-
-> Naïve occupancy metric
-We frequently use the naïve occupancy metric (i.e., the proportion of sites where a species is detected out of the total number of sampled sites). Could a visualization on the dashboard represent this? eg: bar plot comparing species?
-
-- [ ] Add option to remove the user list (except the server admins) for when running a dev server. Now all the real users are still on dev.  
-
-For all, use the same format, filters, "ABout this view" section etc. It must feel the same in AddaxAI Connect as in AddaxAI WebUI.
-
-What do you think? Are there any difficulties? Anything worth flagging? Your honest opinion. 
+User feedback below. Please investigate the feasibility of this request/report/request. How much effort is it, how would you fix it, and is it worth it? 
 
 Instructions:
 * Codex will review your output once you are done, so make sure you exceed his expectations
 * do not sugar coat, be honest and clear
-* Switch to plan mode, I want this task to be done with "plan mode on"
-* Read all MD file in root to get a understanding of the project. 
 * If something is unclear at any point, stop and ask before continuing.
 * Prioritize simplicity and clarity over perfection. The code must be clean, easy to read, and understandable for collaborators. Avoid unnecessary complexity.
 * I'm not in a rush. Please be precise and do the task thoroughly. 
 * Please ask me any question for clarification. I would rather that you ask too many questions than assume certain details. 
-* Ask me clarifying questions before beginning. Based on the conventions set out in CONVENTIONS.md and your knowledge, give your recommended solution to each questions you ask me. The minimum number of questions to ask me is 3
+
+---- FEEDBACK
+
+Could a filter be added to browse images based on detection or classification confidence?
+This would make it easier to identify borderline cases. For example: Select raccoon images with classification confidence > 80%.
+
+
+---- my thoughts
+
+Have a look at this repo, which has such a functionality implemented already. Check to see if we can reuse that. 
+/Users/peter/Documents/Repos/AddaxAI-WebUI/
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-Detection categories summaries are always zero…
-
-image.png
-
-Detection map visualization
-On the detection map, points with no detections are difficult to distinguish from those with detections due to low contrast. Could the visualization be improved—for example, by displaying no-detection sites as transparent or hollow circles?
-
-image.png
-Activity pattern comparison graph
-This graph is very useful, but differences in the number of detections between species make it difficult to read. Would it be possible to compare relative frequencies instead of absolute counts? Additionally, the color contrast could be improved for better readability.
-
-image.png
-Confusion matrix navigation
-Clicking on a cell in the confusion matrix is very helpful for reviewing images and understanding misclassifications. However, the link currently leads to all images of the species rather than only those corresponding to the selected cell (e.g., false negatives). Could this be corrected so that it filters images based on the specific AI vs. human classification outcome?
-
-image.png
-Notifications
-Currently, notifications can be configured by species. Could we also select specific cameras for which alerts should be triggered?
-
-Would it be possible to enable email notifications?
-
-image.png
-Data labeling and classification
-In some cases, species cannot be identified. Could an “Undetermined” or “Unknown” category be added for labeling?
-
-image.png
-In cases where the system correctly identifies a general category (e.g., “bird”), could we allow a secondary manual classification to refine the species (e.g., “Black Stork”), even if it is not recognized by the AI model?
-These manual refinements would not need to affect performance metrics but should be reflected in the dashboard and available as filters when browsing images.
-A similar example is the “Mustelids” category, which could be split into multiple clearly identifiable species.
-
-image.png
-
-Image management
-Could a zoom function be added when viewing images?
 
 Would it be possible to manually delete images without affecting the associated statistics and performance metrics?
 In other words, the metadata would remain, but the image file would be removed. This would help free up significant storage space on the server. In practice, images are rarely revisited after initial review, and we could download them in bulk to local storage before deletion.

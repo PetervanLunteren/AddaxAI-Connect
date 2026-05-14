@@ -740,7 +740,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             onClick={() => setShowShortcuts(!showShortcuts)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            Show keyboard shortcuts
+            Show shortcuts
           </button>
           {showShortcuts && (
             <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
@@ -776,6 +776,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">B</span>
                   <span>Toggle AI predictions</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Scroll</span>
+                  <span>Zoom</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Esc</span>
