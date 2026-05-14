@@ -265,8 +265,6 @@ export const NaiveOccupancyPage: React.FC = () => {
                 <span>Window {captionWindow}</span>
               </>
             )}
-            <span aria-hidden="true">·</span>
-            <span>Uncorrected for detection probability</span>
           </div>
         )}
       </div>
