@@ -26,10 +26,10 @@ import { normalizeLabel } from '../../utils/labels';
 import type { NaiveOccupancyMetadata, NaiveOccupancyPoint } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
 
-// Plugin that draws a small vertical tick at each bar's corrected psi
-// value (in percent). Skipped for species without a fitted psi. Reads
-// the points array from the plugin options so the data passes through
-// Chart.js's typings cleanly without coupling to dataset internals.
+// Forest-plot style marker per bar: a horizontal 95% CI whisker through
+// a filled diamond at the corrected psi point estimate. Skipped when psi
+// is null (no fit, boundary collapse, or singular Hessian). The diamond
+// is outlined in white so it stays legible when it sits over the bar.
 const correctedPsiMarkerPlugin: Plugin<'bar'> = {
   id: 'correctedPsiMarker',
   afterDatasetsDraw(chart, _args, options) {
@@ -43,20 +43,48 @@ const correctedPsiMarkerPlugin: Plugin<'bar'> = {
     const meta = chart.getDatasetMeta(0);
     if (!meta || !meta.data) return;
 
+    const DIAMOND_HALF = 5;
+    const CAP_HALF = 3;
+
     ctx.save();
-    ctx.strokeStyle = '#0a3e41';
-    ctx.lineWidth = 2;
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
       if (p.psi == null) continue;
-      const bar = meta.data[i] as unknown as { y: number; height: number };
+      const bar = meta.data[i] as unknown as { y: number };
       if (!bar) continue;
+      const y = bar.y;
       const x = xScale.getPixelForValue(p.psi * 100);
       if (x < chartArea.left || x > chartArea.right) continue;
-      const half = (bar.height || 16) / 2 - 1;
+
+      // CI whisker through the diamond. End caps make it read as a
+      // range marker, not just a stray line.
+      if (p.psi_ci_low != null && p.psi_ci_high != null) {
+        const xLow = Math.max(chartArea.left, xScale.getPixelForValue(p.psi_ci_low * 100));
+        const xHigh = Math.min(chartArea.right, xScale.getPixelForValue(p.psi_ci_high * 100));
+        ctx.strokeStyle = '#0a3e41';
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.moveTo(xLow, y);
+        ctx.lineTo(xHigh, y);
+        ctx.moveTo(xLow, y - CAP_HALF);
+        ctx.lineTo(xLow, y + CAP_HALF);
+        ctx.moveTo(xHigh, y - CAP_HALF);
+        ctx.lineTo(xHigh, y + CAP_HALF);
+        ctx.stroke();
+      }
+
+      // Filled diamond at psi. White stroke so the shape stays visible
+      // when the point sits on top of the teal bar.
+      ctx.fillStyle = '#0a3e41';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.25;
       ctx.beginPath();
-      ctx.moveTo(x, bar.y - half);
-      ctx.lineTo(x, bar.y + half);
+      ctx.moveTo(x, y - DIAMOND_HALF);
+      ctx.lineTo(x + DIAMOND_HALF, y);
+      ctx.lineTo(x, y + DIAMOND_HALF);
+      ctx.lineTo(x - DIAMOND_HALF, y);
+      ctx.closePath();
+      ctx.fill();
       ctx.stroke();
     }
     ctx.restore();

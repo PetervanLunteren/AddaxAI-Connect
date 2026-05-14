@@ -1314,15 +1314,25 @@ async def get_naive_occupancy_endpoint(
             if sp in matrices and matrices[sp]
             else None
         )
+        # Show the corrected estimate only when the CI is finite. Boundary
+        # MLEs (psi exactly 0 or 1) and degenerate near-boundary fits both
+        # come back with a null CI; in either case the point estimate is
+        # not informative enough to surface next to the naive bar.
+        has_valid_ci = (
+            fit is not None
+            and fit.psi is not None
+            and fit.psi_ci_low is not None
+            and fit.psi_ci_high is not None
+        )
         points.append(
             NaiveOccupancyPoint(
                 species=sp,
                 sites_detected=p["sites_detected"],
                 sites_total=sites_total,
                 proportion=(p["sites_detected"] / sites_total) if sites_total > 0 else 0.0,
-                psi=fit.psi if fit else None,
-                psi_ci_low=fit.psi_ci_low if fit else None,
-                psi_ci_high=fit.psi_ci_high if fit else None,
+                psi=fit.psi if has_valid_ci else None,
+                psi_ci_low=fit.psi_ci_low if has_valid_ci else None,
+                psi_ci_high=fit.psi_ci_high if has_valid_ci else None,
             )
         )
 
