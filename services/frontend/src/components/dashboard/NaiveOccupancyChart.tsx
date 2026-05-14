@@ -148,7 +148,7 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
       labels: points.map((p) => normalizeLabel(p.species)),
       datasets: [
         {
-          label: 'Naive occupancy',
+          label: 'Naive',
           data: points.map((p) => +(p.proportion * 100).toFixed(1)),
           // Light brand-teal fill so the dark diamond + CI whisker stay
           // legible whether the marker sits over the bar or past its end.
@@ -158,6 +158,19 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
           borderColor: '#0f6064',
           borderWidth: 1,
           borderRadius: 4,
+          stack: 'occupancy',
+        },
+        {
+          // Invisible companion dataset. Stacked with zero data so it
+          // does not change the chart layout, but Chart.js still creates
+          // a tooltip item per index for it. That gives the second
+          // 'Corrected' line its own diamond swatch in the tooltip.
+          label: 'Corrected',
+          data: points.map(() => 0),
+          backgroundColor: 'transparent',
+          borderColor: 'transparent',
+          borderWidth: 0,
+          stack: 'occupancy',
         },
       ],
     };
@@ -172,19 +185,47 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
       // swatch is noise.
       legend: { display: false },
       tooltip: {
+        usePointStyle: true,
+        filter: (item) => {
+          // Hide the Corrected tooltip line when the model could not
+          // produce a stable fit for this species.
+          if (item.datasetIndex !== 1) return true;
+          const p = points[item.dataIndex];
+          return !!p && p.psi != null;
+        },
         callbacks: {
           label: (context) => {
             const idx = context.dataIndex;
             const p = points[idx];
             if (!p) return '';
-            const naive = `Detected at ${p.sites_detected} of ${p.sites_total} active sites (${formatPct(p.proportion)})`;
-            if (p.psi == null) return naive;
+            if (context.datasetIndex === 0) {
+              return `Detected at ${p.sites_detected} of ${p.sites_total} active sites (${formatPct(p.proportion)})`;
+            }
+            if (p.psi == null) return '';
             const ci =
               p.psi_ci_low != null && p.psi_ci_high != null
                 ? ` (95% CI ${formatPct(p.psi_ci_low)} to ${formatPct(p.psi_ci_high)})`
                 : '';
-            return [naive, `Corrected ${formatPct(p.psi)}${ci}`];
+            return `Corrected ${formatPct(p.psi)}${ci}`;
           },
+          labelColor: (context) => {
+            if (context.datasetIndex === 0) {
+              return {
+                backgroundColor: '#a3c8ca',
+                borderColor: '#0f6064',
+                borderWidth: 1,
+              };
+            }
+            return {
+              backgroundColor: '#0a3e41',
+              borderColor: '#ffffff',
+              borderWidth: 1,
+            };
+          },
+          labelPointStyle: (context) => ({
+            pointStyle: context.datasetIndex === 1 ? 'rectRot' : 'rect',
+            rotation: 0,
+          }),
         },
       },
       // @ts-expect-error custom plugin options aren't in Chart.js's typings
@@ -192,6 +233,7 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
     },
     scales: {
       x: {
+        stacked: true,
         beginAtZero: true,
         max: 100,
         ticks: {
@@ -203,6 +245,7 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
         },
       },
       y: {
+        stacked: true,
         grid: {
           display: false,
         },
