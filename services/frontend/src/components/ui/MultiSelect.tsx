@@ -16,6 +16,10 @@ interface MultiSelectProps {
   placeholder?: string;
   isLoading?: boolean;
   className?: string;
+  // Noun shown in the trigger when one or more items are selected, e.g.
+  // selectedNoun="labels" produces "20 labels selected". Defaults to a plain
+  // "N selected" so existing call sites keep their current text.
+  selectedNoun?: string;
 }
 
 export const MultiSelect: React.FC<MultiSelectProps> = ({
@@ -25,6 +29,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
   placeholder = 'Select...',
   isLoading = false,
   className = '',
+  selectedNoun,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -91,7 +96,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
   };
 
   const triggerLabel = value.length > 0
-    ? `${value.length} selected`
+    ? `${value.length} ${selectedNoun ? selectedNoun + ' ' : ''}selected`
     : placeholder;
 
   return (

@@ -300,7 +300,7 @@ export const NotificationsPage: React.FC = () => {
                   one column on the right so they read as one notification type,
                   not two. When Telegram is not yet linked the pickers are greyed
                   via opacity-50 and the call-to-action sits under them. */}
-              <div className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -321,7 +321,8 @@ export const NotificationsPage: React.FC = () => {
                         options={speciesOptions}
                         value={telegramNotifySpecies}
                         onChange={setTelegramNotifySpecies}
-                        placeholder="Select species to notify about..."
+                        placeholder="Select labels"
+                        selectedNoun="labels"
                       />
                     </div>
                     <div className="w-full sm:flex-1 min-w-0">
@@ -329,7 +330,8 @@ export const NotificationsPage: React.FC = () => {
                         options={cameraOptions}
                         value={telegramNotifyCameras}
                         onChange={setTelegramNotifyCameras}
-                        placeholder="All cameras"
+                        placeholder="Select cameras"
+                        selectedNoun="cameras"
                       />
                     </div>
                   </div>
