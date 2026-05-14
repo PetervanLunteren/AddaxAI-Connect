@@ -315,18 +315,24 @@ export const NotificationsPage: React.FC = () => {
                   </p>
                 </div>
                 <div className="w-full sm:flex-1 flex flex-col gap-2">
-                  <MultiSelect
-                    options={speciesOptions}
-                    value={telegramNotifySpecies}
-                    onChange={setTelegramNotifySpecies}
-                    placeholder="Select species to notify about..."
-                  />
-                  <MultiSelect
-                    options={cameraOptions}
-                    value={telegramNotifyCameras}
-                    onChange={setTelegramNotifyCameras}
-                    placeholder="All cameras"
-                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                    <div className="w-full sm:flex-1 min-w-0">
+                      <MultiSelect
+                        options={speciesOptions}
+                        value={telegramNotifySpecies}
+                        onChange={setTelegramNotifySpecies}
+                        placeholder="Select species to notify about..."
+                      />
+                    </div>
+                    <div className="w-full sm:flex-1 min-w-0">
+                      <MultiSelect
+                        options={cameraOptions}
+                        value={telegramNotifyCameras}
+                        onChange={setTelegramNotifyCameras}
+                        placeholder="All cameras"
+                      />
+                    </div>
+                  </div>
                   {!isTelegramLinked && (
                     <div className="flex justify-end">
                       {isTelegramConfigured ? (
