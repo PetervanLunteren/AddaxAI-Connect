@@ -1848,7 +1848,10 @@ async def get_dev_mode_status(
     dev = is_dev_server(domain)
 
     non_admin_count = await db.scalar(
-        select(func.count()).select_from(User).where(User.is_superuser.is_(False))
+        select(func.count())
+        .select_from(User)
+        .where(User.is_superuser.is_(False))
+        .where(User.email != "system@addaxai.com")
     )
     membership_count = await db.scalar(select(func.count()).select_from(ProjectMembership))
 
@@ -1884,7 +1887,9 @@ async def purge_non_admin_users(
         )
 
     non_admin_ids_result = await db.execute(
-        select(User.id).where(User.is_superuser.is_(False))
+        select(User.id)
+        .where(User.is_superuser.is_(False))
+        .where(User.email != "system@addaxai.com")
     )
     non_admin_ids = [row[0] for row in non_admin_ids_result.all()]
     if not non_admin_ids:
@@ -1953,7 +1958,9 @@ async def purge_non_admin_users(
     # Cascades handle project_memberships, project_notification_preferences,
     # notification_logs, telegram_linking_tokens (all FK CASCADE on users.id).
     delete_result = await db.execute(
-        delete(User).where(User.is_superuser.is_(False))
+        delete(User)
+        .where(User.is_superuser.is_(False))
+        .where(User.email != "system@addaxai.com")
     )
     deleted_count = delete_result.rowcount or 0
     await db.commit()
