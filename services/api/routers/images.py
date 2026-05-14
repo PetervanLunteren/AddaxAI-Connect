@@ -372,7 +372,6 @@ async def list_images(
     if tags:
         tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
         if tag_list:
-            from sqlalchemy import cast
             from sqlalchemy.dialects.postgresql import JSONB, ARRAY, TEXT as PG_TEXT
             tag_camera_query = (
                 select(Camera.id)
