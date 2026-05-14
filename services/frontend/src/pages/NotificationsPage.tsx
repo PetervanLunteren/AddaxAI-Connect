@@ -305,12 +305,12 @@ export const NotificationsPage: React.FC = () => {
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked
-                      ? 'Receive an instant Telegram message with a photo when a selected species is detected. Leave the camera list empty to receive alerts from every camera in this project.'
+                      ? 'Receive an instant Telegram message with a photo each time a selected label is detected. Pick the labels you want to be alerted about. Optionally limit the alerts to specific cameras, or leave the camera list empty to include all cameras in this project.'
                       : isTelegramConfigured
-                        ? 'Receive an instant Telegram message with a photo when a selected species is detected. Link your Telegram account to get started.'
+                        ? 'Receive an instant Telegram message with a photo each time a selected label is detected, optionally limited to specific cameras. Link your Telegram account to get started.'
                         : user?.is_superuser
-                          ? 'Receive an instant Telegram message with a photo when a selected species is detected. A Telegram bot has not been configured yet.'
-                          : 'Receive an instant Telegram message with a photo when a selected species is detected. A Telegram bot has not been configured for this server yet.'
+                          ? 'Receive an instant Telegram message with a photo each time a selected label is detected, optionally limited to specific cameras. A Telegram bot has not been configured yet.'
+                          : 'Receive an instant Telegram message with a photo each time a selected label is detected, optionally limited to specific cameras. A Telegram bot has not been configured for this server yet.'
                     }
                   </p>
                 </div>
