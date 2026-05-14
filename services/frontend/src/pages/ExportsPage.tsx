@@ -354,8 +354,7 @@ export const ExportsPage: React.FC = () => {
             <CardDescription>
               Site by occasion presence/absence matrix for occupancy analysis in R with{' '}
               <code className="bg-muted px-1 py-0.5 rounded">unmarked</code> or{' '}
-              <code className="bg-muted px-1 py-0.5 rounded">camtrapR</code>. One-day occasions
-              across the full project window.
+              <code className="bg-muted px-1 py-0.5 rounded">camtrapR</code>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
