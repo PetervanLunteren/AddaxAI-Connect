@@ -63,6 +63,25 @@ export function MapLegend({ domain }: MapLegendProps) {
             <div>0</div>
           </div>
         </div>
+        <div style="
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px solid rgba(0,0,0,0.1);
+          display: flex;
+          align-items: center;
+          font-size: 11px;
+        ">
+          <div style="
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid #555555;
+            background: transparent;
+            margin-right: 8px;
+            box-sizing: border-box;
+          "></div>
+          <div>No detections</div>
+        </div>
       `;
 
       return div;

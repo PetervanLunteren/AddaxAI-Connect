@@ -77,10 +77,12 @@ export function HexbinLayer({ deployments, zoomLevel, mapBounds, maxDetectionRat
     const props = feature?.properties as HexFeatureProperties | undefined;
     if (!props) return {};
 
-    // Use full opacity for all hexagons (zeros are real data - cameras deployed but no detections)
+    // Hollow hex for zero-detection cells. They are real data (cameras
+    // deployed, nothing seen) and should stay distinguishable from the
+    // low end of the colour gradient.
     return {
       fillColor: props.color,
-      fillOpacity: 0.8,
+      fillOpacity: props.isZero ? 0 : 0.8,
       color: '#555555', // Dark grey border
       weight: 1,
       opacity: 0.8,

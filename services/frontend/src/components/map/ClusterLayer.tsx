@@ -44,12 +44,17 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
     // Calculate overall rate: total detections / total trap-days × 100
     const overallRate = totalTrapDays > 0 ? (totalDetections / totalTrapDays) * 100 : 0;
 
-    // Get color for this overall rate
+    // Hollow cluster icon when every member deployment has zero detections,
+    // matching the points and hexbin views.
+    const isZero = totalDetections === 0;
     const color = getDetectionRateColor(overallRate, maxDetectionRate);
+    const background = isZero ? 'transparent' : color;
+    const textColor = isZero ? '#555555' : 'white';
+    const textShadow = isZero ? 'none' : '0 0 2px rgba(0,0,0,0.5)';
 
     return L.divIcon({
       html: `<div style="
-        background-color: ${color};
+        background-color: ${background};
         width: 40px;
         height: 40px;
         border-radius: 50%;
@@ -57,10 +62,10 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
+        color: ${textColor};
         font-weight: bold;
         font-size: 14px;
-        text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        text-shadow: ${textShadow};
       ">${Math.round(overallRate)}</div>`,
       className: 'custom-cluster-icon',
       iconSize: L.point(40, 40, true),
