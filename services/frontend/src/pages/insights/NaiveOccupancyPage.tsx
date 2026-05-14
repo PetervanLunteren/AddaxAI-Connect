@@ -1,20 +1,20 @@
 /**
  * Insights -> Occupancy page.
  *
- * Naive occupancy bar chart with shared FilterBar, top-N truncation in
- * the Display popover, and a filter-scoped detection-history CSV button
- * in the page actions.
+ * Naive occupancy bar chart with shared FilterBar and top-N truncation
+ * in the Display popover. The detection-history CSV download lives on
+ * the Exports page since it's a publication-grade export, not a chart
+ * control.
  */
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Download, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
 import { statisticsApi } from '../../api/statistics';
 import type { NaiveOccupancyMetadata } from '../../api/types';
-import { Button } from '../../components/ui/Button';
 import {
   FilterBar,
   type DisplayControlDef,
@@ -24,12 +24,22 @@ import {
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { type DateRange } from '../../components/dashboard';
 import { NaiveOccupancyChart } from '../../components/dashboard/NaiveOccupancyChart';
-import { PlotExplainer } from '../../components/plots/PlotExplainer';
+import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
   type FilterSchema,
 } from '../../lib/filter-url';
+
+const REFERENCES: PlotReference[] = [
+  {
+    citation:
+      'MacKenzie, D. I., Nichols, J. D., Lachman, G. B., Droege, S., Royle, J. A., & ' +
+      'Langtimm, C. A. (2002). Estimating site occupancy rates when detection ' +
+      'probabilities are less than one. Ecology, 83(8), 2248-2255.',
+    url: 'https://doi.org/10.1890/0012-9658(2002)083[2248:ESORWD]2.0.CO;2',
+  },
+];
 
 const TOP_N_VALUES: { value: string; label: string }[] = [
   { value: '10', label: '10 species' },
@@ -172,46 +182,6 @@ export const NaiveOccupancyPage: React.FC = () => {
   }, [tagValues, cameraIdValues, cameras]);
 
   const [meta, setMeta] = useState<NaiveOccupancyMetadata | null>(null);
-  const [downloading, setDownloading] = useState(false);
-
-  // CSV uses the page's date filter when set. When the user has not
-  // picked a window, fall back to the project's full lifetime (first
-  // image to last image) so the default download covers all available
-  // data. The chart's own window is untouched, so the CSV and the
-  // chart can intentionally show different ranges.
-  const handleDownload = async () => {
-    if (!projectId || downloading) return;
-    let from = dateRange.startDate || overview?.first_image_date;
-    let to = dateRange.endDate || overview?.last_image_date;
-    if (!from || !to) {
-      // Fallback when the project has no images yet: 90-day window
-      // ending today so the request still has valid bounds.
-      const today = new Date();
-      const past = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
-      const iso = (d: Date) => d.toISOString().slice(0, 10);
-      from = iso(past);
-      to = iso(today);
-    }
-    setDownloading(true);
-    try {
-      const { blob, filename } = await statisticsApi.downloadDetectionHistoryCsv(
-        projectId,
-        from,
-        to,
-        { cameraIds: cameraIdsFromTags, occasionLengthDays: 1 },
-      );
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const captionWindow =
     meta?.window_start && meta?.window_end ? `${meta.window_start} to ${meta.window_end}` : '';
@@ -220,23 +190,6 @@ export const NaiveOccupancyPage: React.FC = () => {
     <InsightsPageLayout
       title="Naive occupancy"
       subtitle="Share of camera sites where each species was detected"
-      actions={
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!projectId || downloading}
-          onClick={handleDownload}
-          className="gap-1"
-          title={
-            dateRange.startDate && dateRange.endDate
-              ? 'Site-by-occasion CSV for unmarked or camtrapR'
-              : 'Site-by-occasion CSV for unmarked or camtrapR. Defaults to the full project window; set a date range above to override.'
-          }
-        >
-          <Download className="h-4 w-4" />
-          {downloading ? 'Preparing...' : 'Export for R (CSV)'}
-        </Button>
-      }
     >
       <FilterBar
         fields={filterFields}
@@ -293,10 +246,13 @@ export const NaiveOccupancyPage: React.FC = () => {
               confidence interval on the corrected value. Nothing is drawn when fewer than three
               sites are active, when every or no site detected the species, or when the model
               cannot pin down a confidence interval. For publication-grade estimates with
-              covariates, export the CSV and run unmarked or camtrapR in R.
+              covariates, download the detection-history CSV from the Exports page and run{' '}
+              <code className="bg-muted px-1 py-0.5 rounded">unmarked</code> or{' '}
+              <code className="bg-muted px-1 py-0.5 rounded">camtrapR</code> in R.
             </p>
           </>
         }
+        references={REFERENCES}
       />
     </InsightsPageLayout>
   );

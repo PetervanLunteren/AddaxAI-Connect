@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../co
 import { Checkbox } from '../components/ui/Checkbox';
 import { useProject } from '../contexts/ProjectContext';
 import { exportApi } from '../api/export';
+import { statisticsApi } from '../api/statistics';
 
 /**
  * Trigger a file download from a blob response.
@@ -60,6 +61,8 @@ export const ExportsPage: React.FC = () => {
   const [includeMedia, setIncludeMedia] = useState(true);
   const [isExportingDP, setIsExportingDP] = useState(false);
   const [dpError, setDpError] = useState<string | null>(null);
+  const [isExportingDh, setIsExportingDh] = useState(false);
+  const [dhError, setDhError] = useState<string | null>(null);
 
   const projectSlug = (selectedProject?.name || 'project')
     .toLowerCase()
@@ -118,6 +121,33 @@ export const ExportsPage: React.FC = () => {
       setSpatialError(await extractErrorMessage(err));
     } finally {
       setIsExportingSpatial(false);
+    }
+  };
+
+  const handleDownloadDetectionHistory = async () => {
+    if (!projectIdNum) return;
+
+    setIsExportingDh(true);
+    setDhError(null);
+
+    try {
+      // Pull the project's image window so the CSV covers all data
+      // without making the user pick a date range here.
+      const overview = await statisticsApi.getOverview(projectIdNum);
+      if (!overview.first_image_date || !overview.last_image_date) {
+        throw new Error('No images available to build a detection history');
+      }
+      const { blob, filename } = await statisticsApi.downloadDetectionHistoryCsv(
+        projectIdNum,
+        overview.first_image_date,
+        overview.last_image_date,
+        { occasionLengthDays: 1 },
+      );
+      downloadBlob(blob, filename);
+    } catch (err: any) {
+      setDhError(await extractErrorMessage(err));
+    } finally {
+      setIsExportingDh(false);
     }
   };
 
@@ -310,6 +340,47 @@ export const ExportsPage: React.FC = () => {
                   <>
                     <Download className="h-4 w-4" />
                     Download {spatialFormatOptions.find(o => o.value === spatialFormat)?.label}
+                  </>
+                )}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Detection history CSV for R-based occupancy analysis */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Detection history (R)</CardTitle>
+            <CardDescription>
+              Site by occasion presence/absence matrix for occupancy analysis in R with{' '}
+              <code className="bg-muted px-1 py-0.5 rounded">unmarked</code> or{' '}
+              <code className="bg-muted px-1 py-0.5 rounded">camtrapR</code>. One-day occasions
+              across the full project window.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {dhError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {dhError}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+              <button
+                onClick={handleDownloadDetectionHistory}
+                disabled={isExportingDh}
+                className="px-6 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors"
+              >
+                {isExportingDh ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Preparing export...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Download CSV
                   </>
                 )}
               </button>
