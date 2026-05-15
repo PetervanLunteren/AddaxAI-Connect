@@ -8,7 +8,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from shared.logger import get_logger, set_image_id
-from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED, QUEUE_DETECTION_COMPLETE
+from shared.queue import (
+    RedisQueue,
+    QUEUE_IMAGE_INGESTED,
+    QUEUE_IMAGE_INGESTED_BULK,
+    QUEUE_DETECTION_COMPLETE,
+    QUEUE_DETECTION_COMPLETE_BULK,
+)
 from config import get_settings
 from model_loader import load_model
 from detector import run_detection
@@ -37,6 +43,13 @@ def process_image(message: dict, detector) -> None:
     image_uuid = message.get("image_uuid")
     storage_path = message.get("storage_path")
     camera_id = message.get("camera_id")
+    origin = message.get("origin", "live")
+    # Route the next stage to the matching priority queue. Bulk-origin
+    # detections continue down the bulk pipeline so live cameras keep
+    # priority on the classifier.
+    downstream_queue_name = (
+        QUEUE_DETECTION_COMPLETE_BULK if origin == "bulk" else QUEUE_DETECTION_COMPLETE
+    )
 
     if not image_uuid or not storage_path:
         raise ValueError(f"Invalid message format: {message}")
@@ -48,7 +61,8 @@ def process_image(message: dict, detector) -> None:
         "Processing image",
         image_uuid=image_uuid,
         storage_path=storage_path,
-        camera_id=camera_id
+        camera_id=camera_id,
+        origin=origin,
     )
 
     temp_files = []
@@ -76,11 +90,12 @@ def process_image(message: dict, detector) -> None:
             update_image_status(image_uuid, "detected")
 
             # Publish to next queue (classification will handle empty detections)
-            queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
+            queue = RedisQueue(downstream_queue_name)
             queue.publish({
                 "image_uuid": image_uuid,
                 "num_detections": 0,
-                "detection_ids": []
+                "detection_ids": [],
+                "origin": origin,
             })
 
             logger.info("Image processing complete (no detections)", image_uuid=image_uuid)
@@ -93,11 +108,12 @@ def process_image(message: dict, detector) -> None:
         update_image_status(image_uuid, "detected")
 
         # Step 6: Publish to detection-complete queue
-        queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
+        queue = RedisQueue(downstream_queue_name)
         queue.publish({
             "image_uuid": image_uuid,
             "num_detections": len(detections),
-            "detection_ids": detection_ids
+            "detection_ids": detection_ids,
+            "origin": origin,
         })
 
         logger.info(
@@ -140,12 +156,14 @@ def main():
     detector = load_model()
     logger.info("Model loaded successfully")
 
-    # Initialize queue consumer
+    # Initialize queue consumer. Live wins over bulk via priority BRPOP.
     queue = RedisQueue(QUEUE_IMAGE_INGESTED)
-
-    # Process messages forever
-    logger.info("Listening for messages", queue=QUEUE_IMAGE_INGESTED)
-    queue.consume_forever(lambda msg: process_image(msg, detector))
+    priority_queues = [QUEUE_IMAGE_INGESTED, QUEUE_IMAGE_INGESTED_BULK]
+    logger.info("Listening for messages", queues=priority_queues)
+    queue.consume_forever_priority(
+        priority_queues,
+        lambda msg: process_image(msg, detector),
+    )
 
 
 if __name__ == "__main__":

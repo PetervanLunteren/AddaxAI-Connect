@@ -6,7 +6,12 @@ Consumes detections from the detection queue, runs species classification, and s
 import os
 
 from shared.logger import get_logger, set_image_id
-from shared.queue import RedisQueue, QUEUE_DETECTION_COMPLETE, QUEUE_NOTIFICATION_EVENTS
+from shared.queue import (
+    RedisQueue,
+    QUEUE_DETECTION_COMPLETE,
+    QUEUE_DETECTION_COMPLETE_BULK,
+    QUEUE_NOTIFICATION_EVENTS,
+)
 from config import get_settings
 from model_loader import load_model
 from classifier import run_classification
@@ -41,6 +46,7 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
     image_uuid = message.get("image_uuid")
     num_detections = message.get("num_detections", 0)
     detection_ids = message.get("detection_ids", [])
+    is_bulk = message.get("origin") == "bulk"
 
     if not image_uuid:
         raise ValueError(f"Invalid message format: {message}")
@@ -51,7 +57,8 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
     logger.info(
         "Processing classification request",
         image_uuid=image_uuid,
-        num_detections=num_detections
+        num_detections=num_detections,
+        origin=message.get("origin", "live"),
     )
 
     temp_files = []
@@ -94,7 +101,8 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
                     pv_dets = [d for d in detections
                                if d.category in ('person', 'vehicle') and d.confidence >= det_threshold]
 
-                    if pv_dets:
+                    # Bulk uploads suppress all live notifications.
+                    if pv_dets and not is_bulk:
                         try:
                             # Download image for annotation
                             image_path = download_image_from_minio(image_record.storage_path)
@@ -233,8 +241,10 @@ def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str
         # Step 6: Update image status to classified
         update_image_status(image_uuid, "classified")
 
-        # Step 6.5: Publish notification events for each unique species detected
-        if classifications:
+        # Step 6.5: Publish notification events for each unique species detected.
+        # Suppressed for bulk uploads: an SD-card import would otherwise
+        # fire thousands of stale species_detection alerts at once.
+        if classifications and not is_bulk:
             try:
                 # Build detection confidence lookup for threshold filtering
                 detection_confidence = {d.detection_id: d.confidence for d in detections}
@@ -509,8 +519,9 @@ def main():
         geo_config = get_geofencing_config()
     logger.info("Geofencing config loaded", country=geo_config["country_code"])
 
-    # Initialize queue consumer
+    # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
+    priority_queues = [QUEUE_DETECTION_COMPLETE, QUEUE_DETECTION_COMPLETE_BULK]
 
     # Process messages forever, refresh config on each message
     def handle_message(msg):
@@ -518,8 +529,8 @@ def main():
         current_geo = get_geofencing_config()
         process_detection_complete(msg, classifier, current_map, ensemble, current_geo)
 
-    logger.info("Listening for messages", queue=QUEUE_DETECTION_COMPLETE)
-    queue.consume_forever(handle_message)
+    logger.info("Listening for messages", queues=priority_queues)
+    queue.consume_forever_priority(priority_queues, handle_message)
 
 
 if __name__ == "__main__":

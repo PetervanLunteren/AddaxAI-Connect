@@ -6,7 +6,12 @@ Consumes detections from the detection queue, runs species classification, and s
 import os
 
 from shared.logger import get_logger, set_image_id
-from shared.queue import RedisQueue, QUEUE_DETECTION_COMPLETE, QUEUE_NOTIFICATION_EVENTS
+from shared.queue import (
+    RedisQueue,
+    QUEUE_DETECTION_COMPLETE,
+    QUEUE_DETECTION_COMPLETE_BULK,
+    QUEUE_NOTIFICATION_EVENTS,
+)
 from config import get_settings
 from model_loader import load_model
 from classifier import run_classification
@@ -41,6 +46,10 @@ def process_detection_complete(message: dict, classifier) -> None:
     image_uuid = message.get("image_uuid")
     num_detections = message.get("num_detections", 0)
     detection_ids = message.get("detection_ids", [])
+    # Origin gates the live-notification fan-out. Bulk uploads must
+    # never fire species_detection alerts (would mean thousands of
+    # Telegram messages for old SD-card data).
+    is_bulk = message.get("origin") == "bulk"
 
     if not image_uuid:
         raise ValueError(f"Invalid message format: {message}")
@@ -51,7 +60,8 @@ def process_detection_complete(message: dict, classifier) -> None:
     logger.info(
         "Processing classification request",
         image_uuid=image_uuid,
-        num_detections=num_detections
+        num_detections=num_detections,
+        origin=message.get("origin", "live"),
     )
 
     temp_files = []
@@ -123,81 +133,86 @@ def process_detection_complete(message: dict, classifier) -> None:
                                         img.paste(region, (x1, y1))
                                 img.save(image_path, format='JPEG', quality=90)
 
-                            # Generate annotated image with person/vehicle boxes
-                            annotated_minio_path = None
-                            try:
-                                detection_classification_pairs = []
-                                for det in pv_dets:
-                                    bbox_n = det.bbox_normalized
-                                    pixel_bbox = {
-                                        'x': int(bbox_n[0] * det.image_width),
-                                        'y': int(bbox_n[1] * det.image_height),
-                                        'width': int(bbox_n[2] * det.image_width),
-                                        'height': int(bbox_n[3] * det.image_height)
+                            # Notification fan-out for person/vehicle hits.
+                            # Suppressed for bulk uploads so an SD-card import
+                            # doesn't fire thousands of stale alerts and so
+                            # the annotated MinIO object is not orphaned.
+                            if not is_bulk:
+                                # Generate annotated image with person/vehicle boxes
+                                annotated_minio_path = None
+                                try:
+                                    detection_classification_pairs = []
+                                    for det in pv_dets:
+                                        bbox_n = det.bbox_normalized
+                                        pixel_bbox = {
+                                            'x': int(bbox_n[0] * det.image_width),
+                                            'y': int(bbox_n[1] * det.image_height),
+                                            'width': int(bbox_n[2] * det.image_width),
+                                            'height': int(bbox_n[3] * det.image_height)
+                                        }
+                                        ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category)
+                                        ann_class = AnnotatedClassification(
+                                            species=det.category, confidence=det.confidence
+                                        )
+                                        detection_classification_pairs.append((ann_det, ann_class))
+
+                                    if detection_classification_pairs:
+                                        annotated_bytes = generate_annotated_image(
+                                            image_path=image_path,
+                                            detections=detection_classification_pairs
+                                        )
+                                        annotated_minio_path = upload_annotated_image_to_minio(
+                                            image_bytes=annotated_bytes,
+                                            image_uuid=image_uuid
+                                        )
+                                except Exception as e:
+                                    logger.warning(
+                                        "Failed to generate annotated image for pv notifications",
+                                        error=str(e)
+                                    )
+
+                                # Build location and timestamp
+                                location = None
+                                metadata = image_record.image_metadata or {}
+                                gps_decimal = metadata.get('gps_decimal')
+                                if gps_decimal and len(gps_decimal) == 2:
+                                    location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
+                                elif camera.location:
+                                    location = {
+                                        "lat": camera.location.coords[1],
+                                        "lon": camera.location.coords[0]
                                     }
-                                    ann_det = AnnotatedDetection(bbox=pixel_bbox, category=det.category)
-                                    ann_class = AnnotatedClassification(
-                                        species=det.category, confidence=det.confidence
-                                    )
-                                    detection_classification_pairs.append((ann_det, ann_class))
+                                datetime_original = metadata.get('DateTimeOriginal')
+                                timestamp = datetime_original if datetime_original else message.get("timestamp")
 
-                                if detection_classification_pairs:
-                                    annotated_bytes = generate_annotated_image(
-                                        image_path=image_path,
-                                        detections=detection_classification_pairs
+                                # Publish one notification per person/vehicle category
+                                notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
+                                pv_categories = set(d.category for d in pv_dets)
+                                for category in pv_categories:
+                                    best_det = max(
+                                        (d for d in pv_dets if d.category == category),
+                                        key=lambda d: d.confidence
                                     )
-                                    annotated_minio_path = upload_annotated_image_to_minio(
-                                        image_bytes=annotated_bytes,
-                                        image_uuid=image_uuid
+                                    notification_queue.publish({
+                                        "event_type": "species_detection",
+                                        "project_id": camera.project_id,
+                                        "image_uuid": image_uuid,
+                                        "camera_id": camera.id,
+                                        "camera_name": camera.name,
+                                        "camera_location": location,
+                                        "species": category,
+                                        "confidence": best_det.confidence,
+                                        "detection_confidence": best_det.confidence,
+                                        "detection_count": len(pv_dets),
+                                        "annotated_minio_path": annotated_minio_path,
+                                        "timestamp": timestamp
+                                    })
+                                    logger.info(
+                                        "Published person/vehicle detection notification",
+                                        species=category,
+                                        confidence=best_det.confidence,
+                                        annotated_minio_path=annotated_minio_path
                                     )
-                            except Exception as e:
-                                logger.warning(
-                                    "Failed to generate annotated image for pv notifications",
-                                    error=str(e)
-                                )
-
-                            # Build location and timestamp
-                            location = None
-                            metadata = image_record.image_metadata or {}
-                            gps_decimal = metadata.get('gps_decimal')
-                            if gps_decimal and len(gps_decimal) == 2:
-                                location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
-                            elif camera.location:
-                                location = {
-                                    "lat": camera.location.coords[1],
-                                    "lon": camera.location.coords[0]
-                                }
-                            datetime_original = metadata.get('DateTimeOriginal')
-                            timestamp = datetime_original if datetime_original else message.get("timestamp")
-
-                            # Publish one notification per person/vehicle category
-                            notification_queue = RedisQueue(QUEUE_NOTIFICATION_EVENTS)
-                            pv_categories = set(d.category for d in pv_dets)
-                            for category in pv_categories:
-                                best_det = max(
-                                    (d for d in pv_dets if d.category == category),
-                                    key=lambda d: d.confidence
-                                )
-                                notification_queue.publish({
-                                    "event_type": "species_detection",
-                                    "project_id": camera.project_id,
-                                    "image_uuid": image_uuid,
-                                    "camera_id": camera.id,
-                                    "camera_name": camera.name,
-                                    "camera_location": location,
-                                    "species": category,
-                                    "confidence": best_det.confidence,
-                                    "detection_confidence": best_det.confidence,
-                                    "detection_count": len(pv_dets),
-                                    "annotated_minio_path": annotated_minio_path,
-                                    "timestamp": timestamp
-                                })
-                                logger.info(
-                                    "Published person/vehicle detection notification",
-                                    species=category,
-                                    confidence=best_det.confidence,
-                                    annotated_minio_path=annotated_minio_path
-                                )
                         except Exception as e:
                             logger.error("Failed to publish pv notification event", error=str(e))
 
@@ -232,8 +247,10 @@ def process_detection_complete(message: dict, classifier) -> None:
         # Step 6: Update image status to classified
         update_image_status(image_uuid, "classified")
 
-        # Step 6.5: Publish notification events for each unique species detected
-        if classifications:
+        # Step 6.5: Publish notification events for each unique species detected.
+        # Suppressed for bulk uploads: an SD-card import would otherwise
+        # fire thousands of stale species_detection alerts at once.
+        if classifications and not is_bulk:
             try:
                 # Build detection confidence lookup for threshold filtering
                 detection_confidence = {d.detection_id: d.confidence for d in detections}
@@ -491,12 +508,14 @@ def main():
     classifier = load_model()
     logger.info("Model loaded successfully")
 
-    # Initialize queue consumer
+    # Initialize queue consumer. Priority BRPOP keeps live ahead of bulk.
     queue = RedisQueue(QUEUE_DETECTION_COMPLETE)
-
-    # Process messages forever
-    logger.info("Listening for messages", queue=QUEUE_DETECTION_COMPLETE)
-    queue.consume_forever(lambda msg: process_detection_complete(msg, classifier))
+    priority_queues = [QUEUE_DETECTION_COMPLETE, QUEUE_DETECTION_COMPLETE_BULK]
+    logger.info("Listening for messages", queues=priority_queues)
+    queue.consume_forever_priority(
+        priority_queues,
+        lambda msg: process_detection_complete(msg, classifier),
+    )
 
 
 if __name__ == "__main__":

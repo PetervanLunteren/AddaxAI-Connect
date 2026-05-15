@@ -28,6 +28,16 @@ class Image(Base):
     status = Column(String(50), nullable=False, default="pending", index=True)
     image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
+    # Origin: 'live' for FTPS-ingested images, 'bulk' for SD-card uploads
+    # via the bulk-upload feature. Drives notification suppression so a
+    # bulk batch never fires species_detection alerts retroactively.
+    origin = Column(String(20), nullable=False, default='live', server_default='live', index=True)
+
+    # SHA-256 hex digest of raw image bytes. Used by bulk upload to skip
+    # re-imports of the same SD card. Nullable for FTPS-ingested rows
+    # which have no need for hashing.
+    content_hash = Column(String(64), nullable=True, index=True)
+
     # Visibility
     is_hidden = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
 
@@ -394,6 +404,50 @@ class ProjectReminder(Base):
     cancelled_by_user_id = Column(
         Integer, ForeignKey("users.id"), nullable=True
     )
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class BulkUploadJob(Base):
+    """
+    A single bulk-image-upload request.
+
+    Project admin uploads a ZIP scoped to one camera. The bulk-upload
+    worker drains these jobs one at a time, extracting each ZIP entry
+    into the same MinIO + DB + queue pipeline that live FTPS uses, but
+    publishes to the bulk variants of the queues so live cameras keep
+    priority on the detection / classification workers.
+    """
+    __tablename__ = "bulk_upload_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_by_user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    camera_id = Column(
+        Integer, ForeignKey("cameras.id"), nullable=False, index=True
+    )
+    original_filename = Column(String(255), nullable=False)
+    staged_object_key = Column(String(512), nullable=False)
+    # queued | extracting | processing | done | failed
+    status = Column(
+        String(20), nullable=False, server_default='queued', index=True
+    )
+    total_files = Column(Integer, nullable=False, server_default='0')
+    processed_files = Column(Integer, nullable=False, server_default='0')
+    skipped_files = Column(Integer, nullable=False, server_default='0')
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
