@@ -4,12 +4,12 @@
  * Allows project admins to view all images (including hidden),
  * bulk hide/unhide images from analysis, and permanently delete images.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   EyeOff, Eye, Trash2, Loader2, ArrowUp, ArrowDown, ArrowUpDown,
-  ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Check,
+  ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Check, Download,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import {
@@ -22,6 +22,8 @@ import {
   filtersToSearchParams,
   type FilterSchema,
 } from '../../lib/filter-url';
+import type { AdminImageFilterParams, BulkActionTarget } from '../../api/imageAdmin';
+import { statisticsApi } from '../../api/statistics';
 import {
   Dialog,
   DialogContent,
@@ -50,10 +52,24 @@ const FILTER_SCHEMA: FilterSchema = {
   hidden: 'string',
   verified: 'string',
   species: 'string',
+  tags: 'string[]',
+  date_from: 'date',
+  date_to: 'date',
+  liked: 'string',
+  needs_review: 'string',
+  min_detection_confidence: 'number',
+  max_detection_confidence: 'number',
+  min_classification_confidence: 'number',
+  max_classification_confidence: 'number',
 };
+
+const formatPct = (lo: number, hi: number): string =>
+  `${Math.round(lo * 100)}% - ${Math.round(hi * 100)}%`;
 
 const asString = (v: string | string[] | undefined): string =>
   typeof v === 'string' ? v : '';
+const asStringArray = (v: string | string[] | undefined): string[] =>
+  Array.isArray(v) ? v : [];
 
 const SortableHeader: React.FC<{
   label: string;
@@ -93,6 +109,15 @@ export const ManageImagesPage: React.FC = () => {
   const hiddenFilter = asString(parsedFilters.hidden);
   const verifiedFilter = asString(parsedFilters.verified);
   const speciesFilter = asString(parsedFilters.species);
+  const tagValues = asStringArray(parsedFilters.tags);
+  const dateFrom = asString(parsedFilters.date_from);
+  const dateTo = asString(parsedFilters.date_to);
+  const likedFilter = asString(parsedFilters.liked);
+  const needsReviewFilter = asString(parsedFilters.needs_review);
+  const minDetConf = asString(parsedFilters.min_detection_confidence);
+  const maxDetConf = asString(parsedFilters.max_detection_confidence);
+  const minClsConf = asString(parsedFilters.min_classification_confidence);
+  const maxClsConf = asString(parsedFilters.max_classification_confidence);
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   const filterValues: Record<string, FilterValue> = {
@@ -101,7 +126,35 @@ export const ManageImagesPage: React.FC = () => {
     hidden: hiddenFilter || undefined,
     verified: verifiedFilter || undefined,
     species: speciesFilter || undefined,
+    tags: tagValues.length > 0 ? tagValues : undefined,
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
+    liked: likedFilter || undefined,
+    needs_review: needsReviewFilter || undefined,
+    min_detection_confidence: minDetConf || undefined,
+    max_detection_confidence: maxDetConf || undefined,
+    min_classification_confidence: minClsConf || undefined,
+    max_classification_confidence: maxClsConf || undefined,
   };
+
+  // Filter params in the AdminImageFilterParams shape, ready to send
+  // to either the list endpoint or the filter-based bulk actions.
+  const filterParams: AdminImageFilterParams = useMemo(() => ({
+    camera_id: cameraFilter ? parseInt(cameraFilter) : undefined,
+    start_date: dateFrom || undefined,
+    end_date: dateTo || undefined,
+    species: speciesFilter || undefined,
+    verified: verifiedFilter || undefined,
+    hidden: hiddenFilter || undefined,
+    search: debouncedSearch || undefined,
+    tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
+    liked: likedFilter || undefined,
+    needs_review: needsReviewFilter || undefined,
+    min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
+    max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
+    min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
+    max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
+  }), [cameraFilter, dateFrom, dateTo, speciesFilter, verifiedFilter, hiddenFilter, debouncedSearch, tagValues, likedFilter, needsReviewFilter, minDetConf, maxDetConf, minClsConf, maxClsConf]);
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
     const next = { ...filterValues, ...patch };
@@ -118,6 +171,10 @@ export const ManageImagesPage: React.FC = () => {
     direction: 'desc',
   });
   const [selectedUuids, setSelectedUuids] = useState<Set<string>>(new Set());
+  // Promoted from per-page selection to "every image matching the
+  // current filters". When true `selectedUuids` is ignored and bulk
+  // actions send the filter set instead.
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
   const [modalImageUuid, setModalImageUuid] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -139,7 +196,22 @@ export const ManageImagesPage: React.FC = () => {
   // Reset page on filter changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, cameraFilter, hiddenFilter, verifiedFilter, speciesFilter, sort]);
+  }, [
+    debouncedSearch, cameraFilter, hiddenFilter, verifiedFilter, speciesFilter,
+    tagValues.join(','), dateFrom, dateTo, likedFilter, needsReviewFilter,
+    minDetConf, maxDetConf, minClsConf, maxClsConf, sort,
+  ]);
+
+  // Drop the all-matching mode whenever the filter set or project
+  // changes, so the user doesn't unintentionally delete across a
+  // different selection than the one they confirmed.
+  useEffect(() => {
+    setSelectAllMatching(false);
+  }, [
+    projectId, debouncedSearch, cameraFilter, hiddenFilter, verifiedFilter,
+    speciesFilter, tagValues.join(','), dateFrom, dateTo, likedFilter,
+    needsReviewFilter, minDetConf, maxDetConf, minClsConf, maxClsConf,
+  ]);
 
   // Reset selection on project change
   useEffect(() => {
@@ -156,19 +228,15 @@ export const ManageImagesPage: React.FC = () => {
 
   // Fetch images
   const { data: imagesData, isLoading } = useQuery({
-    queryKey: ['admin-images', projectId, page, debouncedSearch, cameraFilter, hiddenFilter, verifiedFilter, speciesFilter, sort],
+    queryKey: ['admin-images', projectId, page, filterParams, sort],
     queryFn: () =>
       imageAdminApi.getAll({
         project_id: projectId!,
         page,
         limit,
-        camera_id: cameraFilter ? parseInt(cameraFilter) : undefined,
-        hidden: hiddenFilter || undefined,
-        verified: verifiedFilter || undefined,
-        species: speciesFilter || undefined,
-        search: debouncedSearch || undefined,
         sort_by: sortByMap[sort.column],
         sort_dir: sort.direction,
+        ...filterParams,
       }),
     enabled: projectId !== undefined,
   });
@@ -187,38 +255,55 @@ export const ManageImagesPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
+  // Fetch tag options
+  const { data: tagOptions } = useQuery({
+    queryKey: ['camera-tags', projectId],
+    queryFn: () => camerasApi.getTags(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Overview drives date-range bounds
+  const { data: overview } = useQuery({
+    queryKey: ['statistics', 'overview', projectId],
+    queryFn: () => statisticsApi.getOverview(projectId),
+    enabled: projectId !== undefined,
+  });
+
   // Mutations
   const hideMutation = useMutation({
-    mutationFn: (uuids: string[]) => imageAdminApi.bulkHide(projectId!, uuids),
+    mutationFn: (target: BulkActionTarget) => imageAdminApi.bulkHide(projectId!, target),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-images'] });
       queryClient.invalidateQueries({ queryKey: ['images'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setSelectedUuids(new Set());
+      setSelectAllMatching(false);
       setSuccessMessage(`${result.success_count} image(s) hidden from analysis`);
       setTimeout(() => setSuccessMessage(null), 3000);
     },
   });
 
   const unhideMutation = useMutation({
-    mutationFn: (uuids: string[]) => imageAdminApi.bulkUnhide(projectId!, uuids),
+    mutationFn: (target: BulkActionTarget) => imageAdminApi.bulkUnhide(projectId!, target),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-images'] });
       queryClient.invalidateQueries({ queryKey: ['images'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setSelectedUuids(new Set());
+      setSelectAllMatching(false);
       setSuccessMessage(`${result.success_count} image(s) restored to analysis`);
       setTimeout(() => setSuccessMessage(null), 3000);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (uuids: string[]) => imageAdminApi.bulkDelete(projectId!, uuids),
+    mutationFn: (target: BulkActionTarget) => imageAdminApi.bulkDelete(projectId!, target),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-images'] });
       queryClient.invalidateQueries({ queryKey: ['images'] });
       queryClient.invalidateQueries({ queryKey: ['statistics'] });
       setSelectedUuids(new Set());
+      setSelectAllMatching(false);
       setShowDeleteConfirm(false);
       setDeleteConfirmText('');
       setSuccessMessage(`${result.success_count} image(s) permanently deleted`);
@@ -226,7 +311,36 @@ export const ManageImagesPage: React.FC = () => {
     },
   });
 
-  const isMutating = hideMutation.isPending || unhideMutation.isPending || deleteMutation.isPending;
+  const downloadMutation = useMutation({
+    mutationFn: (target: BulkActionTarget) => imageAdminApi.bulkDownload(projectId!, target),
+    onSuccess: ({ blob, filename }) => {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      setSuccessMessage('Download started');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    },
+  });
+
+  const isMutating =
+    hideMutation.isPending
+    || unhideMutation.isPending
+    || deleteMutation.isPending
+    || downloadMutation.isPending;
+
+  // Build the target a bulk action should send, branching on whether
+  // the user promoted to "all matching" or stuck with the per-page set.
+  const buildBulkTarget = useCallback((): BulkActionTarget => {
+    if (selectAllMatching) {
+      return { filters: filterParams };
+    }
+    return { image_uuids: Array.from(selectedUuids) };
+  }, [selectAllMatching, filterParams, selectedUuids]);
 
   // Selection helpers
   const currentPageUuids = useMemo(
@@ -238,6 +352,13 @@ export const ManageImagesPage: React.FC = () => {
   const someOnPageSelected = currentPageUuids.some((uuid) => selectedUuids.has(uuid));
 
   const toggleSelectAll = () => {
+    // Toggling the page-header checkbox while in all-matching mode
+    // drops the all-matching state entirely. Easiest mental model.
+    if (selectAllMatching) {
+      setSelectAllMatching(false);
+      setSelectedUuids(new Set());
+      return;
+    }
     setSelectedUuids((prev) => {
       const next = new Set(prev);
       if (allOnPageSelected) {
@@ -250,6 +371,13 @@ export const ManageImagesPage: React.FC = () => {
   };
 
   const toggleSelect = (uuid: string) => {
+    // Once the user touches an individual checkbox, they're back in
+    // per-page mode and the all-matching banner state goes away.
+    if (selectAllMatching) {
+      setSelectAllMatching(false);
+      setSelectedUuids(new Set([uuid]));
+      return;
+    }
     setSelectedUuids((prev) => {
       const next = new Set(prev);
       if (next.has(uuid)) {
@@ -269,7 +397,9 @@ export const ManageImagesPage: React.FC = () => {
   };
 
   const totalPages = imagesData?.pages ?? 1;
-  const selectedArray = Array.from(selectedUuids);
+  const effectiveSelectionCount = selectAllMatching
+    ? (imagesData?.total ?? 0)
+    : selectedUuids.size;
 
   // Image navigation within modal
   const allImageUuids = currentPageUuids;
@@ -292,22 +422,12 @@ export const ManageImagesPage: React.FC = () => {
       })),
     },
     {
-      kind: 'select',
-      key: 'hidden',
-      label: 'Visibility',
-      options: [
-        { value: 'false', label: 'Visible' },
-        { value: 'true', label: 'Hidden' },
-      ],
-    },
-    {
-      kind: 'select',
-      key: 'verified',
-      label: 'Verification',
-      options: [
-        { value: 'true', label: 'Verified' },
-        { value: 'false', label: 'Unverified' },
-      ],
+      kind: 'multi-select',
+      key: 'tags',
+      label: 'Camera tags',
+      options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+      placeholder: 'Any tags',
+      summary: (n) => `${n} tags`,
     },
     {
       kind: 'select',
@@ -317,6 +437,78 @@ export const ManageImagesPage: React.FC = () => {
         value: String(s.value),
         label: String(s.label),
       })),
+    },
+    {
+      kind: 'date-range',
+      fromKey: 'date_from',
+      toKey: 'date_to',
+      label: 'Date range',
+      minDate: overview?.first_image_date,
+      maxDate: overview?.last_image_date,
+    },
+    {
+      kind: 'select',
+      key: 'hidden',
+      label: 'Visibility',
+      primary: false,
+      options: [
+        { value: 'false', label: 'Visible' },
+        { value: 'true', label: 'Hidden' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'verified',
+      label: 'Verification',
+      primary: false,
+      options: [
+        { value: 'true', label: 'Verified' },
+        { value: 'false', label: 'Unverified' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'liked',
+      label: 'Liked',
+      primary: false,
+      options: [
+        { value: 'true', label: 'Liked' },
+        { value: 'false', label: 'Not liked' },
+      ],
+    },
+    {
+      kind: 'select',
+      key: 'needs_review',
+      label: 'Review',
+      primary: false,
+      options: [
+        { value: 'true', label: 'Needs review' },
+        { value: 'false', label: 'No review needed' },
+      ],
+    },
+    {
+      kind: 'range',
+      minKey: 'min_detection_confidence',
+      maxKey: 'max_detection_confidence',
+      label: 'Detection confidence',
+      min: selectedProject?.detection_threshold ?? 0,
+      max: 1,
+      step: 0.05,
+      format: formatPct,
+      chipPrefix: 'Detection',
+      primary: false,
+    },
+    {
+      kind: 'range',
+      minKey: 'min_classification_confidence',
+      maxKey: 'max_classification_confidence',
+      label: 'Classification confidence',
+      min: selectedProject?.classification_thresholds?.default ?? 0,
+      max: 1,
+      step: 0.05,
+      format: formatPct,
+      chipPrefix: 'Classification',
+      primary: false,
     },
   ];
 
@@ -345,16 +537,50 @@ export const ManageImagesPage: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      {/* Bulk action bar */}
-      {selectedUuids.size > 0 && (
-        <div className="flex items-center gap-3 p-3 bg-muted rounded-md">
-          <span className="text-sm font-medium">
-            {selectedUuids.size} image(s) selected
+      {/* Promotion banner. Shows up when the user has ticked every
+          image on the page and there's more on other pages. Clicking
+          promotes from "this page" to "all images matching filters". */}
+      {!selectAllMatching
+        && allOnPageSelected
+        && (imagesData?.total ?? 0) > currentPageUuids.length && (
+        <div className="flex items-center justify-between gap-3 p-3 bg-secondary/50 border rounded-md">
+          <span className="text-sm">
+            All {currentPageUuids.length} on this page are selected.
           </span>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={() => {
+              setSelectAllMatching(true);
+              setSelectedUuids(new Set());
+            }}
+          >
+            Select all {imagesData?.total} matching the filters
+          </Button>
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {(selectAllMatching || selectedUuids.size > 0) && (
+        <div className="flex items-center gap-3 p-3 bg-muted rounded-md flex-wrap">
+          <span className="text-sm font-medium">
+            {selectAllMatching
+              ? `All ${imagesData?.total ?? 0} matching image(s) selected`
+              : `${selectedUuids.size} image(s) selected`}
+          </span>
+          {selectAllMatching && (
+            <button
+              type="button"
+              onClick={() => setSelectAllMatching(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => hideMutation.mutate(selectedArray)}
+            onClick={() => hideMutation.mutate(buildBulkTarget())}
             disabled={isMutating}
           >
             {hideMutation.isPending ? (
@@ -367,7 +593,7 @@ export const ManageImagesPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => unhideMutation.mutate(selectedArray)}
+            onClick={() => unhideMutation.mutate(buildBulkTarget())}
             disabled={isMutating}
           >
             {unhideMutation.isPending ? (
@@ -376,6 +602,20 @@ export const ManageImagesPage: React.FC = () => {
               <Eye className="h-4 w-4 mr-1" />
             )}
             Show in analysis
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => downloadMutation.mutate(buildBulkTarget())}
+            disabled={isMutating}
+            title="Download a zip of the raw originals (capped at 500 images per request)"
+          >
+            {downloadMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-1" />
+            )}
+            Download zip
           </Button>
           <Button
             variant="destructive"
@@ -405,9 +645,9 @@ export const ManageImagesPage: React.FC = () => {
               <TableHead className="w-10">
                 <input
                   type="checkbox"
-                  checked={allOnPageSelected}
+                  checked={selectAllMatching || allOnPageSelected}
                   ref={(el) => {
-                    if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected;
+                    if (el) el.indeterminate = !selectAllMatching && someOnPageSelected && !allOnPageSelected;
                   }}
                   onChange={toggleSelectAll}
                   className="w-4 h-4 rounded accent-primary cursor-pointer"
@@ -441,7 +681,7 @@ export const ManageImagesPage: React.FC = () => {
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
-                    checked={selectedUuids.has(image.uuid)}
+                    checked={selectAllMatching || selectedUuids.has(image.uuid)}
                     onChange={() => toggleSelect(image.uuid)}
                     className="w-4 h-4 rounded accent-primary cursor-pointer"
                   />
@@ -552,7 +792,7 @@ export const ManageImagesPage: React.FC = () => {
               <DialogTitle>Delete images permanently</DialogTitle>
             </div>
             <DialogDescription>
-              This action cannot be undone. This will permanently delete {selectedUuids.size} image(s) and all associated data.
+              This action cannot be undone. This will permanently delete {effectiveSelectionCount} image(s) and all associated data.
             </DialogDescription>
           </DialogHeader>
 
@@ -562,7 +802,7 @@ export const ManageImagesPage: React.FC = () => {
               <div className="space-y-2 text-sm">
                 <p className="font-semibold text-destructive">Warning: This will delete:</p>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>{selectedUuids.size} image(s) and their files</li>
+                  <li>{effectiveSelectionCount} image(s) and their files</li>
                   <li>All associated detections and classifications</li>
                   <li>All human observations</li>
                   <li>All crop and thumbnail files</li>
@@ -601,7 +841,7 @@ export const ManageImagesPage: React.FC = () => {
             <Button
               variant="destructive"
               disabled={deleteConfirmText !== 'DELETE' || deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(selectedArray)}
+              onClick={() => deleteMutation.mutate(buildBulkTarget())}
             >
               {deleteMutation.isPending ? (
                 <>
@@ -611,7 +851,7 @@ export const ManageImagesPage: React.FC = () => {
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete {selectedUuids.size} image(s)
+                  Delete {effectiveSelectionCount} image(s)
                 </>
               )}
             </Button>
