@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag, Sparkles } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -458,18 +458,6 @@ export const ImagesPage: React.FC = () => {
                   )}
                 </div>
                 <div className="relative overflow-hidden rounded-t-lg">
-                  {/* AI confidence chip. Only present on unverified AI
-                      animal classifications; verified images and pure
-                      person/vehicle hits have no classification score. */}
-                  {!image.is_verified && image.max_confidence !== null && (
-                    <div
-                      className="absolute top-2 left-2 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium text-white pointer-events-none"
-                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      {Math.round(image.max_confidence * 100)}%
-                    </div>
-                  )}
                   {image.thumbnail_url ? (
                     <ImageThumbnailWithBoxes
                       thumbnailUrl={image.thumbnail_url}
