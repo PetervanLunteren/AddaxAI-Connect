@@ -19,6 +19,7 @@ mc mb --ignore-existing minio/thumbnails
 mc mb --ignore-existing minio/models
 mc mb --ignore-existing minio/project-images
 mc mb --ignore-existing minio/project-documents
+mc mb --ignore-existing minio/bulk-upload-staging
 mc version enable minio/raw-images
 
 if [ "${COLD_TIER_ENABLED:-false}" != "true" ]; then

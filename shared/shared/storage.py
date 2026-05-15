@@ -127,3 +127,7 @@ BUCKET_THUMBNAILS = "thumbnails"
 BUCKET_MODELS = "models"
 BUCKET_PROJECT_IMAGES = "project-images"
 BUCKET_PROJECT_DOCUMENTS = "project-documents"
+# Bulk-upload ZIPs are streamed to this bucket from the API and consumed
+# by the bulk-upload worker, which deletes the object once the job
+# finishes. Not part of cold-tier ILM, no versioning.
+BUCKET_BULK_UPLOAD_STAGING = "bulk-upload-staging"

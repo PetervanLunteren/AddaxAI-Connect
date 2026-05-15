@@ -294,7 +294,9 @@ def create_image_record(
     thumbnail_path: str,
     captured_at: datetime,
     gps_location: Optional[Tuple[float, float]],
-    exif_metadata: dict
+    exif_metadata: dict,
+    origin: str = "live",
+    content_hash: Optional[str] = None,
 ) -> str:
     """
     Create image record in database.
@@ -308,6 +310,10 @@ def create_image_record(
         captured_at: Camera wall-clock capture datetime (naive, interpreted under ServerSettings.timezone)
         gps_location: (latitude, longitude) or None
         exif_metadata: Full EXIF data dictionary
+        origin: 'live' for FTPS-ingested, 'bulk' for SD-card upload. Drives
+            notification suppression downstream (bulk skips species_detection).
+        content_hash: Optional SHA-256 hex of raw bytes. Used by bulk upload
+            to deduplicate re-imports of the same SD card.
 
     Returns:
         Image UUID (string)
@@ -328,7 +334,9 @@ def create_image_record(
             storage_path=storage_path,
             thumbnail_path=thumbnail_path,
             status="pending",  # Will be updated by detection worker
-            image_metadata=exif_metadata  # Store full EXIF as JSON
+            image_metadata=exif_metadata,  # Store full EXIF as JSON
+            origin=origin,
+            content_hash=content_hash,
         )
 
         session.add(image)
