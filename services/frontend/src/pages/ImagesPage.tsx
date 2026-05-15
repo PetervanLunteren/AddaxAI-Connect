@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
+import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag, Sparkles } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -37,10 +37,17 @@ const FILTER_SCHEMA: FilterSchema = {
   verified: 'string',
   liked: 'string',
   needs_review: 'string',
+  min_detection_confidence: 'number',
+  max_detection_confidence: 'number',
+  min_classification_confidence: 'number',
+  max_classification_confidence: 'number',
   // Confusion-matrix cell-click filters. Image-level top-1, see images.py.
   human_top: 'string',
   ai_top: 'string',
 };
+
+const formatPct = (lo: number, hi: number): string =>
+  `${Math.round(lo * 100)}% - ${Math.round(hi * 100)}%`;
 
 const asStringArray = (v: string | string[] | undefined): string[] =>
   Array.isArray(v) ? v : [];
@@ -72,6 +79,10 @@ export const ImagesPage: React.FC = () => {
   const needsReview = asString(parsed.needs_review) as '' | 'true' | 'false';
   const humanTop = asString(parsed.human_top);
   const aiTop = asString(parsed.ai_top);
+  const minDetConf = asString(parsed.min_detection_confidence);
+  const maxDetConf = asString(parsed.max_detection_confidence);
+  const minClsConf = asString(parsed.min_classification_confidence);
+  const maxClsConf = asString(parsed.max_classification_confidence);
 
   const filterValues = useMemo<Record<string, FilterValue>>(
     () => ({
@@ -83,10 +94,14 @@ export const ImagesPage: React.FC = () => {
       verified: verified || undefined,
       liked: liked || undefined,
       needs_review: needsReview || undefined,
+      min_detection_confidence: minDetConf || undefined,
+      max_detection_confidence: maxDetConf || undefined,
+      min_classification_confidence: minClsConf || undefined,
+      max_classification_confidence: maxClsConf || undefined,
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, humanTop, aiTop],
+    [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -122,6 +137,10 @@ export const ImagesPage: React.FC = () => {
         verified: verified || undefined,
         liked: liked || undefined,
         needs_review: needsReview || undefined,
+        min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
+        max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
+        min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
+        max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
         human_top: humanTop || undefined,
         ai_top: aiTop || undefined,
       }),
@@ -268,8 +287,38 @@ export const ImagesPage: React.FC = () => {
           { value: 'false', label: 'No review needed' },
         ],
       },
+      {
+        kind: 'range',
+        minKey: 'min_detection_confidence',
+        maxKey: 'max_detection_confidence',
+        label: 'Detection confidence',
+        // Clamp the floor to the project's detection threshold; below
+        // that, detections are hidden from every other view too, so the
+        // slider should match.
+        min: selectedProject?.detection_threshold ?? 0,
+        max: 1,
+        step: 0.05,
+        format: formatPct,
+        chipPrefix: 'Detection',
+        primary: false,
+      },
+      {
+        kind: 'range',
+        minKey: 'min_classification_confidence',
+        maxKey: 'max_classification_confidence',
+        label: 'Classification confidence',
+        // Floor at the project-wide default classification threshold,
+        // mirroring detection. Per-species overrides aren't useful here
+        // because the slider has no species context.
+        min: selectedProject?.classification_thresholds?.default ?? 0,
+        max: 1,
+        step: 0.05,
+        format: formatPct,
+        chipPrefix: 'Classification',
+        primary: false,
+      },
     ],
-    [cameras, tagOptions, speciesOptions, speciesLoading, overview],
+    [cameras, tagOptions, speciesOptions, speciesLoading, overview, selectedProject],
   );
 
   // Set species context using the full species list for consistent colors app-wide
@@ -313,6 +362,10 @@ export const ImagesPage: React.FC = () => {
       verified: verified || undefined,
       liked: liked || undefined,
       needs_review: needsReview || undefined,
+      min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
+      max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
+      min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
+      max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     };
@@ -405,6 +458,18 @@ export const ImagesPage: React.FC = () => {
                   )}
                 </div>
                 <div className="relative overflow-hidden rounded-t-lg">
+                  {/* AI confidence chip. Only present on unverified AI
+                      animal classifications; verified images and pure
+                      person/vehicle hits have no classification score. */}
+                  {!image.is_verified && image.max_confidence !== null && (
+                    <div
+                      className="absolute top-2 left-2 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium text-white pointer-events-none"
+                      style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {Math.round(image.max_confidence * 100)}%
+                    </div>
+                  )}
                   {image.thumbnail_url ? (
                     <ImageThumbnailWithBoxes
                       thumbnailUrl={image.thumbnail_url}

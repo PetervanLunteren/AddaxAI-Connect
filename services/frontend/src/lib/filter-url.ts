@@ -9,7 +9,7 @@
  * encode filters identically and shareable links round-trip.
  */
 
-export type FilterFieldKind = "string" | "string[]" | "date";
+export type FilterFieldKind = "string" | "string[]" | "date" | "number";
 export type FilterSchema = Record<string, FilterFieldKind>;
 
 export function filtersFromSearchParams(
@@ -23,6 +23,9 @@ export function filtersFromSearchParams(
     if (kind === "string[]") {
       const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
       if (parts.length > 0) out[key] = parts;
+    } else if (kind === "number") {
+      const n = Number(raw);
+      if (Number.isFinite(n)) out[key] = raw;
     } else {
       out[key] = raw;
     }

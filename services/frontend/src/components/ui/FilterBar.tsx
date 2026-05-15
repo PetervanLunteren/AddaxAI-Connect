@@ -19,6 +19,7 @@ import { Button } from './Button';
 import { DateRangePicker } from './DateRangePicker';
 import { MultiSelect, type Option } from './MultiSelect';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
+import { Slider } from './Slider';
 
 export type { Option };
 
@@ -58,6 +59,24 @@ export type FilterFieldDef =
       key: string;
       label: string;
       placeholder?: string;
+      primary?: boolean;
+    }
+  | {
+      kind: 'range';
+      /** URL key for the lower bound. */
+      minKey: string;
+      /** URL key for the upper bound. */
+      maxKey: string;
+      label: string;
+      /** Lower bound of the slider track. */
+      min: number;
+      /** Upper bound of the slider track. */
+      max: number;
+      step: number;
+      /** Renders the active range, e.g. "60% - 90%". */
+      format: (lo: number, hi: number) => string;
+      /** Prefix for the chip label, e.g. "Detection". */
+      chipPrefix?: string;
       primary?: boolean;
     };
 
@@ -100,6 +119,7 @@ interface ChipDescriptor {
 
 const VALUE_KEYS = (field: FilterFieldDef): string[] => {
   if (field.kind === 'date-range') return [field.fromKey, field.toKey];
+  if (field.kind === 'range') return [field.minKey, field.maxKey];
   return [field.key];
 };
 
@@ -268,6 +288,11 @@ const FieldControl: React.FC<{
       />
     );
   }
+  if (field.kind === 'range') {
+    return (
+      <RangeControl field={field} values={values} onChange={onChange} />
+    );
+  }
   // search
   return (
     <input
@@ -281,6 +306,40 @@ const FieldControl: React.FC<{
         })
       }
     />
+  );
+};
+
+const RangeControl: React.FC<{
+  field: Extract<FilterFieldDef, { kind: 'range' }>;
+  values: Record<string, FilterValue>;
+  onChange: (patch: Record<string, FilterValue>) => void;
+}> = ({ field, values, onChange }) => {
+  const rawLo = asString(values[field.minKey]);
+  const rawHi = asString(values[field.maxKey]);
+  const lo = rawLo === '' ? field.min : Number(rawLo);
+  const hi = rawHi === '' ? field.max : Number(rawHi);
+  const safeLo = Number.isFinite(lo) ? lo : field.min;
+  const safeHi = Number.isFinite(hi) ? hi : field.max;
+  const eps = field.step / 2;
+  return (
+    <div className="flex items-center gap-3">
+      <Slider
+        className="h-9 flex-1"
+        value={[safeLo, safeHi]}
+        min={field.min}
+        max={field.max}
+        step={field.step}
+        onValueChange={([nextLo, nextHi]) =>
+          onChange({
+            [field.minKey]: nextLo > field.min + eps ? String(nextLo) : undefined,
+            [field.maxKey]: nextHi < field.max - eps ? String(nextHi) : undefined,
+          })
+        }
+      />
+      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+        {field.format(safeLo, safeHi)}
+      </span>
+    </div>
   );
 };
 
@@ -382,8 +441,11 @@ const DisplayPopover: React.FC<{
   );
 };
 
-const fieldKey = (field: FilterFieldDef): string =>
-  field.kind === 'date-range' ? field.fromKey : field.key;
+const fieldKey = (field: FilterFieldDef): string => {
+  if (field.kind === 'date-range') return field.fromKey;
+  if (field.kind === 'range') return field.minKey;
+  return field.key;
+};
 
 function buildChips(
   fields: FilterFieldDef[],
@@ -450,6 +512,21 @@ function buildChips(
         key: `${field.key}:${value}`,
         label: value,
         onRemove: () => onChange({ [field.key]: undefined }),
+      });
+    } else if (field.kind === 'range') {
+      const rawLo = asString(values[field.minKey]);
+      const rawHi = asString(values[field.maxKey]);
+      if (!rawLo && !rawHi) continue;
+      const lo = rawLo === '' ? field.min : Number(rawLo);
+      const hi = rawHi === '' ? field.max : Number(rawHi);
+      const safeLo = Number.isFinite(lo) ? lo : field.min;
+      const safeHi = Number.isFinite(hi) ? hi : field.max;
+      const prefix = field.chipPrefix ?? field.label;
+      chips.push({
+        key: `${field.minKey}:${field.maxKey}`,
+        label: `${prefix} ${field.format(safeLo, safeHi)}`,
+        onRemove: () =>
+          onChange({ [field.minKey]: undefined, [field.maxKey]: undefined }),
       });
     }
   }

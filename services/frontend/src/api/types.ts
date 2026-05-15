@@ -254,6 +254,7 @@ export interface Project {
   description: string | null;
   included_species: string[] | null;
   detection_threshold: number;
+  classification_thresholds: ClassificationThresholds | null;
   blur_people_vehicles: boolean;
   independence_interval_minutes: number;
   created_at: string;

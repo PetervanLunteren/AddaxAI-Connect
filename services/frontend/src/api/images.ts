@@ -18,6 +18,10 @@ export interface ImageFilters {
   liked?: string;  // "true", "false", or undefined for all
   needs_review?: string;  // "true", "false", or undefined for all
   tags?: string;  // Comma-separated camera tags
+  min_detection_confidence?: number;
+  max_detection_confidence?: number;
+  min_classification_confidence?: number;
+  max_classification_confidence?: number;
   project_id?: number;
 }
 

@@ -326,6 +326,10 @@ async def list_images(
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
     tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
+    min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
+    max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
+    min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
+    max_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
@@ -443,6 +447,79 @@ async def list_images(
             filters.append(Image.needs_review == True)
         elif needs_review.lower() == "false":
             filters.append(Image.needs_review == False)
+
+    # Confidence-range filter. Slider in the UI lets users narrow on
+    # AI detection or classification confidence to find borderline cases.
+    # Verified images are excluded once a range is narrowed because the
+    # human label supersedes the AI confidence the slider targets.
+    det_filter_active = (
+        min_detection_confidence is not None
+        or max_detection_confidence is not None
+    )
+    cls_filter_active = (
+        min_classification_confidence is not None
+        or max_classification_confidence is not None
+    )
+    if det_filter_active or cls_filter_active:
+        filters.append(Image.is_verified == False)
+
+        animal_match = (
+            select(Detection.image_id)
+            .join(Classification, Classification.detection_id == Detection.id)
+            .join(Image, Detection.image_id == Image.id)
+            .join(Camera, Image.camera_id == Camera.id)
+            .join(Project, Camera.project_id == Project.id)
+            .where(
+                Detection.category == "animal",
+                Detection.confidence >= Project.detection_threshold,
+                classification_passes_threshold(),
+            )
+        )
+        if min_detection_confidence is not None:
+            animal_match = animal_match.where(
+                Detection.confidence >= min_detection_confidence
+            )
+        if max_detection_confidence is not None:
+            animal_match = animal_match.where(
+                Detection.confidence <= max_detection_confidence
+            )
+        if min_classification_confidence is not None:
+            animal_match = animal_match.where(
+                Classification.confidence >= min_classification_confidence
+            )
+        if max_classification_confidence is not None:
+            animal_match = animal_match.where(
+                Classification.confidence <= max_classification_confidence
+            )
+
+        if cls_filter_active:
+            # Classification range is narrowed: person/vehicle items have
+            # no classification confidence so they cannot pass.
+            filters.append(Image.id.in_(animal_match))
+        else:
+            # Only detection range is narrowed: include person/vehicle
+            # detections that fall in the range as well.
+            pv_match = (
+                select(Detection.image_id)
+                .join(Image, Detection.image_id == Image.id)
+                .join(Camera, Image.camera_id == Camera.id)
+                .join(Project, Camera.project_id == Project.id)
+                .where(
+                    Detection.category.in_(["person", "vehicle"]),
+                    Detection.confidence >= Project.detection_threshold,
+                )
+            )
+            if min_detection_confidence is not None:
+                pv_match = pv_match.where(
+                    Detection.confidence >= min_detection_confidence
+                )
+            if max_detection_confidence is not None:
+                pv_match = pv_match.where(
+                    Detection.confidence <= max_detection_confidence
+                )
+            filters.append(
+                or_(Image.id.in_(animal_match), Image.id.in_(pv_match))
+            )
 
     # Subqueries for "has visible detections" — reused by both the
     # default empty-hiding filter and the "Empty" label filter.
