@@ -518,7 +518,7 @@ export const ManageImagesPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold">Curation</h1>
         <p className="text-muted-foreground mt-1">
-          Hide or delete images from this project
+          Hide, download, or delete images in this project
         </p>
       </div>
 
@@ -611,11 +611,16 @@ export const ManageImagesPage: React.FC = () => {
             title="Download a zip of the raw originals (capped at 500 images per request)"
           >
             {downloadMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                Preparing zip...
+              </>
             ) : (
-              <Download className="h-4 w-4 mr-1" />
+              <>
+                <Download className="h-4 w-4 mr-1" />
+                Download zip
+              </>
             )}
-            Download zip
           </Button>
           <Button
             variant="destructive"
