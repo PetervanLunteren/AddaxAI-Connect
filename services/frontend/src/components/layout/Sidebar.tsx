@@ -19,6 +19,7 @@ import {
   Settings,
   Map,
   ListChecks,
+  Upload,
   BarChart3,
   Grid3x3,
   Lightbulb,
@@ -72,6 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
     { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Curation' },
+    { to: `/projects/${projectId}/bulk-upload`, icon: Upload, label: 'Bulk upload' },
   ];
 
   return (
