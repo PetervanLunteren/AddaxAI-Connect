@@ -73,6 +73,27 @@ server {
         proxy_pass http://localhost:3000;
     }
 
+    # Bulk image upload endpoint. Accepts a ZIP up to 20 GB scoped to
+    # one camera. Streams the body through to the API instead of
+    # buffering on disk first; bumps timeouts so large uploads on slow
+    # connections do not get cut off.
+    location ~ ^/api/projects/[0-9]+/bulk-upload$ {
+        limit_req zone=api_limit burst=5 nodelay;
+
+        proxy_pass http://api_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        client_max_body_size 20G;
+        proxy_request_buffering off;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 3600s;
+        proxy_read_timeout 3600s;
+    }
+
     # API proxy - increased burst to 50 for concurrent thumbnail requests
     location /api/ {
         limit_req zone=api_limit burst=50 nodelay;
