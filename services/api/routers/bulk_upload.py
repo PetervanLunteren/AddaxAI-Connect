@@ -10,8 +10,8 @@ import io
 import re
 import uuid
 import zipfile
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -23,12 +23,12 @@ from fastapi import (
     status,
 )
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import BulkUploadJob, Camera, User
+from shared.models import BulkUploadJob, Camera, Image, User
 from shared.queue import QUEUE_BULK_UPLOAD_JOB, RedisQueue
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 from auth.permissions import require_project_admin_access
@@ -63,7 +63,67 @@ class BulkUploadJobResponse(BaseModel):
     created_by_email: Optional[str]
 
 
-def _job_to_response(job: BulkUploadJob, camera_name: Optional[str], created_by_email: Optional[str]) -> BulkUploadJobResponse:
+async def _pipeline_done_counts(
+    db: AsyncSession, job_ids: List[int]
+) -> Dict[int, int]:
+    """
+    Count images per bulk-upload job that have finished the pipeline.
+
+    'Finished' means status in ('classified', 'failed') so a single
+    image that crashes detection or classification doesn't freeze the
+    job's progress bar at 99%.
+    """
+    if not job_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(Image.bulk_upload_job_id, func.count(Image.id))
+            .where(
+                Image.bulk_upload_job_id.in_(job_ids),
+                Image.status.in_(("classified", "failed")),
+            )
+            .group_by(Image.bulk_upload_job_id)
+        )
+    ).all()
+    return {row[0]: row[1] for row in rows}
+
+
+async def _finalise_done_jobs(
+    db: AsyncSession, jobs: List[BulkUploadJob], processed_counts: Dict[int, int]
+) -> None:
+    """
+    Flip jobs from 'processing' to 'done' when their derived progress
+    has reached total. Done lazily on read so the bulk-upload worker
+    does not have to know about classification timing.
+    """
+    finished_ids: List[int] = []
+    for job in jobs:
+        if job.status != "processing":
+            continue
+        processed = processed_counts.get(job.id, 0)
+        if processed + job.skipped_files >= job.total_files:
+            finished_ids.append(job.id)
+    if not finished_ids:
+        return
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        update(BulkUploadJob)
+        .where(BulkUploadJob.id.in_(finished_ids))
+        .values(status="done", finished_at=now)
+    )
+    await db.commit()
+    for job in jobs:
+        if job.id in finished_ids:
+            job.status = "done"
+            job.finished_at = now
+
+
+def _job_to_response(
+    job: BulkUploadJob,
+    camera_name: Optional[str],
+    created_by_email: Optional[str],
+    processed_files: int,
+) -> BulkUploadJobResponse:
     return BulkUploadJobResponse(
         uuid=job.uuid,
         project_id=job.project_id,
@@ -72,7 +132,7 @@ def _job_to_response(job: BulkUploadJob, camera_name: Optional[str], created_by_
         original_filename=job.original_filename,
         status=job.status,
         total_files=job.total_files,
-        processed_files=job.processed_files,
+        processed_files=processed_files,
         skipped_files=job.skipped_files,
         error_message=job.error_message,
         started_at=job.started_at.isoformat() if job.started_at else None,
@@ -206,7 +266,12 @@ async def create_bulk_upload(
         user_id=user.id,
     )
 
-    return _job_to_response(job, camera_name=camera.name, created_by_email=user.email)
+    return _job_to_response(
+        job,
+        camera_name=camera.name,
+        created_by_email=user.email,
+        processed_files=0,
+    )
 
 
 @router.get("/jobs", response_model=List[BulkUploadJobResponse])
@@ -226,8 +291,16 @@ async def list_bulk_upload_jobs(
             .limit(100)
         )
     ).all()
+    jobs = [job for job, _, _ in rows]
+    processed_counts = await _pipeline_done_counts(db, [j.id for j in jobs])
+    await _finalise_done_jobs(db, jobs, processed_counts)
     return [
-        _job_to_response(job, camera_name=cam_name, created_by_email=email)
+        _job_to_response(
+            job,
+            camera_name=cam_name,
+            created_by_email=email,
+            processed_files=processed_counts.get(job.id, 0),
+        )
         for job, cam_name, email in rows
     ]
 
@@ -257,4 +330,11 @@ async def get_bulk_upload_job(
             detail="Bulk upload job not found",
         )
     job, cam_name, email = row
-    return _job_to_response(job, camera_name=cam_name, created_by_email=email)
+    processed_counts = await _pipeline_done_counts(db, [job.id])
+    await _finalise_done_jobs(db, [job], processed_counts)
+    return _job_to_response(
+        job,
+        camera_name=cam_name,
+        created_by_email=email,
+        processed_files=processed_counts.get(job.id, 0),
+    )

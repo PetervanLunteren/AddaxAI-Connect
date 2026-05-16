@@ -77,6 +77,7 @@ def _process_zip_entry(
     camera_storage_id: str,
     gps_location,
     bulk_queue: RedisQueue,
+    bulk_upload_job_id: int,
 ) -> str:
     """
     Process a single ZIP entry end-to-end.
@@ -162,6 +163,7 @@ def _process_zip_entry(
             exif_metadata=exif,
             origin="bulk",
             content_hash=content_hash,
+            bulk_upload_job_id=bulk_upload_job_id,
         )
 
         set_image_id(image_uuid)
@@ -204,6 +206,7 @@ def process_job(message: dict) -> None:
             job.error_message = "Target camera no longer exists"
             job.finished_at = datetime.now(timezone.utc)
             return
+        job_id = job.id
         camera_id = camera.id
         camera_storage_id = _camera_storage_id(camera)
         gps_location = None
@@ -246,6 +249,7 @@ def process_job(message: dict) -> None:
                         camera_storage_id,
                         gps_location,
                         bulk_queue,
+                        job_id,
                     )
                     if outcome == "processed":
                         processed += 1
@@ -261,19 +265,13 @@ def process_job(message: dict) -> None:
                     skipped += 1
 
                 if idx % PROGRESS_PERSIST_EVERY == 0:
-                    _set_status(
-                        job_uuid,
-                        processed_files=processed,
-                        skipped_files=skipped,
-                    )
+                    _set_status(job_uuid, skipped_files=skipped)
 
-        _set_status(
-            job_uuid,
-            processed_files=processed,
-            skipped_files=skipped,
-            status="done",
-            finished_at=datetime.now(timezone.utc),
-        )
+        # Worker is done unpacking. The job stays in 'processing' until
+        # detection + classification finish for every image it produced.
+        # The API derives done-ness from the count of bulk-job images
+        # that reached status='classified'.
+        _set_status(job_uuid, skipped_files=skipped, status="processing")
 
         try:
             storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
@@ -285,9 +283,9 @@ def process_job(message: dict) -> None:
             )
 
         logger.info(
-            "Finished bulk upload job",
+            "Finished unpacking bulk upload zip",
             job_uuid=job_uuid,
-            processed=processed,
+            queued_for_pipeline=processed,
             skipped=skipped,
         )
 

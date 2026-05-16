@@ -1,19 +1,34 @@
 /**
  * Bulk image upload page (project admin only)
  *
- * Top: form. Pick a registered camera (or create one inline) and a ZIP.
- * Bottom: live job list with per-job progress bars. The page polls the
- * jobs endpoint every 5 s while any row is non-terminal, so the user
- * can navigate away and come back.
+ * Header has a single "+ Bulk upload" button that opens a modal with the
+ * camera picker + ZIP dropzone. Body is a live job list; it polls the
+ * jobs endpoint every 5 s while any row is non-terminal so users can
+ * navigate away and come back.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
-import { Loader2, Upload, Plus, Camera as CameraIcon, FileArchive, Check, AlertTriangle } from 'lucide-react';
+import {
+  Loader2,
+  Upload,
+  Plus,
+  Camera as CameraIcon,
+  FileArchive,
+  Check,
+  AlertTriangle,
+} from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../components/ui/Dialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { camerasApi } from '../../api/cameras';
@@ -73,25 +88,11 @@ function formatRelative(iso: string | null): string {
 export const BulkUploadPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject } = useProject();
   const projectId = selectedProject?.id;
-  const toast = useToast();
-  const queryClient = useQueryClient();
-
-  const [cameraId, setCameraId] = useState<string>('');
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
-  const [showAddCamera, setShowAddCamera] = useState(false);
-  const [newDeviceId, setNewDeviceId] = useState('');
-  const [newFriendlyName, setNewFriendlyName] = useState('');
+  const [showModal, setShowModal] = useState(false);
 
   if (!canAdminCurrentProject) {
     return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
   }
-
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
-    enabled: projectId !== undefined,
-  });
 
   const { data: jobs } = useQuery({
     queryKey: ['bulk-upload-jobs', projectId],
@@ -105,17 +106,97 @@ export const BulkUploadPage: React.FC = () => {
     },
   });
 
-  const cameraOptions = useMemo(
-    () => (cameras ?? []).map((c) => ({ value: String(c.id), label: c.name })),
-    [cameras],
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Bulk upload</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Upload images from one camera as a ZIP. The pipeline runs
+            the same detection and classification as live cameras,
+            without firing species notifications and without delaying
+            live alerts.
+          </p>
+        </div>
+        <Button onClick={() => setShowModal(true)} className="whitespace-nowrap">
+          <Plus className="h-4 w-4 mr-2" />
+          Bulk upload
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-6 space-y-3">
+          <h2 className="text-lg font-semibold">Upload jobs</h2>
+          {(!jobs || jobs.length === 0) ? (
+            <p className="text-sm text-muted-foreground">
+              No uploads yet for this project.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {jobs.map((job) => (
+                <JobRow key={job.uuid} job={job} />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <BulkUploadModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        projectId={projectId!}
+      />
+    </div>
   );
+};
+
+const BulkUploadModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  projectId: number;
+}> = ({ open, onClose, projectId }) => {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const [cameraId, setCameraId] = useState<string>('');
+  const [file, setFile] = useState<File | null>(null);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [showAddCamera, setShowAddCamera] = useState(false);
+  const [newDeviceId, setNewDeviceId] = useState('');
+  const [newFriendlyName, setNewFriendlyName] = useState('');
+
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
+    enabled: open,
+  });
+
+  const cameraOptions = (cameras ?? []).map((c) => ({
+    value: String(c.id),
+    label: c.name,
+  }));
+
+  const resetForm = () => {
+    setCameraId('');
+    setFile(null);
+    setUploadPercent(null);
+    setShowAddCamera(false);
+    setNewDeviceId('');
+    setNewFriendlyName('');
+  };
+
+  const handleClose = () => {
+    if (uploadMutation.isPending) return;
+    resetForm();
+    onClose();
+  };
 
   const createCameraMutation = useMutation({
     mutationFn: () =>
       camerasApi.create({
         device_id: newDeviceId.trim(),
         friendly_name: newFriendlyName.trim() || undefined,
-        project_id: projectId!,
+        project_id: projectId,
       }),
     onSuccess: (camera) => {
       queryClient.invalidateQueries({ queryKey: ['cameras', projectId] });
@@ -132,11 +213,11 @@ export const BulkUploadPage: React.FC = () => {
 
   const uploadMutation = useMutation({
     mutationFn: () =>
-      bulkUploadApi.upload(projectId!, Number(cameraId), file!, setUploadPercent),
+      bulkUploadApi.upload(projectId, Number(cameraId), file!, setUploadPercent),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-      setFile(null);
-      setUploadPercent(null);
+      resetForm();
+      onClose();
       toast.success('Upload queued, processing in the background');
     },
     onError: (err: any) => {
@@ -149,33 +230,34 @@ export const BulkUploadPage: React.FC = () => {
     accept: { 'application/zip': ['.zip'] },
     multiple: false,
     onDrop: (accepted) => {
-      if (accepted.length > 0) {
-        setFile(accepted[0]);
-      }
+      if (accepted.length > 0) setFile(accepted[0]);
     },
   });
 
   const canSubmit =
-    !!file
-    && !!cameraId
-    && !uploadMutation.isPending
-    && uploadPercent === null;
+    !!file && !!cameraId && !uploadMutation.isPending && uploadPercent === null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Bulk upload</h1>
-        <p className="text-muted-foreground mt-1">
-          Upload a ZIP of images from one camera. The pipeline runs the
-          same detection and classification as live cameras, but never
-          fires species notifications and never delays live alerts.
-        </p>
-      </div>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) handleClose();
+      }}
+    >
+      <DialogContent
+        onClose={handleClose}
+        className="max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle>New bulk upload</DialogTitle>
+          <DialogDescription>
+            One ZIP per camera. Each image needs a DateTimeOriginal EXIF
+            tag. Files without EXIF, non-images, and duplicates are
+            skipped automatically. Up to 5,000 images and 20 GB per ZIP.
+          </DialogDescription>
+        </DialogHeader>
 
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          <h2 className="text-lg font-semibold">New upload</h2>
-
+        <div className="space-y-4 mt-2">
           {/* Camera selector */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Camera</label>
@@ -283,8 +365,7 @@ export const BulkUploadPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground text-center">
-                  Drop a ZIP here, or click to pick. Up to 5,000 images
-                  and 20 GB per upload.
+                  Drop a ZIP here, or click to pick.
                 </div>
               )}
             </div>
@@ -304,7 +385,15 @@ export const BulkUploadPage: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={uploadMutation.isPending}
+            >
+              Cancel
+            </Button>
             <Button
               type="button"
               disabled={!canSubmit}
@@ -323,26 +412,9 @@ export const BulkUploadPage: React.FC = () => {
               )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-6 space-y-3">
-          <h2 className="text-lg font-semibold">Upload jobs</h2>
-          {(!jobs || jobs.length === 0) ? (
-            <p className="text-sm text-muted-foreground">
-              No uploads yet for this project.
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {jobs.map((job) => (
-                <JobRow key={job.uuid} job={job} />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

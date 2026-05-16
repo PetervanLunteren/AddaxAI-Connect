@@ -297,6 +297,7 @@ def create_image_record(
     exif_metadata: dict,
     origin: str = "live",
     content_hash: Optional[str] = None,
+    bulk_upload_job_id: Optional[int] = None,
 ) -> str:
     """
     Create image record in database.
@@ -337,6 +338,7 @@ def create_image_record(
             image_metadata=exif_metadata,  # Store full EXIF as JSON
             origin=origin,
             content_hash=content_hash,
+            bulk_upload_job_id=bulk_upload_job_id,
         )
 
         session.add(image)

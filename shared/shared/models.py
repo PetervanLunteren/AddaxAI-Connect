@@ -38,6 +38,17 @@ class Image(Base):
     # which have no need for hashing.
     content_hash = Column(String(64), nullable=True, index=True)
 
+    # Bulk upload provenance. Links each bulk-origin image back to the
+    # job that created it so the API can derive accurate end-to-end
+    # progress: a job is done when every image it created has finished
+    # detection + classification, not when the ZIP unpack completes.
+    bulk_upload_job_id = Column(
+        Integer,
+        ForeignKey("bulk_upload_jobs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Visibility
     is_hidden = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
 
