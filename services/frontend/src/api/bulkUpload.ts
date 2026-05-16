@@ -21,6 +21,15 @@ export interface BulkUploadManifest {
     device_id: string | null;
     match_count: number;
   } | null;
+  // Added by the worker once the process phase finishes. Lets the UI
+  // split "duplicates" out from "other skips" so a re-upload of an
+  // already-imported SD card reads as "all duplicates" rather than
+  // the misleading "0 of 30 processed".
+  process_summary?: {
+    queued_for_pipeline: number;
+    duplicates: number;
+    other_skipped: number;
+  };
 }
 
 export interface BulkUploadJob {

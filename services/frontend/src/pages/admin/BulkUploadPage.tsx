@@ -732,6 +732,38 @@ const ReviewStep: React.FC<{
   );
 };
 
+function jobSummaryText(job: BulkUploadJob): string {
+  const summary = job.manifest?.process_summary;
+  if (!summary) {
+    // Worker hasn't finished the process phase yet, so it has not
+    // written the breakdown. Fall back to the aggregate count.
+    return `${job.processed_files} of ${job.total_files} processed`
+      + (job.skipped_files > 0 ? `, ${job.skipped_files} skipped` : '');
+  }
+  const queued = summary.queued_for_pipeline;
+  const dups = summary.duplicates;
+  const others = summary.other_skipped;
+  // "Done" with zero new images is almost always all-duplicates, so
+  // lead with that. Don't say "0 of N processed" because it reads as
+  // failure when it's actually correct dedupe behaviour.
+  if (queued === 0 && dups > 0 && others === 0) {
+    return `All ${dups} images were already in the project, nothing new added`;
+  }
+  if (queued === 0 && dups + others > 0) {
+    return `No new images added, ${dups} duplicate${dups === 1 ? '' : 's'}`
+      + (others > 0 ? `, ${others} other skipped` : '');
+  }
+  // Mixed or all-processed case: show what landed plus a parenthetical
+  // breakdown of the skips when present.
+  const processed = job.processed_files;
+  const skipParts: string[] = [];
+  if (dups > 0) skipParts.push(`${dups} duplicate${dups === 1 ? '' : 's'}`);
+  if (others > 0) skipParts.push(`${others} other skipped`);
+  return `${processed} of ${queued} classified`
+    + (skipParts.length ? `, ${skipParts.join(', ')}` : '');
+}
+
+
 const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
   const total = Math.max(job.total_files, 1);
   const done = job.processed_files + job.skipped_files;
@@ -775,8 +807,7 @@ const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
       )}
       {(isTerminal || showBar) && (
         <div className="text-xs text-muted-foreground">
-          {job.processed_files} of {job.total_files} processed
-          {job.skipped_files > 0 && `, ${job.skipped_files} skipped`}
+          {jobSummaryText(job)}
         </div>
       )}
       {job.error_message && (

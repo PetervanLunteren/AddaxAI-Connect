@@ -134,9 +134,12 @@ def _process_zip_entry(
     """
     Process a single ZIP entry end-to-end.
 
-    Returns one of: 'processed', 'skipped'. Raises only on truly
-    catastrophic failures; per-file issues become 'skipped' with a
-    warning log so a single bad JPEG never sinks the whole batch.
+    Returns one of: 'processed', 'duplicate', 'skipped'. Duplicates
+    are split out so the UI can show "all 30 were already in the
+    project" instead of the misleading "0 of 30 processed, 30
+    skipped". Raises only on truly catastrophic failures; per-file
+    issues become 'skipped' with a warning log so a single bad JPEG
+    never sinks the whole batch.
     """
     if not name.lower().endswith(IMAGE_EXTENSIONS):
         return "skipped"
@@ -157,7 +160,7 @@ def _process_zip_entry(
                 entry=name,
                 existing_uuid=existing,
             )
-            return "skipped"
+            return "duplicate"
 
     suffix = os.path.splitext(name)[1] or ".jpg"
     tmp_handle, tmp_path = tempfile.mkstemp(suffix=suffix)
@@ -443,7 +446,8 @@ def _process_job(job_uuid: str) -> None:
             ]
             bulk_queue = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
             processed = 0
-            skipped = 0
+            duplicates = 0
+            other_skipped = 0
 
             for idx, info in enumerate(entries, start=1):
                 try:
@@ -459,8 +463,10 @@ def _process_job(job_uuid: str) -> None:
                     )
                     if outcome == "processed":
                         processed += 1
+                    elif outcome == "duplicate":
+                        duplicates += 1
                     else:
-                        skipped += 1
+                        other_skipped += 1
                 except Exception as exc:
                     logger.warning(
                         "Skipping bulk upload entry, unexpected error",
@@ -468,12 +474,26 @@ def _process_job(job_uuid: str) -> None:
                         error=str(exc),
                         exc_info=True,
                     )
-                    skipped += 1
+                    other_skipped += 1
 
                 if idx % PROGRESS_PERSIST_EVERY == 0:
-                    _set_status(job_uuid, skipped_files=skipped)
+                    _set_status(job_uuid, skipped_files=duplicates + other_skipped)
 
-        _set_status(job_uuid, skipped_files=skipped)
+        # Stash the breakdown in the manifest so the UI can say "all 30
+        # were duplicates" instead of just "30 skipped".
+        with get_db_session() as session:
+            row = session.execute(
+                select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
+            ).scalar_one()
+            manifest = dict(row.manifest or {})
+            manifest["process_summary"] = {
+                "queued_for_pipeline": processed,
+                "duplicates": duplicates,
+                "other_skipped": other_skipped,
+            }
+            row.manifest = manifest
+            row.skipped_files = duplicates + other_skipped
+        skipped = duplicates + other_skipped
 
         try:
             storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
