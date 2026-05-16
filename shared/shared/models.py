@@ -452,9 +452,9 @@ class BulkUploadJob(Base):
     )
     original_filename = Column(String(255), nullable=False)
     staged_object_key = Column(String(512), nullable=False)
-    # queued | extracting | processing | done | failed
+    # queued | inspecting | awaiting_confirmation | processing | done | failed
     status = Column(
-        String(20), nullable=False, server_default='queued', index=True
+        String(30), nullable=False, server_default='queued', index=True
     )
     total_files = Column(Integer, nullable=False, server_default='0')
     processed_files = Column(Integer, nullable=False, server_default='0')
