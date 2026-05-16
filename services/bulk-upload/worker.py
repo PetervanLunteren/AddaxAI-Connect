@@ -365,20 +365,24 @@ def _inspect_job(job_uuid: str) -> None:
         matched_cameras: list = []
         if serial_counts:
             with get_db_session() as session:
+                # Select tuples instead of full Camera objects so the
+                # values are plain Python by the time we use them.
+                # Reading attributes off a Camera ORM instance after
+                # the session closes triggers a refresh and crashes.
                 rows = session.execute(
-                    select(Camera).where(
+                    select(Camera.id, Camera.name, Camera.device_id).where(
                         Camera.project_id == project_id,
                         Camera.device_id.in_(list(serial_counts.keys())),
                     )
-                ).scalars().all()
-            for camera in rows:
-                match_count = serial_counts.get(camera.device_id, 0)
+                ).all()
+            for cam_id, cam_name, device_id in rows:
+                match_count = serial_counts.get(device_id, 0)
                 if match_count == 0:
                     continue
                 matched_cameras.append({
-                    "camera_id": camera.id,
-                    "camera_name": camera.name,
-                    "device_id": camera.device_id,
+                    "camera_id": cam_id,
+                    "camera_name": cam_name,
+                    "device_id": device_id,
                     "match_count": match_count,
                 })
             matched_cameras.sort(key=lambda c: c["match_count"], reverse=True)
