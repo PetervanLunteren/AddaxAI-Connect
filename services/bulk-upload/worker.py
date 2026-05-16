@@ -283,6 +283,7 @@ def _inspect_job(job_uuid: str) -> None:
         min_dt: Optional[datetime] = None
         max_dt: Optional[datetime] = None
         valid_count = 0
+        valid_hashes: list = []
 
         with zipfile.ZipFile(tmp_zip_path) as zf:
             entries = [
@@ -308,6 +309,7 @@ def _inspect_job(job_uuid: str) -> None:
 
                     by_status["valid"] += 1
                     valid_count += 1
+                    valid_hashes.append(hashlib.sha256(raw).hexdigest())
                     if min_dt is None or dt < min_dt:
                         min_dt = dt
                     if max_dt is None or dt > max_dt:
@@ -329,28 +331,117 @@ def _inspect_job(job_uuid: str) -> None:
                         except OSError:
                             pass
 
-        # Auto-suggest: at least 50% of valid entries must share one
-        # EXIF SerialNumber and that serial must map to a registered
-        # camera in this project. Less than 50% means the ZIP is mixed
-        # or the camera isn't registered, so the user picks manually.
-        suggested = None
-        if valid_count > 0 and serial_counts:
-            most_common_serial, match_count = serial_counts.most_common(1)[0]
-            if match_count / valid_count >= 0.5:
-                with get_db_session() as session:
-                    camera = session.execute(
-                        select(Camera).where(
+        # Cross-check valid entries against images already in the
+        # project. Project-wide check: identical bytes on two different
+        # camera traps is essentially impossible, so a project-scoped
+        # match is reliably a duplicate regardless of which camera the
+        # user will eventually pick.
+        if valid_hashes:
+            with get_db_session() as session:
+                existing_hashes = {
+                    row[0] for row in session.execute(
+                        select(Image.content_hash)
+                        .join(Camera, Image.camera_id == Camera.id)
+                        .where(
                             Camera.project_id == project_id,
-                            Camera.device_id == most_common_serial,
+                            Image.content_hash.in_(valid_hashes),
                         )
-                    ).scalar_one_or_none()
-                    if camera:
-                        suggested = {
-                            "camera_id": camera.id,
-                            "camera_name": camera.name,
-                            "device_id": camera.device_id,
-                            "match_count": match_count,
-                        }
+                    ).all()
+                }
+            if existing_hashes:
+                # Note: a single hash could match multiple valid
+                # entries (same image twice in the ZIP), but the count
+                # we care about is "valid entries that are duplicates"
+                # so we recount per entry.
+                dup_count = sum(1 for h in valid_hashes if h in existing_hashes)
+                by_status["duplicate"] = dup_count
+                by_status["valid"] -= dup_count
+                valid_count -= dup_count
+
+        # Match every serial that appears against registered cameras
+        # in this project. Each match keeps its count; we use the list
+        # for both the auto-suggest (when there's a single dominant
+        # camera) and the multi-camera refusal (when 2+ are matched).
+        matched_cameras: list = []
+        if serial_counts:
+            with get_db_session() as session:
+                rows = session.execute(
+                    select(Camera).where(
+                        Camera.project_id == project_id,
+                        Camera.device_id.in_(list(serial_counts.keys())),
+                    )
+                ).scalars().all()
+            for camera in rows:
+                match_count = serial_counts.get(camera.device_id, 0)
+                if match_count == 0:
+                    continue
+                matched_cameras.append({
+                    "camera_id": camera.id,
+                    "camera_name": camera.name,
+                    "device_id": camera.device_id,
+                    "match_count": match_count,
+                })
+            matched_cameras.sort(key=lambda c: c["match_count"], reverse=True)
+
+        # Cameras with only one stray match are treated as noise (an
+        # accidental EXIF serial collision) so they don't trigger a
+        # spurious "two cameras detected" refusal.
+        significant_cameras = [c for c in matched_cameras if c["match_count"] >= 2]
+
+        # Refuse multi-camera ZIPs: bulk upload attaches every image
+        # to one camera_id. Without per-image routing (Slice 3) the
+        # only safe option is to make the user split the batch.
+        if len(significant_cameras) >= 2:
+            names = ", ".join(
+                f'{c["camera_name"]} ({c["match_count"]} images)'
+                for c in significant_cameras
+            )
+            err = (
+                f"ZIP spans {len(significant_cameras)} registered cameras: "
+                f"{names}. Bulk upload handles one camera at a time. "
+                "Split the ZIP per camera and retry."
+            )
+            logger.warning(
+                "Refusing multi-camera bulk upload",
+                job_uuid=job_uuid,
+                matched_cameras=significant_cameras,
+            )
+            manifest = {
+                "total_entries": total_entries,
+                "valid_count": valid_count,
+                "by_status": dict(by_status),
+                "date_range": {
+                    "start": min_dt.isoformat() if min_dt else None,
+                    "end": max_dt.isoformat() if max_dt else None,
+                },
+                "suggested_camera": None,
+                "matched_cameras": matched_cameras,
+            }
+            try:
+                storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete staged zip after multi-camera refusal",
+                    error=str(exc),
+                )
+            _set_status(
+                job_uuid,
+                status="failed",
+                error_message=err,
+                manifest=manifest,
+                total_files=total_entries,
+                finished_at=datetime.now(timezone.utc),
+            )
+            return
+
+        # Auto-suggest the single matched camera when it covers at
+        # least 50% of valid entries. Less than 50% means a lot of
+        # serials didn't match anything; safer to let the user pick.
+        suggested = None
+        if valid_count > 0 and matched_cameras:
+            top = matched_cameras[0]
+            if top["match_count"] / valid_count >= 0.5:
+                suggested = top
 
         manifest = {
             "total_entries": total_entries,
@@ -361,6 +452,7 @@ def _inspect_job(job_uuid: str) -> None:
                 "end": max_dt.isoformat() if max_dt else None,
             },
             "suggested_camera": suggested,
+            "matched_cameras": matched_cameras,
         }
 
         _set_status(

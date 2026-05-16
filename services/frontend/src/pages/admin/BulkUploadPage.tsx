@@ -102,7 +102,8 @@ function formatDateRange(start: string | null, end: string | null): string {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  valid: 'will be processed',
+  valid: 'ready to process',
+  duplicate: 'already in the project',
   missing_exif_datetime: 'missing EXIF date',
   corrupt: 'corrupt or unreadable',
 };

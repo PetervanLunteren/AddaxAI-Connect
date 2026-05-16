@@ -21,6 +21,12 @@ export interface BulkUploadManifest {
     device_id: string | null;
     match_count: number;
   } | null;
+  matched_cameras?: {
+    camera_id: number;
+    camera_name: string;
+    device_id: string | null;
+    match_count: number;
+  }[];
   // Added by the worker once the process phase finishes. Lets the UI
   // split "duplicates" out from "other skips" so a re-upload of an
   // already-imported SD card reads as "all duplicates" rather than
