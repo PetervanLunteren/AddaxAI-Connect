@@ -879,6 +879,11 @@ function buildResultsHref(projectId: number, job: BulkUploadJob): string | null 
   const end = job.manifest?.date_range?.end;
   if (start) params.set('date_from', start.slice(0, 10));
   if (end) params.set('date_to', end.slice(0, 10));
+  // Without this the Images page hides anything with no visible
+  // detection, so empty-frame classifications from the bulk batch
+  // (sensor triggered, nothing in shot) silently disappear from
+  // the View images view and the user wonders where they went.
+  params.set('show_empty', 'true');
   return `/projects/${projectId}/images?${params.toString()}`;
 }
 

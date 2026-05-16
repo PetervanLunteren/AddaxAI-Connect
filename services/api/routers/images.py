@@ -2,7 +2,7 @@
 Image endpoints for viewing camera trap images with detections and classifications.
 """
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -401,8 +401,17 @@ async def list_images(
 
     if end_date:
         try:
-            end_dt = datetime.fromisoformat(end_date)
-            filters.append(Image.captured_at <= end_dt)
+            # A date-only input ("2026-01-24") should include the
+            # entire end day. fromisoformat parses it as midnight, so
+            # without this adjustment images captured at 14:28 on the
+            # 24th get excluded. For an explicit datetime input, take
+            # the user at their word.
+            if len(end_date) == 10:
+                end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
+                filters.append(Image.captured_at < end_dt)
+            else:
+                end_dt = datetime.fromisoformat(end_date)
+                filters.append(Image.captured_at <= end_dt)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

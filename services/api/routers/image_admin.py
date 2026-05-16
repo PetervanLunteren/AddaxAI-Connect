@@ -5,7 +5,7 @@ Allows project admins to manage images: hide from analysis, restore hidden image
 or permanently delete images and their associated data.
 """
 from typing import List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 import re
 import zipfile
@@ -202,8 +202,14 @@ async def _build_filter_clauses(
 
     if end_date:
         try:
-            end_dt = datetime.fromisoformat(end_date)
-            filters.append(Image.captured_at <= end_dt)
+            # A date-only input includes the entire end day; see images.py
+            # for the rationale. Datetime input is taken literally.
+            if len(end_date) == 10:
+                end_dt = datetime.fromisoformat(end_date) + timedelta(days=1)
+                filters.append(Image.captured_at < end_dt)
+            else:
+                end_dt = datetime.fromisoformat(end_date)
+                filters.append(Image.captured_at <= end_dt)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid end_date format")
 
