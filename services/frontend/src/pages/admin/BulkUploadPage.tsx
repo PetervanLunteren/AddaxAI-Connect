@@ -6,7 +6,7 @@
  * inspect it, then review and confirm. Body of the page is a live job
  * list that polls every 5 s while any row is non-terminal.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
@@ -19,6 +19,7 @@ import {
   Check,
   AlertTriangle,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -113,10 +114,26 @@ type ModalState =
   | { kind: 'resume'; jobUuid: string }
   | null;
 
+type FilterKey = 'active' | 'done' | 'failed' | 'all';
+
+const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['status']) => boolean }[] = [
+  {
+    key: 'active',
+    label: 'Active',
+    matches: (s) => s === 'queued' || s === 'inspecting' || s === 'awaiting_confirmation' || s === 'processing',
+  },
+  { key: 'done', label: 'Done', matches: (s) => s === 'done' },
+  { key: 'failed', label: 'Failed', matches: (s) => s === 'failed' },
+  { key: 'all', label: 'All', matches: () => true },
+];
+
 export const BulkUploadPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject } = useProject();
   const projectId = selectedProject?.id;
   const [modalState, setModalState] = useState<ModalState>(null);
+  const [filter, setFilter] = useState<FilterKey>('active');
+  const queryClient = useQueryClient();
+  const toast = useToast();
 
   if (!canAdminCurrentProject) {
     return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
@@ -139,6 +156,32 @@ export const BulkUploadPage: React.FC = () => {
   // terminal or in-flight pipelines and don't need a modal.
   const resumableStatuses = new Set(['queued', 'inspecting', 'awaiting_confirmation']);
 
+  const counts = useMemo(() => {
+    const c: Record<FilterKey, number> = { active: 0, done: 0, failed: 0, all: 0 };
+    (jobs ?? []).forEach((j) => {
+      c.all += 1;
+      for (const def of FILTER_DEFS) {
+        if (def.key !== 'all' && def.matches(j.status)) c[def.key] += 1;
+      }
+    });
+    return c;
+  }, [jobs]);
+
+  const filteredJobs = useMemo(() => {
+    const def = FILTER_DEFS.find((f) => f.key === filter)!;
+    return (jobs ?? []).filter((j) => def.matches(j.status));
+  }, [jobs, filter]);
+
+  const discardMutation = useMutation({
+    mutationFn: (uuid: string) => bulkUploadApi.discard(projectId!, uuid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+    },
+    onError: (err: any) => {
+      toast.error(`Discard failed, ${err.response?.data?.detail || err.message}`);
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -159,14 +202,40 @@ export const BulkUploadPage: React.FC = () => {
 
       <Card>
         <CardContent className="p-6 space-y-3">
-          <h2 className="text-lg font-semibold">Upload jobs</h2>
-          {(!jobs || jobs.length === 0) ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold">Upload jobs</h2>
+            <div className="flex items-center gap-1">
+              {FILTER_DEFS.map((def) => {
+                const active = filter === def.key;
+                return (
+                  <button
+                    key={def.key}
+                    type="button"
+                    onClick={() => setFilter(def.key)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-muted-foreground border-input hover:text-foreground'
+                    }`}
+                  >
+                    {def.label}
+                    <span className={`ml-1 ${active ? 'opacity-80' : 'opacity-60'}`}>
+                      {counts[def.key]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {filteredJobs.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No uploads yet for this project.
+              {(!jobs || jobs.length === 0)
+                ? 'No uploads yet for this project.'
+                : `No ${filter === 'all' ? '' : filter + ' '}jobs.`}
             </p>
           ) : (
             <ul className="divide-y">
-              {jobs.map((job) => (
+              {filteredJobs.map((job) => (
                 <JobRow
                   key={job.uuid}
                   job={job}
@@ -175,6 +244,12 @@ export const BulkUploadPage: React.FC = () => {
                       ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
                       : undefined
                   }
+                  onDiscard={
+                    job.status !== 'processing'
+                      ? () => discardMutation.mutate(job.uuid)
+                      : undefined
+                  }
+                  isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
                 />
               ))}
             </ul>
@@ -314,13 +389,13 @@ const BulkUploadModal: React.FC<{
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => bulkUploadApi.cancel(projectId, jobUuid!),
+    mutationFn: () => bulkUploadApi.discard(projectId, jobUuid!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
       onClose();
     },
     onError: (err: any) => {
-      toast.error(`Cancel failed, ${err.response?.data?.detail || err.message}`);
+      toast.error(`Discard failed, ${err.response?.data?.detail || err.message}`);
     },
   });
 
@@ -794,7 +869,12 @@ function jobSummaryText(job: BulkUploadJob): string {
 }
 
 
-const JobRow: React.FC<{ job: BulkUploadJob; onResume?: () => void }> = ({ job, onResume }) => {
+const JobRow: React.FC<{
+  job: BulkUploadJob;
+  onResume?: () => void;
+  onDiscard?: () => void;
+  isDiscarding?: boolean;
+}> = ({ job, onResume, onDiscard, isDiscarding }) => {
   const total = Math.max(job.total_files, 1);
   const done = job.processed_files + job.skipped_files;
   const percent = Math.min(100, Math.round((done / total) * 100));
@@ -845,6 +925,24 @@ const JobRow: React.FC<{ job: BulkUploadJob; onResume?: () => void }> = ({ job, 
             {job.status === 'failed' && <AlertTriangle className="h-3 w-3" />}
             {statusLabel(job.status)}
           </span>
+          {onDiscard && (
+            <button
+              type="button"
+              title="Remove from list"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard();
+              }}
+              disabled={isDiscarding}
+              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              {isDiscarding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </button>
+          )}
         </div>
       </div>
       {showBar && (

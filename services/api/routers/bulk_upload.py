@@ -444,6 +444,66 @@ async def cancel_bulk_upload(
     )
 
 
+@router.delete("/jobs/{job_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+async def discard_bulk_upload_job(
+    project_id: int,
+    job_uuid: str,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Remove a bulk upload job from the list.
+
+    For in-flight pre-process states (queued, inspecting,
+    awaiting_confirmation) this also deletes the staged ZIP so it
+    doesn't sit in MinIO forever. For terminal states (done, failed)
+    it just removes the row. Refuses to remove a job that is
+    currently processing because the worker is mid-pipeline and a
+    half-deleted job would leak Image rows with a null FK pointing
+    at nothing meaningful.
+
+    Image rows created by this job keep existing with
+    `bulk_upload_job_id` set to NULL (the FK uses ON DELETE SET NULL).
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    if job.status == "processing":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot discard a job that is currently processing",
+        )
+
+    if job.staged_object_key and job.status in (
+        "queued", "inspecting", "awaiting_confirmation",
+    ):
+        storage = StorageClient()
+        try:
+            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key)
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete staged zip during discard",
+                job_uuid=job_uuid,
+                error=str(exc),
+            )
+
+    await db.delete(job)
+    await db.commit()
+    logger.info(
+        "Discarded bulk upload job",
+        job_uuid=job_uuid,
+        prior_status=job.status,
+        user_id=user.id,
+    )
+
+
 @router.get("/jobs", response_model=List[BulkUploadJobResponse])
 async def list_bulk_upload_jobs(
     project_id: int,

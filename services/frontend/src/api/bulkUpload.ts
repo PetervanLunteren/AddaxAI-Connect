@@ -123,4 +123,8 @@ export const bulkUploadApi = {
     );
     return response.data;
   },
+
+  discard: async (projectId: number, jobUuid: string): Promise<void> => {
+    await apiClient.delete(`/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}`);
+  },
 };
