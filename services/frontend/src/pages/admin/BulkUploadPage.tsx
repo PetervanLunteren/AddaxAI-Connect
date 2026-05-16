@@ -108,10 +108,15 @@ const STATUS_LABELS: Record<string, string> = {
   corrupt: 'corrupt or unreadable',
 };
 
+type ModalState =
+  | { kind: 'new' }
+  | { kind: 'resume'; jobUuid: string }
+  | null;
+
 export const BulkUploadPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject } = useProject();
   const projectId = selectedProject?.id;
-  const [showModal, setShowModal] = useState(false);
+  const [modalState, setModalState] = useState<ModalState>(null);
 
   if (!canAdminCurrentProject) {
     return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
@@ -129,6 +134,11 @@ export const BulkUploadPage: React.FC = () => {
     },
   });
 
+  // Jobs that the user can re-open are the ones in the inspect-then-
+  // confirm middle states. Done / failed / processing jobs are
+  // terminal or in-flight pipelines and don't need a modal.
+  const resumableStatuses = new Set(['queued', 'inspecting', 'awaiting_confirmation']);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -141,7 +151,7 @@ export const BulkUploadPage: React.FC = () => {
             live alerts.
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)} className="whitespace-nowrap">
+        <Button onClick={() => setModalState({ kind: 'new' })} className="whitespace-nowrap">
           <Plus className="h-4 w-4 mr-2" />
           Bulk upload
         </Button>
@@ -157,7 +167,15 @@ export const BulkUploadPage: React.FC = () => {
           ) : (
             <ul className="divide-y">
               {jobs.map((job) => (
-                <JobRow key={job.uuid} job={job} />
+                <JobRow
+                  key={job.uuid}
+                  job={job}
+                  onResume={
+                    resumableStatuses.has(job.status)
+                      ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
+                      : undefined
+                  }
+                />
               ))}
             </ul>
           )}
@@ -165,8 +183,8 @@ export const BulkUploadPage: React.FC = () => {
       </Card>
 
       <BulkUploadModal
-        open={showModal}
-        onClose={() => setShowModal(false)}
+        state={modalState}
+        onClose={() => setModalState(null)}
         projectId={projectId!}
       />
     </div>
@@ -176,12 +194,15 @@ export const BulkUploadPage: React.FC = () => {
 type Step = 'upload' | 'inspecting' | 'review' | 'submitting';
 
 const BulkUploadModal: React.FC<{
-  open: boolean;
+  state: ModalState;
   onClose: () => void;
   projectId: number;
-}> = ({ open, onClose, projectId }) => {
+}> = ({ state, onClose, projectId }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
+
+  const open = state !== null;
+  const resumeJobUuid = state?.kind === 'resume' ? state.jobUuid : null;
 
   const [step, setStep] = useState<Step>('upload');
   const [jobUuid, setJobUuid] = useState<string | null>(null);
@@ -203,22 +224,30 @@ const BulkUploadModal: React.FC<{
     enabled: open,
   });
 
-  // Reset everything when the modal opens.
+  // Reset everything when the modal opens. Resume mode skips the
+  // upload step and jumps straight to inspecting, which the poll
+  // effect then progresses to review once the manifest is ready.
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    setFile(null);
+    setUploadPercent(null);
+    setShowAddCamera(false);
+    setNewDeviceId('');
+    setNewFriendlyName('');
+    setNewLatitude('');
+    setNewLongitude('');
+    if (resumeJobUuid) {
+      setJobUuid(resumeJobUuid);
+      setJob(null);
+      setCameraId('');
+      setStep('inspecting');
+    } else {
       setStep('upload');
       setJobUuid(null);
       setJob(null);
-      setFile(null);
-      setUploadPercent(null);
       setCameraId('');
-      setShowAddCamera(false);
-      setNewDeviceId('');
-      setNewFriendlyName('');
-      setNewLatitude('');
-      setNewLongitude('');
     }
-  }, [open]);
+  }, [open, resumeJobUuid]);
 
   // Poll the job while we're waiting for the inspect phase to finish.
   useEffect(() => {
@@ -765,15 +794,21 @@ function jobSummaryText(job: BulkUploadJob): string {
 }
 
 
-const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
+const JobRow: React.FC<{ job: BulkUploadJob; onResume?: () => void }> = ({ job, onResume }) => {
   const total = Math.max(job.total_files, 1);
   const done = job.processed_files + job.skipped_files;
   const percent = Math.min(100, Math.round((done / total) * 100));
   const isTerminal = TERMINAL_STATUSES.has(job.status);
   const showBar = job.status === 'processing';
+  const canReview = job.status === 'awaiting_confirmation' && !!onResume;
 
   return (
-    <li className="py-3 flex flex-col gap-1">
+    <li
+      className={`py-3 flex flex-col gap-1 ${
+        canReview ? 'cursor-pointer hover:bg-muted/40 -mx-3 px-3 rounded' : ''
+      }`}
+      onClick={canReview ? onResume : undefined}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-sm">
@@ -790,13 +825,27 @@ const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
             {job.created_by_email ? `, by ${job.created_by_email}` : ''}
           </div>
         </div>
-        <span
-          className={`px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${statusBadgeClass(job.status)}`}
-        >
-          {job.status === 'done' && <Check className="h-3 w-3" />}
-          {job.status === 'failed' && <AlertTriangle className="h-3 w-3" />}
-          {statusLabel(job.status)}
-        </span>
+        <div className="flex items-center gap-2">
+          {canReview && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onResume?.();
+              }}
+            >
+              Review
+            </Button>
+          )}
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${statusBadgeClass(job.status)}`}
+          >
+            {job.status === 'done' && <Check className="h-3 w-3" />}
+            {job.status === 'failed' && <AlertTriangle className="h-3 w-3" />}
+            {statusLabel(job.status)}
+          </span>
+        </div>
       </div>
       {showBar && (
         <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden mt-1">
