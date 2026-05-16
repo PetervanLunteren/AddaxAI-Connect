@@ -56,6 +56,9 @@ export interface BulkUploadJob {
   skipped_files: number;
   error_message: string | null;
   manifest: BulkUploadManifest | null;
+  // Only meaningful when status is 'queued'. Number of other jobs the
+  // worker has to finish before this one starts. 0 = next.
+  queue_position: number | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;

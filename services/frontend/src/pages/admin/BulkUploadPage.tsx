@@ -929,6 +929,14 @@ const JobRow: React.FC<{
             {job.camera_name ? `For ${job.camera_name}. ` : ''}
             Uploaded {formatRelative(job.created_at)}
             {job.created_by_email ? ` by ${job.created_by_email}` : ''}.
+            {job.status === 'queued' && job.queue_position != null && (
+              <>
+                <br />
+                {job.queue_position === 0
+                  ? 'Up next in the queue.'
+                  : `${job.queue_position} ${job.queue_position === 1 ? 'job' : 'jobs'} ahead in the queue.`}
+              </>
+            )}
             {(isTerminal || showBar) && (
               <>
                 <br />

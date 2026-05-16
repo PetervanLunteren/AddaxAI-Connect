@@ -29,7 +29,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import BulkUploadJob, Camera, Image, User
-from shared.queue import QUEUE_BULK_UPLOAD_JOB, RedisQueue
+from shared.queue import (
+    QUEUE_BULK_UPLOAD_JOB,
+    QUEUE_BULK_UPLOAD_JOB_PROCESS,
+    RedisQueue,
+)
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 from auth.permissions import require_project_admin_access
 
@@ -75,6 +79,9 @@ class BulkUploadJobResponse(BaseModel):
     skipped_files: int
     error_message: Optional[str]
     manifest: Optional[Dict[str, Any]] = None
+    # Number of other jobs ahead of this one in the bulk-upload queue
+    # (only meaningful for status='queued'). 0 means this is next.
+    queue_position: Optional[int] = None
     started_at: Optional[str]
     finished_at: Optional[str]
     created_at: str
@@ -178,11 +185,32 @@ async def _expire_orphan_jobs(db: AsyncSession, project_id: int) -> None:
     await db.commit()
 
 
+async def _queue_positions(db: AsyncSession, project_id: int) -> Dict[int, int]:
+    """
+    Map of bulk_upload_job.id -> position-ahead-in-queue, for jobs the
+    bulk-upload worker hasn't finished yet. The currently inspecting
+    job counts as ahead too (it's blocking the worker). Position 0
+    means this job is next.
+    """
+    rows = (
+        await db.execute(
+            select(BulkUploadJob.id)
+            .where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.status.in_(("queued", "inspecting")),
+            )
+            .order_by(BulkUploadJob.id.asc())
+        )
+    ).all()
+    return {row[0]: idx for idx, row in enumerate(rows)}
+
+
 def _job_to_response(
     job: BulkUploadJob,
     camera_name: Optional[str],
     created_by_email: Optional[str],
     processed_files: int,
+    queue_position: Optional[int] = None,
 ) -> BulkUploadJobResponse:
     return BulkUploadJobResponse(
         uuid=job.uuid,
@@ -196,6 +224,7 @@ def _job_to_response(
         skipped_files=job.skipped_files,
         error_message=job.error_message,
         manifest=job.manifest,
+        queue_position=queue_position if job.status == "queued" else None,
         started_at=job.started_at.isoformat() if job.started_at else None,
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
         created_at=job.created_at.isoformat() if job.created_at else "",
@@ -368,7 +397,7 @@ async def confirm_bulk_upload(
     await db.commit()
     await db.refresh(job)
 
-    queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB)
+    queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB_PROCESS)
     queue.publish({"job_uuid": job_uuid, "phase": "process"})
 
     logger.info(
@@ -525,12 +554,14 @@ async def list_bulk_upload_jobs(
     jobs = [job for job, _, _ in rows]
     processed_counts = await _pipeline_done_counts(db, [j.id for j in jobs])
     await _finalise_done_jobs(db, jobs, processed_counts)
+    positions = await _queue_positions(db, project_id)
     return [
         _job_to_response(
             job,
             camera_name=cam_name,
             created_by_email=email,
             processed_files=processed_counts.get(job.id, 0),
+            queue_position=positions.get(job.id),
         )
         for job, cam_name, email in rows
     ]
@@ -563,9 +594,11 @@ async def get_bulk_upload_job(
     job, cam_name, email = row
     processed_counts = await _pipeline_done_counts(db, [job.id])
     await _finalise_done_jobs(db, [job], processed_counts)
+    positions = await _queue_positions(db, project_id)
     return _job_to_response(
         job,
         camera_name=cam_name,
         created_by_email=email,
         processed_files=processed_counts.get(job.id, 0),
+        queue_position=positions.get(job.id),
     )

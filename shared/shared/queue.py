@@ -123,6 +123,11 @@ QUEUE_FAILED_JOBS = "failed-jobs"
 QUEUE_IMAGE_INGESTED_BULK = "image-ingested-bulk"
 QUEUE_DETECTION_COMPLETE_BULK = "detection-complete-bulk"
 QUEUE_BULK_UPLOAD_JOB = "bulk-upload-job"
+# Process-phase messages go to a dedicated queue so a user clicking
+# Process jumps ahead of any pending inspects in the regular queue.
+# Matches the live-vs-bulk priority pattern, applied within the
+# bulk-upload worker.
+QUEUE_BULK_UPLOAD_JOB_PROCESS = "bulk-upload-job-process"
 
 # Notification queues
 QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here

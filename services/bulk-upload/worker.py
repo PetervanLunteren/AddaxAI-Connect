@@ -41,6 +41,7 @@ from shared.logger import get_logger, set_image_id
 from shared.models import BulkUploadJob, Camera, Image
 from shared.queue import (
     QUEUE_BULK_UPLOAD_JOB,
+    QUEUE_BULK_UPLOAD_JOB_PROCESS,
     QUEUE_IMAGE_INGESTED_BULK,
     RedisQueue,
 )
@@ -646,8 +647,14 @@ def dispatch(message: dict) -> None:
 
 def main() -> None:
     logger.info("Bulk upload worker starting")
+    # Process-phase messages take priority over inspect-phase so a
+    # user clicking Process is never queued behind someone else's
+    # pending ZIP inspection. Same pattern as live > bulk for the
+    # detection / classification pipeline.
     queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB)
-    queue.consume_forever(dispatch)
+    priority = [QUEUE_BULK_UPLOAD_JOB_PROCESS, QUEUE_BULK_UPLOAD_JOB]
+    logger.info("Listening on priority queues", queues=priority)
+    queue.consume_forever_priority(priority, dispatch)
 
 
 if __name__ == "__main__":
