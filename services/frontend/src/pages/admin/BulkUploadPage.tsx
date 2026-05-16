@@ -235,26 +235,28 @@ export const BulkUploadPage: React.FC = () => {
                 : `No ${filter === 'all' ? '' : filter + ' '}jobs.`}
             </p>
           ) : (
-            <ul className="divide-y">
-              {filteredJobs.map((job) => (
-                <JobRow
-                  key={job.uuid}
-                  job={job}
-                  projectId={projectId!}
-                  onResume={
-                    resumableStatuses.has(job.status)
-                      ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
-                      : undefined
-                  }
-                  onDiscard={
-                    job.status !== 'processing'
-                      ? () => discardMutation.mutate(job.uuid)
-                      : undefined
-                  }
-                  isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
-                />
+            <div>
+              {filteredJobs.map((job, i) => (
+                <React.Fragment key={job.uuid}>
+                  {i > 0 && <div className="border-t my-6" />}
+                  <JobRow
+                    job={job}
+                    projectId={projectId!}
+                    onResume={
+                      resumableStatuses.has(job.status)
+                        ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
+                        : undefined
+                    }
+                    onDiscard={
+                      job.status !== 'processing'
+                        ? () => discardMutation.mutate(job.uuid)
+                        : undefined
+                    }
+                    isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
+                  />
+                </React.Fragment>
               ))}
-            </ul>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -903,29 +905,32 @@ const JobRow: React.FC<{
   const resultsHref = buildResultsHref(projectId, job);
 
   return (
-    <li
-      className={`py-3 flex flex-col gap-1 ${
-        canReview ? 'cursor-pointer hover:bg-muted/40 -mx-3 px-3 rounded' : ''
-      }`}
+    <div
+      className={canReview ? 'cursor-pointer hover:bg-muted/40 -mx-3 px-3 py-1 rounded' : ''}
       onClick={canReview ? onResume : undefined}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+        {/* Left col: title + caption (matches Notifications / Exports row pattern). */}
+        <div className="w-full sm:w-1/2 sm:shrink-0 min-w-0">
+          <label className="text-sm font-medium block flex items-center gap-2">
             <FileArchive className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="font-medium truncate">{job.original_filename}</span>
-            {job.camera_name && (
-              <span className="text-xs text-muted-foreground">
-                for {job.camera_name}
-              </span>
+            <span className="truncate">{job.original_filename}</span>
+          </label>
+          <p className="text-sm text-muted-foreground mt-1">
+            {job.camera_name ? `For ${job.camera_name}. ` : ''}
+            Uploaded {formatRelative(job.created_at)}
+            {job.created_by_email ? ` by ${job.created_by_email}` : ''}.
+            {(isTerminal || showBar) && (
+              <>
+                <br />
+                {jobSummaryText(job)}
+              </>
             )}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {formatRelative(job.created_at)}
-            {job.created_by_email ? `, by ${job.created_by_email}` : ''}
-          </div>
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Right col: tags + actions. */}
+        <div className="flex-1 flex items-center justify-end gap-2 flex-wrap">
           {canReview && (
             <Button
               size="sm"
@@ -973,22 +978,21 @@ const JobRow: React.FC<{
           )}
         </div>
       </div>
+
+      {/* Full-width progress bar for in-flight jobs sits below the
+          two-column row, where it can stretch without crowding the
+          actions. */}
       {showBar && (
-        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden mt-1">
+        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden mt-3">
           <div
             className="h-full bg-primary transition-all"
             style={{ width: `${percent}%` }}
           />
         </div>
       )}
-      {(isTerminal || showBar) && (
-        <div className="text-xs text-muted-foreground">
-          {jobSummaryText(job)}
-        </div>
-      )}
       {job.error_message && (
-        <div className="text-xs text-red-600 mt-1">{job.error_message}</div>
+        <div className="text-xs text-red-600 mt-2">{job.error_message}</div>
       )}
-    </li>
+    </div>
   );
 };
