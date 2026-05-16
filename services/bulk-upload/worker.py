@@ -44,6 +44,20 @@ from validators import validate_image  # noqa: E402
 
 PROGRESS_PERSIST_EVERY = 25
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+# Filesystem cruft that ends up inside ZIPs but isn't a real user file.
+# macOS adds __MACOSX/._* shadow entries to every zip it creates; macOS
+# and Windows both drop .DS_Store / Thumbs.db / desktop.ini turds. We
+# drop these silently rather than counting them as "skipped", because
+# the skipped count is meant to surface real user issues.
+_NOISE_NAMES = {"__MACOSX", ".DS_Store", "Thumbs.db", "desktop.ini"}
+
+
+def _is_noise_entry(name: str) -> bool:
+    for part in name.split("/"):
+        if part in _NOISE_NAMES or part.startswith("._"):
+            return True
+    return False
+
 
 logger = get_logger("bulk-upload")
 
@@ -232,7 +246,10 @@ def process_job(message: dict) -> None:
             fh.write(zip_bytes)
 
         with zipfile.ZipFile(tmp_zip_path) as zf:
-            entries = [info for info in zf.infolist() if not info.is_dir()]
+            entries = [
+                info for info in zf.infolist()
+                if not info.is_dir() and not _is_noise_entry(info.filename)
+            ]
             _set_status(job_uuid, total_files=len(entries), status="processing")
 
             bulk_queue = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)

@@ -43,6 +43,18 @@ logger = get_logger("api.bulk_upload")
 # Mirrored in the worker (which also walks the entry list once).
 MAX_ZIP_SIZE_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB
 MAX_ZIP_ENTRIES = 5000
+# Filesystem cruft that ends up inside zipped folders but isn't a real
+# file: macOS resource forks under __MACOSX/, plus the usual .DS_Store
+# and Windows desktop turds. Filtered before counting so the 5000-entry
+# cap and the user-visible total_files reflect actual images.
+_NOISE_NAMES = {"__MACOSX", ".DS_Store", "Thumbs.db", "desktop.ini"}
+
+
+def _is_noise_entry(name: str) -> bool:
+    for part in name.split("/"):
+        if part in _NOISE_NAMES or part.startswith("._"):
+            return True
+    return False
 
 
 class BulkUploadJobResponse(BaseModel):
@@ -216,7 +228,10 @@ async def create_bulk_upload(
     # even staging them.
     try:
         with zipfile.ZipFile(io.BytesIO(body)) as zf:
-            entry_count = sum(1 for info in zf.infolist() if not info.is_dir())
+            entry_count = sum(
+                1 for info in zf.infolist()
+                if not info.is_dir() and not _is_noise_entry(info.filename)
+            )
     except zipfile.BadZipFile:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
