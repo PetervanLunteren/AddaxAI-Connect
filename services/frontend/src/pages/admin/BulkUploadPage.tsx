@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   Sparkles,
   Trash2,
-  ArrowRight,
+  Eye,
+  Images,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -60,19 +61,18 @@ function statusLabel(status: BulkUploadJob['status']): string {
   }
 }
 
-function statusBadgeClass(status: BulkUploadJob['status']): string {
+// Status badges use the project palette (FRONTEND_CONVENTIONS.md):
+// good=#0f6064, middle=#71b7ba, bad=#882000. Done is the only
+// "success" terminal state, failed is the only "failure" state,
+// everything else is in-flight/pending and shares the middle colour.
+function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties {
   switch (status) {
     case 'done':
-      return 'bg-green-100 text-green-800';
+      return { backgroundColor: '#0f6064', color: 'white' };
     case 'failed':
-      return 'bg-red-100 text-red-800';
-    case 'processing':
-      return 'bg-blue-100 text-blue-800';
-    case 'inspecting':
-    case 'awaiting_confirmation':
-      return 'bg-amber-100 text-amber-800';
+      return { backgroundColor: '#882000', color: 'white' };
     default:
-      return 'bg-gray-100 text-gray-800';
+      return { backgroundColor: '#71b7ba', color: 'white' };
   }
 }
 
@@ -910,12 +910,21 @@ const JobRow: React.FC<{
       onClick={canReview ? onResume : undefined}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-        {/* Left col: title + caption (matches Notifications / Exports row pattern). */}
+        {/* Left col: title with inline status badge, then caption. */}
         <div className="w-full sm:w-1/2 sm:shrink-0 min-w-0">
-          <label className="text-sm font-medium block flex items-center gap-2">
-            <FileArchive className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="truncate">{job.original_filename}</span>
-          </label>
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="text-sm font-medium truncate">
+              {job.original_filename}
+            </label>
+            <span
+              className="px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1"
+              style={statusBadgeStyle(job.status)}
+            >
+              {job.status === 'done' && <Check className="h-3 w-3" />}
+              {job.status === 'failed' && <AlertTriangle className="h-3 w-3" />}
+              {statusLabel(job.status)}
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             {job.camera_name ? `For ${job.camera_name}. ` : ''}
             Uploaded {formatRelative(job.created_at)}
@@ -929,7 +938,8 @@ const JobRow: React.FC<{
           </p>
         </div>
 
-        {/* Right col: tags + actions. */}
+        {/* Right col: actions. All buttons are size="sm" variant="outline"
+            with text plus icon-first for visual consistency. */}
         <div className="flex-1 flex items-center justify-end gap-2 flex-wrap">
           {canReview && (
             <Button
@@ -940,41 +950,36 @@ const JobRow: React.FC<{
                 onResume?.();
               }}
             >
+              <Eye className="h-4 w-4 mr-1" />
               Review
             </Button>
           )}
           {resultsHref && (
             <Link to={resultsHref}>
               <Button size="sm" variant="outline">
+                <Images className="h-4 w-4 mr-1" />
                 View images
-                <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             </Link>
           )}
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${statusBadgeClass(job.status)}`}
-          >
-            {job.status === 'done' && <Check className="h-3 w-3" />}
-            {job.status === 'failed' && <AlertTriangle className="h-3 w-3" />}
-            {statusLabel(job.status)}
-          </span>
           {onDiscard && (
-            <button
-              type="button"
-              title="Remove from list"
+            <Button
+              size="sm"
+              variant="outline"
               onClick={(e) => {
                 e.stopPropagation();
                 onDiscard();
               }}
               disabled={isDiscarding}
-              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               {isDiscarding ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 mr-1" />
               )}
-            </button>
+              Discard
+            </Button>
           )}
         </div>
       </div>
