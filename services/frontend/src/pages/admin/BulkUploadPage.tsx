@@ -7,7 +7,7 @@
  * list that polls every 5 s while any row is non-terminal.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Sparkles,
   Trash2,
+  ArrowRight,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -239,6 +240,7 @@ export const BulkUploadPage: React.FC = () => {
                 <JobRow
                   key={job.uuid}
                   job={job}
+                  projectId={projectId!}
                   onResume={
                     resumableStatuses.has(job.status)
                       ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
@@ -869,18 +871,31 @@ function jobSummaryText(job: BulkUploadJob): string {
 }
 
 
+function buildResultsHref(projectId: number, job: BulkUploadJob): string | null {
+  if (job.status !== 'done' || job.camera_id == null) return null;
+  const params = new URLSearchParams();
+  params.set('camera_ids', String(job.camera_id));
+  const start = job.manifest?.date_range?.start;
+  const end = job.manifest?.date_range?.end;
+  if (start) params.set('date_from', start.slice(0, 10));
+  if (end) params.set('date_to', end.slice(0, 10));
+  return `/projects/${projectId}/images?${params.toString()}`;
+}
+
 const JobRow: React.FC<{
   job: BulkUploadJob;
+  projectId: number;
   onResume?: () => void;
   onDiscard?: () => void;
   isDiscarding?: boolean;
-}> = ({ job, onResume, onDiscard, isDiscarding }) => {
+}> = ({ job, projectId, onResume, onDiscard, isDiscarding }) => {
   const total = Math.max(job.total_files, 1);
   const done = job.processed_files + job.skipped_files;
   const percent = Math.min(100, Math.round((done / total) * 100));
   const isTerminal = TERMINAL_STATUSES.has(job.status);
   const showBar = job.status === 'processing';
   const canReview = job.status === 'awaiting_confirmation' && !!onResume;
+  const resultsHref = buildResultsHref(projectId, job);
 
   return (
     <li
@@ -917,6 +932,14 @@ const JobRow: React.FC<{
             >
               Review
             </Button>
+          )}
+          {resultsHref && (
+            <Link to={resultsHref}>
+              <Button size="sm" variant="outline">
+                View images
+                <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </Link>
           )}
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1 ${statusBadgeClass(job.status)}`}
