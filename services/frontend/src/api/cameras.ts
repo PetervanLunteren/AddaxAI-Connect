@@ -15,6 +15,8 @@ export interface CreateCameraRequest {
   tags?: string[];
   project_id: number;
   sim_expiry_date?: string | null;  // YYYY-MM-DD, null clears
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface UpdateCameraRequest {

@@ -1,10 +1,18 @@
 """
 Bulk-upload worker
 
-Consumes one job at a time from `bulk-upload-job`. Each job points at a
-ZIP staged in MinIO bucket `bulk-upload-staging`. The worker streams
-the ZIP, iterates entries, and feeds each image into the same pipeline
-as live FTPS ingestion via the bulk-priority queues.
+Two-phase per job, dispatched by the "phase" field on every queue
+message:
+
+- phase="inspect": stages ZIP, walks entries, builds a manifest of
+  per-status counts, date range, and the auto-suggested camera (when
+  EXIF SerialNumber maps cleanly to a registered camera in the
+  project). Status moves: queued -> inspecting -> awaiting_confirmation.
+- phase="process": the user has confirmed the camera. Iterate the
+  staged ZIP a second time and feed each valid entry into the live
+  pipeline via the bulk priority queues. Status moves:
+  awaiting_confirmation -> processing -> done (lazily, on API read,
+  once detection + classification finish).
 
 Bulk-origin images carry origin='bulk' through every queue message.
 That gates notification fan-out at the classification stage so an
@@ -16,13 +24,17 @@ import sys
 import tempfile
 import uuid
 import zipfile
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from typing import Optional
 
 # Vendored copy of the live ingestion service. Same Python module path
 # as ingestion uses internally so the imports below work unchanged.
 sys.path.insert(0, "/ingestion_lib")
 
-from sqlalchemy import select
+from PIL import Image as PILImage
+from PIL.ExifTags import TAGS
+from sqlalchemy import func, select
 
 from shared.database import get_db_session
 from shared.logger import get_logger, set_image_id
@@ -57,6 +69,32 @@ def _is_noise_entry(name: str) -> bool:
         if part in _NOISE_NAMES or part.startswith("._"):
             return True
     return False
+
+
+def _read_exif_fast(path: str) -> dict:
+    """
+    In-process EXIF read for the inspect phase. Cheap (~5 ms/image)
+    compared to spawning exiftool per file, which matters when we are
+    inspecting 5,000 images live in a modal. The actual processing
+    phase still uses the authoritative exiftool path from
+    services/ingestion/exif_parser.py.
+    """
+    try:
+        with PILImage.open(path) as img:
+            raw = img._getexif() or {}
+    except Exception:
+        return {}
+    return {TAGS.get(tag_id, str(tag_id)): value for tag_id, value in raw.items()}
+
+
+def _parse_exif_datetime(value) -> Optional[datetime]:
+    """Parse the EXIF DateTimeOriginal 'YYYY:MM:DD HH:MM:SS' format."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
 
 
 logger = get_logger("bulk-upload")
@@ -196,17 +234,174 @@ def _process_zip_entry(
             pass
 
 
-def process_job(message: dict) -> None:
-    """Drain one BulkUploadJob end-to-end."""
-    job_uuid = message.get("job_uuid")
-    if not job_uuid:
-        logger.error("Bulk upload message missing job_uuid", message=message)
-        return
+def _download_staged_zip(storage: StorageClient, staged_object_key: str) -> str:
+    """Stream the staged ZIP to a tmp file. Caller deletes the path."""
+    tmp_handle, tmp_path = tempfile.mkstemp(suffix=".zip")
+    os.close(tmp_handle)
+    zip_bytes = storage.download_fileobj(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
+    with open(tmp_path, "wb") as fh:
+        fh.write(zip_bytes)
+    return tmp_path
+
+
+def _inspect_job(job_uuid: str) -> None:
+    """
+    Walk the staged ZIP and build a manifest of per-status counts,
+    date range, and the auto-suggested camera. Does not touch MinIO
+    object storage and does not create any Image rows. Status moves
+    queued -> inspecting -> awaiting_confirmation.
+    """
+    with get_db_session() as session:
+        job = session.execute(
+            select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
+        ).scalar_one_or_none()
+        if not job:
+            logger.error("Bulk upload job not found", job_uuid=job_uuid)
+            return
+        project_id = job.project_id
+        staged_object_key = job.staged_object_key
+        job.status = "inspecting"
+        job.started_at = datetime.now(timezone.utc)
+
+    logger.info(
+        "Inspecting bulk upload",
+        job_uuid=job_uuid,
+        project_id=project_id,
+        staged_object_key=staged_object_key,
+    )
 
     storage = StorageClient()
+    tmp_zip_path: Optional[str] = None
+    try:
+        tmp_zip_path = _download_staged_zip(storage, staged_object_key)
 
-    # Snapshot the job + camera, then close the session so the long
-    # extraction loop doesn't hold a connection open.
+        by_status: dict = defaultdict(int)
+        serial_counts: Counter = Counter()
+        min_dt: Optional[datetime] = None
+        max_dt: Optional[datetime] = None
+        valid_count = 0
+
+        with zipfile.ZipFile(tmp_zip_path) as zf:
+            entries = [
+                info for info in zf.infolist()
+                if not info.is_dir() and not _is_noise_entry(info.filename)
+            ]
+            total_entries = len(entries)
+
+            for info in entries:
+                tmp_path: Optional[str] = None
+                try:
+                    raw = zf.read(info)
+                    suffix = os.path.splitext(info.filename)[1] or ".jpg"
+                    tmp_handle, tmp_path = tempfile.mkstemp(suffix=suffix)
+                    with os.fdopen(tmp_handle, "wb") as fh:
+                        fh.write(raw)
+
+                    exif = _read_exif_fast(tmp_path)
+                    dt = _parse_exif_datetime(exif.get("DateTimeOriginal"))
+                    if dt is None:
+                        by_status["missing_exif_datetime"] += 1
+                        continue
+
+                    by_status["valid"] += 1
+                    valid_count += 1
+                    if min_dt is None or dt < min_dt:
+                        min_dt = dt
+                    if max_dt is None or dt > max_dt:
+                        max_dt = dt
+                    serial = exif.get("BodySerialNumber") or exif.get("SerialNumber")
+                    if serial:
+                        serial_counts[str(serial)] += 1
+                except Exception as exc:
+                    by_status["corrupt"] += 1
+                    logger.warning(
+                        "Inspect entry failed",
+                        entry=info.filename,
+                        error=str(exc),
+                    )
+                finally:
+                    if tmp_path:
+                        try:
+                            os.unlink(tmp_path)
+                        except OSError:
+                            pass
+
+        # Auto-suggest: at least 50% of valid entries must share one
+        # EXIF SerialNumber and that serial must map to a registered
+        # camera in this project. Less than 50% means the ZIP is mixed
+        # or the camera isn't registered, so the user picks manually.
+        suggested = None
+        if valid_count > 0 and serial_counts:
+            most_common_serial, match_count = serial_counts.most_common(1)[0]
+            if match_count / valid_count >= 0.5:
+                with get_db_session() as session:
+                    camera = session.execute(
+                        select(Camera).where(
+                            Camera.project_id == project_id,
+                            Camera.device_id == most_common_serial,
+                        )
+                    ).scalar_one_or_none()
+                    if camera:
+                        suggested = {
+                            "camera_id": camera.id,
+                            "camera_name": camera.name,
+                            "device_id": camera.device_id,
+                            "match_count": match_count,
+                        }
+
+        manifest = {
+            "total_entries": total_entries,
+            "valid_count": valid_count,
+            "by_status": dict(by_status),
+            "date_range": {
+                "start": min_dt.isoformat() if min_dt else None,
+                "end": max_dt.isoformat() if max_dt else None,
+            },
+            "suggested_camera": suggested,
+        }
+
+        _set_status(
+            job_uuid,
+            status="awaiting_confirmation",
+            total_files=total_entries,
+            manifest=manifest,
+        )
+        logger.info(
+            "Inspection complete",
+            job_uuid=job_uuid,
+            total_entries=total_entries,
+            valid_count=valid_count,
+            by_status=dict(by_status),
+            suggested_camera_id=suggested.get("camera_id") if suggested else None,
+        )
+
+    except Exception as exc:
+        logger.error(
+            "Bulk upload inspection failed",
+            job_uuid=job_uuid,
+            error=str(exc),
+            exc_info=True,
+        )
+        _set_status(
+            job_uuid,
+            status="failed",
+            error_message=f"Inspection failed: {exc}",
+            finished_at=datetime.now(timezone.utc),
+        )
+    finally:
+        if tmp_zip_path:
+            try:
+                os.unlink(tmp_zip_path)
+            except OSError:
+                pass
+
+
+def _process_job(job_uuid: str) -> None:
+    """
+    Run the actual pipeline: iterate the staged ZIP, write each valid
+    image into MinIO and the DB, publish to the bulk priority queue.
+    Status moves awaiting_confirmation -> processing -> (lazily) done.
+    """
     with get_db_session() as session:
         job = session.execute(
             select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
@@ -227,31 +422,25 @@ def process_job(message: dict) -> None:
         if camera.location:
             gps_location = (camera.location.coords[1], camera.location.coords[0])
         staged_object_key = job.staged_object_key
-        job.status = "extracting"
-        job.started_at = datetime.now(timezone.utc)
+        job.status = "processing"
 
     logger.info(
-        "Starting bulk upload job",
+        "Processing confirmed bulk upload",
         job_uuid=job_uuid,
         camera_id=camera_id,
         staged_object_key=staged_object_key,
     )
 
-    tmp_zip_handle, tmp_zip_path = tempfile.mkstemp(suffix=".zip")
-    os.close(tmp_zip_handle)
-
+    storage = StorageClient()
+    tmp_zip_path: Optional[str] = None
     try:
-        zip_bytes = storage.download_fileobj(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
-        with open(tmp_zip_path, "wb") as fh:
-            fh.write(zip_bytes)
+        tmp_zip_path = _download_staged_zip(storage, staged_object_key)
 
         with zipfile.ZipFile(tmp_zip_path) as zf:
             entries = [
                 info for info in zf.infolist()
                 if not info.is_dir() and not _is_noise_entry(info.filename)
             ]
-            _set_status(job_uuid, total_files=len(entries), status="processing")
-
             bulk_queue = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
             processed = 0
             skipped = 0
@@ -284,11 +473,7 @@ def process_job(message: dict) -> None:
                 if idx % PROGRESS_PERSIST_EVERY == 0:
                     _set_status(job_uuid, skipped_files=skipped)
 
-        # Worker is done unpacking. The job stays in 'processing' until
-        # detection + classification finish for every image it produced.
-        # The API derives done-ness from the count of bulk-job images
-        # that reached status='classified'.
-        _set_status(job_uuid, skipped_files=skipped, status="processing")
+        _set_status(job_uuid, skipped_files=skipped)
 
         try:
             storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
@@ -308,7 +493,7 @@ def process_job(message: dict) -> None:
 
     except Exception as exc:
         logger.error(
-            "Bulk upload job failed",
+            "Bulk upload processing failed",
             job_uuid=job_uuid,
             error=str(exc),
             exc_info=True,
@@ -319,19 +504,34 @@ def process_job(message: dict) -> None:
             error_message=str(exc),
             finished_at=datetime.now(timezone.utc),
         )
-        # Do not re-raise. The worker should keep draining the next job.
 
     finally:
-        try:
-            os.unlink(tmp_zip_path)
-        except OSError:
-            pass
+        if tmp_zip_path:
+            try:
+                os.unlink(tmp_zip_path)
+            except OSError:
+                pass
+
+
+def dispatch(message: dict) -> None:
+    """Route a queue message to the inspect or process phase."""
+    job_uuid = message.get("job_uuid")
+    phase = message.get("phase", "inspect")
+    if not job_uuid:
+        logger.error("Bulk upload message missing job_uuid", message=message)
+        return
+    if phase == "inspect":
+        _inspect_job(job_uuid)
+    elif phase == "process":
+        _process_job(job_uuid)
+    else:
+        logger.error("Unknown bulk upload phase", phase=phase, job_uuid=job_uuid)
 
 
 def main() -> None:
     logger.info("Bulk upload worker starting")
     queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB)
-    queue.consume_forever(process_job)
+    queue.consume_forever(dispatch)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,12 @@ class CreateCameraRequest(BaseModel):
     tags: Optional[List[str]] = None
     project_id: int
     sim_expiry_date: Optional[date] = None
+    # Optional initial location. When both are present, sets the camera
+    # location at create-time. Lets the bulk-upload inline "+ Add new
+    # camera" mini-form pin a location for SD-card-only cameras whose
+    # GPS won't otherwise be set by the live FTPS path.
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class UpdateCameraRequest(BaseModel):
@@ -651,6 +657,10 @@ async def create_camera(
         config={},
         sim_expiry_date=request.sim_expiry_date,
     )
+    if request.latitude is not None and request.longitude is not None:
+        # PostGIS expects POINT(lon lat). Geography column accepts the
+        # WKT string directly via the geoalchemy2 binding.
+        camera.location = f"POINT({request.longitude} {request.latitude})"
 
     db.add(camera)
     await db.commit()

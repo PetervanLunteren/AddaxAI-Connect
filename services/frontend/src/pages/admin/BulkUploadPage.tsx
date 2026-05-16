@@ -1,12 +1,12 @@
 /**
  * Bulk image upload page (project admin only)
  *
- * Header has a single "+ Bulk upload" button that opens a modal with the
- * camera picker + ZIP dropzone. Body is a live job list; it polls the
- * jobs endpoint every 5 s while any row is non-terminal so users can
- * navigate away and come back.
+ * Header has a single "+ Bulk upload" button that opens a modal. The
+ * modal runs a three-step flow: upload the ZIP, watch the server
+ * inspect it, then review and confirm. Body of the page is a live job
+ * list that polls every 5 s while any row is non-terminal.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
@@ -18,6 +18,7 @@ import {
   FileArchive,
   Check,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -32,7 +33,11 @@ import {
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { camerasApi } from '../../api/cameras';
-import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
+import {
+  bulkUploadApi,
+  type BulkUploadJob,
+  type BulkUploadManifest,
+} from '../../api/bulkUpload';
 
 const TERMINAL_STATUSES = new Set(['done', 'failed']);
 
@@ -40,8 +45,10 @@ function statusLabel(status: BulkUploadJob['status']): string {
   switch (status) {
     case 'queued':
       return 'Queued';
-    case 'extracting':
-      return 'Extracting';
+    case 'inspecting':
+      return 'Inspecting';
+    case 'awaiting_confirmation':
+      return 'Awaiting review';
     case 'processing':
       return 'Processing';
     case 'done':
@@ -58,8 +65,10 @@ function statusBadgeClass(status: BulkUploadJob['status']): string {
     case 'failed':
       return 'bg-red-100 text-red-800';
     case 'processing':
-    case 'extracting':
       return 'bg-blue-100 text-blue-800';
+    case 'inspecting':
+    case 'awaiting_confirmation':
+      return 'bg-amber-100 text-amber-800';
     default:
       return 'bg-gray-100 text-gray-800';
   }
@@ -84,6 +93,19 @@ function formatRelative(iso: string | null): string {
   const day = Math.floor(hr / 24);
   return `${day} d ago`;
 }
+
+function formatDateRange(start: string | null, end: string | null): string {
+  if (!start && !end) return 'no dates found';
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString();
+  if (start && end && start.slice(0, 10) === end.slice(0, 10)) return fmt(start);
+  return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  valid: 'will be processed',
+  missing_exif_datetime: 'missing EXIF date',
+  corrupt: 'corrupt or unreadable',
+};
 
 export const BulkUploadPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject } = useProject();
@@ -150,6 +172,8 @@ export const BulkUploadPage: React.FC = () => {
   );
 };
 
+type Step = 'upload' | 'inspecting' | 'review' | 'submitting';
+
 const BulkUploadModal: React.FC<{
   open: boolean;
   onClose: () => void;
@@ -158,12 +182,19 @@ const BulkUploadModal: React.FC<{
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const [cameraId, setCameraId] = useState<string>('');
+  const [step, setStep] = useState<Step>('upload');
+  const [jobUuid, setJobUuid] = useState<string | null>(null);
+  const [job, setJob] = useState<BulkUploadJob | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [cameraId, setCameraId] = useState<string>('');
+
+  // Inline camera-create form (only shown when user clicks "+ Add new")
   const [showAddCamera, setShowAddCamera] = useState(false);
   const [newDeviceId, setNewDeviceId] = useState('');
   const [newFriendlyName, setNewFriendlyName] = useState('');
+  const [newLatitude, setNewLatitude] = useState('');
+  const [newLongitude, setNewLongitude] = useState('');
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -171,58 +202,122 @@ const BulkUploadModal: React.FC<{
     enabled: open,
   });
 
-  const cameraOptions = (cameras ?? []).map((c) => ({
-    value: String(c.id),
-    label: c.name,
-  }));
+  // Reset everything when the modal opens.
+  useEffect(() => {
+    if (open) {
+      setStep('upload');
+      setJobUuid(null);
+      setJob(null);
+      setFile(null);
+      setUploadPercent(null);
+      setCameraId('');
+      setShowAddCamera(false);
+      setNewDeviceId('');
+      setNewFriendlyName('');
+      setNewLatitude('');
+      setNewLongitude('');
+    }
+  }, [open]);
 
-  const resetForm = () => {
-    setCameraId('');
-    setFile(null);
-    setUploadPercent(null);
-    setShowAddCamera(false);
-    setNewDeviceId('');
-    setNewFriendlyName('');
-  };
+  // Poll the job while we're waiting for the inspect phase to finish.
+  useEffect(() => {
+    if (!open || step !== 'inspecting' || !jobUuid) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const next = await bulkUploadApi.get(projectId, jobUuid);
+        if (cancelled) return;
+        setJob(next);
+        if (next.status === 'awaiting_confirmation') {
+          if (next.manifest?.suggested_camera) {
+            setCameraId(String(next.manifest.suggested_camera.camera_id));
+          }
+          setStep('review');
+        } else if (next.status === 'failed') {
+          toast.error(next.error_message ?? 'Inspection failed');
+          // Stay in inspecting step so the user can see the error;
+          // the modal close button is enabled because no mutation
+          // is in flight.
+        }
+      } catch {
+        // Ignore transient polling errors; next tick will retry.
+      }
+    };
+    const id = window.setInterval(tick, 2000);
+    tick();
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [open, step, jobUuid, projectId, toast]);
 
-  const handleClose = () => {
-    if (uploadMutation.isPending) return;
-    resetForm();
+  const closeModal = () => {
+    if (uploadMutation.isPending || confirmMutation.isPending || cancelMutation.isPending) return;
     onClose();
   };
 
+  const uploadMutation = useMutation({
+    mutationFn: () => bulkUploadApi.upload(projectId, file!, setUploadPercent),
+    onSuccess: (created) => {
+      setJobUuid(created.uuid);
+      setJob(created);
+      setStep('inspecting');
+      setUploadPercent(null);
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+    },
+    onError: (err: any) => {
+      setUploadPercent(null);
+      toast.error(`Upload failed, ${err.response?.data?.detail || err.message}`);
+    },
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: () => bulkUploadApi.confirm(projectId, jobUuid!, Number(cameraId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      toast.success('Processing started');
+      onClose();
+    },
+    onError: (err: any) => {
+      toast.error(`Failed to start processing, ${err.response?.data?.detail || err.message}`);
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => bulkUploadApi.cancel(projectId, jobUuid!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast.error(`Cancel failed, ${err.response?.data?.detail || err.message}`);
+    },
+  });
+
   const createCameraMutation = useMutation({
-    mutationFn: () =>
-      camerasApi.create({
+    mutationFn: () => {
+      const lat = newLatitude.trim() ? Number(newLatitude) : undefined;
+      const lon = newLongitude.trim() ? Number(newLongitude) : undefined;
+      return camerasApi.create({
         device_id: newDeviceId.trim(),
         friendly_name: newFriendlyName.trim() || undefined,
         project_id: projectId,
-      }),
+        latitude: lat,
+        longitude: lon,
+      });
+    },
     onSuccess: (camera) => {
       queryClient.invalidateQueries({ queryKey: ['cameras', projectId] });
       setCameraId(String(camera.id));
       setShowAddCamera(false);
       setNewDeviceId('');
       setNewFriendlyName('');
+      setNewLatitude('');
+      setNewLongitude('');
       toast.success(`Camera "${camera.name}" created`);
     },
     onError: (err: any) => {
       toast.error(`Failed to create camera, ${err.response?.data?.detail || err.message}`);
-    },
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: () =>
-      bulkUploadApi.upload(projectId, Number(cameraId), file!, setUploadPercent),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-      resetForm();
-      onClose();
-      toast.success('Upload queued, processing in the background');
-    },
-    onError: (err: any) => {
-      setUploadPercent(null);
-      toast.error(`Upload failed, ${err.response?.data?.detail || err.message}`);
     },
   });
 
@@ -234,187 +329,406 @@ const BulkUploadModal: React.FC<{
     },
   });
 
-  const canSubmit =
-    !!file && !!cameraId && !uploadMutation.isPending && uploadPercent === null;
-
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) handleClose();
+        if (!next) closeModal();
       }}
     >
       <DialogContent
-        onClose={handleClose}
+        onClose={closeModal}
         className="max-w-2xl"
       >
         <DialogHeader>
-          <DialogTitle>New bulk upload</DialogTitle>
+          <DialogTitle>
+            {step === 'upload' && 'New bulk upload'}
+            {step === 'inspecting' && 'Inspecting ZIP'}
+            {(step === 'review' || step === 'submitting') && 'Review upload'}
+          </DialogTitle>
           <DialogDescription>
-            One ZIP per camera. Each image needs a DateTimeOriginal EXIF
-            tag. Files without EXIF, non-images, and duplicates are
-            skipped automatically. Up to 5,000 images and 20 GB per ZIP.
+            {step === 'upload' && (
+              <>One ZIP per camera. Each image needs a DateTimeOriginal EXIF tag. Up to 5,000 images and 20 GB per ZIP.</>
+            )}
+            {step === 'inspecting' && (
+              <>Reading EXIF from every image and matching against your registered cameras.</>
+            )}
+            {(step === 'review' || step === 'submitting') && (
+              <>Confirm the camera and start processing.</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          {/* Camera selector */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Camera</label>
-            {!showAddCamera ? (
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm"
-                  value={cameraId}
-                  onChange={(e) => setCameraId(e.target.value)}
-                >
-                  <option value="">Select a camera</option>
-                  {cameraOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowAddCamera(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add new
-                </Button>
-              </div>
-            ) : (
-              <div className="border border-input rounded-md p-3 space-y-3 bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Add a new camera</span>
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setShowAddCamera(false);
-                      setNewDeviceId('');
-                      setNewFriendlyName('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Device ID</label>
-                    <input
-                      type="text"
-                      value={newDeviceId}
-                      onChange={(e) => setNewDeviceId(e.target.value)}
-                      placeholder="SIM ICCID or serial"
-                      className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Display name</label>
-                    <input
-                      type="text"
-                      value={newFriendlyName}
-                      onChange={(e) => setNewFriendlyName(e.target.value)}
-                      placeholder="Optional, defaults to device ID"
-                      className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Set the camera location later via Cameras &gt; the new
-                  camera. Without it, bulk uploaded images keep no GPS.
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!newDeviceId.trim() || createCameraMutation.isPending}
-                  onClick={() => createCameraMutation.mutate()}
-                >
-                  {createCameraMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <CameraIcon className="h-4 w-4 mr-1" />
-                  )}
-                  Create camera
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Dropzone */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">ZIP file</label>
-            <div
-              {...dropzone.getRootProps()}
-              className={`flex flex-col items-center justify-center gap-2 px-4 py-8 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
-                dropzone.isDragActive
-                  ? 'border-primary bg-primary/5'
-                  : 'border-input hover:border-primary/50'
-              }`}
-            >
-              <input {...dropzone.getInputProps()} />
-              <FileArchive className="h-8 w-8 text-muted-foreground" />
-              {file ? (
-                <div className="text-sm">
-                  <span className="font-medium">{file.name}</span>
-                  <span className="text-muted-foreground ml-2">
-                    {formatBytes(file.size)}
-                  </span>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground text-center">
-                  Drop a ZIP here, or click to pick.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {uploadPercent !== null && (
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">
-                Uploading, {uploadPercent}%
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{ width: `${uploadPercent}%` }}
-                />
-              </div>
-            </div>
+          {step === 'upload' && (
+            <UploadStep
+              file={file}
+              setFile={setFile}
+              dropzone={dropzone}
+              uploadPercent={uploadPercent}
+              isUploading={uploadMutation.isPending}
+              onCancel={closeModal}
+              onUpload={() => uploadMutation.mutate()}
+            />
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={uploadMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={!canSubmit}
-              onClick={() => uploadMutation.mutate()}
-            >
-              {uploadMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-1" />
-                  Upload zip
-                </>
-              )}
-            </Button>
-          </div>
+          {step === 'inspecting' && (
+            <InspectingStep
+              job={job}
+              isFailed={job?.status === 'failed'}
+              onClose={closeModal}
+            />
+          )}
+
+          {(step === 'review' || step === 'submitting') && job?.manifest && (
+            <ReviewStep
+              manifest={job.manifest}
+              cameras={cameras ?? []}
+              cameraId={cameraId}
+              setCameraId={setCameraId}
+              showAddCamera={showAddCamera}
+              setShowAddCamera={setShowAddCamera}
+              newDeviceId={newDeviceId}
+              setNewDeviceId={setNewDeviceId}
+              newFriendlyName={newFriendlyName}
+              setNewFriendlyName={setNewFriendlyName}
+              newLatitude={newLatitude}
+              setNewLatitude={setNewLatitude}
+              newLongitude={newLongitude}
+              setNewLongitude={setNewLongitude}
+              isCreatingCamera={createCameraMutation.isPending}
+              onCreateCamera={() => createCameraMutation.mutate()}
+              isConfirming={confirmMutation.isPending}
+              isCancelling={cancelMutation.isPending}
+              onCancel={() => cancelMutation.mutate()}
+              onConfirm={() => {
+                setStep('submitting');
+                confirmMutation.mutate();
+              }}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>
+  );
+};
+
+const UploadStep: React.FC<{
+  file: File | null;
+  setFile: (f: File | null) => void;
+  dropzone: ReturnType<typeof useDropzone>;
+  uploadPercent: number | null;
+  isUploading: boolean;
+  onCancel: () => void;
+  onUpload: () => void;
+}> = ({ file, dropzone, uploadPercent, isUploading, onCancel, onUpload }) => (
+  <>
+    <div
+      {...dropzone.getRootProps()}
+      className={`flex flex-col items-center justify-center gap-2 px-4 py-10 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+        dropzone.isDragActive
+          ? 'border-primary bg-primary/5'
+          : 'border-input hover:border-primary/50'
+      }`}
+    >
+      <input {...dropzone.getInputProps()} />
+      <FileArchive className="h-8 w-8 text-muted-foreground" />
+      {file ? (
+        <div className="text-sm">
+          <span className="font-medium">{file.name}</span>
+          <span className="text-muted-foreground ml-2">
+            {formatBytes(file.size)}
+          </span>
+        </div>
+      ) : (
+        <div className="text-sm text-muted-foreground text-center">
+          Drop a ZIP here, or click to pick.
+        </div>
+      )}
+    </div>
+
+    {uploadPercent !== null && (
+      <div className="space-y-1">
+        <div className="text-xs text-muted-foreground">
+          Uploading, {uploadPercent}%
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${uploadPercent}%` }}
+          />
+        </div>
+      </div>
+    )}
+
+    <div className="flex justify-end gap-2 pt-2">
+      <Button type="button" variant="outline" onClick={onCancel} disabled={isUploading}>
+        Cancel
+      </Button>
+      <Button type="button" disabled={!file || isUploading} onClick={onUpload}>
+        {isUploading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            Uploading...
+          </>
+        ) : (
+          <>
+            <Upload className="h-4 w-4 mr-1" />
+            Upload and inspect
+          </>
+        )}
+      </Button>
+    </div>
+  </>
+);
+
+const InspectingStep: React.FC<{
+  job: BulkUploadJob | null;
+  isFailed: boolean;
+  onClose: () => void;
+}> = ({ job, isFailed, onClose }) => (
+  <div className="space-y-4">
+    {isFailed ? (
+      <div className="flex items-start gap-3 p-3 rounded-md bg-red-50 border border-red-200">
+        <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+        <div className="text-sm text-red-700">
+          {job?.error_message ?? 'Inspection failed'}
+        </div>
+      </div>
+    ) : (
+      <div className="flex items-center gap-3 py-6 justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <span className="text-sm text-muted-foreground">
+          Reading EXIF on each image...
+        </span>
+      </div>
+    )}
+    <div className="flex justify-end">
+      <Button type="button" variant="outline" onClick={onClose}>
+        Close
+      </Button>
+    </div>
+  </div>
+);
+
+const ReviewStep: React.FC<{
+  manifest: BulkUploadManifest;
+  cameras: { id: number; name: string }[];
+  cameraId: string;
+  setCameraId: (v: string) => void;
+  showAddCamera: boolean;
+  setShowAddCamera: (v: boolean) => void;
+  newDeviceId: string;
+  setNewDeviceId: (v: string) => void;
+  newFriendlyName: string;
+  setNewFriendlyName: (v: string) => void;
+  newLatitude: string;
+  setNewLatitude: (v: string) => void;
+  newLongitude: string;
+  setNewLongitude: (v: string) => void;
+  isCreatingCamera: boolean;
+  onCreateCamera: () => void;
+  isConfirming: boolean;
+  isCancelling: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({
+  manifest,
+  cameras,
+  cameraId,
+  setCameraId,
+  showAddCamera,
+  setShowAddCamera,
+  newDeviceId,
+  setNewDeviceId,
+  newFriendlyName,
+  setNewFriendlyName,
+  newLatitude,
+  setNewLatitude,
+  newLongitude,
+  setNewLongitude,
+  isCreatingCamera,
+  onCreateCamera,
+  isConfirming,
+  isCancelling,
+  onCancel,
+  onConfirm,
+}) => {
+  const cameraOptions = cameras.map((c) => ({
+    value: String(c.id),
+    label: c.name,
+  }));
+  const suggested = manifest.suggested_camera;
+  const validCount = manifest.by_status.valid ?? 0;
+  const skipReasonEntries = Object.entries(manifest.by_status).filter(
+    ([k]) => k !== 'valid',
+  );
+  const canConfirm = !!cameraId && validCount > 0 && !isConfirming && !isCancelling;
+
+  return (
+    <div className="space-y-4">
+      {/* Manifest summary */}
+      <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+        <div className="text-sm">
+          <span className="font-medium">{manifest.total_entries}</span>
+          {' images in the zip, '}
+          <span className="font-medium">{validCount}</span>
+          {' ready to process'}
+          {skipReasonEntries.length > 0 && (
+            <>
+              {', '}
+              {skipReasonEntries.map(([k, n], i) => (
+                <span key={k}>
+                  <span className="font-medium">{n}</span> {STATUS_LABELS[k] ?? k}
+                  {i < skipReasonEntries.length - 1 ? ', ' : ''}
+                </span>
+              ))}
+            </>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Date range, {formatDateRange(manifest.date_range.start, manifest.date_range.end)}
+        </div>
+        {suggested && (
+          <div className="flex items-center gap-1.5 text-xs text-primary">
+            <Sparkles className="h-3.5 w-3.5" />
+            Auto-detected camera, {suggested.camera_name} ({suggested.match_count} of {validCount} images match by EXIF serial)
+          </div>
+        )}
+      </div>
+
+      {/* Camera picker */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Camera</label>
+        {!showAddCamera ? (
+          <div className="flex gap-2">
+            <select
+              className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm"
+              value={cameraId}
+              onChange={(e) => setCameraId(e.target.value)}
+            >
+              <option value="">Select a camera</option>
+              {cameraOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAddCamera(true)}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add new
+            </Button>
+          </div>
+        ) : (
+          <div className="border border-input rounded-md p-3 space-y-3 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Add a new camera</span>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setShowAddCamera(false);
+                  setNewDeviceId('');
+                  setNewFriendlyName('');
+                  setNewLatitude('');
+                  setNewLongitude('');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Device ID</label>
+                <input
+                  type="text"
+                  value={newDeviceId}
+                  onChange={(e) => setNewDeviceId(e.target.value)}
+                  placeholder="SIM ICCID or serial"
+                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Display name</label>
+                <input
+                  type="text"
+                  value={newFriendlyName}
+                  onChange={(e) => setNewFriendlyName(e.target.value)}
+                  placeholder="Optional, defaults to device ID"
+                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Latitude</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={newLatitude}
+                  onChange={(e) => setNewLatitude(e.target.value)}
+                  placeholder="Optional, e.g. 52.0237"
+                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Longitude</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={newLongitude}
+                  onChange={(e) => setNewLongitude(e.target.value)}
+                  placeholder="Optional, e.g. 12.9829"
+                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!newDeviceId.trim() || isCreatingCamera}
+              onClick={onCreateCamera}
+            >
+              {isCreatingCamera ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <CameraIcon className="h-4 w-4 mr-1" />
+              )}
+              Create camera
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between gap-2 pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isConfirming || isCancelling}
+        >
+          {isCancelling ? (
+            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+          ) : null}
+          Discard
+        </Button>
+        <Button type="button" disabled={!canConfirm} onClick={onConfirm}>
+          {isConfirming ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              Starting...
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4 mr-1" />
+              Process {validCount} image{validCount === 1 ? '' : 's'}
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
   );
 };
 
@@ -423,6 +737,7 @@ const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
   const done = job.processed_files + job.skipped_files;
   const percent = Math.min(100, Math.round((done / total) * 100));
   const isTerminal = TERMINAL_STATUSES.has(job.status);
+  const showBar = job.status === 'processing';
 
   return (
     <li className="py-3 flex flex-col gap-1">
@@ -431,9 +746,11 @@ const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
           <div className="flex items-center gap-2 text-sm">
             <FileArchive className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="font-medium truncate">{job.original_filename}</span>
-            <span className="text-xs text-muted-foreground">
-              for {job.camera_name ?? `camera #${job.camera_id}`}
-            </span>
+            {job.camera_name && (
+              <span className="text-xs text-muted-foreground">
+                for {job.camera_name}
+              </span>
+            )}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
             {formatRelative(job.created_at)}
@@ -448,7 +765,7 @@ const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
           {statusLabel(job.status)}
         </span>
       </div>
-      {!isTerminal && (
+      {showBar && (
         <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden mt-1">
           <div
             className="h-full bg-primary transition-all"
@@ -456,10 +773,12 @@ const JobRow: React.FC<{ job: BulkUploadJob }> = ({ job }) => {
           />
         </div>
       )}
-      <div className="text-xs text-muted-foreground">
-        {job.processed_files} of {job.total_files} processed
-        {job.skipped_files > 0 && `, ${job.skipped_files} skipped`}
-      </div>
+      {(isTerminal || showBar) && (
+        <div className="text-xs text-muted-foreground">
+          {job.processed_files} of {job.total_files} processed
+          {job.skipped_files > 0 && `, ${job.skipped_files} skipped`}
+        </div>
+      )}
       {job.error_message && (
         <div className="text-xs text-red-600 mt-1">{job.error_message}</div>
       )}

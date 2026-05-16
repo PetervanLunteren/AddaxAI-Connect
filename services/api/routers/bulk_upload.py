@@ -10,8 +10,8 @@ import io
 import re
 import uuid
 import zipfile
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -43,6 +43,11 @@ logger = get_logger("api.bulk_upload")
 # Mirrored in the worker (which also walks the entry list once).
 MAX_ZIP_SIZE_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB
 MAX_ZIP_ENTRIES = 5000
+# Jobs that have been awaiting user confirmation for longer than this
+# get auto-failed and their staged ZIP deleted from MinIO. Prevents a
+# 20 GB orphan blob from sitting around forever if a user abandons
+# the upload mid-flow.
+AWAITING_CONFIRMATION_TTL = timedelta(hours=24)
 # Filesystem cruft that ends up inside zipped folders but isn't a real
 # file: macOS resource forks under __MACOSX/, plus the usual .DS_Store
 # and Windows desktop turds. Filtered before counting so the 5000-entry
@@ -61,7 +66,7 @@ class BulkUploadJobResponse(BaseModel):
     """One bulk-upload job row, as returned to the frontend."""
     uuid: str
     project_id: int
-    camera_id: int
+    camera_id: Optional[int]
     camera_name: Optional[str]
     original_filename: str
     status: str
@@ -69,10 +74,16 @@ class BulkUploadJobResponse(BaseModel):
     processed_files: int
     skipped_files: int
     error_message: Optional[str]
+    manifest: Optional[Dict[str, Any]] = None
     started_at: Optional[str]
     finished_at: Optional[str]
     created_at: str
     created_by_email: Optional[str]
+
+
+class ConfirmBulkUploadRequest(BaseModel):
+    """User confirms a bulk upload by picking which camera to target."""
+    camera_id: int
 
 
 async def _pipeline_done_counts(
@@ -130,6 +141,43 @@ async def _finalise_done_jobs(
             job.finished_at = now
 
 
+async def _expire_orphan_jobs(db: AsyncSession, project_id: int) -> None:
+    """
+    Lazy cleanup: fail any awaiting_confirmation job older than the
+    TTL and delete its staged ZIP from MinIO. Runs on list reads so
+    the user never sees a stale job sitting forever, without needing
+    a separate cron.
+    """
+    cutoff = datetime.now(timezone.utc) - AWAITING_CONFIRMATION_TTL
+    orphans = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.status == "awaiting_confirmation",
+                BulkUploadJob.created_at < cutoff,
+            )
+        )
+    ).scalars().all()
+    if not orphans:
+        return
+    storage = StorageClient()
+    now = datetime.now(timezone.utc)
+    for job in orphans:
+        if job.staged_object_key:
+            try:
+                storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete staged zip for orphan job",
+                    job_uuid=job.uuid,
+                    error=str(exc),
+                )
+        job.status = "failed"
+        job.error_message = "Auto-cancelled after 24 hours awaiting confirmation"
+        job.finished_at = now
+    await db.commit()
+
+
 def _job_to_response(
     job: BulkUploadJob,
     camera_name: Optional[str],
@@ -147,6 +195,7 @@ def _job_to_response(
         processed_files=processed_files,
         skipped_files=job.skipped_files,
         error_message=job.error_message,
+        manifest=job.manifest,
         started_at=job.started_at.isoformat() if job.started_at else None,
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
         created_at=job.created_at.isoformat() if job.created_at else "",
@@ -158,32 +207,16 @@ def _job_to_response(
 async def create_bulk_upload(
     project_id: int,
     file: UploadFile = File(...),
-    camera_id: int = Form(...),
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Accept a single ZIP for a single camera.
-
-    The ZIP is staged in `bulk-upload-staging` MinIO bucket. A row is
-    inserted into `bulk_upload_jobs`. The bulk-upload worker picks the
-    job up off the `bulk-upload-job` Redis queue and processes it.
+    Accept a single ZIP. The camera is not chosen yet: the worker
+    inspects the ZIP and either auto-detects the camera from EXIF
+    SerialNumber or leaves that field blank for the user to pick in
+    the review step. The user then calls /jobs/{uuid}/confirm with
+    the chosen camera_id to start the actual processing.
     """
-    # Validate the camera belongs to this project.
-    camera = (
-        await db.execute(
-            select(Camera).where(
-                Camera.id == camera_id,
-                Camera.project_id == project_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if camera is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Camera does not belong to this project",
-        )
-
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -257,7 +290,7 @@ async def create_bulk_upload(
         uuid=job_uuid,
         project_id=project_id,
         created_by_user_id=user.id,
-        camera_id=camera_id,
+        camera_id=None,
         original_filename=safe_name,
         staged_object_key=staged_object_key,
         status="queued",
@@ -268,13 +301,12 @@ async def create_bulk_upload(
     await db.refresh(job)
 
     queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB)
-    queue.publish({"job_uuid": job_uuid})
+    queue.publish({"job_uuid": job_uuid, "phase": "inspect"})
 
     logger.info(
-        "Queued bulk upload",
+        "Queued bulk upload for inspection",
         job_uuid=job_uuid,
         project_id=project_id,
-        camera_id=camera_id,
         original_filename=safe_name,
         entry_count=entry_count,
         size_bytes=len(body),
@@ -283,7 +315,130 @@ async def create_bulk_upload(
 
     return _job_to_response(
         job,
+        camera_name=None,
+        created_by_email=user.email,
+        processed_files=0,
+    )
+
+
+@router.post("/jobs/{job_uuid}/confirm", response_model=BulkUploadJobResponse)
+async def confirm_bulk_upload(
+    project_id: int,
+    job_uuid: str,
+    body: ConfirmBulkUploadRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    User picked the camera in the review modal. Lock it onto the job
+    and kick off the actual pipeline phase.
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    if job.status != "awaiting_confirmation":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in status '{job.status}', cannot confirm",
+        )
+
+    camera = (
+        await db.execute(
+            select(Camera).where(
+                Camera.id == body.camera_id,
+                Camera.project_id == project_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if camera is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Camera does not belong to this project",
+        )
+
+    job.camera_id = camera.id
+    job.status = "processing"
+    await db.commit()
+    await db.refresh(job)
+
+    queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB)
+    queue.publish({"job_uuid": job_uuid, "phase": "process"})
+
+    logger.info(
+        "Bulk upload confirmed",
+        job_uuid=job_uuid,
+        camera_id=camera.id,
+        user_id=user.id,
+    )
+    return _job_to_response(
+        job,
         camera_name=camera.name,
+        created_by_email=user.email,
+        processed_files=0,
+    )
+
+
+@router.post("/jobs/{job_uuid}/cancel", response_model=BulkUploadJobResponse)
+async def cancel_bulk_upload(
+    project_id: int,
+    job_uuid: str,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Cancel a job that is still in the review step. Deletes the staged
+    ZIP and marks the job as failed with a cancelled reason. Cannot
+    cancel a job that is already processing.
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    if job.status not in ("queued", "inspecting", "awaiting_confirmation"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in status '{job.status}', cannot cancel",
+        )
+
+    if job.staged_object_key:
+        storage = StorageClient()
+        try:
+            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key)
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete staged zip during cancel",
+                job_uuid=job_uuid,
+                error=str(exc),
+            )
+
+    job.status = "failed"
+    job.error_message = "Cancelled by user"
+    job.finished_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(job)
+
+    camera_name = None
+    if job.camera_id:
+        camera_name = (
+            await db.execute(select(Camera.name).where(Camera.id == job.camera_id))
+        ).scalar_one_or_none()
+
+    return _job_to_response(
+        job,
+        camera_name=camera_name,
         created_by_email=user.email,
         processed_files=0,
     )
@@ -296,10 +451,11 @@ async def list_bulk_upload_jobs(
     db: AsyncSession = Depends(get_async_session),
 ):
     """List bulk upload jobs for this project, most recent first."""
+    await _expire_orphan_jobs(db, project_id)
     rows = (
         await db.execute(
             select(BulkUploadJob, Camera.name, User.email)
-            .join(Camera, BulkUploadJob.camera_id == Camera.id)
+            .outerjoin(Camera, BulkUploadJob.camera_id == Camera.id)
             .join(User, BulkUploadJob.created_by_user_id == User.id)
             .where(BulkUploadJob.project_id == project_id)
             .order_by(BulkUploadJob.created_at.desc())
@@ -331,7 +487,7 @@ async def get_bulk_upload_job(
     row = (
         await db.execute(
             select(BulkUploadJob, Camera.name, User.email)
-            .join(Camera, BulkUploadJob.camera_id == Camera.id)
+            .outerjoin(Camera, BulkUploadJob.camera_id == Camera.id)
             .join(User, BulkUploadJob.created_by_user_id == User.id)
             .where(
                 BulkUploadJob.project_id == project_id,

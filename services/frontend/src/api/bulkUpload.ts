@@ -1,22 +1,46 @@
 /**
  * Bulk image upload API client
  *
- * Project-admin endpoints for staging a ZIP, queueing the worker, and
- * polling job progress.
+ * Project-admin endpoints. The flow is two-phase: upload a ZIP, the
+ * server inspects and writes a manifest, the user reviews and confirms
+ * with a camera_id, then the worker processes the pipeline.
  */
 import apiClient from './client';
+
+export interface BulkUploadManifest {
+  total_entries: number;
+  valid_count: number;
+  by_status: Record<string, number>;
+  date_range: {
+    start: string | null;
+    end: string | null;
+  };
+  suggested_camera: {
+    camera_id: number;
+    camera_name: string;
+    device_id: string | null;
+    match_count: number;
+  } | null;
+}
 
 export interface BulkUploadJob {
   uuid: string;
   project_id: number;
-  camera_id: number;
+  camera_id: number | null;
   camera_name: string | null;
   original_filename: string;
-  status: 'queued' | 'extracting' | 'processing' | 'done' | 'failed';
+  status:
+    | 'queued'
+    | 'inspecting'
+    | 'awaiting_confirmation'
+    | 'processing'
+    | 'done'
+    | 'failed';
   total_files: number;
   processed_files: number;
   skipped_files: number;
   error_message: string | null;
+  manifest: BulkUploadManifest | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
@@ -25,18 +49,18 @@ export interface BulkUploadJob {
 
 export const bulkUploadApi = {
   /**
-   * Upload a ZIP and queue a bulk upload job. Reports upload progress
-   * via the optional callback.
+   * Upload a ZIP and queue it for inspection. Returns the job in
+   * `queued` status; the worker will move it to `inspecting` then
+   * `awaiting_confirmation`. The frontend polls until it sees the
+   * manifest, then prompts the user to confirm with a camera.
    */
   upload: async (
     projectId: number,
-    cameraId: number,
     file: File,
     onProgress?: (percent: number) => void,
   ): Promise<BulkUploadJob> => {
     const data = new FormData();
     data.append('file', file);
-    data.append('camera_id', String(cameraId));
     const response = await apiClient.post<BulkUploadJob>(
       `/api/projects/${projectId}/bulk-upload`,
       data,
@@ -62,6 +86,25 @@ export const bulkUploadApi = {
   get: async (projectId: number, jobUuid: string): Promise<BulkUploadJob> => {
     const response = await apiClient.get<BulkUploadJob>(
       `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}`,
+    );
+    return response.data;
+  },
+
+  confirm: async (
+    projectId: number,
+    jobUuid: string,
+    cameraId: number,
+  ): Promise<BulkUploadJob> => {
+    const response = await apiClient.post<BulkUploadJob>(
+      `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/confirm`,
+      { camera_id: cameraId },
+    );
+    return response.data;
+  },
+
+  cancel: async (projectId: number, jobUuid: string): Promise<BulkUploadJob> => {
+    const response = await apiClient.post<BulkUploadJob>(
+      `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/cancel`,
     );
     return response.data;
   },

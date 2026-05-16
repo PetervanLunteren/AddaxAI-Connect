@@ -444,8 +444,11 @@ class BulkUploadJob(Base):
     created_by_user_id = Column(
         Integer, ForeignKey("users.id"), nullable=False
     )
+    # Nullable: the bulk-upload flow stages the ZIP first, lets the
+    # user (or the EXIF auto-detect) pick the camera during review,
+    # then sets camera_id at confirm time before processing begins.
     camera_id = Column(
-        Integer, ForeignKey("cameras.id"), nullable=False, index=True
+        Integer, ForeignKey("cameras.id"), nullable=True, index=True
     )
     original_filename = Column(String(255), nullable=False)
     staged_object_key = Column(String(512), nullable=False)
@@ -457,6 +460,11 @@ class BulkUploadJob(Base):
     processed_files = Column(Integer, nullable=False, server_default='0')
     skipped_files = Column(Integer, nullable=False, server_default='0')
     error_message = Column(Text, nullable=True)
+    # Inspection summary written before the user confirms. Holds entry
+    # counts by status, date range, and the auto-suggested camera if
+    # EXIF SerialNumber matches a registered camera. JSON, see
+    # services/bulk-upload/worker.py for the shape.
+    manifest = Column(JSON, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
