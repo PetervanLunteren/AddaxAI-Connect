@@ -103,6 +103,60 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
 }
 
+// Coarse ETA helpers. Per-image rates are empirical for the dev box;
+// real numbers will vary but the bucketing is loose enough to absorb
+// reasonable drift. The output is intentionally vague ("about half
+// an hour") rather than precise minutes.
+const INSPECT_SECONDS_PER_IMAGE = 0.1;
+const PROCESS_SECONDS_PER_IMAGE = 2;
+const ETA_STATES = new Set(['queued', 'inspecting', 'processing']);
+
+function remainingFiles(job: BulkUploadJob): number {
+  return Math.max(0, job.total_files - job.processed_files - job.skipped_files);
+}
+
+function jobWorkerSecondsRemaining(job: BulkUploadJob): number {
+  switch (job.status) {
+    case 'queued':
+      return job.total_files * INSPECT_SECONDS_PER_IMAGE;
+    case 'inspecting':
+      // Halfway-through assumption since we don't track inspect progress.
+      return Math.max(1, job.total_files * INSPECT_SECONDS_PER_IMAGE * 0.5);
+    case 'processing':
+      return remainingFiles(job) * PROCESS_SECONDS_PER_IMAGE;
+    default:
+      return 0;
+  }
+}
+
+function bucketEta(seconds: number): string {
+  if (seconds < 60) return 'less than a minute';
+  if (seconds < 5 * 60) return 'a few minutes';
+  if (seconds < 15 * 60) return 'about 10 minutes';
+  if (seconds < 30 * 60) return 'about 20 minutes';
+  if (seconds < 60 * 60) return 'about half an hour';
+  if (seconds < 2 * 3600) return 'about an hour';
+  if (seconds < 4 * 3600) return 'a few hours';
+  return 'several hours';
+}
+
+function computeEta(job: BulkUploadJob, allJobs: BulkUploadJob[]): string | null {
+  if (!ETA_STATES.has(job.status)) return null;
+  // Sort by creation order so "ahead in the worker pipeline" is the
+  // jobs uploaded before this one. The priority routing for process
+  // messages can skew this in real time, but the bucketing is coarse
+  // enough that the rough estimate stays useful.
+  const inFlight = allJobs
+    .filter((j) => ETA_STATES.has(j.status))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const myIndex = inFlight.findIndex((j) => j.uuid === job.uuid);
+  if (myIndex < 0) return null;
+  const totalSeconds = inFlight
+    .slice(0, myIndex + 1)
+    .reduce((sum, j) => sum + jobWorkerSecondsRemaining(j), 0);
+  return bucketEta(totalSeconds);
+}
+
 const STATUS_LABELS: Record<string, string> = {
   valid: 'ready to process',
   duplicate: 'already in the project',
@@ -242,6 +296,7 @@ export const BulkUploadPage: React.FC = () => {
                   <JobRow
                     job={job}
                     projectId={projectId!}
+                    etaText={computeEta(job, jobs ?? [])}
                     onResume={
                       resumableStatuses.has(job.status)
                         ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
@@ -892,10 +947,11 @@ function buildResultsHref(projectId: number, job: BulkUploadJob): string | null 
 const JobRow: React.FC<{
   job: BulkUploadJob;
   projectId: number;
+  etaText: string | null;
   onResume?: () => void;
   onDiscard?: () => void;
   isDiscarding?: boolean;
-}> = ({ job, projectId, onResume, onDiscard, isDiscarding }) => {
+}> = ({ job, projectId, etaText, onResume, onDiscard, isDiscarding }) => {
   const total = Math.max(job.total_files, 1);
   const done = job.processed_files + job.skipped_files;
   const percent = Math.min(100, Math.round((done / total) * 100));
@@ -929,15 +985,17 @@ const JobRow: React.FC<{
             {job.camera_name ? `For ${job.camera_name}. ` : ''}
             Uploaded {formatRelative(job.created_at)}
             {job.created_by_email ? ` by ${job.created_by_email}` : ''}.
-            {job.status === 'queued' && job.queue_position != null && (
+            {etaText && (
               <>
                 <br />
-                {job.queue_position === 0
-                  ? 'Up next in the queue.'
-                  : `${job.queue_position} ${job.queue_position === 1 ? 'job' : 'jobs'} ahead in the queue.`}
+                {job.status === 'queued'
+                  ? `Starts in ${etaText}.`
+                  : job.status === 'inspecting'
+                    ? `Reading ZIP, ${etaText} left.`
+                    : `Processing, ${etaText} left.`}
               </>
             )}
-            {(isTerminal || showBar) && (
+            {isTerminal && (
               <>
                 <br />
                 {jobSummaryText(job)}
