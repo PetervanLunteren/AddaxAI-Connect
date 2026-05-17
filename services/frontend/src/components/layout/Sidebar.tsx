@@ -27,10 +27,12 @@ import {
   LineChart,
   Table2,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
+import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -68,12 +70,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/insights/naive-occupancy`, icon: BarChart3, label: 'Naive occupancy' },
   ];
 
-  // Admin tools - visible to project admins and server admins
+  // Background poll for in-flight bulk-upload jobs so we can badge
+  // the admin entry. Slow tick when idle so the sidebar does not hit
+  // the API every 5 s for nothing.
+  const numericProjectId = projectId ? Number(projectId) : undefined;
+  const { data: bulkJobs } = useQuery({
+    queryKey: ['bulk-upload-jobs', numericProjectId],
+    queryFn: () => bulkUploadApi.list(numericProjectId!),
+    enabled: numericProjectId !== undefined && isProjectAdmin,
+    refetchInterval: (q) => {
+      const data = q.state.data as BulkUploadJob[] | undefined;
+      const anyInFlight = (data ?? []).some(
+        (j) => j.status === 'uploading' || j.status === 'processing',
+      );
+      return anyInFlight ? 5000 : 30000;
+    },
+  });
+  const inFlightBulkCount = (bulkJobs ?? []).filter(
+    (j) => j.status === 'uploading' || j.status === 'processing',
+  ).length;
+
+  // Admin tools - visible to project admins and server admins. The
+  // bulk-upload entry carries a live badge with the number of jobs in
+  // flight so users notice work in progress from any page.
   const adminTools = [
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
     { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Curation' },
-    { to: `/projects/${projectId}/bulk-upload`, icon: Upload, label: 'Bulk upload' },
+    {
+      to: `/projects/${projectId}/bulk-upload`,
+      icon: Upload,
+      label: 'Bulk upload',
+      badge: inFlightBulkCount > 0 ? inFlightBulkCount : undefined,
+    },
   ];
 
   return (
@@ -197,15 +226,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                       onClick={onClose}
                       className={({ isActive }) =>
                         cn(
-                          'flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
+                          'flex items-center justify-between space-x-3 px-4 py-2 rounded-md text-sm font-medium transition-colors',
                           isActive
                             ? 'bg-primary text-primary-foreground'
                             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                         )
                       }
                     >
-                      <tool.icon className="h-4 w-4" />
-                      <span>{tool.label}</span>
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <tool.icon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{tool.label}</span>
+                      </div>
+                      {(tool as { badge?: number }).badge !== undefined && (
+                        <span
+                          className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                          style={{ backgroundColor: '#71b7ba', color: 'white' }}
+                        >
+                          {(tool as { badge?: number }).badge}
+                        </span>
+                      )}
                     </NavLink>
                   ))}
                 </div>

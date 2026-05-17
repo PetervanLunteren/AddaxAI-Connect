@@ -243,6 +243,57 @@ export const BulkUploadPage: React.FC = () => {
     },
   });
 
+  // Watch every poll for a job that just moved from 'processing' to a
+  // terminal state and surface it. Toast for users on the page, plus
+  // a desktop notification if they granted permission earlier.
+  const prevStatusesRef = useRef<Map<string, BulkUploadJob['status']>>(new Map());
+  useEffect(() => {
+    if (!jobs) return;
+    for (const job of jobs) {
+      const prev = prevStatusesRef.current.get(job.uuid);
+      const becameTerminal =
+        prev === 'processing'
+        && (job.status === 'done' || job.status === 'failed');
+      if (becameTerminal) {
+        const happy = job.status === 'done';
+        const body = happy
+          ? `${job.original_filename} processed.`
+          : `${job.original_filename} failed.`;
+        if (happy) toast.success(body);
+        else toast.error(body);
+        // Fire a desktop notification only when the user has already
+        // granted permission. Asking from here would be a permission
+        // prompt with no user gesture and would be ignored anyway.
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try {
+            new Notification('Bulk upload finished', { body });
+          } catch {
+            // Some browsers reject notifications from non-secure
+            // contexts; that's fine, the toast already fired.
+          }
+        }
+      }
+      prevStatusesRef.current.set(job.uuid, job.status);
+    }
+  }, [jobs, toast]);
+
+  // Permission is requested on the first click of the header button.
+  // Browsers require a user gesture, and this is the natural moment
+  // because the user is actively starting work that will run async.
+  const openModal = () => {
+    if (
+      typeof Notification !== 'undefined'
+      && Notification.permission === 'default'
+    ) {
+      try {
+        Notification.requestPermission();
+      } catch {
+        // Older browsers throw on the sync call form; that's fine.
+      }
+    }
+    setModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -255,7 +306,7 @@ export const BulkUploadPage: React.FC = () => {
             live alerts.
           </p>
         </div>
-        <Button onClick={() => setModalOpen(true)} className="whitespace-nowrap">
+        <Button onClick={openModal} className="whitespace-nowrap">
           <Plus className="h-4 w-4 mr-2" />
           Bulk upload
         </Button>
@@ -796,10 +847,13 @@ const ReviewStep: React.FC<{
   const queryClient = useQueryClient();
   const [cameraId, setCameraId] = useState<string>('');
   const [showAddCamera, setShowAddCamera] = useState(false);
-  const [newDeviceId, setNewDeviceId] = useState('');
-  const [newFriendlyName, setNewFriendlyName] = useState('');
+  const [newCameraName, setNewCameraName] = useState('');
   const [newLatitude, setNewLatitude] = useState('');
   const [newLongitude, setNewLongitude] = useState('');
+  // GBIF QA: a deployment with a suspect camera clock should be
+  // flagged so downstream Camtrap-DP export carries timestampIssues.
+  // Stored in the manifest as a free-form flag, no schema migration.
+  const [timestampIssues, setTimestampIssues] = useState(false);
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -857,11 +911,23 @@ const ReviewStep: React.FC<{
     }
   }, [suggest, cameraId]);
 
-  const enrichedManifest: BulkUploadManifest = useMemo(() => ({
+  // The dominant EXIF SerialNumber across the scan, used to auto-fill
+  // the new-camera device_id so scan-suggest will match this camera on
+  // a future upload. Falls back to a generated id if no clear serial.
+  const dominantSerial = useMemo(() => {
+    let best: [string, number] | null = null;
+    for (const [s, c] of Object.entries(serialCounts)) {
+      if (!best || c > best[1]) best = [s, c];
+    }
+    return best && best[1] >= 2 ? best[0] : null;
+  }, [serialCounts]);
+
+  const enrichedManifest: BulkUploadManifest & { timestamp_issues?: boolean } = useMemo(() => ({
     ...manifest,
     suggested_camera: suggest?.suggested_camera ?? null,
     matched_cameras: suggest?.matched_cameras ?? [],
-  }), [manifest, suggest]);
+    timestamp_issues: timestampIssues || undefined,
+  }), [manifest, suggest, timestampIssues]);
 
   const validCount = manifest.by_status.valid ?? 0;
   const skipReasonEntries = Object.entries(manifest.by_status).filter(
@@ -899,9 +965,17 @@ const ReviewStep: React.FC<{
     mutationFn: () => {
       const lat = newLatitude.trim() ? Number(newLatitude) : undefined;
       const lon = newLongitude.trim() ? Number(newLongitude) : undefined;
+      // device_id is hidden in the bulk-upload form. Pre-fill with the
+      // dominant EXIF SerialNumber so scan-suggest matches this camera
+      // on a future bulk upload from the same hardware. Generate a
+      // unique fallback when no serial dominates.
+      const trimmed = newCameraName.trim();
+      const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const random = Math.random().toString(36).slice(2, 6);
+      const deviceId = dominantSerial || `bulk-${slug || 'cam'}-${random}`;
       return camerasApi.create({
-        device_id: newDeviceId.trim(),
-        friendly_name: newFriendlyName.trim() || undefined,
+        device_id: deviceId,
+        friendly_name: trimmed || undefined,
         project_id: projectId,
         latitude: lat,
         longitude: lon,
@@ -911,8 +985,7 @@ const ReviewStep: React.FC<{
       queryClient.invalidateQueries({ queryKey: ['cameras', projectId] });
       setCameraId(String(camera.id));
       setShowAddCamera(false);
-      setNewDeviceId('');
-      setNewFriendlyName('');
+      setNewCameraName('');
       setNewLatitude('');
       setNewLongitude('');
       toast.success(`Camera "${camera.name}" created`);
@@ -921,6 +994,17 @@ const ReviewStep: React.FC<{
       toast.error(`Failed to create camera, ${err.response?.data?.detail || err.message}`);
     },
   });
+
+  // Accept either a single field with both numbers ("52.0237,
+  // 12.9829") or two-field entry. Splitting on paste lands the user
+  // in the same end state without an extra UI mode.
+  const acceptLatPaste = (raw: string): boolean => {
+    const match = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (!match) return false;
+    setNewLatitude(match[1]);
+    setNewLongitude(match[2]);
+    return true;
+  };
 
   // Pin the manifest + camera_id on a hidden element when the user
   // clicks Upload so the UploadStep can pick them up from URL state.
@@ -980,6 +1064,15 @@ const ReviewStep: React.FC<{
             Auto-detected camera, {suggested.camera_name} ({suggested.match_count} of {validCount} images match by EXIF serial)
           </div>
         )}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={timestampIssues}
+            onChange={(e) => setTimestampIssues(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-input"
+          />
+          Camera clock was unreliable. Flag this batch as timestamps not trusted.
+        </label>
       </div>
 
       {thumbnails.length > 0 && (
@@ -1032,8 +1125,7 @@ const ReviewStep: React.FC<{
                 className="text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   setShowAddCamera(false);
-                  setNewDeviceId('');
-                  setNewFriendlyName('');
+                  setNewCameraName('');
                   setNewLatitude('');
                   setNewLongitude('');
                 }}
@@ -1041,54 +1133,50 @@ const ReviewStep: React.FC<{
                 Cancel
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-3">
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Device ID</label>
+                <label className="text-xs text-muted-foreground">Camera name</label>
                 <input
                   type="text"
-                  value={newDeviceId}
-                  onChange={(e) => setNewDeviceId(e.target.value)}
-                  placeholder="EXIF serial or other unique id"
+                  value={newCameraName}
+                  onChange={(e) => setNewCameraName(e.target.value)}
+                  placeholder="e.g. Duinpoort NW"
                   className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Display name</label>
-                <input
-                  type="text"
-                  value={newFriendlyName}
-                  onChange={(e) => setNewFriendlyName(e.target.value)}
-                  placeholder="Optional, defaults to device ID"
-                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Latitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={newLatitude}
-                  onChange={(e) => setNewLatitude(e.target.value)}
-                  placeholder="Optional, e.g. 52.0237"
-                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Longitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={newLongitude}
-                  onChange={(e) => setNewLongitude(e.target.value)}
-                  placeholder="Optional, e.g. 12.9829"
-                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Latitude</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={newLatitude}
+                    onChange={(e) => {
+                      if (!acceptLatPaste(e.target.value)) {
+                        setNewLatitude(e.target.value);
+                      }
+                    }}
+                    placeholder="52.0237 or paste lat, lon"
+                    className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Longitude</label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={newLongitude}
+                    onChange={(e) => setNewLongitude(e.target.value)}
+                    placeholder="12.9829"
+                    className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
+                  />
+                </div>
               </div>
             </div>
             <Button
               type="button"
               size="sm"
-              disabled={!newDeviceId.trim() || createCameraMutation.isPending}
+              disabled={!newCameraName.trim() || createCameraMutation.isPending}
               onClick={() => createCameraMutation.mutate()}
             >
               {createCameraMutation.isPending ? (
