@@ -1,22 +1,21 @@
 """
 Bulk-upload worker
 
-Two-phase per job, dispatched by the "phase" field on every queue
-message:
-
-- phase="inspect": stages ZIP, walks entries, builds a manifest of
-  per-status counts, date range, and the auto-suggested camera (when
-  EXIF SerialNumber maps cleanly to a registered camera in the
-  project). Status moves: queued -> inspecting -> awaiting_confirmation.
-- phase="process": the user has confirmed the camera. Iterate the
-  staged ZIP a second time and feed each valid entry into the live
-  pipeline via the bulk priority queues. Status moves:
-  awaiting_confirmation -> processing -> done (lazily, on API read,
-  once detection + classification finish).
+One message per job, phase="process", published by the API once the
+client has finished uploading every file to the job's staging prefix.
+The worker lists the prefix, ingests each object into the live
+pipeline via the bulk priority queues, then deletes the staging. Status
+moves uploading -> processing -> done (lazily, on API read, once
+detection and classification finish).
 
 Bulk-origin images carry origin='bulk' through every queue message.
 That gates notification fan-out at the classification stage so an
 SD-card import never fires species_detection alerts retroactively.
+
+Legacy path: jobs created before the per-file refactor have a
+staged_object_key ending in '.zip' and used a separate "inspect" phase.
+That path is retained so any in-flight legacy job can drain after the
+refactor lands. New jobs use the prefix layout.
 """
 import hashlib
 import os
@@ -496,72 +495,151 @@ def _inspect_job(job_uuid: str) -> None:
                 pass
 
 
-def _process_job(job_uuid: str) -> None:
+def _list_prefix(storage: StorageClient, prefix: str) -> list:
     """
-    Run the actual pipeline: iterate the staged ZIP, write each valid
-    image into MinIO and the DB, publish to the bulk priority queue.
-    Status moves awaiting_confirmation -> processing -> (lazily) done.
-    """
-    with get_db_session() as session:
-        job = session.execute(
-            select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
-        ).scalar_one_or_none()
-        if not job:
-            logger.error("Bulk upload job not found", job_uuid=job_uuid)
-            return
-        camera = session.get(Camera, job.camera_id)
-        if not camera:
-            job.status = "failed"
-            job.error_message = "Target camera no longer exists"
-            job.finished_at = datetime.now(timezone.utc)
-            return
-        job_id = job.id
-        camera_id = camera.id
-        camera_storage_id = _camera_storage_id(camera)
-        gps_location = None
-        if camera.location:
-            gps_location = (camera.location.coords[1], camera.location.coords[0])
-        staged_object_key = job.staged_object_key
-        job.status = "processing"
-        # Marks the wall-clock start of the actual pipeline work,
-        # excluding inspect time and any user-paced delay waiting in
-        # awaiting_confirmation. The frontend derives a per-image
-        # processing rate from this for self-calibrating ETAs.
-        job.process_started_at = datetime.now(timezone.utc)
+    List every object under the job's staging prefix.
 
+    Uses paginator-style calls so a 5000-file job is returned in full.
+    The wrapper in shared/storage.py caps at a single page, which is
+    fine for &lt; 1000 objects but truncates the rest. Drop to the boto3
+    paginator for safety.
+    """
+    keys: list = []
+    paginator = storage.client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=BUCKET_BULK_UPLOAD_STAGING, Prefix=prefix):
+        for obj in page.get("Contents", []) or []:
+            keys.append(obj["Key"])
+    return keys
+
+
+def _process_prefix_job(
+    job_uuid: str,
+    job_id: int,
+    camera_id: int,
+    camera_storage_id: str,
+    gps_location,
+    staged_prefix: str,
+) -> None:
+    """
+    Process a new-style per-file bulk-upload job. Lists MinIO under
+    the job's staging prefix, downloads each file, runs the usual
+    pipeline, deletes the staging.
+    """
+    storage = StorageClient()
+    bulk_queue = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
+    processed = 0
+    duplicates = 0
+    other_skipped = 0
+
+    object_keys = sorted(_list_prefix(storage, staged_prefix))
     logger.info(
-        "Processing confirmed bulk upload",
+        "Processing bulk upload prefix",
         job_uuid=job_uuid,
-        camera_id=camera_id,
-        staged_object_key=staged_object_key,
+        staged_prefix=staged_prefix,
+        object_count=len(object_keys),
     )
 
+    for idx, key in enumerate(object_keys, start=1):
+        # Object key shape: "{project_id}/{job_uuid}/{idx:06d}_{name}".
+        # Recover the human filename for logs and storage paths.
+        tail = key.rsplit("/", 1)[-1]
+        filename = tail.split("_", 1)[1] if "_" in tail else tail
+        try:
+            raw = storage.download_fileobj(BUCKET_BULK_UPLOAD_STAGING, key)
+            outcome = _process_zip_entry(
+                filename,
+                raw,
+                camera_id,
+                camera_storage_id,
+                gps_location,
+                bulk_queue,
+                job_id,
+            )
+            if outcome == "processed":
+                processed += 1
+            elif outcome == "duplicate":
+                duplicates += 1
+            else:
+                other_skipped += 1
+        except Exception as exc:
+            logger.warning(
+                "Skipping bulk upload object, unexpected error",
+                object_key=key,
+                error=str(exc),
+                exc_info=True,
+            )
+            other_skipped += 1
+
+        # Best-effort cleanup as we go so a half-finished job does not
+        # leave 5000 stale objects in MinIO.
+        try:
+            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, key)
+        except Exception as exc:
+            logger.warning(
+                "Failed to delete processed staging object",
+                object_key=key,
+                error=str(exc),
+            )
+
+        if idx % PROGRESS_PERSIST_EVERY == 0:
+            _set_status(job_uuid, skipped_files=duplicates + other_skipped)
+
+    # Stash the breakdown so the UI can say "all 30 were duplicates"
+    # instead of "30 skipped".
+    with get_db_session() as session:
+        row = session.execute(
+            select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
+        ).scalar_one()
+        manifest = dict(row.manifest or {})
+        manifest["process_summary"] = {
+            "queued_for_pipeline": processed,
+            "duplicates": duplicates,
+            "other_skipped": other_skipped,
+        }
+        row.manifest = manifest
+        row.skipped_files = duplicates + other_skipped
+
+    logger.info(
+        "Finished processing bulk upload prefix",
+        job_uuid=job_uuid,
+        queued_for_pipeline=processed,
+        duplicates=duplicates,
+        other_skipped=other_skipped,
+    )
+
+
+def _process_legacy_zip_job(
+    job_uuid: str,
+    job_id: int,
+    camera_id: int,
+    camera_storage_id: str,
+    gps_location,
+    staged_object_key: str,
+) -> None:
+    """
+    Drain a pre-refactor bulk-upload job whose staged_object_key points
+    at a single ZIP. Kept so anything created before the per-file
+    rollout can still complete.
+    """
     storage = StorageClient()
     tmp_zip_path: Optional[str] = None
+    bulk_queue = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
+    processed = 0
+    duplicates = 0
+    other_skipped = 0
     try:
         tmp_zip_path = _download_staged_zip(storage, staged_object_key)
-
         with zipfile.ZipFile(tmp_zip_path) as zf:
             entries = [
                 info for info in zf.infolist()
                 if not info.is_dir() and not _is_noise_entry(info.filename)
             ]
-            bulk_queue = RedisQueue(QUEUE_IMAGE_INGESTED_BULK)
-            processed = 0
-            duplicates = 0
-            other_skipped = 0
-
             for idx, info in enumerate(entries, start=1):
                 try:
                     raw = zf.read(info)
                     outcome = _process_zip_entry(
-                        info.filename,
-                        raw,
-                        camera_id,
-                        camera_storage_id,
-                        gps_location,
-                        bulk_queue,
-                        job_id,
+                        info.filename, raw, camera_id, camera_storage_id,
+                        gps_location, bulk_queue, job_id,
                     )
                     if outcome == "processed":
                         processed += 1
@@ -571,18 +649,13 @@ def _process_job(job_uuid: str) -> None:
                         other_skipped += 1
                 except Exception as exc:
                     logger.warning(
-                        "Skipping bulk upload entry, unexpected error",
-                        entry=info.filename,
-                        error=str(exc),
-                        exc_info=True,
+                        "Skipping legacy zip entry",
+                        entry=info.filename, error=str(exc), exc_info=True,
                     )
                     other_skipped += 1
-
                 if idx % PROGRESS_PERSIST_EVERY == 0:
                     _set_status(job_uuid, skipped_files=duplicates + other_skipped)
 
-        # Stash the breakdown in the manifest so the UI can say "all 30
-        # were duplicates" instead of just "30 skipped".
         with get_db_session() as session:
             row = session.execute(
                 select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
@@ -595,24 +668,75 @@ def _process_job(job_uuid: str) -> None:
             }
             row.manifest = manifest
             row.skipped_files = duplicates + other_skipped
-        skipped = duplicates + other_skipped
 
         try:
             storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
         except Exception as exc:
             logger.warning(
-                "Failed to delete staged bulk upload zip",
-                staged_object_key=staged_object_key,
-                error=str(exc),
+                "Failed to delete legacy staged zip",
+                staged_object_key=staged_object_key, error=str(exc),
             )
+    finally:
+        if tmp_zip_path:
+            try:
+                os.unlink(tmp_zip_path)
+            except OSError:
+                pass
 
-        logger.info(
-            "Finished unpacking bulk upload zip",
-            job_uuid=job_uuid,
-            queued_for_pipeline=processed,
-            skipped=skipped,
-        )
 
+def _process_job(job_uuid: str) -> None:
+    """
+    Dispatcher for the process phase. Reads the job row, picks the
+    per-file or legacy-zip path based on the staging key shape, runs
+    the pipeline, marks status. Failure is captured at this level so
+    no exception escapes to the queue consumer.
+    """
+    with get_db_session() as session:
+        job = session.execute(
+            select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
+        ).scalar_one_or_none()
+        if not job:
+            logger.error("Bulk upload job not found", job_uuid=job_uuid)
+            return
+        camera = session.get(Camera, job.camera_id) if job.camera_id else None
+        if not camera:
+            job.status = "failed"
+            job.error_message = "Target camera no longer exists"
+            job.finished_at = datetime.now(timezone.utc)
+            return
+        job_id = job.id
+        camera_id = camera.id
+        camera_storage_id = _camera_storage_id(camera)
+        gps_location = None
+        if camera.location:
+            gps_location = (camera.location.coords[1], camera.location.coords[0])
+        staged_object_key = job.staged_object_key
+        # The API flips status to 'processing' at finalize so users see
+        # the right state during the brief queue hop; we still own
+        # process_started_at since that drives the self-calibrating ETA.
+        job.status = "processing"
+        job.process_started_at = datetime.now(timezone.utc)
+
+    is_prefix = staged_object_key.endswith("/")
+    logger.info(
+        "Processing bulk upload",
+        job_uuid=job_uuid,
+        camera_id=camera_id,
+        staged_object_key=staged_object_key,
+        layout="prefix" if is_prefix else "legacy_zip",
+    )
+
+    try:
+        if is_prefix:
+            _process_prefix_job(
+                job_uuid, job_id, camera_id, camera_storage_id,
+                gps_location, staged_object_key,
+            )
+        else:
+            _process_legacy_zip_job(
+                job_uuid, job_id, camera_id, camera_storage_id,
+                gps_location, staged_object_key,
+            )
     except Exception as exc:
         logger.error(
             "Bulk upload processing failed",
@@ -626,13 +750,6 @@ def _process_job(job_uuid: str) -> None:
             error_message=str(exc),
             finished_at=datetime.now(timezone.utc),
         )
-
-    finally:
-        if tmp_zip_path:
-            try:
-                os.unlink(tmp_zip_path)
-            except OSError:
-                pass
 
 
 def dispatch(message: dict) -> None:

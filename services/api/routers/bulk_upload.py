@@ -1,15 +1,21 @@
 """
 Bulk image upload endpoints
 
-Project-admin-only. POST a ZIP scoped to one camera; the API stages it
-in MinIO and queues a background job. The bulk-upload worker drains
-jobs one at a time, feeding each entry into the live pipeline via the
-bulk-priority queues so live cameras keep priority.
+Project-admin-only. The client scans the user's folder locally, picks a
+camera, then POSTs one file at a time to a job's staging prefix. Once
+every file is in MinIO the client calls /finalize, which flips the job
+to 'processing' and publishes to the bulk-upload worker.
+
+Status flow:
+    uploading -> processing -> done | failed
+
+Legacy jobs created before the per-file refactor (statuses queued,
+inspecting, awaiting_confirmation) are still readable but cannot be
+resumed; they expire via the orphan-cleanup pass.
 """
 import io
 import re
 import uuid
-import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -17,23 +23,18 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
-    Form,
     HTTPException,
     UploadFile,
     status,
 )
-from pydantic import BaseModel
-from sqlalchemy import func, or_, select, update
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import BulkUploadJob, Camera, Image, User
-from shared.queue import (
-    QUEUE_BULK_UPLOAD_JOB,
-    QUEUE_BULK_UPLOAD_JOB_PROCESS,
-    RedisQueue,
-)
+from shared.queue import QUEUE_BULK_UPLOAD_JOB_PROCESS, RedisQueue
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 from auth.permissions import require_project_admin_access
 
@@ -43,27 +44,19 @@ router = APIRouter(
 )
 logger = get_logger("api.bulk_upload")
 
-# Caps on a single ZIP to bound resource use on a small server.
-# Mirrored in the worker (which also walks the entry list once).
-MAX_ZIP_SIZE_BYTES = 20 * 1024 * 1024 * 1024  # 20 GB
-MAX_ZIP_ENTRIES = 5000
-# Jobs that have been awaiting user confirmation for longer than this
-# get auto-failed and their staged ZIP deleted from MinIO. Prevents a
-# 20 GB orphan blob from sitting around forever if a user abandons
-# the upload mid-flow.
-AWAITING_CONFIRMATION_TTL = timedelta(hours=24)
-# Filesystem cruft that ends up inside zipped folders but isn't a real
-# file: macOS resource forks under __MACOSX/, plus the usual .DS_Store
-# and Windows desktop turds. Filtered before counting so the 5000-entry
-# cap and the user-visible total_files reflect actual images.
-_NOISE_NAMES = {"__MACOSX", ".DS_Store", "Thumbs.db", "desktop.ini"}
+# Per-file and per-job caps. 50 MB covers any realistic single trail-cam
+# frame with headroom. 5000 files matches the per-job cap users see in
+# the modal (one SD card per job).
+MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+MAX_FILES_PER_JOB = 5000
+ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png"}
+ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
-
-def _is_noise_entry(name: str) -> bool:
-    for part in name.split("/"):
-        if part in _NOISE_NAMES or part.startswith("._"):
-            return True
-    return False
+# Jobs that have been accepting uploads for longer than this without a
+# finalize call get auto-failed and their staged objects deleted. Covers
+# the case of a user closing the tab mid-upload. 24 h is generous enough
+# that a slow upload over a bad connection still has time to finish.
+UPLOAD_TTL = timedelta(hours=24)
 
 
 class BulkUploadJobResponse(BaseModel):
@@ -79,8 +72,6 @@ class BulkUploadJobResponse(BaseModel):
     skipped_files: int
     error_message: Optional[str]
     manifest: Optional[Dict[str, Any]] = None
-    # Number of other jobs ahead of this one in the bulk-upload queue
-    # (only meaningful for status='queued'). 0 means this is next.
     queue_position: Optional[int] = None
     started_at: Optional[str]
     process_started_at: Optional[str] = None
@@ -89,21 +80,42 @@ class BulkUploadJobResponse(BaseModel):
     created_by_email: Optional[str]
 
 
-class ConfirmBulkUploadRequest(BaseModel):
-    """User confirms a bulk upload by picking which camera to target."""
+class CreateBulkUploadRequest(BaseModel):
+    """Create an empty bulk-upload job. Files are uploaded separately."""
+    folder_name: str = Field(min_length=1, max_length=255)
     camera_id: int
+    total_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
+    # Free-form client-computed scan summary. Stored on the job and shown
+    # back in the review UI. See the bulk-upload worker for the shape.
+    manifest: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScanSuggestRequest(BaseModel):
+    """Match EXIF SerialNumbers from the client scan against cameras."""
+    serial_counts: Dict[str, int] = Field(default_factory=dict)
+
+
+class ScanSuggestResponse(BaseModel):
+    matched_cameras: List[Dict[str, Any]]
+    suggested_camera: Optional[Dict[str, Any]] = None
+
+
+def _staging_prefix(project_id: int, job_uuid: str) -> str:
+    """MinIO key prefix that holds every file for one bulk-upload job."""
+    return f"{project_id}/{job_uuid}/"
+
+
+def _safe_basename(name: str) -> str:
+    """Strip directory components and replace unsafe chars."""
+    base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", base).strip("_")
+    return cleaned or "image.jpg"
 
 
 async def _pipeline_done_counts(
     db: AsyncSession, job_ids: List[int]
 ) -> Dict[int, int]:
-    """
-    Count images per bulk-upload job that have finished the pipeline.
-
-    'Finished' means status in ('classified', 'failed') so a single
-    image that crashes detection or classification doesn't freeze the
-    job's progress bar at 99%.
-    """
+    """Count classified+failed images per bulk-upload job."""
     if not job_ids:
         return {}
     rows = (
@@ -122,11 +134,7 @@ async def _pipeline_done_counts(
 async def _finalise_done_jobs(
     db: AsyncSession, jobs: List[BulkUploadJob], processed_counts: Dict[int, int]
 ) -> None:
-    """
-    Flip jobs from 'processing' to 'done' when their derived progress
-    has reached total. Done lazily on read so the bulk-upload worker
-    does not have to know about classification timing.
-    """
+    """Flip 'processing' jobs to 'done' once every queued image is finished."""
     finished_ids: List[int] = []
     for job in jobs:
         if job.status != "processing":
@@ -149,56 +157,75 @@ async def _finalise_done_jobs(
             job.finished_at = now
 
 
+def _delete_staging(staged_object_key: str) -> None:
+    """
+    Delete the MinIO state for a job. Handles both the new per-file
+    prefix layout (key ends with '/') and the legacy single-ZIP layout.
+    """
+    if not staged_object_key:
+        return
+    storage = StorageClient()
+    try:
+        if staged_object_key.endswith("/"):
+            for key in storage.list_objects(BUCKET_BULK_UPLOAD_STAGING, staged_object_key):
+                try:
+                    storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, key)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to delete staged file",
+                        key=key,
+                        error=str(exc),
+                    )
+        else:
+            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
+    except Exception as exc:
+        logger.warning(
+            "Failed to clean staging",
+            staged_object_key=staged_object_key,
+            error=str(exc),
+        )
+
+
 async def _expire_orphan_jobs(db: AsyncSession, project_id: int) -> None:
     """
-    Lazy cleanup: fail any awaiting_confirmation job older than the
-    TTL and delete its staged ZIP from MinIO. Runs on list reads so
-    the user never sees a stale job sitting forever, without needing
-    a separate cron.
+    Fail jobs stuck in a pre-processing state past UPLOAD_TTL and clean
+    their staging. Covers both the new 'uploading' state and the legacy
+    inspect/awaiting_confirmation states from before the refactor.
     """
-    cutoff = datetime.now(timezone.utc) - AWAITING_CONFIRMATION_TTL
+    cutoff = datetime.now(timezone.utc) - UPLOAD_TTL
+    pre_processing = ("uploading", "queued", "inspecting", "awaiting_confirmation")
     orphans = (
         await db.execute(
             select(BulkUploadJob).where(
                 BulkUploadJob.project_id == project_id,
-                BulkUploadJob.status == "awaiting_confirmation",
+                BulkUploadJob.status.in_(pre_processing),
                 BulkUploadJob.created_at < cutoff,
             )
         )
     ).scalars().all()
     if not orphans:
         return
-    storage = StorageClient()
     now = datetime.now(timezone.utc)
     for job in orphans:
-        if job.staged_object_key:
-            try:
-                storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key)
-            except Exception as exc:
-                logger.warning(
-                    "Failed to delete staged zip for orphan job",
-                    job_uuid=job.uuid,
-                    error=str(exc),
-                )
+        _delete_staging(job.staged_object_key)
         job.status = "failed"
-        job.error_message = "Auto-cancelled after 24 hours awaiting confirmation"
+        job.error_message = "Auto-cancelled after 24 hours waiting on upload"
         job.finished_at = now
     await db.commit()
 
 
 async def _queue_positions(db: AsyncSession, project_id: int) -> Dict[int, int]:
     """
-    Map of bulk_upload_job.id -> position-ahead-in-queue, for jobs the
-    bulk-upload worker hasn't finished yet. The currently inspecting
-    job counts as ahead too (it's blocking the worker). Position 0
-    means this job is next.
+    Map of bulk_upload_job.id -> jobs-ahead-in-the-worker-queue, for
+    jobs the worker has not finished yet. Position 0 means next to run.
+    Only meaningful for status='processing'.
     """
     rows = (
         await db.execute(
             select(BulkUploadJob.id)
             .where(
                 BulkUploadJob.project_id == project_id,
-                BulkUploadJob.status.in_(("queued", "inspecting")),
+                BulkUploadJob.status == "processing",
             )
             .order_by(BulkUploadJob.id.asc())
         )
@@ -225,7 +252,7 @@ def _job_to_response(
         skipped_files=job.skipped_files,
         error_message=job.error_message,
         manifest=job.manifest,
-        queue_position=queue_position if job.status == "queued" else None,
+        queue_position=queue_position if job.status == "processing" else None,
         started_at=job.started_at.isoformat() if job.started_at else None,
         process_started_at=(
             job.process_started_at.isoformat() if job.process_started_at else None
@@ -236,152 +263,69 @@ def _job_to_response(
     )
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
-async def create_bulk_upload(
+@router.post("/scan-suggest", response_model=ScanSuggestResponse)
+async def scan_suggest(
     project_id: int,
-    file: UploadFile = File(...),
+    body: ScanSuggestRequest,
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Accept a single ZIP. The camera is not chosen yet: the worker
-    inspects the ZIP and either auto-detects the camera from EXIF
-    SerialNumber or leaves that field blank for the user to pick in
-    the review step. The user then calls /jobs/{uuid}/confirm with
-    the chosen camera_id to start the actual processing.
+    Given the EXIF SerialNumber counts the client read locally, return
+    the matched cameras in this project. Used by the pre-flight scan
+    UI to suggest a camera before any byte crosses the network.
     """
-    if not file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing filename",
-        )
-    if not file.filename.lower().endswith(".zip"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only .zip uploads are supported",
-        )
+    if not body.serial_counts:
+        return ScanSuggestResponse(matched_cameras=[], suggested_camera=None)
 
-    # Read the upload into memory in chunks so we can enforce a hard cap
-    # without trusting any client-reported Content-Length. For 20 GB
-    # this would be heavy: in v1 we trust the cap and read everything;
-    # if memory becomes a problem, switch to spooled-temp-file streaming.
-    chunks: List[bytes] = []
-    total = 0
-    while True:
-        chunk = await file.read(8 * 1024 * 1024)
-        if not chunk:
-            break
-        total += len(chunk)
-        if total > MAX_ZIP_SIZE_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"ZIP exceeds the {MAX_ZIP_SIZE_BYTES // (1024 ** 3)} GB cap. "
-                    "Split the SD card into smaller batches and retry."
-                ),
-            )
-        chunks.append(chunk)
-    body = b"".join(chunks)
-    chunks.clear()
-
-    if len(body) < 4 or body[:4] != b"PK\x03\x04":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File is not a valid ZIP (signature mismatch)",
-        )
-
-    # Quick entry-count check so we refuse oversized batches before
-    # even staging them.
-    try:
-        with zipfile.ZipFile(io.BytesIO(body)) as zf:
-            entry_count = sum(
-                1 for info in zf.infolist()
-                if not info.is_dir() and not _is_noise_entry(info.filename)
-            )
-    except zipfile.BadZipFile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="ZIP file is corrupted or truncated",
-        )
-    if entry_count > MAX_ZIP_ENTRIES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"ZIP contains {entry_count} entries, the cap is {MAX_ZIP_ENTRIES}. "
-                "Split the SD card into smaller batches."
-            ),
-        )
-
-    job_uuid = str(uuid.uuid4())
-    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", file.filename).strip("_") or "upload.zip"
-    staged_object_key = f"{project_id}/{job_uuid}.zip"
-
-    storage = StorageClient()
-    storage.upload_fileobj(io.BytesIO(body), BUCKET_BULK_UPLOAD_STAGING, staged_object_key)
-
-    job = BulkUploadJob(
-        uuid=job_uuid,
-        project_id=project_id,
-        created_by_user_id=user.id,
-        camera_id=None,
-        original_filename=safe_name,
-        staged_object_key=staged_object_key,
-        status="queued",
-        total_files=entry_count,
-    )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job)
-
-    queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB)
-    queue.publish({"job_uuid": job_uuid, "phase": "inspect"})
-
-    logger.info(
-        "Queued bulk upload for inspection",
-        job_uuid=job_uuid,
-        project_id=project_id,
-        original_filename=safe_name,
-        entry_count=entry_count,
-        size_bytes=len(body),
-        user_id=user.id,
-    )
-
-    return _job_to_response(
-        job,
-        camera_name=None,
-        created_by_email=user.email,
-        processed_files=0,
-    )
-
-
-@router.post("/jobs/{job_uuid}/confirm", response_model=BulkUploadJobResponse)
-async def confirm_bulk_upload(
-    project_id: int,
-    job_uuid: str,
-    body: ConfirmBulkUploadRequest,
-    user: User = Depends(require_project_admin_access),
-    db: AsyncSession = Depends(get_async_session),
-):
-    """
-    User picked the camera in the review modal. Lock it onto the job
-    and kick off the actual pipeline phase.
-    """
-    job = (
+    rows = (
         await db.execute(
-            select(BulkUploadJob).where(
-                BulkUploadJob.project_id == project_id,
-                BulkUploadJob.uuid == job_uuid,
+            select(Camera.id, Camera.name, Camera.device_id).where(
+                Camera.project_id == project_id,
+                Camera.device_id.in_(list(body.serial_counts.keys())),
             )
         )
-    ).scalar_one_or_none()
-    if job is None:
-        raise HTTPException(status_code=404, detail="Bulk upload job not found")
-    if job.status != "awaiting_confirmation":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Job is in status '{job.status}', cannot confirm",
-        )
+    ).all()
 
+    matched: List[Dict[str, Any]] = []
+    for cam_id, cam_name, device_id in rows:
+        count = body.serial_counts.get(device_id, 0)
+        if count <= 0:
+            continue
+        matched.append({
+            "camera_id": cam_id,
+            "camera_name": cam_name,
+            "device_id": device_id,
+            "match_count": count,
+        })
+    matched.sort(key=lambda c: c["match_count"], reverse=True)
+
+    # Auto-suggest only when one camera dominates. Treat a one-image
+    # match as noise (an EXIF coincidence) so we never auto-pick the
+    # wrong camera on a near-miss.
+    suggested: Optional[Dict[str, Any]] = None
+    total_serial_count = sum(body.serial_counts.values())
+    if matched and matched[0]["match_count"] >= 2:
+        top = matched[0]
+        if total_serial_count > 0 and top["match_count"] / total_serial_count >= 0.5:
+            suggested = top
+
+    return ScanSuggestResponse(matched_cameras=matched, suggested_camera=suggested)
+
+
+@router.post("/jobs", status_code=status.HTTP_201_CREATED, response_model=BulkUploadJobResponse)
+async def create_bulk_upload_job(
+    project_id: int,
+    body: CreateBulkUploadRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Create an empty bulk-upload job. The frontend has already scanned
+    the user's folder, picked a camera, and computed the manifest. Now
+    it uploads files one at a time to /jobs/{uuid}/files and finishes
+    with /jobs/{uuid}/finalize.
+    """
     camera = (
         await db.execute(
             select(Camera).where(
@@ -396,23 +340,163 @@ async def confirm_bulk_upload(
             detail="Camera does not belong to this project",
         )
 
-    job.camera_id = camera.id
+    job_uuid = str(uuid.uuid4())
+    safe_folder_name = _safe_basename(body.folder_name) or "upload"
+
+    job = BulkUploadJob(
+        uuid=job_uuid,
+        project_id=project_id,
+        created_by_user_id=user.id,
+        camera_id=camera.id,
+        original_filename=safe_folder_name,
+        staged_object_key=_staging_prefix(project_id, job_uuid),
+        status="uploading",
+        total_files=body.total_files,
+        manifest=body.manifest or None,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    logger.info(
+        "Created bulk upload job",
+        job_uuid=job_uuid,
+        project_id=project_id,
+        camera_id=camera.id,
+        total_files=body.total_files,
+        user_id=user.id,
+    )
+
+    return _job_to_response(
+        job,
+        camera_name=camera.name,
+        created_by_email=user.email,
+        processed_files=0,
+    )
+
+
+@router.post("/jobs/{job_uuid}/files", status_code=status.HTTP_201_CREATED)
+async def upload_bulk_file(
+    project_id: int,
+    job_uuid: str,
+    index: int,
+    file: UploadFile = File(...),
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Upload one file into a job's staging prefix. The client passes its
+    own ordering index so retries write to the same MinIO key (idempotent
+    for slice B resume).
+    """
+    if index < 0 or index >= MAX_FILES_PER_JOB:
+        raise HTTPException(status_code=400, detail="File index out of range")
+
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    if job.status != "uploading":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in status '{job.status}', cannot accept more files",
+        )
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+    if not file.filename.lower().endswith(ALLOWED_EXTENSIONS):
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPEG and PNG images are supported",
+        )
+    # Content-type is set by the browser; tolerate octet-stream fallback
+    # (Firefox does this for some drag-drop paths) when the extension
+    # already vouched for the type.
+    if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
+        if file.content_type != "application/octet-stream":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported content type {file.content_type}",
+            )
+
+    body = await file.read()
+    if len(body) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(body) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File exceeds {MAX_FILE_SIZE_BYTES // (1024 * 1024)} MB cap",
+        )
+
+    safe_name = _safe_basename(file.filename)
+    object_key = f"{_staging_prefix(project_id, job_uuid)}{index:06d}_{safe_name}"
+
+    storage = StorageClient()
+    storage.upload_fileobj(io.BytesIO(body), BUCKET_BULK_UPLOAD_STAGING, object_key)
+
+    return {"object_key": object_key, "size": len(body)}
+
+
+@router.post("/jobs/{job_uuid}/finalize", response_model=BulkUploadJobResponse)
+async def finalize_bulk_upload(
+    project_id: int,
+    job_uuid: str,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Mark a job as finished uploading and hand it to the worker. The
+    client calls this once every per-file POST has returned 2xx.
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    if job.status != "uploading":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in status '{job.status}', cannot finalize",
+        )
+    if job.camera_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Job has no target camera",
+        )
+
     job.status = "processing"
+    job.started_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(job)
 
     queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB_PROCESS)
     queue.publish({"job_uuid": job_uuid, "phase": "process"})
 
+    camera_name = (
+        await db.execute(select(Camera.name).where(Camera.id == job.camera_id))
+    ).scalar_one_or_none()
+
     logger.info(
-        "Bulk upload confirmed",
+        "Bulk upload finalized",
         job_uuid=job_uuid,
-        camera_id=camera.id,
+        camera_id=job.camera_id,
+        total_files=job.total_files,
         user_id=user.id,
     )
     return _job_to_response(
         job,
-        camera_name=camera.name,
+        camera_name=camera_name,
         created_by_email=user.email,
         processed_files=0,
     )
@@ -426,9 +510,9 @@ async def cancel_bulk_upload(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Cancel a job that is still in the review step. Deletes the staged
-    ZIP and marks the job as failed with a cancelled reason. Cannot
-    cancel a job that is already processing.
+    Cancel an in-flight upload. Deletes staging and marks the job
+    failed. Refuses once processing has started, because the worker
+    is mid-pipeline.
     """
     job = (
         await db.execute(
@@ -440,22 +524,14 @@ async def cancel_bulk_upload(
     ).scalar_one_or_none()
     if job is None:
         raise HTTPException(status_code=404, detail="Bulk upload job not found")
-    if job.status not in ("queued", "inspecting", "awaiting_confirmation"):
+    cancellable = ("uploading", "queued", "inspecting", "awaiting_confirmation")
+    if job.status not in cancellable:
         raise HTTPException(
             status_code=400,
             detail=f"Job is in status '{job.status}', cannot cancel",
         )
 
-    if job.staged_object_key:
-        storage = StorageClient()
-        try:
-            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key)
-        except Exception as exc:
-            logger.warning(
-                "Failed to delete staged zip during cancel",
-                job_uuid=job_uuid,
-                error=str(exc),
-            )
+    _delete_staging(job.staged_object_key)
 
     job.status = "failed"
     job.error_message = "Cancelled by user"
@@ -485,18 +561,9 @@ async def discard_bulk_upload_job(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Remove a bulk upload job from the list.
-
-    For in-flight pre-process states (queued, inspecting,
-    awaiting_confirmation) this also deletes the staged ZIP so it
-    doesn't sit in MinIO forever. For terminal states (done, failed)
-    it just removes the row. Refuses to remove a job that is
-    currently processing because the worker is mid-pipeline and a
-    half-deleted job would leak Image rows with a null FK pointing
-    at nothing meaningful.
-
-    Image rows created by this job keep existing with
-    `bulk_upload_job_id` set to NULL (the FK uses ON DELETE SET NULL).
+    Remove a bulk-upload job from the list. Cleans staging for any
+    pre-processing state. Refuses while the worker is mid-pipeline so
+    we don't leak half-deleted state.
     """
     job = (
         await db.execute(
@@ -514,18 +581,9 @@ async def discard_bulk_upload_job(
             detail="Cannot discard a job that is currently processing",
         )
 
-    if job.staged_object_key and job.status in (
-        "queued", "inspecting", "awaiting_confirmation",
-    ):
-        storage = StorageClient()
-        try:
-            storage.delete_object(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key)
-        except Exception as exc:
-            logger.warning(
-                "Failed to delete staged zip during discard",
-                job_uuid=job_uuid,
-                error=str(exc),
-            )
+    pre_processing = ("uploading", "queued", "inspecting", "awaiting_confirmation")
+    if job.status in pre_processing:
+        _delete_staging(job.staged_object_key)
 
     await db.delete(job)
     await db.commit()
@@ -543,7 +601,7 @@ async def list_bulk_upload_jobs(
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """List bulk upload jobs for this project, most recent first."""
+    """List bulk-upload jobs for this project, most recent first."""
     await _expire_orphan_jobs(db, project_id)
     rows = (
         await db.execute(

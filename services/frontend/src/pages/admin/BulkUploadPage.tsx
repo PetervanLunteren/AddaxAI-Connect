@@ -2,26 +2,26 @@
  * Bulk image upload page (project admin only)
  *
  * Header has a single "+ Bulk upload" button that opens a modal. The
- * modal runs a three-step flow: upload the ZIP, watch the server
- * inspect it, then review and confirm. Body of the page is a live job
- * list that polls every 5 s while any row is non-terminal.
+ * modal runs a four-step flow: pick a folder, scan EXIF locally,
+ * review the preview and pick a camera, then upload file by file.
+ * Body of the page is a live job list that polls every 5 s while any
+ * row is non-terminal.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useDropzone } from 'react-dropzone';
 import {
   Loader2,
   Upload,
   Plus,
   Camera as CameraIcon,
-  FileArchive,
+  FolderOpen,
   Check,
   AlertTriangle,
   Sparkles,
   Trash2,
-  Eye,
   Images,
+  X,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -41,11 +41,14 @@ import {
   type BulkUploadJob,
   type BulkUploadManifest,
 } from '../../api/bulkUpload';
+import type { ScanEntry, ScanResult } from '../../workers/bulkScanWorker';
 
-const TERMINAL_STATUSES = new Set(['done', 'failed']);
+const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed']);
 
 function statusLabel(status: BulkUploadJob['status']): string {
   switch (status) {
+    case 'uploading':
+      return 'Uploading';
     case 'queued':
       return 'Queued';
     case 'inspecting':
@@ -63,8 +66,8 @@ function statusLabel(status: BulkUploadJob['status']): string {
 
 // Status badges use the project palette (FRONTEND_CONVENTIONS.md):
 // good=#0f6064, middle=#71b7ba, bad=#882000. Done is the only
-// "success" terminal state, failed is the only "failure" state,
-// everything else is in-flight/pending and shares the middle colour.
+// success terminal state, failed is the only failure state, everything
+// else is in-flight/pending and shares the middle colour.
 function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties {
   switch (status) {
     case 'done':
@@ -74,13 +77,6 @@ function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties 
     default:
       return { backgroundColor: '#71b7ba', color: 'white' };
   }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function formatRelative(iso: string | null): string {
@@ -103,27 +99,17 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
 }
 
-// Coarse ETA helpers. Per-image rates self-calibrate from the host's
-// completed-job history when there is enough signal, falling back to
-// conservative dev-box defaults on a fresh install. Inspect is fast
-// (~0.1 s) and not measured per-job; process is slow and host-bound
-// (could be 0.5 s on a GPU box, 4 s on a slow VM), so it's worth
-// measuring instead of guessing.
-const INSPECT_SECONDS_PER_IMAGE = 0.1;
+// Self-calibrating per-image processing rate from completed jobs.
+// Inspect is gone, only the worker pipeline time matters now.
 const DEFAULT_PROCESS_SECONDS_PER_IMAGE = 2;
 const RATE_SAMPLE_SIZE = 8;
-const ETA_STATES = new Set(['queued', 'inspecting', 'processing']);
+const ETA_STATES = new Set<BulkUploadJob['status']>(['processing']);
 
 function remainingFiles(job: BulkUploadJob): number {
   return Math.max(0, job.total_files - job.processed_files - job.skipped_files);
 }
 
 function measuredProcessRate(jobs: BulkUploadJob[]): number | null {
-  // Average seconds-per-image across the most recent completed jobs
-  // that have a process_started_at timestamp. Filter out anything
-  // with zero or one image (noisy). Skip live processing jobs that
-  // happen to have measurable progress mid-flight: completed jobs
-  // give a clean signal without partial-classification artefacts.
   const samples = jobs
     .filter(
       (j) =>
@@ -143,19 +129,6 @@ function measuredProcessRate(jobs: BulkUploadJob[]): number | null {
   return rates.reduce((a, b) => a + b, 0) / rates.length;
 }
 
-function jobWorkerSecondsRemaining(job: BulkUploadJob, processRate: number): number {
-  switch (job.status) {
-    case 'queued':
-      return job.total_files * INSPECT_SECONDS_PER_IMAGE;
-    case 'inspecting':
-      return Math.max(1, job.total_files * INSPECT_SECONDS_PER_IMAGE * 0.5);
-    case 'processing':
-      return remainingFiles(job) * processRate;
-    default:
-      return 0;
-  }
-}
-
 function bucketEta(seconds: number): string {
   if (seconds < 60) return 'less than a minute';
   if (seconds < 5 * 60) return 'a few minutes';
@@ -173,10 +146,6 @@ function computeEta(
   processRate: number,
 ): string | null {
   if (!ETA_STATES.has(job.status)) return null;
-  // Sort by creation order so "ahead in the worker pipeline" is the
-  // jobs uploaded before this one. The priority routing for process
-  // messages can skew this in real time, but the bucketing is coarse
-  // enough that the rough estimate stays useful.
   const inFlight = allJobs
     .filter((j) => ETA_STATES.has(j.status))
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -184,21 +153,20 @@ function computeEta(
   if (myIndex < 0) return null;
   const totalSeconds = inFlight
     .slice(0, myIndex + 1)
-    .reduce((sum, j) => sum + jobWorkerSecondsRemaining(j, processRate), 0);
+    .reduce((sum, j) => sum + remainingFiles(j) * processRate, 0);
   return bucketEta(totalSeconds);
 }
 
 const STATUS_LABELS: Record<string, string> = {
   valid: 'ready to process',
-  duplicate: 'already in the project',
   missing_exif_datetime: 'missing EXIF date',
   corrupt: 'corrupt or unreadable',
 };
 
-type ModalState =
-  | { kind: 'new' }
-  | { kind: 'resume'; jobUuid: string }
-  | null;
+const MAX_FILES_PER_JOB = 5000;
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const UPLOAD_CONCURRENCY = 4;
+const UPLOAD_RETRIES = 3;
 
 type FilterKey = 'active' | 'done' | 'failed' | 'all';
 
@@ -206,7 +174,12 @@ const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['
   {
     key: 'active',
     label: 'Active',
-    matches: (s) => s === 'queued' || s === 'inspecting' || s === 'awaiting_confirmation' || s === 'processing',
+    matches: (s) =>
+      s === 'uploading'
+      || s === 'queued'
+      || s === 'inspecting'
+      || s === 'awaiting_confirmation'
+      || s === 'processing',
   },
   { key: 'done', label: 'Done', matches: (s) => s === 'done' },
   { key: 'failed', label: 'Failed', matches: (s) => s === 'failed' },
@@ -216,7 +189,7 @@ const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['
 export const BulkUploadPage: React.FC = () => {
   const { selectedProject, canAdminCurrentProject } = useProject();
   const projectId = selectedProject?.id;
-  const [modalState, setModalState] = useState<ModalState>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>('active');
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -237,11 +210,6 @@ export const BulkUploadPage: React.FC = () => {
     },
   });
 
-  // Jobs that the user can re-open are the ones in the inspect-then-
-  // confirm middle states. Done / failed / processing jobs are
-  // terminal or in-flight pipelines and don't need a modal.
-  const resumableStatuses = new Set(['queued', 'inspecting', 'awaiting_confirmation']);
-
   const counts = useMemo(() => {
     const c: Record<FilterKey, number> = { active: 0, done: 0, failed: 0, all: 0 };
     (jobs ?? []).forEach((j) => {
@@ -258,9 +226,6 @@ export const BulkUploadPage: React.FC = () => {
     return (jobs ?? []).filter((j) => def.matches(j.status));
   }, [jobs, filter]);
 
-  // Recompute the per-image process rate whenever the job list
-  // changes (a new completed job adds a sample). Fall back to the
-  // dev-box default if there's nothing to learn from yet.
   const processRate = useMemo(
     () => measuredProcessRate(jobs ?? []) ?? DEFAULT_PROCESS_SECONDS_PER_IMAGE,
     [jobs],
@@ -282,13 +247,13 @@ export const BulkUploadPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold">Bulk upload</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Upload images from one camera as a ZIP. The pipeline runs
+            Upload images from one camera as a folder. The pipeline runs
             the same detection and classification as live cameras,
             without firing species notifications and without delaying
             live alerts.
           </p>
         </div>
-        <Button onClick={() => setModalState({ kind: 'new' })} className="whitespace-nowrap">
+        <Button onClick={() => setModalOpen(true)} className="whitespace-nowrap">
           <Plus className="h-4 w-4 mr-2" />
           Bulk upload
         </Button>
@@ -336,11 +301,6 @@ export const BulkUploadPage: React.FC = () => {
                     job={job}
                     projectId={projectId!}
                     etaText={computeEta(job, jobs ?? [], processRate)}
-                    onResume={
-                      resumableStatuses.has(job.status)
-                        ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })
-                        : undefined
-                    }
                     onDiscard={
                       job.status !== 'processing'
                         ? () => discardMutation.mutate(job.uuid)
@@ -356,35 +316,381 @@ export const BulkUploadPage: React.FC = () => {
       </Card>
 
       <BulkUploadModal
-        state={modalState}
-        onClose={() => setModalState(null)}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
         projectId={projectId!}
       />
     </div>
   );
 };
 
-type Step = 'upload' | 'inspecting' | 'review' | 'submitting';
+// ----- Modal -----
+
+type Step = 'pick' | 'scan' | 'review' | 'upload';
+
+interface ScannedFolder {
+  folderName: string;
+  files: File[];
+  entries: ScanEntry[];
+}
 
 const BulkUploadModal: React.FC<{
-  state: ModalState;
+  open: boolean;
   onClose: () => void;
   projectId: number;
-}> = ({ state, onClose, projectId }) => {
+}> = ({ open, onClose, projectId }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
 
-  const open = state !== null;
-  const resumeJobUuid = state?.kind === 'resume' ? state.jobUuid : null;
+  const [step, setStep] = useState<Step>('pick');
+  const [scanned, setScanned] = useState<ScannedFolder | null>(null);
+  const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
 
-  const [step, setStep] = useState<Step>('upload');
-  const [jobUuid, setJobUuid] = useState<string | null>(null);
-  const [job, setJob] = useState<BulkUploadJob | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  // Reset everything when the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    setStep('pick');
+    setScanned(null);
+    setScanProgress(null);
+  }, [open]);
+
+  const closeModal = () => {
+    onClose();
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) closeModal();
+      }}
+    >
+      <DialogContent
+        onClose={closeModal}
+        className="max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle>
+            {step === 'pick' && 'New bulk upload'}
+            {step === 'scan' && 'Scanning folder'}
+            {step === 'review' && 'Review upload'}
+            {step === 'upload' && 'Uploading'}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 'pick' && (
+              <>One folder per camera. Each image needs a DateTimeOriginal EXIF tag. Up to {MAX_FILES_PER_JOB.toLocaleString()} images per upload.</>
+            )}
+            {step === 'scan' && (
+              <>Reading EXIF on every image without leaving your browser.</>
+            )}
+            {step === 'review' && (
+              <>Confirm the camera and start uploading.</>
+            )}
+            {step === 'upload' && (
+              <>Streaming files to the server. Keep this tab open until the bar reaches the end.</>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 mt-2">
+          {step === 'pick' && (
+            <PickStep
+              onCancel={closeModal}
+              onFolder={(folderName, files) => {
+                setScanned({ folderName, files, entries: [] });
+                setScanProgress({ done: 0, total: files.length });
+                setStep('scan');
+              }}
+            />
+          )}
+
+          {step === 'scan' && scanned && (
+            <ScanStep
+              files={scanned.files}
+              progress={scanProgress}
+              onProgress={setScanProgress}
+              onCancel={closeModal}
+              onDone={(entries) => {
+                setScanned({ ...scanned, entries });
+                setStep('review');
+              }}
+            />
+          )}
+
+          {step === 'review' && scanned && (
+            <ReviewStep
+              projectId={projectId}
+              folderName={scanned.folderName}
+              files={scanned.files}
+              entries={scanned.entries}
+              onBack={() => setStep('pick')}
+              onCancel={closeModal}
+              onConfirm={() => setStep('upload')}
+            />
+          )}
+
+          {step === 'upload' && scanned && (
+            <UploadStep
+              projectId={projectId}
+              folderName={scanned.folderName}
+              files={scanned.files}
+              entries={scanned.entries}
+              onClose={() => {
+                queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+                onClose();
+              }}
+              onError={(msg) => toast.error(msg)}
+              onSuccess={() => toast.success('Processing started')}
+            />
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ----- PickStep -----
+
+const PickStep: React.FC<{
+  onCancel: () => void;
+  onFolder: (folderName: string, files: File[]) => void;
+}> = ({ onCancel, onFolder }) => {
+  const toast = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  const accept = useCallback(
+    (files: File[], folderName: string) => {
+      const images = files.filter((f) =>
+        /\.(jpe?g|png)$/i.test(f.name)
+      );
+      if (images.length === 0) {
+        toast.error('No JPEG or PNG images found in the folder');
+        return;
+      }
+      if (images.length > MAX_FILES_PER_JOB) {
+        toast.error(
+          `Folder has ${images.length.toLocaleString()} images, the cap is ${MAX_FILES_PER_JOB.toLocaleString()}. Split into smaller batches.`,
+        );
+        return;
+      }
+      const oversize = images.find((f) => f.size > MAX_FILE_SIZE_BYTES);
+      if (oversize) {
+        toast.error(
+          `${oversize.name} is larger than the ${MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB per-file cap`,
+        );
+        return;
+      }
+      onFolder(folderName || 'folder', images);
+    },
+    [onFolder, toast],
+  );
+
+  const onDrop = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      setDragOver(false);
+      setPending(true);
+      try {
+        const items = Array.from(event.dataTransfer.items);
+        const collected: File[] = [];
+        let topLevelName: string | null = null;
+        for (const item of items) {
+          // webkitGetAsEntry is the right cross-browser path for
+          // drag-dropped folders. The user can drag the SD-card folder
+          // straight into the modal and we walk it recursively.
+          const entry = (item as any).webkitGetAsEntry?.() as
+            | (FileSystemDirectoryEntry | FileSystemFileEntry)
+            | null;
+          if (!entry) {
+            const file = item.getAsFile();
+            if (file) collected.push(file);
+            continue;
+          }
+          if (entry.isDirectory) {
+            if (!topLevelName) topLevelName = entry.name;
+            await readDirectoryEntries(entry as FileSystemDirectoryEntry, collected);
+          } else {
+            const file = await getFileFromEntry(entry as FileSystemFileEntry);
+            if (file) collected.push(file);
+          }
+        }
+        accept(collected, topLevelName || 'folder');
+      } finally {
+        setPending(false);
+      }
+    },
+    [accept],
+  );
+
+  const onPickerChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) return;
+      // webkitRelativePath looks like "FolderName/IMG_0001.JPG", so the
+      // top-level directory name is the first segment.
+      const first = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath;
+      const folderName = first ? first.split('/')[0] : 'folder';
+      accept(files, folderName);
+    },
+    [accept],
+  );
+
+  return (
+    <>
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        className={`flex flex-col items-center justify-center gap-2 px-4 py-10 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+          dragOver
+            ? 'border-primary bg-primary/5'
+            : 'border-input hover:border-primary/50'
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          // webkitdirectory triggers the native folder picker in Chromium
+          // and WebKit. Firefox falls back to a multi-select picker that
+          // also works for our scan code.
+          {...({ webkitdirectory: '', directory: '' } as any)}
+          multiple
+          accept="image/jpeg,image/png"
+          className="hidden"
+          onChange={onPickerChange}
+        />
+        <FolderOpen className="h-8 w-8 text-muted-foreground" />
+        {pending ? (
+          <div className="text-sm text-muted-foreground flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Reading folder
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground text-center">
+            Drop the SD-card folder here, or click to pick.
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </>
+  );
+};
+
+async function readDirectoryEntries(
+  dir: FileSystemDirectoryEntry,
+  out: File[],
+): Promise<void> {
+  const reader = dir.createReader();
+  // readEntries returns batches; loop until empty.
+  const batches: FileSystemEntry[][] = [];
+  while (true) {
+    const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+      reader.readEntries(resolve, reject);
+    });
+    if (batch.length === 0) break;
+    batches.push(batch);
+  }
+  for (const batch of batches) {
+    for (const entry of batch) {
+      if (entry.isDirectory) {
+        await readDirectoryEntries(entry as FileSystemDirectoryEntry, out);
+      } else {
+        const file = await getFileFromEntry(entry as FileSystemFileEntry);
+        if (file) out.push(file);
+      }
+    }
+  }
+}
+
+function getFileFromEntry(entry: FileSystemFileEntry): Promise<File | null> {
+  return new Promise((resolve) => {
+    entry.file(resolve, () => resolve(null));
+  });
+}
+
+// ----- ScanStep -----
+
+const ScanStep: React.FC<{
+  files: File[];
+  progress: { done: number; total: number } | null;
+  onProgress: (p: { done: number; total: number }) => void;
+  onCancel: () => void;
+  onDone: (entries: ScanEntry[]) => void;
+}> = ({ files, progress, onProgress, onCancel, onDone }) => {
+  useEffect(() => {
+    const worker = new Worker(
+      new URL('../../workers/bulkScanWorker.ts', import.meta.url),
+      { type: 'module' },
+    );
+    worker.onmessage = (event: MessageEvent<ScanResult>) => {
+      const msg = event.data;
+      if (msg.type === 'progress') {
+        onProgress({ done: msg.done, total: msg.total });
+      } else if (msg.type === 'done') {
+        onDone(msg.entries);
+        worker.terminate();
+      }
+    };
+    worker.postMessage({ files });
+    return () => {
+      worker.terminate();
+    };
+  }, [files, onProgress, onDone]);
+
+  const percent = progress && progress.total > 0
+    ? Math.min(100, Math.round((progress.done / progress.total) * 100))
+    : 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 py-3">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground shrink-0" />
+        <span className="text-sm text-muted-foreground">
+          {progress
+            ? `Reading EXIF, ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()} done.`
+            : 'Starting...'}
+        </span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+// ----- ReviewStep -----
+
+const ReviewStep: React.FC<{
+  projectId: number;
+  folderName: string;
+  files: File[];
+  entries: ScanEntry[];
+  onBack: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}> = ({ projectId, folderName, entries, files, onBack, onCancel, onConfirm }) => {
+  const toast = useToast();
+  const queryClient = useQueryClient();
   const [cameraId, setCameraId] = useState<string>('');
-
-  // Inline camera-create form (only shown when user clicks "+ Add new")
   const [showAddCamera, setShowAddCamera] = useState(false);
   const [newDeviceId, setNewDeviceId] = useState('');
   const [newFriendlyName, setNewFriendlyName] = useState('');
@@ -394,108 +700,96 @@ const BulkUploadModal: React.FC<{
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
-    enabled: open,
   });
 
-  // Reset everything when the modal opens. Resume mode skips the
-  // upload step and jumps straight to inspecting, which the poll
-  // effect then progresses to review once the manifest is ready.
-  useEffect(() => {
-    if (!open) return;
-    setFile(null);
-    setUploadPercent(null);
-    setShowAddCamera(false);
-    setNewDeviceId('');
-    setNewFriendlyName('');
-    setNewLatitude('');
-    setNewLongitude('');
-    if (resumeJobUuid) {
-      setJobUuid(resumeJobUuid);
-      setJob(null);
-      setCameraId('');
-      setStep('inspecting');
-    } else {
-      setStep('upload');
-      setJobUuid(null);
-      setJob(null);
-      setCameraId('');
-    }
-  }, [open, resumeJobUuid]);
-
-  // Poll the job while we're waiting for the inspect phase to finish.
-  useEffect(() => {
-    if (!open || step !== 'inspecting' || !jobUuid) return;
-    let cancelled = false;
-    const tick = async () => {
-      try {
-        const next = await bulkUploadApi.get(projectId, jobUuid);
-        if (cancelled) return;
-        setJob(next);
-        if (next.status === 'awaiting_confirmation') {
-          if (next.manifest?.suggested_camera) {
-            setCameraId(String(next.manifest.suggested_camera.camera_id));
-          }
-          setStep('review');
-        } else if (next.status === 'failed') {
-          toast.error(next.error_message ?? 'Inspection failed');
-          // Stay in inspecting step so the user can see the error;
-          // the modal close button is enabled because no mutation
-          // is in flight.
-        }
-      } catch {
-        // Ignore transient polling errors; next tick will retry.
+  // Compute manifest from the local scan. Same shape the server used
+  // to write itself, so all the downstream UI keeps working.
+  const manifest: BulkUploadManifest = useMemo(() => {
+    const byStatus: Record<string, number> = {};
+    let minDt: string | null = null;
+    let maxDt: string | null = null;
+    const serialCounts: Record<string, number> = {};
+    for (const e of entries) {
+      byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
+      if (e.captured_at) {
+        if (!minDt || e.captured_at < minDt) minDt = e.captured_at;
+        if (!maxDt || e.captured_at > maxDt) maxDt = e.captured_at;
       }
+      if (e.serial) {
+        serialCounts[e.serial] = (serialCounts[e.serial] ?? 0) + 1;
+      }
+    }
+    return {
+      total_entries: entries.length,
+      valid_count: byStatus.valid ?? 0,
+      by_status: byStatus,
+      date_range: { start: minDt, end: maxDt },
+      suggested_camera: null,
+      matched_cameras: [],
     };
-    const id = window.setInterval(tick, 2000);
-    tick();
+  }, [entries]);
+
+  const serialCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of entries) {
+      if (e.serial) counts[e.serial] = (counts[e.serial] ?? 0) + 1;
+    }
+    return counts;
+  }, [entries]);
+
+  // Ask the server which registered camera matches the EXIF
+  // SerialNumbers. Only fires when there's at least one serial; if
+  // every image has no SerialNumber we skip it.
+  const { data: suggest } = useQuery({
+    queryKey: ['bulk-scan-suggest', projectId, serialCounts],
+    queryFn: () => bulkUploadApi.scanSuggest(projectId, serialCounts),
+    enabled: Object.keys(serialCounts).length > 0,
+  });
+
+  // Auto-pick the suggested camera the first time it arrives.
+  useEffect(() => {
+    if (!cameraId && suggest?.suggested_camera) {
+      setCameraId(String(suggest.suggested_camera.camera_id));
+    }
+  }, [suggest, cameraId]);
+
+  const enrichedManifest: BulkUploadManifest = useMemo(() => ({
+    ...manifest,
+    suggested_camera: suggest?.suggested_camera ?? null,
+    matched_cameras: suggest?.matched_cameras ?? [],
+  }), [manifest, suggest]);
+
+  const validCount = manifest.by_status.valid ?? 0;
+  const skipReasonEntries = Object.entries(manifest.by_status).filter(
+    ([k]) => k !== 'valid',
+  );
+
+  // Thumbnail strip: pick up to 8 valid entries spread evenly across
+  // the date range. Render the File objects via createObjectURL.
+  const thumbnails = useMemo(() => {
+    const validEntries = entries
+      .filter((e) => e.status === 'valid' && e.captured_at)
+      .sort((a, b) => (a.captured_at! < b.captured_at! ? -1 : 1));
+    if (validEntries.length === 0) return [];
+    const sampleSize = Math.min(8, validEntries.length);
+    const picks: ScanEntry[] = [];
+    for (let i = 0; i < sampleSize; i++) {
+      const idx = Math.floor((i * (validEntries.length - 1)) / Math.max(1, sampleSize - 1));
+      picks.push(validEntries[idx]);
+    }
+    return picks.map((entry) => ({
+      entry,
+      url: URL.createObjectURL(files[entry.index]),
+    }));
+  }, [entries, files]);
+
+  // Revoke thumbnail URLs when the review step unmounts so we don't
+  // leak memory across modal opens.
+  useEffect(() => {
     return () => {
-      cancelled = true;
-      window.clearInterval(id);
+      for (const t of thumbnails) URL.revokeObjectURL(t.url);
     };
-  }, [open, step, jobUuid, projectId, toast]);
-
-  const closeModal = () => {
-    if (uploadMutation.isPending || confirmMutation.isPending || cancelMutation.isPending) return;
-    onClose();
-  };
-
-  const uploadMutation = useMutation({
-    mutationFn: () => bulkUploadApi.upload(projectId, file!, setUploadPercent),
-    onSuccess: (created) => {
-      setJobUuid(created.uuid);
-      setJob(created);
-      setStep('inspecting');
-      setUploadPercent(null);
-      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-    },
-    onError: (err: any) => {
-      setUploadPercent(null);
-      toast.error(`Upload failed, ${err.response?.data?.detail || err.message}`);
-    },
-  });
-
-  const confirmMutation = useMutation({
-    mutationFn: () => bulkUploadApi.confirm(projectId, jobUuid!, Number(cameraId)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-      toast.success('Processing started');
-      onClose();
-    },
-    onError: (err: any) => {
-      toast.error(`Failed to start processing, ${err.response?.data?.detail || err.message}`);
-    },
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: () => bulkUploadApi.discard(projectId, jobUuid!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-      onClose();
-    },
-    onError: (err: any) => {
-      toast.error(`Discard failed, ${err.response?.data?.detail || err.message}`);
-    },
-  });
+  }, [thumbnails]);
 
   const createCameraMutation = useMutation({
     mutationFn: () => {
@@ -524,258 +818,42 @@ const BulkUploadModal: React.FC<{
     },
   });
 
-  const dropzone = useDropzone({
-    accept: { 'application/zip': ['.zip'] },
-    multiple: false,
-    onDrop: (accepted) => {
-      if (accepted.length > 0) setFile(accepted[0]);
-    },
-  });
+  // Pin the manifest + camera_id on a hidden element when the user
+  // clicks Upload so the UploadStep can pick them up from URL state.
+  // Simpler: we just call onConfirm and the parent state carries them.
+  const handleConfirm = () => {
+    const id = Number(cameraId);
+    if (!id) {
+      toast.error('Pick a camera before uploading');
+      return;
+    }
+    if (validCount === 0) {
+      toast.error('No images can be uploaded from this folder');
+      return;
+    }
+    // Stash the camera id + manifest on a window-scoped channel that
+    // UploadStep reads. Channel-state is fine: the modal owns both.
+    (window as any).__bulkUploadPending = {
+      camera_id: id,
+      folder_name: folderName,
+      manifest: enrichedManifest,
+    };
+    onConfirm();
+  };
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) closeModal();
-      }}
-    >
-      <DialogContent
-        onClose={closeModal}
-        className="max-w-2xl"
-      >
-        <DialogHeader>
-          <DialogTitle>
-            {step === 'upload' && 'New bulk upload'}
-            {step === 'inspecting' && 'Inspecting ZIP'}
-            {(step === 'review' || step === 'submitting') && 'Review upload'}
-          </DialogTitle>
-          <DialogDescription>
-            {step === 'upload' && (
-              <>One ZIP per camera. Each image needs a DateTimeOriginal EXIF tag. Up to 5,000 images and 20 GB per ZIP.</>
-            )}
-            {step === 'inspecting' && (
-              <>Reading EXIF from every image and matching against your registered cameras.</>
-            )}
-            {(step === 'review' || step === 'submitting') && (
-              <>Confirm the camera and start processing.</>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 mt-2">
-          {step === 'upload' && (
-            <UploadStep
-              file={file}
-              setFile={setFile}
-              dropzone={dropzone}
-              uploadPercent={uploadPercent}
-              isUploading={uploadMutation.isPending}
-              onCancel={closeModal}
-              onUpload={() => uploadMutation.mutate()}
-            />
-          )}
-
-          {step === 'inspecting' && (
-            <InspectingStep
-              job={job}
-              isFailed={job?.status === 'failed'}
-              onClose={closeModal}
-            />
-          )}
-
-          {(step === 'review' || step === 'submitting') && job?.manifest && (
-            <ReviewStep
-              manifest={job.manifest}
-              cameras={cameras ?? []}
-              cameraId={cameraId}
-              setCameraId={setCameraId}
-              showAddCamera={showAddCamera}
-              setShowAddCamera={setShowAddCamera}
-              newDeviceId={newDeviceId}
-              setNewDeviceId={setNewDeviceId}
-              newFriendlyName={newFriendlyName}
-              setNewFriendlyName={setNewFriendlyName}
-              newLatitude={newLatitude}
-              setNewLatitude={setNewLatitude}
-              newLongitude={newLongitude}
-              setNewLongitude={setNewLongitude}
-              isCreatingCamera={createCameraMutation.isPending}
-              onCreateCamera={() => createCameraMutation.mutate()}
-              isConfirming={confirmMutation.isPending}
-              isCancelling={cancelMutation.isPending}
-              onCancel={() => cancelMutation.mutate()}
-              onConfirm={() => {
-                setStep('submitting');
-                confirmMutation.mutate();
-              }}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-const UploadStep: React.FC<{
-  file: File | null;
-  setFile: (f: File | null) => void;
-  dropzone: ReturnType<typeof useDropzone>;
-  uploadPercent: number | null;
-  isUploading: boolean;
-  onCancel: () => void;
-  onUpload: () => void;
-}> = ({ file, dropzone, uploadPercent, isUploading, onCancel, onUpload }) => (
-  <>
-    <div
-      {...dropzone.getRootProps()}
-      className={`flex flex-col items-center justify-center gap-2 px-4 py-10 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
-        dropzone.isDragActive
-          ? 'border-primary bg-primary/5'
-          : 'border-input hover:border-primary/50'
-      }`}
-    >
-      <input {...dropzone.getInputProps()} />
-      <FileArchive className="h-8 w-8 text-muted-foreground" />
-      {file ? (
-        <div className="text-sm">
-          <span className="font-medium">{file.name}</span>
-          <span className="text-muted-foreground ml-2">
-            {formatBytes(file.size)}
-          </span>
-        </div>
-      ) : (
-        <div className="text-sm text-muted-foreground text-center">
-          Drop a ZIP here, or click to pick.
-        </div>
-      )}
-    </div>
-
-    {uploadPercent !== null && (
-      <div className="space-y-1">
-        <div className="text-xs text-muted-foreground">
-          Uploading, {uploadPercent}%
-        </div>
-        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-          <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${uploadPercent}%` }}
-          />
-        </div>
-      </div>
-    )}
-
-    <div className="flex justify-end gap-2 pt-2">
-      <Button type="button" variant="outline" onClick={onCancel} disabled={isUploading}>
-        Cancel
-      </Button>
-      <Button type="button" disabled={!file || isUploading} onClick={onUpload}>
-        {isUploading ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            Uploading...
-          </>
-        ) : (
-          <>
-            <Upload className="h-4 w-4 mr-1" />
-            Upload and inspect
-          </>
-        )}
-      </Button>
-    </div>
-  </>
-);
-
-const InspectingStep: React.FC<{
-  job: BulkUploadJob | null;
-  isFailed: boolean;
-  onClose: () => void;
-}> = ({ job, isFailed, onClose }) => (
-  <div className="space-y-4">
-    {isFailed ? (
-      <div className="flex items-start gap-3 p-3 rounded-md bg-red-50 border border-red-200">
-        <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
-        <div className="text-sm text-red-700">
-          {job?.error_message ?? 'Inspection failed'}
-        </div>
-      </div>
-    ) : (
-      <div className="flex items-center gap-3 py-6 justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">
-          Reading EXIF on each image...
-        </span>
-      </div>
-    )}
-    <div className="flex justify-end">
-      <Button type="button" variant="outline" onClick={onClose}>
-        Close
-      </Button>
-    </div>
-  </div>
-);
-
-const ReviewStep: React.FC<{
-  manifest: BulkUploadManifest;
-  cameras: { id: number; name: string }[];
-  cameraId: string;
-  setCameraId: (v: string) => void;
-  showAddCamera: boolean;
-  setShowAddCamera: (v: boolean) => void;
-  newDeviceId: string;
-  setNewDeviceId: (v: string) => void;
-  newFriendlyName: string;
-  setNewFriendlyName: (v: string) => void;
-  newLatitude: string;
-  setNewLatitude: (v: string) => void;
-  newLongitude: string;
-  setNewLongitude: (v: string) => void;
-  isCreatingCamera: boolean;
-  onCreateCamera: () => void;
-  isConfirming: boolean;
-  isCancelling: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}> = ({
-  manifest,
-  cameras,
-  cameraId,
-  setCameraId,
-  showAddCamera,
-  setShowAddCamera,
-  newDeviceId,
-  setNewDeviceId,
-  newFriendlyName,
-  setNewFriendlyName,
-  newLatitude,
-  setNewLatitude,
-  newLongitude,
-  setNewLongitude,
-  isCreatingCamera,
-  onCreateCamera,
-  isConfirming,
-  isCancelling,
-  onCancel,
-  onConfirm,
-}) => {
-  const cameraOptions = cameras.map((c) => ({
+  const cameraOptions = (cameras ?? []).map((c) => ({
     value: String(c.id),
     label: c.name,
   }));
-  const suggested = manifest.suggested_camera;
-  const validCount = manifest.by_status.valid ?? 0;
-  const skipReasonEntries = Object.entries(manifest.by_status).filter(
-    ([k]) => k !== 'valid',
-  );
-  const canConfirm = !!cameraId && validCount > 0 && !isConfirming && !isCancelling;
+  const suggested = suggest?.suggested_camera;
 
   return (
     <div className="space-y-4">
-      {/* Manifest summary */}
       <div className="border rounded-md p-3 space-y-2 bg-muted/30">
         <div className="text-sm">
-          <span className="font-medium">{manifest.total_entries}</span>
-          {' images in the zip, '}
-          <span className="font-medium">{validCount}</span>
+          <span className="font-medium">{manifest.total_entries.toLocaleString()}</span>
+          {' images in the folder, '}
+          <span className="font-medium">{validCount.toLocaleString()}</span>
           {' ready to process'}
           {skipReasonEntries.length > 0 && (
             <>
@@ -800,7 +878,22 @@ const ReviewStep: React.FC<{
         )}
       </div>
 
-      {/* Camera picker */}
+      {thumbnails.length > 0 && (
+        <div className="space-y-1">
+          <div className="text-xs text-muted-foreground">Sample, spread across the date range.</div>
+          <div className="flex gap-1.5 overflow-x-auto">
+            {thumbnails.map((t) => (
+              <img
+                key={t.entry.index}
+                src={t.url}
+                alt=""
+                className="h-16 w-16 object-cover rounded border border-input shrink-0"
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         <label className="text-sm font-medium">Camera</label>
         {!showAddCamera ? (
@@ -851,7 +944,7 @@ const ReviewStep: React.FC<{
                   type="text"
                   value={newDeviceId}
                   onChange={(e) => setNewDeviceId(e.target.value)}
-                  placeholder="SIM ICCID or serial"
+                  placeholder="EXIF serial or other unique id"
                   className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
                 />
               </div>
@@ -891,10 +984,10 @@ const ReviewStep: React.FC<{
             <Button
               type="button"
               size="sm"
-              disabled={!newDeviceId.trim() || isCreatingCamera}
-              onClick={onCreateCamera}
+              disabled={!newDeviceId.trim() || createCameraMutation.isPending}
+              onClick={() => createCameraMutation.mutate()}
             >
-              {isCreatingCamera ? (
+              {createCameraMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
                 <CameraIcon className="h-4 w-4 mr-1" />
@@ -906,49 +999,209 @@ const ReviewStep: React.FC<{
       </div>
 
       <div className="flex justify-between gap-2 pt-2">
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onBack}>
+            Back
+          </Button>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
         <Button
           type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isConfirming || isCancelling}
+          disabled={!cameraId || validCount === 0}
+          onClick={handleConfirm}
         >
-          {isCancelling ? (
-            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-          ) : null}
-          Discard
-        </Button>
-        <Button type="button" disabled={!canConfirm} onClick={onConfirm}>
-          {isConfirming ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              Starting...
-            </>
-          ) : (
-            <>
-              <Check className="h-4 w-4 mr-1" />
-              Process {validCount} image{validCount === 1 ? '' : 's'}
-            </>
-          )}
+          <Upload className="h-4 w-4 mr-1" />
+          Upload {validCount.toLocaleString()} image{validCount === 1 ? '' : 's'}
         </Button>
       </div>
     </div>
   );
 };
 
+// ----- UploadStep -----
+
+const UploadStep: React.FC<{
+  projectId: number;
+  folderName: string;
+  files: File[];
+  entries: ScanEntry[];
+  onClose: () => void;
+  onError: (msg: string) => void;
+  onSuccess: () => void;
+}> = ({ projectId, files, entries, onClose, onError, onSuccess }) => {
+  const queryClient = useQueryClient();
+  const [uploaded, setUploaded] = useState(0);
+  const [failed, setFailed] = useState(0);
+  const [done, setDone] = useState(false);
+  const cancelledRef = useRef(false);
+
+  // Only valid entries get uploaded. Same indexes the worker sees.
+  const validEntries = useMemo(
+    () => entries.filter((e) => e.status === 'valid'),
+    [entries],
+  );
+  const total = validEntries.length;
+
+  useEffect(() => {
+    let mounted = true;
+    cancelledRef.current = false;
+
+    const run = async () => {
+      const pending = (window as any).__bulkUploadPending as
+        | { camera_id: number; folder_name: string; manifest: BulkUploadManifest }
+        | undefined;
+      if (!pending) {
+        onError('Lost the review context, please retry from the start');
+        return;
+      }
+      (window as any).__bulkUploadPending = undefined;
+
+      let job: BulkUploadJob;
+      try {
+        job = await bulkUploadApi.createJob(projectId, {
+          folder_name: pending.folder_name,
+          camera_id: pending.camera_id,
+          total_files: total,
+          manifest: pending.manifest,
+        });
+      } catch (err: any) {
+        onError(`Failed to create job, ${err.response?.data?.detail || err.message}`);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+
+      const queue = validEntries.map((e, i) => ({ entry: e, position: i }));
+      let cursor = 0;
+
+      const worker = async () => {
+        while (true) {
+          if (cancelledRef.current) return;
+          const next = queue[cursor];
+          if (!next) return;
+          cursor += 1;
+          const { entry, position } = next;
+          let attempt = 0;
+          // Per-file retry. Network blips during a 20 GB upload are
+          // routine; a few automatic retries beats the user babysitting.
+          while (attempt < UPLOAD_RETRIES) {
+            try {
+              await bulkUploadApi.uploadFile(
+                projectId,
+                job.uuid,
+                position,
+                files[entry.index],
+              );
+              if (mounted) setUploaded((n) => n + 1);
+              break;
+            } catch (err: any) {
+              attempt += 1;
+              if (attempt >= UPLOAD_RETRIES) {
+                if (mounted) setFailed((n) => n + 1);
+              } else {
+                await new Promise((r) => setTimeout(r, 500 * attempt));
+              }
+            }
+          }
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: UPLOAD_CONCURRENCY }, () => worker()),
+      );
+
+      if (cancelledRef.current) {
+        try {
+          await bulkUploadApi.cancel(projectId, job.uuid);
+        } catch {
+          // ignore, the row already shows as failed via cancel-best-effort
+        }
+        return;
+      }
+
+      try {
+        await bulkUploadApi.finalize(projectId, job.uuid);
+        if (mounted) setDone(true);
+        onSuccess();
+        queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      } catch (err: any) {
+        onError(`Failed to start processing, ${err.response?.data?.detail || err.message}`);
+      }
+    };
+
+    run();
+
+    return () => {
+      mounted = false;
+    };
+  }, [projectId, queryClient, total, files, validEntries, onError, onSuccess]);
+
+  const percent = total > 0 ? Math.min(100, Math.round((uploaded / total) * 100)) : 100;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <div className="text-sm">
+          {done ? (
+            <span className="text-primary font-medium inline-flex items-center gap-1">
+              <Check className="h-4 w-4" /> Upload complete, processing has started.
+            </span>
+          ) : (
+            <>
+              <span className="font-medium">{uploaded.toLocaleString()}</span>
+              {' of '}
+              <span className="font-medium">{total.toLocaleString()}</span>
+              {' uploaded.'}
+              {failed > 0 && (
+                <span className="text-destructive ml-2">
+                  {failed.toLocaleString()} failed.
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${percent}%` }}
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-2">
+        {!done ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              cancelledRef.current = true;
+              onClose();
+            }}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Cancel and discard
+          </Button>
+        ) : (
+          <Button type="button" onClick={onClose}>
+            Close
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ----- JobRow -----
+
 function jobSummaryText(job: BulkUploadJob): string {
   const summary = job.manifest?.process_summary;
   if (!summary) {
-    // Worker hasn't finished the process phase yet, so it has not
-    // written the breakdown. Fall back to the aggregate count.
     return `${job.processed_files} of ${job.total_files} processed`
       + (job.skipped_files > 0 ? `, ${job.skipped_files} skipped` : '');
   }
   const queued = summary.queued_for_pipeline;
   const dups = summary.duplicates;
   const others = summary.other_skipped;
-  // "Done" with zero new images is almost always all-duplicates, so
-  // lead with that. Don't say "0 of N processed" because it reads as
-  // failure when it's actually correct dedupe behaviour.
   if (queued === 0 && dups > 0 && others === 0) {
     return `All ${dups} images were already in the project, nothing new added`;
   }
@@ -956,8 +1209,6 @@ function jobSummaryText(job: BulkUploadJob): string {
     return `No new images added, ${dups} duplicate${dups === 1 ? '' : 's'}`
       + (others > 0 ? `, ${others} other skipped` : '');
   }
-  // Mixed or all-processed case: show what landed plus a parenthetical
-  // breakdown of the skips when present.
   const processed = job.processed_files;
   const skipParts: string[] = [];
   if (dups > 0) skipParts.push(`${dups} duplicate${dups === 1 ? '' : 's'}`);
@@ -965,7 +1216,6 @@ function jobSummaryText(job: BulkUploadJob): string {
   return `${processed} of ${queued} classified`
     + (skipParts.length ? `, ${skipParts.join(', ')}` : '');
 }
-
 
 function buildResultsHref(projectId: number, job: BulkUploadJob): string | null {
   if (job.status !== 'done' || job.camera_id == null) return null;
@@ -975,10 +1225,6 @@ function buildResultsHref(projectId: number, job: BulkUploadJob): string | null 
   const end = job.manifest?.date_range?.end;
   if (start) params.set('date_from', start.slice(0, 10));
   if (end) params.set('date_to', end.slice(0, 10));
-  // Without this the Images page hides anything with no visible
-  // detection, so empty-frame classifications from the bulk batch
-  // (sensor triggered, nothing in shot) silently disappear from
-  // the View images view and the user wonders where they went.
   params.set('show_empty', 'true');
   return `/projects/${projectId}/images?${params.toString()}`;
 }
@@ -987,25 +1233,19 @@ const JobRow: React.FC<{
   job: BulkUploadJob;
   projectId: number;
   etaText: string | null;
-  onResume?: () => void;
   onDiscard?: () => void;
   isDiscarding?: boolean;
-}> = ({ job, projectId, etaText, onResume, onDiscard, isDiscarding }) => {
+}> = ({ job, projectId, etaText, onDiscard, isDiscarding }) => {
   const total = Math.max(job.total_files, 1);
   const done = job.processed_files + job.skipped_files;
   const percent = Math.min(100, Math.round((done / total) * 100));
   const isTerminal = TERMINAL_STATUSES.has(job.status);
   const showBar = job.status === 'processing';
-  const canReview = job.status === 'awaiting_confirmation' && !!onResume;
   const resultsHref = buildResultsHref(projectId, job);
 
   return (
-    <div
-      className={canReview ? 'cursor-pointer hover:bg-muted/40 -mx-3 px-3 py-1 rounded' : ''}
-      onClick={canReview ? onResume : undefined}
-    >
+    <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-        {/* Left col: title with inline status badge, then caption. */}
         <div className="w-full sm:w-1/2 sm:shrink-0 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <label className="text-sm font-medium truncate">
@@ -1027,11 +1267,7 @@ const JobRow: React.FC<{
             {etaText && (
               <>
                 <br />
-                {job.status === 'queued'
-                  ? `Starts in ${etaText}.`
-                  : job.status === 'inspecting'
-                    ? `Reading ZIP, ${etaText} left.`
-                    : `Processing, ${etaText} left.`}
+                Processing, {etaText} left.
               </>
             )}
             {isTerminal && (
@@ -1043,22 +1279,7 @@ const JobRow: React.FC<{
           </p>
         </div>
 
-        {/* Right col: actions. All buttons are size="sm" variant="outline"
-            with text plus icon-first for visual consistency. */}
         <div className="flex-1 flex items-center justify-end gap-2 flex-wrap">
-          {canReview && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onResume?.();
-              }}
-            >
-              <Eye className="h-4 w-4 mr-1" />
-              Review
-            </Button>
-          )}
           {resultsHref && (
             <Link to={resultsHref}>
               <Button size="sm" variant="outline">
@@ -1071,10 +1292,7 @@ const JobRow: React.FC<{
             <Button
               size="sm"
               variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDiscard();
-              }}
+              onClick={onDiscard}
               disabled={isDiscarding}
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
@@ -1089,9 +1307,6 @@ const JobRow: React.FC<{
         </div>
       </div>
 
-      {/* Full-width progress bar for in-flight jobs sits below the
-          two-column row, where it can stretch without crowding the
-          actions. */}
       {showBar && (
         <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden mt-3">
           <div
