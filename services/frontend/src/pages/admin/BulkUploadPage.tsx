@@ -412,6 +412,12 @@ function manifestsLookCompatible(job: BulkUploadJob, entries: ScanEntry[]): bool
   );
 }
 
+interface UploadContext {
+  camera_id: number;
+  folder_name: string;
+  manifest: BulkUploadManifest;
+}
+
 const BulkUploadModal: React.FC<{
   open: boolean;
   onClose: () => void;
@@ -428,6 +434,10 @@ const BulkUploadModal: React.FC<{
   // the camera-pick step, jumps straight from scan to upload, and
   // tells UploadStep to fetch the existing job's uploaded-indexes.
   const [resumeJob, setResumeJob] = useState<BulkUploadJob | null>(null);
+  // Upload-step inputs are lifted to the modal so they survive any
+  // re-render that strict-mode or a parent state change might cause.
+  // Stashing them on window had a re-run bug.
+  const [uploadContext, setUploadContext] = useState<UploadContext | null>(null);
 
   // Reset everything when the modal opens.
   useEffect(() => {
@@ -436,7 +446,23 @@ const BulkUploadModal: React.FC<{
     setScanned(null);
     setScanProgress(null);
     setResumeJob(null);
+    setUploadContext(null);
   }, [open]);
+
+  // Stable callbacks so UploadStep's effect doesn't retrigger on
+  // every parent render and replay its run() logic.
+  const handleUploadError = useCallback(
+    (msg: string) => toast.error(msg),
+    [toast],
+  );
+  const handleUploadSuccess = useCallback(
+    () => toast.success('Processing started'),
+    [toast],
+  );
+  const handleUploadClose = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+    onClose();
+  }, [queryClient, projectId, onClose]);
 
   const closeModal = () => {
     onClose();
@@ -527,23 +553,24 @@ const BulkUploadModal: React.FC<{
               entries={scanned.entries}
               onBack={() => setStep('pick')}
               onCancel={closeModal}
-              onConfirm={() => setStep('upload')}
+              onConfirm={(ctx) => {
+                setUploadContext(ctx);
+                setStep('upload');
+              }}
             />
           )}
 
-          {step === 'upload' && scanned && (
+          {step === 'upload' && scanned && (resumeJob || uploadContext) && (
             <UploadStep
               projectId={projectId}
               folderName={scanned.folderName}
               files={scanned.files}
               entries={scanned.entries}
               resumeJob={resumeJob}
-              onClose={() => {
-                queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-                onClose();
-              }}
-              onError={(msg) => toast.error(msg)}
-              onSuccess={() => toast.success('Processing started')}
+              uploadContext={uploadContext}
+              onClose={handleUploadClose}
+              onError={handleUploadError}
+              onSuccess={handleUploadSuccess}
             />
           )}
         </div>
@@ -841,7 +868,7 @@ const ReviewStep: React.FC<{
   entries: ScanEntry[];
   onBack: () => void;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: (ctx: UploadContext) => void;
 }> = ({ projectId, folderName, entries, files, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -1006,9 +1033,6 @@ const ReviewStep: React.FC<{
     return true;
   };
 
-  // Pin the manifest + camera_id on a hidden element when the user
-  // clicks Upload so the UploadStep can pick them up from URL state.
-  // Simpler: we just call onConfirm and the parent state carries them.
   const handleConfirm = () => {
     const id = Number(cameraId);
     if (!id) {
@@ -1019,14 +1043,11 @@ const ReviewStep: React.FC<{
       toast.error('No images can be uploaded from this folder');
       return;
     }
-    // Stash the camera id + manifest on a window-scoped channel that
-    // UploadStep reads. Channel-state is fine: the modal owns both.
-    (window as any).__bulkUploadPending = {
+    onConfirm({
       camera_id: id,
       folder_name: folderName,
       manifest: enrichedManifest,
-    };
-    onConfirm();
+    });
   };
 
   const cameraOptions = (cameras ?? []).map((c) => ({
@@ -1220,16 +1241,21 @@ const UploadStep: React.FC<{
   files: File[];
   entries: ScanEntry[];
   resumeJob: BulkUploadJob | null;
+  uploadContext: UploadContext | null;
   onClose: () => void;
   onError: (msg: string) => void;
   onSuccess: () => void;
-}> = ({ projectId, files, entries, resumeJob, onClose, onError, onSuccess }) => {
+}> = ({ projectId, files, entries, resumeJob, uploadContext, onClose, onError, onSuccess }) => {
   const queryClient = useQueryClient();
   const [uploaded, setUploaded] = useState(0);
   const [skipped, setSkipped] = useState(0);
   const [failed, setFailed] = useState(0);
   const [done, setDone] = useState(false);
   const cancelledRef = useRef(false);
+  // The effect below kicks off real work, network calls, and DB
+  // writes. It must run exactly once per UploadStep mount. The deps
+  // array fires on any parent re-render, so guard with a ref.
+  const startedRef = useRef(false);
 
   // Sort valid entries by relative_path so the per-file position is
   // stable across resume sessions even if the browser walks the
@@ -1244,6 +1270,8 @@ const UploadStep: React.FC<{
   const total = validEntries.length;
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     let mounted = true;
     cancelledRef.current = false;
 
@@ -1261,22 +1289,13 @@ const UploadStep: React.FC<{
           return;
         }
         if (mounted) setSkipped(alreadyUploaded.size);
-      } else {
-        const pending = (window as any).__bulkUploadPending as
-          | { camera_id: number; folder_name: string; manifest: BulkUploadManifest }
-          | undefined;
-        if (!pending) {
-          onError('Lost the review context, please retry from the start');
-          return;
-        }
-        (window as any).__bulkUploadPending = undefined;
-
+      } else if (uploadContext) {
         try {
           const created = await bulkUploadApi.createJob(projectId, {
-            folder_name: pending.folder_name,
-            camera_id: pending.camera_id,
+            folder_name: uploadContext.folder_name,
+            camera_id: uploadContext.camera_id,
             total_files: total,
-            manifest: pending.manifest,
+            manifest: uploadContext.manifest,
           });
           jobUuid = created.uuid;
         } catch (err: any) {
@@ -1284,6 +1303,10 @@ const UploadStep: React.FC<{
           return;
         }
         queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      } else {
+        // Parent should not let us mount without either context.
+        onError('Missing upload context, please retry from the start');
+        return;
       }
 
       const queue = validEntries
@@ -1351,7 +1374,7 @@ const UploadStep: React.FC<{
     return () => {
       mounted = false;
     };
-  }, [projectId, queryClient, total, files, validEntries, resumeJob, onError, onSuccess]);
+  }, [projectId, queryClient, total, files, validEntries, resumeJob, uploadContext, onError, onSuccess]);
 
   const completed = uploaded + skipped;
   const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 100;
