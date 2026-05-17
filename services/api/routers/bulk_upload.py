@@ -102,6 +102,15 @@ class ScanSuggestResponse(BaseModel):
     suggested_camera: Optional[Dict[str, Any]] = None
 
 
+class CheckDuplicatesRequest(BaseModel):
+    """Hash list to check against existing Image rows in this project."""
+    hashes: List[str] = Field(default_factory=list)
+
+
+class CheckDuplicatesResponse(BaseModel):
+    duplicate_hashes: List[str]
+
+
 def _staging_prefix(project_id: int, job_uuid: str) -> str:
     """MinIO key prefix that holds every file for one bulk-upload job."""
     return f"{project_id}/{job_uuid}/"
@@ -313,6 +322,37 @@ async def scan_suggest(
             suggested = top
 
     return ScanSuggestResponse(matched_cameras=matched, suggested_camera=suggested)
+
+
+@router.post("/check-duplicates", response_model=CheckDuplicatesResponse)
+async def check_duplicates(
+    project_id: int,
+    body: CheckDuplicatesRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Return the subset of the client's hash list that already exists
+    in this project. Used by the pre-flight scan to warn the user
+    about duplicates before they pay the upload cost.
+
+    Project-wide check rather than per-camera. Identical bytes across
+    two cameras is essentially impossible, so a project match is a
+    reliable duplicate signal regardless of which camera the user
+    will eventually pick.
+    """
+    if not body.hashes:
+        return CheckDuplicatesResponse(duplicate_hashes=[])
+    rows = await db.execute(
+        select(Image.content_hash)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            Camera.project_id == project_id,
+            Image.content_hash.in_(body.hashes),
+        )
+    )
+    seen = {h for (h,) in rows.all() if h}
+    return CheckDuplicatesResponse(duplicate_hashes=list(seen))
 
 
 @router.post("/jobs", status_code=status.HTTP_201_CREATED, response_model=BulkUploadJobResponse)

@@ -24,6 +24,10 @@ export interface ScanEntry {
   size: number;
   captured_at: string | null;
   serial: string | null;
+  // SHA-256 of the full file. Only filled in for status='valid' so we
+  // don't pay the hashing cost on rejects. Sent to the API to ask
+  // "which of these already exist?" before the user commits to upload.
+  content_hash: string | null;
   status: 'valid' | 'missing_exif_datetime' | 'corrupt';
 }
 
@@ -106,6 +110,7 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     size: file.size,
     captured_at: null,
     serial: null,
+    content_hash: null,
     status: 'corrupt',
   };
   try {
@@ -133,15 +138,37 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     const rawSerial = meta.BodySerialNumber ?? meta.SerialNumber ?? null;
     const serial =
       rawSerial !== null && rawSerial !== undefined ? String(rawSerial).trim() : null;
+
+    // SHA-256 of the full file matches the server-side dedup key
+    // (services/bulk-upload/worker.py uses the same hash). We only pay
+    // this cost on entries that survived the EXIF check, since
+    // anything else is going to be skipped anyway.
+    const hash = await withTimeout(hashFile(file), PER_FILE_TIMEOUT_MS);
+
     return {
       ...base,
       status: 'valid',
       captured_at: dt.toISOString(),
       serial: serial && serial.length > 0 ? serial : null,
+      content_hash: hash,
     };
   } catch {
     return base;
   }
+}
+
+async function hashFile(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  const out = new Array<string>(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    out[i] = bytes[i].toString(16).padStart(2, '0');
+  }
+  return out.join('');
 }
 
 function parseExifDate(value: Date | string): Date | null {

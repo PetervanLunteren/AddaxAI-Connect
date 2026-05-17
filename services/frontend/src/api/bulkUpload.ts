@@ -103,6 +103,23 @@ export const bulkUploadApi = {
   },
 
   /**
+   * Return the subset of the given SHA-256 hashes that already exist
+   * in this project's Image rows. Used in the pre-flight scan to
+   * surface duplicates before the user pays the upload cost.
+   */
+  checkDuplicates: async (
+    projectId: number,
+    hashes: string[],
+  ): Promise<string[]> => {
+    if (hashes.length === 0) return [];
+    const response = await apiClient.post<{ duplicate_hashes: string[] }>(
+      `/api/projects/${projectId}/bulk-upload/check-duplicates`,
+      { hashes },
+    );
+    return response.data.duplicate_hashes;
+  },
+
+  /**
    * Create an empty job. Returns the job uuid which the client uses
    * for every per-file POST.
    */

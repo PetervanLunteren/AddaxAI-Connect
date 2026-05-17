@@ -161,6 +161,7 @@ function computeEta(
 
 const STATUS_LABELS: Record<string, string> = {
   valid: 'ready to process',
+  duplicate: 'already in the project',
   missing_exif_datetime: 'missing EXIF date',
   corrupt: 'corrupt or unreadable',
 };
@@ -416,6 +417,10 @@ interface UploadContext {
   camera_id: number;
   folder_name: string;
   manifest: BulkUploadManifest;
+  // Hashes flagged as project duplicates during pre-flight. The
+  // upload step skips files matching these so we don't waste
+  // bandwidth on bytes the server would just dedup away.
+  excluded_hashes: string[];
 }
 
 const BulkUploadModal: React.FC<{
@@ -922,6 +927,33 @@ const ReviewStep: React.FC<{
     return counts;
   }, [entries]);
 
+  const validHashes = useMemo(() => {
+    const out: string[] = [];
+    for (const e of entries) {
+      if (e.status === 'valid' && e.content_hash) out.push(e.content_hash);
+    }
+    return out;
+  }, [entries]);
+
+  // Pre-flight duplicate hit count. Asks the server which of the
+  // scanned hashes already match Image rows in this project, so the
+  // review summary can say "12 already in the project" instead of
+  // the user finding out only after the bytes have been uploaded.
+  const { data: duplicateHashes } = useQuery({
+    queryKey: ['bulk-check-duplicates', projectId, validHashes],
+    queryFn: () => bulkUploadApi.checkDuplicates(projectId, validHashes),
+    enabled: validHashes.length > 0,
+  });
+  const duplicateCount = useMemo(() => {
+    if (!duplicateHashes || duplicateHashes.length === 0) return 0;
+    const set = new Set(duplicateHashes);
+    let n = 0;
+    for (const e of entries) {
+      if (e.status === 'valid' && e.content_hash && set.has(e.content_hash)) n++;
+    }
+    return n;
+  }, [entries, duplicateHashes]);
+
   // Ask the server which registered camera matches the EXIF
   // SerialNumbers. Only fires when there's at least one serial; if
   // every image has no SerialNumber we skip it.
@@ -956,10 +988,16 @@ const ReviewStep: React.FC<{
     timestamp_issues: timestampIssues || undefined,
   }), [manifest, suggest, timestampIssues]);
 
-  const validCount = manifest.by_status.valid ?? 0;
-  const skipReasonEntries = Object.entries(manifest.by_status).filter(
-    ([k]) => k !== 'valid',
-  );
+  const rawValidCount = manifest.by_status.valid ?? 0;
+  // Effective "uploadable" count after removing project-wide duplicate
+  // hits returned by /check-duplicates. The actual server-side dedup
+  // is per-camera, but a project match is a reliable signal because
+  // the same content_hash across cameras is astronomically unlikely.
+  const validCount = Math.max(0, rawValidCount - duplicateCount);
+  const skipReasonEntries: [string, number][] = [
+    ...(duplicateCount > 0 ? ([['duplicate', duplicateCount]] as [string, number][]) : []),
+    ...(Object.entries(manifest.by_status).filter(([k]) => k !== 'valid') as [string, number][]),
+  ];
 
   // Thumbnail strip: pick up to 8 valid entries spread evenly across
   // the date range. Render the File objects via createObjectURL.
@@ -1047,6 +1085,7 @@ const ReviewStep: React.FC<{
       camera_id: id,
       folder_name: folderName,
       manifest: enrichedManifest,
+      excluded_hashes: duplicateHashes ?? [],
     });
   };
 
@@ -1259,13 +1298,22 @@ const UploadStep: React.FC<{
 
   // Sort valid entries by relative_path so the per-file position is
   // stable across resume sessions even if the browser walks the
-  // directory in a different order.
+  // directory in a different order. Also filter out anything the
+  // pre-flight duplicate check flagged so the upload skips them.
+  const excludedSet = useMemo(
+    () => new Set(uploadContext?.excluded_hashes ?? []),
+    [uploadContext],
+  );
   const validEntries = useMemo(
     () =>
       entries
-        .filter((e) => e.status === 'valid')
+        .filter(
+          (e) =>
+            e.status === 'valid'
+            && !(e.content_hash && excludedSet.has(e.content_hash)),
+        )
         .sort((a, b) => a.relative_path.localeCompare(b.relative_path)),
-    [entries],
+    [entries, excludedSet],
   );
   const total = validEntries.length;
 
