@@ -103,12 +103,22 @@ class ScanSuggestResponse(BaseModel):
 
 
 class CheckDuplicatesRequest(BaseModel):
-    """Hash list to check against existing Image rows in this project."""
-    hashes: List[str] = Field(default_factory=list)
+    """
+    Fingerprint check: for the picked camera, how many Image rows
+    exist at each of these naive EXIF timestamps? Cheap alternative
+    to content-hash dedup, one indexed lookup on Image.captured_at.
+    """
+    camera_id: int
+    captured_ats: List[str] = Field(default_factory=list)
 
 
 class CheckDuplicatesResponse(BaseModel):
-    duplicate_hashes: List[str]
+    # captured_at iso -> count of matching Image rows on that camera.
+    # The client uses the count to decide whether a skip is safe: a
+    # single match against a single scan entry is unambiguous, but
+    # multi-match (burst mode) is ambiguous and must be sent through
+    # so the server's content-hash dedup can sort it out.
+    duplicate_counts: Dict[str, int]
 
 
 def _staging_prefix(project_id: int, job_uuid: str) -> str:
@@ -332,27 +342,66 @@ async def check_duplicates(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Return the subset of the client's hash list that already exists
-    in this project. Used by the pre-flight scan to warn the user
-    about duplicates before they pay the upload cost.
-
-    Project-wide check rather than per-camera. Identical bytes across
-    two cameras is essentially impossible, so a project match is a
-    reliable duplicate signal regardless of which camera the user
-    will eventually pick.
+    For the picked camera, return the naive EXIF timestamps that
+    already exist on an Image row. Used by the pre-flight scan to
+    show "N already in the project" before the user pays the upload
+    cost. Camera-scoped so two cameras firing at the same second do
+    not produce a false positive across cameras.
     """
-    if not body.hashes:
-        return CheckDuplicatesResponse(duplicate_hashes=[])
-    rows = await db.execute(
-        select(Image.content_hash)
-        .join(Camera, Image.camera_id == Camera.id)
-        .where(
-            Camera.project_id == project_id,
-            Image.content_hash.in_(body.hashes),
+    if not body.captured_ats:
+        return CheckDuplicatesResponse(duplicate_counts={})
+
+    # Verify the camera belongs to this project, otherwise this is a
+    # cross-project query attempt.
+    cam = (
+        await db.execute(
+            select(Camera.id).where(
+                Camera.id == body.camera_id,
+                Camera.project_id == project_id,
+            )
         )
+    ).scalar_one_or_none()
+    if cam is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Camera does not belong to this project",
+        )
+
+    # Parse the client's naive ISO strings into Python naive
+    # datetimes. captured_at is stored without tzinfo per the
+    # camera-clock rule in DEVELOPERS.md, so the comparison must use
+    # naive values as well; passing aware datetimes would crash the
+    # query with a tz-mismatch error.
+    parsed: List[datetime] = []
+    for value in body.captured_ats:
+        try:
+            dt = datetime.fromisoformat(value)
+        except ValueError:
+            continue
+        if dt.tzinfo is not None:
+            # Drop the tz; everything in this column is camera-clock
+            # naive. The client should not send an offset here.
+            dt = dt.replace(tzinfo=None)
+        parsed.append(dt)
+    if not parsed:
+        return CheckDuplicatesResponse(duplicate_counts={})
+
+    rows = await db.execute(
+        select(Image.captured_at, func.count(Image.id))
+        .where(
+            Image.camera_id == body.camera_id,
+            Image.captured_at.in_(parsed),
+        )
+        .group_by(Image.captured_at)
     )
-    seen = {h for (h,) in rows.all() if h}
-    return CheckDuplicatesResponse(duplicate_hashes=list(seen))
+    counts: Dict[str, int] = {}
+    for dt, n in rows.all():
+        if dt is None:
+            continue
+        # Echo back in the ISO shape the client sent so the frontend
+        # can build a Map without timezone gymnastics.
+        counts[dt.strftime("%Y-%m-%dT%H:%M:%S")] = int(n)
+    return CheckDuplicatesResponse(duplicate_counts=counts)
 
 
 @router.post("/jobs", status_code=status.HTTP_201_CREATED, response_model=BulkUploadJobResponse)

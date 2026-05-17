@@ -22,12 +22,12 @@ export interface ScanEntry {
   // upload a deterministic position in the staging key.
   relative_path: string;
   size: number;
+  // Naive ISO 8601 datetime ("YYYY-MM-DDTHH:MM:SS"), no TZ marker.
+  // Matches the camera-clock convention in DEVELOPERS.md so the
+  // pre-flight duplicate check can compare directly against
+  // Image.captured_at without timezone shifting.
   captured_at: string | null;
   serial: string | null;
-  // SHA-256 of the full file. Only filled in for status='valid' so we
-  // don't pay the hashing cost on rejects. Sent to the API to ask
-  // "which of these already exist?" before the user commits to upload.
-  content_hash: string | null;
   status: 'valid' | 'missing_exif_datetime' | 'corrupt';
 }
 
@@ -48,18 +48,19 @@ interface ScanRequest {
   files: File[];
 }
 
-const PROGRESS_EVERY = 10;
+const PROGRESS_EVERY = 25;
 // exifr can hang indefinitely on some malformed or oversized images.
 // Race every parse against a wall-clock timeout so a single bad file
-// can't freeze the whole scan. 5 s is more than enough for the EXIF
-// header on any normal camera-trap JPEG.
-const PER_FILE_TIMEOUT_MS = 5000;
+// can't freeze the whole scan. 2 s is plenty for a 256 KB head read
+// on any normal camera-trap JPEG.
+const PER_FILE_TIMEOUT_MS = 2000;
 const HEAD_BYTES = 256 * 1024;
-// Hash + EXIF in parallel. The bottleneck is file IO, not crypto,
-// and the browser can overlap several arrayBuffer() reads with
-// hashes that are already running. 4 keeps peak memory bounded
-// (4 x file size) and gives a 3-4x throughput vs sequential.
-const SCAN_CONCURRENCY = 4;
+// EXIF reads are cheap (~5 ms per file on a small head slice). We
+// still parallelize because file.slice() + arrayBuffer() does real
+// IO, and overlapping a few reads keeps the pipeline full. 8 is a
+// safe upper bound: most browsers cap IO concurrency around this
+// anyway, and memory stays trivial (8 x 256 KB = 2 MB peak).
+const SCAN_CONCURRENCY = 8;
 
 self.onmessage = async (event: MessageEvent<ScanRequest>) => {
   const { files } = event.data;
@@ -127,21 +128,15 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     size: file.size,
     captured_at: null,
     serial: null,
-    content_hash: null,
     status: 'corrupt',
   };
   try {
-    // Read the file ONCE and reuse the buffer for both EXIF (header
-    // slice) and the SHA-256 (whole buffer). Reading twice doubles
-    // disk IO for no benefit; ArrayBuffer.slice is a cheap view, no
-    // copy in modern browsers.
-    const buf = await withTimeout(file.arrayBuffer(), PER_FILE_TIMEOUT_MS * 2);
-    if (!buf) return base;
-
-    const headLen = Math.min(HEAD_BYTES, buf.byteLength);
-    const head = buf.slice(0, headLen);
+    // Read only the EXIF block, the first ~256 KB of any normal
+    // JPEG. No full-file read, no hashing. The pre-flight duplicate
+    // check now uses (camera_id, captured_at), not bytes.
+    const head = file.slice(0, HEAD_BYTES);
     const meta = (await withTimeout(
-      exifr.parse(head),
+      exifr.parse(head as Blob),
       PER_FILE_TIMEOUT_MS,
     )) as
       | {
@@ -153,60 +148,43 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     if (!meta || !meta.DateTimeOriginal) {
       return { ...base, status: 'missing_exif_datetime' };
     }
-    const dt = parseExifDate(meta.DateTimeOriginal);
-    if (!dt) {
+    const naive = parseExifDateNaive(meta.DateTimeOriginal);
+    if (!naive) {
       return { ...base, status: 'missing_exif_datetime' };
     }
     const rawSerial = meta.BodySerialNumber ?? meta.SerialNumber ?? null;
     const serial =
       rawSerial !== null && rawSerial !== undefined ? String(rawSerial).trim() : null;
 
-    // SHA-256 over the same buffer we already loaded. Matches the
-    // server-side dedup key (services/bulk-upload/worker.py uses the
-    // same hash).
-    const digest = await withTimeout(
-      crypto.subtle.digest('SHA-256', buf),
-      PER_FILE_TIMEOUT_MS,
-    );
-    if (!digest) return base;
-    const hash = bytesToHex(new Uint8Array(digest));
-
     return {
       ...base,
       status: 'valid',
-      captured_at: dt.toISOString(),
+      captured_at: naive,
       serial: serial && serial.length > 0 ? serial : null,
-      content_hash: hash,
     };
   } catch {
     return base;
   }
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-  const out = new Array<string>(bytes.length);
-  for (let i = 0; i < bytes.length; i++) {
-    out[i] = bytes[i].toString(16).padStart(2, '0');
-  }
-  return out.join('');
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
 }
 
-function parseExifDate(value: Date | string): Date | null {
+function parseExifDateNaive(value: Date | string): string | null {
+  // Emit a naive ISO 8601 string with no timezone marker, matching the
+  // camera-clock convention in DEVELOPERS.md. Going through Date and
+  // toISOString shifts to UTC, which is the wrong frame and would
+  // break the pre-flight comparison against Image.captured_at.
   if (value instanceof Date) {
-    return isNaN(value.getTime()) ? null : value;
+    if (isNaN(value.getTime())) return null;
+    return (
+      `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`
+      + `T${pad2(value.getHours())}:${pad2(value.getMinutes())}:${pad2(value.getSeconds())}`
+    );
   }
-  // exifr usually returns Date already, but in some edge cases a raw
-  // EXIF string slips through. Parse the canonical "YYYY:MM:DD HH:MM:SS".
   const match = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(value);
   if (!match) return null;
   const [, y, mo, d, h, mi, s] = match;
-  const dt = new Date(
-    Number(y),
-    Number(mo) - 1,
-    Number(d),
-    Number(h),
-    Number(mi),
-    Number(s),
-  );
-  return isNaN(dt.getTime()) ? null : dt;
+  return `${y}-${mo}-${d}T${h}:${mi}:${s}`;
 }

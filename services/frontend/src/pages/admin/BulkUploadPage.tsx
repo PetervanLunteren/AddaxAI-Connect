@@ -417,10 +417,11 @@ interface UploadContext {
   camera_id: number;
   folder_name: string;
   manifest: BulkUploadManifest;
-  // Hashes flagged as project duplicates during pre-flight. The
-  // upload step skips files matching these so we don't waste
-  // bandwidth on bytes the server would just dedup away.
-  excluded_hashes: string[];
+  // Naive captured_at timestamps flagged as duplicates during
+  // pre-flight, scoped to the picked camera. The upload step skips
+  // files whose captured_at hits this set so we don't waste bandwidth
+  // on photos the server would just dedup away.
+  excluded_captured_ats: string[];
 }
 
 const BulkUploadModal: React.FC<{
@@ -927,32 +928,52 @@ const ReviewStep: React.FC<{
     return counts;
   }, [entries]);
 
-  const validHashes = useMemo(() => {
+  const validCapturedAts = useMemo(() => {
     const out: string[] = [];
     for (const e of entries) {
-      if (e.status === 'valid' && e.content_hash) out.push(e.content_hash);
+      if (e.status === 'valid' && e.captured_at) out.push(e.captured_at);
     }
     return out;
   }, [entries]);
 
-  // Pre-flight duplicate hit count. Asks the server which of the
-  // scanned hashes already match Image rows in this project, so the
-  // review summary can say "12 already in the project" instead of
-  // the user finding out only after the bytes have been uploaded.
-  const { data: duplicateHashes } = useQuery({
-    queryKey: ['bulk-check-duplicates', projectId, validHashes],
-    queryFn: () => bulkUploadApi.checkDuplicates(projectId, validHashes),
-    enabled: validHashes.length > 0,
-  });
-  const duplicateCount = useMemo(() => {
-    if (!duplicateHashes || duplicateHashes.length === 0) return 0;
-    const set = new Set(duplicateHashes);
-    let n = 0;
+  // Count of valid entries per captured_at in the scan. Used together
+  // with the server's per-timestamp DB count to apply the 1:1 safety
+  // rule below.
+  const scanCounts = useMemo(() => {
+    const m = new Map<string, number>();
     for (const e of entries) {
-      if (e.status === 'valid' && e.content_hash && set.has(e.content_hash)) n++;
+      if (e.status === 'valid' && e.captured_at) {
+        m.set(e.captured_at, (m.get(e.captured_at) ?? 0) + 1);
+      }
     }
-    return n;
-  }, [entries, duplicateHashes]);
+    return m;
+  }, [entries]);
+
+  // Pre-flight duplicate count, scoped to whichever camera the user
+  // has picked. One indexed lookup on Image.captured_at returns a
+  // map of timestamp -> DB count.
+  const cameraIdNum = Number(cameraId);
+  const { data: duplicateCounts } = useQuery({
+    queryKey: ['bulk-check-duplicates', projectId, cameraIdNum, validCapturedAts],
+    queryFn: () => bulkUploadApi.checkDuplicates(projectId, cameraIdNum, validCapturedAts),
+    enabled: !!cameraId && validCapturedAts.length > 0,
+  });
+
+  // 1:1 safety rule. Only skip a captured_at when both the scan and
+  // the DB have exactly one entry at that timestamp; that pair is an
+  // unambiguous duplicate. Anything else (burst mode at the same EXIF
+  // second, multiple existing rows) is ambiguous and goes through to
+  // the server, where content-hash dedup is precise.
+  const safeDuplicateSet = useMemo(() => {
+    const set = new Set<string>();
+    if (!duplicateCounts) return set;
+    for (const [ts, dbCount] of Object.entries(duplicateCounts)) {
+      if (dbCount === 1 && scanCounts.get(ts) === 1) set.add(ts);
+    }
+    return set;
+  }, [duplicateCounts, scanCounts]);
+
+  const duplicateCount = safeDuplicateSet.size;
 
   // Ask the server which registered camera matches the EXIF
   // SerialNumbers. Only fires when there's at least one serial; if
@@ -989,10 +1010,11 @@ const ReviewStep: React.FC<{
   }), [manifest, suggest, timestampIssues]);
 
   const rawValidCount = manifest.by_status.valid ?? 0;
-  // Effective "uploadable" count after removing project-wide duplicate
-  // hits returned by /check-duplicates. The actual server-side dedup
-  // is per-camera, but a project match is a reliable signal because
-  // the same content_hash across cameras is astronomically unlikely.
+  // Effective "uploadable" count after removing per-camera duplicate
+  // hits returned by /check-duplicates. The pre-flight matches the
+  // server-side dedup key it would have evaluated at ingestion time
+  // (camera_id + captured_at), so a match here is one the worker
+  // would have skipped anyway.
   const validCount = Math.max(0, rawValidCount - duplicateCount);
   const skipReasonEntries: [string, number][] = [
     ...(duplicateCount > 0 ? ([['duplicate', duplicateCount]] as [string, number][]) : []),
@@ -1085,7 +1107,7 @@ const ReviewStep: React.FC<{
       camera_id: id,
       folder_name: folderName,
       manifest: enrichedManifest,
-      excluded_hashes: duplicateHashes ?? [],
+      excluded_captured_ats: Array.from(safeDuplicateSet),
     });
   };
 
@@ -1301,7 +1323,7 @@ const UploadStep: React.FC<{
   // directory in a different order. Also filter out anything the
   // pre-flight duplicate check flagged so the upload skips them.
   const excludedSet = useMemo(
-    () => new Set(uploadContext?.excluded_hashes ?? []),
+    () => new Set(uploadContext?.excluded_captured_ats ?? []),
     [uploadContext],
   );
   const validEntries = useMemo(
@@ -1310,7 +1332,7 @@ const UploadStep: React.FC<{
         .filter(
           (e) =>
             e.status === 'valid'
-            && !(e.content_hash && excludedSet.has(e.content_hash)),
+            && !(e.captured_at && excludedSet.has(e.captured_at)),
         )
         .sort((a, b) => a.relative_path.localeCompare(b.relative_path)),
     [entries, excludedSet],

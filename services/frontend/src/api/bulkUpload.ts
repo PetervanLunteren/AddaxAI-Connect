@@ -103,20 +103,24 @@ export const bulkUploadApi = {
   },
 
   /**
-   * Return the subset of the given SHA-256 hashes that already exist
-   * in this project's Image rows. Used in the pre-flight scan to
-   * surface duplicates before the user pays the upload cost.
+   * For the picked camera, return a map of naive EXIF timestamps to
+   * the number of Image rows that already exist at that timestamp.
+   * The client applies a 1:1 safety rule before deciding to skip:
+   * only skip when both the scan and the DB have exactly one entry
+   * at a timestamp. Multi-match cases (burst mode) go through and
+   * server-side content-hash dedup sorts them out.
    */
   checkDuplicates: async (
     projectId: number,
-    hashes: string[],
-  ): Promise<string[]> => {
-    if (hashes.length === 0) return [];
-    const response = await apiClient.post<{ duplicate_hashes: string[] }>(
+    cameraId: number,
+    capturedAts: string[],
+  ): Promise<Record<string, number>> => {
+    if (capturedAts.length === 0) return {};
+    const response = await apiClient.post<{ duplicate_counts: Record<string, number> }>(
       `/api/projects/${projectId}/bulk-upload/check-duplicates`,
-      { hashes },
+      { camera_id: cameraId, captured_ats: capturedAts },
     );
-    return response.data.duplicate_hashes;
+    return response.data.duplicate_counts;
   },
 
   /**
