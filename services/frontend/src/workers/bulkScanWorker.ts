@@ -44,8 +44,14 @@ interface ScanRequest {
   files: File[];
 }
 
-const PICK_TAGS = ['DateTimeOriginal', 'BodySerialNumber', 'SerialNumber'] as const;
-const PROGRESS_EVERY = 50;
+const PROGRESS_EVERY = 10;
+// exifr can hang indefinitely on some malformed or oversized images.
+// Race every parse against a wall-clock timeout so a single bad file
+// can't freeze the whole scan. 5 s is more than enough for the EXIF
+// header on any normal camera-trap JPEG; we already slice to the
+// first ~256 KB so the read itself is bounded too.
+const PER_FILE_TIMEOUT_MS = 5000;
+const HEAD_BYTES = 256 * 1024;
 
 self.onmessage = async (event: MessageEvent<ScanRequest>) => {
   const { files } = event.data;
@@ -66,6 +72,30 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
   (self as unknown as Worker).postMessage(result);
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const t = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(null);
+    }, ms);
+    promise
+      .then((value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(t);
+        resolve(value);
+      })
+      .catch(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(t);
+        resolve(null);
+      });
+  });
+}
+
 async function scanOne(index: number, file: File): Promise<ScanEntry> {
   const relPath =
     (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
@@ -79,13 +109,20 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     status: 'corrupt',
   };
   try {
-    const meta = (await exifr.parse(file, { pick: PICK_TAGS as unknown as string[] })) as
+    // Read only the first chunk so exifr does not pull a 30 MB photo
+    // into worker memory just to look at the EXIF block. The block
+    // lives in the first few KB of any standard JPEG.
+    const head = file.slice(0, HEAD_BYTES);
+    const meta = (await withTimeout(
+      exifr.parse(head as Blob),
+      PER_FILE_TIMEOUT_MS,
+    )) as
       | {
           DateTimeOriginal?: Date | string;
           BodySerialNumber?: string | number;
           SerialNumber?: string | number;
         }
-      | undefined;
+      | null;
     if (!meta || !meta.DateTimeOriginal) {
       return { ...base, status: 'missing_exif_datetime' };
     }
