@@ -134,15 +134,16 @@ def _process_zip_entry(
     """
     Process a single ZIP entry end-to-end.
 
-    Returns one of: 'processed', 'duplicate', 'skipped'. Duplicates
-    are split out so the UI can show "all 30 were already in the
-    project" instead of the misleading "0 of 30 processed, 30
-    skipped". Raises only on truly catastrophic failures; per-file
-    issues become 'skipped' with a warning log so a single bad JPEG
+    Returns a dict with at least `outcome` in
+    {'processed','duplicate','skipped'} and, when relevant, the
+    `image_uuid` of the new image, the `existing_uuid` of the duplicate
+    it matched, and a `reason` for skips. The log-CSV endpoint reads
+    these straight back out of manifest.file_log. Per-file issues
+    become outcome='skipped' with a warning log so a single bad JPEG
     never sinks the whole batch.
     """
     if not name.lower().endswith(IMAGE_EXTENSIONS):
-        return "skipped"
+        return {"outcome": "skipped", "reason": "unsupported_extension"}
 
     content_hash = hashlib.sha256(raw).hexdigest()
 
@@ -160,7 +161,7 @@ def _process_zip_entry(
                 entry=name,
                 existing_uuid=existing,
             )
-            return "duplicate"
+            return {"outcome": "duplicate", "existing_uuid": existing}
 
     suffix = os.path.splitext(name)[1] or ".jpg"
     tmp_handle, tmp_path = tempfile.mkstemp(suffix=suffix)
@@ -177,7 +178,7 @@ def _process_zip_entry(
                 entry=name,
                 error=str(exc),
             )
-            return "skipped"
+            return {"outcome": "skipped", "reason": "validation_failed"}
 
         exif = extract_exif(tmp_path)
         try:
@@ -188,7 +189,7 @@ def _process_zip_entry(
                 entry=name,
                 error=str(exc),
             )
-            return "skipped"
+            return {"outcome": "skipped", "reason": "missing_datetime"}
 
         image_uuid = str(uuid.uuid4())
         clean_filename = os.path.basename(name)
@@ -229,7 +230,7 @@ def _process_zip_entry(
             "origin": "bulk",
         })
 
-        return "processed"
+        return {"outcome": "processed", "image_uuid": image_uuid}
     finally:
         try:
             os.unlink(tmp_path)
@@ -530,6 +531,7 @@ def _process_prefix_job(
     processed = 0
     duplicates = 0
     other_skipped = 0
+    file_log: list = []
 
     object_keys = sorted(_list_prefix(storage, staged_prefix))
     logger.info(
@@ -546,7 +548,7 @@ def _process_prefix_job(
         filename = tail.split("_", 1)[1] if "_" in tail else tail
         try:
             raw = storage.download_fileobj(BUCKET_BULK_UPLOAD_STAGING, key)
-            outcome = _process_zip_entry(
+            result = _process_zip_entry(
                 filename,
                 raw,
                 camera_id,
@@ -555,12 +557,6 @@ def _process_prefix_job(
                 bulk_queue,
                 job_id,
             )
-            if outcome == "processed":
-                processed += 1
-            elif outcome == "duplicate":
-                duplicates += 1
-            else:
-                other_skipped += 1
         except Exception as exc:
             logger.warning(
                 "Skipping bulk upload object, unexpected error",
@@ -568,7 +564,20 @@ def _process_prefix_job(
                 error=str(exc),
                 exc_info=True,
             )
+            result = {"outcome": "skipped", "reason": "unexpected_error"}
+
+        if result["outcome"] == "processed":
+            processed += 1
+        elif result["outcome"] == "duplicate":
+            duplicates += 1
+        else:
             other_skipped += 1
+
+        file_log.append({
+            "filename": filename,
+            "object_key": key,
+            **result,
+        })
 
         # Best-effort cleanup as we go so a half-finished job does not
         # leave 5000 stale objects in MinIO.
@@ -585,7 +594,8 @@ def _process_prefix_job(
             _set_status(job_uuid, skipped_files=duplicates + other_skipped)
 
     # Stash the breakdown so the UI can say "all 30 were duplicates"
-    # instead of "30 skipped".
+    # instead of "30 skipped". Per-file outcomes go alongside so the
+    # log-CSV endpoint can stream them back without another scan.
     with get_db_session() as session:
         row = session.execute(
             select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
@@ -596,6 +606,7 @@ def _process_prefix_job(
             "duplicates": duplicates,
             "other_skipped": other_skipped,
         }
+        manifest["file_log"] = file_log
         row.manifest = manifest
         row.skipped_files = duplicates + other_skipped
 
@@ -627,6 +638,7 @@ def _process_legacy_zip_job(
     processed = 0
     duplicates = 0
     other_skipped = 0
+    file_log: list = []
     try:
         tmp_zip_path = _download_staged_zip(storage, staged_object_key)
         with zipfile.ZipFile(tmp_zip_path) as zf:
@@ -637,22 +649,27 @@ def _process_legacy_zip_job(
             for idx, info in enumerate(entries, start=1):
                 try:
                     raw = zf.read(info)
-                    outcome = _process_zip_entry(
+                    result = _process_zip_entry(
                         info.filename, raw, camera_id, camera_storage_id,
                         gps_location, bulk_queue, job_id,
                     )
-                    if outcome == "processed":
-                        processed += 1
-                    elif outcome == "duplicate":
-                        duplicates += 1
-                    else:
-                        other_skipped += 1
                 except Exception as exc:
                     logger.warning(
                         "Skipping legacy zip entry",
                         entry=info.filename, error=str(exc), exc_info=True,
                     )
+                    result = {"outcome": "skipped", "reason": "unexpected_error"}
+
+                if result["outcome"] == "processed":
+                    processed += 1
+                elif result["outcome"] == "duplicate":
+                    duplicates += 1
+                else:
                     other_skipped += 1
+                file_log.append({
+                    "filename": info.filename,
+                    **result,
+                })
                 if idx % PROGRESS_PERSIST_EVERY == 0:
                     _set_status(job_uuid, skipped_files=duplicates + other_skipped)
 
@@ -666,6 +683,7 @@ def _process_legacy_zip_job(
                 "duplicates": duplicates,
                 "other_skipped": other_skipped,
             }
+            manifest["file_log"] = file_log
             row.manifest = manifest
             row.skipped_files = duplicates + other_skipped
 

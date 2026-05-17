@@ -16,6 +16,11 @@ import exifr from 'exifr';
 export interface ScanEntry {
   index: number;
   name: string;
+  // The browser's webkitRelativePath includes the top folder, so
+  // "FolderName/sub/IMG_0001.JPG". Stable across sessions for the same
+  // folder, which matters for resume: we sort by this to give every
+  // upload a deterministic position in the staging key.
+  relative_path: string;
   size: number;
   captured_at: string | null;
   serial: string | null;
@@ -62,9 +67,12 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
 };
 
 async function scanOne(index: number, file: File): Promise<ScanEntry> {
+  const relPath =
+    (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
   const base: ScanEntry = {
     index,
     name: file.name,
+    relative_path: relPath,
     size: file.size,
     captured_at: null,
     serial: null,

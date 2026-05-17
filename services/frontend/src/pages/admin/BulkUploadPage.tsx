@@ -22,6 +22,8 @@ import {
   Trash2,
   Images,
   X,
+  RotateCw,
+  FileDown,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -319,6 +321,7 @@ export const BulkUploadPage: React.FC = () => {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         projectId={projectId!}
+        resumableJobs={(jobs ?? []).filter((j) => j.status === 'uploading')}
       />
     </div>
   );
@@ -334,17 +337,46 @@ interface ScannedFolder {
   entries: ScanEntry[];
 }
 
+/**
+ * Decide whether a freshly-scanned folder looks like the one a
+ * resumable job was originally uploaded from. Stricter than needed
+ * would lock users out on innocent edits; looser than needed would
+ * stream the wrong files into the existing job. The minimal-but-safe
+ * check is: same valid count and same first/last EXIF datetime.
+ */
+function manifestsLookCompatible(job: BulkUploadJob, entries: ScanEntry[]): boolean {
+  const jobManifest = job.manifest;
+  if (!jobManifest) return false;
+  const validCount = entries.filter((e) => e.status === 'valid').length;
+  if (validCount !== jobManifest.valid_count) return false;
+  const validSorted = entries
+    .filter((e) => e.status === 'valid' && e.captured_at)
+    .map((e) => e.captured_at!)
+    .sort();
+  const newStart = validSorted[0] ?? null;
+  const newEnd = validSorted[validSorted.length - 1] ?? null;
+  return (
+    newStart === jobManifest.date_range.start
+    && newEnd === jobManifest.date_range.end
+  );
+}
+
 const BulkUploadModal: React.FC<{
   open: boolean;
   onClose: () => void;
   projectId: number;
-}> = ({ open, onClose, projectId }) => {
+  resumableJobs: BulkUploadJob[];
+}> = ({ open, onClose, projectId, resumableJobs }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>('pick');
   const [scanned, setScanned] = useState<ScannedFolder | null>(null);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
+  // Set when the user clicks Resume on a banner row. Resuming skips
+  // the camera-pick step, jumps straight from scan to upload, and
+  // tells UploadStep to fetch the existing job's uploaded-indexes.
+  const [resumeJob, setResumeJob] = useState<BulkUploadJob | null>(null);
 
   // Reset everything when the modal opens.
   useEffect(() => {
@@ -352,6 +384,7 @@ const BulkUploadModal: React.FC<{
     setStep('pick');
     setScanned(null);
     setScanProgress(null);
+    setResumeJob(null);
   }, [open]);
 
   const closeModal = () => {
@@ -395,6 +428,9 @@ const BulkUploadModal: React.FC<{
         <div className="space-y-4 mt-2">
           {step === 'pick' && (
             <PickStep
+              resumableJobs={resumableJobs}
+              resumeJob={resumeJob}
+              onResumePick={(job) => setResumeJob(job)}
               onCancel={closeModal}
               onFolder={(folderName, files) => {
                 setScanned({ folderName, files, entries: [] });
@@ -412,7 +448,22 @@ const BulkUploadModal: React.FC<{
               onCancel={closeModal}
               onDone={(entries) => {
                 setScanned({ ...scanned, entries });
-                setStep('review');
+                // In resume mode we skip the camera-pick step and go
+                // straight to upload. The job already has its camera,
+                // manifest, and total_files locked in from the
+                // original session.
+                if (resumeJob) {
+                  if (!manifestsLookCompatible(resumeJob, entries)) {
+                    toast.error(
+                      'This folder does not match the upload you are resuming. Pick the original folder, or cancel and start a new upload.',
+                    );
+                    setStep('pick');
+                  } else {
+                    setStep('upload');
+                  }
+                } else {
+                  setStep('review');
+                }
               }}
             />
           )}
@@ -435,6 +486,7 @@ const BulkUploadModal: React.FC<{
               folderName={scanned.folderName}
               files={scanned.files}
               entries={scanned.entries}
+              resumeJob={resumeJob}
               onClose={() => {
                 queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
                 onClose();
@@ -452,9 +504,12 @@ const BulkUploadModal: React.FC<{
 // ----- PickStep -----
 
 const PickStep: React.FC<{
+  resumableJobs: BulkUploadJob[];
+  resumeJob: BulkUploadJob | null;
+  onResumePick: (job: BulkUploadJob | null) => void;
   onCancel: () => void;
   onFolder: (folderName: string, files: File[]) => void;
-}> = ({ onCancel, onFolder }) => {
+}> = ({ resumableJobs, resumeJob, onResumePick, onCancel, onFolder }) => {
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -539,6 +594,53 @@ const PickStep: React.FC<{
 
   return (
     <>
+      {resumeJob ? (
+        <div className="border rounded-md p-3 bg-primary/5 text-sm flex items-center justify-between gap-3">
+          <div>
+            Resuming upload of <span className="font-medium">{resumeJob.original_filename}</span>.
+            Pick the same folder again to continue.
+          </div>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => onResumePick(null)}
+          >
+            Cancel resume
+          </button>
+        </div>
+      ) : (
+        resumableJobs.length > 0 && (
+          <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+            <div className="text-sm font-medium">Unfinished upload{resumableJobs.length === 1 ? '' : 's'}</div>
+            <div className="space-y-1">
+              {resumableJobs.map((job) => (
+                <div
+                  key={job.uuid}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <div className="truncate">
+                    <span className="font-medium">{job.original_filename}</span>
+                    <span className="text-muted-foreground">
+                      , {job.total_files.toLocaleString()} images
+                      {job.camera_name ? `, for ${job.camera_name}` : ''}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onResumePick(job)}
+                  >
+                    <RotateCw className="h-3.5 w-3.5 mr-1" />
+                    Resume
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      )}
+
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -573,7 +675,9 @@ const PickStep: React.FC<{
           </div>
         ) : (
           <div className="text-sm text-muted-foreground text-center">
-            Drop the SD-card folder here, or click to pick.
+            {resumeJob
+              ? 'Drop the original SD-card folder here, or click to pick.'
+              : 'Drop the SD-card folder here, or click to pick.'}
           </div>
         )}
       </div>
@@ -1027,19 +1131,26 @@ const UploadStep: React.FC<{
   folderName: string;
   files: File[];
   entries: ScanEntry[];
+  resumeJob: BulkUploadJob | null;
   onClose: () => void;
   onError: (msg: string) => void;
   onSuccess: () => void;
-}> = ({ projectId, files, entries, onClose, onError, onSuccess }) => {
+}> = ({ projectId, files, entries, resumeJob, onClose, onError, onSuccess }) => {
   const queryClient = useQueryClient();
   const [uploaded, setUploaded] = useState(0);
+  const [skipped, setSkipped] = useState(0);
   const [failed, setFailed] = useState(0);
   const [done, setDone] = useState(false);
   const cancelledRef = useRef(false);
 
-  // Only valid entries get uploaded. Same indexes the worker sees.
+  // Sort valid entries by relative_path so the per-file position is
+  // stable across resume sessions even if the browser walks the
+  // directory in a different order.
   const validEntries = useMemo(
-    () => entries.filter((e) => e.status === 'valid'),
+    () =>
+      entries
+        .filter((e) => e.status === 'valid')
+        .sort((a, b) => a.relative_path.localeCompare(b.relative_path)),
     [entries],
   );
   const total = validEntries.length;
@@ -1049,30 +1160,47 @@ const UploadStep: React.FC<{
     cancelledRef.current = false;
 
     const run = async () => {
-      const pending = (window as any).__bulkUploadPending as
-        | { camera_id: number; folder_name: string; manifest: BulkUploadManifest }
-        | undefined;
-      if (!pending) {
-        onError('Lost the review context, please retry from the start');
-        return;
-      }
-      (window as any).__bulkUploadPending = undefined;
+      let jobUuid: string;
+      let alreadyUploaded: Set<number> = new Set();
 
-      let job: BulkUploadJob;
-      try {
-        job = await bulkUploadApi.createJob(projectId, {
-          folder_name: pending.folder_name,
-          camera_id: pending.camera_id,
-          total_files: total,
-          manifest: pending.manifest,
-        });
-      } catch (err: any) {
-        onError(`Failed to create job, ${err.response?.data?.detail || err.message}`);
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      if (resumeJob) {
+        jobUuid = resumeJob.uuid;
+        try {
+          const indexes = await bulkUploadApi.uploadedIndexes(projectId, jobUuid);
+          alreadyUploaded = new Set(indexes);
+        } catch (err: any) {
+          onError(`Failed to read upload progress, ${err.response?.data?.detail || err.message}`);
+          return;
+        }
+        if (mounted) setSkipped(alreadyUploaded.size);
+      } else {
+        const pending = (window as any).__bulkUploadPending as
+          | { camera_id: number; folder_name: string; manifest: BulkUploadManifest }
+          | undefined;
+        if (!pending) {
+          onError('Lost the review context, please retry from the start');
+          return;
+        }
+        (window as any).__bulkUploadPending = undefined;
 
-      const queue = validEntries.map((e, i) => ({ entry: e, position: i }));
+        try {
+          const created = await bulkUploadApi.createJob(projectId, {
+            folder_name: pending.folder_name,
+            camera_id: pending.camera_id,
+            total_files: total,
+            manifest: pending.manifest,
+          });
+          jobUuid = created.uuid;
+        } catch (err: any) {
+          onError(`Failed to create job, ${err.response?.data?.detail || err.message}`);
+          return;
+        }
+        queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      }
+
+      const queue = validEntries
+        .map((e, i) => ({ entry: e, position: i }))
+        .filter((row) => !alreadyUploaded.has(row.position));
       let cursor = 0;
 
       const worker = async () => {
@@ -1089,7 +1217,7 @@ const UploadStep: React.FC<{
             try {
               await bulkUploadApi.uploadFile(
                 projectId,
-                job.uuid,
+                jobUuid,
                 position,
                 files[entry.index],
               );
@@ -1113,7 +1241,7 @@ const UploadStep: React.FC<{
 
       if (cancelledRef.current) {
         try {
-          await bulkUploadApi.cancel(projectId, job.uuid);
+          await bulkUploadApi.cancel(projectId, jobUuid);
         } catch {
           // ignore, the row already shows as failed via cancel-best-effort
         }
@@ -1121,7 +1249,7 @@ const UploadStep: React.FC<{
       }
 
       try {
-        await bulkUploadApi.finalize(projectId, job.uuid);
+        await bulkUploadApi.finalize(projectId, jobUuid);
         if (mounted) setDone(true);
         onSuccess();
         queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
@@ -1135,9 +1263,10 @@ const UploadStep: React.FC<{
     return () => {
       mounted = false;
     };
-  }, [projectId, queryClient, total, files, validEntries, onError, onSuccess]);
+  }, [projectId, queryClient, total, files, validEntries, resumeJob, onError, onSuccess]);
 
-  const percent = total > 0 ? Math.min(100, Math.round((uploaded / total) * 100)) : 100;
+  const completed = uploaded + skipped;
+  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 100;
 
   return (
     <div className="space-y-4">
@@ -1149,10 +1278,16 @@ const UploadStep: React.FC<{
             </span>
           ) : (
             <>
-              <span className="font-medium">{uploaded.toLocaleString()}</span>
+              <span className="font-medium">{completed.toLocaleString()}</span>
               {' of '}
               <span className="font-medium">{total.toLocaleString()}</span>
-              {' uploaded.'}
+              {' uploaded'}
+              {skipped > 0 && (
+                <span className="text-muted-foreground">
+                  {' ('}{skipped.toLocaleString()} already on the server{')'}
+                </span>
+              )}
+              {'.'}
               {failed > 0 && (
                 <span className="text-destructive ml-2">
                   {failed.toLocaleString()} failed.
@@ -1280,6 +1415,14 @@ const JobRow: React.FC<{
         </div>
 
         <div className="flex-1 flex items-center justify-end gap-2 flex-wrap">
+          {isTerminal && (
+            <a href={bulkUploadApi.logCsvUrl(projectId, job.uuid)}>
+              <Button size="sm" variant="outline">
+                <FileDown className="h-4 w-4 mr-1" />
+                Log
+              </Button>
+            </a>
+          )}
           {resultsHref && (
             <Link to={resultsHref}>
               <Button size="sm" variant="outline">

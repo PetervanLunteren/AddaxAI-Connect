@@ -163,6 +163,29 @@ export const bulkUploadApi = {
     return response.data;
   },
 
+  /**
+   * List the file indexes already in the job's staging prefix. Used
+   * by the client during resume to skip files that landed before the
+   * previous tab closed.
+   */
+  uploadedIndexes: async (
+    projectId: number,
+    jobUuid: string,
+  ): Promise<number[]> => {
+    const response = await apiClient.get<{ indexes: number[] }>(
+      `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/uploaded-indexes`,
+    );
+    return response.data.indexes;
+  },
+
+  /**
+   * URL for the per-file CSV log of a job. Used as the href on the
+   * "Download log" button so the browser handles the streamed
+   * download natively.
+   */
+  logCsvUrl: (projectId: number, jobUuid: string): string =>
+    `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/log.csv`,
+
   get: async (projectId: number, jobUuid: string): Promise<BulkUploadJob> => {
     const response = await apiClient.get<BulkUploadJob>(
       `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}`,

@@ -87,6 +87,37 @@ class TestRecoverFilename:
         assert _recover_filename("9/job/picture.jpg") == "picture.jpg"
 
 
+class TestUploadedIndexParse:
+    """Parsing logic for the GET /jobs/{uuid}/uploaded-indexes endpoint."""
+
+    @staticmethod
+    def _parse_index(key: str):
+        # Copy of the inline parser in routers/bulk_upload.py.
+        tail = key.rsplit("/", 1)[-1]
+        prefix = tail.split("_", 1)[0] if "_" in tail else tail
+        try:
+            return int(prefix)
+        except ValueError:
+            return None
+
+    def test_standard_key(self):
+        assert self._parse_index("1/abc/000042_IMG_0042.JPG") == 42
+
+    def test_zero_index(self):
+        assert self._parse_index("9/abc/000000_first.jpg") == 0
+
+    def test_max_index(self):
+        assert self._parse_index("9/abc/004999_last.jpg") == 4999
+
+    def test_missing_underscore_returns_none(self):
+        assert self._parse_index("9/abc/garbage.jpg") is None
+
+    def test_non_numeric_prefix_returns_none(self):
+        # If somehow a key without the standard index prefix lands in
+        # the staging bucket, the endpoint must skip it, not 500.
+        assert self._parse_index("9/abc/oops_file.jpg") is None
+
+
 class TestStatusTransitions:
     """
     Document the legal status transitions in the bulk-upload state

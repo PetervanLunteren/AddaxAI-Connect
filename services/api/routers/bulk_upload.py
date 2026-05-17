@@ -13,6 +13,7 @@ Legacy jobs created before the per-file refactor (statuses queued,
 inspecting, awaiting_confirmation) are still readable but cannot be
 resumed; they expire via the orphan-cleanup pass.
 """
+import csv
 import io
 import re
 import uuid
@@ -27,6 +28,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -627,6 +629,110 @@ async def list_bulk_upload_jobs(
         )
         for job, cam_name, email in rows
     ]
+
+
+@router.get("/jobs/{job_uuid}/uploaded-indexes")
+async def get_uploaded_indexes(
+    project_id: int,
+    job_uuid: str,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Return the list of file indexes already in the job's staging
+    prefix. The client uses this on resume to skip files that landed
+    before the previous tab closed.
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+    if job.status != "uploading":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in status '{job.status}', cannot list staged uploads",
+        )
+    if not job.staged_object_key or not job.staged_object_key.endswith("/"):
+        # Legacy single-zip job, has no per-file indexes by design.
+        return {"indexes": []}
+
+    storage = StorageClient()
+    indexes: List[int] = []
+    for key in storage.list_objects(BUCKET_BULK_UPLOAD_STAGING, job.staged_object_key):
+        tail = key.rsplit("/", 1)[-1]
+        prefix = tail.split("_", 1)[0] if "_" in tail else tail
+        try:
+            indexes.append(int(prefix))
+        except ValueError:
+            continue
+    indexes.sort()
+    return {"indexes": indexes}
+
+
+@router.get("/jobs/{job_uuid}/log.csv")
+async def get_bulk_upload_log(
+    project_id: int,
+    job_uuid: str,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Stream a per-file CSV log of what happened to every file in this
+    job. One row per source file, columns filename, outcome, reason,
+    image_uuid, existing_uuid. Built from the manifest.file_log the
+    worker writes at the end of processing; empty rows result when
+    the job is still running or never finished.
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+
+    rows: List[Dict[str, Any]] = []
+    manifest = job.manifest or {}
+    for entry in manifest.get("file_log") or []:
+        rows.append({
+            "filename": entry.get("filename", ""),
+            "outcome": entry.get("outcome", ""),
+            "reason": entry.get("reason", ""),
+            "image_uuid": entry.get("image_uuid", ""),
+            "existing_uuid": entry.get("existing_uuid", ""),
+        })
+
+    def stream() -> Any:
+        buf = io.StringIO()
+        writer = csv.DictWriter(
+            buf,
+            fieldnames=["filename", "outcome", "reason", "image_uuid", "existing_uuid"],
+        )
+        writer.writeheader()
+        yield buf.getvalue()
+        buf.seek(0)
+        buf.truncate(0)
+        for row in rows:
+            writer.writerow(row)
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate(0)
+
+    download_name = f"bulk-upload-{job_uuid[:8]}.csv"
+    return StreamingResponse(
+        stream(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
 
 
 @router.get("/jobs/{job_uuid}", response_model=BulkUploadJobResponse)
