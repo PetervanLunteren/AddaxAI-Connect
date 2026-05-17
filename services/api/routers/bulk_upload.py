@@ -83,6 +83,7 @@ class BulkUploadJobResponse(BaseModel):
     # (only meaningful for status='queued'). 0 means this is next.
     queue_position: Optional[int] = None
     started_at: Optional[str]
+    process_started_at: Optional[str] = None
     finished_at: Optional[str]
     created_at: str
     created_by_email: Optional[str]
@@ -226,6 +227,9 @@ def _job_to_response(
         manifest=job.manifest,
         queue_position=queue_position if job.status == "queued" else None,
         started_at=job.started_at.isoformat() if job.started_at else None,
+        process_started_at=(
+            job.process_started_at.isoformat() if job.process_started_at else None
+        ),
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
         created_at=job.created_at.isoformat() if job.created_at else "",
         created_by_email=created_by_email,

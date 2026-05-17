@@ -466,6 +466,12 @@ class BulkUploadJob(Base):
     # services/bulk-upload/worker.py for the shape.
     manifest = Column(JSON, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
+    # Set when the worker starts the process phase (after user confirm).
+    # Used by the frontend to derive a per-image processing rate that
+    # self-calibrates to the host instead of hardcoded assumptions.
+    # `started_at` covers the inspect phase + the user-paced wait in
+    # awaiting_confirmation, which would skew rate measurement wildly.
+    process_started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

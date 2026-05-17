@@ -103,27 +103,54 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
 }
 
-// Coarse ETA helpers. Per-image rates are empirical for the dev box;
-// real numbers will vary but the bucketing is loose enough to absorb
-// reasonable drift. The output is intentionally vague ("about half
-// an hour") rather than precise minutes.
+// Coarse ETA helpers. Per-image rates self-calibrate from the host's
+// completed-job history when there is enough signal, falling back to
+// conservative dev-box defaults on a fresh install. Inspect is fast
+// (~0.1 s) and not measured per-job; process is slow and host-bound
+// (could be 0.5 s on a GPU box, 4 s on a slow VM), so it's worth
+// measuring instead of guessing.
 const INSPECT_SECONDS_PER_IMAGE = 0.1;
-const PROCESS_SECONDS_PER_IMAGE = 2;
+const DEFAULT_PROCESS_SECONDS_PER_IMAGE = 2;
+const RATE_SAMPLE_SIZE = 8;
 const ETA_STATES = new Set(['queued', 'inspecting', 'processing']);
 
 function remainingFiles(job: BulkUploadJob): number {
   return Math.max(0, job.total_files - job.processed_files - job.skipped_files);
 }
 
-function jobWorkerSecondsRemaining(job: BulkUploadJob): number {
+function measuredProcessRate(jobs: BulkUploadJob[]): number | null {
+  // Average seconds-per-image across the most recent completed jobs
+  // that have a process_started_at timestamp. Filter out anything
+  // with zero or one image (noisy). Skip live processing jobs that
+  // happen to have measurable progress mid-flight: completed jobs
+  // give a clean signal without partial-classification artefacts.
+  const samples = jobs
+    .filter(
+      (j) =>
+        j.status === 'done'
+        && j.process_started_at
+        && j.finished_at
+        && j.processed_files >= 5,
+    )
+    .sort((a, b) => (b.finished_at ?? '').localeCompare(a.finished_at ?? ''))
+    .slice(0, RATE_SAMPLE_SIZE);
+  if (samples.length === 0) return null;
+  const rates = samples.map((j) => {
+    const elapsedMs = new Date(j.finished_at!).getTime()
+      - new Date(j.process_started_at!).getTime();
+    return Math.max(0.1, elapsedMs / 1000 / j.processed_files);
+  });
+  return rates.reduce((a, b) => a + b, 0) / rates.length;
+}
+
+function jobWorkerSecondsRemaining(job: BulkUploadJob, processRate: number): number {
   switch (job.status) {
     case 'queued':
       return job.total_files * INSPECT_SECONDS_PER_IMAGE;
     case 'inspecting':
-      // Halfway-through assumption since we don't track inspect progress.
       return Math.max(1, job.total_files * INSPECT_SECONDS_PER_IMAGE * 0.5);
     case 'processing':
-      return remainingFiles(job) * PROCESS_SECONDS_PER_IMAGE;
+      return remainingFiles(job) * processRate;
     default:
       return 0;
   }
@@ -140,7 +167,11 @@ function bucketEta(seconds: number): string {
   return 'several hours';
 }
 
-function computeEta(job: BulkUploadJob, allJobs: BulkUploadJob[]): string | null {
+function computeEta(
+  job: BulkUploadJob,
+  allJobs: BulkUploadJob[],
+  processRate: number,
+): string | null {
   if (!ETA_STATES.has(job.status)) return null;
   // Sort by creation order so "ahead in the worker pipeline" is the
   // jobs uploaded before this one. The priority routing for process
@@ -153,7 +184,7 @@ function computeEta(job: BulkUploadJob, allJobs: BulkUploadJob[]): string | null
   if (myIndex < 0) return null;
   const totalSeconds = inFlight
     .slice(0, myIndex + 1)
-    .reduce((sum, j) => sum + jobWorkerSecondsRemaining(j), 0);
+    .reduce((sum, j) => sum + jobWorkerSecondsRemaining(j, processRate), 0);
   return bucketEta(totalSeconds);
 }
 
@@ -227,6 +258,14 @@ export const BulkUploadPage: React.FC = () => {
     return (jobs ?? []).filter((j) => def.matches(j.status));
   }, [jobs, filter]);
 
+  // Recompute the per-image process rate whenever the job list
+  // changes (a new completed job adds a sample). Fall back to the
+  // dev-box default if there's nothing to learn from yet.
+  const processRate = useMemo(
+    () => measuredProcessRate(jobs ?? []) ?? DEFAULT_PROCESS_SECONDS_PER_IMAGE,
+    [jobs],
+  );
+
   const discardMutation = useMutation({
     mutationFn: (uuid: string) => bulkUploadApi.discard(projectId!, uuid),
     onSuccess: () => {
@@ -296,7 +335,7 @@ export const BulkUploadPage: React.FC = () => {
                   <JobRow
                     job={job}
                     projectId={projectId!}
-                    etaText={computeEta(job, jobs ?? [])}
+                    etaText={computeEta(job, jobs ?? [], processRate)}
                     onResume={
                       resumableStatuses.has(job.status)
                         ? () => setModalState({ kind: 'resume', jobUuid: job.uuid })

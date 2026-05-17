@@ -60,6 +60,9 @@ export interface BulkUploadJob {
   // worker has to finish before this one starts. 0 = next.
   queue_position: number | null;
   started_at: string | null;
+  // When the worker started the process phase (after user confirm).
+  // Used to derive per-image processing rate for self-calibrating ETAs.
+  process_started_at: string | null;
   finished_at: string | null;
   created_at: string;
   created_by_email: string | null;

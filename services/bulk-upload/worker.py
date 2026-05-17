@@ -523,6 +523,11 @@ def _process_job(job_uuid: str) -> None:
             gps_location = (camera.location.coords[1], camera.location.coords[0])
         staged_object_key = job.staged_object_key
         job.status = "processing"
+        # Marks the wall-clock start of the actual pipeline work,
+        # excluding inspect time and any user-paced delay waiting in
+        # awaiting_confirmation. The frontend derives a per-image
+        # processing rate from this for self-calibrating ETAs.
+        job.process_started_at = datetime.now(timezone.utc)
 
     logger.info(
         "Processing confirmed bulk upload",
