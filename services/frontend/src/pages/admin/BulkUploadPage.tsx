@@ -897,10 +897,6 @@ const ReviewStep: React.FC<{
   const [newCameraName, setNewCameraName] = useState('');
   const [newLatitude, setNewLatitude] = useState('');
   const [newLongitude, setNewLongitude] = useState('');
-  // GBIF QA: a deployment with a suspect camera clock should be
-  // flagged so downstream Camtrap-DP export carries timestampIssues.
-  // Stored in the manifest as a free-form flag, no schema migration.
-  const [timestampIssues, setTimestampIssues] = useState(false);
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -1016,12 +1012,11 @@ const ReviewStep: React.FC<{
     return best && best[1] >= 2 ? best[0] : null;
   }, [serialCounts]);
 
-  const enrichedManifest: BulkUploadManifest & { timestamp_issues?: boolean } = useMemo(() => ({
+  const enrichedManifest: BulkUploadManifest = useMemo(() => ({
     ...manifest,
     suggested_camera: suggest?.suggested_camera ?? null,
     matched_cameras: suggest?.matched_cameras ?? [],
-    timestamp_issues: timestampIssues || undefined,
-  }), [manifest, suggest, timestampIssues]);
+  }), [manifest, suggest]);
 
   const rawValidCount = manifest.by_status.valid ?? 0;
   // Effective "uploadable" count after removing per-camera duplicate
@@ -1160,15 +1155,6 @@ const ReviewStep: React.FC<{
             Auto-detected camera, {suggested.camera_name} ({suggested.match_count} of {validCount} images match by EXIF serial)
           </div>
         )}
-        <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={timestampIssues}
-            onChange={(e) => setTimestampIssues(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-input"
-          />
-          Camera clock was unreliable. Flag this batch as timestamps not trusted.
-        </label>
       </div>
 
       {thumbnails.length > 0 && (
