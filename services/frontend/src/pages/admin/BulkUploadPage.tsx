@@ -131,14 +131,17 @@ function measuredProcessRate(jobs: BulkUploadJob[]): number | null {
 }
 
 function bucketEta(seconds: number): string {
-  if (seconds < 60) return 'less than a minute';
-  if (seconds < 5 * 60) return 'a few minutes';
-  if (seconds < 15 * 60) return 'about 10 minutes';
-  if (seconds < 30 * 60) return 'about 20 minutes';
-  if (seconds < 60 * 60) return 'about half an hour';
-  if (seconds < 2 * 3600) return 'about an hour';
-  if (seconds < 4 * 3600) return 'a few hours';
-  return 'several hours';
+  // First-word-capitalised so the value can lead a dot-separated
+  // segment ("About 10 minutes left") without further fixup at the
+  // call site.
+  if (seconds < 60) return 'Less than a minute';
+  if (seconds < 5 * 60) return 'A few minutes';
+  if (seconds < 15 * 60) return 'About 10 minutes';
+  if (seconds < 30 * 60) return 'About 20 minutes';
+  if (seconds < 60 * 60) return 'About half an hour';
+  if (seconds < 2 * 3600) return 'About an hour';
+  if (seconds < 4 * 3600) return 'A few hours';
+  return 'Several hours';
 }
 
 function computeEta(
@@ -1426,9 +1429,17 @@ const JobRow: React.FC<{
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {job.camera_name ? `For ${job.camera_name} · ` : ''}
-            started {formatRelative(job.created_at)}
-            {job.created_by_email ? ` · by ${job.created_by_email}` : ''}
+            {job.camera_name && (
+              <>
+                For{' '}
+                <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">
+                  {job.camera_name}
+                </code>
+                {' · '}
+              </>
+            )}
+            Started {formatRelative(job.created_at)}
+            {job.created_by_email ? ` · By ${job.created_by_email}` : ''}
           </p>
         </div>
 
@@ -1563,11 +1574,11 @@ function renderUploadCaption({
   }
   if (counts.uploadPercent === 100) {
     return uploadElapsedSec !== null
-      ? `took ${formatDuration(uploadElapsedSec)}`
-      : 'done';
+      ? `Took ${formatDuration(uploadElapsedSec)}`
+      : 'Done';
   }
-  if (job.status === 'failed') return 'incomplete';
-  if (job.status === 'uploading') return 'paused';
+  if (job.status === 'failed') return 'Incomplete';
+  if (job.status === 'uploading') return 'Paused';
   return '—';
 }
 
@@ -1586,11 +1597,11 @@ function renderProcessCaption({
   }
   if (job.status === 'done') {
     let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · 100 %`;
-    if (processElapsedSec !== null) s += ` · took ${formatDuration(processElapsedSec)}`;
+    if (processElapsedSec !== null) s += ` · Took ${formatDuration(processElapsedSec)}`;
     return s;
   }
-  if (counts.uploadPercent === 100) return 'pending';
-  return 'waiting on upload';
+  if (counts.uploadPercent === 100) return 'Pending';
+  return 'Waiting on upload';
 }
 
 function PhaseBar({ percent, dim }: { percent: number; dim?: boolean }) {
