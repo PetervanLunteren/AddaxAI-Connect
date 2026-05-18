@@ -567,12 +567,33 @@ def _process_prefix_job(
     file_log: list = []
 
     object_keys = sorted(_list_prefix(storage, staged_prefix))
+    actual_count = len(object_keys)
     logger.info(
         "Processing bulk upload prefix",
         job_uuid=job_uuid,
         staged_prefix=staged_prefix,
-        object_count=len(object_keys),
+        object_count=actual_count,
     )
+
+    # Reconcile total_files against what actually landed in MinIO. The
+    # client may have lost a handful of per-file POSTs to retries or
+    # network errors; the job's total_files was set to the client-
+    # claimed count at create-time. If we trust the original number,
+    # the row sits at 99 % forever because processed + skipped never
+    # equals total. Updating to the real count makes the row reach
+    # 100 % and the API's lazy auto-finalise flip the job to done.
+    with get_db_session() as session:
+        row = session.execute(
+            select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
+        ).scalar_one()
+        if row.total_files != actual_count:
+            logger.info(
+                "Reconciling bulk-upload total_files with MinIO count",
+                job_uuid=job_uuid,
+                claimed=row.total_files,
+                actual=actual_count,
+            )
+            row.total_files = actual_count
 
     for idx, key in enumerate(object_keys, start=1):
         # Object key shape: "{project_id}/{job_uuid}/{idx:06d}_{name}".

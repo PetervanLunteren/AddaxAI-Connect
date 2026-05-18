@@ -1499,21 +1499,18 @@ const JobRow: React.FC<{
         </div>
       </div>
 
-      <div className="grid grid-cols-[5rem_1fr] sm:grid-cols-[5rem_1fr_auto] gap-x-3 gap-y-1 mt-3 items-center text-xs">
-        <span className="text-muted-foreground">Upload</span>
-        <PhaseBar percent={counts.uploadPercent} />
-        <span className="text-muted-foreground tabular-nums col-span-2 sm:col-span-1">
-          {uploadCaption}
-        </span>
-
-        <span className="text-muted-foreground">Analyse</span>
-        <PhaseBar
+      <div className="space-y-2 mt-3 text-xs">
+        <PhaseRow
+          label="Upload"
+          percent={counts.uploadPercent}
+          caption={uploadCaption}
+        />
+        <PhaseRow
+          label="Analyse"
           percent={counts.processPercent}
+          caption={processCaption}
           dim={job.status === 'uploading' || isActiveUpload}
         />
-        <span className="text-muted-foreground tabular-nums col-span-2 sm:col-span-1">
-          {processCaption}
-        </span>
       </div>
 
       {isTerminal && (
@@ -1635,6 +1632,32 @@ function PhaseBar({ percent, dim }: { percent: number; dim?: boolean }) {
           backgroundColor: dim ? '#71b7ba' : '#0f6064',
         }}
       />
+    </div>
+  );
+}
+
+// Label + bar on one line, caption stacked below. Stacking keeps
+// the bar at full row width regardless of caption length, so bars
+// in different job rows are visually comparable to each other.
+function PhaseRow({
+  label, percent, caption, dim,
+}: {
+  label: string;
+  percent: number;
+  caption: string;
+  dim?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        <span className="text-muted-foreground w-20 shrink-0">{label}</span>
+        <div className="flex-1 min-w-0">
+          <PhaseBar percent={percent} dim={dim} />
+        </div>
+      </div>
+      <p className="text-muted-foreground tabular-nums pl-[calc(5rem+0.75rem)] mt-0.5">
+        {caption}
+      </p>
     </div>
   );
 }
