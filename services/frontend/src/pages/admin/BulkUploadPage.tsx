@@ -21,7 +21,6 @@ import {
   Sparkles,
   Trash2,
   Images,
-  X,
   RotateCw,
   FileDown,
 } from 'lucide-react';
@@ -44,6 +43,10 @@ import {
   type BulkUploadManifest,
 } from '../../api/bulkUpload';
 import type { ScanEntry, ScanResult } from '../../workers/bulkScanWorker';
+import {
+  useBulkUploadStore,
+  type ActiveUpload,
+} from '../../lib/bulkUploadStore';
 
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed']);
 
@@ -168,8 +171,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 const MAX_FILES_PER_JOB = 20000;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-const UPLOAD_CONCURRENCY = 4;
-const UPLOAD_RETRIES = 3;
 
 type FilterKey = 'active' | 'done' | 'failed' | 'all';
 
@@ -234,6 +235,11 @@ export const BulkUploadPage: React.FC = () => {
     [jobs],
   );
 
+  const cancelActiveUpload = useBulkUploadStore((s) => s.cancelActive);
+  const activeUploadUuid = useBulkUploadStore((s) =>
+    s.active && !s.active.done ? s.active.jobUuid : null,
+  );
+
   const discardMutation = useMutation({
     mutationFn: (uuid: string) => bulkUploadApi.discard(projectId!, uuid),
     onSuccess: () => {
@@ -243,6 +249,21 @@ export const BulkUploadPage: React.FC = () => {
       toast.error(`Discard failed, ${err.response?.data?.detail || err.message}`);
     },
   });
+
+  // Discard handler. For an active client-side upload, stop the loop
+  // FIRST and let it clean up via the store, otherwise the discard
+  // API races against in-flight per-file POSTs. For everything else
+  // hit the DELETE endpoint directly.
+  const handleDiscard = useCallback(
+    (uuid: string) => {
+      if (uuid === activeUploadUuid) {
+        cancelActiveUpload();
+        return;
+      }
+      discardMutation.mutate(uuid);
+    },
+    [activeUploadUuid, cancelActiveUpload, discardMutation],
+  );
 
   // Watch every poll for a job that just moved from 'processing' to a
   // terminal state and surface it. Toast for users on the page, plus
@@ -357,7 +378,7 @@ export const BulkUploadPage: React.FC = () => {
                     etaText={computeEta(job, jobs ?? [], processRate)}
                     onDiscard={
                       job.status !== 'processing'
-                        ? () => discardMutation.mutate(job.uuid)
+                        ? () => handleDiscard(job.uuid)
                         : undefined
                     }
                     isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
@@ -381,7 +402,13 @@ export const BulkUploadPage: React.FC = () => {
 
 // ----- Modal -----
 
-type Step = 'pick' | 'scan' | 'review' | 'upload';
+// The modal only owns SETUP: pick a folder, scan EXIF, review and
+// pick a camera. Once the user clicks Upload, the active session is
+// handed to bulkUploadStore which runs the per-file POST loop in the
+// background and the modal closes. The live progress is shown on
+// the job row, same place as processing progress, so the user has
+// one consistent surface for everything that is in flight.
+type Step = 'pick' | 'scan' | 'review';
 
 interface ScannedFolder {
   folderName: string;
@@ -437,13 +464,9 @@ const BulkUploadModal: React.FC<{
   const [scanned, setScanned] = useState<ScannedFolder | null>(null);
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null);
   // Set when the user clicks Resume on a banner row. Resuming skips
-  // the camera-pick step, jumps straight from scan to upload, and
-  // tells UploadStep to fetch the existing job's uploaded-indexes.
+  // the review step and goes straight from scan to handing the
+  // session over to bulkUploadStore.
   const [resumeJob, setResumeJob] = useState<BulkUploadJob | null>(null);
-  // Upload-step inputs are lifted to the modal so they survive any
-  // re-render that strict-mode or a parent state change might cause.
-  // Stashing them on window had a re-run bug.
-  const [uploadContext, setUploadContext] = useState<UploadContext | null>(null);
 
   // Reset everything when the modal opens.
   useEffect(() => {
@@ -452,27 +475,18 @@ const BulkUploadModal: React.FC<{
     setScanned(null);
     setScanProgress(null);
     setResumeJob(null);
-    setUploadContext(null);
   }, [open]);
 
-  // Stable callbacks so UploadStep's effect doesn't retrigger on
-  // every parent render and replay its run() logic.
-  const handleUploadError = useCallback(
-    (msg: string) => toast.error(msg),
-    [toast],
-  );
-  const handleUploadSuccess = useCallback(
-    () => toast.success('Processing started'),
-    [toast],
-  );
-  const handleUploadClose = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-    onClose();
-  }, [queryClient, projectId, onClose]);
+  const beginNew = useBulkUploadStore((s) => s.beginNew);
+  const beginResume = useBulkUploadStore((s) => s.beginResume);
 
   const closeModal = () => {
     onClose();
   };
+
+  const invalidateJobs = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+  }, [queryClient, projectId]);
 
   return (
     <Dialog
@@ -490,7 +504,6 @@ const BulkUploadModal: React.FC<{
             {step === 'pick' && 'New bulk upload'}
             {step === 'scan' && 'Scanning folder'}
             {step === 'review' && 'Review upload'}
-            {step === 'upload' && 'Uploading'}
           </DialogTitle>
           <DialogDescription>
             {step === 'pick' && (
@@ -500,10 +513,7 @@ const BulkUploadModal: React.FC<{
               <>Reading EXIF on every image without leaving your browser.</>
             )}
             {step === 'review' && (
-              <>Confirm the camera and start uploading.</>
-            )}
-            {step === 'upload' && (
-              <>Sending files to the server. Closing this window is fine, the upload keeps running in the background. Closing the browser tab pauses the upload, you can resume it from the bulk-upload page.</>
+              <>Confirm the camera and start uploading. The modal closes once you click Upload, progress shows on the job row.</>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -531,19 +541,26 @@ const BulkUploadModal: React.FC<{
               onCancel={closeModal}
               onDone={(entries) => {
                 setScanned({ ...scanned, entries });
-                // In resume mode we skip the camera-pick step and go
-                // straight to upload. The job already has its camera,
-                // manifest, and total_files locked in from the
-                // original session.
                 if (resumeJob) {
                   if (!manifestsLookCompatible(resumeJob, entries)) {
                     toast.error(
                       'This folder does not match the upload you are resuming. Pick the original folder, or cancel and start a new upload.',
                     );
                     setStep('pick');
-                  } else {
-                    setStep('upload');
+                    return;
                   }
+                  // Hand off to the store and close. Progress shows
+                  // on the row from here on.
+                  beginResume({
+                    projectId,
+                    resumeJob,
+                    files: scanned.files,
+                    entries,
+                    onError: (msg) => toast.error(msg),
+                    onSuccess: () => toast.success('Processing started'),
+                    onCacheInvalidate: invalidateJobs,
+                  });
+                  closeModal();
                 } else {
                   setStep('review');
                 }
@@ -560,23 +577,20 @@ const BulkUploadModal: React.FC<{
               onBack={() => setStep('pick')}
               onCancel={closeModal}
               onConfirm={(ctx) => {
-                setUploadContext(ctx);
-                setStep('upload');
+                beginNew({
+                  projectId,
+                  folderName: ctx.folder_name,
+                  cameraId: ctx.camera_id,
+                  manifest: ctx.manifest,
+                  excludedCapturedAts: ctx.excluded_captured_ats,
+                  files: scanned.files,
+                  entries: scanned.entries,
+                  onError: (msg) => toast.error(msg),
+                  onSuccess: () => toast.success('Processing started'),
+                  onCacheInvalidate: invalidateJobs,
+                });
+                closeModal();
               }}
-            />
-          )}
-
-          {step === 'upload' && scanned && (resumeJob || uploadContext) && (
-            <UploadStep
-              projectId={projectId}
-              folderName={scanned.folderName}
-              files={scanned.files}
-              entries={scanned.entries}
-              resumeJob={resumeJob}
-              uploadContext={uploadContext}
-              onClose={handleUploadClose}
-              onError={handleUploadError}
-              onSuccess={handleUploadSuccess}
             />
           )}
         </div>
@@ -1294,245 +1308,6 @@ const ReviewStep: React.FC<{
   );
 };
 
-// ----- UploadStep -----
-
-const UploadStep: React.FC<{
-  projectId: number;
-  folderName: string;
-  files: File[];
-  entries: ScanEntry[];
-  resumeJob: BulkUploadJob | null;
-  uploadContext: UploadContext | null;
-  onClose: () => void;
-  onError: (msg: string) => void;
-  onSuccess: () => void;
-}> = ({ projectId, files, entries, resumeJob, uploadContext, onClose, onError, onSuccess }) => {
-  const queryClient = useQueryClient();
-  const [uploaded, setUploaded] = useState(0);
-  const [skipped, setSkipped] = useState(0);
-  const [failed, setFailed] = useState(0);
-  const [done, setDone] = useState(false);
-  const cancelledRef = useRef(false);
-  // The effect below kicks off real work, network calls, and DB
-  // writes. It must run exactly once per UploadStep mount. The deps
-  // array fires on any parent re-render, so guard with a ref.
-  const startedRef = useRef(false);
-  // First-byte timestamp for ETA. Set once when the upload effect
-  // begins. Held in a ref so we don't trigger a re-render setting it.
-  const startTimeRef = useRef<number | null>(null);
-
-  // Sort valid entries by relative_path so the per-file position is
-  // stable across resume sessions even if the browser walks the
-  // directory in a different order. Also filter out anything the
-  // pre-flight duplicate check flagged so the upload skips them.
-  const excludedSet = useMemo(
-    () => new Set(uploadContext?.excluded_captured_ats ?? []),
-    [uploadContext],
-  );
-  const validEntries = useMemo(
-    () =>
-      entries
-        .filter(
-          (e) =>
-            e.status === 'valid'
-            && !(e.captured_at && excludedSet.has(e.captured_at)),
-        )
-        .sort((a, b) => a.relative_path.localeCompare(b.relative_path)),
-    [entries, excludedSet],
-  );
-  const total = validEntries.length;
-
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    startTimeRef.current = Date.now();
-    let mounted = true;
-    cancelledRef.current = false;
-
-    const run = async () => {
-      let jobUuid: string;
-      let alreadyUploaded: Set<number> = new Set();
-
-      if (resumeJob) {
-        jobUuid = resumeJob.uuid;
-        try {
-          const indexes = await bulkUploadApi.uploadedIndexes(projectId, jobUuid);
-          alreadyUploaded = new Set(indexes);
-        } catch (err: any) {
-          onError(`Failed to read upload progress, ${err.response?.data?.detail || err.message}`);
-          return;
-        }
-        if (mounted) setSkipped(alreadyUploaded.size);
-      } else if (uploadContext) {
-        try {
-          const created = await bulkUploadApi.createJob(projectId, {
-            folder_name: uploadContext.folder_name,
-            camera_id: uploadContext.camera_id,
-            total_files: total,
-            manifest: uploadContext.manifest,
-          });
-          jobUuid = created.uuid;
-        } catch (err: any) {
-          onError(`Failed to create job, ${err.response?.data?.detail || err.message}`);
-          return;
-        }
-        queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-      } else {
-        // Parent should not let us mount without either context.
-        onError('Missing upload context, please retry from the start');
-        return;
-      }
-
-      const queue = validEntries
-        .map((e, i) => ({ entry: e, position: i }))
-        .filter((row) => !alreadyUploaded.has(row.position));
-      let cursor = 0;
-
-      const worker = async () => {
-        while (true) {
-          if (cancelledRef.current) return;
-          const next = queue[cursor];
-          if (!next) return;
-          cursor += 1;
-          const { entry, position } = next;
-          let attempt = 0;
-          // Per-file retry. Network blips during a 20 GB upload are
-          // routine; a few automatic retries beats the user babysitting.
-          while (attempt < UPLOAD_RETRIES) {
-            try {
-              await bulkUploadApi.uploadFile(
-                projectId,
-                jobUuid,
-                position,
-                files[entry.index],
-              );
-              if (mounted) setUploaded((n) => n + 1);
-              break;
-            } catch (err: any) {
-              attempt += 1;
-              if (attempt >= UPLOAD_RETRIES) {
-                if (mounted) setFailed((n) => n + 1);
-              } else {
-                await new Promise((r) => setTimeout(r, 500 * attempt));
-              }
-            }
-          }
-        }
-      };
-
-      await Promise.all(
-        Array.from({ length: UPLOAD_CONCURRENCY }, () => worker()),
-      );
-
-      if (cancelledRef.current) {
-        try {
-          await bulkUploadApi.cancel(projectId, jobUuid);
-        } catch {
-          // ignore, the row already shows as failed via cancel-best-effort
-        }
-        return;
-      }
-
-      try {
-        await bulkUploadApi.finalize(projectId, jobUuid);
-        if (mounted) setDone(true);
-        onSuccess();
-        queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-      } catch (err: any) {
-        onError(`Failed to start processing, ${err.response?.data?.detail || err.message}`);
-      }
-    };
-
-    run();
-
-    return () => {
-      mounted = false;
-    };
-  }, [projectId, queryClient, total, files, validEntries, resumeJob, uploadContext, onError, onSuccess]);
-
-  const completed = uploaded + skipped;
-  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 100;
-
-  // ETA from measured throughput. Skipped files are already on the
-  // server and contribute zero upload time, so the rate is computed
-  // from the files we have actually pushed. Suppress the estimate
-  // for the first few completions where the average is too noisy
-  // to be useful.
-  const elapsedSeconds = startTimeRef.current
-    ? (Date.now() - startTimeRef.current) / 1000
-    : 0;
-  const remaining = Math.max(0, total - completed);
-  const uploadRate = uploaded >= 5 && elapsedSeconds > 0
-    ? uploaded / elapsedSeconds
-    : 0;
-  const etaText = !done && remaining > 0 && uploadRate > 0
-    ? bucketEta(remaining / uploadRate)
-    : null;
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <div className="text-sm">
-          {done ? (
-            <span className="text-primary font-medium inline-flex items-center gap-1">
-              <Check className="h-4 w-4" /> Upload complete, processing has started.
-            </span>
-          ) : (
-            <>
-              <span className="font-medium">{completed.toLocaleString()}</span>
-              {' of '}
-              <span className="font-medium">{total.toLocaleString()}</span>
-              {' uploaded ('}
-              <span className="font-medium">{percent}%</span>
-              {')'}
-              {skipped > 0 && (
-                <span className="text-muted-foreground">
-                  {', '}{skipped.toLocaleString()} already on the server
-                </span>
-              )}
-              {etaText && (
-                <span className="text-muted-foreground">
-                  {', '}{etaText} left
-                </span>
-              )}
-              {'.'}
-              {failed > 0 && (
-                <span className="text-destructive ml-2">
-                  {failed.toLocaleString()} failed.
-                </span>
-              )}
-            </>
-          )}
-        </div>
-        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
-          <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${percent}%` }}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 pt-2">
-        {!done ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              cancelledRef.current = true;
-              onClose();
-            }}
-          >
-            <X className="h-4 w-4 mr-1" />
-            Cancel and discard
-          </Button>
-        ) : (
-          <Button type="button" onClick={onClose}>
-            Close
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-};
 
 // ----- JobRow -----
 
@@ -1579,11 +1354,33 @@ const JobRow: React.FC<{
   onDiscard?: () => void;
   isDiscarding?: boolean;
 }> = ({ job, projectId, etaText, onDiscard, isDiscarding }) => {
+  // Subscribe to the active client-side upload session. If this row
+  // is the one currently uploading from THIS browser, the store has
+  // live counts and we use them instead of the server-recorded zero.
+  const active = useBulkUploadStore((s) => s.active);
+  // Treat the upload as "active" only while we are still streaming
+  // files. Once the store flags done=true, defer to the server's
+  // 'processing' state so the caption switches over cleanly.
+  const isActiveUpload =
+    active !== null && active.jobUuid === job.uuid && !active.done;
+  const uploadEta = isActiveUpload ? computeUploadEta(active!) : null;
+  const uploadCounts = isActiveUpload ? deriveUploadCounts(active!) : null;
+
   const total = Math.max(job.total_files, 1);
-  const done = job.processed_files + job.skipped_files;
-  const percent = Math.min(100, Math.round((done / total) * 100));
+  const done = uploadCounts
+    ? uploadCounts.done
+    : job.processed_files + job.skipped_files;
+  const percent = uploadCounts
+    ? uploadCounts.percent
+    : Math.min(100, Math.round((done / total) * 100));
   const isTerminal = TERMINAL_STATUSES.has(job.status);
-  const showBar = job.status === 'processing';
+  // Bar shows while client is uploading (live store), while worker is
+  // processing (server-recorded percent), or while a stale server-side
+  // 'uploading' row is waiting for the browser to come back.
+  const showBar =
+    job.status === 'processing'
+    || job.status === 'uploading'
+    || isActiveUpload;
   const resultsHref = buildResultsHref(projectId, job);
 
   return (
@@ -1607,7 +1404,26 @@ const JobRow: React.FC<{
             {job.camera_name ? `For ${job.camera_name}. ` : ''}
             Uploaded {formatRelative(job.created_at)}
             {job.created_by_email ? ` by ${job.created_by_email}` : ''}.
-            {etaText && (
+            {isActiveUpload && uploadCounts && (
+              <>
+                <br />
+                {uploadCounts.done.toLocaleString()} of {uploadCounts.total.toLocaleString()} sent ({uploadCounts.percent} %)
+                {uploadEta && `, ${uploadEta} left`}
+                {active!.failed > 0 && (
+                  <span className="text-destructive">
+                    , {active!.failed.toLocaleString()} failed
+                  </span>
+                )}
+                {'.'}
+              </>
+            )}
+            {!isActiveUpload && job.status === 'uploading' && (
+              <>
+                <br />
+                Upload paused. Open Bulk upload and pick the same folder to resume.
+              </>
+            )}
+            {etaText && job.status === 'processing' && (
               <>
                 <br />
                 Processing, {etaText} left.
@@ -1672,3 +1488,26 @@ const JobRow: React.FC<{
     </div>
   );
 };
+
+function deriveUploadCounts(active: ActiveUpload): {
+  done: number;
+  total: number;
+  percent: number;
+} {
+  const total = Math.max(active.total, 1);
+  const done = active.uploaded + active.skipped;
+  return {
+    done,
+    total: active.total,
+    percent: Math.min(100, Math.round((done / total) * 100)),
+  };
+}
+
+function computeUploadEta(active: ActiveUpload): string | null {
+  const elapsedSeconds = (Date.now() - active.startedAt) / 1000;
+  const remaining = Math.max(0, active.total - (active.uploaded + active.skipped));
+  if (active.uploaded < 5 || elapsedSeconds <= 0 || remaining === 0) return null;
+  const rate = active.uploaded / elapsedSeconds;
+  if (rate <= 0) return null;
+  return bucketEta(remaining / rate);
+}
