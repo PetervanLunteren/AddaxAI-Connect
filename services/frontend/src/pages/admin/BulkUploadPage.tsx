@@ -1350,46 +1350,42 @@ const JobRow: React.FC<{
 }> = ({ job, projectId, etaText, onDiscard, isDiscarding }) => {
   // Subscribe to the active client-side upload session. If this row
   // is the one currently uploading from THIS browser, the store has
-  // live counts and we use them instead of the server-recorded zero.
+  // live counts; otherwise we fall back to the server-recorded state.
   const active = useBulkUploadStore((s) => s.active);
-  // Treat the upload as "active" only while we are still streaming
-  // files. Once the store flags done=true, defer to the server's
-  // 'processing' state so the caption switches over cleanly.
   const isActiveUpload =
     active !== null && active.jobUuid === job.uuid && !active.done;
-  const uploadCounts = isActiveUpload ? deriveUploadCounts(active!) : null;
-  // Throttle the bucketed ETA to update every 5 s. The bucket is a
-  // step function ("about 10 minutes" vs "about 20 minutes" jumps at
-  // 15 min), so small rate fluctuations from a since-start average
-  // would flip the displayed text several times per second. Counts
-  // and the bar still update live on every completion.
   const uploadEta = useThrottledUploadEta(isActiveUpload ? active : null);
 
-  const total = Math.max(job.total_files, 1);
-  const done = uploadCounts
-    ? uploadCounts.done
-    : job.processed_files + job.skipped_files;
-  const percent = uploadCounts
-    ? uploadCounts.percent
-    : Math.min(100, Math.round((done / total) * 100));
   const isTerminal = TERMINAL_STATUSES.has(job.status);
-  // Bar shows while client is uploading (live store), while worker is
-  // processing (server-recorded percent), or while a stale server-side
-  // 'uploading' row is waiting for the browser to come back.
-  const showBar =
-    job.status === 'processing'
-    || job.status === 'uploading'
-    || isActiveUpload;
   const resultsHref = buildResultsHref(projectId, job);
+
+  const counts = deriveRowCounts(job, isActiveUpload ? active : null);
+
+  // Per-phase elapsed shown only after the phase has finished
+  // ("took X"). In-flight phases stay silent on duration so the ETA
+  // is the only forward-looking number in the row.
+  const uploadElapsedSec =
+    job.status === 'uploading'
+      ? null
+      : diffSeconds(job.created_at, job.process_started_at);
+  const processElapsedSec =
+    job.status === 'processing'
+      ? null
+      : diffSeconds(job.process_started_at, job.finished_at);
+
+  const uploadCaption = renderUploadCaption({
+    job, counts, isActiveUpload, uploadEta, uploadElapsedSec, failed: active?.failed ?? 0,
+  });
+  const processCaption = renderProcessCaption({
+    job, counts, etaText, processElapsedSec,
+  });
 
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-        <div className="w-full sm:w-1/2 sm:shrink-0 min-w-0">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="text-sm font-medium truncate">
-              {job.original_filename}
-            </label>
+            <span className="text-sm font-medium truncate">{job.original_filename}</span>
             <span
               className="px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1"
               style={statusBadgeStyle(job.status)}
@@ -1399,45 +1395,14 @@ const JobRow: React.FC<{
               {statusLabel(job.status)}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            {job.camera_name ? `For ${job.camera_name}. ` : ''}
-            Started {formatRelative(job.created_at)}
-            {job.created_by_email ? ` by ${job.created_by_email}` : ''}.
-            {isActiveUpload && uploadCounts && (
-              <>
-                <br />
-                {uploadCounts.done.toLocaleString()} of {uploadCounts.total.toLocaleString()} sent ({uploadCounts.percent} %)
-                {uploadEta && `, ${uploadEta} left`}
-                {active!.failed > 0 && (
-                  <span className="text-destructive">
-                    , {active!.failed.toLocaleString()} failed
-                  </span>
-                )}
-                {'.'}
-              </>
-            )}
-            {!isActiveUpload && job.status === 'uploading' && (
-              <>
-                <br />
-                Upload paused. Open Bulk upload and pick the same folder to resume.
-              </>
-            )}
-            {etaText && job.status === 'processing' && (
-              <>
-                <br />
-                Processing, {etaText} left.
-              </>
-            )}
-            {isTerminal && (
-              <>
-                <br />
-                {jobSummaryText(job)}
-              </>
-            )}
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {job.camera_name ? `For ${job.camera_name} · ` : ''}
+            started {formatRelative(job.created_at)}
+            {job.created_by_email ? ` · by ${job.created_by_email}` : ''}
           </p>
         </div>
 
-        <div className="flex-1 flex items-center justify-end gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {isTerminal && (
             <a href={bulkUploadApi.logCsvUrl(projectId, job.uuid)}>
               <Button size="sm" variant="outline">
@@ -1473,13 +1438,27 @@ const JobRow: React.FC<{
         </div>
       </div>
 
-      {showBar && (
-        <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden mt-3">
-          <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${percent}%` }}
-          />
-        </div>
+      <div className="grid grid-cols-[5rem_1fr] sm:grid-cols-[5rem_1fr_auto] gap-x-3 gap-y-1 mt-3 items-center text-xs">
+        <span className="text-muted-foreground">Upload</span>
+        <PhaseBar percent={counts.uploadPercent} />
+        <span className="text-muted-foreground tabular-nums col-span-2 sm:col-span-1">
+          {uploadCaption}
+        </span>
+
+        <span className="text-muted-foreground">Process</span>
+        <PhaseBar
+          percent={counts.processPercent}
+          dim={job.status === 'uploading' || isActiveUpload}
+        />
+        <span className="text-muted-foreground tabular-nums col-span-2 sm:col-span-1">
+          {processCaption}
+        </span>
+      </div>
+
+      {isTerminal && (
+        <p className="text-xs text-muted-foreground mt-2">
+          {jobSummaryText(job)}
+        </p>
       )}
       {job.error_message && (
         <div className="text-xs text-red-600 mt-2">{job.error_message}</div>
@@ -1487,6 +1466,124 @@ const JobRow: React.FC<{
     </div>
   );
 };
+
+interface RowCounts {
+  total: number;
+  uploadDone: number;
+  uploadPercent: number;
+  processDone: number;
+  processPercent: number;
+}
+
+function deriveRowCounts(job: BulkUploadJob, active: ActiveUpload | null): RowCounts {
+  const total = Math.max(job.total_files, 1);
+  let uploadDone: number;
+  if (active !== null) {
+    uploadDone = active.uploaded + active.skipped;
+  } else if (job.status === 'uploading') {
+    // No live session for this job in this tab. Server doesn't track
+    // partial upload progress yet, so it's effectively unknown.
+    uploadDone = 0;
+  } else {
+    // Past the upload phase by definition.
+    uploadDone = job.total_files;
+  }
+  const uploadPercent = Math.min(100, Math.round((uploadDone / total) * 100));
+  const processDone = job.processed_files + job.skipped_files;
+  const processPercent =
+    job.status === 'done' || job.status === 'processing'
+      ? Math.min(100, Math.round((processDone / total) * 100))
+      : 0;
+  return {
+    total: job.total_files,
+    uploadDone,
+    uploadPercent,
+    processDone,
+    processPercent,
+  };
+}
+
+function renderUploadCaption({
+  job, counts, isActiveUpload, uploadEta, uploadElapsedSec, failed,
+}: {
+  job: BulkUploadJob;
+  counts: RowCounts;
+  isActiveUpload: boolean;
+  uploadEta: string | null;
+  uploadElapsedSec: number | null;
+  failed: number;
+}): string {
+  if (isActiveUpload) {
+    let s = `${counts.uploadDone.toLocaleString()} / ${counts.total.toLocaleString()} · ${counts.uploadPercent} %`;
+    if (uploadEta) s += ` · ${uploadEta} left`;
+    if (failed > 0) s += ` · ${failed.toLocaleString()} failed`;
+    return s;
+  }
+  if (counts.uploadPercent === 100) {
+    return uploadElapsedSec !== null
+      ? `took ${formatDuration(uploadElapsedSec)}`
+      : 'done';
+  }
+  if (job.status === 'failed') return 'incomplete';
+  if (job.status === 'uploading') {
+    return 'paused, open Bulk upload to resume';
+  }
+  return '—';
+}
+
+function renderProcessCaption({
+  job, counts, etaText, processElapsedSec,
+}: {
+  job: BulkUploadJob;
+  counts: RowCounts;
+  etaText: string | null;
+  processElapsedSec: number | null;
+}): string {
+  if (job.status === 'processing') {
+    let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · ${counts.processPercent} %`;
+    if (etaText) s += ` · ${etaText} left`;
+    return s;
+  }
+  if (job.status === 'done') {
+    let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · 100 %`;
+    if (processElapsedSec !== null) s += ` · took ${formatDuration(processElapsedSec)}`;
+    return s;
+  }
+  if (counts.uploadPercent === 100) return 'pending';
+  return 'waiting on upload';
+}
+
+function PhaseBar({ percent, dim }: { percent: number; dim?: boolean }) {
+  return (
+    <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+      <div
+        className="h-full transition-all"
+        style={{
+          width: `${Math.min(100, Math.max(0, percent))}%`,
+          backgroundColor: dim ? '#71b7ba' : '#0f6064',
+        }}
+      />
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (remMin === 0) return `${hours} h`;
+  return `${hours} h ${remMin} min`;
+}
+
+function diffSeconds(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  const a = new Date(start).getTime();
+  const b = new Date(end).getTime();
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.max(0, (b - a) / 1000);
+}
 
 // Re-evaluate the upload ETA at most every THROTTLE_MS. The bucket
 // labels are coarse step values, so without this they flicker
@@ -1520,20 +1617,6 @@ function useThrottledUploadEta(active: ActiveUpload | null): string | null {
     };
   }, [active?.jobUuid, active === null]);
   return text;
-}
-
-function deriveUploadCounts(active: ActiveUpload): {
-  done: number;
-  total: number;
-  percent: number;
-} {
-  const total = Math.max(active.total, 1);
-  const done = active.uploaded + active.skipped;
-  return {
-    done,
-    total: active.total,
-    percent: Math.min(100, Math.round((done / total) * 100)),
-  };
 }
 
 function computeUploadEta(active: ActiveUpload): string | null {
