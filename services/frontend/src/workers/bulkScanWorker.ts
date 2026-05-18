@@ -62,6 +62,19 @@ const HEAD_BYTES = 256 * 1024;
 // anyway, and memory stays trivial (8 x 256 KB = 2 MB peak).
 const SCAN_CONCURRENCY = 8;
 
+interface TimingBucket {
+  slice_ms: number;
+  exif_ms: number;
+  total_ms: number;
+  timed_out: number;
+  byte_total: number;
+  count: number;
+}
+
+function emptyBucket(): TimingBucket {
+  return { slice_ms: 0, exif_ms: 0, total_ms: 0, timed_out: 0, byte_total: 0, count: 0 };
+}
+
 self.onmessage = async (event: MessageEvent<ScanRequest>) => {
   const { files } = event.data;
   const total = files.length;
@@ -69,16 +82,46 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
   let nextIndex = 0;
   let completed = 0;
 
+  // Aggregate per-batch timing so we can spot which stage is slow
+  // without flooding the console with 832 lines.
+  const bucket = emptyBucket();
+  const overallStart = performance.now();
+  const totalBytes = files.reduce((acc, f) => acc + f.size, 0);
+  console.log(
+    `[bulk-scan] start, files=${total}, totalBytes=${(totalBytes / 1024 / 1024).toFixed(1)} MB, concurrency=${SCAN_CONCURRENCY}`,
+  );
+
   const post = (done: number) => {
     const progress: ScanProgress = { type: 'progress', done, total };
     (self as unknown as Worker).postMessage(progress);
+    if (bucket.count > 0) {
+      const elapsed = performance.now() - overallStart;
+      const rate = done / (elapsed / 1000);
+      console.log(
+        `[bulk-scan] ${done}/${total}, batch avg `
+        + `slice=${(bucket.slice_ms / bucket.count).toFixed(1)} ms, `
+        + `exif=${(bucket.exif_ms / bucket.count).toFixed(1)} ms, `
+        + `total=${(bucket.total_ms / bucket.count).toFixed(1)} ms/file, `
+        + `bytes=${(bucket.byte_total / bucket.count / 1024).toFixed(0)} KB/file, `
+        + `timeouts=${bucket.timed_out}, `
+        + `throughput=${rate.toFixed(1)} files/s`,
+      );
+      Object.assign(bucket, emptyBucket());
+    }
   };
 
   const worker = async () => {
     while (true) {
       const i = nextIndex++;
       if (i >= total) return;
-      entries[i] = await scanOne(i, files[i]);
+      const result = await scanOneTimed(i, files[i]);
+      entries[i] = result.entry;
+      bucket.slice_ms += result.slice_ms;
+      bucket.exif_ms += result.exif_ms;
+      bucket.total_ms += result.total_ms;
+      bucket.byte_total += result.bytes_read;
+      bucket.timed_out += result.timed_out ? 1 : 0;
+      bucket.count += 1;
       completed += 1;
       if (completed % PROGRESS_EVERY === 0 || completed === total) {
         post(completed);
@@ -88,6 +131,12 @@ self.onmessage = async (event: MessageEvent<ScanRequest>) => {
 
   await Promise.all(
     Array.from({ length: Math.min(SCAN_CONCURRENCY, total) }, () => worker()),
+  );
+
+  const elapsed = performance.now() - overallStart;
+  console.log(
+    `[bulk-scan] done in ${(elapsed / 1000).toFixed(1)} s, `
+    + `${(total / (elapsed / 1000)).toFixed(1)} files/s avg`,
   );
 
   const result: ScanDone = { type: 'done', entries };
@@ -118,7 +167,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
-async function scanOne(index: number, file: File): Promise<ScanEntry> {
+interface ScanOneResult {
+  entry: ScanEntry;
+  slice_ms: number;
+  exif_ms: number;
+  total_ms: number;
+  bytes_read: number;
+  timed_out: boolean;
+}
+
+async function scanOneTimed(index: number, file: File): Promise<ScanOneResult> {
+  const t0 = performance.now();
   const relPath =
     (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
   const base: ScanEntry = {
@@ -130,13 +189,21 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     serial: null,
     status: 'corrupt',
   };
+  let slice_ms = 0;
+  let exif_ms = 0;
+  let bytes_read = 0;
+  let timed_out = false;
   try {
-    // Read only the EXIF block, the first ~256 KB of any normal
-    // JPEG. No full-file read, no hashing. The pre-flight duplicate
-    // check now uses (camera_id, captured_at), not bytes.
-    const head = file.slice(0, HEAD_BYTES);
+    // Materialize the first 256 KB into an ArrayBuffer so we can
+    // time the disk read separately from exifr's parse work.
+    const tSlice = performance.now();
+    const head = await file.slice(0, HEAD_BYTES).arrayBuffer();
+    slice_ms = performance.now() - tSlice;
+    bytes_read = head.byteLength;
+
+    const tExif = performance.now();
     const meta = (await withTimeout(
-      exifr.parse(head as Blob),
+      exifr.parse(head),
       PER_FILE_TIMEOUT_MS,
     )) as
       | {
@@ -145,25 +212,41 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
           SerialNumber?: string | number;
         }
       | null;
+    exif_ms = performance.now() - tExif;
+    if (meta === null) timed_out = true;
+
     if (!meta || !meta.DateTimeOriginal) {
-      return { ...base, status: 'missing_exif_datetime' };
+      return {
+        entry: { ...base, status: 'missing_exif_datetime' },
+        slice_ms, exif_ms, total_ms: performance.now() - t0, bytes_read, timed_out,
+      };
     }
     const naive = parseExifDateNaive(meta.DateTimeOriginal);
     if (!naive) {
-      return { ...base, status: 'missing_exif_datetime' };
+      return {
+        entry: { ...base, status: 'missing_exif_datetime' },
+        slice_ms, exif_ms, total_ms: performance.now() - t0, bytes_read, timed_out,
+      };
     }
     const rawSerial = meta.BodySerialNumber ?? meta.SerialNumber ?? null;
     const serial =
       rawSerial !== null && rawSerial !== undefined ? String(rawSerial).trim() : null;
 
     return {
-      ...base,
-      status: 'valid',
-      captured_at: naive,
-      serial: serial && serial.length > 0 ? serial : null,
+      entry: {
+        ...base,
+        status: 'valid',
+        captured_at: naive,
+        serial: serial && serial.length > 0 ? serial : null,
+      },
+      slice_ms, exif_ms, total_ms: performance.now() - t0, bytes_read, timed_out,
     };
-  } catch {
-    return base;
+  } catch (err) {
+    console.warn('[bulk-scan] scan error on', file.name, err);
+    return {
+      entry: base,
+      slice_ms, exif_ms, total_ms: performance.now() - t0, bytes_read, timed_out,
+    };
   }
 }
 
