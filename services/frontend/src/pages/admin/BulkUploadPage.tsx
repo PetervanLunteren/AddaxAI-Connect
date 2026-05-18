@@ -1402,7 +1402,7 @@ const JobRow: React.FC<{
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {job.camera_name ? `For ${job.camera_name}. ` : ''}
-            Uploaded {formatRelative(job.created_at)}
+            Started {formatRelative(job.created_at)}
             {job.created_by_email ? ` by ${job.created_by_email}` : ''}.
             {isActiveUpload && uploadCounts && (
               <>
