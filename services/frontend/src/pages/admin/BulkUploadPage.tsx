@@ -1308,11 +1308,18 @@ const ReviewStep: React.FC<{
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground pt-1">
-        Upload runs in this browser tab. Keep the tab open until the
-        upload bar reaches the end. The analysis afterwards is
-        server-side, the tab is safe to close once the upload is done.
-      </p>
+      <div
+        role="note"
+        className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900"
+      >
+        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+        <div>
+          <span className="font-medium">Keep this browser tab open until the upload bar reaches the end.</span>
+          {' '}
+          The upload runs in this tab. The analysis afterwards is
+          server-side, the tab is safe to close once the upload is done.
+        </div>
+      </div>
 
       <div className="flex justify-between gap-2 pt-2">
         <div className="flex gap-2">
