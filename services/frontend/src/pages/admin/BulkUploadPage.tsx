@@ -51,21 +51,17 @@ import {
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed']);
 
 function statusLabel(status: BulkUploadJob['status']): string {
+  // Collapse every in-flight server status to "Active" so the
+  // badge matches the filter chips above. The per-row caption and
+  // progress bar already tell the user which phase of "Active" the
+  // row is in, so distinguishing them on the badge is redundant.
   switch (status) {
-    case 'uploading':
-      return 'Uploading';
-    case 'queued':
-      return 'Queued';
-    case 'inspecting':
-      return 'Inspecting';
-    case 'awaiting_confirmation':
-      return 'Awaiting review';
-    case 'processing':
-      return 'Processing';
     case 'done':
       return 'Done';
     case 'failed':
       return 'Failed';
+    default:
+      return 'Active';
   }
 }
 
@@ -172,7 +168,7 @@ const STATUS_LABELS: Record<string, string> = {
 const MAX_FILES_PER_JOB = 20000;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
-type FilterKey = 'active' | 'done' | 'failed' | 'all';
+type FilterKey = 'active' | 'done' | 'failed';
 
 const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['status']) => boolean }[] = [
   {
@@ -187,7 +183,6 @@ const FILTER_DEFS: { key: FilterKey; label: string; matches: (s: BulkUploadJob['
   },
   { key: 'done', label: 'Done', matches: (s) => s === 'done' },
   { key: 'failed', label: 'Failed', matches: (s) => s === 'failed' },
-  { key: 'all', label: 'All', matches: () => true },
 ];
 
 export const BulkUploadPage: React.FC = () => {
@@ -215,11 +210,10 @@ export const BulkUploadPage: React.FC = () => {
   });
 
   const counts = useMemo(() => {
-    const c: Record<FilterKey, number> = { active: 0, done: 0, failed: 0, all: 0 };
+    const c: Record<FilterKey, number> = { active: 0, done: 0, failed: 0 };
     (jobs ?? []).forEach((j) => {
-      c.all += 1;
       for (const def of FILTER_DEFS) {
-        if (def.key !== 'all' && def.matches(j.status)) c[def.key] += 1;
+        if (def.matches(j.status)) c[def.key] += 1;
       }
     });
     return c;
@@ -365,7 +359,7 @@ export const BulkUploadPage: React.FC = () => {
             <p className="text-sm text-muted-foreground">
               {(!jobs || jobs.length === 0)
                 ? 'No uploads yet for this project.'
-                : `No ${filter === 'all' ? '' : filter + ' '}jobs.`}
+                : `No ${filter} jobs.`}
             </p>
           ) : (
             <div>

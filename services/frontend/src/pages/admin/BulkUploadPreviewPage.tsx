@@ -182,14 +182,12 @@ function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties 
 }
 
 function statusLabel(status: BulkUploadJob['status']): string {
+  // Match BulkUploadPage: every in-flight server status collapses
+  // to "Active" so the badge mirrors the filter chips.
   switch (status) {
-    case 'uploading': return 'Uploading';
-    case 'queued': return 'Queued';
-    case 'inspecting': return 'Inspecting';
-    case 'awaiting_confirmation': return 'Awaiting review';
-    case 'processing': return 'Processing';
     case 'done': return 'Done';
     case 'failed': return 'Failed';
+    default: return 'Active';
   }
 }
 
