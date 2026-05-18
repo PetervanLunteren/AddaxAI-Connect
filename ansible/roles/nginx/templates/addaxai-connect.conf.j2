@@ -73,13 +73,16 @@ server {
         proxy_pass http://localhost:3000;
     }
 
-    # Bulk image upload endpoint. Accepts a ZIP up to 20 GB scoped to
-    # one camera. Streams the body through to the API instead of
-    # buffering on disk first; bumps timeouts so large uploads on slow
-    # connections do not get cut off.
-    location ~ ^/api/projects/[0-9]+/bulk-upload$ {
-        limit_req zone=api_limit burst=5 nodelay;
-
+    # Bulk image upload endpoints. Covers the create-job, per-file
+    # POST, finalize, cancel, list, get, log-csv, uploaded-indexes,
+    # scan-suggest, and check-duplicates routes. A single SD-card
+    # upload sends hundreds of per-file POSTs with small client-side
+    # concurrency, which legitimately bursts well over the generic
+    # /api/ rate limit. No nginx rate limit here: the endpoint is
+    # gated by project-admin auth, the API process holds its own
+    # asyncio.Semaphore on concurrent file writes, and a per-project
+    # in-flight cap prevents one user from spawning many jobs.
+    location ~ ^/api/projects/[0-9]+/bulk-upload(/|$) {
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -87,11 +90,12 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        client_max_body_size 20G;
+        # Matches the per-file cap in the API layer.
+        client_max_body_size 50M;
         proxy_request_buffering off;
         proxy_connect_timeout 60s;
-        proxy_send_timeout 3600s;
-        proxy_read_timeout 3600s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
     }
 
     # API proxy - increased burst to 50 for concurrent thumbnail requests
@@ -276,10 +280,12 @@ server {
         proxy_pass http://localhost:3000;
     }
 
-    # Bulk image upload endpoint. Same shape as the HTTP block above.
-    location ~ ^/api/projects/[0-9]+/bulk-upload$ {
-        limit_req zone=api_limit burst=5 nodelay;
-
+    # Bulk image upload endpoints. Same shape as the HTTP block above:
+    # prefix match so every per-job sub-route matches, and no nginx
+    # rate limit because bursts of per-file POSTs are the legitimate
+    # access pattern and admin auth + the API semaphore are the real
+    # admission control.
+    location ~ ^/api/projects/[0-9]+/bulk-upload(/|$) {
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -287,11 +293,11 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        client_max_body_size 20G;
+        client_max_body_size 50M;
         proxy_request_buffering off;
         proxy_connect_timeout 60s;
-        proxy_send_timeout 3600s;
-        proxy_read_timeout 3600s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
     }
 
     # API proxy - increased burst to 50 for concurrent thumbnail requests
