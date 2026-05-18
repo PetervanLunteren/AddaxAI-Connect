@@ -1537,11 +1537,11 @@ function deriveRowCounts(job: BulkUploadJob, active: ActiveUpload | null): RowCo
     // Past the upload phase by definition.
     uploadDone = job.total_files;
   }
-  const uploadPercent = Math.min(100, Math.round((uploadDone / total) * 100));
+  const uploadPercent = honestPercent(uploadDone, total);
   const processDone = job.processed_files + job.skipped_files;
   const processPercent =
     job.status === 'done' || job.status === 'processing'
-      ? Math.min(100, Math.round((processDone / total) * 100))
+      ? honestPercent(processDone, total)
       : 0;
   return {
     total: job.total_files,
@@ -1550,6 +1550,17 @@ function deriveRowCounts(job: BulkUploadJob, active: ActiveUpload | null): RowCo
     processDone,
     processPercent,
   };
+}
+
+// Floor instead of round so we never claim 100 % while files are
+// still in flight. 19,345 / 19,380 is 99.81 %; rounded it would
+// show as 100 % alongside "Less than a minute left", which reads
+// contradictory. Only show 100 % when the phase is genuinely
+// complete.
+function honestPercent(done: number, total: number): number {
+  if (total <= 0) return 0;
+  if (done >= total) return 100;
+  return Math.min(99, Math.max(0, Math.floor((done / total) * 100)));
 }
 
 function renderUploadCaption({
