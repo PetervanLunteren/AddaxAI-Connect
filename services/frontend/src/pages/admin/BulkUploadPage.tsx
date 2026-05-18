@@ -293,6 +293,11 @@ export const BulkUploadPage: React.FC = () => {
     }
   }, [jobs, toast]);
 
+  // The modal can open in two modes: a fresh upload (no preset), or
+  // a resume of a specific job (resumeIntent set). The resume mode
+  // skips the banner step and goes straight to "pick the folder".
+  const [resumeIntent, setResumeIntent] = useState<BulkUploadJob | null>(null);
+
   // Permission is requested on the first click of the header button.
   // Browsers require a user gesture, and this is the natural moment
   // because the user is actively starting work that will run async.
@@ -307,8 +312,14 @@ export const BulkUploadPage: React.FC = () => {
         // Older browsers throw on the sync call form; that's fine.
       }
     }
+    setResumeIntent(null);
     setModalOpen(true);
   };
+
+  const handleResume = useCallback((job: BulkUploadJob) => {
+    setResumeIntent(job);
+    setModalOpen(true);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -370,6 +381,14 @@ export const BulkUploadPage: React.FC = () => {
                     job={job}
                     projectId={projectId!}
                     etaText={computeEta(job, jobs ?? [], processRate)}
+                    onResume={
+                      // Paused upload, no live session for this job
+                      // in this tab. The Discard button stays, and
+                      // a Resume sits next to it.
+                      job.status === 'uploading' && job.uuid !== activeUploadUuid
+                        ? () => handleResume(job)
+                        : undefined
+                    }
                     onDiscard={
                       job.status !== 'processing'
                         ? () => handleDiscard(job.uuid)
@@ -386,9 +405,13 @@ export const BulkUploadPage: React.FC = () => {
 
       <BulkUploadModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false);
+          setResumeIntent(null);
+        }}
         projectId={projectId!}
         resumableJobs={(jobs ?? []).filter((j) => j.status === 'uploading')}
+        initialResumeJob={resumeIntent}
       />
     </div>
   );
@@ -450,7 +473,11 @@ const BulkUploadModal: React.FC<{
   onClose: () => void;
   projectId: number;
   resumableJobs: BulkUploadJob[];
-}> = ({ open, onClose, projectId, resumableJobs }) => {
+  // Pre-populated when the user clicked Resume on a paused row.
+  // Skips the banner-choose-which-job step and drops the user
+  // straight at the folder picker for that job.
+  initialResumeJob?: BulkUploadJob | null;
+}> = ({ open, onClose, projectId, resumableJobs, initialResumeJob }) => {
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -462,14 +489,16 @@ const BulkUploadModal: React.FC<{
   // session over to bulkUploadStore.
   const [resumeJob, setResumeJob] = useState<BulkUploadJob | null>(null);
 
-  // Reset everything when the modal opens.
+  // Reset everything when the modal opens. If initialResumeJob is
+  // set, start the modal already in resume mode for that job so the
+  // user does not have to click Resume on a banner again.
   useEffect(() => {
     if (!open) return;
     setStep('pick');
     setScanned(null);
     setScanProgress(null);
-    setResumeJob(null);
-  }, [open]);
+    setResumeJob(initialResumeJob ?? null);
+  }, [open, initialResumeJob]);
 
   const beginNew = useBulkUploadStore((s) => s.beginNew);
   const beginResume = useBulkUploadStore((s) => s.beginResume);
@@ -1345,9 +1374,10 @@ const JobRow: React.FC<{
   job: BulkUploadJob;
   projectId: number;
   etaText: string | null;
+  onResume?: () => void;
   onDiscard?: () => void;
   isDiscarding?: boolean;
-}> = ({ job, projectId, etaText, onDiscard, isDiscarding }) => {
+}> = ({ job, projectId, etaText, onResume, onDiscard, isDiscarding }) => {
   // Subscribe to the active client-side upload session. If this row
   // is the one currently uploading from THIS browser, the store has
   // live counts; otherwise we fall back to the server-recorded state.
@@ -1403,6 +1433,12 @@ const JobRow: React.FC<{
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {onResume && (
+            <Button size="sm" variant="outline" onClick={onResume}>
+              <RotateCw className="h-4 w-4 mr-1" />
+              Resume
+            </Button>
+          )}
           {isTerminal && (
             <a href={bulkUploadApi.logCsvUrl(projectId, job.uuid)}>
               <Button size="sm" variant="outline">
@@ -1525,9 +1561,7 @@ function renderUploadCaption({
       : 'done';
   }
   if (job.status === 'failed') return 'incomplete';
-  if (job.status === 'uploading') {
-    return 'paused, open Bulk upload to resume';
-  }
+  if (job.status === 'uploading') return 'paused';
   return '—';
 }
 
