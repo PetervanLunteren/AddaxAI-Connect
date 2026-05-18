@@ -1581,8 +1581,8 @@ function renderUploadCaption({
   }
   if (counts.uploadPercent === 100) {
     return uploadElapsedSec !== null
-      ? `Took ${formatDuration(uploadElapsedSec)}`
-      : 'Done';
+      ? `Uploaded in ${formatDuration(uploadElapsedSec)}`
+      : 'Uploaded';
   }
   if (job.status === 'failed') return 'Incomplete';
   if (job.status === 'uploading') return 'Paused';
@@ -1604,7 +1604,9 @@ function renderProcessCaption({
   }
   if (job.status === 'done') {
     let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · 100 %`;
-    if (processElapsedSec !== null) s += ` · Took ${formatDuration(processElapsedSec)}`;
+    if (processElapsedSec !== null) {
+      s += ` · Processed in ${formatDuration(processElapsedSec)}`;
+    }
     return s;
   }
   if (counts.uploadPercent === 100) return 'Pending';
