@@ -100,53 +100,31 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
 }
 
-// Default seconds/image used only when there's no per-job signal
-// yet (first few files of a fresh upload). Tuned for the live
-// detection + classification path; per-job measurement takes over
-// after MIN_SAMPLE files have completed.
+// Seconds/image fallback used for the first MIN_SAMPLE files of any
+// fresh job, before it has enough signal to calibrate from its own
+// throughput. Tuned to the live detection + classification path.
 const DEFAULT_PROCESS_SECONDS_PER_IMAGE = 2;
 const MIN_SAMPLE = 20;
-const RATE_SAMPLE_SIZE = 8;
 const ETA_STATES = new Set<BulkUploadJob['status']>(['processing']);
 
 function remainingFiles(job: BulkUploadJob): number {
   return Math.max(0, job.total_files - job.processed_files - job.skipped_files);
 }
 
-function measuredProcessRate(jobs: BulkUploadJob[]): number | null {
-  const samples = jobs
-    .filter(
-      (j) =>
-        j.status === 'done'
-        && j.process_started_at
-        && j.finished_at
-        && j.processed_files >= 5,
-    )
-    .sort((a, b) => (b.finished_at ?? '').localeCompare(a.finished_at ?? ''))
-    .slice(0, RATE_SAMPLE_SIZE);
-  if (samples.length === 0) return null;
-  const rates = samples.map((j) => {
-    const elapsedMs = new Date(j.finished_at!).getTime()
-      - new Date(j.process_started_at!).getTime();
-    return Math.max(0.1, elapsedMs / 1000 / j.processed_files);
-  });
-  return rates.reduce((a, b) => a + b, 0) / rates.length;
-}
-
 // Per-job seconds/image, computed from THIS job's own progress when
 // there's enough signal. Skipped duplicates count toward completion
 // because each one took real wall-clock time (a DB lookup, ~20 ms)
 // and we want the ETA to track the actual mix of skips and
-// full-pipeline processing the worker is doing right now. Without
-// this, a job that is mostly duplicates shows "Several hours left"
-// because the fallback assumes every file needs the full pipeline.
-function jobRate(job: BulkUploadJob, fallback: number): number {
-  if (job.status !== 'processing' || !job.process_started_at) return fallback;
+// full-pipeline processing the worker is doing right now.
+function jobRate(job: BulkUploadJob): number {
+  if (job.status !== 'processing' || !job.process_started_at) {
+    return DEFAULT_PROCESS_SECONDS_PER_IMAGE;
+  }
   const completed = job.processed_files + job.skipped_files;
-  if (completed < MIN_SAMPLE) return fallback;
+  if (completed < MIN_SAMPLE) return DEFAULT_PROCESS_SECONDS_PER_IMAGE;
   const elapsedSec =
     (Date.now() - new Date(job.process_started_at).getTime()) / 1000;
-  if (elapsedSec <= 0) return fallback;
+  if (elapsedSec <= 0) return DEFAULT_PROCESS_SECONDS_PER_IMAGE;
   return Math.max(0.001, elapsedSec / completed);
 }
 
@@ -167,7 +145,6 @@ function bucketEta(seconds: number): string {
 function computeEta(
   job: BulkUploadJob,
   allJobs: BulkUploadJob[],
-  defaultRate: number,
 ): string | null {
   if (!ETA_STATES.has(job.status)) return null;
   const inFlight = allJobs
@@ -181,7 +158,7 @@ function computeEta(
   // without lumping every job onto a single global rate.
   const totalSeconds = inFlight
     .slice(0, myIndex + 1)
-    .reduce((sum, j) => sum + remainingFiles(j) * jobRate(j, defaultRate), 0);
+    .reduce((sum, j) => sum + remainingFiles(j) * jobRate(j), 0);
   return bucketEta(totalSeconds);
 }
 
@@ -250,11 +227,6 @@ export const BulkUploadPage: React.FC = () => {
     const def = FILTER_DEFS.find((f) => f.key === filter)!;
     return (jobs ?? []).filter((j) => def.matches(j.status));
   }, [jobs, filter]);
-
-  const processRate = useMemo(
-    () => measuredProcessRate(jobs ?? []) ?? DEFAULT_PROCESS_SECONDS_PER_IMAGE,
-    [jobs],
-  );
 
   const cancelActiveUpload = useBulkUploadStore((s) => s.cancelActive);
   const activeUploadUuid = useBulkUploadStore((s) =>
@@ -407,7 +379,7 @@ export const BulkUploadPage: React.FC = () => {
                   <JobRow
                     job={job}
                     projectId={projectId!}
-                    etaText={computeEta(job, jobs ?? [], processRate)}
+                    etaText={computeEta(job, jobs ?? [])}
                     onResume={
                       // Paused upload, no live session for this job
                       // in this tab. The Discard button stays, and
