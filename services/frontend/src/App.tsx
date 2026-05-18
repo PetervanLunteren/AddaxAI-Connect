@@ -33,6 +33,7 @@ import { ProjectUsersPage } from './pages/ProjectUsersPage';
 import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { BulkUploadPage } from './pages/admin/BulkUploadPage';
+import { BulkUploadPreviewPage } from './pages/admin/BulkUploadPreviewPage';
 import { NaiveOccupancyPage } from './pages/insights/NaiveOccupancyPage';
 import { InsightsMapPage } from './pages/insights/MapPage';
 import { ConfusionMatrixPage } from './pages/insights/ConfusionMatrixPage';
@@ -158,6 +159,7 @@ function App() {
                 <Route path="users" element={<ProjectUsersPage />} />
                 <Route path="manage-images" element={<ManageImagesPage />} />
                 <Route path="bulk-upload" element={<BulkUploadPage />} />
+                <Route path="bulk-upload/preview" element={<BulkUploadPreviewPage />} />
               </Route>
 
               {/* Redirect root to projects */}
