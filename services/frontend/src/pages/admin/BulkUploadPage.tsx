@@ -1468,7 +1468,13 @@ const JobRow: React.FC<{
               ) : (
                 <Trash2 className="h-4 w-4 mr-1" />
               )}
-              Discard
+              {/* Same button, three different consequences depending
+                  on state. "Remove" only takes the row off the list,
+                  any classified Image rows survive. "Cancel" stops
+                  the in-tab upload loop and deletes its staging.
+                  "Discard" deletes a paused job that nobody is
+                  actively driving. */}
+              {isTerminal ? 'Remove' : isActiveUpload ? 'Cancel' : 'Discard'}
             </Button>
           )}
         </div>
