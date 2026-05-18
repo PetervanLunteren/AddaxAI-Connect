@@ -1317,6 +1317,9 @@ const UploadStep: React.FC<{
   // writes. It must run exactly once per UploadStep mount. The deps
   // array fires on any parent re-render, so guard with a ref.
   const startedRef = useRef(false);
+  // First-byte timestamp for ETA. Set once when the upload effect
+  // begins. Held in a ref so we don't trigger a re-render setting it.
+  const startTimeRef = useRef<number | null>(null);
 
   // Sort valid entries by relative_path so the per-file position is
   // stable across resume sessions even if the browser walks the
@@ -1342,6 +1345,7 @@ const UploadStep: React.FC<{
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
+    startTimeRef.current = Date.now();
     let mounted = true;
     cancelledRef.current = false;
 
@@ -1449,6 +1453,22 @@ const UploadStep: React.FC<{
   const completed = uploaded + skipped;
   const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 100;
 
+  // ETA from measured throughput. Skipped files are already on the
+  // server and contribute zero upload time, so the rate is computed
+  // from the files we have actually pushed. Suppress the estimate
+  // for the first few completions where the average is too noisy
+  // to be useful.
+  const elapsedSeconds = startTimeRef.current
+    ? (Date.now() - startTimeRef.current) / 1000
+    : 0;
+  const remaining = Math.max(0, total - completed);
+  const uploadRate = uploaded >= 5 && elapsedSeconds > 0
+    ? uploaded / elapsedSeconds
+    : 0;
+  const etaText = !done && remaining > 0 && uploadRate > 0
+    ? bucketEta(remaining / uploadRate)
+    : null;
+
   return (
     <div className="space-y-4">
       <div className="space-y-1">
@@ -1462,10 +1482,17 @@ const UploadStep: React.FC<{
               <span className="font-medium">{completed.toLocaleString()}</span>
               {' of '}
               <span className="font-medium">{total.toLocaleString()}</span>
-              {' uploaded'}
+              {' uploaded ('}
+              <span className="font-medium">{percent}%</span>
+              {')'}
               {skipped > 0 && (
                 <span className="text-muted-foreground">
-                  {' ('}{skipped.toLocaleString()} already on the server{')'}
+                  {', '}{skipped.toLocaleString()} already on the server
+                </span>
+              )}
+              {etaText && (
+                <span className="text-muted-foreground">
+                  {', '}{etaText} left
                 </span>
               )}
               {'.'}
