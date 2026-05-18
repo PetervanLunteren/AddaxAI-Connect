@@ -1577,6 +1577,10 @@ function renderUploadCaption({
     let s = `${counts.uploadDone.toLocaleString()} / ${counts.total.toLocaleString()} · ${counts.uploadPercent} %`;
     if (uploadEta) s += ` · ${uploadEta} left`;
     if (failed > 0) s += ` · ${failed.toLocaleString()} failed`;
+    // Upload runs in this page's JS, closing the tab halts the loop.
+    // Make that explicit so the user does not assume it's like the
+    // analysis phase, which is server-side and safe to leave.
+    s += ' · Closing the tab pauses the upload';
     return s;
   }
   if (counts.uploadPercent === 100) {
@@ -1600,6 +1604,8 @@ function renderProcessCaption({
   if (job.status === 'processing') {
     let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · ${counts.processPercent} %`;
     if (etaText) s += ` · ${etaText} left`;
+    // Analysis is server-side, the tab can close.
+    s += ' · Safe to close the tab';
     return s;
   }
   if (job.status === 'done') {
