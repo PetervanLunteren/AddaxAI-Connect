@@ -71,8 +71,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   ];
 
   // Background poll for in-flight bulk-upload jobs so we can badge
-  // the admin entry. Slow tick when idle so the sidebar does not hit
-  // the API every 5 s for nothing.
+  // the admin entry. Fast tick (5 s) when a job is actively
+  // uploading or processing so the badge updates in near-real-time.
+  // Stretch to 5 min when idle: badge changes are rare in that
+  // state and the only consequence of a slow refresh is the user
+  // missing the start of a fresh upload they themselves did not
+  // initiate. Anyone starting their own upload triggers an
+  // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
   const { data: bulkJobs } = useQuery({
     queryKey: ['bulk-upload-jobs', numericProjectId],
@@ -83,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       const anyInFlight = (data ?? []).some(
         (j) => j.status === 'uploading' || j.status === 'processing',
       );
-      return anyInFlight ? 5000 : 30000;
+      return anyInFlight ? 5000 : 300000;
     },
   });
   const inFlightBulkCount = (bulkJobs ?? []).filter(

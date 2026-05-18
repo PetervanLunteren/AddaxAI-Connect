@@ -13,6 +13,7 @@ Legacy jobs created before the per-file refactor (statuses queued,
 inspecting, awaiting_confirmation) are still readable but cannot be
 resumed; they expire via the orphan-cleanup pass.
 """
+import asyncio
 import csv
 import io
 import re
@@ -59,6 +60,23 @@ ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
 # the case of a user closing the tab mid-upload. 24 h is generous enough
 # that a slow upload over a bad connection still has time to finish.
 UPLOAD_TTL = timedelta(hours=24)
+
+# Cap on concurrent non-terminal bulk-upload jobs per project. Prevents
+# a single user kicking off twenty parallel SD-card uploads and
+# starving the worker queue for everyone else. 3 covers a normal
+# workflow (one uploading, one or two waiting in processing) with
+# headroom.
+MAX_CONCURRENT_JOBS_PER_PROJECT = 3
+
+# Soft cap on in-flight per-file uploads handled by this API process.
+# The client uploads with concurrency 4, so a single legitimate user
+# never hits the limit; the bound mostly defends against a user who
+# opens several tabs or a bug that hammers the endpoint. Module-level
+# semaphore so it's process-wide. Multiple uvicorn workers each get
+# their own bucket, which is fine: this is a soft DoS guard, not a
+# strict admission control.
+_UPLOAD_CONCURRENCY = 8
+_upload_semaphore = asyncio.Semaphore(_UPLOAD_CONCURRENCY)
 
 
 class BulkUploadJobResponse(BaseModel):
@@ -260,7 +278,17 @@ def _job_to_response(
     created_by_email: Optional[str],
     processed_files: int,
     queue_position: Optional[int] = None,
+    *,
+    include_file_log: bool = True,
 ) -> BulkUploadJobResponse:
+    # file_log can run to MB at 20k files; the list endpoint polls
+    # every 5 s and only needs the summary counts, never the per-file
+    # detail. Strip it there. The CSV download endpoint reads
+    # manifest.file_log straight off the row, so it doesn't depend on
+    # this response shape.
+    manifest = job.manifest
+    if manifest is not None and not include_file_log and "file_log" in manifest:
+        manifest = {k: v for k, v in manifest.items() if k != "file_log"}
     return BulkUploadJobResponse(
         uuid=job.uuid,
         project_id=job.project_id,
@@ -272,7 +300,7 @@ def _job_to_response(
         processed_files=processed_files,
         skipped_files=job.skipped_files,
         error_message=job.error_message,
-        manifest=job.manifest,
+        manifest=manifest,
         queue_position=queue_position if job.status == "processing" else None,
         started_at=job.started_at.isoformat() if job.started_at else None,
         process_started_at=(
@@ -431,6 +459,29 @@ async def create_bulk_upload_job(
             detail="Camera does not belong to this project",
         )
 
+    # Soft cap on in-flight jobs per project so one user cannot
+    # starve the bulk worker queue with twenty parallel SD-card
+    # uploads. Counts both 'uploading' (client streaming files) and
+    # 'processing' (worker pipeline). Terminal jobs do not count.
+    in_flight = (
+        await db.execute(
+            select(func.count(BulkUploadJob.id)).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.status.in_(("uploading", "processing")),
+            )
+        )
+    ).scalar_one()
+    if in_flight >= MAX_CONCURRENT_JOBS_PER_PROJECT:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"This project already has {in_flight} bulk uploads in "
+                f"flight (limit {MAX_CONCURRENT_JOBS_PER_PROJECT}). "
+                "Wait for one to finish, or discard a queued one, "
+                "before starting another."
+            ),
+        )
+
     job_uuid = str(uuid.uuid4())
     safe_folder_name = _safe_basename(body.folder_name) or "upload"
 
@@ -477,9 +528,25 @@ async def upload_bulk_file(
 ):
     """
     Upload one file into a job's staging prefix. The client passes its
-    own ordering index so retries write to the same MinIO key (idempotent
-    for slice B resume).
+    own ordering index so retries write to the same MinIO key
+    (idempotent for resume). Module-level semaphore caps the number
+    of concurrent uploads handled by this API process so one user
+    cannot pin MinIO with hundreds of parallel writes.
     """
+    async with _upload_semaphore:
+        return await _upload_bulk_file_inner(
+            project_id, job_uuid, index, file, user, db,
+        )
+
+
+async def _upload_bulk_file_inner(
+    project_id: int,
+    job_uuid: str,
+    index: int,
+    file: UploadFile,
+    user: User,
+    db: AsyncSession,
+):
     if index < 0 or index >= MAX_FILES_PER_JOB:
         raise HTTPException(status_code=400, detail="File index out of range")
 
@@ -715,6 +782,10 @@ async def list_bulk_upload_jobs(
             created_by_email=email,
             processed_files=processed_counts.get(job.id, 0),
             queue_position=positions.get(job.id),
+            # The list endpoint polls every 5 s and only needs the
+            # summary. Per-file detail can run to MB at 20k-image
+            # jobs and is only used by the CSV download.
+            include_file_log=False,
         )
         for job, cam_name, email in rows
     ]

@@ -17,15 +17,17 @@ staged_object_key ending in '.zip' and used a separate "inspect" phase.
 That path is retained so any in-flight legacy job can drain after the
 refactor lands. New jobs use the prefix layout.
 """
+import contextlib
 import hashlib
 import os
+import signal
 import sys
 import tempfile
 import uuid
 import zipfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Iterator, Optional
 
 # Vendored copy of the live ingestion service. Same Python module path
 # as ingestion uses internally so the imports below work unchanged.
@@ -56,6 +58,37 @@ from validators import validate_image  # noqa: E402
 
 PROGRESS_PERSIST_EVERY = 25
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
+# Wall-clock cap per file inside the worker. Normal ingestion (EXIF
+# read + MinIO write + thumbnail) is 1-2 s; a corrupt JPEG that hangs
+# Pillow or a stuck MinIO connection could otherwise wedge the entire
+# job. 60 s is two orders of magnitude over the normal case, generous
+# enough that legitimate slow disks finish but tight enough that one
+# bad frame does not eat the whole batch.
+PER_FILE_TIMEOUT_SECONDS = 60
+
+
+class _FileTimeout(Exception):
+    """Raised by the SIGALRM handler when a single file exceeds its budget."""
+
+
+@contextlib.contextmanager
+def _file_timeout(seconds: int) -> Iterator[None]:
+    """
+    Bound a block of code with SIGALRM. The bulk-upload worker is a
+    single-threaded queue consumer, so SIGALRM is safe (signal-based
+    timeouts require running in the main thread, which we always are).
+    The previous handler is restored on exit.
+    """
+    def _on_alarm(_signum, _frame):
+        raise _FileTimeout()
+
+    prev = signal.signal(signal.SIGALRM, _on_alarm)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, prev)
 # Filesystem cruft that ends up inside ZIPs but isn't a real user file.
 # macOS adds __MACOSX/._* shadow entries to every zip it creates; macOS
 # and Windows both drop .DS_Store / Thumbs.db / desktop.ini turds. We
@@ -548,15 +581,23 @@ def _process_prefix_job(
         filename = tail.split("_", 1)[1] if "_" in tail else tail
         try:
             raw = storage.download_fileobj(BUCKET_BULK_UPLOAD_STAGING, key)
-            result = _process_zip_entry(
-                filename,
-                raw,
-                camera_id,
-                camera_storage_id,
-                gps_location,
-                bulk_queue,
-                job_id,
+            with _file_timeout(PER_FILE_TIMEOUT_SECONDS):
+                result = _process_zip_entry(
+                    filename,
+                    raw,
+                    camera_id,
+                    camera_storage_id,
+                    gps_location,
+                    bulk_queue,
+                    job_id,
+                )
+        except _FileTimeout:
+            logger.warning(
+                "Bulk upload object timed out",
+                object_key=key,
+                timeout_s=PER_FILE_TIMEOUT_SECONDS,
             )
+            result = {"outcome": "skipped", "reason": "processing_timeout"}
         except Exception as exc:
             logger.warning(
                 "Skipping bulk upload object, unexpected error",
@@ -649,10 +690,18 @@ def _process_legacy_zip_job(
             for idx, info in enumerate(entries, start=1):
                 try:
                     raw = zf.read(info)
-                    result = _process_zip_entry(
-                        info.filename, raw, camera_id, camera_storage_id,
-                        gps_location, bulk_queue, job_id,
+                    with _file_timeout(PER_FILE_TIMEOUT_SECONDS):
+                        result = _process_zip_entry(
+                            info.filename, raw, camera_id, camera_storage_id,
+                            gps_location, bulk_queue, job_id,
+                        )
+                except _FileTimeout:
+                    logger.warning(
+                        "Legacy zip entry timed out",
+                        entry=info.filename,
+                        timeout_s=PER_FILE_TIMEOUT_SECONDS,
                     )
+                    result = {"outcome": "skipped", "reason": "processing_timeout"}
                 except Exception as exc:
                     logger.warning(
                         "Skipping legacy zip entry",
