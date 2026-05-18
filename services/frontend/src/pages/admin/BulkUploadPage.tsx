@@ -1605,7 +1605,7 @@ function renderProcessCaption({
   if (job.status === 'done') {
     let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · 100 %`;
     if (processElapsedSec !== null) {
-      s += ` · Processed in ${formatDuration(processElapsedSec)}`;
+      s += ` · Analysed in ${formatDuration(processElapsedSec)}`;
     }
     return s;
   }
