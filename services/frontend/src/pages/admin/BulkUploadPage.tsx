@@ -503,7 +503,7 @@ const BulkUploadModal: React.FC<{
               <>Confirm the camera and start uploading.</>
             )}
             {step === 'upload' && (
-              <>Streaming files to the server. Keep this tab open until the bar reaches the end.</>
+              <>Sending files to the server. Closing this window is fine, the upload keeps running in the background. Closing the browser tab pauses the upload, you can resume it from the bulk-upload page.</>
             )}
           </DialogDescription>
         </DialogHeader>
