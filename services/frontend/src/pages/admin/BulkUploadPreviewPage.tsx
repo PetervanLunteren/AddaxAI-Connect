@@ -220,6 +220,28 @@ function diffSeconds(start: string | null, end: string | null): number | null {
   return Math.max(0, (b - a) / 1000);
 }
 
+// Elapsed time for the variant that shows ONE bar (A, C, D). Returns
+// the wall-clock duration of whichever phase is most informative for
+// the current status: upload elapsed while uploading, process
+// elapsed while processing, process time for done, total runtime
+// for failed.
+function activeElapsedSeconds(state: MockState): number | null {
+  const { job } = state;
+  const now = new Date().toISOString();
+  switch (job.status) {
+    case 'uploading':
+      return diffSeconds(job.created_at, now);
+    case 'processing':
+      return diffSeconds(job.process_started_at, now);
+    case 'done':
+      return diffSeconds(job.process_started_at, job.finished_at);
+    case 'failed':
+      return diffSeconds(job.created_at, job.finished_at);
+    default:
+      return null;
+  }
+}
+
 function StatusBadge({ status }: { status: BulkUploadJob['status'] }) {
   return (
     <span
@@ -291,6 +313,7 @@ const VariantA: React.FC<{ state: MockState }> = ({ state }) => {
   const { job, upload } = state;
   const eta = upload?.etaText ?? state.processEtaText ?? null;
   const bar = job.status === 'uploading' ? c.uploadPercent : c.processPercent;
+  const elapsedSec = activeElapsedSeconds(state);
 
   return (
     <div>
@@ -307,7 +330,7 @@ const VariantA: React.FC<{ state: MockState }> = ({ state }) => {
         <RowActions job={job} />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 text-xs">
         <Stat label="Started" value={formatRelative(job.created_at)} />
         <Stat
           label="Files"
@@ -320,6 +343,10 @@ const VariantA: React.FC<{ state: MockState }> = ({ state }) => {
         <Stat
           label="Progress"
           value={`${job.status === 'uploading' ? c.uploadPercent : c.processPercent} %`}
+        />
+        <Stat
+          label="Elapsed"
+          value={elapsedSec !== null ? formatDuration(elapsedSec) : '—'}
         />
         <Stat label="ETA" value={eta ?? '—'} />
       </div>
@@ -434,10 +461,12 @@ const VariantC: React.FC<{ state: MockState }> = ({ state }) => {
   const done = job.status === 'uploading' ? c.uploadDone : c.processDone;
   const percent = job.status === 'uploading' ? c.uploadPercent : c.processPercent;
 
+  const elapsedSec = activeElapsedSeconds(state);
   const facts: string[] = [];
   facts.push(`started ${formatRelative(job.created_at)}`);
   facts.push(`${done.toLocaleString()} of ${c.total.toLocaleString()}`);
   facts.push(`${percent} %`);
+  if (elapsedSec !== null) facts.push(`${formatDuration(elapsedSec)} in`);
   if (eta) facts.push(`${eta} left`);
   if (c.failed > 0) facts.push(`${c.failed.toLocaleString()} failed`);
 
@@ -475,6 +504,7 @@ const VariantD: React.FC<{ state: MockState }> = ({ state }) => {
   const c = deriveCounts(state);
   const { job, upload } = state;
   const eta = upload?.etaText ?? state.processEtaText ?? null;
+  const elapsedSec = activeElapsedSeconds(state);
   const done = job.status === 'uploading' ? c.uploadDone : c.processDone;
   const percent = job.status === 'uploading' ? c.uploadPercent : c.processPercent;
   const phase = job.status === 'uploading' ? 'upload' : 'process';
@@ -499,7 +529,11 @@ const VariantD: React.FC<{ state: MockState }> = ({ state }) => {
           <span className="tabular-nums">
             {phase}: {done.toLocaleString()} / {c.total.toLocaleString()} ({percent} %)
           </span>
-          <span>{eta ? `${eta} left` : ''}</span>
+          <span>
+            {elapsedSec !== null && `${formatDuration(elapsedSec)} in`}
+            {elapsedSec !== null && eta && ' · '}
+            {eta && `${eta} left`}
+          </span>
         </div>
         <div className="flex h-2 w-full rounded-full bg-secondary overflow-hidden">
           <div
