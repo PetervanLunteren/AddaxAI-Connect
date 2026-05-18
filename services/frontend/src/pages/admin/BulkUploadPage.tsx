@@ -1363,8 +1363,13 @@ const JobRow: React.FC<{
   // 'processing' state so the caption switches over cleanly.
   const isActiveUpload =
     active !== null && active.jobUuid === job.uuid && !active.done;
-  const uploadEta = isActiveUpload ? computeUploadEta(active!) : null;
   const uploadCounts = isActiveUpload ? deriveUploadCounts(active!) : null;
+  // Throttle the bucketed ETA to update every 5 s. The bucket is a
+  // step function ("about 10 minutes" vs "about 20 minutes" jumps at
+  // 15 min), so small rate fluctuations from a since-start average
+  // would flip the displayed text several times per second. Counts
+  // and the bar still update live on every completion.
+  const uploadEta = useThrottledUploadEta(isActiveUpload ? active : null);
 
   const total = Math.max(job.total_files, 1);
   const done = uploadCounts
@@ -1488,6 +1493,40 @@ const JobRow: React.FC<{
     </div>
   );
 };
+
+// Re-evaluate the upload ETA at most every THROTTLE_MS. The bucket
+// labels are coarse step values, so without this they flicker
+// between two neighbouring buckets as the since-start rate drifts.
+// 5 s is fast enough that the displayed estimate keeps up with
+// real changes in throughput, slow enough that boundary jitter
+// disappears.
+const ETA_THROTTLE_MS = 5000;
+
+function useThrottledUploadEta(active: ActiveUpload | null): string | null {
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => {
+    if (!active) {
+      setText(null);
+      return;
+    }
+    // Refresh immediately on mount so the first display isn't blank
+    // for 5 s, then on a fixed cadence. Each tick reads the latest
+    // active from the store rather than the closure-captured copy
+    // so we always compute against fresh counts.
+    const refresh = () => {
+      const cur = useBulkUploadStore.getState().active;
+      if (cur && cur.jobUuid === active.jobUuid && !cur.done) {
+        setText(computeUploadEta(cur));
+      }
+    };
+    refresh();
+    const id = window.setInterval(refresh, ETA_THROTTLE_MS);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [active?.jobUuid, active === null]);
+  return text;
+}
 
 function deriveUploadCounts(active: ActiveUpload): {
   done: number;
