@@ -1314,10 +1314,9 @@ const ReviewStep: React.FC<{
       >
         <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
         <div>
-          <span className="font-medium">Keep this browser tab open until the upload bar reaches the end.</span>
+          <span className="font-medium">Keep this tab open during the upload.</span>
           {' '}
-          The upload runs in this tab. The analysis afterwards is
-          server-side, the tab is safe to close once the upload is done.
+          Once the analysis starts, you can close it.
         </div>
       </div>
 
