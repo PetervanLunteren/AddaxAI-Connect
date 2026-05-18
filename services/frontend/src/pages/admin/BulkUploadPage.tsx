@@ -166,7 +166,7 @@ const STATUS_LABELS: Record<string, string> = {
   corrupt: 'corrupt or unreadable',
 };
 
-const MAX_FILES_PER_JOB = 5000;
+const MAX_FILES_PER_JOB = 20000;
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 const UPLOAD_CONCURRENCY = 4;
 const UPLOAD_RETRIES = 3;

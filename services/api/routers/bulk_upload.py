@@ -47,10 +47,10 @@ router = APIRouter(
 logger = get_logger("api.bulk_upload")
 
 # Per-file and per-job caps. 50 MB covers any realistic single trail-cam
-# frame with headroom. 5000 files matches the per-job cap users see in
-# the modal (one SD card per job).
+# frame with headroom. 20000 files matches the per-job cap users see in
+# the modal, sized for a full-season SD card pull.
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
-MAX_FILES_PER_JOB = 5000
+MAX_FILES_PER_JOB = 20000
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png"}
 ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
