@@ -202,6 +202,24 @@ function formatRelative(iso: string | null): string {
   return `${Math.floor(hr / 24)} d ago`;
 }
 
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  if (remMin === 0) return `${hours} h`;
+  return `${hours} h ${remMin} min`;
+}
+
+function diffSeconds(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  const a = new Date(start).getTime();
+  const b = new Date(end).getTime();
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.max(0, (b - a) / 1000);
+}
+
 function StatusBadge({ status }: { status: BulkUploadJob['status'] }) {
   return (
     <span
@@ -334,19 +352,38 @@ function Stat({ label, value }: { label: string; value: string }) {
 const VariantB: React.FC<{ state: MockState }> = ({ state }) => {
   const c = deriveCounts(state);
   const { job, upload } = state;
+
+  // Per-phase elapsed. Upload starts at created_at and ends when the
+  // worker begins processing (process_started_at). Process starts at
+  // process_started_at and ends at finished_at. For an in-flight
+  // phase we measure to "now".
+  const uploadElapsedSec =
+    job.status === 'uploading'
+      ? diffSeconds(job.created_at, new Date().toISOString())
+      : diffSeconds(job.created_at, job.process_started_at);
+  const processElapsedSec =
+    job.status === 'processing'
+      ? diffSeconds(job.process_started_at, new Date().toISOString())
+      : diffSeconds(job.process_started_at, job.finished_at);
+
   const uploadCaption =
     job.status === 'uploading' && upload
-      ? `${c.uploadDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.uploadPercent} % · ${upload.etaText} left`
+      ? `${c.uploadDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.uploadPercent} %`
+        + (uploadElapsedSec !== null ? ` · ${formatDuration(uploadElapsedSec)} in` : '')
+        + ` · ${upload.etaText} left`
       : c.uploadPercent === 100
-        ? 'done'
+        ? (uploadElapsedSec !== null ? `done in ${formatDuration(uploadElapsedSec)}` : 'done')
         : c.uploadPercent === 0 && job.status === 'failed'
           ? 'incomplete'
           : 'paused, open Bulk upload to resume';
   const processCaption =
     job.status === 'processing'
-      ? `${c.processDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.processPercent} % · ${state.processEtaText ?? ''} left`
+      ? `${c.processDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.processPercent} %`
+        + (processElapsedSec !== null ? ` · ${formatDuration(processElapsedSec)} in` : '')
+        + (state.processEtaText ? ` · ${state.processEtaText} left` : '')
       : job.status === 'done'
         ? `${c.processDone.toLocaleString()} / ${c.total.toLocaleString()} · 100 %`
+          + (processElapsedSec !== null ? ` · done in ${formatDuration(processElapsedSec)}` : '')
         : c.uploadPercent === 100
           ? 'pending'
           : 'waiting on upload';
