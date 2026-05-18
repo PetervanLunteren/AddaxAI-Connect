@@ -399,7 +399,7 @@ const VariantB: React.FC<{ state: MockState }> = ({ state }) => {
         + (uploadElapsedSec !== null ? ` · ${formatDuration(uploadElapsedSec)} in` : '')
         + ` · ${upload.etaText} left`
       : c.uploadPercent === 100
-        ? (uploadElapsedSec !== null ? `done in ${formatDuration(uploadElapsedSec)}` : 'done')
+        ? (uploadElapsedSec !== null ? `took ${formatDuration(uploadElapsedSec)}` : 'done')
         : c.uploadPercent === 0 && job.status === 'failed'
           ? 'incomplete'
           : 'paused, open Bulk upload to resume';
@@ -410,7 +410,7 @@ const VariantB: React.FC<{ state: MockState }> = ({ state }) => {
         + (state.processEtaText ? ` · ${state.processEtaText} left` : '')
       : job.status === 'done'
         ? `${c.processDone.toLocaleString()} / ${c.total.toLocaleString()} · 100 %`
-          + (processElapsedSec !== null ? ` · done in ${formatDuration(processElapsedSec)}` : '')
+          + (processElapsedSec !== null ? ` · took ${formatDuration(processElapsedSec)}` : '')
         : c.uploadPercent === 100
           ? 'pending'
           : 'waiting on upload';
@@ -462,11 +462,14 @@ const VariantC: React.FC<{ state: MockState }> = ({ state }) => {
   const percent = job.status === 'uploading' ? c.uploadPercent : c.processPercent;
 
   const elapsedSec = activeElapsedSeconds(state);
+  const isActive = job.status === 'uploading' || job.status === 'processing';
   const facts: string[] = [];
   facts.push(`started ${formatRelative(job.created_at)}`);
   facts.push(`${done.toLocaleString()} of ${c.total.toLocaleString()}`);
   facts.push(`${percent} %`);
-  if (elapsedSec !== null) facts.push(`${formatDuration(elapsedSec)} in`);
+  if (elapsedSec !== null) {
+    facts.push(isActive ? `${formatDuration(elapsedSec)} in` : `took ${formatDuration(elapsedSec)}`);
+  }
   if (eta) facts.push(`${eta} left`);
   if (c.failed > 0) facts.push(`${c.failed.toLocaleString()} failed`);
 
@@ -530,7 +533,11 @@ const VariantD: React.FC<{ state: MockState }> = ({ state }) => {
             {phase}: {done.toLocaleString()} / {c.total.toLocaleString()} ({percent} %)
           </span>
           <span>
-            {elapsedSec !== null && `${formatDuration(elapsedSec)} in`}
+            {elapsedSec !== null && (
+              (job.status === 'uploading' || job.status === 'processing')
+                ? `${formatDuration(elapsedSec)} in`
+                : `took ${formatDuration(elapsedSec)}`
+            )}
             {elapsedSec !== null && eta && ' · '}
             {eta && `${eta} left`}
           </span>
