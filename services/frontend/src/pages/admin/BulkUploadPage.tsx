@@ -100,9 +100,12 @@ function formatDateRange(start: string | null, end: string | null): string {
   return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
 }
 
-// Self-calibrating per-image processing rate from completed jobs.
-// Inspect is gone, only the worker pipeline time matters now.
+// Default seconds/image used only when there's no per-job signal
+// yet (first few files of a fresh upload). Tuned for the live
+// detection + classification path; per-job measurement takes over
+// after MIN_SAMPLE files have completed.
 const DEFAULT_PROCESS_SECONDS_PER_IMAGE = 2;
+const MIN_SAMPLE = 20;
 const RATE_SAMPLE_SIZE = 8;
 const ETA_STATES = new Set<BulkUploadJob['status']>(['processing']);
 
@@ -130,6 +133,23 @@ function measuredProcessRate(jobs: BulkUploadJob[]): number | null {
   return rates.reduce((a, b) => a + b, 0) / rates.length;
 }
 
+// Per-job seconds/image, computed from THIS job's own progress when
+// there's enough signal. Skipped duplicates count toward completion
+// because each one took real wall-clock time (a DB lookup, ~20 ms)
+// and we want the ETA to track the actual mix of skips and
+// full-pipeline processing the worker is doing right now. Without
+// this, a job that is mostly duplicates shows "Several hours left"
+// because the fallback assumes every file needs the full pipeline.
+function jobRate(job: BulkUploadJob, fallback: number): number {
+  if (job.status !== 'processing' || !job.process_started_at) return fallback;
+  const completed = job.processed_files + job.skipped_files;
+  if (completed < MIN_SAMPLE) return fallback;
+  const elapsedSec =
+    (Date.now() - new Date(job.process_started_at).getTime()) / 1000;
+  if (elapsedSec <= 0) return fallback;
+  return Math.max(0.001, elapsedSec / completed);
+}
+
 function bucketEta(seconds: number): string {
   // First-word-capitalised so the value can lead a dot-separated
   // segment ("About 10 minutes left") without further fixup at the
@@ -147,7 +167,7 @@ function bucketEta(seconds: number): string {
 function computeEta(
   job: BulkUploadJob,
   allJobs: BulkUploadJob[],
-  processRate: number,
+  defaultRate: number,
 ): string | null {
   if (!ETA_STATES.has(job.status)) return null;
   const inFlight = allJobs
@@ -155,9 +175,13 @@ function computeEta(
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const myIndex = inFlight.findIndex((j) => j.uuid === job.uuid);
   if (myIndex < 0) return null;
+  // Each in-flight job ahead of (and including) this one contributes
+  // its OWN measured rate when available. Mixed queues (one job mostly
+  // duplicates, another all new images) get sane combined ETAs
+  // without lumping every job onto a single global rate.
   const totalSeconds = inFlight
     .slice(0, myIndex + 1)
-    .reduce((sum, j) => sum + remainingFiles(j) * processRate, 0);
+    .reduce((sum, j) => sum + remainingFiles(j) * jobRate(j, defaultRate), 0);
   return bucketEta(totalSeconds);
 }
 
