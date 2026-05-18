@@ -816,7 +816,21 @@ const ScanStep: React.FC<{
   onCancel: () => void;
   onDone: (entries: ScanEntry[]) => void;
 }> = ({ files, progress, onProgress, onCancel, onDone }) => {
+  // The worker must spawn exactly once per ScanStep mount. The
+  // parent's inline onDone/onProgress callbacks change reference on
+  // every progress-driven re-render, so if we depended on them the
+  // useEffect would terminate the running worker and restart from
+  // index 0 every 25 files. The refs let the latest callback fire
+  // without retriggering the effect.
+  const onProgressRef = useRef(onProgress);
+  const onDoneRef = useRef(onDone);
+  onProgressRef.current = onProgress;
+  onDoneRef.current = onDone;
+  const startedRef = useRef(false);
+
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
     const worker = new Worker(
       new URL('../../workers/bulkScanWorker.ts', import.meta.url),
       { type: 'module' },
@@ -824,9 +838,9 @@ const ScanStep: React.FC<{
     worker.onmessage = (event: MessageEvent<ScanResult>) => {
       const msg = event.data;
       if (msg.type === 'progress') {
-        onProgress({ done: msg.done, total: msg.total });
+        onProgressRef.current({ done: msg.done, total: msg.total });
       } else if (msg.type === 'done') {
-        onDone(msg.entries);
+        onDoneRef.current(msg.entries);
         worker.terminate();
       }
     };
@@ -834,7 +848,7 @@ const ScanStep: React.FC<{
     return () => {
       worker.terminate();
     };
-  }, [files, onProgress, onDone]);
+  }, [files]);
 
   const percent = progress && progress.total > 0
     ? Math.min(100, Math.round((progress.done / progress.total) * 100))
