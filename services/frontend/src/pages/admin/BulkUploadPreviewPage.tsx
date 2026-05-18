@@ -313,7 +313,6 @@ const VariantA: React.FC<{ state: MockState }> = ({ state }) => {
   const { job, upload } = state;
   const eta = upload?.etaText ?? state.processEtaText ?? null;
   const bar = job.status === 'uploading' ? c.uploadPercent : c.processPercent;
-  const elapsedSec = activeElapsedSeconds(state);
 
   return (
     <div>
@@ -330,7 +329,7 @@ const VariantA: React.FC<{ state: MockState }> = ({ state }) => {
         <RowActions job={job} />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 text-xs">
         <Stat label="Started" value={formatRelative(job.created_at)} />
         <Stat
           label="Files"
@@ -343,10 +342,6 @@ const VariantA: React.FC<{ state: MockState }> = ({ state }) => {
         <Stat
           label="Progress"
           value={`${job.status === 'uploading' ? c.uploadPercent : c.processPercent} %`}
-        />
-        <Stat
-          label="Elapsed"
-          value={elapsedSec !== null ? formatDuration(elapsedSec) : '—'}
         />
         <Stat label="ETA" value={eta ?? '—'} />
       </div>
@@ -395,9 +390,7 @@ const VariantB: React.FC<{ state: MockState }> = ({ state }) => {
 
   const uploadCaption =
     job.status === 'uploading' && upload
-      ? `${c.uploadDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.uploadPercent} %`
-        + (uploadElapsedSec !== null ? ` · ${formatDuration(uploadElapsedSec)} in` : '')
-        + ` · ${upload.etaText} left`
+      ? `${c.uploadDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.uploadPercent} % · ${upload.etaText} left`
       : c.uploadPercent === 100
         ? (uploadElapsedSec !== null ? `took ${formatDuration(uploadElapsedSec)}` : 'done')
         : c.uploadPercent === 0 && job.status === 'failed'
@@ -406,7 +399,6 @@ const VariantB: React.FC<{ state: MockState }> = ({ state }) => {
   const processCaption =
     job.status === 'processing'
       ? `${c.processDone.toLocaleString()} / ${c.total.toLocaleString()} · ${c.processPercent} %`
-        + (processElapsedSec !== null ? ` · ${formatDuration(processElapsedSec)} in` : '')
         + (state.processEtaText ? ` · ${state.processEtaText} left` : '')
       : job.status === 'done'
         ? `${c.processDone.toLocaleString()} / ${c.total.toLocaleString()} · 100 %`
@@ -467,8 +459,10 @@ const VariantC: React.FC<{ state: MockState }> = ({ state }) => {
   facts.push(`started ${formatRelative(job.created_at)}`);
   facts.push(`${done.toLocaleString()} of ${c.total.toLocaleString()}`);
   facts.push(`${percent} %`);
-  if (elapsedSec !== null) {
-    facts.push(isActive ? `${formatDuration(elapsedSec)} in` : `took ${formatDuration(elapsedSec)}`);
+  // Elapsed is only useful retrospectively; while the row is active
+  // the ETA carries the relevant info and "X min in" is noise.
+  if (!isActive && elapsedSec !== null) {
+    facts.push(`took ${formatDuration(elapsedSec)}`);
   }
   if (eta) facts.push(`${eta} left`);
   if (c.failed > 0) facts.push(`${c.failed.toLocaleString()} failed`);
@@ -533,12 +527,11 @@ const VariantD: React.FC<{ state: MockState }> = ({ state }) => {
             {phase}: {done.toLocaleString()} / {c.total.toLocaleString()} ({percent} %)
           </span>
           <span>
-            {elapsedSec !== null && (
-              (job.status === 'uploading' || job.status === 'processing')
-                ? `${formatDuration(elapsedSec)} in`
-                : `took ${formatDuration(elapsedSec)}`
-            )}
-            {elapsedSec !== null && eta && ' · '}
+            {/* Elapsed only after the phase has finished, no noise
+                while it's running. */}
+            {elapsedSec !== null
+              && !(job.status === 'uploading' || job.status === 'processing')
+              && `took ${formatDuration(elapsedSec)}`}
             {eta && `${eta} left`}
           </span>
         </div>
