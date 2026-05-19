@@ -53,6 +53,31 @@ function getOptimalGranularity(startDate: string | null, endDate: string | null)
   return 'month';
 }
 
+// Rolling-average window per granularity, picked so the window maps
+// to a natural cycle (a week, a month, a year). That makes the line
+// readable as "the recent period that matters" instead of an
+// arbitrary 7-of-whatever.
+function getSmoothingWindow(granularity: Granularity): { size: number; label: string } {
+  if (granularity === 'day') return { size: 7, label: '7-day avg' };
+  if (granularity === 'week') return { size: 4, label: '4-week avg' };
+  return { size: 12, label: '12-month avg' };
+}
+
+// Trailing simple moving average. Returns an array the same length as
+// input; the first (window-1) slots are null so the chart leaves a
+// visual gap during warm-up rather than drawing a partial average.
+function trailingMovingAverage(values: number[], window: number): (number | null)[] {
+  if (values.length < window) return values.map(() => null);
+  const out: (number | null)[] = [];
+  let sum = 0;
+  for (let i = 0; i < values.length; i++) {
+    sum += values[i];
+    if (i >= window) sum -= values[i - window];
+    out.push(i >= window - 1 ? sum / window : null);
+  }
+  return out;
+}
+
 // ISO week key, "YYYY-WNN", anchored on the Thursday of the week so it lines
 // up with calendar weeks regardless of where the input date falls.
 function getWeekKey(dateStr: string): string {
@@ -207,6 +232,12 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     return key;
   };
 
+  const { size: smoothingWindow, label: smoothingLabel } = getSmoothingWindow(granularity);
+  const rollingAvg = useMemo(
+    () => (data ? trailingMovingAverage(data.map((d) => d.count), smoothingWindow) : []),
+    [data, smoothingWindow],
+  );
+
   const chartData: ChartData<'line'> = {
     labels: data?.map((d) => formatLabel(d.key)) ?? [],
     datasets: [
@@ -225,6 +256,18 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         pointRadius: data && data.length < 30 ? 3 : 0,
         pointHoverRadius: 5,
       },
+      {
+        label: smoothingLabel,
+        data: rollingAvg,
+        borderColor: 'rgba(75, 85, 99, 0.75)',
+        borderWidth: 1.5,
+        borderDash: [6, 4],
+        tension: 0.3,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        spanGaps: false,
+      },
     ],
   };
 
@@ -233,13 +276,27 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false,
+        display: true,
+        position: 'top' as const,
+        align: 'end' as const,
+        labels: {
+          boxWidth: 16,
+          boxHeight: 2,
+          padding: 12,
+          font: { size: 11 },
+          usePointStyle: false,
+        },
       },
       tooltip: {
         callbacks: {
           label: (context) => {
-            const count = context.raw as number;
-            return `${count.toLocaleString()} detection${count !== 1 ? 's' : ''}`;
+            const val = context.raw as number | null;
+            if (val === null || val === undefined) return '';
+            if (context.dataset.label === 'Detections') {
+              const count = val as number;
+              return `${count.toLocaleString()} detection${count !== 1 ? 's' : ''}`;
+            }
+            return `${context.dataset.label}: ${val.toFixed(1)}`;
           },
         },
       },
