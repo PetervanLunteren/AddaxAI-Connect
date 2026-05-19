@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         )}
 
         {selectedProject && headerVariant === '3' && (
-          <div className="px-4 pt-4 pb-3 shrink-0">
+          <div className="px-4 pt-4 pb-4 border-b border-border shrink-0">
             <div className="border-l-[3px] border-primary pl-3">
               <p className="truncate text-base font-bold text-primary leading-tight">
                 {selectedProject.name}
