@@ -1005,7 +1005,7 @@ async def get_detection_trend(
     Get detection counts per day, optionally filtered by species.
 
     Prefers human observations for verified images, falls back to AI for unverified.
-    Defaults to last 30 days if no date range specified.
+    No date filter means all-time, same as the other dashboard endpoints.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
@@ -1040,6 +1040,103 @@ async def get_detection_trend(
     return [
         DetectionTrendPoint(date=d['date'], count=d['count'])
         for d in daily_data
+    ]
+
+
+class TrapEffortPoint(BaseModel):
+    """One day of trap-effort, used to normalise detection trends to a
+    per-100-trap-nights rate. active_cameras counts every deployment
+    period overlapping that calendar day."""
+    date: str  # YYYY-MM-DD
+    active_cameras: int
+
+
+@router.get(
+    "/trap-effort",
+    response_model=List[TrapEffortPoint],
+)
+async def get_trap_effort(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    start_date: Optional[date] = Query(None, description="Filter from this date"),
+    end_date: Optional[date] = Query(None, description="Filter to this date"),
+    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Daily count of cameras that were deployed on each calendar day.
+
+    Used by the Detection trend chart to normalise raw counts into a
+    relative-abundance index (detections per 100 trap-nights). With no
+    date range the range spans the project's earliest deployment to
+    today, so the response aligns with the trend chart's default
+    all-time x-axis.
+
+    A camera is "active" on day D when D falls between its deployment
+    start_date and end_date (NULL end_date means currently active).
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+
+    if not accessible_project_ids:
+        return []
+
+    params: dict = {
+        "project_ids": accessible_project_ids,
+        "start_date": start_date,
+        "end_date": end_date,
+        "camera_ids": camera_id_list,
+    }
+
+    sql = text("""
+        WITH bounds AS (
+            SELECT
+                COALESCE(
+                    CAST(:start_date AS date),
+                    (
+                        SELECT MIN(cdp.start_date)
+                        FROM camera_deployment_periods cdp
+                        JOIN cameras c ON cdp.camera_id = c.id
+                        WHERE c.project_id = ANY(CAST(:project_ids AS integer[]))
+                    )
+                ) AS start_d,
+                COALESCE(CAST(:end_date AS date), CURRENT_DATE) AS end_d
+        ),
+        days AS (
+            SELECT generate_series(bounds.start_d, bounds.end_d, '1 day')::date AS d
+            FROM bounds
+            WHERE bounds.start_d IS NOT NULL AND bounds.end_d IS NOT NULL
+        ),
+        active_periods AS (
+            SELECT
+                cdp.id,
+                cdp.start_date,
+                COALESCE(cdp.end_date, CURRENT_DATE) AS end_date
+            FROM camera_deployment_periods cdp
+            JOIN cameras c ON cdp.camera_id = c.id
+            WHERE c.project_id = ANY(CAST(:project_ids AS integer[]))
+              AND (
+                  CAST(:camera_ids AS integer[]) IS NULL
+                  OR c.id = ANY(CAST(:camera_ids AS integer[]))
+              )
+        )
+        SELECT
+            days.d AS date,
+            COUNT(ap.id)::int AS active_cameras
+        FROM days
+        LEFT JOIN active_periods ap
+            ON ap.start_date <= days.d
+           AND ap.end_date >= days.d
+        GROUP BY days.d
+        ORDER BY days.d;
+    """)
+
+    result = await db.execute(sql, params)
+    rows = result.mappings().all()
+    return [
+        TrapEffortPoint(date=row['date'].isoformat(), active_cameras=row['active_cameras'])
+        for row in rows
     ]
 
 

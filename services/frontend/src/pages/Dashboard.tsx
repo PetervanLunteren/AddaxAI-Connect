@@ -362,7 +362,13 @@ export const Dashboard: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-        <DetectionTrendChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
+        <DetectionTrendChart
+          dateRange={dateRange}
+          projectId={projectId}
+          cameraIds={cameraIdsFromTags}
+          projectFirstDate={overview?.first_image_date ?? null}
+          projectLastDate={overview?.last_image_date ?? null}
+        />
       </div>
 
       {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}

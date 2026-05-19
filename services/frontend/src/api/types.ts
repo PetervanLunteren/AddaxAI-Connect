@@ -505,6 +505,12 @@ export interface DetectionTrendFilters {
   camera_ids?: string;  // Comma-separated camera IDs
 }
 
+// Trap effort (daily count of cameras deployed)
+export interface TrapEffortPoint {
+  date: string;  // YYYY-MM-DD
+  active_cameras: number;
+}
+
 // Pipeline status
 export interface PipelineStatusResponse {
   pending: number;

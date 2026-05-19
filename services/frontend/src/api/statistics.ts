@@ -15,6 +15,7 @@ import type {
   DateRangeFilters,
   DetectionTrendPoint,
   DetectionTrendFilters,
+  TrapEffortPoint,
   NaiveOccupancyResponse,
   NaiveOccupancyFilters,
   ActivityOverlapResponse,
@@ -146,6 +147,30 @@ export const statisticsApi = {
       : '/api/statistics/detection-trend';
 
     const response = await apiClient.get<DetectionTrendPoint[]>(url);
+    return response.data;
+  },
+
+  /**
+   * Daily count of cameras deployed on each calendar day. Aligned to
+   * the same date conventions as getDetectionTrend so the two
+   * responses can be bucketed together for per-100-trap-night views.
+   */
+  getTrapEffort: async (
+    projectId?: number,
+    filters?: { start_date?: string; end_date?: string; camera_ids?: string },
+  ): Promise<TrapEffortPoint[]> => {
+    const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/trap-effort?${queryString}`
+      : '/api/statistics/trap-effort';
+
+    const response = await apiClient.get<TrapEffortPoint[]>(url);
     return response.data;
   },
 
