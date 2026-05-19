@@ -18,6 +18,7 @@ import {
 import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
+import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
 import { formatDateShort, formatMonth } from '../../utils/datetime';
 import { getSpeciesColor } from '../../utils/species-colors';
@@ -97,8 +98,19 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
     setGranularity(getOptimalGranularity(dateRange.startDate, dateRange.endDate));
   }, [dateRange.startDate, dateRange.endDate]);
 
-  // Fetch species list for the selector (sorted by count, most observed first)
-  const { data: speciesList } = useQuery({
+  // Full species list for the selector. Same source the Images-page
+  // filter uses, so the dropdown matches what users see there. The
+  // dashboard's species-distribution endpoint is top-10 and was hiding
+  // anything past the 10th most-detected species from this picker.
+  const { data: allSpeciesList } = useQuery({
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Top-N by count, used only to pick the most-detected species as the
+  // default selection on first load. Not used to populate the dropdown.
+  const { data: topSpeciesList } = useQuery({
     queryKey: ['statistics', 'species', projectId],
     queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
     enabled: projectId !== undefined,
@@ -106,10 +118,10 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
 
   // Default to most observed species when data loads
   useEffect(() => {
-    if (speciesList && speciesList.length > 0 && selectedSpecies === null) {
-      setSelectedSpecies(speciesList[0].species);
+    if (topSpeciesList && topSpeciesList.length > 0 && selectedSpecies === null) {
+      setSelectedSpecies(topSpeciesList[0].species);
     }
-  }, [speciesList, selectedSpecies]);
+  }, [topSpeciesList, selectedSpecies]);
 
   // Fetch detection trend data
   const { data: rawData, isLoading } = useQuery({
@@ -270,9 +282,9 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
               className="w-40 h-9 text-sm"
             >
               <SelectItem value="all">All species</SelectItem>
-              {speciesList?.map((s) => (
-                <SelectItem key={s.species} value={s.species}>
-                  {normalizeLabel(s.species)}
+              {allSpeciesList?.map((s) => (
+                <SelectItem key={String(s.value)} value={String(s.value)}>
+                  {normalizeLabel(String(s.value))}
                 </SelectItem>
               ))}
             </Select>

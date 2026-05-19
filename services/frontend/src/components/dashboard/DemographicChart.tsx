@@ -13,6 +13,7 @@ import {
 import chroma from 'chroma-js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
+import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
@@ -67,9 +68,13 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
   const [field, setField] = useState<'sex' | 'life_stage' | 'behavior'>('sex');
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
 
+  // Full species list for the selector. Same source the Images-page
+  // filter uses, so the dropdown matches what users see there. The
+  // dashboard's species-distribution endpoint is top-10 and was hiding
+  // anything past the 10th most-detected species from this picker.
   const { data: speciesList } = useQuery({
-    queryKey: ['statistics', 'species', projectId],
-    queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
     enabled: projectId !== undefined,
   });
 
@@ -141,8 +146,8 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
             >
               <SelectItem value="all">All species</SelectItem>
               {speciesList?.map((s) => (
-                <SelectItem key={s.species} value={s.species}>
-                  {normalizeLabel(s.species)}
+                <SelectItem key={String(s.value)} value={String(s.value)}>
+                  {normalizeLabel(String(s.value))}
                 </SelectItem>
               ))}
             </Select>
