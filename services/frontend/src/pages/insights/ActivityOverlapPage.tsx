@@ -16,6 +16,7 @@ import { Info, Loader2 } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
 import { camerasApi } from '../../api/cameras';
+import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
 import type {
   ActivityOverlapResponse,
@@ -96,9 +97,20 @@ export const ActivityOverlapPage: React.FC = () => {
   const cameraIdValues = Array.isArray(parsed.camera_ids) ? parsed.camera_ids : [];
   const timeAxis = ((parsed.time_axis as string) || 'clock') as TimeAxis;
 
-  // Species options (top species in the project) — same source the
-  // dashboard uses for its species dropdown.
-  const { data: speciesList } = useQuery({
+  // Full species list for the A / B dropdowns. Same source the Images
+  // page filter uses, so the two screens stay in sync. The dashboard's
+  // species-distribution endpoint caps at top 10, which silently hid
+  // anything past the 10th most-detected species from this picker.
+  const { data: allSpeciesList } = useQuery({
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Top-N by count, used only to pick a sensible default for species A
+  // on first load (most-detected species is the most useful starting
+  // point). Not used to populate the dropdown.
+  const { data: topSpeciesList } = useQuery({
     queryKey: ['statistics', 'species', projectId],
     queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
     enabled: projectId !== undefined,
@@ -152,11 +164,11 @@ export const ActivityOverlapPage: React.FC = () => {
   // Auto-select the most-detected species as A on first load so the page
   // shows a chart instead of an empty state.
   useEffect(() => {
-    if (!speciesA && speciesList && speciesList.length > 0) {
-      onFilterChange({ species_a: speciesList[0].species });
+    if (!speciesA && topSpeciesList && topSpeciesList.length > 0) {
+      onFilterChange({ species_a: topSpeciesList[0].species });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speciesList, speciesA]);
+  }, [topSpeciesList, speciesA]);
 
   const cameraIdsFromTags = useMemo(() => {
     if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
@@ -172,11 +184,11 @@ export const ActivityOverlapPage: React.FC = () => {
 
   const speciesOptions = useMemo(
     () =>
-      (speciesList ?? []).map((s) => ({
-        value: s.species,
-        label: normalizeLabel(s.species),
+      (allSpeciesList ?? []).map((s) => ({
+        value: String(s.value),
+        label: normalizeLabel(String(s.value)),
       })),
-    [speciesList],
+    [allSpeciesList],
   );
 
   const filterFields = useMemo<FilterFieldDef[]>(
