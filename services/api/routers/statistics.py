@@ -1011,14 +1011,11 @@ async def get_detection_trend(
     camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
     interval = await _get_independence_interval(db, project_id)
 
-    # Default to last 30 days. Use the server's local wall clock so the window
-    # lines up with the naive captured_at convention.
-    if not start_date and not end_date:
-        end_dt = await _server_now(db)
-        start_dt = end_dt - timedelta(days=30)
-    else:
-        start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
-        end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+    # No date filter means all-time, matching the other dashboard
+    # endpoints. The chart's granularity auto-switches day -> week ->
+    # month as the range widens, so multi-year projects stay readable.
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
 
     if interval > 0:
         daily_data = await get_independent_daily_trend(

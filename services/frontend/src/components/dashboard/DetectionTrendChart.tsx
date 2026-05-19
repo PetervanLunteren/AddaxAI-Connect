@@ -36,9 +36,13 @@ interface DetectionTrendChartProps {
 
 type Granularity = 'day' | 'week' | 'month';
 
-// Calculate optimal granularity based on date range span
+// Calculate optimal granularity based on date range span. With no
+// range set the dashboard shows all-time, which on a long-running
+// project is months to years of data, so monthly buckets are the
+// only readable default. Users can override via the granularity
+// dropdown.
 function getOptimalGranularity(startDate: string | null, endDate: string | null): Granularity {
-  if (!startDate || !endDate) return 'day';
+  if (!startDate || !endDate) return 'month';
 
   const start = new Date(startDate);
   const end = new Date(endDate);
