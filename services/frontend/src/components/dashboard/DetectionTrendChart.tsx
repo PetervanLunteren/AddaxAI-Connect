@@ -41,7 +41,6 @@ interface DetectionTrendChartProps {
 }
 
 type Granularity = 'day' | 'week' | 'month';
-type DisplayMode = 'count' | 'per_100';
 
 // Calculate optimal granularity based on date range span. Picks the
 // bucket size that keeps multi-year projects readable while still
@@ -130,7 +129,6 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   projectLastDate,
 }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('count');
 
   // Effective span = user filter when set, else the project's full
   // image-date extent. Drives granularity and the chart's x-axis range
@@ -276,17 +274,14 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
     return key;
   };
 
-  // Switch the displayed value based on the user's mode. Per-100
-  // mode divides count by trap-nights to get a relative-abundance
-  // index (the standard wildlife metric, controls for cameras being
-  // added or removed over time).
+  // Always show the relative-abundance index (detections per 100
+  // trap-nights). This is the standard wildlife camera-trap metric
+  // and the only view people care about, so a toggle would add UI
+  // noise without adding insight.
   const displayValues = useMemo(() => {
     if (!data) return [];
-    if (displayMode === 'per_100') {
-      return data.map((d) => (d.trapNights > 0 ? (d.count / d.trapNights) * 100 : 0));
-    }
-    return data.map((d) => d.count);
-  }, [data, displayMode]);
+    return data.map((d) => (d.trapNights > 0 ? (d.count / d.trapNights) * 100 : 0));
+  }, [data]);
 
   const { size: smoothingWindow, label: smoothingLabel } = getSmoothingWindow(granularity);
   const rollingAvg = useMemo(
@@ -294,13 +289,11 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
     [displayValues, smoothingWindow],
   );
 
-  const seriesLabel = displayMode === 'per_100' ? 'Per 100 trap-nights' : 'Detections';
-
   const chartData: ChartData<'line'> = {
     labels: data?.map((d) => formatLabel(d.key)) ?? [],
     datasets: [
       {
-        label: seriesLabel,
+        label: 'Per 100 trap-nights',
         data: displayValues,
         borderColor: lineColor,
         backgroundColor: (context) => {
@@ -364,14 +357,8 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
             const val = context.raw as number | null;
             if (val === null || val === undefined) return '';
             const dsLabel = context.dataset.label ?? '';
-            const isAvg = dsLabel.endsWith('avg');
-            if (displayMode === 'per_100') {
-              if (isAvg) return `${dsLabel}: ${val.toFixed(2)}`;
-              return `${val.toFixed(2)} per 100 trap-nights`;
-            }
-            if (isAvg) return `${dsLabel}: ${val.toFixed(1)}`;
-            const count = val as number;
-            return `${count.toLocaleString()} detection${count !== 1 ? 's' : ''}`;
+            if (dsLabel.endsWith('avg')) return `${dsLabel}: ${val.toFixed(2)}`;
+            return `${val.toFixed(2)} per 100 trap-nights`;
           },
         },
       },
@@ -380,7 +367,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
       y: {
         beginAtZero: true,
         ticks: {
-          precision: displayMode === 'per_100' ? 2 : 0,
+          precision: 2,
         },
       },
       x: {
@@ -394,7 +381,6 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   const totalDetections = data?.reduce((sum, d) => sum + d.count, 0) ?? 0;
   const totalTrapNights = data?.reduce((sum, d) => sum + d.trapNights, 0) ?? 0;
   const periodCount = data?.length ?? 0;
-  const avgPerPeriod = periodCount > 0 ? Math.round(totalDetections / periodCount) : 0;
   const overallRate = totalTrapNights > 0 ? (totalDetections / totalTrapNights) * 100 : 0;
 
   const granularityLabel = granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months';
@@ -405,14 +391,6 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Detection trend</CardTitle>
           <div className="flex items-center gap-2">
-            <Select
-              value={displayMode}
-              onValueChange={(v) => setDisplayMode(v as DisplayMode)}
-              className="w-44 h-9 text-sm"
-            >
-              <SelectItem value="count">Detections</SelectItem>
-              <SelectItem value="per_100">Per 100 trap-nights</SelectItem>
-            </Select>
             <Select
               value={granularity}
               onValueChange={(v) => setGranularity(v as Granularity)}
@@ -438,9 +416,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
         </div>
         {data && data.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {displayMode === 'per_100'
-              ? `${overallRate.toFixed(1)} detections per 100 trap-nights across ${periodCount} ${granularityLabel}`
-              : `${totalDetections.toLocaleString()} detections over ${periodCount} ${granularityLabel}${granularity !== 'day' ? `, avg ${avgPerPeriod.toLocaleString()} per ${granularity}` : ''}`}
+            {overallRate.toFixed(1)} detections per 100 trap-nights across {periodCount} {granularityLabel}
           </p>
         )}
       </CardHeader>
