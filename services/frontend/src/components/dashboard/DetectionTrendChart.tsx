@@ -280,11 +280,16 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
         position: 'top' as const,
         align: 'end' as const,
         labels: {
-          boxWidth: 16,
-          boxHeight: 2,
+          // Use a single solid dot per dataset, otherwise Chart.js draws
+          // the dataset's borderDash inside the legend swatch and the
+          // dashed line ends up rendered as awkward partial repeats. The
+          // chart itself still carries the solid/dashed distinction.
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxWidth: 6,
+          boxHeight: 6,
           padding: 12,
           font: { size: 11 },
-          usePointStyle: false,
         },
       },
       tooltip: {
