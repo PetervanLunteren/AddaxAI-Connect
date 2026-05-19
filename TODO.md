@@ -41,7 +41,7 @@ Open follow-ups:
 - [x] Add logos.
 - [x] See email from Quentin with TODOs
 - [x] PLace the current project name and the back link above the sidebar menu options, below the logo. In between. Can we make it more modern feel? Perhaps first preview a few on the dev server and then I can select one. 
-- [ ] It looks liek the label selection options in the dashboard are only the top 10? Is that right? Investigate. The options in the dasboard dropdowns are less than the labels filter in the images page. 
+- [x] It looks liek the label selection options in the dashboard are only the top 10? Is that right? Investigate. The options in the dasboard dropdowns are less than the labels filter in the images page. 
 
 ## TODO Priority 2
 - [ ] Add site concept
