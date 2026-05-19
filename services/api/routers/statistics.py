@@ -2537,23 +2537,50 @@ async def get_verification_progress_all(
         label="all",
     )]
 
-    # Per-species: count verified vs total per species using the
-    # "preferred" data source (human obs for verified, classification
-    # for unverified). For simplicity, count images that have at least
-    # one detection/observation of each species.
-    species_q = (
+    # Per-species: an image counts towards a species' total if it has
+    # EITHER a HumanObservation of that species (verified path) OR an
+    # above-threshold AI Classification of that species (unverified
+    # path). Querying only HumanObservation, like this used to, made
+    # the total identical to the verified count for every species,
+    # which showed up as a permanent 100% bar.
+    from sqlalchemy import union_all
+    verified_species_src = (
         select(
-            HumanObservation.species,
-            func.count(func.distinct(Image.id)).label("total"),
-            func.count(func.distinct(Image.id)).filter(Image.is_verified == True).label("verified"),
+            HumanObservation.species.label("species"),
+            Image.id.label("image_id"),
+            Image.is_verified.label("is_verified"),
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
+        .where(and_(*base_filters, Image.is_verified == True))
+    )
+    unverified_species_src = (
+        select(
+            Classification.species.label("species"),
+            Image.id.label("image_id"),
+            Image.is_verified.label("is_verified"),
+        )
+        .join(Detection, Classification.detection_id == Detection.id)
+        .join(Image, Detection.image_id == Image.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
         .where(and_(
-            Camera.project_id.in_(accessible_project_ids),
-            Image.is_hidden == False,
+            *base_filters,
+            Image.is_verified == False,
+            Detection.confidence >= Project.detection_threshold,
+            classification_passes_threshold(),
         ))
-        .group_by(HumanObservation.species)
+    )
+    species_source = union_all(verified_species_src, unverified_species_src).subquery()
+    species_q = (
+        select(
+            species_source.c.species,
+            func.count(func.distinct(species_source.c.image_id)).label("total"),
+            func.count(func.distinct(species_source.c.image_id))
+                .filter(species_source.c.is_verified == True)
+                .label("verified"),
+        )
+        .group_by(species_source.c.species)
     )
     species_result = await db.execute(species_q)
     for row in species_result.all():
