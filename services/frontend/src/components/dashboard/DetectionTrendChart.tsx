@@ -274,6 +274,14 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({ dateRa
   const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
+    // Hover anywhere in a column shows the raw count and the
+    // rolling-average value side by side, so the user reads the
+    // smoothed trend without having to chase the dashed line with
+    // the cursor.
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
     plugins: {
       legend: {
         display: true,
