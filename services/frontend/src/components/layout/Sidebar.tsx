@@ -2,7 +2,7 @@
  * Sidebar navigation component
  */
 import React, { useState } from 'react';
-import { NavLink, useParams, useSearchParams } from 'react-router-dom';
+import { NavLink, useParams } from 'react-router-dom';
 import {
   Camera,
   LayoutDashboard,
@@ -46,17 +46,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { projectId } = useParams<{ projectId: string }>();
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
-
-  // Project-header design variant, pick via ?sidebar=1|2|3 on any URL.
-  // Temporary preview switch so the final look can be chosen on the
-  // dev server without redeploying. Once decided, drop the unused
-  // branches and the query-param reader.
-  const [searchParams] = useSearchParams();
-  const headerVariant = searchParams.get('sidebar') === '2'
-    ? '2'
-    : searchParams.get('sidebar') === '3'
-      ? '3'
-      : '1';
 
   // Navigation items (all project-specific). Map and Performance now live
   // under the collapsible Insights group below.
@@ -161,55 +150,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Project header — three preview variants, switch via ?sidebar=1|2|3.
-            Rendered between the logo and the nav so the active project and
-            its "back" affordance sit at the top, not buried at the bottom. */}
-        {selectedProject && headerVariant === '1' && (
-          <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
-            <p className="truncate text-base font-semibold text-foreground leading-tight">
-              {selectedProject.name}
-            </p>
-            <NavLink
-              to="/projects"
-              className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              Back to projects
-            </NavLink>
-          </div>
-        )}
-
-        {selectedProject && headerVariant === '2' && (
-          <div className="px-4 pt-4 pb-3 shrink-0">
-            <div className="rounded-lg bg-muted/50 p-3">
-              <div className="flex items-center gap-3">
-                {selectedProject.thumbnail_url ? (
-                  <img
-                    src={selectedProject.thumbnail_url}
-                    alt=""
-                    className="h-9 w-9 rounded-md object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
-                    {selectedProject.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {selectedProject.name}
-                </p>
-              </div>
-              <NavLink
-                to="/projects"
-                className="mt-2.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="h-3 w-3" />
-                All projects
-              </NavLink>
-            </div>
-          </div>
-        )}
-
-        {selectedProject && headerVariant === '3' && (
+        {/* Project header sits between the logo and the nav so the
+            active project and its back-link are at the top, where
+            users expect workspace context to live. */}
+        {selectedProject && (
           <div className="px-4 pt-4 pb-4 border-b border-border shrink-0">
             <div className="border-l-[3px] border-primary pl-3">
               <p className="truncate text-base font-bold text-primary leading-tight">
