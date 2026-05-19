@@ -293,7 +293,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
     labels: data?.map((d) => formatLabel(d.key)) ?? [],
     datasets: [
       {
-        label: 'Per 100 trap-nights',
+        label: 'Detections per 100 trap-nights',
         data: displayValues,
         borderColor: lineColor,
         backgroundColor: (context) => {
@@ -416,7 +416,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
         </div>
         {data && data.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            {overallRate.toFixed(1)} detections per 100 trap-nights across {periodCount} {granularityLabel}
+            Average {overallRate.toFixed(1)} detections per 100 trap-nights across {periodCount} {granularityLabel}
           </p>
         )}
       </CardHeader>
