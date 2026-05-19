@@ -855,8 +855,86 @@ def dispatch(message: dict) -> None:
         logger.error("Unknown bulk upload phase", phase=phase, job_uuid=job_uuid)
 
 
+def _recover_stuck_jobs() -> None:
+    """
+    Recover bulk-upload jobs that the previous worker run left in
+    'processing' status without finishing them. Happens whenever the
+    container is killed mid-pass: the Redis BLPOP message is gone, so
+    the job has no queue entry to drive it. Without this, the job
+    sits in 'processing' forever and the row's percent never closes.
+
+    Two cases:
+    - Staging still has objects under the job's prefix. Re-publish a
+      'process' message so the next BLPOP picks the job back up. The
+      per-image duplicate check makes re-runs idempotent.
+    - Staging is empty (worker finished iterating but never wrote the
+      end-of-pass summary, or staging was cleaned up out of band).
+      Align total_files with what actually classified so the lazy
+      auto-finalise in the API flips the row to 'done'.
+    """
+    storage = StorageClient()
+    with get_db_session() as session:
+        stuck = session.execute(
+            select(BulkUploadJob).where(BulkUploadJob.status == "processing")
+        ).scalars().all()
+        stuck_snapshots = [
+            (j.id, j.uuid, j.staged_object_key, j.skipped_files) for j in stuck
+        ]
+
+    if not stuck_snapshots:
+        return
+
+    for job_id, job_uuid, staged_key, skipped in stuck_snapshots:
+        if not staged_key or not staged_key.endswith("/"):
+            # Legacy single-zip layout; the legacy path has different
+            # cleanup semantics and rarely sees restarts at this
+            # point, leave alone.
+            continue
+        keys = storage.list_objects(BUCKET_BULK_UPLOAD_STAGING, staged_key)
+        if keys:
+            logger.info(
+                "Recovering stuck bulk-upload job, re-publishing process message",
+                job_uuid=job_uuid,
+                staged_objects=len(keys),
+            )
+            queue = RedisQueue(QUEUE_BULK_UPLOAD_JOB_PROCESS)
+            queue.publish({"job_uuid": job_uuid, "phase": "process"})
+            continue
+
+        # Nothing left to process. Align total_files with what made
+        # it into the Image table so the API auto-finalises the row.
+        with get_db_session() as session:
+            classified_count = session.execute(
+                select(func.count(Image.id)).where(
+                    Image.bulk_upload_job_id == job_id,
+                    Image.status.in_(("classified", "failed")),
+                )
+            ).scalar_one()
+            row = session.execute(
+                select(BulkUploadJob).where(BulkUploadJob.uuid == job_uuid)
+            ).scalar_one()
+            row.total_files = skipped + classified_count
+        logger.info(
+            "Recovered stuck bulk-upload job, total_files aligned for finalise",
+            job_uuid=job_uuid,
+            skipped=skipped,
+            classified=classified_count,
+        )
+
+
 def main() -> None:
     logger.info("Bulk upload worker starting")
+    # Pick up any jobs left mid-pass by a previous container restart
+    # before we start blocking on the queue. Without this they would
+    # sit in 'processing' forever.
+    try:
+        _recover_stuck_jobs()
+    except Exception as exc:
+        logger.error(
+            "Stuck-job recovery failed, continuing to queue loop",
+            error=str(exc),
+            exc_info=True,
+        )
     # Process-phase messages take priority over inspect-phase so a
     # user clicking Process is never queued behind someone else's
     # pending ZIP inspection. Same pattern as live > bulk for the
