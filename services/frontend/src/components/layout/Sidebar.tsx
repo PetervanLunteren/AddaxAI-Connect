@@ -33,6 +33,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
+import { FEATURES } from '../../lib/features';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -78,11 +79,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // missing the start of a fresh upload they themselves did not
   // initiate. Anyone starting their own upload triggers an
   // immediate query invalidation, so they never wait.
+  // Disabled entirely while FEATURES.bulkUpload is off, no point
+  // polling for jobs the user can't see.
   const numericProjectId = projectId ? Number(projectId) : undefined;
   const { data: bulkJobs } = useQuery({
     queryKey: ['bulk-upload-jobs', numericProjectId],
     queryFn: () => bulkUploadApi.list(numericProjectId!),
-    enabled: numericProjectId !== undefined && isProjectAdmin,
+    enabled: FEATURES.bulkUpload && numericProjectId !== undefined && isProjectAdmin,
     refetchInterval: (q) => {
       const data = q.state.data as BulkUploadJob[] | undefined;
       const anyInFlight = (data ?? []).some(
@@ -97,17 +100,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   // Admin tools - visible to project admins and server admins. The
   // bulk-upload entry carries a live badge with the number of jobs in
-  // flight so users notice work in progress from any page.
+  // flight so users notice work in progress from any page. It is
+  // gated by FEATURES.bulkUpload so the entry stays hidden while
+  // the feature is still in development.
   const adminTools = [
     { to: `/projects/${projectId}/settings`, icon: Settings, label: 'Settings' },
     { to: `/projects/${projectId}/users`, icon: Users, label: 'Users', requiresAdmin: true },
     { to: `/projects/${projectId}/manage-images`, icon: ListChecks, label: 'Curation' },
-    {
-      to: `/projects/${projectId}/bulk-upload`,
-      icon: Upload,
-      label: 'Bulk upload',
-      badge: inFlightBulkCount > 0 ? inFlightBulkCount : undefined,
-    },
+    ...(FEATURES.bulkUpload
+      ? [
+          {
+            to: `/projects/${projectId}/bulk-upload`,
+            icon: Upload,
+            label: 'Bulk upload',
+            badge: inFlightBulkCount > 0 ? inFlightBulkCount : undefined,
+          },
+        ]
+      : []),
   ];
 
   return (
