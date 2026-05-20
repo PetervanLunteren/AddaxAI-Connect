@@ -42,11 +42,11 @@ working at every step.
 
 ## Decisions confirmed with the user
 
-- **Backfill strategy**: GPS-cluster sites. Walk existing per-camera
-  GPS history, group consecutive same-location periods using the
-  existing 100 m relocation threshold, and merge across cameras into
-  shared sites using a 50 m proximity rule. Cameras that share a
-  physical location (Duinpoort NW + NO) collapse to one Site.
+- **Backfill strategy**: GPS-cluster sites. Build sites on top of the
+  existing deployment rows, grouping deployments within one project that
+  are within the single site threshold of each other (see GPS threshold
+  below). Cameras that share a physical location (Duinpoort NW + NO)
+  collapse to one Site.
 - **`Image.deployment_id` is nullable**: live ingestion always tries
   to assign one, but legacy rows and edge cases (missing GPS,
   ingestion races) leave the column null rather than rejecting the
@@ -72,12 +72,18 @@ working at every step.
 
 ## Decisions I'm calling without asking
 
-- **GPS thresholds**: 50 m for site auto-merge, 100 m for
-  deployment-change. Real per-camera GPS jitter on dev is <6 m max,
-  std <1 m, so 50 m is a 10x safety margin and 100 m matches the
-  existing `RELOCATION_THRESHOLD_METERS`. Not per-project
-  configurable in v1; can become a `Project` field later if any
-  project actually has different needs.
+- **GPS threshold**: one single threshold, 100 m, defined once in
+  `shared/shared/geo.py` as `SITE_THRESHOLD_METERS`. Two readings within
+  100 m are the same site; a camera that moves more than 100 m leaves its
+  site, which starts a new deployment. There is deliberately no separate
+  deployment-vs-site threshold: two numbers were inconsistent (the same
+  distance meant "same place" within a camera but "different place" across
+  cameras). 100 m matches the historical relocation distance, so existing
+  deployments stay consistent with zero recompute, and is ~16x the observed
+  jitter (<6 m). Not per-project configurable in v1; can become a `Project`
+  field later. A camera moving more than 100 m to a new spot at the same
+  clearing therefore creates a new site; the user can merge sites by hand
+  once the Sites UI lands.
 - **`Camera.location` retained as a denormalised cache**: not
   user-editable, populated as "the location of the camera's currently
   active deployment". Backward compat for any code that reads
@@ -161,9 +167,10 @@ def update_or_create_site_and_deployment(
 ) -> Tuple[int, int]:
     """
     Returns (site_id, deployment_id). Reuses an existing site within
-    50 m in the same project; auto-creates if none. Closes the
-    camera's current deployment and starts a new one if GPS moved
-    more than 100 m; otherwise reuses the active deployment.
+    SITE_THRESHOLD_METERS in the same project; auto-creates if none.
+    A new GPS reading outside the camera's current site (more than
+    SITE_THRESHOLD_METERS away) closes the active deployment and starts
+    a new one; otherwise it reuses the active deployment.
     """
 ```
 
@@ -173,20 +180,23 @@ Sites page when they care.
 
 ## Backfill
 
-A one-off script in `scripts/backfill_sites.py` that:
+A one-off script in `scripts/backfill_sites.py` that builds sites on top
+of the deployment rows that already exist (created by
+`backfill_deployment_periods.py` and live ingestion). It does not re-detect
+deployments from image GPS. For each project it:
 
-1. For each camera with at least one GPS-tagged image, walk
-   `image_metadata.gps_decimal` over time ordered by `captured_at`.
-2. Group into contiguous "location periods" using the existing 100 m
-   relocation threshold.
-3. For each period: find or create a Site within 50 m of the period's
-   mean coords in this project. Create a Deployment row covering the
-   period's date range, link to the site, link to the camera. If a
-   `CameraDeploymentPeriod` already exists for that date range, update
-   it instead of duplicating.
-4. For every Image whose camera has any deployment, set
-   `Image.deployment_id` to the deployment whose date range covers
-   `Image.captured_at`.
+1. Loads the project's deployments with their coordinates, skipping zombie
+   rows (Null Island (0, 0) or inverted date range), matching the defense
+   the stats and export queries already apply.
+2. Greedily clusters those deployments into sites: deployments within
+   `SITE_THRESHOLD_METERS` of each other share one site. A cluster within
+   the threshold of an existing site reuses it instead of duplicating.
+3. Derives the site name and per-deployment label (see naming rules below)
+   and sets `deployments.site_id` and `deployments.name`.
+4. Sets `Image.deployment_id` to the deployment whose date range covers
+   `Image.captured_at`, again skipping zombie deployments.
+
+Ships with `--dry-run` to print the full proposed mapping without writing.
 
 Site and deployment naming on backfill:
 - Single camera maps to one site: Site name = the original `Camera.name`
@@ -200,10 +210,9 @@ Site and deployment naming on backfill:
   as its deployment label. Flag these rows in the dry-run report for manual
   cleanup.
 
-Idempotent: re-runnable, skips images that already have a `deployment_id`.
-Ships with a `--dry-run` mode that prints the full proposed sites /
-deployments / labels mapping without writing, used as the review aid on each
-dev iteration before applying.
+Idempotent and re-runnable: deployments that already have a `site_id` are
+left alone, and images that already have a `deployment_id` are skipped. The
+`--dry-run` output is the review aid on each dev iteration before applying.
 
 Expected outcome on the current dev dataset (9k images, ~10 cameras):
 - ~10 sites (since each camera mostly stays put; the Duinpoort NW+NO
@@ -242,7 +251,7 @@ deployment_id, some without) throughout the migration.
   Camera).
 - Auto-detect in the inspect phase suggests both camera and site:
   match camera by EXIF SerialNumber as today, match site by GPS
-  proximity (50 m) to any existing site in the project.
+  proximity (within `SITE_THRESHOLD_METERS`) to any existing site in the project.
 
 **Phase 4 — UI surfaces: Sites page, deployment history (~2-3 days)**
 - New project sidebar entry "Sites". Lists project sites with name,
@@ -312,7 +321,7 @@ Modify (Phase 5):
    naming logic? Probably fine — it only kicks in for net-new
    sites. Worth confirming with a user once Phase 4 lands.
 2. **Sites moved**: if a user physically moves the cameras at one
-   site to a slightly different (>50 m) location and re-deploys, do
+   site to a different location (more than `SITE_THRESHOLD_METERS`) and re-deploys, do
    they want a new Site or an updated Site? Default: new Site (sites
    are immutable in coords). Surface via "+ Add new site" workflow.
 3. **Cross-project site sharing**: should two projects share a

@@ -1,0 +1,16 @@
+"""
+Shared geographic constants for the spatial model.
+"""
+
+# The single distance threshold that drives sites and deployments.
+#
+# A site is a physical place: two GPS readings within this distance are the same
+# site. A deployment is one camera at one site for a continuous period, so a new
+# deployment starts when a camera's reading falls outside its current site (more
+# than this distance away). One number governs both. There is no separate
+# relocation threshold.
+#
+# 100 m is about 16x the observed per-camera GPS jitter (under 6 m) and matches
+# the historical relocation distance, so existing deployments stay consistent.
+# Not per-project configurable in v1; can become a Project field later.
+SITE_THRESHOLD_METERS = 100.0

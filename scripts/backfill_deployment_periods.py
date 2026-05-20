@@ -21,12 +21,10 @@ sys.path.insert(0, '/app')
 
 from shared.config import get_settings
 from shared.logger import get_logger
+from shared.geo import SITE_THRESHOLD_METERS
 
 settings = get_settings()
 logger = get_logger("backfill_deployments")
-
-# Constants
-RELOCATION_THRESHOLD_METERS = 100.0  # GPS change >100m = new deployment
 
 
 def parse_gps_json(gps_str: Optional[str]) -> Optional[Tuple[float, float]]:
@@ -202,7 +200,7 @@ def detect_deployment_periods(
             lon
         )
 
-        if distance > RELOCATION_THRESHOLD_METERS:
+        if distance > SITE_THRESHOLD_METERS:
             # Camera relocated - close current deployment and start new one
             deployments.append({
                 'deployment_id': current_deployment['deployment_id'],

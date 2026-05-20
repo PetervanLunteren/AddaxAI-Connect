@@ -8,7 +8,7 @@ and live ingestion already create. It does NOT re-detect deployments from image 
 
 For each project it:
   1. Groups the project's deployments into Sites by GPS proximity (deployments
-     whose locations are within SITE_MERGE_THRESHOLD_METERS of each other share
+     whose locations are within SITE_THRESHOLD_METERS of each other share
      one Site).
   2. Derives a Site name from the member cameras' names:
      - one camera in the group  -> Site name = that camera's name, no deployment label
@@ -47,14 +47,10 @@ sys.path.insert(0, '/app')
 
 from shared.config import get_settings
 from shared.logger import get_logger
+from shared.geo import SITE_THRESHOLD_METERS
 
 settings = get_settings()
 logger = get_logger("backfill_sites")
-
-# Deployments within this distance of each other collapse into one Site.
-# 50 m is a 10x margin over the observed per-camera GPS jitter (<6 m), and is
-# tighter than the 100 m relocation threshold that already separates deployments.
-SITE_MERGE_THRESHOLD_METERS = 50.0
 
 # Deployments at Null Island (0, 0) or with an inverted date range are zombie
 # rows that the stats and export queries already skip on read (see
@@ -155,7 +151,7 @@ def load_existing_sites(session: Session, project_id: int) -> list:
 
 
 def cluster_deployments(deployments: list) -> List[Group]:
-    """Greedy 50 m clustering of the deployments that have no site yet."""
+    """Greedy clustering of the deployments that have no site yet, within SITE_THRESHOLD_METERS."""
     groups: List[Group] = []
     for row in deployments:
         if row.site_id is not None:
@@ -164,7 +160,7 @@ def cluster_deployments(deployments: list) -> List[Group]:
         best_dist = float("inf")
         for g in groups:
             dist = g.center_distance(row.lat, row.lon)
-            if dist <= SITE_MERGE_THRESHOLD_METERS and dist < best_dist:
+            if dist <= SITE_THRESHOLD_METERS and dist < best_dist:
                 best, best_dist = g, dist
         if best is None:
             best = Group(row.lat, row.lon)
@@ -222,7 +218,7 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
         # Reuse an existing site if the group sits within the merge threshold.
         reuse = None
         for s in existing_sites:
-            if haversine_meters(group.lat, group.lon, s.lat, s.lon) <= SITE_MERGE_THRESHOLD_METERS:
+            if haversine_meters(group.lat, group.lon, s.lat, s.lon) <= SITE_THRESHOLD_METERS:
                 reuse = s
                 break
 

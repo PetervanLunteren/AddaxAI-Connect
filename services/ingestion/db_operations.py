@@ -13,13 +13,16 @@ from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
 from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, ServerSettings
 from shared.logger import get_logger
+from shared.geo import SITE_THRESHOLD_METERS
 from camera_profiles import CameraProfile
 from utils import is_valid_gps
 
 logger = get_logger("ingestion")
 
-# Constants
-RELOCATION_THRESHOLD_METERS = 100.0  # GPS change >100m = new deployment
+# A camera that moves more than SITE_THRESHOLD_METERS leaves its current site, so
+# a new deployment starts. One threshold, defined in shared.geo. Deriving the
+# deployment fully from a Site row is Phase 2 of the site work; for now this
+# distance check is equivalent because both use the same value.
 
 
 def get_server_timezone() -> ZoneInfo:
@@ -159,7 +162,7 @@ def update_or_create_deployment(
             # Calculate distance from current deployment
             distance = calculate_gps_distance(current_lat, current_lon, new_lat, new_lon)
 
-            if distance > RELOCATION_THRESHOLD_METERS:
+            if distance > SITE_THRESHOLD_METERS:
                 # Camera relocated - close current deployment and start new one.
                 # Clamp the closing date so it never falls before the deployment's
                 # own start_date (otherwise a relocation on the same calendar day
