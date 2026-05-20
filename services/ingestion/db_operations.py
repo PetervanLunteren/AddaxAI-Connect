@@ -108,185 +108,175 @@ def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -
     return R * c
 
 
-def update_or_create_deployment(
+def _resolve_site(session, project_id: Optional[int], lat: float, lon: float) -> Optional[int]:
+    """
+    Return the id of the site within SITE_THRESHOLD_METERS of (lat, lon) in this
+    project, creating one if none is close enough. Returns None when the camera
+    has no project, since sites are project-scoped (the deployment then stays
+    site-less, matching the pre-site behaviour).
+    """
+    if project_id is None:
+        return None
+
+    wkt = f"POINT({lon} {lat})"
+    nearest = session.execute(
+        text("""
+            SELECT id, ST_Distance(location, ST_GeogFromText(:wkt)) AS dist
+            FROM sites
+            WHERE project_id = :project_id
+            ORDER BY dist
+            LIMIT 1
+        """),
+        {"wkt": wkt, "project_id": project_id},
+    ).fetchone()
+
+    if nearest and nearest.dist <= SITE_THRESHOLD_METERS:
+        return nearest.id
+
+    site_id = session.execute(
+        text("""
+            INSERT INTO sites (uuid, project_id, name, location, created_at)
+            VALUES (:uuid, :project_id, :name, ST_GeogFromText(:wkt), now())
+            RETURNING id
+        """),
+        {
+            "uuid": str(uuid.uuid4()),
+            "project_id": project_id,
+            "name": f"Site at {lat:.4f}, {lon:.4f}",
+            "wkt": wkt,
+        },
+    ).scalar_one()
+    logger.info(
+        "Auto-created site",
+        site_id=site_id,
+        project_id=project_id,
+        location=f"({lat:.6f}, {lon:.6f})",
+    )
+    return site_id
+
+
+def _insert_deployment(session, camera_id: int, number: int, site_id: Optional[int],
+                       start_date: date, lat: float, lon: float) -> int:
+    """Insert a new open deployment (end_date NULL) and return its id."""
+    return session.execute(
+        text("""
+            INSERT INTO deployments (
+                camera_id, deployment_number, site_id, start_date, end_date, location
+            ) VALUES (
+                :camera_id, :number, :site_id, :start_date, NULL, ST_GeogFromText(:wkt)
+            )
+            RETURNING id
+        """),
+        {
+            "camera_id": camera_id,
+            "number": number,
+            "site_id": site_id,
+            "start_date": start_date,
+            "wkt": f"POINT({lon} {lat})",
+        },
+    ).scalar_one()
+
+
+def update_or_create_site_and_deployment(
     camera_id: int,
     new_gps: Tuple[float, float],
-    event_date: date
-) -> None:
+    event_date: date,
+) -> Tuple[Optional[int], int]:
     """
-    Update or create camera deployment period based on GPS location.
+    Resolve the site and deployment for a new GPS reading and return
+    (site_id, deployment_id).
 
-    Creates new deployment when:
-    - No active deployment exists (first image/report)
-    - GPS moved >100m from current deployment location
-
-    Args:
-        camera_id: Database ID of camera
-        new_gps: (latitude, longitude) from image or daily report
-        event_date: Date of image or daily report
+    One distance rule governs both (SITE_THRESHOLD_METERS, from shared.geo):
+    a reading more than that far from the camera's active deployment means the
+    camera left its site, so the active deployment is closed and a new one opens
+    at the resolved site. Within the threshold it is the same deployment. Sites
+    are reused when an existing one in the project is within the threshold,
+    otherwise one is auto-created. site_id is None only when the camera has no
+    project, since sites are project-scoped.
 
     Raises:
-        ValueError: If GPS coordinates are invalid (None, (0, 0), or out of range).
+        ValueError: invalid GPS (None, (0, 0), out of range), or unknown camera.
     """
-    # Defensive guard: callers should pre-validate, but raise loudly here
-    # so any future caller cannot silently insert a (0, 0) zombie.
+    # Defensive guard: callers pre-validate, but raise loudly so no future
+    # caller can insert a (0, 0) zombie.
     if not is_valid_gps(new_gps):
         raise ValueError(f"Invalid GPS for camera {camera_id}: {new_gps}")
 
-    with get_db_session() as session:
-        new_lat, new_lon = new_gps
+    new_lat, new_lon = new_gps
 
-        # Get current active deployment (end_date IS NULL)
-        current_deployment = session.query(Deployment).filter(
-            and_(
-                Deployment.camera_id == camera_id,
-                Deployment.end_date.is_(None)
-            )
+    with get_db_session() as session:
+        camera = session.query(Camera).filter(Camera.id == camera_id).first()
+        if camera is None:
+            raise ValueError(f"Unknown camera {camera_id}")
+        project_id = camera.project_id
+
+        # Current active deployment (end_date IS NULL), if any.
+        active = session.query(Deployment).filter(
+            and_(Deployment.camera_id == camera_id, Deployment.end_date.is_(None))
         ).first()
 
-        if current_deployment:
-            # Extract current deployment location
-            # PostGIS returns location as WKB - use ST_AsText to get "POINT(lon lat)"
-            location_query = text("""
-                SELECT ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon
-                FROM deployments
-                WHERE id = :dep_pk
-            """)
-            result = session.execute(
-                location_query,
-                {'dep_pk': current_deployment.id}
+        if active is not None:
+            loc = session.execute(
+                text("""
+                    SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lon
+                    FROM deployments WHERE id = :dep_pk
+                """),
+                {"dep_pk": active.id},
             ).fetchone()
+            distance = calculate_gps_distance(loc.lat, loc.lon, new_lat, new_lon)
 
-            current_lat, current_lon = result.lat, result.lon
-
-            # Calculate distance from current deployment
-            distance = calculate_gps_distance(current_lat, current_lon, new_lat, new_lon)
-
-            if distance > SITE_THRESHOLD_METERS:
-                # Camera relocated - close current deployment and start new one.
-                # Clamp the closing date so it never falls before the deployment's
-                # own start_date (otherwise a relocation on the same calendar day
-                # the deployment was created leaves an inverted, impossible range
-                # that no image can ever match).
-                yesterday = event_date - timedelta(days=1)
-                current_deployment.end_date = max(yesterday, current_deployment.start_date)
-
-                # Get next deployment_number
-                next_deployment_number = current_deployment.deployment_number + 1
-
-                logger.info(
-                    "Camera relocated - creating new deployment",
-                    camera_id=camera_id,
-                    old_deployment_number=current_deployment.deployment_number,
-                    new_deployment_number=next_deployment_number,
-                    distance_meters=round(distance, 1),
-                    old_location=f"({current_lat:.6f}, {current_lon:.6f})",
-                    new_location=f"({new_lat:.6f}, {new_lon:.6f})"
-                )
-
-                # Create new deployment
-                location_wkt = f"POINT({new_lon} {new_lat})"
-                insert_query = text("""
-                    INSERT INTO deployments (
-                        camera_id,
-                        deployment_number,
-                        start_date,
-                        end_date,
-                        location
-                    ) VALUES (
-                        :camera_id,
-                        :deployment_number,
-                        :start_date,
-                        NULL,
-                        ST_GeogFromText(:location_wkt)
-                    )
-                """)
-                session.execute(
-                    insert_query,
-                    {
-                        'camera_id': camera_id,
-                        'deployment_number': next_deployment_number,
-                        'start_date': event_date,
-                        'location_wkt': location_wkt
-                    }
-                )
-
-                session.flush()
-            else:
-                # Same deployment - backdate start_date if image arrived out of order
-                if event_date < current_deployment.start_date:
+            if distance <= SITE_THRESHOLD_METERS:
+                # Same place, same deployment. Heal a missing site (for legacy
+                # deployments that predate the site work), and backdate the start
+                # if an out-of-order earlier image arrived.
+                if active.site_id is None:
+                    active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
+                if event_date < active.start_date:
                     logger.info(
                         "Backdating deployment start_date for out-of-order image",
                         camera_id=camera_id,
-                        deployment_number=current_deployment.deployment_number,
-                        old_start=str(current_deployment.start_date),
+                        deployment_number=active.deployment_number,
+                        old_start=str(active.start_date),
                         new_start=str(event_date),
                     )
-                    current_deployment.start_date = event_date
-                    session.flush()
-
+                    active.start_date = event_date
+                session.flush()
                 logger.debug(
                     "GPS within threshold - same deployment",
                     camera_id=camera_id,
-                    deployment_number=current_deployment.deployment_number,
-                    distance_meters=round(distance, 1)
+                    deployment_number=active.deployment_number,
+                    site_id=active.site_id,
+                    distance_meters=round(distance, 1),
                 )
+                return (active.site_id, active.id)
+
+            # Moved beyond the site: close the active deployment, open a new one.
+            # Clamp the closing date so it never predates the deployment's own
+            # start_date (a same-day relocation would otherwise leave an
+            # inverted, impossible range that no image can match).
+            active.end_date = max(event_date - timedelta(days=1), active.start_date)
+            next_number = active.deployment_number + 1
+            log_msg = "Camera relocated - creating new deployment"
         else:
-            # No active deployment - need to create one
-            # Check if this camera had deployments before (they may be closed)
-            max_deployment_number = session.query(
+            max_number = session.query(
                 func.max(Deployment.deployment_number)
-            ).filter(
-                Deployment.camera_id == camera_id
-            ).scalar()
+            ).filter(Deployment.camera_id == camera_id).scalar()
+            next_number = 1 if max_number is None else max_number + 1
+            log_msg = "Creating new deployment for camera"
 
-            if max_deployment_number is None:
-                # Truly first deployment ever for this camera
-                next_deployment_number = 1
-                logger.info(
-                    "Creating first deployment for camera",
-                    camera_id=camera_id,
-                    deployment_number=next_deployment_number,
-                    location=f"({new_lat:.6f}, {new_lon:.6f})"
-                )
-            else:
-                # Had deployments before - create new one with incremented number
-                next_deployment_number = max_deployment_number + 1
-                logger.info(
-                    "Resuming camera after closed deployment",
-                    camera_id=camera_id,
-                    previous_deployment_number=max_deployment_number,
-                    new_deployment_number=next_deployment_number,
-                    location=f"({new_lat:.6f}, {new_lon:.6f})"
-                )
-
-            location_wkt = f"POINT({new_lon} {new_lat})"
-            insert_query = text("""
-                INSERT INTO deployments (
-                    camera_id,
-                    deployment_number,
-                    start_date,
-                    end_date,
-                    location
-                ) VALUES (
-                    :camera_id,
-                    :deployment_number,
-                    :start_date,
-                    NULL,
-                    ST_GeogFromText(:location_wkt)
-                )
-            """)
-            session.execute(
-                insert_query,
-                {
-                    'camera_id': camera_id,
-                    'deployment_number': next_deployment_number,
-                    'start_date': event_date,
-                    'location_wkt': location_wkt
-                }
-            )
-
-            session.flush()
+        site_id = _resolve_site(session, project_id, new_lat, new_lon)
+        deployment_id = _insert_deployment(
+            session, camera_id, next_number, site_id, event_date, new_lat, new_lon
+        )
+        session.flush()
+        logger.info(
+            log_msg,
+            camera_id=camera_id,
+            deployment_number=next_number,
+            site_id=site_id,
+            location=f"({new_lat:.6f}, {new_lon:.6f})",
+        )
+        return (site_id, deployment_id)
 
 
 def create_image_record(
@@ -322,6 +312,17 @@ def create_image_record(
     Returns:
         Image UUID (string)
     """
+    # Resolve the site and deployment for this image first, so the row can carry
+    # deployment_id. Done before the image session because
+    # update_or_create_site_and_deployment manages its own session.
+    deployment_id = None
+    if gps_location:
+        _, deployment_id = update_or_create_site_and_deployment(
+            camera_id=camera_id,
+            new_gps=gps_location,
+            event_date=captured_at.date(),
+        )
+
     with get_db_session() as session:
 
         # Convert GPS to PostGIS format if present
@@ -342,6 +343,7 @@ def create_image_record(
             origin=origin,
             content_hash=content_hash,
             bulk_upload_job_id=bulk_upload_job_id,
+            deployment_id=deployment_id,
         )
 
         session.add(image)
@@ -357,15 +359,6 @@ def create_image_record(
             file_name=filename,
             has_gps=bool(gps_location),
             has_thumbnail=bool(thumbnail_path)
-        )
-
-    # Update deployment period if image has GPS
-    # (done outside session context since update_or_create_deployment creates its own session)
-    if gps_location:
-        update_or_create_deployment(
-            camera_id=camera_id,
-            new_gps=gps_location,
-            event_date=captured_at.date()
         )
 
     return image_uuid
@@ -478,13 +471,13 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
             signal_quality=health_data.get('signal_quality')
         )
 
-    # Update deployment period if daily report has valid GPS. Health data
+    # Update site and deployment if daily report has valid GPS. Health data
     # (battery, temperature) is the file's main payload and is already saved
     # above, so an invalid GPS is logged and skipped, not file-rejected.
-    # (done outside session context since update_or_create_deployment creates its own session)
+    # (done outside session context since the function manages its own session)
     report_gps = health_data.get('gps_location')
     if is_valid_gps(report_gps):
-        update_or_create_deployment(
+        update_or_create_site_and_deployment(
             camera_id=camera_id,
             new_gps=report_gps,
             event_date=datetime.now(timezone.utc).date()
