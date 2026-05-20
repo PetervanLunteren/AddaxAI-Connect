@@ -51,14 +51,24 @@ working at every step.
   to assign one, but legacy rows and edge cases (missing GPS,
   ingestion races) leave the column null rather than rejecting the
   image. Matches WebUI's nullable `Deployment.site_id`.
-- **Naming axis**: Site carries the friendly name ("Duinpoort"),
-  Camera shows the hardware id (the EXIF SerialNumber or device_id).
-  UI surfaces both as "Duinpoort NW / Willfine #1234" in places that
-  matter; daily views show whichever is more useful by context.
+- **Naming axis**: Site carries the friendly place name ("Duinpoort"),
+  Deployment carries a free-text orientation label ("NW", "main view").
+  Camera keeps its current name as-is. We do NOT rename it to a hardware
+  id (KISS, avoids touching every view plus the alert email and Telegram
+  copy). The canonical display label across the UI, map, notifications and
+  export is Site + deployment: a merged site shows "Duinpoort / NW", a
+  single-camera site shows "Duinpoort NW" (empty deployment label). This
+  reproduces the current look with no regression. `Camera.name` becomes a
+  legacy field that display no longer reads; hide or drop it much later, or
+  never.
 - **CameraGroup stays separate from Site**: CameraGroup means
   "cameras sharing FOV, dedupe events between them" (independence
   interval). Site means "cameras at the same physical place". They
   often coincide but are orthogonal in principle. Keep both.
+- **Rollout**: iterate on a dev box loaded with a prod data copy, then
+  verify on a fresh dev box loaded with the second prod's copy, then apply
+  to the real servers. Mistakes on dev are fine. The backfill `--dry-run`
+  output is the review aid; no heavy snapshot ceremony required.
 
 ## Decisions I'm calling without asking
 
@@ -116,8 +126,11 @@ camera-targeted at v1 even after Site lands. A future Slice 3
 |---|---|---|
 | existing columns | | keep as-is |
 | `site_id` | int FK→sites | NULLABLE, ON DELETE SET NULL, indexed |
-| `camera_heading` | int | optional, 0-359, Camtrap-DP `cameraHeading` field |
-| `name` | str(100) | optional human label, e.g. "NW" or "main view" |
+| `name` | str(100) | optional free-text orientation label, e.g. "NW" or "main view" |
+
+Numeric `camera_heading` (0-359, Camtrap-DP `cameraHeading`) is deferred to
+the Phase 6 export work. v1 uses the free-text `name` only; a later "N"→0
+mapping or manual entry can fill the numeric field when export needs it.
 
 The Deployment's location is now derived from `site.location`. The
 existing `latitude/longitude` columns on `CameraDeploymentPeriod`
@@ -173,13 +186,24 @@ A one-off script in `scripts/backfill_sites.py` that:
    it instead of duplicating.
 4. For every Image whose camera has any deployment, set
    `Image.deployment_id` to the deployment whose date range covers
-   `Image.captured_at`. Default site name format: copy the original
-   Camera.name to the Site name if all that camera's images map to a
-   single site (preserves "Duinpoort NW" labelling for the common
-   one-camera-one-site case).
+   `Image.captured_at`.
 
-Idempotent: re-runnable, skips images that already have a
-`deployment_id`.
+Site and deployment naming on backfill:
+- Single camera maps to one site: Site name = the original `Camera.name`
+  ("Duinpoort NW"), deployment label empty. Display stays "Duinpoort NW".
+- Several cameras collapse into one site (Duinpoort NW + NO): split each
+  camera name on space, hyphen or underscore, take the longest shared
+  leading token(s) as the Site name ("Duinpoort") and the remainder as
+  each Deployment label ("NW", "NO").
+- No common prefix in a collapsed group (e.g. "Duinpoort NW" + "Old gate"):
+  fall back to a coordinate-based Site name and keep each full camera name
+  as its deployment label. Flag these rows in the dry-run report for manual
+  cleanup.
+
+Idempotent: re-runnable, skips images that already have a `deployment_id`.
+Ships with a `--dry-run` mode that prints the full proposed sites /
+deployments / labels mapping without writing, used as the review aid on each
+dev iteration before applying.
 
 Expected outcome on the current dev dataset (9k images, ~10 cameras):
 - ~10 sites (since each camera mostly stays put; the Duinpoort NW+NO
@@ -195,7 +219,7 @@ deployment_id, some without) throughout the migration.
 
 **Phase 1 — Schema and idle backfill (~1 day)**
 - Migration: new `sites` table, rename `camera_deployment_periods` →
-  `deployments`, add `site_id` + `camera_heading` + `name` to
+  `deployments`, add `site_id` + `name` (free-text label) to
   Deployment, add `deployment_id` to Image.
 - Models updated in `shared/shared/models.py`.
 - Backfill script runs once on dev; verified.
@@ -227,12 +251,14 @@ deployment_id, some without) throughout the migration.
   date range), recent images aggregated.
 - Camera detail page gains a "Deployment history" tab.
 
-**Phase 5 — Deprecate Camera.location (~1 day)**
-- Every read site switched to `Deployment.site.location`.
-- `Camera.location` becomes a derived view in code (no DB writes),
-  computed as "location of the camera's most recent deployment".
-- Eventually drop the column entirely once the dust settles
-  (separate later migration).
+**Phase 5 — Deprecate Camera.location (optional, off the critical path)**
+- Not required for the Site feature to work. Do it later only if the
+  denormalised `Camera.location` cache actually causes drift bugs.
+- If done: switch every read to `Deployment.site.location`, make
+  `Camera.location` a derived view in code (no DB writes), drop the column
+  in a separate later migration.
+- `Camera.name` is left untouched throughout (KISS decision); display reads
+  Site + deployment instead.
 
 **Phase 6 — Camtrap-DP export refactor (separate work)**
 - Read Sites + Deployments instead of re-deriving from Camera +
@@ -306,8 +332,8 @@ Modify (Phase 5):
 | 2 — Live ingestion writes | 1 day | Low (writes to new nullable column) |
 | 3 — Bulk-upload integrates | 1 day | Low (new field on existing flow) |
 | 4 — UI surfaces | 2-3 days | Medium (new pages, new nav) |
-| 5 — Camera.location deprecation | 1 day | Medium (touches map, timeline, etc.) |
-| **Total before export refactor** | **6-7 days** | |
+| 5 — Camera.location deprecation | optional | deferred, off critical path |
+| **Total for the Site feature** | **5-6 days** | |
 
 The work is staged so each phase is shippable independently and the
 system never breaks at a boundary. Stop at any phase if priorities
@@ -319,8 +345,9 @@ Do Phases 1 and 2 together as one PR (~1.5 days). They go together:
 without Phase 2 the new tables sit empty for new data; without
 Phase 1 there's nowhere to write. Phase 3 (bulk upload) follows
 immediately because that's where the Site concept pays off most
-clearly for the user. Phases 4 and 5 can wait until you see how the
-data shapes up after Phase 3 has been running for a week.
+clearly for the user. Phase 4 can wait until you see how the data
+shapes up after Phase 3 has been running for a week. Phase 5 is
+optional cleanup with no deadline. Cameras are never renamed.
 
 The whole thing is doable in a focused week. The cost is real but
 bounded, and the payoff is a model that matches every other camera

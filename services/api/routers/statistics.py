@@ -533,7 +533,7 @@ async def get_detection_rate_map(
                     AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ), 0) as detection_count
-            FROM camera_deployment_periods cdp
+            FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             LEFT JOIN images i ON
                 i.camera_id = cdp.camera_id
@@ -564,7 +564,7 @@ async def get_detection_rate_map(
                     AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ) as detection_count
-            FROM camera_deployment_periods cdp
+            FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             INNER JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i ON
@@ -590,7 +590,7 @@ async def get_detection_rate_map(
                     AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ) as detection_count
-            FROM camera_deployment_periods cdp
+            FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             INNER JOIN projects p ON c.project_id = p.id
             LEFT JOIN images i ON
@@ -626,7 +626,7 @@ async def get_detection_rate_map(
             SELECT
                 cdp.id as deployment_id,
                 cdp.camera_id,
-                cdp.deployment_id as deployment_number,
+                cdp.deployment_number as deployment_number,
                 cdp.start_date,
                 cdp.end_date,
                 ST_X(cdp.location::geometry) as lon,
@@ -636,7 +636,7 @@ async def get_detection_rate_map(
                     (CURRENT_DATE - cdp.start_date + 1)
                 ) as trap_days,
                 c.name as camera_name
-            FROM camera_deployment_periods cdp
+            FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
@@ -1096,7 +1096,7 @@ async def get_trap_effort(
                     CAST(:start_date AS date),
                     (
                         SELECT MIN(cdp.start_date)
-                        FROM camera_deployment_periods cdp
+                        FROM deployments cdp
                         JOIN cameras c ON cdp.camera_id = c.id
                         WHERE c.project_id = ANY(CAST(:project_ids AS integer[]))
                     )
@@ -1113,7 +1113,7 @@ async def get_trap_effort(
                 cdp.id,
                 cdp.start_date,
                 COALESCE(cdp.end_date, CURRENT_DATE) AS end_date
-            FROM camera_deployment_periods cdp
+            FROM deployments cdp
             JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(CAST(:project_ids AS integer[]))
               AND (

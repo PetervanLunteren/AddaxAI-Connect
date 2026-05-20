@@ -931,7 +931,7 @@ def clean_demo_data(session: Session):
 
             # Delete camera-related data
             session.execute(text(f"DELETE FROM camera_health_reports WHERE camera_id IN ({cam_ids_str})"))
-            session.execute(text(f"DELETE FROM camera_deployment_periods WHERE camera_id IN ({cam_ids_str})"))
+            session.execute(text(f"DELETE FROM deployments WHERE camera_id IN ({cam_ids_str})"))
             session.execute(text(f"DELETE FROM cameras WHERE id IN ({cam_ids_str})"))
 
         # Delete notification preferences and project memberships
@@ -1289,8 +1289,8 @@ def insert_deployment_periods(session: Session, periods: list, cam_index_to_id: 
     for period in periods:
         session.execute(
             text("""
-                INSERT INTO camera_deployment_periods (
-                    camera_id, deployment_id, start_date, end_date, location
+                INSERT INTO deployments (
+                    camera_id, deployment_number, start_date, end_date, location
                 ) VALUES (
                     :camera_id, :dep_id, :start, :end,
                     ST_GeogFromText(:loc)

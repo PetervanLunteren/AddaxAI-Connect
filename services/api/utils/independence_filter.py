@@ -344,13 +344,13 @@ async def get_independent_detection_rate_counts(
     query = f"""
     {cte_sql}
     , deployment_events AS (
-        SELECT cdp.camera_id, cdp.deployment_id as deployment_number,
+        SELECT cdp.camera_id, cdp.deployment_number as deployment_number,
                SUM(e.event_count)::int as detection_count
         FROM events e
-        JOIN camera_deployment_periods cdp ON e.camera_id = cdp.camera_id
+        JOIN deployments cdp ON e.camera_id = cdp.camera_id
             AND DATE(e.event_start) >= cdp.start_date
             AND (cdp.end_date IS NULL OR DATE(e.event_start) <= cdp.end_date)
-        GROUP BY cdp.camera_id, cdp.deployment_id
+        GROUP BY cdp.camera_id, cdp.deployment_number
     )
     SELECT camera_id, deployment_number, detection_count FROM deployment_events
     """

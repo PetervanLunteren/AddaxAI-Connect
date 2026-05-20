@@ -116,7 +116,7 @@ class TestTimelineQueryCompiles:
         # gives us no camera ids to follow up on.
         assert len(db.compiled_queries) == 1
         sql_lower = db.compiled_queries[0].lower()
-        assert "camera_deployment_periods" in sql_lower
+        assert "deployments" in sql_lower
         # Empty CDP rows short-circuit to an empty payload with the new fields.
         assert payload["sites"] == []
         assert payload["concurrent_cameras"] == []

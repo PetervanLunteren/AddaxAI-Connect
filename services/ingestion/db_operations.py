@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, CameraDeploymentPeriod, CameraHealthReport, Image, Project, ServerSettings
+from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, ServerSettings
 from shared.logger import get_logger
 from camera_profiles import CameraProfile
 from utils import is_valid_gps
@@ -134,10 +134,10 @@ def update_or_create_deployment(
         new_lat, new_lon = new_gps
 
         # Get current active deployment (end_date IS NULL)
-        current_deployment = session.query(CameraDeploymentPeriod).filter(
+        current_deployment = session.query(Deployment).filter(
             and_(
-                CameraDeploymentPeriod.camera_id == camera_id,
-                CameraDeploymentPeriod.end_date.is_(None)
+                Deployment.camera_id == camera_id,
+                Deployment.end_date.is_(None)
             )
         ).first()
 
@@ -146,12 +146,12 @@ def update_or_create_deployment(
             # PostGIS returns location as WKB - use ST_AsText to get "POINT(lon lat)"
             location_query = text("""
                 SELECT ST_Y(location::geometry) as lat, ST_X(location::geometry) as lon
-                FROM camera_deployment_periods
-                WHERE id = :deployment_id
+                FROM deployments
+                WHERE id = :dep_pk
             """)
             result = session.execute(
                 location_query,
-                {'deployment_id': current_deployment.id}
+                {'dep_pk': current_deployment.id}
             ).fetchone()
 
             current_lat, current_lon = result.lat, result.lon
@@ -168,14 +168,14 @@ def update_or_create_deployment(
                 yesterday = event_date - timedelta(days=1)
                 current_deployment.end_date = max(yesterday, current_deployment.start_date)
 
-                # Get next deployment_id
-                next_deployment_id = current_deployment.deployment_id + 1
+                # Get next deployment_number
+                next_deployment_number = current_deployment.deployment_number + 1
 
                 logger.info(
                     "Camera relocated - creating new deployment",
                     camera_id=camera_id,
-                    old_deployment_id=current_deployment.deployment_id,
-                    new_deployment_id=next_deployment_id,
+                    old_deployment_number=current_deployment.deployment_number,
+                    new_deployment_number=next_deployment_number,
                     distance_meters=round(distance, 1),
                     old_location=f"({current_lat:.6f}, {current_lon:.6f})",
                     new_location=f"({new_lat:.6f}, {new_lon:.6f})"
@@ -184,15 +184,15 @@ def update_or_create_deployment(
                 # Create new deployment
                 location_wkt = f"POINT({new_lon} {new_lat})"
                 insert_query = text("""
-                    INSERT INTO camera_deployment_periods (
+                    INSERT INTO deployments (
                         camera_id,
-                        deployment_id,
+                        deployment_number,
                         start_date,
                         end_date,
                         location
                     ) VALUES (
                         :camera_id,
-                        :deployment_id,
+                        :deployment_number,
                         :start_date,
                         NULL,
                         ST_GeogFromText(:location_wkt)
@@ -202,7 +202,7 @@ def update_or_create_deployment(
                     insert_query,
                     {
                         'camera_id': camera_id,
-                        'deployment_id': next_deployment_id,
+                        'deployment_number': next_deployment_number,
                         'start_date': event_date,
                         'location_wkt': location_wkt
                     }
@@ -215,7 +215,7 @@ def update_or_create_deployment(
                     logger.info(
                         "Backdating deployment start_date for out-of-order image",
                         camera_id=camera_id,
-                        deployment_id=current_deployment.deployment_id,
+                        deployment_number=current_deployment.deployment_number,
                         old_start=str(current_deployment.start_date),
                         new_start=str(event_date),
                     )
@@ -225,49 +225,49 @@ def update_or_create_deployment(
                 logger.debug(
                     "GPS within threshold - same deployment",
                     camera_id=camera_id,
-                    deployment_id=current_deployment.deployment_id,
+                    deployment_number=current_deployment.deployment_number,
                     distance_meters=round(distance, 1)
                 )
         else:
             # No active deployment - need to create one
             # Check if this camera had deployments before (they may be closed)
-            max_deployment_id = session.query(
-                func.max(CameraDeploymentPeriod.deployment_id)
+            max_deployment_number = session.query(
+                func.max(Deployment.deployment_number)
             ).filter(
-                CameraDeploymentPeriod.camera_id == camera_id
+                Deployment.camera_id == camera_id
             ).scalar()
 
-            if max_deployment_id is None:
+            if max_deployment_number is None:
                 # Truly first deployment ever for this camera
-                next_deployment_id = 1
+                next_deployment_number = 1
                 logger.info(
                     "Creating first deployment for camera",
                     camera_id=camera_id,
-                    deployment_id=next_deployment_id,
+                    deployment_number=next_deployment_number,
                     location=f"({new_lat:.6f}, {new_lon:.6f})"
                 )
             else:
-                # Had deployments before - create new one with incremented ID
-                next_deployment_id = max_deployment_id + 1
+                # Had deployments before - create new one with incremented number
+                next_deployment_number = max_deployment_number + 1
                 logger.info(
                     "Resuming camera after closed deployment",
                     camera_id=camera_id,
-                    previous_deployment_id=max_deployment_id,
-                    new_deployment_id=next_deployment_id,
+                    previous_deployment_number=max_deployment_number,
+                    new_deployment_number=next_deployment_number,
                     location=f"({new_lat:.6f}, {new_lon:.6f})"
                 )
 
             location_wkt = f"POINT({new_lon} {new_lat})"
             insert_query = text("""
-                INSERT INTO camera_deployment_periods (
+                INSERT INTO deployments (
                     camera_id,
-                    deployment_id,
+                    deployment_number,
                     start_date,
                     end_date,
                     location
                 ) VALUES (
                     :camera_id,
-                    :deployment_id,
+                    :deployment_number,
                     :start_date,
                     NULL,
                     ST_GeogFromText(:location_wkt)
@@ -277,7 +277,7 @@ def update_or_create_deployment(
                 insert_query,
                 {
                     'camera_id': camera_id,
-                    'deployment_id': next_deployment_id,
+                    'deployment_number': next_deployment_number,
                     'start_date': event_date,
                     'location_wkt': location_wkt
                 }

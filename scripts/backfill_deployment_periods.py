@@ -4,7 +4,7 @@ Backfill camera deployment periods from historical image data.
 This script analyzes existing images with GPS data and creates deployment period
 records, detecting camera relocations (>100m GPS change).
 
-Run once after adding camera_deployment_periods table.
+Run once after adding deployments table.
 
 Usage:
     python backfill_deployment_periods.py
@@ -21,7 +21,6 @@ sys.path.insert(0, '/app')
 
 from shared.config import get_settings
 from shared.logger import get_logger
-from shared.models import CameraDeploymentPeriod
 
 settings = get_settings()
 logger = get_logger("backfill_deployments")
@@ -285,15 +284,15 @@ def create_deployment_record(
     location_wkt = f"POINT({deployment['lon']} {deployment['lat']})"
 
     query = text("""
-        INSERT INTO camera_deployment_periods (
+        INSERT INTO deployments (
             camera_id,
-            deployment_id,
+            deployment_number,
             start_date,
             end_date,
             location
         ) VALUES (
             :camera_id,
-            :deployment_id,
+            :deployment_number,
             :start_date,
             :end_date,
             ST_GeogFromText(:location_wkt)
@@ -305,7 +304,7 @@ def create_deployment_record(
             query,
             {
                 'camera_id': camera_id,
-                'deployment_id': deployment['deployment_id'],
+                'deployment_number': deployment['deployment_id'],
                 'start_date': deployment['start_date'],
                 'end_date': deployment['end_date'],
                 'location_wkt': location_wkt,
@@ -337,7 +336,7 @@ def main() -> None:
     with Session(engine) as session:
         # Skip cameras that already have deployment records
         existing = session.execute(
-            text("SELECT DISTINCT camera_id FROM camera_deployment_periods")
+            text("SELECT DISTINCT camera_id FROM deployments")
         )
         existing_camera_ids = {row[0] for row in existing}
 
@@ -397,7 +396,7 @@ def main() -> None:
                 COUNT(*) as deployment_count,
                 MIN(start_date) as earliest_date,
                 MAX(COALESCE(end_date, CURRENT_DATE)) as latest_date
-            FROM camera_deployment_periods
+            FROM deployments
             GROUP BY camera_id
             ORDER BY camera_id
         """)

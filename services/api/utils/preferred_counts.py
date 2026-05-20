@@ -824,7 +824,7 @@ async def get_preferred_species_detection_times(
 
 
 # Naive occupancy = (sites where species detected at least once) / (sites active in window).
-# Site = Camera. "Active" = at least one CameraDeploymentPeriod overlaps the window.
+# Site = Camera. "Active" = at least one Deployment overlaps the window.
 # Independence interval is intentionally NOT applied: presence/absence at the
 # (site, window) level is independence-immune. Person and vehicle Detections
 # are excluded; HumanObservation rows that happen to use 'person' or 'vehicle'
@@ -833,7 +833,7 @@ _NAIVE_OCCUPANCY_SQL = """
 WITH active_cameras AS (
     SELECT DISTINCT c.id AS camera_id
     FROM cameras c
-    INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+    INNER JOIN deployments cdp ON cdp.camera_id = c.id
     WHERE c.project_id = ANY(:project_ids)
       AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
       AND cdp.start_date <= CAST(:end_date AS date)
@@ -905,7 +905,7 @@ async def get_naive_occupancy(
     sites_total_sql = text("""
         SELECT COUNT(DISTINCT c.id) AS sites_total
         FROM cameras c
-        INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+        INNER JOIN deployments cdp ON cdp.camera_id = c.id
         WHERE c.project_id = ANY(:project_ids)
           AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
           AND cdp.start_date <= CAST(:end_date AS date)
@@ -1024,7 +1024,7 @@ async def get_detection_history(
 
     # Active cameras + bounding deployment dates per camera. `Camera.location`
     # is unused in this codebase; per-occasion GPS is read from the matching
-    # CameraDeploymentPeriod below so a moved camera reports the correct
+    # Deployment below so a moved camera reports the correct
     # coordinates for each occasion.
     cameras_sql = text("""
         SELECT
@@ -1033,7 +1033,7 @@ async def get_detection_history(
             MIN(cdp.start_date) AS first_start,
             MAX(COALESCE(cdp.end_date, CURRENT_DATE)) AS last_end
         FROM cameras c
-        INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+        INNER JOIN deployments cdp ON cdp.camera_id = c.id
         WHERE c.project_id = ANY(:project_ids)
           AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
           AND cdp.start_date <= CAST(:end_date AS date)
@@ -1060,7 +1060,7 @@ async def get_detection_history(
                COALESCE(end_date, CURRENT_DATE) AS dep_end,
                ST_Y(location::geometry) AS lat,
                ST_X(location::geometry) AS lon
-        FROM camera_deployment_periods
+        FROM deployments
         WHERE camera_id = ANY(:camera_ids)
           AND start_date <= CAST(:end_date AS date)
           AND (end_date IS NULL OR end_date >= CAST(:start_date AS date))

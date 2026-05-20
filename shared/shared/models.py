@@ -49,6 +49,17 @@ class Image(Base):
         index=True,
     )
 
+    # Deployment provenance. Links each image to the deployment (a camera at a
+    # site for a time range) that was active when it was captured. Nullable:
+    # live ingestion sets it at write-time once Phase 2 lands, legacy rows and
+    # missing-GPS edge cases stay null. ON DELETE SET NULL.
+    deployment_id = Column(
+        Integer,
+        ForeignKey("deployments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Visibility
     is_hidden = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
 
@@ -145,11 +156,40 @@ class CameraGroup(Base):
     )
 
 
-class CameraDeploymentPeriod(Base):
+class Site(Base):
     """
-    Camera deployment period - tracks when/where a camera was deployed.
+    Physical place where one or more cameras are deployed.
 
-    A new deployment is created when:
+    Groups deployments that share the same location, so spatial queries and
+    the map aggregate by place instead of string-matching camera names.
+    Matches the Camtrap-DP / AddaxAI WebUI Site concept.
+    """
+    __tablename__ = "sites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)  # user-editable, defaults to coords or "Site #N"
+    location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
+    habitat_type = Column(String(100), nullable=True)  # Camtrap-DP "habitat" field
+    notes = Column(Text, nullable=True)
+    tags = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Relationships
+    deployments = relationship("Deployment", back_populates="site")
+
+    __table_args__ = (
+        UniqueConstraint('project_id', 'name', name='uq_site_project_name'),
+    )
+
+
+class Deployment(Base):
+    """
+    Deployment: one camera at one place for a time range.
+
+    Renamed from CameraDeploymentPeriod. A new deployment is created when:
     - Camera GPS moves >100m from previous location
     - First image/report received for a camera
 
@@ -157,17 +197,27 @@ class CameraDeploymentPeriod(Base):
     - Effort-corrected detection rate calculations (trap-days)
     - CamtrapDP export (future)
     - Camera relocation history
+
+    `site_id` links the deployment to a shared physical Site (nullable, legacy
+    rows and missing-GPS edge cases stay null). `name` is an optional free-text
+    orientation label like "NW" or "main view". `deployment_number` is the
+    per-camera sequence (1, 2, 3...); it is not a foreign key.
     """
-    __tablename__ = "camera_deployment_periods"
+    __tablename__ = "deployments"
 
     id = Column(Integer, primary_key=True, index=True)
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
-    deployment_id = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
+    deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
+    site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
+    name = Column(String(100), nullable=True)  # optional free-text orientation label, e.g. "NW"
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    # Relationships
+    site = relationship("Site", back_populates="deployments")
 
 
 class CameraHealthReport(Base):

@@ -5,7 +5,7 @@ Builds the payload for the Insights -> Deployment timeline view. The
 WebUI version of this page derives bars from folder structure on disk;
 Connect derives them from image arrival in the database.
 
-Each row is a camera. Each bar is a `CameraDeploymentPeriod` (CDP).
+Each row is a camera. Each bar is a `Deployment` (CDP).
 Within a CDP, solid inner segments are stretches of days with at least
 one image; the outer bar is the configured window. The concurrent strip
 counts cameras that delivered at least one image each day.
@@ -307,11 +307,11 @@ async def _fetch_cdp_rows(
             c.id   AS camera_id,
             c.name AS camera_name,
             cdp.id AS cdp_id,
-            cdp.deployment_id AS deployment_sequence,
+            cdp.deployment_number AS deployment_sequence,
             cdp.start_date AS start_date,
             cdp.end_date AS end_date
         FROM cameras c
-        INNER JOIN camera_deployment_periods cdp ON cdp.camera_id = c.id
+        INNER JOIN deployments cdp ON cdp.camera_id = c.id
         WHERE c.project_id = ANY(:project_ids)
           AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
           AND cdp.start_date <= CAST(:clip_end AS date)

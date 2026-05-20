@@ -121,10 +121,10 @@ def main():
             {"project": PROJECT_NAME, "offset": temp_offset, "delta": delta},
         )
 
-        # 4) camera_deployment_periods.start_date
+        # 4) deployments.start_date
         session.execute(
             text(f"""
-                UPDATE camera_deployment_periods
+                UPDATE deployments
                 SET start_date = start_date + :delta
                 WHERE camera_id IN ({demo_cameras})
             """),

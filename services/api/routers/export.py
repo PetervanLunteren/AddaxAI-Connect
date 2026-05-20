@@ -26,7 +26,7 @@ from sqlalchemy.orm import selectinload
 
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
-    HumanObservation, CameraDeploymentPeriod, CameraHealthReport,
+    HumanObservation, Deployment, CameraHealthReport,
     SpeciesTaxonomy, ServerSettings,
 )
 from shared.database import get_async_session
@@ -548,15 +548,15 @@ async def export_camtrap_dp(
     # Load deployment periods with camera info via raw SQL for PostGIS extraction
     dep_query = text("""
         SELECT
-            cdp.id, cdp.camera_id, cdp.deployment_id, cdp.start_date, cdp.end_date,
+            cdp.id, cdp.camera_id, cdp.deployment_number, cdp.start_date, cdp.end_date,
             ST_Y(cdp.location::geometry) as latitude,
             ST_X(cdp.location::geometry) as longitude,
             c.name as camera_name, c.device_id,
             c.manufacturer, c.model as camera_model
-        FROM camera_deployment_periods cdp
+        FROM deployments cdp
         JOIN cameras c ON cdp.camera_id = c.id
         WHERE c.project_id = :project_id
-        ORDER BY cdp.camera_id, cdp.deployment_id
+        ORDER BY cdp.camera_id, cdp.deployment_number
     """)
     dep_result = await db.execute(dep_query, {"project_id": project_id})
     dep_rows = dep_result.mappings().all()
@@ -574,7 +574,7 @@ async def export_camtrap_dp(
     for row in dep_rows:
         camera_identifier = row["device_id"] or row["camera_name"]
         dep_data = {
-            "deployment_id_str": f"dep-{row['camera_id']}-{row['deployment_id']}",
+            "deployment_id_str": f"dep-{row['camera_id']}-{row['deployment_number']}",
             "camera_id": row["camera_id"],
             "latitude": float(row["latitude"]) if row["latitude"] is not None else None,
             "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
@@ -1639,7 +1639,7 @@ async def export_spatial(
             SELECT cdp.id,
                    cdp.camera_id,
                    c.name AS camera_name,
-                   cdp.deployment_id AS deployment_number,
+                   cdp.deployment_number AS deployment_number,
                    cdp.start_date,
                    cdp.end_date,
                    ST_X(cdp.location::geometry) AS lon,
@@ -1648,7 +1648,7 @@ async def export_spatial(
                        cdp.end_date - cdp.start_date + 1,
                        CURRENT_DATE - cdp.start_date + 1
                    ) AS trap_days
-            FROM camera_deployment_periods cdp
+            FROM deployments cdp
             JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = :project_id
         ),

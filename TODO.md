@@ -32,18 +32,7 @@ Open follow-ups:
 
 
 
-# prio 1
-- [x] Customizable cameras-table columns
-- [x] Add export to CSV from the cameras page
-- [x] Bulk-edit cameras. 
-- [x] Scheduled project reminders.
-- [x] Invalidate other sessions on password change.
-- [x] Add logos.
-- [x] See email from Quentin with TODOs
-- [x] PLace the current project name and the back link above the sidebar menu options, below the logo. In between. Can we make it more modern feel? Perhaps first preview a few on the dev server and then I can select one. 
-- [x] It looks liek the label selection options in the dashboard are only the top 10? Is that right? Investigate. The options in the dasboard dropdowns are less than the labels filter in the images page. 
-
-## TODO Priority 2
+## TODO
 - [ ] Add site concept
 - [ ] Always store all raw images on wasabi if keys are given at deployment. That means two separate MinIO DB right? One for the thumbs, etc we want on the server always, and one for the raw images we can store on wasabi (if keys are set up during deployment). Cameras ingest and are sent to the twop separate minIOs? And bulk upload also? How would that look? Is this a good idea? Or would you advise agaionst it? I want to do this beacuse the current set up of tagging images hot/cold with a watchdog is kind of complex. I just want to store all raw images cold. Makes sense? Or would you advise a different technique? Like an ILM rule of 0 days? What would the consequences be? Give me a few options with the expected behaciour, pros and cons, etc. 
 

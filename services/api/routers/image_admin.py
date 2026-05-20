@@ -16,7 +16,7 @@ from sqlalchemy import select, func, and_, or_, desc, asc, update, delete as sql
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, CameraDeploymentPeriod
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
@@ -41,8 +41,8 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
     for camera_id in camera_ids:
         # Find deployments for this camera that have zero non-hidden images
         deployments_query = (
-            select(CameraDeploymentPeriod)
-            .where(CameraDeploymentPeriod.camera_id == camera_id)
+            select(Deployment)
+            .where(Deployment.camera_id == camera_id)
         )
         result = await db.execute(deployments_query)
         deployments = result.scalars().all()
@@ -68,7 +68,7 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
                 logger.info(
                     "Deleting empty deployment period",
                     camera_id=camera_id,
-                    deployment_id=dep.deployment_id,
+                    deployment_number=dep.deployment_number,
                 )
                 await db.delete(dep)
 
