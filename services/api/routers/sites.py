@@ -234,7 +234,7 @@ async def create_site(
             detail=f'A site named "{body.name.strip()}" already exists in this project',
         )
     await db.refresh(site)
-    logger.info("Created site", site_id=site.id, project_id=project_id, name=site.name)
+    logger.info("Created site", site_id=site.id, project_id=project_id, site_name=site.name)
     return await _build_detail(db, project_id, site.id)
 
 
