@@ -56,6 +56,16 @@ logger = get_logger("backfill_sites")
 # tighter than the 100 m relocation threshold that already separates deployments.
 SITE_MERGE_THRESHOLD_METERS = 50.0
 
+# Deployments at Null Island (0, 0) or with an inverted date range are zombie
+# rows that the stats and export queries already skip on read (see
+# services/api/routers/statistics.py). Skip them here too, otherwise the (0, 0)
+# rows all cluster together into one bogus cross-camera site and capture images
+# that belong to real deployments. The deployments table is aliased as `d`.
+VALID_DEPLOYMENT_SQL = (
+    "NOT (ST_X(d.location::geometry) = 0 AND ST_Y(d.location::geometry) = 0) "
+    "AND (d.end_date IS NULL OR d.end_date >= d.start_date)"
+)
+
 
 def haversine_meters(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Distance between two GPS points in meters."""
@@ -120,13 +130,14 @@ def load_projects(session: Session, project_id: Optional[int]) -> List[int]:
 
 def load_deployments(session: Session, project_id: int) -> list:
     """Project deployments with decoded coordinates and the owning camera name."""
-    sql = text("""
+    sql = text(f"""
         SELECT d.id, d.camera_id, d.site_id, c.name AS camera_name,
                ST_Y(d.location::geometry) AS lat,
                ST_X(d.location::geometry) AS lon
         FROM deployments d
         JOIN cameras c ON c.id = d.camera_id
         WHERE c.project_id = :project_id
+          AND {VALID_DEPLOYMENT_SQL}
         ORDER BY d.camera_id, d.id
     """)
     return session.execute(sql, {"project_id": project_id}).all()
@@ -264,11 +275,12 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
 
     # Link this project's images to the deployment covering their capture date.
     # Periods are non-overlapping per camera, so each image matches at most one.
-    link_filter = """
+    link_filter = f"""
         FROM images i
         JOIN deployments d ON d.camera_id = i.camera_id
             AND i.captured_at::date >= d.start_date
             AND (d.end_date IS NULL OR i.captured_at::date <= d.end_date)
+            AND {VALID_DEPLOYMENT_SQL}
         JOIN cameras c ON c.id = i.camera_id
         WHERE i.deployment_id IS NULL
           AND c.project_id = :project_id
@@ -289,6 +301,7 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
                   AND images.deployment_id IS NULL
                   AND images.captured_at::date >= d.start_date
                   AND (d.end_date IS NULL OR images.captured_at::date <= d.end_date)
+                  AND {VALID_DEPLOYMENT_SQL}
                   AND c.project_id = :project_id
             """),
             {"project_id": project_id},
