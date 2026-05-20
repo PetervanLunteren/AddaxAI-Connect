@@ -48,7 +48,7 @@ from shared.queue import (
 )
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 
-from db_operations import create_image_record  # noqa: E402
+from db_operations import create_image_record, get_or_create_bulk_deployment  # noqa: E402
 from exif_parser import extract_exif, get_datetime_original  # noqa: E402
 from storage_operations import (  # noqa: E402
     generate_and_upload_thumbnail,
@@ -130,6 +130,16 @@ def _parse_exif_datetime(value) -> Optional[datetime]:
         return None
 
 
+def _parse_iso_date(value):
+    """Parse an ISO datetime/date string to a date, or None."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).date()
+    except (ValueError, TypeError):
+        return None
+
+
 logger = get_logger("bulk-upload")
 
 
@@ -163,6 +173,7 @@ def _process_zip_entry(
     gps_location,
     bulk_queue: RedisQueue,
     bulk_upload_job_id: int,
+    bulk_deployment_id: Optional[int] = None,
 ) -> str:
     """
     Process a single ZIP entry end-to-end.
@@ -253,6 +264,7 @@ def _process_zip_entry(
             origin="bulk",
             content_hash=content_hash,
             bulk_upload_job_id=bulk_upload_job_id,
+            deployment_id=bulk_deployment_id,
         )
 
         set_image_id(image_uuid)
@@ -553,6 +565,7 @@ def _process_prefix_job(
     camera_storage_id: str,
     gps_location,
     staged_prefix: str,
+    bulk_deployment_id: Optional[int] = None,
 ) -> None:
     """
     Process a new-style per-file bulk-upload job. Lists MinIO under
@@ -611,6 +624,7 @@ def _process_prefix_job(
                     gps_location,
                     bulk_queue,
                     job_id,
+                    bulk_deployment_id,
                 )
         except _FileTimeout:
             logger.warning(
@@ -688,6 +702,7 @@ def _process_legacy_zip_job(
     camera_storage_id: str,
     gps_location,
     staged_object_key: str,
+    bulk_deployment_id: Optional[int] = None,
 ) -> None:
     """
     Drain a pre-refactor bulk-upload job whose staged_object_key points
@@ -714,7 +729,7 @@ def _process_legacy_zip_job(
                     with _file_timeout(PER_FILE_TIMEOUT_SECONDS):
                         result = _process_zip_entry(
                             info.filename, raw, camera_id, camera_storage_id,
-                            gps_location, bulk_queue, job_id,
+                            gps_location, bulk_queue, job_id, bulk_deployment_id,
                         )
                 except _FileTimeout:
                     logger.warning(
@@ -799,11 +814,34 @@ def _process_job(job_uuid: str) -> None:
         if camera.location:
             gps_location = (camera.location.coords[1], camera.location.coords[0])
         staged_object_key = job.staged_object_key
+        manifest = job.manifest or {}
         # The API flips status to 'processing' at finalize so users see
         # the right state during the brief queue hop; we still own
         # process_started_at since that drives the self-calibrating ETA.
         job.status = "processing"
         job.process_started_at = datetime.now(timezone.utc)
+
+    # If the user pinned this batch to a site, attach every image to one
+    # deployment at that site instead of resolving per-image from the camera's
+    # current location. Falls back to per-image resolution if the site is gone.
+    bulk_deployment_id = None
+    site_id = manifest.get("site_id")
+    if site_id:
+        date_range = manifest.get("date_range") or {}
+        try:
+            bulk_deployment_id = get_or_create_bulk_deployment(
+                camera_id,
+                int(site_id),
+                _parse_iso_date(date_range.get("start")),
+                _parse_iso_date(date_range.get("end")),
+            )
+        except Exception as exc:
+            logger.error(
+                "Could not resolve pinned site deployment, falling back to camera location",
+                job_uuid=job_uuid,
+                site_id=site_id,
+                error=str(exc),
+            )
 
     is_prefix = staged_object_key.endswith("/")
     logger.info(
@@ -812,18 +850,19 @@ def _process_job(job_uuid: str) -> None:
         camera_id=camera_id,
         staged_object_key=staged_object_key,
         layout="prefix" if is_prefix else "legacy_zip",
+        bulk_deployment_id=bulk_deployment_id,
     )
 
     try:
         if is_prefix:
             _process_prefix_job(
                 job_uuid, job_id, camera_id, camera_storage_id,
-                gps_location, staged_object_key,
+                gps_location, staged_object_key, bulk_deployment_id,
             )
         else:
             _process_legacy_zip_job(
                 job_uuid, job_id, camera_id, camera_storage_id,
-                gps_location, staged_object_key,
+                gps_location, staged_object_key, bulk_deployment_id,
             )
     except Exception as exc:
         logger.error(

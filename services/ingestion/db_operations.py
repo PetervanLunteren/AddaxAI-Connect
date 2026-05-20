@@ -156,14 +156,15 @@ def _resolve_site(session, project_id: Optional[int], lat: float, lon: float) ->
 
 
 def _insert_deployment(session, camera_id: int, number: int, site_id: Optional[int],
-                       start_date: date, lat: float, lon: float) -> int:
-    """Insert a new open deployment (end_date NULL) and return its id."""
+                       start_date: date, lat: float, lon: float,
+                       end_date: Optional[date] = None) -> int:
+    """Insert a deployment and return its id. end_date NULL means still open."""
     return session.execute(
         text("""
             INSERT INTO deployments (
                 camera_id, deployment_number, site_id, start_date, end_date, location
             ) VALUES (
-                :camera_id, :number, :site_id, :start_date, NULL, ST_GeogFromText(:wkt)
+                :camera_id, :number, :site_id, :start_date, :end_date, ST_GeogFromText(:wkt)
             )
             RETURNING id
         """),
@@ -172,6 +173,7 @@ def _insert_deployment(session, camera_id: int, number: int, site_id: Optional[i
             "number": number,
             "site_id": site_id,
             "start_date": start_date,
+            "end_date": end_date,
             "wkt": f"POINT({lon} {lat})",
         },
     ).scalar_one()
@@ -279,6 +281,64 @@ def update_or_create_site_and_deployment(
         return (site_id, deployment_id)
 
 
+def get_or_create_bulk_deployment(
+    camera_id: int,
+    site_id: int,
+    start_date: Optional[date],
+    end_date: Optional[date],
+) -> int:
+    """
+    Resolve the single deployment a bulk batch should attach to.
+
+    A bulk batch is conceptually one camera at one site for a date range. Reuse
+    the camera's existing deployment at this site if there is one (widening its
+    date range to cover the batch); otherwise create a closed deployment at the
+    site spanning [start_date, end_date]. Returns the deployment id.
+
+    Unlike live ingestion this does not touch the camera's active deployment, so
+    importing an old SD card never disturbs where the camera is reported now.
+    """
+    with get_db_session() as session:
+        loc = session.execute(
+            text("""
+                SELECT ST_Y(location::geometry) AS lat, ST_X(location::geometry) AS lon
+                FROM sites WHERE id = :site_id
+            """),
+            {"site_id": site_id},
+        ).fetchone()
+        if loc is None:
+            raise ValueError(f"Site {site_id} not found")
+
+        existing = session.query(Deployment).filter(
+            and_(Deployment.camera_id == camera_id, Deployment.site_id == site_id)
+        ).order_by(Deployment.deployment_number).first()
+
+        if existing is not None:
+            if start_date and start_date < existing.start_date:
+                existing.start_date = start_date
+            if end_date and existing.end_date and end_date > existing.end_date:
+                existing.end_date = end_date
+            session.flush()
+            return existing.id
+
+        max_number = session.query(
+            func.max(Deployment.deployment_number)
+        ).filter(Deployment.camera_id == camera_id).scalar()
+        next_number = 1 if max_number is None else max_number + 1
+        deployment_id = _insert_deployment(
+            session, camera_id, next_number, site_id,
+            start_date or date.today(), loc.lat, loc.lon, end_date=end_date,
+        )
+        session.flush()
+        logger.info(
+            "Created bulk deployment for site",
+            camera_id=camera_id,
+            site_id=site_id,
+            deployment_number=next_number,
+        )
+        return deployment_id
+
+
 def create_image_record(
     image_uuid: str,
     camera_id: int,
@@ -291,6 +351,7 @@ def create_image_record(
     origin: str = "live",
     content_hash: Optional[str] = None,
     bulk_upload_job_id: Optional[int] = None,
+    deployment_id: Optional[int] = None,
 ) -> str:
     """
     Create image record in database.
@@ -312,11 +373,11 @@ def create_image_record(
     Returns:
         Image UUID (string)
     """
-    # Resolve the site and deployment for this image first, so the row can carry
-    # deployment_id. Done before the image session because
-    # update_or_create_site_and_deployment manages its own session.
-    deployment_id = None
-    if gps_location:
+    # When the caller already knows the deployment (a bulk batch pinned to a
+    # chosen site), use it as-is. Otherwise resolve site and deployment from
+    # GPS, which covers live ingestion and bulk uploads with no chosen site.
+    # Done before the image session because the resolver manages its own session.
+    if deployment_id is None and gps_location:
         _, deployment_id = update_or_create_site_and_deployment(
             camera_id=camera_id,
             new_gps=gps_location,

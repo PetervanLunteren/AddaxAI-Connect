@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import BulkUploadJob, Camera, Image, User
+from shared.models import BulkUploadJob, Camera, Image, Site, User
 from shared.queue import QUEUE_BULK_UPLOAD_JOB_PROCESS, RedisQueue
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 from auth.permissions import require_project_admin_access
@@ -104,6 +104,10 @@ class CreateBulkUploadRequest(BaseModel):
     """Create an empty bulk-upload job. Files are uploaded separately."""
     folder_name: str = Field(min_length=1, max_length=255)
     camera_id: int
+    # Optional site to pin the whole batch to. When set, every image links to a
+    # single deployment at this site instead of the camera's current location.
+    # Useful for SD-card recovery after the camera has moved.
+    site_id: Optional[int] = None
     total_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
     # Free-form client-computed scan summary. Stored on the job and shown
     # back in the review UI. See the bulk-upload worker for the shape.
@@ -459,6 +463,21 @@ async def create_bulk_upload_job(
             detail="Camera does not belong to this project",
         )
 
+    if body.site_id is not None:
+        site = (
+            await db.execute(
+                select(Site.id).where(
+                    Site.id == body.site_id,
+                    Site.project_id == project_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if site is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Site does not belong to this project",
+            )
+
     # Soft cap on in-flight jobs per project so one user cannot
     # starve the bulk worker queue with twenty parallel SD-card
     # uploads. Counts both 'uploading' (client streaming files) and
@@ -485,6 +504,12 @@ async def create_bulk_upload_job(
     job_uuid = str(uuid.uuid4())
     safe_folder_name = _safe_basename(body.folder_name) or "upload"
 
+    # The chosen site rides along in the manifest so the worker can pin the
+    # batch to it after the queue hop, without a dedicated column.
+    manifest = dict(body.manifest or {})
+    if body.site_id is not None:
+        manifest["site_id"] = body.site_id
+
     job = BulkUploadJob(
         uuid=job_uuid,
         project_id=project_id,
@@ -494,7 +519,7 @@ async def create_bulk_upload_job(
         staged_object_key=_staging_prefix(project_id, job_uuid),
         status="uploading",
         total_files=body.total_files,
-        manifest=body.manifest or None,
+        manifest=manifest or None,
     )
     db.add(job)
     await db.commit()

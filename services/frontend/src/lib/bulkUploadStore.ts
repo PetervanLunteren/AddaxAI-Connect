@@ -59,6 +59,7 @@ interface BeginNewArgs {
   projectId: number;
   folderName: string;
   cameraId: number;
+  siteId?: number | null;
   manifest: BulkUploadManifest;
   excludedCapturedAts: string[];
   files: File[];
@@ -137,6 +138,7 @@ async function runNewUpload(
     job = await bulkUploadApi.createJob(args.projectId, {
       folder_name: args.folderName,
       camera_id: args.cameraId,
+      site_id: args.siteId ?? null,
       total_files: total,
       manifest: args.manifest,
     });

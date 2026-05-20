@@ -37,6 +37,7 @@ import {
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { camerasApi } from '../../api/cameras';
+import { sitesApi } from '../../api/sites';
 import {
   bulkUploadApi,
   type BulkUploadJob,
@@ -465,6 +466,7 @@ function manifestsLookCompatible(job: BulkUploadJob, entries: ScanEntry[]): bool
 
 interface UploadContext {
   camera_id: number;
+  site_id?: number | null;
   folder_name: string;
   manifest: BulkUploadManifest;
   // Naive captured_at timestamps flagged as duplicates during
@@ -610,6 +612,7 @@ const BulkUploadModal: React.FC<{
                   projectId,
                   folderName: ctx.folder_name,
                   cameraId: ctx.camera_id,
+                  siteId: ctx.site_id,
                   manifest: ctx.manifest,
                   excludedCapturedAts: ctx.excluded_captured_ats,
                   files: scanned.files,
@@ -936,6 +939,7 @@ const ReviewStep: React.FC<{
   const toast = useToast();
   const queryClient = useQueryClient();
   const [cameraId, setCameraId] = useState<string>('');
+  const [siteId, setSiteId] = useState<string>('');
   const [showAddCamera, setShowAddCamera] = useState(false);
   const [newCameraName, setNewCameraName] = useState('');
   const [newLatitude, setNewLatitude] = useState('');
@@ -944,6 +948,11 @@ const ReviewStep: React.FC<{
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
+  });
+
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId),
   });
 
   // Compute manifest from the local scan. Same shape the server used
@@ -1157,6 +1166,7 @@ const ReviewStep: React.FC<{
     }
     onConfirm({
       camera_id: id,
+      site_id: siteId ? Number(siteId) : null,
       folder_name: folderName,
       manifest: enrichedManifest,
       excluded_captured_ats: Array.from(safeDuplicateSet),
@@ -1313,6 +1323,26 @@ const ReviewStep: React.FC<{
             </Button>
           </div>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Site</label>
+        <select
+          className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm"
+          value={siteId}
+          onChange={(e) => setSiteId(e.target.value)}
+        >
+          <option value="">Use the camera's current location</option>
+          {(sites ?? []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          Pick a site if these images are from a different place than where the
+          camera is now, for example an SD card pulled after the camera moved.
+        </p>
       </div>
 
       <div
