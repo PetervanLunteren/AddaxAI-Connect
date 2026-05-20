@@ -385,13 +385,6 @@ def create_image_record(
         )
 
     with get_db_session() as session:
-
-        # Convert GPS to PostGIS format if present
-        location_wkt = None
-        if gps_location:
-            lat, lon = gps_location
-            location_wkt = f"POINT({lon} {lat})"  # PostGIS uses lon,lat order
-
         image = Image(
             uuid=image_uuid,
             filename=filename,

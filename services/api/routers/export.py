@@ -26,7 +26,7 @@ from sqlalchemy.orm import selectinload
 
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
-    HumanObservation, Deployment, CameraHealthReport,
+    HumanObservation, CameraHealthReport,
     SpeciesTaxonomy, ServerSettings,
 )
 from shared.database import get_async_session
@@ -111,7 +111,7 @@ def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
     writer = csv.writer(output)
 
     headers = [
-        "deploymentID", "latitude", "longitude",
+        "deploymentID", "locationID", "locationName", "latitude", "longitude",
         "deploymentStart", "deploymentEnd",
         "cameraID", "cameraModel",
     ]
@@ -128,6 +128,8 @@ def _build_deployments_csv(deployments: list, tz: ZoneInfo) -> str:
 
         writer.writerow([
             dep["deployment_id_str"],
+            dep["location_id"],
+            dep["location_name"],
             dep["latitude"],
             dep["longitude"],
             _format_date_as_dt(dep["start_date"], tz),
@@ -546,15 +548,22 @@ async def export_camtrap_dp(
     }
 
     # Load deployment periods with camera info via raw SQL for PostGIS extraction
+    # Report the site's coordinates and identity for deployments that have a
+    # site, so deployments at one place share a locationID and coordinates as
+    # CamTrap DP expects. Fall back to the deployment's own point when it has no
+    # site (legacy or missing-GPS rows).
     dep_query = text("""
         SELECT
             cdp.id, cdp.camera_id, cdp.deployment_number, cdp.start_date, cdp.end_date,
-            ST_Y(cdp.location::geometry) as latitude,
-            ST_X(cdp.location::geometry) as longitude,
+            cdp.site_id,
+            s.name AS site_name,
+            COALESCE(ST_Y(s.location::geometry), ST_Y(cdp.location::geometry)) as latitude,
+            COALESCE(ST_X(s.location::geometry), ST_X(cdp.location::geometry)) as longitude,
             c.name as camera_name, c.device_id,
             c.manufacturer, c.model as camera_model
         FROM deployments cdp
         JOIN cameras c ON cdp.camera_id = c.id
+        LEFT JOIN sites s ON s.id = cdp.site_id
         WHERE c.project_id = :project_id
         ORDER BY cdp.camera_id, cdp.deployment_number
     """)
@@ -576,6 +585,8 @@ async def export_camtrap_dp(
         dep_data = {
             "deployment_id_str": f"dep-{row['camera_id']}-{row['deployment_number']}",
             "camera_id": row["camera_id"],
+            "location_id": f"site-{row['site_id']}" if row["site_id"] else "",
+            "location_name": row["site_name"] or "",
             "latitude": float(row["latitude"]) if row["latitude"] is not None else None,
             "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
             "start_date": row["start_date"],
