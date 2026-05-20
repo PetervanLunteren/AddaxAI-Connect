@@ -8,7 +8,7 @@ import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, delete as sql_delete
+from sqlalchemy import select, func, and_, text, delete as sql_delete
 from pydantic import BaseModel
 
 from shared.models import User, Camera, Project, Image, CameraHealthReport, Detection, Classification
@@ -491,6 +491,82 @@ async def get_camera(
         last_captured_at=last_captured_at,
         last_reported_at=last_reported_at,
     )
+
+
+class CameraDeploymentResponse(BaseModel):
+    """One deployment in a camera's history: where it was and for how long."""
+    id: int
+    deployment_number: int
+    site_id: Optional[int] = None
+    site_name: Optional[str] = None
+    label: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    image_count: int
+
+
+@router.get(
+    "/{camera_id}/deployments",
+    response_model=List[CameraDeploymentResponse],
+)
+async def get_camera_deployments(
+    camera_id: int,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Deployment history for one camera, oldest first. Each row is a period the
+    camera spent at one site, with that site's name and the image count.
+    """
+    camera = (
+        await db.execute(select(Camera).where(Camera.id == camera_id))
+    ).scalar_one_or_none()
+    if not camera:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Camera not found")
+    if camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this camera",
+        )
+
+    rows = (
+        await db.execute(
+            text("""
+                SELECT d.id, d.deployment_number, d.site_id, s.name AS site_name,
+                       d.name AS label,
+                       ST_Y(d.location::geometry) AS lat,
+                       ST_X(d.location::geometry) AS lon,
+                       d.start_date, d.end_date,
+                       count(i.id) AS image_count
+                FROM deployments d
+                LEFT JOIN sites s ON s.id = d.site_id
+                LEFT JOIN images i ON i.deployment_id = d.id
+                WHERE d.camera_id = :camera_id
+                GROUP BY d.id, s.name
+                ORDER BY d.deployment_number
+            """),
+            {"camera_id": camera_id},
+        )
+    ).mappings().all()
+
+    return [
+        CameraDeploymentResponse(
+            id=r["id"],
+            deployment_number=r["deployment_number"],
+            site_id=r["site_id"],
+            site_name=r["site_name"],
+            label=r["label"],
+            latitude=float(r["lat"]) if r["lat"] is not None else None,
+            longitude=float(r["lon"]) if r["lon"] is not None else None,
+            start_date=r["start_date"].isoformat() if r["start_date"] else None,
+            end_date=r["end_date"].isoformat() if r["end_date"] else None,
+            image_count=r["image_count"],
+        )
+        for r in rows
+    ]
 
 
 @router.get(

@@ -34,6 +34,7 @@ import {
   DialogFooter,
 } from './ui/Dialog';
 import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
+import { CameraDeploymentHistory } from './CameraDeploymentHistory';
 import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
@@ -52,7 +53,7 @@ interface CameraDetailSheetProps {
   onUpdate?: (updatedCamera: Camera) => void;
 }
 
-type TabType = 'overview' | 'history' | 'details' | 'notes' | 'actions';
+type TabType = 'overview' | 'history' | 'deployments' | 'details' | 'notes' | 'actions';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
@@ -292,6 +293,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="notes" label="Notes" />
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
+              <TabButton tab="deployments" label="Deployments" />
               {canAdmin && <TabButton tab="details" label="Details" />}
               {isServerAdmin && <TabButton tab="actions" label="Actions" />}
             </div>
@@ -367,6 +369,11 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* History tab */}
             {activeTab === 'history' && (
               <CameraHealthHistoryChart cameraId={camera.id} />
+            )}
+
+            {/* Deployments tab */}
+            {activeTab === 'deployments' && (
+              <CameraDeploymentHistory cameraId={camera.id} />
             )}
 
             {/* Details tab (admins only) */}

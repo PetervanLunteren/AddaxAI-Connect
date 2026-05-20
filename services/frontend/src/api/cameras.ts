@@ -45,6 +45,19 @@ export interface BulkUpdateResponse {
   updated_count: number;
 }
 
+export interface CameraDeployment {
+  id: number;
+  deployment_number: number;
+  site_id: number | null;
+  site_name: string | null;
+  label: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  image_count: number;
+}
+
 export const camerasApi = {
   /**
    * Get all cameras with health status (optionally filtered by project)
@@ -201,6 +214,14 @@ export const camerasApi = {
    */
   deleteReferenceImage: async (id: number): Promise<Camera> => {
     const response = await apiClient.delete<Camera>(`/api/cameras/${id}/reference-image`);
+    return response.data;
+  },
+
+  /**
+   * Deployment history for a camera (where it has been, oldest first).
+   */
+  getDeployments: async (id: number): Promise<CameraDeployment[]> => {
+    const response = await apiClient.get<CameraDeployment[]>(`/api/cameras/${id}/deployments`);
     return response.data;
   },
 };
