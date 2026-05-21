@@ -119,7 +119,7 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
               </div>
             </div>
             <div className="p-3 bg-gray-50 rounded-md text-sm">
-              <p className="text-muted-foreground">MinIO files deleted</p>
+              <p className="text-muted-foreground">Stored files deleted</p>
               <p className="text-lg font-bold">{deleteResult.deleted_minio_files}</p>
             </div>
           </div>
@@ -159,7 +159,7 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
                   <li>All animal detections</li>
                   <li>All species classifications</li>
                   <li>All deployment and health records</li>
-                  <li>All associated MinIO storage files</li>
+                  <li>All associated stored files</li>
                 </ul>
               </div>
             </div>
