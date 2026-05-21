@@ -164,6 +164,18 @@ export const camerasApi = {
   },
 
   /**
+   * Delete every selected camera and all its data. Irreversible; the caller
+   * confirms first. updated_count is the number of cameras deleted.
+   */
+  bulkDelete: async (cameraIds: number[]): Promise<BulkUpdateResponse> => {
+    const response = await apiClient.post<BulkUpdateResponse>(
+      '/api/cameras/bulk-delete',
+      { camera_ids: cameraIds },
+    );
+    return response.data;
+  },
+
+  /**
    * Get all unique tags across cameras in a project
    */
   getTags: async (projectId?: number): Promise<string[]> => {

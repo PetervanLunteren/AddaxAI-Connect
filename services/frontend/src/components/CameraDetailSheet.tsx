@@ -13,7 +13,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
   Edit,
-  Trash2,
   Loader2,
   ExternalLink,
   Camera as CameraIcon,
@@ -22,24 +21,10 @@ import {
   Plus,
   XCircle,
   Upload,
-  MoreVertical,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from './ui/DropdownMenu';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from './ui/Dialog';
+import { Dialog, DialogContent } from './ui/Dialog';
 import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
 import { CameraDeploymentHistory } from './CameraDeploymentHistory';
 import { TagInput } from './TagInput';
@@ -74,7 +59,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [isEditing, setIsEditing] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [referenceError, setReferenceError] = useState<string | null>(null);
@@ -141,19 +125,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     },
     onError: (error: any) => {
       toast.error(`Failed to update camera: ${error.response?.data?.detail || error.message}`);
-    },
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: () => camerasApi.delete(camera!.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cameras'] });
-      setShowDeleteDialog(false);
-      onClose();
-    },
-    onError: (error: any) => {
-      toast.error(`Failed to delete camera: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -237,10 +208,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     updateMutation.mutate(cleanedData);
   };
 
-  const handleDelete = () => {
-    deleteMutation.mutate();
-  };
-
   // Discard edits and leave edit mode, restoring the form from the camera.
   const handleCancelEdit = () => {
     setEditForm({ notes: camera.notes || '', sim_expiry_date: camera.sim_expiry_date });
@@ -303,30 +270,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       <Sheet open={isOpen} onOpenChange={onClose}>
         <SheetContent onClose={onClose}>
           <SheetHeader>
-            <div className="flex items-center justify-between gap-2 pr-8">
-              <SheetTitle className="flex items-center gap-2">
-                <CameraIcon className="h-5 w-5" />
-                {camera.name}
-              </SheetTitle>
-              {isServerAdmin && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => setShowDeleteDialog(true)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete camera
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+            <SheetTitle className="flex items-center gap-2">
+              <CameraIcon className="h-5 w-5" />
+              {camera.name}
+            </SheetTitle>
           </SheetHeader>
 
           <SheetBody className="space-y-6">
@@ -679,40 +626,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
         </SheetContent>
       </Sheet>
-
-      {/* Delete confirmation dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent onClose={() => setShowDeleteDialog(false)}>
-          <DialogHeader>
-            <DialogTitle>Delete camera</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete camera "{camera.name}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Reference image lightbox */}
       {lightboxOpen && camera.reference_image_url && (

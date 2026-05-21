@@ -450,6 +450,25 @@ async def bulk_set_notes(
     return BulkUpdateResponse(updated_count=len(cameras))
 
 
+@router.post("/bulk-delete", response_model=BulkUpdateResponse)
+async def bulk_delete(
+    request: BulkCameraIdsRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Delete every selected camera and all its data (images, detections,
+    classifications, MinIO objects; deployments and health reports cascade).
+    Requires project admin on each affected project. Irreversible."""
+    cameras = await _load_bulk_cameras(db, request.camera_ids)
+    await _verify_admin_on_all_projects(current_user, cameras, db)
+
+    for camera in cameras:
+        await _delete_camera_cascade(db, camera)
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(cameras))
+
+
 @router.get(
     "/{camera_id}",
     response_model=CameraResponse,
@@ -844,6 +863,47 @@ async def update_camera(
     return camera_to_response(camera, tz=tz)
 
 
+async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> None:
+    """
+    Delete a camera and all data hanging off it: images, their detections and
+    classifications, and the MinIO objects under the camera's storage prefix.
+    Deployments and health reports cascade at the DB level. Does not commit, so
+    single and bulk deletes share one cascade and the caller controls the
+    transaction.
+    """
+    camera_device_id = camera.device_id or str(camera.id)
+
+    images = (
+        await db.execute(select(Image).where(Image.camera_id == camera.id))
+    ).scalars().all()
+    for image in images:
+        detections = (
+            await db.execute(select(Detection).where(Detection.image_id == image.id))
+        ).scalars().all()
+        for detection in detections:
+            await db.execute(
+                sql_delete(Classification).where(Classification.detection_id == detection.id)
+            )
+        await db.execute(sql_delete(Detection).where(Detection.image_id == image.id))
+
+    await db.execute(sql_delete(Image).where(Image.camera_id == camera.id))
+
+    try:
+        storage = StorageClient()
+        for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
+            for obj_name in storage.list_objects(bucket, prefix=f"{camera_device_id}/"):
+                storage.delete_object(bucket, obj_name)
+    except Exception as e:
+        logger.error(
+            "Failed to delete some MinIO files",
+            camera_id=camera.id,
+            device_id=camera_device_id,
+            error=str(e),
+        )
+
+    await db.delete(camera)
+
+
 @router.delete(
     "/{camera_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -882,44 +942,7 @@ async def delete_camera(
             detail=f"Project admin access required for project {camera.project_id}",
         )
 
-    # Cascade delete all associated data
-    camera_device_id = camera.device_id or str(camera.id)
-
-    images_query = select(Image).where(Image.camera_id == camera.id)
-    images_result = await db.execute(images_query)
-    images = images_result.scalars().all()
-
-    for image in images:
-        detections_query = select(Detection).where(Detection.image_id == image.id)
-        detections_result = await db.execute(detections_query)
-        detections = detections_result.scalars().all()
-
-        for detection in detections:
-            await db.execute(
-                sql_delete(Classification).where(Classification.detection_id == detection.id)
-            )
-
-        await db.execute(
-            sql_delete(Detection).where(Detection.image_id == image.id)
-        )
-
-    await db.execute(sql_delete(Image).where(Image.camera_id == camera.id))
-
-    # Delete MinIO files
-    try:
-        storage = StorageClient()
-        for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
-            for obj_name in storage.list_objects(bucket, prefix=f"{camera_device_id}/"):
-                storage.delete_object(bucket, obj_name)
-    except Exception as e:
-        logger.error(
-            "Failed to delete some MinIO files",
-            camera_id=camera.id,
-            device_id=camera_device_id,
-            error=str(e),
-        )
-
-    await db.delete(camera)
+    await _delete_camera_cascade(db, camera)
     await db.commit()
 
 
