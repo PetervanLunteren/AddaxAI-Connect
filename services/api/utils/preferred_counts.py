@@ -1037,7 +1037,7 @@ async def get_detection_history(
           AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
           AND cdp.start_date <= CAST(:end_date AS date)
           AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
-        GROUP BY c.id, c.name
+        GROUP BY c.id, c.device_id
         ORDER BY c.id
     """)
     cameras = (await db.execute(cameras_sql, {

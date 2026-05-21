@@ -126,8 +126,8 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
                 JOIN cameras c ON c.id = d.camera_id
                 LEFT JOIN images i ON i.deployment_id = d.id
                 WHERE d.site_id = :site_id
-                GROUP BY d.id, c.name
-                ORDER BY c.name, d.deployment_number
+                GROUP BY d.id, c.device_id
+                ORDER BY c.device_id, d.deployment_number
             """),
             {"site_id": site_id},
         )

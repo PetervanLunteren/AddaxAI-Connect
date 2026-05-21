@@ -312,7 +312,7 @@ async def get_independent_species_camera_matrix(
            SUM(events.event_count)::int as count
     FROM events
     JOIN cameras c ON events.camera_id = c.id
-    GROUP BY c.name, events.species
+    GROUP BY c.device_id, events.species
     """
 
     result = await db.execute(text(query), params)

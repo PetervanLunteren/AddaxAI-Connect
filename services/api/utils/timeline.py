@@ -316,7 +316,7 @@ async def _fetch_cdp_rows(
           AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
           AND cdp.start_date <= CAST(:clip_end AS date)
           AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:clip_start AS date))
-        ORDER BY c.name, cdp.start_date, cdp.id
+        ORDER BY c.device_id, cdp.start_date, cdp.id
         """
     )
     clip_start = date_from if date_from is not None else date(1900, 1, 1)

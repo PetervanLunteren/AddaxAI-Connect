@@ -80,7 +80,7 @@ async def _validate_camera_ids(
         if cam.camera_group_id is not None and cam.camera_group_id != exclude_group_id:
             raise HTTPException(
                 status_code=400,
-                detail=f"Camera {cam.id} ({cam.name}) is already in another group"
+                detail=f"Camera {cam.id} ({cam.device_id}) is already in another group"
             )
 
 

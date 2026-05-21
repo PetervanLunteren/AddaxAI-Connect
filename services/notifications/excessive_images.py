@@ -226,7 +226,7 @@ def _get_cameras_over_threshold(
     # column and `json` has no equality operator in PostgreSQL.
     result = db.execute(
         text("""
-            SELECT c.id, c.name, c.device_id, c.notes, COUNT(*) as image_count,
+            SELECT c.id, c.device_id, c.notes, COUNT(*) as image_count,
                    (c.config->'gps_from_report'->>'lat')::float as lat,
                    (c.config->'gps_from_report'->>'lon')::float as lon
             FROM images i
@@ -250,7 +250,7 @@ def _get_cameras_over_threshold(
     for row in result:
         cameras.append({
             'id': row.id,
-            'name': row.name,
+            'name': row.device_id,
             'device_id': row.device_id,
             'notes': row.notes,
             'image_count': row.image_count,
