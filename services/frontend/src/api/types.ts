@@ -5,7 +5,8 @@
 
 export interface Camera {
   id: number;
-  name: string;
+  name: string;  // display label (friendly name, else device id, else "Camera <id>")
+  friendly_name: string | null;  // the user-set name only; null when there is none
   device_id?: string;
   custom_fields?: Record<string, string> | null;
   tags?: string[];

@@ -88,7 +88,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   useEffect(() => {
     if (camera) {
       setEditForm({
-        friendly_name: camera.name,
+        friendly_name: camera.friendly_name ?? '',
         notes: camera.notes || '',
         sim_expiry_date: camera.sim_expiry_date,
       });
@@ -108,7 +108,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     JSON.stringify(editTags) !== JSON.stringify(camera.tags || [])
   );
   const notesModified = camera && (
-    editForm.friendly_name !== camera.name ||
+    editForm.friendly_name !== (camera.friendly_name ?? '') ||
     editForm.notes !== (camera.notes || '') ||
     tagsChanged ||
     (editForm.sim_expiry_date ?? null) !== (camera.sim_expiry_date ?? null)

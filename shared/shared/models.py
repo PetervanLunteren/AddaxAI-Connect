@@ -93,7 +93,7 @@ class Camera(Base):
     __tablename__ = "cameras"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)  # user-set friendly name; "" when none (no device_id fallback stored)
     installed_at = Column(DateTime(timezone=True), nullable=True)
     config = Column(JSON)
 

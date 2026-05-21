@@ -38,7 +38,7 @@ export interface ColumnDef {
 
 export const CAMERA_COLUMNS: ColumnDef[] = [
   { id: 'name', label: 'Name', defaultVisible: true, sortable: true, alwaysVisible: true },
-  { id: 'device_id', label: 'Camera ID', defaultVisible: false, sortable: true },
+  { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true },
   { id: 'tags', label: 'Tags', defaultVisible: false, sortable: true },
   { id: 'status', label: 'Status', defaultVisible: true, sortable: true },
   { id: 'site', label: 'Site', defaultVisible: true, sortable: true },

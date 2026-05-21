@@ -612,7 +612,7 @@ export const CamerasPage: React.FC = () => {
       result.sort((a, b) => {
         const getValue = (c: Camera): string | number | null => {
           switch (sort.column) {
-            case 'name': return c.name.toLowerCase();
+            case 'name': return c.friendly_name?.toLowerCase() ?? null;
             case 'device_id': return (c.device_id || '').toLowerCase() || null;
             case 'tags': return (c.tags || []).join(', ').toLowerCase() || null;
             case 'status': return c.status;
@@ -652,7 +652,11 @@ export const CamerasPage: React.FC = () => {
   const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
     switch (id) {
       case 'name':
-        return camera.name;
+        return camera.friendly_name ? (
+          camera.friendly_name
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
       case 'device_id':
         return camera.device_id ? (
           <span className="font-mono text-xs">{camera.device_id}</span>
