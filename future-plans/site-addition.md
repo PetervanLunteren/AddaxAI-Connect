@@ -272,14 +272,6 @@ deployment_id, some without) throughout the migration.
 **Phase 6 — Camtrap-DP export refactor (separate work)**
 - Read Sites + Deployments instead of re-deriving from Camera +
   Image. Standards-compliant export naturally.
-- Add a `timestampIssues` flag at the deployment level per GBIF's
-  camera-trap QA guide. Wire a "camera clock not trusted" checkbox
-  in the bulk-upload review modal (and a corresponding control in
-  live-camera settings) to set it. A first attempt at that
-  checkbox lived in BulkUploadPage briefly but was removed because
-  nothing read the flag; bring it back together with the export
-  wiring so the UI does not lie.
-- Out of scope for this initial Site work.
 
 ## Critical files
 
