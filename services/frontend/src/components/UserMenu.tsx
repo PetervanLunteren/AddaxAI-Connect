@@ -7,7 +7,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Users, Upload, Settings, Activity, LogOut, Info, KeyRound } from 'lucide-react';
+import { Menu, Users, Upload, Settings, Activity, LogOut, Info, KeyRound, BookOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../api/auth';
 import { ChangePasswordModal } from './ChangePasswordModal';
@@ -153,9 +153,19 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
             </>
           )}
 
-          {/* Footer: About */}
+          {/* Footer: Documentation and About */}
           <div className="border-t border-border my-1" />
           <div className="py-1">
+            <a
+              href="https://petervanlunteren.github.io/AddaxAI-Connect/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>Documentation</span>
+            </a>
             {generalItems.map((item, index) => (
               <button
                 key={index}
