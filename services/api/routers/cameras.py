@@ -824,7 +824,10 @@ async def update_camera(
 
     # Update fields if provided
     if request.friendly_name is not None:
-        camera.name = request.friendly_name
+        # An empty friendly name reverts to the device ID, matching how new
+        # cameras are named, so a camera is never left with a blank name.
+        cleaned = request.friendly_name.strip()
+        camera.name = cleaned or camera.device_id or camera.name
     if request.custom_fields is not None:
         camera.custom_fields = request.custom_fields
     if request.notes is not None:

@@ -199,7 +199,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const handleSave = () => {
     const cleanedData: UpdateCameraRequest = {};
 
-    if (editForm.friendly_name) cleanedData.friendly_name = editForm.friendly_name;
+    // Send the friendly name whenever it is set on the form, including when
+    // cleared to an empty string, so the user can blank it. The backend turns
+    // an empty name into the device ID.
+    if (editForm.friendly_name !== undefined) cleanedData.friendly_name = editForm.friendly_name;
     if (editForm.notes !== undefined) cleanedData.notes = editForm.notes || '';
 
     // Build custom_fields from key-value fields
