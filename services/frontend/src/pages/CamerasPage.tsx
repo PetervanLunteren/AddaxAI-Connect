@@ -101,7 +101,7 @@ import {
   BulkSetSimExpiryDialog,
   BulkSetNotesDialog,
 } from '../components/cameras/BulkEditDialogs';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { useToast } from '../components/ui/Toaster';
 import {
   CAMERA_COLUMNS,
@@ -311,17 +311,6 @@ export const CamerasPage: React.FC = () => {
     mutationFn: ({ ids, notes }: { ids: number[]; notes: string }) =>
       camerasApi.bulkSetNotes(ids, notes),
     onSuccess: onBulkSuccess,
-    onError: onBulkError,
-  });
-  const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => camerasApi.bulkDelete(ids),
-    onSuccess: (res: { updated_count: number }) => {
-      queryClient.invalidateQueries({ queryKey: ['cameras'] });
-      queryClient.invalidateQueries({ queryKey: ['camera-tags'] });
-      setSelectedCameraIds(new Set());
-      setShowBulkDelete(false);
-      toast.success(`Deleted ${res.updated_count} camera${res.updated_count === 1 ? '' : 's'}`);
-    },
     onError: onBulkError,
   });
 
@@ -1228,15 +1217,11 @@ export const CamerasPage: React.FC = () => {
         }
       />
 
-      <ConfirmDialog
+      <DeleteCamerasModal
         open={showBulkDelete}
         onClose={() => setShowBulkDelete(false)}
-        onConfirm={() => bulkDeleteMutation.mutate(Array.from(selectedCameraIds))}
-        title="Delete cameras"
-        body={`Delete ${selectedCameraIds.size} camera${selectedCameraIds.size === 1 ? '' : 's'} and all of their images? This cannot be undone.`}
-        confirmLabel="Delete"
-        variant="destructive"
-        isPending={bulkDeleteMutation.isPending}
+        cameraIds={Array.from(selectedCameraIds)}
+        onDeleted={() => setSelectedCameraIds(new Set())}
       />
 
       {/* Add Camera Dialog (server admins only) */}

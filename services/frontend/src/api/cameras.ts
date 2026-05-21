@@ -41,6 +41,14 @@ export interface BulkUpdateResponse {
   updated_count: number;
 }
 
+export interface CameraBulkDeleteResponse {
+  deleted_cameras: number;
+  deleted_images: number;
+  deleted_detections: number;
+  deleted_classifications: number;
+  deleted_minio_files: number;
+}
+
 export interface CameraDeployment {
   id: number;
   deployment_number: number;
@@ -167,8 +175,8 @@ export const camerasApi = {
    * Delete every selected camera and all its data. Irreversible; the caller
    * confirms first. updated_count is the number of cameras deleted.
    */
-  bulkDelete: async (cameraIds: number[]): Promise<BulkUpdateResponse> => {
-    const response = await apiClient.post<BulkUpdateResponse>(
+  bulkDelete: async (cameraIds: number[]): Promise<CameraBulkDeleteResponse> => {
+    const response = await apiClient.post<CameraBulkDeleteResponse>(
       '/api/cameras/bulk-delete',
       { camera_ids: cameraIds },
     );

@@ -318,6 +318,14 @@ class BulkUpdateResponse(BaseModel):
     updated_count: int
 
 
+class BulkDeleteResponse(BaseModel):
+    deleted_cameras: int
+    deleted_images: int
+    deleted_detections: int
+    deleted_classifications: int
+    deleted_minio_files: int
+
+
 async def _load_bulk_cameras(
     db: AsyncSession, camera_ids: List[int],
 ) -> List[Camera]:
@@ -450,7 +458,7 @@ async def bulk_set_notes(
     return BulkUpdateResponse(updated_count=len(cameras))
 
 
-@router.post("/bulk-delete", response_model=BulkUpdateResponse)
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
 async def bulk_delete(
     request: BulkCameraIdsRequest,
     db: AsyncSession = Depends(get_async_session),
@@ -462,11 +470,20 @@ async def bulk_delete(
     cameras = await _load_bulk_cameras(db, request.camera_ids)
     await _verify_admin_on_all_projects(current_user, cameras, db)
 
+    totals = {"images": 0, "detections": 0, "classifications": 0, "minio_files": 0}
     for camera in cameras:
-        await _delete_camera_cascade(db, camera)
+        counts = await _delete_camera_cascade(db, camera)
+        for key in totals:
+            totals[key] += counts[key]
 
     await db.commit()
-    return BulkUpdateResponse(updated_count=len(cameras))
+    return BulkDeleteResponse(
+        deleted_cameras=len(cameras),
+        deleted_images=totals["images"],
+        deleted_detections=totals["detections"],
+        deleted_classifications=totals["classifications"],
+        deleted_minio_files=totals["minio_files"],
+    )
 
 
 @router.get(
@@ -863,14 +880,15 @@ async def update_camera(
     return camera_to_response(camera, tz=tz)
 
 
-async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> None:
+async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> dict:
     """
     Delete a camera and all data hanging off it: images, their detections and
     classifications, and the MinIO objects under the camera's storage prefix.
     Deployments and health reports cascade at the DB level. Does not commit, so
     single and bulk deletes share one cascade and the caller controls the
-    transaction.
+    transaction. Returns the per-camera counts so callers can report totals.
     """
+    counts = {"images": 0, "detections": 0, "classifications": 0, "minio_files": 0}
     camera_device_id = camera.device_id or str(camera.id)
 
     images = (
@@ -881,18 +899,22 @@ async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> None:
             await db.execute(select(Detection).where(Detection.image_id == image.id))
         ).scalars().all()
         for detection in detections:
-            await db.execute(
+            res = await db.execute(
                 sql_delete(Classification).where(Classification.detection_id == detection.id)
             )
-        await db.execute(sql_delete(Detection).where(Detection.image_id == image.id))
+            counts["classifications"] += res.rowcount
+        res = await db.execute(sql_delete(Detection).where(Detection.image_id == image.id))
+        counts["detections"] += res.rowcount
 
-    await db.execute(sql_delete(Image).where(Image.camera_id == camera.id))
+    res = await db.execute(sql_delete(Image).where(Image.camera_id == camera.id))
+    counts["images"] += res.rowcount
 
     try:
         storage = StorageClient()
         for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
             for obj_name in storage.list_objects(bucket, prefix=f"{camera_device_id}/"):
                 storage.delete_object(bucket, obj_name)
+                counts["minio_files"] += 1
     except Exception as e:
         logger.error(
             "Failed to delete some MinIO files",
@@ -902,6 +924,7 @@ async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> None:
         )
 
     await db.delete(camera)
+    return counts
 
 
 @router.delete(
