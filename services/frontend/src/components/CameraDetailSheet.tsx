@@ -309,6 +309,17 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-muted-foreground">Site</span>
+                  {camera.current_site ? (
+                    <span>
+                      {camera.current_site.name}
+                      {camera.current_site.label ? ` / ${camera.current_site.label}` : ''}
+                    </span>
+                  ) : (
+                    <span>Unknown</span>
+                  )}
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Battery</span>
                   <span>
                     {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
@@ -441,7 +452,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Camera ID</span>
-                      <span className="font-mono text-xs">{camera.device_id || '-'}</span>
+                      <span>{camera.device_id || '-'}</span>
                     </div>
                     {camera.custom_fields && Object.keys(camera.custom_fields).length > 0 ? (
                       Object.entries(camera.custom_fields).map(([key, value]) => (
