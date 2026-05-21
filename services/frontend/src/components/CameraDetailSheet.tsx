@@ -120,12 +120,15 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
         .map((f) => [f.key.trim(), f.value.trim()])
     )) !== JSON.stringify(camera.custom_fields || {})
   );
-  const hasChanges = camera && (
+  // Core fields edit inline on the Overview tab; custom fields edit behind the
+  // Edit toggle on the Details tab. Track them apart so each tab's save control
+  // only reacts to its own fields.
+  const coreChanged = camera && (
     editForm.notes !== (camera.notes || '') ||
     tagsChanged ||
-    metadataChanged ||
     (editForm.sim_expiry_date ?? null) !== (camera.sim_expiry_date ?? null)
   );
+  const hasChanges = coreChanged || metadataChanged;
 
   // Update mutation
   const updateMutation = useMutation({
@@ -345,7 +348,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">Remarks</label>
-                    {isEditing && canAdmin ? (
+                    {canAdmin ? (
                       <textarea
                         value={editForm.notes || ''}
                         onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
@@ -358,7 +361,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">Tags</label>
-                    {isEditing && canAdmin ? (
+                    {canAdmin ? (
                       <TagInput
                         value={editTags}
                         onChange={setEditTags}
@@ -381,7 +384,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">SIM expiry date</label>
-                    {isEditing && canAdmin ? (
+                    {canAdmin ? (
                       <>
                         <input
                           type="date"
@@ -416,7 +419,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                           className="w-full h-48 object-cover rounded-md border cursor-zoom-in"
                           onClick={() => setLightboxOpen(true)}
                         />
-                        {isEditing && canAdmin && (
+                        {canAdmin && (
                           <Button
                             type="button"
                             variant="destructive"
@@ -429,7 +432,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                           </Button>
                         )}
                       </div>
-                    ) : isEditing && canAdmin ? (
+                    ) : canAdmin ? (
                       <div
                         {...getReferenceRootProps()}
                         className={`mt-1 border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${
@@ -455,6 +458,25 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       <p className="text-xs text-destructive mt-1">{referenceError}</p>
                     )}
                   </div>
+                  {coreChanged && canAdmin && (
+                    <Button
+                      onClick={handleSave}
+                      disabled={updateMutation.isPending}
+                      className="w-full"
+                    >
+                      {updateMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save changes
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Health metrics, read-only */}
@@ -620,7 +642,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
           </SheetBody>
 
-          {canAdmin && (activeTab === 'overview' || activeTab === 'details') && (
+          {canAdmin && activeTab === 'details' && (
             <SheetFooter>
               {isEditing ? (
                 <>
