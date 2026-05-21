@@ -10,6 +10,8 @@ export interface Camera {
   custom_fields?: Record<string, string> | null;
   tags?: string[];
   notes?: string | null;
+  // The camera's current site (from its most recent deployment), or null.
+  current_site: { id: number; name: string; label: string | null } | null;
   // Health/operational data (visible to all)
   location: { lat: number; lon: number } | null;
   battery_percentage: number | null;

@@ -33,7 +33,8 @@ class CameraResponse(BaseModel):
     custom_fields: Optional[dict] = None
     tags: Optional[List[str]] = None
     notes: Optional[str] = None
-    location: Optional[dict] = None  # {lat, lon}
+    location: Optional[dict] = None  # {lat, lon} from the latest daily report (GPS health signal)
+    current_site: Optional[dict] = None  # {id, name, label} of the camera's current deployment site
     battery_percentage: Optional[int] = None
     temperature: Optional[int] = None
     signal_quality: Optional[int] = None
@@ -134,12 +135,14 @@ def camera_to_response(
     tz: ZoneInfo,
     last_captured_at: Optional[datetime] = None,
     last_reported_at: Optional[datetime] = None,
+    current_site: Optional[dict] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape."""
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
     return CameraResponse(
+        current_site=current_site,
         id=camera.id,
         name=camera.name,
         device_id=camera.device_id,
@@ -212,6 +215,26 @@ async def list_cameras(
         )
         last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
 
+    # Each camera's current site = the site of its most recent deployment.
+    current_site_map: dict[int, dict] = {}
+    if camera_ids:
+        site_rows = await db.execute(
+            text("""
+                SELECT DISTINCT ON (d.camera_id) d.camera_id, d.name AS label,
+                       s.id AS site_id, s.name AS site_name
+                FROM deployments d
+                LEFT JOIN sites s ON s.id = d.site_id
+                WHERE d.camera_id = ANY(:cam_ids)
+                ORDER BY d.camera_id, d.deployment_number DESC
+            """),
+            {"cam_ids": camera_ids},
+        )
+        for r in site_rows.mappings().all():
+            if r["site_id"] is not None:
+                current_site_map[r["camera_id"]] = {
+                    "id": r["site_id"], "name": r["site_name"], "label": r["label"],
+                }
+
     from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
@@ -221,6 +244,7 @@ async def list_cameras(
             tz=tz,
             last_captured_at=last_captured_map.get(camera.id),
             last_reported_at=last_reported_map.get(camera.id),
+            current_site=current_site_map.get(camera.id),
         )
         for camera in cameras
     ]
@@ -479,11 +503,29 @@ async def get_camera(
     from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
+    site_row = (await db.execute(
+        text("""
+            SELECT d.name AS label, s.id AS site_id, s.name AS site_name
+            FROM deployments d
+            LEFT JOIN sites s ON s.id = d.site_id
+            WHERE d.camera_id = :cam
+            ORDER BY d.deployment_number DESC
+            LIMIT 1
+        """),
+        {"cam": camera_id},
+    )).mappings().first()
+    current_site = None
+    if site_row and site_row["site_id"] is not None:
+        current_site = {
+            "id": site_row["site_id"], "name": site_row["site_name"], "label": site_row["label"],
+        }
+
     return camera_to_response(
         camera,
         tz=tz,
         last_captured_at=last_captured_at,
         last_reported_at=last_reported_at,
+        current_site=current_site,
     )
 
 

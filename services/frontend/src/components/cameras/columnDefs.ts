@@ -21,6 +21,7 @@ export type ColumnId =
   | 'temperature'
   | 'last_image'
   | 'last_report'
+  | 'site'
   | 'location'
   | 'notes'
   | 'sim_expiry';
@@ -40,6 +41,7 @@ export const CAMERA_COLUMNS: ColumnDef[] = [
   { id: 'device_id', label: 'Camera ID', defaultVisible: false, sortable: true },
   { id: 'tags', label: 'Tags', defaultVisible: false, sortable: true },
   { id: 'status', label: 'Status', defaultVisible: true, sortable: true },
+  { id: 'site', label: 'Site', defaultVisible: true, sortable: true },
   { id: 'battery', label: 'Battery', defaultVisible: true, sortable: true },
   { id: 'signal', label: 'Signal', defaultVisible: true, sortable: true },
   { id: 'sd_used', label: 'SD used', defaultVisible: false, sortable: true },

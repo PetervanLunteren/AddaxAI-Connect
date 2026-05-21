@@ -616,6 +616,7 @@ export const CamerasPage: React.FC = () => {
             case 'device_id': return (c.device_id || '').toLowerCase() || null;
             case 'tags': return (c.tags || []).join(', ').toLowerCase() || null;
             case 'status': return c.status;
+            case 'site': return c.current_site?.name.toLowerCase() ?? null;
             case 'battery': return c.battery_percentage;
             case 'signal': return c.signal_quality;
             case 'sd_used': return c.sd_utilization_percentage;
@@ -741,6 +742,15 @@ export const CamerasPage: React.FC = () => {
             />
             <span className="text-sm">{formatRelative(camera.last_image_timestamp)}</span>
           </div>
+        );
+      case 'site':
+        return camera.current_site ? (
+          <span className="text-sm">
+            {camera.current_site.name}
+            {camera.current_site.label ? ` / ${camera.current_site.label}` : ''}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
         );
       case 'location':
         return (
