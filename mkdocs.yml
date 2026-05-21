@@ -5,7 +5,7 @@ repo_name: PetervanLunteren/AddaxAI-Connect
 
 theme:
   name: material
-  logo: assets/logo.svg
+  logo: assets/logo-icon.png
   favicon: assets/favicon.svg
   palette:
     - scheme: default
