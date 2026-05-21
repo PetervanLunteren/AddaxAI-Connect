@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
+  Edit,
   Trash2,
   Loader2,
   ExternalLink,
@@ -23,7 +24,7 @@ import {
   Upload,
   MoreVertical,
 } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody } from './ui/Sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
 import {
   DropdownMenu,
@@ -72,6 +73,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -103,6 +105,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       );
       setEditTags(camera.tags || []);
     }
+    setIsEditing(false);
     setActiveTab('overview');
   }, [camera]);
 
@@ -130,6 +133,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     onSuccess: (updatedCamera) => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['camera-tags'] });
+      setIsEditing(false);
       onUpdate?.(updatedCamera);
     },
     onError: (error: any) => {
@@ -234,6 +238,16 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     deleteMutation.mutate();
   };
 
+  // Discard edits and leave edit mode, restoring the form from the camera.
+  const handleCancelEdit = () => {
+    setEditForm({ notes: camera.notes || '', sim_expiry_date: camera.sim_expiry_date });
+    setMetadataFields(
+      Object.entries(camera.custom_fields || {}).map(([key, value]) => ({ key, value: value || '' }))
+    );
+    setEditTags(camera.tags || []);
+    setIsEditing(false);
+  };
+
   // Helper functions for formatting
   const getStatusColor = (status: string) => {
     const colors = {
@@ -321,81 +335,203 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
 
-            {/* Overview tab */}
+            {/* Overview tab: key info (read by default, Edit toggles) then a read-only health card */}
             {activeTab === 'overview' && (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: getStatusColor(camera.status) }}
-                    />
-                    <span>{getStatusLabel(camera.status)}</span>
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Site</span>
-                  {camera.current_site ? (
-                    <span>
-                      {camera.current_site.name}
-                      {camera.current_site.label ? ` / ${camera.current_site.label}` : ''}
-                    </span>
-                  ) : (
-                    <span>Unknown</span>
-                  )}
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Battery</span>
-                  <span>
-                    {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Signal</span>
-                  <span>{getSignalLabel(camera.signal_quality)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">SD used</span>
-                  <span>
-                    {camera.sd_utilization_percentage !== null
-                      ? `${Math.round(camera.sd_utilization_percentage)}%`
-                      : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total images</span>
-                  <span>{camera.total_images ?? 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Images sent today</span>
-                  <span>{camera.sent_images ?? 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Last report</span>
-                  <span>{formatDateTime(camera.last_report_timestamp, 'Never')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Last image</span>
-                  <span>{formatDateTime(camera.last_image_timestamp, 'Never')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Location</span>
-                  {camera.location ? (
-                    <span className="flex items-center gap-1">
-                      {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
-                      <a
-                        href={getGoogleMapsUrl(camera.location)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Camera ID</span>
+                    <span>{camera.device_id || '-'}</span>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Remarks</label>
+                    {isEditing && canAdmin ? (
+                      <textarea
+                        value={editForm.notes || ''}
+                        onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-md text-sm"
+                        rows={4}
+                      />
+                    ) : (
+                      <p className="text-sm mt-1 whitespace-pre-wrap">{camera.notes || '-'}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Tags</label>
+                    {isEditing && canAdmin ? (
+                      <TagInput
+                        value={editTags}
+                        onChange={setEditTags}
+                        suggestions={tagSuggestions ?? []}
+                      />
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
+                        {editTags.length > 0 ? editTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
+                          >
+                            {tag}
+                          </span>
+                        )) : (
+                          <span className="text-sm text-muted-foreground">No tags</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">SIM expiry date</label>
+                    {isEditing && canAdmin ? (
+                      <>
+                        <input
+                          type="date"
+                          value={editForm.sim_expiry_date || ''}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              sim_expiry_date: e.target.value || null,
+                            })
+                          }
+                          className="w-full px-3 py-2 border rounded-md text-sm"
+                        />
+                        <p className={`text-xs mt-1 ${simExpiryStatusClass(editForm.sim_expiry_date)}`}>
+                          {formatSimExpiryStatus(editForm.sim_expiry_date)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className={`text-sm mt-1 ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
+                        {camera.sim_expiry_date
+                          ? `${camera.sim_expiry_date} (${formatSimExpiryStatus(camera.sim_expiry_date)})`
+                          : 'Not set'}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Reference image</label>
+                    {camera.reference_thumbnail_url ? (
+                      <div className="relative mt-1">
+                        <img
+                          src={camera.reference_thumbnail_url}
+                          alt="Camera reference"
+                          className="w-full h-48 object-cover rounded-md border cursor-zoom-in"
+                          onClick={() => setLightboxOpen(true)}
+                        />
+                        {isEditing && canAdmin && (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => deleteReferenceMutation.mutate()}
+                            disabled={deleteReferenceMutation.isPending}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ) : isEditing && canAdmin ? (
+                      <div
+                        {...getReferenceRootProps()}
+                        className={`mt-1 border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${
+                          isReferenceDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary/50'
+                        }`}
                       >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
+                        <input {...getReferenceInputProps()} />
+                        <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">
+                          {isReferenceDragActive ? 'Drop image here' : 'Drag and drop an image, or click to select'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          JPEG or PNG, max 5MB
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground mt-1">No reference image</p>
+                    )}
+                    {uploadReferenceMutation.isPending && (
+                      <p className="text-xs text-muted-foreground mt-1">Uploading...</p>
+                    )}
+                    {referenceError && (
+                      <p className="text-xs text-destructive mt-1">{referenceError}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Health metrics, read-only */}
+                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: getStatusColor(camera.status) }}
+                      />
+                      <span>{getStatusLabel(camera.status)}</span>
                     </span>
-                  ) : (
-                    <span>Unknown</span>
-                  )}
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Site</span>
+                    {camera.current_site ? (
+                      <span>
+                        {camera.current_site.name}
+                        {camera.current_site.label ? ` / ${camera.current_site.label}` : ''}
+                      </span>
+                    ) : (
+                      <span>Unknown</span>
+                    )}
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Battery</span>
+                    <span>
+                      {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Signal</span>
+                    <span>{getSignalLabel(camera.signal_quality)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">SD used</span>
+                    <span>
+                      {camera.sd_utilization_percentage !== null
+                        ? `${Math.round(camera.sd_utilization_percentage)}%`
+                        : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total images</span>
+                    <span>{camera.total_images ?? 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Images sent today</span>
+                    <span>{camera.sent_images ?? 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last report</span>
+                    <span>{formatDateTime(camera.last_report_timestamp, 'Never')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last image</span>
+                    <span>{formatDateTime(camera.last_image_timestamp, 'Never')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Location</span>
+                    {camera.location ? (
+                      <span className="flex items-center gap-1">
+                        {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
+                        <a
+                          href={getGoogleMapsUrl(camera.location)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </span>
+                    ) : (
+                      <span>Unknown</span>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -410,21 +546,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <CameraDeploymentHistory cameraId={camera.id} />
             )}
 
-            {/* Details tab: camera id + custom fields (admins) */}
+            {/* Details tab: custom fields (admins). Read by default; Edit toggles the editor. */}
             {activeTab === 'details' && canAdmin && (
               <div>
-                {isServerAdmin ? (
+                {isEditing && isServerAdmin ? (
                   <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Camera ID</label>
-                      <input
-                        type="text"
-                        value={camera.device_id || ''}
-                        disabled
-                        className="w-full px-3 py-2 border rounded-md text-sm bg-muted"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">Camera ID cannot be changed</p>
-                    </div>
+                    <label className="text-xs text-muted-foreground">Custom fields</label>
 
                     {/* Editable metadata key-value fields */}
                     {metadataFields.length > 0 && (
@@ -475,144 +602,37 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Camera ID</span>
-                      <span>{camera.device_id || '-'}</span>
-                    </div>
-                    {camera.custom_fields && Object.keys(camera.custom_fields).length > 0 ? (
-                      Object.entries(camera.custom_fields).map(([key, value]) => (
+                  camera.custom_fields && Object.keys(camera.custom_fields).length > 0 ? (
+                    <div className="space-y-2 text-sm">
+                      {Object.entries(camera.custom_fields).map(([key, value]) => (
                         <div key={key} className="flex justify-between">
                           <span className="text-muted-foreground">{key}</span>
                           <span>{value || '-'}</span>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-muted-foreground text-sm mt-2">No additional details</p>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No additional details</p>
+                  )
                 )}
               </div>
             )}
 
-            {/* Notes, tags, SIM, reference: second section of the Details tab */}
-            {activeTab === 'details' && canAdmin && (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted-foreground">Remarks</label>
-                  <textarea
-                    value={editForm.notes || ''}
-                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    disabled={!canAdmin}
-                    className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
-                    rows={4}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Tags</label>
-                  {canAdmin ? (
-                    <TagInput
-                      value={editTags}
-                      onChange={setEditTags}
-                      suggestions={tagSuggestions ?? []}
-                    />
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
-                      {editTags.length > 0 ? editTags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
-                        >
-                          {tag}
-                        </span>
-                      )) : (
-                        <span className="text-sm text-muted-foreground">No tags</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">SIM expiry date</label>
-                  {canAdmin ? (
-                    <>
-                      <input
-                        type="date"
-                        value={editForm.sim_expiry_date || ''}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            sim_expiry_date: e.target.value || null,
-                          })
-                        }
-                        className="w-full px-3 py-2 border rounded-md text-sm"
-                      />
-                      <p className={`text-xs mt-1 ${simExpiryStatusClass(editForm.sim_expiry_date)}`}>
-                        {formatSimExpiryStatus(editForm.sim_expiry_date)}
-                      </p>
-                    </>
-                  ) : (
-                    <p className={`text-sm mt-1 ${simExpiryStatusClass(camera.sim_expiry_date)}`}>
-                      {camera.sim_expiry_date
-                        ? `${camera.sim_expiry_date} (${formatSimExpiryStatus(camera.sim_expiry_date)})`
-                        : 'Not set'}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Reference image</label>
-                  {camera.reference_thumbnail_url ? (
-                    <div className="relative mt-1">
-                      <img
-                        src={camera.reference_thumbnail_url}
-                        alt="Camera reference"
-                        className="w-full h-48 object-cover rounded-md border cursor-zoom-in"
-                        onClick={() => setLightboxOpen(true)}
-                      />
-                      {canAdmin && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-2 right-2"
-                          onClick={() => deleteReferenceMutation.mutate()}
-                          disabled={deleteReferenceMutation.isPending}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ) : canAdmin ? (
-                    <div
-                      {...getReferenceRootProps()}
-                      className={`mt-1 border-2 border-dashed rounded-md p-6 text-center cursor-pointer transition-colors ${
-                        isReferenceDragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-primary/50'
-                      }`}
-                    >
-                      <input {...getReferenceInputProps()} />
-                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
-                        {isReferenceDragActive ? 'Drop image here' : 'Drag and drop an image, or click to select'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        JPEG or PNG, max 5MB
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground mt-1">No reference image</p>
-                  )}
-                  {uploadReferenceMutation.isPending && (
-                    <p className="text-xs text-muted-foreground mt-1">Uploading...</p>
-                  )}
-                  {referenceError && (
-                    <p className="text-xs text-destructive mt-1">{referenceError}</p>
-                  )}
-                </div>
-                {hasChanges && canAdmin && (
+          </SheetBody>
+
+          {canAdmin && (activeTab === 'overview' || activeTab === 'details') && (
+            <SheetFooter>
+              {isEditing ? (
+                <>
                   <Button
-                    onClick={handleSave}
+                    variant="outline"
+                    onClick={handleCancelEdit}
                     disabled={updateMutation.isPending}
-                    className="w-full"
                   >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSave} disabled={!hasChanges || updateMutation.isPending}>
                     {updateMutation.isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -625,11 +645,15 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       </>
                     )}
                   </Button>
-                )}
-              </div>
-            )}
-
-          </SheetBody>
+                </>
+              ) : (
+                <Button onClick={() => setIsEditing(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+            </SheetFooter>
+          )}
 
         </SheetContent>
       </Sheet>
