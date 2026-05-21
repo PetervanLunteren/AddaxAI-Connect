@@ -58,11 +58,6 @@ export const CameraDeploymentHistory: React.FC<{ cameraId: number }> = ({ camera
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
             {fmtDate(d.start_date)} to {d.end_date ? fmtDate(d.end_date) : 'now'}
-            {d.latitude != null && d.longitude != null && (
-              <span className="ml-2">
-                ({d.latitude.toFixed(5)}, {d.longitude.toFixed(5)})
-              </span>
-            )}
           </div>
         </div>
       ))}

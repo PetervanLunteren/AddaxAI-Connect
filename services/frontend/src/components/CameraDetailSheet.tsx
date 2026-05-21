@@ -2,17 +2,16 @@
  * Camera detail side panel
  *
  * Shows full camera details in a slide-out panel with tabs:
- * - Notes: Friendly name and remarks (all users, editable by admins)
- * - Overview: Status, health metrics, activity, location (all users)
+ * - Overview: Status, site, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
- * - Details: Administrative info like camera ID, serial, SIM (admins only)
- * - Actions: Delete camera and other admin actions (server admins only)
+ * - Deployments: Where this camera has been over time (all users)
+ * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
+ * Delete lives in a kebab menu in the header (server admins only).
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
-  Edit,
   Trash2,
   Loader2,
   ExternalLink,
@@ -22,9 +21,16 @@ import {
   Plus,
   XCircle,
   Upload,
+  MoreVertical,
 } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from './ui/DropdownMenu';
 import {
   Dialog,
   DialogContent,
@@ -53,7 +59,7 @@ interface CameraDetailSheetProps {
   onUpdate?: (updatedCamera: Camera) => void;
 }
 
-type TabType = 'overview' | 'history' | 'deployments' | 'details' | 'notes' | 'actions';
+type TabType = 'overview' | 'history' | 'deployments' | 'details';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
@@ -66,9 +72,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('notes');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [referenceError, setReferenceError] = useState<string | null>(null);
 
@@ -98,17 +103,24 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       );
       setEditTags(camera.tags || []);
     }
-    setIsEditing(false);
-    setActiveTab('notes');
+    setActiveTab('overview');
   }, [camera]);
 
   // Check if notes have been modified
   const tagsChanged = camera && (
     JSON.stringify(editTags) !== JSON.stringify(camera.tags || [])
   );
-  const notesModified = camera && (
+  const metadataChanged = camera && (
+    JSON.stringify(Object.fromEntries(
+      metadataFields
+        .filter((f) => f.key.trim() && f.value.trim())
+        .map((f) => [f.key.trim(), f.value.trim()])
+    )) !== JSON.stringify(camera.custom_fields || {})
+  );
+  const hasChanges = camera && (
     editForm.notes !== (camera.notes || '') ||
     tagsChanged ||
+    metadataChanged ||
     (editForm.sim_expiry_date ?? null) !== (camera.sim_expiry_date ?? null)
   );
 
@@ -118,7 +130,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     onSuccess: (updatedCamera) => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
       queryClient.invalidateQueries({ queryKey: ['camera-tags'] });
-      setIsEditing(false);
       onUpdate?.(updatedCamera);
     },
     onError: (error: any) => {
@@ -270,29 +281,44 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     </button>
   );
 
-  // Check if footer should be shown (only on Details tab for server admins who can edit)
-  const showFooter = isServerAdmin && activeTab === 'details';
-
   return (
     <>
       <Sheet open={isOpen} onOpenChange={onClose}>
         <SheetContent onClose={onClose}>
           <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <CameraIcon className="h-5 w-5" />
-              {camera.name}
-            </SheetTitle>
+            <div className="flex items-center justify-between gap-2 pr-8">
+              <SheetTitle className="flex items-center gap-2">
+                <CameraIcon className="h-5 w-5" />
+                {camera.name}
+              </SheetTitle>
+              {isServerAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete camera
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </SheetHeader>
 
           <SheetBody className="space-y-6">
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">
-              <TabButton tab="notes" label="Notes" />
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Deployments" />
               {canAdmin && <TabButton tab="details" label="Details" />}
-              {isServerAdmin && <TabButton tab="actions" label="Actions" />}
             </div>
 
             {/* Overview tab */}
@@ -384,10 +410,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <CameraDeploymentHistory cameraId={camera.id} />
             )}
 
-            {/* Details tab (admins only) */}
+            {/* Details tab: camera id + custom fields (admins) */}
             {activeTab === 'details' && canAdmin && (
               <div>
-                {isEditing && isServerAdmin ? (
+                {isServerAdmin ? (
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-muted-foreground">Camera ID</label>
@@ -469,8 +495,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               </div>
             )}
 
-            {/* Notes tab (visible to all, editable by admins) */}
-            {activeTab === 'notes' && (
+            {/* Notes, tags, SIM, reference: second section of the Details tab */}
+            {activeTab === 'details' && canAdmin && (
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-muted-foreground">Remarks</label>
@@ -581,7 +607,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     <p className="text-xs text-destructive mt-1">{referenceError}</p>
                   )}
                 </div>
-                {notesModified && canAdmin && (
+                {hasChanges && canAdmin && (
                   <Button
                     onClick={handleSave}
                     disabled={updateMutation.isPending}
@@ -603,61 +629,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               </div>
             )}
 
-            {/* Actions tab (server admins only) */}
-            {activeTab === 'actions' && isServerAdmin && (
-              <div className="space-y-4">
-                <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                  <h4 className="text-sm font-medium text-destructive mb-2">Danger zone</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Deleting a camera will remove all associated data. This action cannot be undone.
-                  </p>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete camera
-                  </Button>
-                </div>
-              </div>
-            )}
           </SheetBody>
 
-          {/* Admin actions footer - only show on Details tab for server admins */}
-          {showFooter && (
-            <SheetFooter>
-              {isEditing ? (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditing(false)}
-                    disabled={updateMutation.isPending}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSave} disabled={updateMutation.isPending}>
-                    {updateMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save changes
-                      </>
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <Button onClick={() => setIsEditing(true)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              )}
-            </SheetFooter>
-          )}
         </SheetContent>
       </Sheet>
 
