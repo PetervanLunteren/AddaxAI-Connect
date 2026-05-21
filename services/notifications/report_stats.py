@@ -376,13 +376,13 @@ def get_camera_health_summary(
     for camera in cameras:
         last_reported_at = last_reported_by_camera.get(camera.id)
         if last_reported_at is None:
-            never_reported_cameras.append({'name': camera.name})
+            never_reported_cameras.append({'name': camera.device_id})
             continue
 
         if last_reported_at >= cutoff:
             active += 1
         else:
-            inactive_cameras.append({'name': camera.name})
+            inactive_cameras.append({'name': camera.device_id})
 
         # Check battery - first try direct column, then config
         battery = camera.battery_percent
@@ -394,7 +394,7 @@ def get_camera_health_summary(
             battery_values.append(battery)
             if battery <= battery_threshold:
                 low_battery_cameras.append({
-                    'name': camera.name,
+                    'name': camera.device_id,
                     'battery': battery
                 })
 
@@ -412,7 +412,7 @@ def get_camera_health_summary(
             sd_values.append(sd_percent)
             if sd_percent >= sd_threshold:
                 high_sd_cameras.append({
-                    'name': camera.name,
+                    'name': camera.device_id,
                     'sd_percent': sd_percent
                 })
 
@@ -474,7 +474,7 @@ def get_notable_detections(
             Classification.species,
             Classification.confidence.label('classification_confidence'),
             Detection.confidence.label('detection_confidence'),
-            Camera.name.label('camera_name'),
+            Camera.device_id.label('camera_name'),
             Image.captured_at,
             Image.uuid.label('image_uuid')
         )

@@ -305,7 +305,7 @@ async def _fetch_cdp_rows(
         """
         SELECT
             c.id   AS camera_id,
-            c.name AS camera_name,
+            c.device_id AS camera_name,
             cdp.id AS cdp_id,
             cdp.deployment_number AS deployment_sequence,
             cdp.start_date AS start_date,

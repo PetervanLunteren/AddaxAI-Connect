@@ -1119,7 +1119,6 @@ const ReviewStep: React.FC<{
       const deviceId = dominantSerial || `bulk-${slug || 'cam'}-${random}`;
       return camerasApi.create({
         device_id: deviceId,
-        friendly_name: trimmed || undefined,
         project_id: projectId,
       });
     },

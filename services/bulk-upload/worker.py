@@ -416,18 +416,18 @@ def _inspect_job(job_uuid: str) -> None:
                 # Reading attributes off a Camera ORM instance after
                 # the session closes triggers a refresh and crashes.
                 rows = session.execute(
-                    select(Camera.id, Camera.name, Camera.device_id).where(
+                    select(Camera.id, Camera.device_id).where(
                         Camera.project_id == project_id,
                         Camera.device_id.in_(list(serial_counts.keys())),
                     )
                 ).all()
-            for cam_id, cam_name, device_id in rows:
+            for cam_id, device_id in rows:
                 match_count = serial_counts.get(device_id, 0)
                 if match_count == 0:
                     continue
                 matched_cameras.append({
                     "camera_id": cam_id,
-                    "camera_name": cam_name,
+                    "camera_name": device_id,
                     "device_id": device_id,
                     "match_count": match_count,
                 })

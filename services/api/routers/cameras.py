@@ -28,8 +28,7 @@ router = APIRouter(prefix="/api/cameras", tags=["cameras"])
 class CameraResponse(BaseModel):
     """Camera response with health status"""
     id: int
-    name: str  # display label, always set: friendly name, else device_id, else "Camera <id>"
-    friendly_name: Optional[str] = None  # the user-set name only, null when there is none
+    name: str  # display label: device_id, else "Camera <id>". Cameras have no friendly name.
     device_id: Optional[str] = None
     custom_fields: Optional[dict] = None
     tags: Optional[List[str]] = None
@@ -56,7 +55,6 @@ class CameraResponse(BaseModel):
 class CreateCameraRequest(BaseModel):
     """Request model for creating a new camera"""
     device_id: str
-    friendly_name: Optional[str] = None  # Display name (optional, defaults to device ID)
     notes: Optional[str] = None
     custom_fields: Optional[dict] = None
     tags: Optional[List[str]] = None
@@ -66,7 +64,6 @@ class CreateCameraRequest(BaseModel):
 
 class UpdateCameraRequest(BaseModel):
     """Request model for updating camera"""
-    friendly_name: Optional[str] = None
     custom_fields: Optional[dict] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -142,17 +139,13 @@ def camera_to_response(
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
-    # friendly_name is the user-set name only. Older cameras were auto-named
-    # after their device_id; treat that as "no friendly name" so it is not shown
-    # as a name. display name always resolves to something identifiable.
-    friendly_name = camera.name if (camera.name and camera.name != camera.device_id) else None
-    display_name = friendly_name or camera.device_id or f"Camera {camera.id}"
+    # Cameras have no friendly name; the label is the device id (or a fallback).
+    display_name = camera.device_id or f"Camera {camera.id}"
 
     return CameraResponse(
         current_site=current_site,
         id=camera.id,
         name=display_name,
-        friendly_name=friendly_name,
         device_id=camera.device_id,
         custom_fields=camera.custom_fields,
         tags=camera.tags or [],
@@ -705,7 +698,7 @@ async def get_camera_health_history(
 
     return HealthHistoryResponse(
         camera_id=camera_id,
-        camera_name=camera.name,
+        camera_name=camera.device_id or f"Camera {camera.id}",
         reports=report_points,
     )
 
@@ -768,7 +761,6 @@ async def create_camera(
     # Create camera
     camera = Camera(
         device_id=request.device_id,
-        name=(request.friendly_name or "").strip(),  # user-set name only; "" when blank, never device_id
         notes=request.notes or '',
         custom_fields=request.custom_fields or {},
         tags=normalize_tags(request.tags) if request.tags else [],
@@ -831,11 +823,6 @@ async def update_camera(
         )
 
     # Update fields if provided
-    if request.friendly_name is not None:
-        # Store the friendly name as given, or "" when blank. No device_id
-        # fallback: the name column is the user-set name only. The API still
-        # derives a display label from device_id when this is empty.
-        camera.name = request.friendly_name.strip()
     if request.custom_fields is not None:
         camera.custom_fields = request.custom_fields
     if request.notes is not None:
@@ -1107,7 +1094,6 @@ async def import_cameras_csv(
         try:
             camera = Camera(
                 device_id=device_id,
-                name=friendly_name or "",
                 notes=notes,
                 custom_fields=custom_fields if custom_fields else {},
                 project_id=project_id,

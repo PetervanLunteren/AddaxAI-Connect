@@ -333,7 +333,7 @@ async def scan_suggest(
 
     rows = (
         await db.execute(
-            select(Camera.id, Camera.name, Camera.device_id).where(
+            select(Camera.id, Camera.device_id).where(
                 Camera.project_id == project_id,
                 Camera.device_id.in_(list(body.serial_counts.keys())),
             )
@@ -341,13 +341,13 @@ async def scan_suggest(
     ).all()
 
     matched: List[Dict[str, Any]] = []
-    for cam_id, cam_name, device_id in rows:
+    for cam_id, device_id in rows:
         count = body.serial_counts.get(device_id, 0)
         if count <= 0:
             continue
         matched.append({
             "camera_id": cam_id,
-            "camera_name": cam_name,
+            "camera_name": device_id,
             "device_id": device_id,
             "match_count": count,
         })
@@ -536,7 +536,7 @@ async def create_bulk_upload_job(
 
     return _job_to_response(
         job,
-        camera_name=camera.name,
+        camera_name=camera.device_id,
         created_by_email=user.email,
         processed_files=0,
     )
@@ -667,7 +667,7 @@ async def finalize_bulk_upload(
     queue.publish({"job_uuid": job_uuid, "phase": "process"})
 
     camera_name = (
-        await db.execute(select(Camera.name).where(Camera.id == job.camera_id))
+        await db.execute(select(Camera.device_id).where(Camera.id == job.camera_id))
     ).scalar_one_or_none()
 
     logger.info(
@@ -725,7 +725,7 @@ async def cancel_bulk_upload(
     camera_name = None
     if job.camera_id:
         camera_name = (
-            await db.execute(select(Camera.name).where(Camera.id == job.camera_id))
+            await db.execute(select(Camera.device_id).where(Camera.id == job.camera_id))
         ).scalar_one_or_none()
 
     return _job_to_response(
@@ -788,7 +788,7 @@ async def list_bulk_upload_jobs(
     await _expire_orphan_jobs(db, project_id)
     rows = (
         await db.execute(
-            select(BulkUploadJob, Camera.name, User.email)
+            select(BulkUploadJob, Camera.device_id, User.email)
             .outerjoin(Camera, BulkUploadJob.camera_id == Camera.id)
             .join(User, BulkUploadJob.created_by_user_id == User.id)
             .where(BulkUploadJob.project_id == project_id)
@@ -930,7 +930,7 @@ async def get_bulk_upload_job(
     """Single job, used by the frontend for live progress polling."""
     row = (
         await db.execute(
-            select(BulkUploadJob, Camera.name, User.email)
+            select(BulkUploadJob, Camera.device_id, User.email)
             .outerjoin(Camera, BulkUploadJob.camera_id == Camera.id)
             .join(User, BulkUploadJob.created_by_user_id == User.id)
             .where(

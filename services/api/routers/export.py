@@ -559,7 +559,7 @@ async def export_camtrap_dp(
             s.name AS site_name,
             COALESCE(ST_Y(s.location::geometry), ST_Y(cdp.location::geometry)) as latitude,
             COALESCE(ST_X(s.location::geometry), ST_X(cdp.location::geometry)) as longitude,
-            c.name as camera_name, c.device_id,
+            c.device_id as camera_name, c.device_id,
             c.manufacturer, c.model as camera_model
         FROM deployments cdp
         JOIN cameras c ON cdp.camera_id = c.id
@@ -910,9 +910,9 @@ async def export_observations(
     }
 
     cam_result = await db.execute(
-        select(Camera.id, Camera.name).where(Camera.project_id == project_id)
+        select(Camera.id, Camera.device_id).where(Camera.project_id == project_id)
     )
-    camera_names = {row.id: row.name for row in cam_result.all()}
+    camera_names = {row.id: row.device_id for row in cam_result.all()}
 
     images_query = (
         select(Image)
@@ -994,7 +994,7 @@ async def _build_camera_rows(
     cameras = (await db.execute(
         select(Camera)
         .where(Camera.project_id == project_id)
-        .order_by(Camera.name)
+        .order_by(Camera.device_id)
     )).scalars().all()
 
     camera_ids = [c.id for c in cameras]
@@ -1041,7 +1041,7 @@ async def _build_camera_rows(
 
         row = [
             camera.device_id or '',
-            camera.name or '',
+            camera.device_id or '',
             camera.notes or '',
             ','.join(camera.tags) if camera.tags else '',
             camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else '',
@@ -1620,9 +1620,9 @@ async def export_spatial(
 
     # Camera name lookup
     cam_result = await db.execute(
-        select(Camera.id, Camera.name).where(Camera.project_id == project_id)
+        select(Camera.id, Camera.device_id).where(Camera.project_id == project_id)
     )
-    camera_names = {row.id: row.name for row in cam_result.all()}
+    camera_names = {row.id: row.device_id for row in cam_result.all()}
 
     # Load classified images with detections and human observations
     images_query = (
@@ -1649,7 +1649,7 @@ async def export_spatial(
         WITH dep_info AS (
             SELECT cdp.id,
                    cdp.camera_id,
-                   c.name AS camera_name,
+                   c.device_id AS camera_name,
                    cdp.deployment_number AS deployment_number,
                    cdp.start_date,
                    cdp.end_date,

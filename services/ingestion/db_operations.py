@@ -59,7 +59,7 @@ def get_camera_by_device_id(device_id: str) -> Optional[int]:
             logger.debug(
                 "Found existing camera",
                 device_id=device_id,
-                camera_name=camera.name,
+                camera_name=camera.device_id,
                 db_id=db_id
             )
             return db_id
@@ -519,7 +519,7 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         logger.info(
             "Updated camera health",
             device_id=device_id,
-            camera_name=camera.name,
+            camera_name=camera.device_id,
             battery=health_data.get('battery_percentage'),
             temperature=health_data.get('temperature'),
             signal_quality=health_data.get('signal_quality')

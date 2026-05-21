@@ -119,7 +119,7 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
     dep_rows = (
         await db.execute(
             text("""
-                SELECT d.id, d.deployment_number, d.camera_id, c.name AS camera_name,
+                SELECT d.id, d.deployment_number, d.camera_id, c.device_id AS camera_name,
                        d.name AS label, d.start_date, d.end_date,
                        count(i.id) AS image_count
                 FROM deployments d

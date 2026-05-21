@@ -9,7 +9,6 @@ import type { Camera, HealthHistoryResponse, HealthHistoryFilters } from './type
 // Request types for camera management
 export interface CreateCameraRequest {
   device_id: string;
-  friendly_name?: string;
   notes?: string;
   custom_fields?: Record<string, string>;
   tags?: string[];
@@ -18,7 +17,6 @@ export interface CreateCameraRequest {
 }
 
 export interface UpdateCameraRequest {
-  friendly_name?: string;
   custom_fields?: Record<string, string>;
   notes?: string;
   tags?: string[];

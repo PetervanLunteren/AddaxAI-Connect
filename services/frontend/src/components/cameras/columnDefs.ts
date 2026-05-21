@@ -11,7 +11,6 @@
  */
 
 export type ColumnId =
-  | 'name'
   | 'device_id'
   | 'tags'
   | 'status'
@@ -31,14 +30,13 @@ export interface ColumnDef {
   label: string;
   defaultVisible: boolean;
   sortable: boolean;
-  // Columns the user cannot hide. Only Name today, so a row stays
+  // Columns the user cannot hide. Only the Camera ID today, so a row stays
   // identifiable no matter what the user toggles.
   alwaysVisible?: boolean;
 }
 
 export const CAMERA_COLUMNS: ColumnDef[] = [
-  { id: 'name', label: 'Name', defaultVisible: true, sortable: true, alwaysVisible: true },
-  { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true },
+  { id: 'device_id', label: 'Camera ID', defaultVisible: true, sortable: true, alwaysVisible: true },
   { id: 'tags', label: 'Tags', defaultVisible: false, sortable: true },
   { id: 'status', label: 'Status', defaultVisible: true, sortable: true },
   { id: 'site', label: 'Site', defaultVisible: true, sortable: true },

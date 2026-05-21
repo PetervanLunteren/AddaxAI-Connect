@@ -162,7 +162,6 @@ export const CamerasPage: React.FC = () => {
   // Add camera dialog state
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newCameraDeviceId, setNewCameraDeviceId] = useState('');
-  const [newCameraName, setNewCameraName] = useState('');
   const [newCameraNotes, setNewCameraNotes] = useState('');
   const [newCameraSimExpiry, setNewCameraSimExpiry] = useState('');
   const [customFields, setCustomFields] = useState<{key: string, value: string}[]>([]);
@@ -315,7 +314,6 @@ export const CamerasPage: React.FC = () => {
 
   const resetAddForm = () => {
     setNewCameraDeviceId('');
-    setNewCameraName('');
     setNewCameraNotes('');
     setNewCameraSimExpiry('');
     setCustomFields([]);
@@ -343,7 +341,6 @@ export const CamerasPage: React.FC = () => {
 
     const data: CreateCameraRequest = {
       device_id: newCameraDeviceId.trim(),
-      friendly_name: newCameraName.trim() || undefined,
       notes: newCameraNotes.trim() || undefined,
       custom_fields: Object.keys(custom_fields).length > 0 ? custom_fields : undefined,
       project_id: currentProject.id,
@@ -612,7 +609,6 @@ export const CamerasPage: React.FC = () => {
       result.sort((a, b) => {
         const getValue = (c: Camera): string | number | null => {
           switch (sort.column) {
-            case 'name': return c.friendly_name?.toLowerCase() ?? null;
             case 'device_id': return (c.device_id || '').toLowerCase() || null;
             case 'tags': return (c.tags || []).join(', ').toLowerCase() || null;
             case 'status': return c.status;
@@ -651,12 +647,6 @@ export const CamerasPage: React.FC = () => {
   // above. Each ColumnId returns the cell body, not the wrapping <TableCell>.
   const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
     switch (id) {
-      case 'name':
-        return camera.friendly_name ? (
-          camera.friendly_name
-        ) : (
-          <span className="text-xs text-muted-foreground">-</span>
-        );
       case 'device_id':
         return camera.device_id ? (
           <span className="font-mono text-xs">{camera.device_id}</span>
@@ -1140,7 +1130,7 @@ export const CamerasPage: React.FC = () => {
                       {visibleColumnDefs.map((col) => (
                         <TableCell
                           key={col.id}
-                          className={col.id === 'name' ? 'font-medium' : undefined}
+                          className={col.id === 'device_id' ? 'font-medium' : undefined}
                         >
                           {renderCameraCell(col.id, camera)}
                         </TableCell>
@@ -1251,22 +1241,6 @@ export const CamerasPage: React.FC = () => {
                 </p>
               </div>
 
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium mb-2">
-                  Friendly name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={newCameraName}
-                  onChange={(e) => setNewCameraName(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g., Camera A - North Ridge"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Leave empty to use the camera ID as the display name
-                </p>
-              </div>
 
               <div>
                 <label htmlFor="notes" className="block text-sm font-medium mb-2">

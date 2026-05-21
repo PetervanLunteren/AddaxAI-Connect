@@ -93,7 +93,8 @@ class Camera(Base):
     __tablename__ = "cameras"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)  # user-set friendly name; "" when none (no device_id fallback stored)
+    # A camera has no friendly name; it is identified by device_id. Display
+    # labels derive from device_id (see camera_to_response).
     installed_at = Column(DateTime(timezone=True), nullable=True)
     config = Column(JSON)
 

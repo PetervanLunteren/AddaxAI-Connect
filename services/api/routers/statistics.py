@@ -635,7 +635,7 @@ async def get_detection_rate_map(
                     (cdp.end_date - cdp.start_date + 1),
                     (CURRENT_DATE - cdp.start_date + 1)
                 ) as trap_days,
-                c.name as camera_name
+                c.device_id as camera_name
             FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(:project_ids)

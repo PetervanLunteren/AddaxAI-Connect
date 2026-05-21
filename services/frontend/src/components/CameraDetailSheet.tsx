@@ -88,7 +88,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   useEffect(() => {
     if (camera) {
       setEditForm({
-        friendly_name: camera.friendly_name ?? '',
         notes: camera.notes || '',
         sim_expiry_date: camera.sim_expiry_date,
       });
@@ -108,7 +107,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     JSON.stringify(editTags) !== JSON.stringify(camera.tags || [])
   );
   const notesModified = camera && (
-    editForm.friendly_name !== (camera.friendly_name ?? '') ||
     editForm.notes !== (camera.notes || '') ||
     tagsChanged ||
     (editForm.sim_expiry_date ?? null) !== (camera.sim_expiry_date ?? null)
@@ -199,10 +197,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   const handleSave = () => {
     const cleanedData: UpdateCameraRequest = {};
 
-    // Send the friendly name whenever it is set on the form, including when
-    // cleared to an empty string, so the user can blank it. The backend turns
-    // an empty name into the device ID.
-    if (editForm.friendly_name !== undefined) cleanedData.friendly_name = editForm.friendly_name;
     if (editForm.notes !== undefined) cleanedData.notes = editForm.notes || '';
 
     // Build custom_fields from key-value fields
@@ -467,16 +461,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Notes tab (visible to all, editable by admins) */}
             {activeTab === 'notes' && (
               <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted-foreground">Friendly name</label>
-                  <input
-                    type="text"
-                    value={editForm.friendly_name || ''}
-                    onChange={(e) => setEditForm({ ...editForm, friendly_name: e.target.value })}
-                    disabled={!canAdmin}
-                    className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted disabled:cursor-not-allowed"
-                  />
-                </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Remarks</label>
                   <textarea

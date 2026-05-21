@@ -287,7 +287,7 @@ def _expiring_cameras(
 
         cameras.append({
             "id": camera.id,
-            "name": camera.name,
+            "name": camera.device_id,
             "device_id": camera.device_id,
             "sim_expiry_date": camera.sim_expiry_date.isoformat(),
             "status": status,

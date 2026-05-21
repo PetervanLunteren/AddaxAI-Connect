@@ -446,7 +446,7 @@ async def list_all_images(
     sort_column_map = {
         "captured_at": Image.captured_at,
         "filename": Image.filename,
-        "camera_name": Camera.name,
+        "camera_name": Camera.device_id,
     }
     sort_col = sort_column_map.get(sort_by, Image.captured_at)
     order = desc(sort_col) if sort_dir == "desc" else asc(sort_col)
@@ -454,7 +454,7 @@ async def list_all_images(
     # Data query
     offset = (page - 1) * limit
     data_query = (
-        select(Image, Camera.name.label("camera_name"))
+        select(Image, Camera.device_id.label("camera_name"))
         .join(Camera, Image.camera_id == Camera.id)
         .where(and_(*filters))
         .order_by(order)
@@ -757,10 +757,10 @@ async def bulk_download_images(
         )
 
     rows_result = await db.execute(
-        select(Image, Camera.name.label("camera_name"))
+        select(Image, Camera.device_id.label("camera_name"))
         .join(Camera, Image.camera_id == Camera.id)
         .where(Image.id.in_(image_ids))
-        .order_by(Camera.name.asc(), Image.captured_at.asc())
+        .order_by(Camera.device_id.asc(), Image.captured_at.asc())
     )
     rows = rows_result.all()
 

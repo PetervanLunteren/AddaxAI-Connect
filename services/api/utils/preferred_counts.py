@@ -521,20 +521,20 @@ async def get_preferred_species_camera_matrix(
     # Verified: group by camera and species, sum counts
     verified_query = (
         select(
-            Camera.name.label('camera_name'),
+            Camera.device_id.label('camera_name'),
             HumanObservation.species.label('species'),
             func.sum(HumanObservation.count).label('count')
         )
         .join(Image, HumanObservation.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .where(and_(*verified_filters))
-        .group_by(Camera.name, HumanObservation.species)
+        .group_by(Camera.device_id, HumanObservation.species)
     )
 
     # Unverified: group by camera and species, count classifications
     unverified_query = (
         select(
-            Camera.name.label('camera_name'),
+            Camera.device_id.label('camera_name'),
             Classification.species.label('species'),
             func.count(Classification.id).label('count')
         )
@@ -549,13 +549,13 @@ async def get_preferred_species_camera_matrix(
                 classification_passes_threshold(),
             )
         )
-        .group_by(Camera.name, Classification.species)
+        .group_by(Camera.device_id, Classification.species)
     )
 
     # Person/vehicle: group by camera and detection category
     pv_query = (
         select(
-            Camera.name.label('camera_name'),
+            Camera.device_id.label('camera_name'),
             Detection.category.label('species'),
             func.count(Detection.id).label('count')
         )
@@ -568,7 +568,7 @@ async def get_preferred_species_camera_matrix(
                 Detection.confidence >= Project.detection_threshold
             )
         )
-        .group_by(Camera.name, Detection.category)
+        .group_by(Camera.device_id, Detection.category)
     )
 
     # Combine and sum
@@ -1028,7 +1028,7 @@ async def get_detection_history(
     cameras_sql = text("""
         SELECT
             c.id AS camera_id,
-            c.name AS camera_name,
+            c.device_id AS camera_name,
             MIN(cdp.start_date) AS first_start,
             MAX(COALESCE(cdp.end_date, CURRENT_DATE)) AS last_end
         FROM cameras c

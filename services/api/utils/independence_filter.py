@@ -308,7 +308,7 @@ async def get_independent_species_camera_matrix(
 
     query = f"""
     {cte_sql}
-    SELECT c.name as camera_name, events.species,
+    SELECT c.device_id as camera_name, events.species,
            SUM(events.event_count)::int as count
     FROM events
     JOIN cameras c ON events.camera_id = c.id
