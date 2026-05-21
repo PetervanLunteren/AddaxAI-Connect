@@ -13,7 +13,7 @@ from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
-from db_operations import create_notification_log, get_project_name
+from db_operations import create_notification_log, get_project_name, get_image_site_label
 
 logger = get_logger("notifications.handlers")
 settings = get_settings()
@@ -93,10 +93,15 @@ def handle_species_detection(
     # Format species name (replace underscores with spaces and capitalize first letter only)
     species_display = species.replace('_', ' ').capitalize()
 
+    # Lead with where (site), not which camera: a user cares about what
+    # (species), where (site), when (time). Fall back to the camera name only
+    # when the image has no resolved site.
+    site_label = get_image_site_label(image_uuid) or camera_name
+
     # Build message text with Markdown formatting (bold for headers)
     message_lines = [
         f"*{species_display} detected!*",
-        f"*Camera:* {camera_name}",
+        f"*Site:* {site_label}",
         f"*Time:* {time_str}",
         f"*Date:* {date_str}",
         f"*Project:* {project_name}"

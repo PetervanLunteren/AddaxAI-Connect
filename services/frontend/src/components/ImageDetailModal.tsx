@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, Camera, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2 } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, Camera, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2 } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
@@ -469,7 +469,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                       Showing AI predictions
                     </div>
                   )}
-                  {/* Camera name chip */}
+                  {/* Site chip (the primary "where"), top-left */}
+                  {imageDetail.site && (
+                    <div
+                      className="absolute top-3 left-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
+                      style={{ backgroundColor: '#0f6064' }}
+                    >
+                      <MapPin className="h-3 w-3" />
+                      {imageDetail.site.name}
+                      {imageDetail.site.label ? ` / ${imageDetail.site.label}` : ''}
+                    </div>
+                  )}
+                  {/* Camera name chip (secondary), top-right */}
                   <div
                     className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
                     style={{ backgroundColor: '#0f6064' }}

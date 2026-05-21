@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc, cast, Float
+from sqlalchemy import select, func, and_, or_, desc, cast, Float, text
 from sqlalchemy.orm import selectinload, aliased
 from pydantic import BaseModel
 import io
@@ -117,6 +117,7 @@ class ImageDetailResponse(BaseModel):
     image_metadata: dict
     full_image_url: str
     camera_location: Optional[dict] = None
+    site: Optional[dict] = None  # {name, label} of the image's deployment site, or null
     detections: List[DetectionResponse]
     verification: VerificationInfo
     human_observations: List[HumanObservationResponse]
@@ -1097,17 +1098,32 @@ async def get_image(
 
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
+    # Site this image was taken at, via its deployment. The primary "where".
+    site = None
+    if image.deployment_id:
+        site_row = (await db.execute(
+            text("""
+                SELECT s.name AS name, d.name AS label
+                FROM deployments d JOIN sites s ON s.id = d.site_id
+                WHERE d.id = :dep
+            """),
+            {"dep": image.deployment_id},
+        )).mappings().first()
+        if site_row:
+            site = {"name": site_row["name"], "label": site_row["label"]}
+
     return ImageDetailResponse(
         id=image.id,
         uuid=image.uuid,
         filename=image.filename,
         camera_id=image.camera_id,
-        camera_name=camera.name,
+        camera_name=camera.name or camera.device_id or f"Camera {camera.id}",
         captured_at=image.captured_at.isoformat(),
         storage_path=image.storage_path,
         status=image.status,
         image_metadata=image.image_metadata or {},
         camera_location=gps_data,
+        site=site,
         full_image_url=full_image_url,
         detections=detections_response,
         verification=verification,

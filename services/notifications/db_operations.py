@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from shared.logger import get_logger
 from shared.models import NotificationLog, Project, ServerSettings
@@ -127,3 +127,25 @@ def get_project_name(project_id: int) -> Optional[str]:
             return None
 
         return project.name
+
+
+def get_image_site_label(image_uuid: str) -> Optional[str]:
+    """
+    The site (with deployment label) an image was taken at, via its deployment.
+    Returns "Site / label" or "Site", or None when the image has no deployment.
+    Used so detection notifications can lead with where, not which camera.
+    """
+    with get_sync_session() as session:
+        row = session.execute(
+            text("""
+                SELECT s.name AS site_name, d.name AS label
+                FROM images i
+                JOIN deployments d ON d.id = i.deployment_id
+                JOIN sites s ON s.id = d.site_id
+                WHERE i.uuid = :uuid
+            """),
+            {"uuid": image_uuid},
+        ).first()
+    if not row:
+        return None
+    return f"{row.site_name} / {row.label}" if row.label else row.site_name
