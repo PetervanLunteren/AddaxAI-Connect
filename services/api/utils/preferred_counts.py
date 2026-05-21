@@ -1022,10 +1022,9 @@ async def get_detection_history(
     if not project_ids:
         return
 
-    # Active cameras + bounding deployment dates per camera. `Camera.location`
-    # is unused in this codebase; per-occasion GPS is read from the matching
-    # Deployment below so a moved camera reports the correct
-    # coordinates for each occasion.
+    # Active cameras + bounding deployment dates per camera. Per-occasion GPS
+    # is read from the matching Deployment below so a moved camera reports the
+    # correct coordinates for each occasion.
     cameras_sql = text("""
         SELECT
             c.id AS camera_id,

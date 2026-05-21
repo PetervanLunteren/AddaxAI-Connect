@@ -35,7 +35,7 @@ sys.path.insert(0, "/ingestion_lib")
 
 from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from shared.database import get_db_session
 from shared.logger import get_logger, set_image_id
@@ -810,9 +810,24 @@ def _process_job(job_uuid: str) -> None:
         job_id = job.id
         camera_id = camera.id
         camera_storage_id = _camera_storage_id(camera)
+        # Default batch location (used only when the user did not pin a site):
+        # the camera's most recent deployment site, i.e. where the camera is
+        # now. A brand-new camera with no deployment yet has none, in which case
+        # the user should pin a site in the upload form.
         gps_location = None
-        if camera.location:
-            gps_location = (camera.location.coords[1], camera.location.coords[0])
+        loc_row = session.execute(
+            text("""
+                SELECT ST_Y(s.location::geometry) AS lat, ST_X(s.location::geometry) AS lon
+                FROM deployments d
+                JOIN sites s ON s.id = d.site_id
+                WHERE d.camera_id = :camera_id
+                ORDER BY d.deployment_number DESC
+                LIMIT 1
+            """),
+            {"camera_id": camera.id},
+        ).fetchone()
+        if loc_row:
+            gps_location = (loc_row.lat, loc_row.lon)
         staged_object_key = job.staged_object_key
         manifest = job.manifest or {}
         # The API flips status to 'processing' at finalize so users see

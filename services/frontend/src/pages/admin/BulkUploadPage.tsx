@@ -942,8 +942,6 @@ const ReviewStep: React.FC<{
   const [siteId, setSiteId] = useState<string>('');
   const [showAddCamera, setShowAddCamera] = useState(false);
   const [newCameraName, setNewCameraName] = useState('');
-  const [newLatitude, setNewLatitude] = useState('');
-  const [newLongitude, setNewLongitude] = useState('');
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -1111,8 +1109,6 @@ const ReviewStep: React.FC<{
 
   const createCameraMutation = useMutation({
     mutationFn: () => {
-      const lat = newLatitude.trim() ? Number(newLatitude) : undefined;
-      const lon = newLongitude.trim() ? Number(newLongitude) : undefined;
       // device_id is hidden in the bulk-upload form. Pre-fill with the
       // dominant EXIF SerialNumber so scan-suggest matches this camera
       // on a future bulk upload from the same hardware. Generate a
@@ -1125,8 +1121,6 @@ const ReviewStep: React.FC<{
         device_id: deviceId,
         friendly_name: trimmed || undefined,
         project_id: projectId,
-        latitude: lat,
-        longitude: lon,
       });
     },
     onSuccess: (camera) => {
@@ -1134,25 +1128,12 @@ const ReviewStep: React.FC<{
       setCameraId(String(camera.id));
       setShowAddCamera(false);
       setNewCameraName('');
-      setNewLatitude('');
-      setNewLongitude('');
       toast.success(`Camera "${camera.name}" created`);
     },
     onError: (err: any) => {
       toast.error(`Failed to create camera, ${err.response?.data?.detail || err.message}`);
     },
   });
-
-  // Accept either a single field with both numbers ("52.0237,
-  // 12.9829") or two-field entry. Splitting on paste lands the user
-  // in the same end state without an extra UI mode.
-  const acceptLatPaste = (raw: string): boolean => {
-    const match = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
-    if (!match) return false;
-    setNewLatitude(match[1]);
-    setNewLongitude(match[2]);
-    return true;
-  };
 
   const handleConfirm = () => {
     const id = Number(cameraId);
@@ -1261,8 +1242,6 @@ const ReviewStep: React.FC<{
                 onClick={() => {
                   setShowAddCamera(false);
                   setNewCameraName('');
-                  setNewLatitude('');
-                  setNewLongitude('');
                 }}
               >
                 Cancel
@@ -1278,34 +1257,6 @@ const ReviewStep: React.FC<{
                   placeholder="e.g. Duinpoort NW"
                   className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Latitude</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={newLatitude}
-                    onChange={(e) => {
-                      if (!acceptLatPaste(e.target.value)) {
-                        setNewLatitude(e.target.value);
-                      }
-                    }}
-                    placeholder="52.0237 or paste lat, lon"
-                    className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Longitude</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={newLongitude}
-                    onChange={(e) => setNewLongitude(e.target.value)}
-                    placeholder="12.9829"
-                    className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                  />
-                </div>
               </div>
             </div>
             <Button

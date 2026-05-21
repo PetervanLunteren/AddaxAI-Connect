@@ -177,11 +177,6 @@ def process_detection_complete(message: dict, classifier) -> None:
                                 gps_decimal = metadata.get('gps_decimal')
                                 if gps_decimal and len(gps_decimal) == 2:
                                     location = {"lat": gps_decimal[0], "lon": gps_decimal[1]}
-                                elif camera.location:
-                                    location = {
-                                        "lat": camera.location.coords[1],
-                                        "lon": camera.location.coords[0]
-                                    }
                                 datetime_original = metadata.get('DateTimeOriginal')
                                 timestamp = datetime_original if datetime_original else message.get("timestamp")
 
@@ -399,12 +394,6 @@ def process_detection_complete(message: dict, classifier) -> None:
                                 location = {
                                     "lat": gps_decimal[0],
                                     "lon": gps_decimal[1]
-                                }
-                            elif camera.location:
-                                # Fallback to camera location
-                                location = {
-                                    "lat": camera.location.coords[1],
-                                    "lon": camera.location.coords[0]
                                 }
 
                             # DateTimeOriginal is stored as ISO string in metadata

@@ -764,7 +764,7 @@ def _avg_camera_location(camera_configs) -> Optional[Tuple[float, float]]:
     Average lat/lon across cameras whose config has 'gps_from_report'.
     The canonical GPS source is Camera.config['gps_from_report'] (a
     {'lat': ..., 'lon': ...} dict set by the daily camera health report
-    parser); the PostGIS Camera.location column is unused. Returns None
+    parser). Returns None
     when no cameras in the project have GPS. The activity pattern
     endpoint uses this single point to ground its sun band calculation,
     which is good enough as long as the cameras are within a few hundred
@@ -1511,8 +1511,7 @@ async def _avg_camera_location_for_projects(
     project + (optional) camera-id filter. Reads
     `Camera.config['gps_from_report']` like the synchronous
     `_avg_camera_location` above so both endpoints see the same source
-    of truth. The PostGIS `Camera.location` column was previously read
-    here but is unused in practice."""
+    of truth."""
     if not project_ids:
         return None
     stmt = select(Camera.config).where(Camera.project_id.in_(project_ids))

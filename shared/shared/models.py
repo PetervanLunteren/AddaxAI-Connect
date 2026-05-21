@@ -94,7 +94,6 @@ class Camera(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    location = Column(Geography(geometry_type='POINT', srid=4326), nullable=True)
     installed_at = Column(DateTime(timezone=True), nullable=True)
     config = Column(JSON)
 
