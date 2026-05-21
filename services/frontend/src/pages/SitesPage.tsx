@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MapPin, Plus, MoreVertical, Loader2 } from 'lucide-react';
+import { MapPin, Plus, MoreVertical, Loader2, Map as MapIcon, Table as TableIcon } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -46,6 +46,7 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../components/ui/Toaster';
 import { sitesApi, type SiteListItem } from '../api/sites';
+import { SitesMapView } from '../components/sites/SitesMapView';
 
 const inputClass =
   'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring';
@@ -75,6 +76,7 @@ export const SitesPage: React.FC = () => {
   const toast = useToast();
   const queryClient = useQueryClient();
 
+  const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -186,6 +188,35 @@ export const SitesPage: React.FC = () => {
         )}
       </div>
 
+      {!isLoading && sites && sites.length > 0 && (
+        <div className="flex justify-end mb-4">
+          <div className="flex rounded-md shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`h-9 px-3 text-sm font-medium rounded-l-md border flex items-center gap-1.5 ${
+                viewMode === 'table'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <TableIcon className="h-4 w-4" /> Table
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('map')}
+              className={`h-9 px-3 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center gap-1.5 ${
+                viewMode === 'map'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <MapIcon className="h-4 w-4" /> Map
+            </button>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -199,6 +230,8 @@ export const SitesPage: React.FC = () => {
               their location, or you can add one.</p>
           </CardContent>
         </Card>
+      ) : viewMode === 'map' ? (
+        <SitesMapView sites={sites} onSiteClick={(id) => setDetailSiteId(id)} />
       ) : (
         <Card>
           <CardContent className="p-0">
