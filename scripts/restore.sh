@@ -130,11 +130,23 @@ sleep 5
 START_EPOCH="$(date +%s)"
 
 # ---- postgres ----
+# The dump uses --clean --if-exists, which is not enough on a freshly-deployed
+# box: ansible app-deploy has already run the migrations and built the schema,
+# and DROP CONSTRAINT chokes when other FKs depend on a primary key. Wipe the
+# public schema first so the dump lands on a blank slate.
+log "Wiping public schema before restore"
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
+  -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
+
 log "Restoring postgres dump $BACKUP_DATE.sql.gz"
+# ON_ERROR_STOP=1 plus --single-transaction means any real failure stops the
+# load loudly and rolls back. Without it, the first error aborts the
+# transaction and every following command is silently ignored, which makes the
+# script claim success on a totally empty DB.
 docker compose exec -T minio mc cat "$POSTGRES_PREFIX/$BACKUP_DATE.sql.gz" \
   | gunzip \
   | docker compose exec -T postgres \
-      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" --single-transaction --quiet > /dev/null
+      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" --single-transaction --quiet -v ON_ERROR_STOP=1 > /dev/null
 log "Postgres dump loaded"
 
 log "Applying any pending Alembic migrations"
