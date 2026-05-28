@@ -125,9 +125,9 @@ def load_projects(session: Session, project_id: Optional[int]) -> List[int]:
 
 
 def load_deployments(session: Session, project_id: int) -> list:
-    """Project deployments with decoded coordinates and the owning camera name."""
+    """Project deployments with decoded coordinates and the owning camera id."""
     sql = text(f"""
-        SELECT d.id, d.camera_id, d.site_id, c.name AS camera_name,
+        SELECT d.id, d.camera_id, d.site_id, c.device_id AS camera_name,
                ST_Y(d.location::geometry) AS lat,
                ST_X(d.location::geometry) AS lon
         FROM deployments d
