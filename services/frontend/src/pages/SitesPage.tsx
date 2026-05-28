@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MapPin, Plus, MoreVertical, Loader2, Map as MapIcon, Table as TableIcon } from 'lucide-react';
+import { MapPin, Plus, Loader2, Map as MapIcon, Table as TableIcon } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
   Table,
@@ -21,12 +21,6 @@ import {
 } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '../components/ui/DropdownMenu';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -35,19 +29,11 @@ import {
   DialogFooter,
 } from '../components/ui/Dialog';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetBody,
-} from '../components/ui/Sheet';
 import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../components/ui/Toaster';
-import { sitesApi, type SiteListItem, type DeploymentSummary } from '../api/sites';
+import { sitesApi, type SiteListItem } from '../api/sites';
 import { SitesMapView } from '../components/sites/SitesMapView';
-import { DeploymentEditModal } from '../components/DeploymentEditModal';
+import { SiteDetailSheet } from '../components/SiteDetailSheet';
 
 const inputClass =
   'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring';
@@ -83,24 +69,14 @@ export const SitesPage: React.FC = () => {
   const [createName, setCreateName] = useState('');
   const [createLat, setCreateLat] = useState('');
   const [createLon, setCreateLon] = useState('');
-  const [editSite, setEditSite] = useState<SiteListItem | null>(null);
-  const [editDeployment, setEditDeployment] = useState<DeploymentSummary | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editHabitat, setEditHabitat] = useState('');
-  const [mergeSite, setMergeSite] = useState<SiteListItem | null>(null);
+  const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
-  const [deleteSite, setDeleteSite] = useState<SiteListItem | null>(null);
+  const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
 
   const { data: sites, isLoading } = useQuery({
     queryKey: ['sites', pid],
     queryFn: () => sitesApi.list(pid),
     enabled: Number.isFinite(pid),
-  });
-
-  const { data: detail, isLoading: detailLoading } = useQuery({
-    queryKey: ['site', pid, detailSiteId],
-    queryFn: () => sitesApi.get(pid, detailSiteId as number),
-    enabled: detailSiteId != null,
   });
 
   const invalidate = () => {
@@ -126,37 +102,25 @@ export const SitesPage: React.FC = () => {
     onError: (err) => toast.error(`Could not create site, ${errMsg(err)}`),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      sitesApi.update(pid, (editSite as SiteListItem).id, {
-        name: editName.trim(),
-        habitat_type: editHabitat.trim() || null,
-      }),
-    onSuccess: () => {
-      invalidate();
-      setEditSite(null);
-      toast.success('Site updated');
-    },
-    onError: (err) => toast.error(`Could not update site, ${errMsg(err)}`),
-  });
-
   const mergeMutation = useMutation({
     mutationFn: () =>
-      sitesApi.merge(pid, (mergeSite as SiteListItem).id, Number(mergeTargetId)),
+      sitesApi.merge(pid, mergeSite!.id, Number(mergeTargetId)),
     onSuccess: () => {
       invalidate();
       setMergeSite(null);
       setMergeTargetId('');
+      setDetailSiteId(null);
       toast.success('Sites merged');
     },
     onError: (err) => toast.error(`Could not merge sites, ${errMsg(err)}`),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => sitesApi.remove(pid, (deleteSite as SiteListItem).id),
+    mutationFn: () => sitesApi.remove(pid, deleteSite!.id),
     onSuccess: () => {
       invalidate();
       setDeleteSite(null);
+      setDetailSiteId(null);
       toast.success('Site deleted');
     },
     onError: (err) => toast.error(`Could not delete site, ${errMsg(err)}`),
@@ -246,7 +210,6 @@ export const SitesPage: React.FC = () => {
                   <TableHead className="text-right">Images</TableHead>
                   <TableHead>Last activity</TableHead>
                   <TableHead>Coordinates</TableHead>
-                  {canEdit && <TableHead className="w-10"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -276,42 +239,6 @@ export const SitesPage: React.FC = () => {
                     >
                       {fmtCoords(site.latitude, site.longitude)}
                     </TableCell>
-                    {canEdit && (
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditSite(site);
-                                setEditName(site.name);
-                                setEditHabitat(site.habitat_type ?? '');
-                              }}
-                            >
-                              Rename / edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setMergeSite(site);
-                                setMergeTargetId('');
-                              }}
-                            >
-                              Merge into...
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => setDeleteSite(site)}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -320,71 +247,18 @@ export const SitesPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Detail sheet */}
-      <Sheet open={detailSiteId != null} onOpenChange={(o) => !o && setDetailSiteId(null)}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>{detail?.name ?? 'Site'}</SheetTitle>
-            <SheetDescription>
-              {detail
-                ? `${fmtCoords(detail.latitude, detail.longitude)} | ${detail.deployment_count} deployments | ${detail.image_count.toLocaleString()} images`
-                : ''}
-            </SheetDescription>
-          </SheetHeader>
-          <SheetBody>
-            {detailLoading || !detail ? (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                Loading
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {detail.habitat_type && (
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">Habitat </span>
-                    {detail.habitat_type}
-                  </p>
-                )}
-                <div>
-                  <h3 className="text-sm font-semibold mb-2">Deployments</h3>
-                  {detail.deployments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No deployments at this site.</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Camera</TableHead>
-                          <TableHead>Label</TableHead>
-                          <TableHead>Period</TableHead>
-                          <TableHead className="text-right">Images</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {detail.deployments.map((d) => (
-                          <TableRow
-                            key={d.id}
-                            onClick={() => setEditDeployment(d)}
-                            className="cursor-pointer hover:bg-muted/50"
-                          >
-                            <TableCell className="font-medium">{d.camera_name}</TableCell>
-                            <TableCell>{d.label ?? '-'}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {fmtDate(d.start_date)} to {d.end_date ? fmtDate(d.end_date) : 'now'}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {d.image_count.toLocaleString()}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-              </div>
-            )}
-          </SheetBody>
-        </SheetContent>
-      </Sheet>
+      <SiteDetailSheet
+        open={detailSiteId != null}
+        onClose={() => setDetailSiteId(null)}
+        projectId={pid}
+        siteId={detailSiteId}
+        canEdit={canEdit}
+        onMergeRequested={(s) => {
+          setMergeSite(s);
+          setMergeTargetId('');
+        }}
+        onDeleteRequested={setDeleteSite}
+      />
 
       {/* Create dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -452,48 +326,6 @@ export const SitesPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit dialog */}
-      <Dialog open={editSite != null} onOpenChange={(o) => !o && setEditSite(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit site</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Name</label>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Habitat type</label>
-              <input
-                type="text"
-                value={editHabitat}
-                onChange={(e) => setEditHabitat(e.target.value)}
-                className={inputClass}
-                placeholder="optional, e.g. forest"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditSite(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending || !editName.trim()}
-            >
-              {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Merge dialog */}
       <Dialog open={mergeSite != null} onOpenChange={(o) => !o && setMergeSite(null)}>
         <DialogContent>
@@ -549,22 +381,6 @@ export const SitesPage: React.FC = () => {
         confirmLabel="Delete"
         variant="destructive"
         isPending={deleteMutation.isPending}
-      />
-
-      <DeploymentEditModal
-        open={editDeployment != null}
-        onClose={() => setEditDeployment(null)}
-        projectId={pid}
-        deploymentId={editDeployment?.id ?? 0}
-        cameraName={editDeployment?.camera_name ?? ''}
-        siteName={detail?.name ?? null}
-        initialName={editDeployment?.label ?? null}
-        initialNotes={editDeployment?.notes ?? null}
-        editable={canEdit}
-        invalidateKeys={[
-          ['site', pid, detailSiteId],
-          ['sites', pid],
-        ]}
       />
     </div>
   );
