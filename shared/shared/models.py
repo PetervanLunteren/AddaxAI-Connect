@@ -210,6 +210,7 @@ class Deployment(Base):
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(String(100), nullable=True)  # optional free-text orientation label, e.g. "NW"
+    notes = Column(Text, nullable=True)  # free-text per-deployment notes
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)

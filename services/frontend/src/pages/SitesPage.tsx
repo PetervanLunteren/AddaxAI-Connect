@@ -45,8 +45,9 @@ import {
 } from '../components/ui/Sheet';
 import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../components/ui/Toaster';
-import { sitesApi, type SiteListItem } from '../api/sites';
+import { sitesApi, type SiteListItem, type DeploymentSummary } from '../api/sites';
 import { SitesMapView } from '../components/sites/SitesMapView';
+import { DeploymentEditModal } from '../components/DeploymentEditModal';
 
 const inputClass =
   'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring';
@@ -83,6 +84,7 @@ export const SitesPage: React.FC = () => {
   const [createLat, setCreateLat] = useState('');
   const [createLon, setCreateLon] = useState('');
   const [editSite, setEditSite] = useState<SiteListItem | null>(null);
+  const [editDeployment, setEditDeployment] = useState<DeploymentSummary | null>(null);
   const [editName, setEditName] = useState('');
   const [editHabitat, setEditHabitat] = useState('');
   const [mergeSite, setMergeSite] = useState<SiteListItem | null>(null);
@@ -359,7 +361,11 @@ export const SitesPage: React.FC = () => {
                       </TableHeader>
                       <TableBody>
                         {detail.deployments.map((d) => (
-                          <TableRow key={d.id}>
+                          <TableRow
+                            key={d.id}
+                            onClick={() => setEditDeployment(d)}
+                            className="cursor-pointer hover:bg-muted/50"
+                          >
                             <TableCell className="font-medium">{d.camera_name}</TableCell>
                             <TableCell>{d.label ?? '-'}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
@@ -543,6 +549,22 @@ export const SitesPage: React.FC = () => {
         confirmLabel="Delete"
         variant="destructive"
         isPending={deleteMutation.isPending}
+      />
+
+      <DeploymentEditModal
+        open={editDeployment != null}
+        onClose={() => setEditDeployment(null)}
+        projectId={pid}
+        deploymentId={editDeployment?.id ?? 0}
+        cameraName={editDeployment?.camera_name ?? ''}
+        siteName={detail?.name ?? null}
+        initialName={editDeployment?.label ?? null}
+        initialNotes={editDeployment?.notes ?? null}
+        editable={canEdit}
+        invalidateKeys={[
+          ['site', pid, detailSiteId],
+          ['sites', pid],
+        ]}
       />
     </div>
   );

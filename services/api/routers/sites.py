@@ -48,6 +48,7 @@ class DeploymentSummary(BaseModel):
     camera_id: int
     camera_name: str
     label: Optional[str] = None
+    notes: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     image_count: int
@@ -120,7 +121,7 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
         await db.execute(
             text("""
                 SELECT d.id, d.deployment_number, d.camera_id, c.device_id AS camera_name,
-                       d.name AS label, d.start_date, d.end_date,
+                       d.name AS label, d.notes, d.start_date, d.end_date,
                        count(i.id) AS image_count
                 FROM deployments d
                 JOIN cameras c ON c.id = d.camera_id
@@ -140,6 +141,7 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
             camera_id=r["camera_id"],
             camera_name=r["camera_name"],
             label=r["label"],
+            notes=r["notes"],
             start_date=r["start_date"].isoformat() if r["start_date"] else None,
             end_date=r["end_date"].isoformat() if r["end_date"] else None,
             image_count=r["image_count"],

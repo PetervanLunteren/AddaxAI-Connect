@@ -25,6 +25,7 @@ export interface DeploymentSummary {
   camera_id: number;
   camera_name: string;
   label: string | null;
+  notes: string | null;
   start_date: string | null;
   end_date: string | null;
   image_count: number;
@@ -57,6 +58,20 @@ export interface UpdateSiteRequest {
   name?: string;
   habitat_type?: string | null;
   notes?: string | null;
+}
+
+export interface UpdateDeploymentRequest {
+  name?: string | null;
+  notes?: string | null;
+}
+
+export interface DeploymentDetail {
+  id: number;
+  deployment_number: number;
+  camera_id: number;
+  site_id: number | null;
+  name: string | null;
+  notes: string | null;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/sites`;
@@ -94,5 +109,16 @@ export const sitesApi = {
   },
   remove: async (projectId: number, siteId: number): Promise<void> => {
     await apiClient.delete(`${base(projectId)}/${siteId}`);
+  },
+  updateDeployment: async (
+    projectId: number,
+    deploymentId: number,
+    body: UpdateDeploymentRequest,
+  ): Promise<DeploymentDetail> => {
+    const { data } = await apiClient.patch(
+      `/api/projects/${projectId}/deployments/${deploymentId}`,
+      body,
+    );
+    return data;
   },
 };

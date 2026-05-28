@@ -55,6 +55,7 @@ export interface CameraDeployment {
   site_id: number | null;
   site_name: string | null;
   label: string | null;
+  notes: string | null;
   latitude: number | null;
   longitude: number | null;
   start_date: string | null;
