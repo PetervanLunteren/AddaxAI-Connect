@@ -125,9 +125,20 @@ def load_projects(session: Session, project_id: Optional[int]) -> List[int]:
 
 
 def load_deployments(session: Session, project_id: int) -> list:
-    """Project deployments with decoded coordinates and the owning camera id."""
+    """Project deployments with decoded coordinates and the camera's label.
+
+    The label is the camera's old friendly name when the drop-Camera.name
+    migration preserved one in `cameras.notes` (line "Previous friendly name:
+    <X>"), otherwise the device_id. Reusing the preserved name lets the site
+    naming heuristic still produce human-readable sites ("Duinpoort" out of
+    "Duinpoort NW" + "Duinpoort NO") on data that predates the column drop.
+    """
     sql = text(f"""
-        SELECT d.id, d.camera_id, d.site_id, c.device_id AS camera_name,
+        SELECT d.id, d.camera_id, d.site_id,
+               COALESCE(
+                   trim((regexp_match(c.notes, 'Previous friendly name:\\s*([^\\n]+)'))[1]),
+                   c.device_id
+               ) AS camera_name,
                ST_Y(d.location::geometry) AS lat,
                ST_X(d.location::geometry) AS lon
         FROM deployments d
