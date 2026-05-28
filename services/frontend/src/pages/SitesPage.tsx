@@ -31,6 +31,7 @@ import {
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../components/ui/Toaster';
+import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
@@ -155,31 +156,31 @@ export const SitesPage: React.FC = () => {
       </div>
 
       {!isLoading && sites && sites.length > 0 && (
-        <div className="flex justify-end mb-4">
-          <div className="flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`h-9 px-3 text-sm font-medium rounded-l-md border flex items-center gap-1.5 ${
-                viewMode === 'table'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <TableIcon className="h-4 w-4" /> Table
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('map')}
-              className={`h-9 px-3 text-sm font-medium rounded-r-md border-t border-r border-b flex items-center gap-1.5 ${
-                viewMode === 'map'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <MapIcon className="h-4 w-4" /> Map
-            </button>
-          </div>
+        <div className="flex border-b mb-4">
+          <button
+            onClick={() => setViewMode('table')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+              viewMode === 'table'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <TableIcon className="h-4 w-4" />
+            Table
+          </button>
+          <button
+            onClick={() => setViewMode('map')}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+              viewMode === 'map'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <MapIcon className="h-4 w-4" />
+            Map
+          </button>
         </div>
       )}
 

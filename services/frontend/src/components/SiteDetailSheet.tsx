@@ -19,6 +19,7 @@ import {
   Trash2,
   ExternalLink,
   MapPin,
+  Camera,
 } from 'lucide-react';
 import {
   Sheet,
@@ -34,14 +35,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from './ui/DropdownMenu';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from './ui/Table';
 import { sitesApi, type DeploymentSummary } from '../api/sites';
 import { DeploymentEditModal } from './DeploymentEditModal';
 import { cn } from '../lib/utils';
@@ -308,41 +301,39 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </div>
               </div>
             ) : (
-              // Deployments tab
+              // Deployments tab: same card shape as CameraDeploymentHistory.
               detail.deployments.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
                   No deployments at this site.
                 </p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Camera</TableHead>
-                      <TableHead>Label</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead className="text-right">Images</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detail.deployments.map((d) => (
-                      <TableRow
-                        key={d.id}
-                        onClick={() => setOpenDep(d)}
-                        className="cursor-pointer hover:bg-muted/50"
-                      >
-                        <TableCell className="font-medium">{d.camera_name}</TableCell>
-                        <TableCell>{d.label ?? '-'}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {fmtDate(d.start_date)} to{' '}
-                          {d.end_date ? fmtDate(d.end_date) : 'now'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {d.image_count.toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-3">
+                  {detail.deployments.map((d) => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setOpenDep(d)}
+                      className="w-full text-left rounded-md border p-3 cursor-pointer hover:bg-muted/50"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Camera className="h-4 w-4 shrink-0 text-primary" />
+                          <span className="font-medium truncate">
+                            {d.camera_name}
+                            {d.label ? ` / ${d.label}` : ''}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {d.image_count.toLocaleString()} images
+                        </span>
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {fmtDate(d.start_date)} to{' '}
+                        {d.end_date ? fmtDate(d.end_date) : 'now'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               )
             )}
           </SheetBody>
