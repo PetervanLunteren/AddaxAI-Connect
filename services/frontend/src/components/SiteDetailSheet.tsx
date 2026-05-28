@@ -37,6 +37,7 @@ import {
 } from './ui/DropdownMenu';
 import { sitesApi, type DeploymentSummary } from '../api/sites';
 import { DeploymentEditModal } from './DeploymentEditModal';
+import { TagInput } from './TagInput';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
@@ -90,12 +91,20 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editName, setEditName] = useState('');
   const [editHabitat, setEditHabitat] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editTags, setEditTags] = useState<string[]>([]);
   const [openDep, setOpenDep] = useState<DeploymentSummary | null>(null);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
     queryFn: () => sitesApi.get(projectId, siteId as number),
     enabled: siteId != null,
+  });
+
+  // Tag autocomplete suggestions, project-wide.
+  const { data: tagSuggestions } = useQuery({
+    queryKey: ['site-tags', projectId],
+    queryFn: () => sitesApi.getTags(projectId),
+    enabled: open,
   });
 
   // Reseed the form when the loaded detail changes (open a different site, or
@@ -106,6 +115,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
       setEditName(detail.name);
       setEditHabitat(detail.habitat_type ?? '');
       setEditNotes(detail.notes ?? '');
+      setEditTags(detail.tags ?? []);
     }
   }, [detail]);
 
@@ -117,7 +127,8 @@ export const SiteDetailSheet: React.FC<Props> = ({
     !!detail &&
     (editName.trim() !== detail.name ||
       (editHabitat.trim() || null) !== (detail.habitat_type ?? null) ||
-      (editNotes.trim() || null) !== (detail.notes ?? null));
+      (editNotes.trim() || null) !== (detail.notes ?? null) ||
+      JSON.stringify(editTags) !== JSON.stringify(detail.tags ?? []));
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -125,10 +136,12 @@ export const SiteDetailSheet: React.FC<Props> = ({
         name: editName.trim(),
         habitat_type: editHabitat.trim() || null,
         notes: editNotes.trim() || null,
+        tags: editTags,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['site', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['site-tags', projectId] });
       toast.success('Site updated');
     },
     onError: (err) => toast.error(`Could not update site, ${errMsg(err)}`),
@@ -244,6 +257,31 @@ export const SiteDetailSheet: React.FC<Props> = ({
                       <p className="text-sm mt-1 whitespace-pre-wrap">
                         {detail.notes ?? '-'}
                       </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Tags</label>
+                    {canEdit ? (
+                      <TagInput
+                        value={editTags}
+                        onChange={setEditTags}
+                        suggestions={tagSuggestions ?? []}
+                      />
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
+                        {editTags.length > 0 ? (
+                          editTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
+                            >
+                              {tag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No tags</span>
+                        )}
+                      </div>
                     )}
                   </div>
                   {coreChanged && canEdit && (

@@ -17,6 +17,7 @@ export interface SiteListItem {
   deployment_count: number;
   image_count: number;
   last_activity: string | null;
+  tags: string[] | null;
 }
 
 export interface DeploymentSummary {
@@ -39,7 +40,7 @@ export interface SiteDetail {
   longitude: number | null;
   habitat_type: string | null;
   notes: string | null;
-  tags: unknown;
+  tags: string[] | null;
   camera_count: number;
   deployment_count: number;
   image_count: number;
@@ -58,6 +59,7 @@ export interface UpdateSiteRequest {
   name?: string;
   habitat_type?: string | null;
   notes?: string | null;
+  tags?: string[] | null;
 }
 
 export interface UpdateDeploymentRequest {
@@ -109,6 +111,10 @@ export const sitesApi = {
   },
   remove: async (projectId: number, siteId: number): Promise<void> => {
     await apiClient.delete(`${base(projectId)}/${siteId}`);
+  },
+  getTags: async (projectId: number): Promise<string[]> => {
+    const { data } = await apiClient.get(`${base(projectId)}/tags`);
+    return data;
   },
   updateDeployment: async (
     projectId: number,

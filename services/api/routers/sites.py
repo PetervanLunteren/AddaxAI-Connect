@@ -40,6 +40,7 @@ class SiteListItem(BaseModel):
     image_count: int
     # Naive camera-clock timestamp of the most recent image at this site.
     last_activity: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class DeploymentSummary(BaseModel):
@@ -62,7 +63,7 @@ class SiteDetail(BaseModel):
     longitude: Optional[float] = None
     habitat_type: Optional[str] = None
     notes: Optional[str] = None
-    tags: Optional[Any] = None
+    tags: Optional[List[str]] = None
     camera_count: int
     deployment_count: int
     image_count: int
@@ -81,6 +82,22 @@ class UpdateSiteRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     habitat_type: Optional[str] = Field(default=None, max_length=100)
     notes: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
+    """Normalize tags: lowercase, strip, deduplicate, remove empties and commas.
+    Same shape used for camera tags."""
+    if not tags:
+        return []
+    seen: set = set()
+    result: List[str] = []
+    for raw in tags:
+        tag = raw.strip().lower().replace(',', '')
+        if tag and tag not in seen:
+            seen.add(tag)
+            result.append(tag)
+    return result
 
 
 class MergeSiteRequest(BaseModel):
@@ -175,7 +192,7 @@ async def list_sites(
     rows = (
         await db.execute(
             text("""
-                SELECT s.id, s.uuid, s.name, s.habitat_type,
+                SELECT s.id, s.uuid, s.name, s.habitat_type, s.tags,
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon,
                        count(DISTINCT d.id) AS deployment_count,
@@ -205,9 +222,32 @@ async def list_sites(
             deployment_count=r["deployment_count"],
             image_count=r["image_count"],
             last_activity=r["last_activity"].isoformat() if r["last_activity"] else None,
+            tags=r["tags"],
         )
         for r in rows
     ]
+
+
+@router.get("/tags", response_model=List[str])
+async def get_site_tags(
+    project_id: int,
+    user: User = Depends(require_project_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """All unique tags across sites in this project, sorted, used for TagInput autocomplete."""
+    result = await db.execute(
+        select(Site.tags).where(
+            Site.project_id == project_id,
+            Site.tags.isnot(None),
+        )
+    )
+    all_tags: set = set()
+    for (tags,) in result.all():
+        if tags:
+            for tag in tags:
+                if tag and isinstance(tag, str):
+                    all_tags.add(tag.strip().lower())
+    return sorted(all_tags)
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=SiteDetail)
@@ -259,7 +299,7 @@ async def update_site(
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
-    """Rename a site or edit its habitat type / notes."""
+    """Rename a site or edit its habitat type / notes / tags."""
     site = await _site_in_project(db, project_id, site_id)
     if body.name is not None:
         site.name = body.name.strip()
@@ -267,6 +307,8 @@ async def update_site(
         site.habitat_type = body.habitat_type or None
     if body.notes is not None:
         site.notes = body.notes or None
+    if body.tags is not None:
+        site.tags = _normalize_tags(body.tags)
     try:
         await db.commit()
     except IntegrityError:
