@@ -7,15 +7,41 @@
  * lat/lon value and keeps manual number inputs in sync, so typing and clicking
  * both drive the same marker.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import L from 'leaflet';
+import { Map as MapIcon, Satellite, Navigation } from 'lucide-react';
 import type { SiteListItem } from '../../api/sites';
 import 'leaflet/dist/leaflet.css';
 
 const SELECTED_COLOR = '#882000'; // destructive-ish, stands out from existing sites
 const SITE_COLOR = '#0f6064'; // primary teal, matches SitesMapView
+
+// Same three base layers as SitesMapView, so the picker and the sites map feel
+// the same.
+function getTileLayerConfig(baseLayer: string) {
+  switch (baseLayer) {
+    case 'satellite':
+      return {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attribution:
+          'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      };
+    case 'osm':
+      return {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      };
+    default:
+      return {
+        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      };
+  }
+}
 
 interface Props {
   value: { lat: number; lon: number } | null;
@@ -86,16 +112,49 @@ export function SiteLocationPicker({ value, onChange, sites, excludeSiteId, heig
   const selectedIcon = useMemo(() => markerIcon(SELECTED_COLOR, 18), []);
   const siteIcon = useMemo(() => markerIcon(SITE_COLOR, 14), []);
 
+  const [baseLayer, setBaseLayer] = useState(
+    () => localStorage.getItem('sites-map-baselayer') || 'positron',
+  );
+  const tileLayerConfig = getTileLayerConfig(baseLayer);
+
+  const selectLayer = (value: string) => {
+    setBaseLayer(value);
+    localStorage.setItem('sites-map-baselayer', value);
+  };
+
+  const layerButton = (value: string, title: string, Icon: typeof MapIcon, rounded: string) => (
+    <button
+      type="button"
+      onClick={() => selectLayer(value)}
+      title={title}
+      aria-label={title}
+      className={`h-8 px-3 text-sm font-medium border flex items-center justify-center ${rounded} ${
+        baseLayer === value
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+      }`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+
   return (
-    <div className="rounded-md border overflow-hidden" style={{ height }}>
+    <div className="space-y-2">
+      <div className="flex rounded-md shadow-sm w-min" role="group">
+        {layerButton('positron', 'Light', MapIcon, 'rounded-l-md')}
+        {layerButton('satellite', 'Satellite', Satellite, 'border-l-0')}
+        {layerButton('osm', 'Street map', Navigation, 'rounded-r-md border-l-0')}
+      </div>
+      <div className="rounded-md border overflow-hidden" style={{ height }}>
       <MapContainer
         center={center}
         zoom={13}
         style={{ height: '100%', width: '100%', zIndex: 0 }}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          key={baseLayer}
+          url={tileLayerConfig.url}
+          attribution={tileLayerConfig.attribution}
         />
         <ClickToSet onChange={onChange} />
         <FitOnce points={points} />
@@ -122,6 +181,7 @@ export function SiteLocationPicker({ value, onChange, sites, excludeSiteId, heig
           />
         )}
       </MapContainer>
+      </div>
     </div>
   );
 }
