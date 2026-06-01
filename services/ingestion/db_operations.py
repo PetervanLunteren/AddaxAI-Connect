@@ -13,7 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
 from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, ServerSettings
 from shared.logger import get_logger
-from shared.geo import SITE_THRESHOLD_METERS
+from shared.geo import SITE_THRESHOLD_METERS, RELOCATION_CONFIRMATIONS
 from camera_profiles import CameraProfile
 from utils import is_valid_gps
 
@@ -212,10 +212,17 @@ def update_or_create_site_and_deployment(
             raise ValueError(f"Unknown camera {camera_id}")
         project_id = camera.project_id
 
+        config = camera.config or {}
+
         # Current active deployment (end_date IS NULL), if any.
         active = session.query(Deployment).filter(
             and_(Deployment.camera_id == camera_id, Deployment.end_date.is_(None))
         ).first()
+
+        # By default the new deployment (if one is created below) starts on this
+        # event's date. A debounced relocation overrides this with the first
+        # out-of-range date so the new deployment covers the held reading.
+        new_start_date = event_date
 
         if active is not None:
             loc = session.execute(
@@ -228,10 +235,16 @@ def update_or_create_site_and_deployment(
             distance = calculate_gps_distance(loc.lat, loc.lon, new_lat, new_lon)
 
             if distance <= SITE_THRESHOLD_METERS:
-                # Same place, same deployment. Heal a missing site (for legacy
-                # deployments that predate the site work), and backdate the start
-                # if an out-of-order earlier image arrived.
-                if active.site_id is None:
+                # Same place, same deployment. The camera is back within range,
+                # so any pending relocation candidate was a transient outlier:
+                # clear it.
+                if config.pop('gps_relocation_candidate', None) is not None:
+                    camera.config = config
+                    flag_modified(camera, 'config')
+                # Heal a missing site (legacy deployments that predate the site
+                # work), unless a human set the site (site_source='manual'), in
+                # which case their choice (including a deliberate NULL) stands.
+                if active.site_id is None and active.site_source != 'manual':
                     active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
                 if event_date < active.start_date:
                     logger.info(
@@ -252,12 +265,54 @@ def update_or_create_site_and_deployment(
                 )
                 return (active.site_id, active.id)
 
-            # Moved beyond the site: close the active deployment, open a new one.
-            # Clamp the closing date so it never predates the deployment's own
-            # start_date (a same-day relocation would otherwise leave an
-            # inverted, impossible range that no image can match).
-            active.end_date = max(event_date - timedelta(days=1), active.start_date)
+            # Beyond the site: a single bad GPS fix should not split the
+            # deployment and spawn a phantom site. Debounce: require
+            # RELOCATION_CONFIRMATIONS consecutive out-of-range readings near the
+            # same new spot before believing the camera moved.
+            candidate = config.get('gps_relocation_candidate')
+            near_candidate = (
+                candidate is not None
+                and calculate_gps_distance(
+                    candidate['lat'], candidate['lon'], new_lat, new_lon
+                ) <= SITE_THRESHOLD_METERS
+            )
+            if near_candidate:
+                count = candidate['count'] + 1
+                first_date = date.fromisoformat(candidate['date'])
+            else:
+                count = 1
+                first_date = event_date
+
+            if count < RELOCATION_CONFIRMATIONS:
+                # Not confirmed yet: hold this reading on the current deployment
+                # (do not move its point) and remember the candidate.
+                config['gps_relocation_candidate'] = {
+                    'lat': new_lat,
+                    'lon': new_lon,
+                    'date': first_date.isoformat(),
+                    'count': count,
+                }
+                camera.config = config
+                flag_modified(camera, 'config')
+                session.flush()
+                logger.info(
+                    "Out-of-range GPS held pending relocation confirmation",
+                    camera_id=camera_id,
+                    deployment_number=active.deployment_number,
+                    distance_meters=round(distance, 1),
+                    count=count,
+                )
+                return (active.site_id, active.id)
+
+            # Confirmed relocation: clear the candidate and split, backdating the
+            # new deployment to the first out-of-range reading so it covers the
+            # held image. Clamp the close so it never predates the old start.
+            config.pop('gps_relocation_candidate', None)
+            camera.config = config
+            flag_modified(camera, 'config')
+            active.end_date = max(first_date - timedelta(days=1), active.start_date)
             next_number = active.deployment_number + 1
+            new_start_date = first_date
             log_msg = "Camera relocated - creating new deployment"
         else:
             max_number = session.query(
@@ -268,7 +323,7 @@ def update_or_create_site_and_deployment(
 
         site_id = _resolve_site(session, project_id, new_lat, new_lon)
         deployment_id = _insert_deployment(
-            session, camera_id, next_number, site_id, event_date, new_lat, new_lon
+            session, camera_id, next_number, site_id, new_start_date, new_lat, new_lon
         )
         session.flush()
         logger.info(
