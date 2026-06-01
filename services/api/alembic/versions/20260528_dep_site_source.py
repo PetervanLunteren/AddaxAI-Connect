@@ -5,7 +5,7 @@ Marks whether a deployment's site was assigned automatically by GPS clustering
 not re-resolve or heal the site for it. Existing rows backfill to 'auto'. See
 future-plans/site-addition.md.
 
-Revision ID: 20260528_add_deployment_site_source
+Revision ID: 20260528_dep_site_source
 Revises: 20260521_add_deployment_notes
 Create Date: 2026-05-28
 
@@ -14,7 +14,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = '20260528_add_deployment_site_source'
+revision = '20260528_dep_site_source'
 down_revision = '20260521_add_deployment_notes'
 branch_labels = None
 depends_on = None
