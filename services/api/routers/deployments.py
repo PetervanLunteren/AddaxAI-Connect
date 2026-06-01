@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import Camera, Deployment, User
+from shared.models import Camera, Deployment, Site, User
 from auth.permissions import require_project_admin_access
 
 logger = get_logger("api.deployments")
@@ -31,6 +31,10 @@ class UpdateDeploymentRequest(BaseModel):
     # Empty after strip becomes NULL on the column, matching the site PATCH.
     name: Optional[str] = Field(default=None, max_length=100)
     notes: Optional[str] = Field(default=None, max_length=10000)
+    # Reassign the deployment to a site. Send null to unassign. Omit to leave
+    # unchanged. Setting it (incl. null) marks the deployment site_source manual
+    # so ingestion stops re-resolving it. Presence is read via model_fields_set.
+    site_id: Optional[int] = None
 
 
 class DeploymentDetail(BaseModel):
@@ -38,6 +42,7 @@ class DeploymentDetail(BaseModel):
     deployment_number: int
     camera_id: int
     site_id: Optional[int] = None
+    site_source: str = 'auto'
     name: Optional[str] = None
     notes: Optional[str] = None
 
@@ -73,6 +78,25 @@ async def update_deployment(
     if request.notes is not None:
         deployment.notes = request.notes.strip() or None
 
+    # site_id is meaningful even when null (unassign), so act on its presence in
+    # the request, not on its value. Any human assignment makes the deployment
+    # manual so ingestion stops re-resolving its site.
+    if 'site_id' in request.model_fields_set:
+        if request.site_id is not None:
+            site = (
+                await db.execute(
+                    select(Site).where(
+                        Site.id == request.site_id, Site.project_id == project_id
+                    )
+                )
+            ).scalar_one_or_none()
+            if site is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
+                )
+        deployment.site_id = request.site_id
+        deployment.site_source = 'manual'
+
     await db.commit()
     await db.refresh(deployment)
 
@@ -81,6 +105,7 @@ async def update_deployment(
         deployment_number=deployment.deployment_number,
         camera_id=deployment.camera_id,
         site_id=deployment.site_id,
+        site_source=deployment.site_source,
         name=deployment.name,
         notes=deployment.notes,
     )

@@ -14,3 +14,11 @@ Shared geographic constants for the spatial model.
 # the historical relocation distance, so existing deployments stay consistent.
 # Not per-project configurable in v1; can become a Project field later.
 SITE_THRESHOLD_METERS = 100.0
+
+# How many consecutive out-of-range GPS readings near the same new spot are
+# required before ingestion believes a camera relocated and opens a new
+# deployment. A lone outlier (a single bad GPS fix) is attached to the current
+# deployment instead of spawning a phantom site. 2 kills the single-outlier
+# case; the cost is that a real move sending only one reading before the camera
+# dies attaches to the old deployment. See update_or_create_site_and_deployment.
+RELOCATION_CONFIRMATIONS = 2
