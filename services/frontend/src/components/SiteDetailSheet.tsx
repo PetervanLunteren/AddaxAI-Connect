@@ -387,6 +387,9 @@ export const SiteDetailSheet: React.FC<Props> = ({
         siteName={detail?.name ?? null}
         initialName={openDep?.label ?? null}
         initialNotes={openDep?.notes ?? null}
+        initialSiteId={siteId}
+        deploymentLat={openDep?.latitude ?? null}
+        deploymentLon={openDep?.longitude ?? null}
         editable={canEdit}
         invalidateKeys={[
           ['site', projectId, siteId],

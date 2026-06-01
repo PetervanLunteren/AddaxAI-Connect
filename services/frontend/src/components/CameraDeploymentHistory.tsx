@@ -101,6 +101,9 @@ export const CameraDeploymentHistory: React.FC<Props> = ({
           siteName={openDep?.site_name ?? null}
           initialName={openDep?.label ?? null}
           initialNotes={openDep?.notes ?? null}
+          initialSiteId={openDep?.site_id ?? null}
+          deploymentLat={openDep?.latitude ?? null}
+          deploymentLon={openDep?.longitude ?? null}
           editable={false}
           invalidateKeys={[['camera-deployments', cameraId]]}
         />

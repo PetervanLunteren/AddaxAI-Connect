@@ -50,6 +50,10 @@ class DeploymentSummary(BaseModel):
     camera_name: str
     label: Optional[str] = None
     notes: Optional[str] = None
+    # The deployment's own GPS point, used as the default when creating a new
+    # site from this deployment.
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     image_count: int
@@ -139,6 +143,8 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
             text("""
                 SELECT d.id, d.deployment_number, d.camera_id, c.device_id AS camera_name,
                        d.name AS label, d.notes, d.start_date, d.end_date,
+                       ST_Y(d.location::geometry) AS lat,
+                       ST_X(d.location::geometry) AS lon,
                        count(i.id) AS image_count
                 FROM deployments d
                 JOIN cameras c ON c.id = d.camera_id
@@ -159,6 +165,8 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
             camera_name=r["camera_name"],
             label=r["label"],
             notes=r["notes"],
+            latitude=float(r["lat"]) if r["lat"] is not None else None,
+            longitude=float(r["lon"]) if r["lon"] is not None else None,
             start_date=r["start_date"].isoformat() if r["start_date"] else None,
             end_date=r["end_date"].isoformat() if r["end_date"] else None,
             image_count=r["image_count"],

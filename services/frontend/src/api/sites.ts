@@ -27,6 +27,8 @@ export interface DeploymentSummary {
   camera_name: string;
   label: string | null;
   notes: string | null;
+  latitude: number | null;
+  longitude: number | null;
   start_date: string | null;
   end_date: string | null;
   image_count: number;
@@ -65,6 +67,7 @@ export interface UpdateSiteRequest {
 export interface UpdateDeploymentRequest {
   name?: string | null;
   notes?: string | null;
+  site_id?: number | null;
 }
 
 export interface DeploymentDetail {
@@ -72,6 +75,7 @@ export interface DeploymentDetail {
   deployment_number: number;
   camera_id: number;
   site_id: number | null;
+  site_source: string;
   name: string | null;
   notes: string | null;
 }

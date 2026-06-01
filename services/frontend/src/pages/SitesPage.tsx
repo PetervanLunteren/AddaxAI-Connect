@@ -54,6 +54,7 @@ import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
 import { SitesMapView } from '../components/sites/SitesMapView';
+import { SiteFormModal } from '../components/sites/SiteFormModal';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
 
 type SortColumn = 'name' | 'cameras' | 'deployments' | 'images' | 'last_activity';
@@ -156,9 +157,6 @@ export const SitesPage: React.FC = () => {
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createName, setCreateName] = useState('');
-  const [createLat, setCreateLat] = useState('');
-  const [createLon, setCreateLon] = useState('');
   const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
@@ -287,24 +285,6 @@ export const SitesPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['site', pid] });
     queryClient.invalidateQueries({ queryKey: ['site-tags', pid] });
   };
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      sitesApi.create(pid, {
-        name: createName.trim(),
-        latitude: Number(createLat),
-        longitude: Number(createLon),
-      }),
-    onSuccess: () => {
-      invalidate();
-      setShowCreate(false);
-      setCreateName('');
-      setCreateLat('');
-      setCreateLon('');
-      toast.success('Site created');
-    },
-    onError: (err) => toast.error(`Could not create site, ${errMsg(err)}`),
-  });
 
   const mergeMutation = useMutation({
     mutationFn: () => sitesApi.merge(pid, mergeSite!.id, Number(mergeTargetId)),
@@ -518,71 +498,12 @@ export const SitesPage: React.FC = () => {
         onDeleteRequested={setDeleteSite}
       />
 
-      {/* Create dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add site</DialogTitle>
-            <DialogDescription>
-              Create a site at a fixed location. Cameras reporting GPS near this
-              point will be grouped here.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Name</label>
-              <input
-                type="text"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                className={inputClass}
-                placeholder="e.g. North ridge"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-2">Latitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={createLat}
-                  onChange={(e) => setCreateLat(e.target.value)}
-                  className={inputClass}
-                  placeholder="49.8225"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Longitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={createLon}
-                  onChange={(e) => setCreateLon(e.target.value)}
-                  className={inputClass}
-                  placeholder="5.7276"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => createMutation.mutate()}
-              disabled={
-                createMutation.isPending ||
-                !createName.trim() ||
-                createLat === '' ||
-                createLon === ''
-              }
-            >
-              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SiteFormModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        projectId={pid}
+        sites={sites ?? []}
+      />
 
       {/* Merge dialog */}
       <Dialog open={mergeSite != null} onOpenChange={(o) => !o && setMergeSite(null)}>
