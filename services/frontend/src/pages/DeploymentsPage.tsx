@@ -18,6 +18,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  MapPin,
   X,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
@@ -426,17 +427,14 @@ export const DeploymentsPage: React.FC = () => {
                     <SortableHeader label="Images" column="images" align="right" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>Site source</TableHead>
+                  {canEdit && <TableHead className="w-px" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sorted.map((d) => (
-                  <TableRow
-                    key={d.id}
-                    className="cursor-pointer"
-                    onClick={() => canEdit && setEditDep(d)}
-                  >
+                  <TableRow key={d.id}>
                     {canEdit && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell>
                         <input
                           type="checkbox"
                           aria-label={`Select deployment ${d.deployment_number}`}
@@ -458,6 +456,18 @@ export const DeploymentsPage: React.FC = () => {
                     <TableCell>
                       <SourceBadge source={d.site_source} />
                     </TableCell>
+                    {canEdit && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditDep(d)}
+                        >
+                          <MapPin className="h-4 w-4 mr-1.5" />
+                          Assign site
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
