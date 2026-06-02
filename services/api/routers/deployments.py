@@ -11,7 +11,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
@@ -25,6 +25,141 @@ router = APIRouter(
     prefix="/api/projects/{project_id}/deployments",
     tags=["deployments"],
 )
+
+
+class DeploymentListItem(BaseModel):
+    """One deployment in the project-wide list: which camera stood at which site,
+    for how long, with how many photos, and whether the site is auto or manual."""
+    id: int
+    deployment_number: int
+    camera_id: int
+    camera_label: Optional[str] = None
+    site_id: Optional[int] = None
+    site_name: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    image_count: int
+    site_source: str = 'auto'
+
+
+@router.get("", response_model=List[DeploymentListItem])
+async def list_deployments(
+    project_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_access),
+):
+    """
+    Every deployment in the project, newest first. One row is one camera at one
+    site for a time range. The frontend filters and sorts this list client-side.
+    """
+    rows = (
+        await db.execute(
+            text("""
+                SELECT d.id, d.deployment_number, d.camera_id,
+                       c.device_id AS camera_label,
+                       d.site_id, s.name AS site_name,
+                       ST_Y(d.location::geometry) AS lat,
+                       ST_X(d.location::geometry) AS lon,
+                       d.start_date, d.end_date, d.site_source,
+                       count(i.id) AS image_count
+                FROM deployments d
+                JOIN cameras c ON c.id = d.camera_id
+                LEFT JOIN sites s ON s.id = d.site_id
+                LEFT JOIN images i ON i.deployment_id = d.id
+                WHERE c.project_id = :project_id
+                GROUP BY d.id, c.device_id, s.name
+                ORDER BY d.start_date DESC NULLS LAST, d.id DESC
+            """),
+            {"project_id": project_id},
+        )
+    ).mappings().all()
+
+    return [
+        DeploymentListItem(
+            id=r["id"],
+            deployment_number=r["deployment_number"],
+            camera_id=r["camera_id"],
+            camera_label=r["camera_label"],
+            site_id=r["site_id"],
+            site_name=r["site_name"],
+            latitude=float(r["lat"]) if r["lat"] is not None else None,
+            longitude=float(r["lon"]) if r["lon"] is not None else None,
+            start_date=r["start_date"].isoformat() if r["start_date"] else None,
+            end_date=r["end_date"].isoformat() if r["end_date"] else None,
+            image_count=r["image_count"],
+            site_source=r["site_source"],
+        )
+        for r in rows
+    ]
+
+
+class BulkAssignSiteRequest(BaseModel):
+    # The deployments to reassign and the site to put them on (null = unassign).
+    # Every deployment must belong to the project; the site, when given, too.
+    deployment_ids: List[int]
+    site_id: Optional[int] = None
+
+
+class BulkAssignSiteResponse(BaseModel):
+    updated: int
+
+
+@router.post("/bulk-site", response_model=BulkAssignSiteResponse)
+async def bulk_assign_site(
+    project_id: int,
+    request: BulkAssignSiteRequest,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_admin_access),
+):
+    """
+    Reassign many deployments to one site at once. Like the single PATCH, this is
+    a manual correction, so every touched deployment becomes site_source='manual'
+    and GPS ingestion stops re-resolving it. All-or-nothing: if any deployment is
+    not in the project, or the site is not, nothing changes (404).
+    """
+    if not request.deployment_ids:
+        return BulkAssignSiteResponse(updated=0)
+
+    if request.site_id is not None:
+        site = (
+            await db.execute(
+                select(Site).where(
+                    Site.id == request.site_id, Site.project_id == project_id
+                )
+            )
+        ).scalar_one_or_none()
+        if site is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
+            )
+
+    deployments = (
+        await db.execute(
+            select(Deployment)
+            .join(Camera, Camera.id == Deployment.camera_id)
+            .where(
+                Deployment.id.in_(request.deployment_ids),
+                Camera.project_id == project_id,
+            )
+        )
+    ).scalars().all()
+
+    # A mismatch means some id is missing or in another project. Refuse the whole
+    # batch so a partial reassignment never silently happens.
+    if len(deployments) != len(set(request.deployment_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more deployments not found in this project",
+        )
+
+    for deployment in deployments:
+        deployment.site_id = request.site_id
+        deployment.site_source = 'manual'
+
+    await db.commit()
+    return BulkAssignSiteResponse(updated=len(deployments))
 
 
 class UpdateDeploymentRequest(BaseModel):
