@@ -104,10 +104,10 @@ class CreateBulkUploadRequest(BaseModel):
     """Create an empty bulk-upload job. Files are uploaded separately."""
     folder_name: str = Field(min_length=1, max_length=255)
     camera_id: int
-    # Optional site to pin the whole batch to. When set, every image links to a
-    # single deployment at this site instead of the camera's current location.
-    # Useful for SD-card recovery after the camera has moved.
-    site_id: Optional[int] = None
+    # The site this batch belongs to. Required: every site has a location, so
+    # this gives the whole batch a known place (bulk images carry no reliable
+    # per-image GPS). The user picks an existing site or creates one.
+    site_id: int
     total_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
     # Free-form client-computed scan summary. Stored on the job and shown
     # back in the review UI. See the bulk-upload worker for the shape.
@@ -463,20 +463,19 @@ async def create_bulk_upload_job(
             detail="Camera does not belong to this project",
         )
 
-    if body.site_id is not None:
-        site = (
-            await db.execute(
-                select(Site.id).where(
-                    Site.id == body.site_id,
-                    Site.project_id == project_id,
-                )
+    site = (
+        await db.execute(
+            select(Site.id).where(
+                Site.id == body.site_id,
+                Site.project_id == project_id,
             )
-        ).scalar_one_or_none()
-        if site is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Site does not belong to this project",
-            )
+        )
+    ).scalar_one_or_none()
+    if site is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Site does not belong to this project",
+        )
 
     # Soft cap on in-flight jobs per project so one user cannot
     # starve the bulk worker queue with twenty parallel SD-card
@@ -507,8 +506,7 @@ async def create_bulk_upload_job(
     # The chosen site rides along in the manifest so the worker can pin the
     # batch to it after the queue hop, without a dedicated column.
     manifest = dict(body.manifest or {})
-    if body.site_id is not None:
-        manifest["site_id"] = body.site_id
+    manifest["site_id"] = body.site_id
 
     job = BulkUploadJob(
         uuid=job_uuid,

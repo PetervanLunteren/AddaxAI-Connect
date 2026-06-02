@@ -38,6 +38,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
 import { camerasApi } from '../../api/cameras';
 import { sitesApi } from '../../api/sites';
+import { SiteFormModal } from '../../components/sites/SiteFormModal';
 import {
   bulkUploadApi,
   type BulkUploadJob,
@@ -466,7 +467,7 @@ function manifestsLookCompatible(job: BulkUploadJob, entries: ScanEntry[]): bool
 
 interface UploadContext {
   camera_id: number;
-  site_id?: number | null;
+  site_id: number;
   folder_name: string;
   manifest: BulkUploadManifest;
   // Naive captured_at timestamps flagged as duplicates during
@@ -942,6 +943,7 @@ const ReviewStep: React.FC<{
   const [siteId, setSiteId] = useState<string>('');
   const [showAddCamera, setShowAddCamera] = useState(false);
   const [newCameraName, setNewCameraName] = useState('');
+  const [showCreateSite, setShowCreateSite] = useState(false);
 
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
@@ -1140,13 +1142,17 @@ const ReviewStep: React.FC<{
       toast.error('Pick a camera before uploading');
       return;
     }
+    if (!siteId) {
+      toast.error('Pick a site before uploading');
+      return;
+    }
     if (validCount === 0) {
       toast.error('No images can be uploaded from this folder');
       return;
     }
     onConfirm({
       camera_id: id,
-      site_id: siteId ? Number(siteId) : null,
+      site_id: Number(siteId),
       folder_name: folderName,
       manifest: enrichedManifest,
       excluded_captured_ats: Array.from(safeDuplicateSet),
@@ -1277,21 +1283,27 @@ const ReviewStep: React.FC<{
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Site</label>
-        <select
-          className="w-full h-10 px-3 border border-input rounded-md bg-background text-sm"
-          value={siteId}
-          onChange={(e) => setSiteId(e.target.value)}
-        >
-          <option value="">Use the camera's current location</option>
-          {(sites ?? []).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-2">
+          <select
+            className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm"
+            value={siteId}
+            onChange={(e) => setSiteId(e.target.value)}
+          >
+            <option value="">Select a site</option>
+            {(sites ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <Button type="button" variant="outline" onClick={() => setShowCreateSite(true)}>
+            <Plus className="h-4 w-4 mr-1" />
+            New site
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground">
-          Pick a site if these images are from a different place than where the
-          camera is now, for example an SD card pulled after the camera moved.
+          The place these images were taken. Pick an existing site or create one.
+          For an SD card pulled after the camera moved, choose where it actually was.
         </p>
       </div>
 
@@ -1318,13 +1330,21 @@ const ReviewStep: React.FC<{
         </div>
         <Button
           type="button"
-          disabled={!cameraId || validCount === 0}
+          disabled={!cameraId || !siteId || validCount === 0}
           onClick={handleConfirm}
         >
           <Upload className="h-4 w-4 mr-1" />
           Upload {validCount.toLocaleString()} image{validCount === 1 ? '' : 's'}
         </Button>
       </div>
+
+      <SiteFormModal
+        open={showCreateSite}
+        onClose={() => setShowCreateSite(false)}
+        projectId={projectId}
+        sites={sites ?? []}
+        onCreated={(site) => setSiteId(String(site.id))}
+      />
     </div>
   );
 };

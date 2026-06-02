@@ -132,7 +132,7 @@ export const bulkUploadApi = {
     body: {
       folder_name: string;
       camera_id: number;
-      site_id?: number | null;
+      site_id: number;
       total_files: number;
       manifest: BulkUploadManifest;
     },
