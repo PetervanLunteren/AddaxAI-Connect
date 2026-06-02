@@ -250,9 +250,9 @@ def update_or_create_site_and_deployment(
                     camera.config = config
                     flag_modified(camera, 'config')
                 # Heal a missing site (legacy deployments that predate the site
-                # work), unless a human set the site (site_source='manual'), in
-                # which case their choice (including a deliberate NULL) stands.
-                if active.site_id is None and active.site_source != 'manual':
+                # work) from the current GPS. site_source is only a label of who
+                # set the site, it does not gate this.
+                if active.site_id is None:
                     active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
                 if event_date < active.start_date:
                     logger.info(

@@ -2,10 +2,12 @@
 Deployment endpoints.
 
 A deployment is one camera at one site for a time range, with no free-text
-metadata. The only human-editable field is its site assignment (the manual
-pin): assigning a site marks site_source='manual' so GPS ingestion stops
-re-resolving it. Reads happen via the site detail (sites.py) and the camera
-deployment history (cameras.py); this router only holds the PATCH.
+metadata. The only human-editable field is its site assignment. Assigning a
+site (one at a time or in bulk) sets site_source='manual', which records that a
+human chose the site rather than GPS. site_source has no effect on ingestion,
+it only drives the GPS-guessed vs human-confirmed badge and filter on the
+Deployments page. This router serves the project-wide list, the bulk reassign,
+the single PATCH and the thumbnail sample.
 """
 from typing import List, Optional
 
@@ -115,9 +117,9 @@ async def bulk_assign_site(
 ):
     """
     Reassign many deployments to one site at once. Like the single PATCH, this is
-    a manual correction, so every touched deployment becomes site_source='manual'
-    and GPS ingestion stops re-resolving it. All-or-nothing: if any deployment is
-    not in the project, or the site is not, nothing changes (404).
+    a human correction, so every touched deployment becomes site_source='manual'
+    (marking it human-confirmed for the badge and filter). All-or-nothing: if any
+    deployment is not in the project, or the site is not, nothing changes (404).
     """
     if not request.deployment_ids:
         return BulkAssignSiteResponse(updated=0)
@@ -163,10 +165,9 @@ async def bulk_assign_site(
 
 
 class UpdateDeploymentRequest(BaseModel):
-    # Reassign the deployment to a site (the manual pin). Send null to unassign.
-    # Omit to leave unchanged. Setting it (incl. null) marks the deployment
-    # site_source='manual' so ingestion stops re-resolving it. Presence is read
-    # via model_fields_set.
+    # Reassign the deployment to a site. Send null to unassign. Omit to leave
+    # unchanged. Setting it (incl. null) marks the deployment site_source='manual'
+    # to record it was human-confirmed. Presence is read via model_fields_set.
     site_id: Optional[int] = None
 
 
@@ -205,8 +206,8 @@ async def update_deployment(
     deployment: Deployment = row[0]
 
     # site_id is meaningful even when null (unassign), so act on its presence in
-    # the request, not on its value. Any human assignment makes the deployment
-    # manual so ingestion stops re-resolving its site.
+    # the request, not on its value. Any human assignment marks the deployment
+    # site_source='manual' to record it was human-confirmed.
     if 'site_id' in request.model_fields_set:
         if request.site_id is not None:
             site = (

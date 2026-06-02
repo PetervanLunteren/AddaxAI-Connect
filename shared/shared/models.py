@@ -209,8 +209,9 @@ class Deployment(Base):
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
-    # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it,
-    # so ingestion must not re-resolve or heal the site for this deployment.
+    # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it.
+    # A label only (drives the GPS-guessed vs human-confirmed badge and filter
+    # on the Deployments page); it does not change ingestion behavior.
     # A deployment carries no free-text metadata: it is (camera, site, time
     # range, location). Cameras at one site are distinguished by device_id.
     site_source = Column(String(16), nullable=False, server_default='auto')

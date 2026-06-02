@@ -3,9 +3,10 @@
  *
  * A deployment is one camera at one site for a time range, auto-created by GPS
  * ingestion. It carries no free-text metadata; the only human-editable thing is
- * which site it belongs to (the manual pin). Assigning a site, one at a time or
- * in bulk, marks the deployment site_source='manual' so ingestion stops
- * re-resolving it.
+ * which site it belongs to. Assigning a site, one at a time or in bulk, marks
+ * the deployment site_source='manual', recording that a human confirmed the
+ * site rather than GPS. That flag only drives the badge and filter on the
+ * Deployments page; it does not change ingestion.
  */
 import apiClient from './client';
 

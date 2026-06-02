@@ -2,11 +2,11 @@
  * Deployment site-assignment modal.
  *
  * A deployment carries no free-text metadata; the only human-editable thing is
- * which site it belongs to (the manual pin). The Deployments page opens this
- * from a row's "Change site" button; the camera and site slideouts show
- * deployments read-only and link to that page instead. Changing the site here
- * marks the deployment site_source='manual' on the backend so GPS ingestion
- * stops re-resolving it.
+ * which site it belongs to. The Deployments page opens this from a row's
+ * "Change site" button; the camera and site slideouts show deployments
+ * read-only and link to that page instead. Changing the site here marks the
+ * deployment site_source='manual', recording that a human confirmed the site
+ * (drives the badge and filter); it does not change ingestion.
  */
 import React, { useEffect, useState } from 'react';
 import type { QueryKey } from '@tanstack/react-query';

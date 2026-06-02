@@ -131,7 +131,7 @@ const SourceBadge: React.FC<{ source: string }> = ({ source }) => {
           : 'bg-muted text-muted-foreground',
       )}
     >
-      {manual ? 'Manual' : 'Auto'}
+      {manual ? 'Human-confirmed' : 'GPS-guessed'}
     </span>
   );
 };
@@ -223,10 +223,10 @@ export const DeploymentsPage: React.FC = () => {
       {
         kind: 'select',
         key: 'source',
-        label: 'Site source',
+        label: 'Site assignment',
         options: [
-          { value: 'auto', label: 'Auto' },
-          { value: 'manual', label: 'Manual' },
+          { value: 'auto', label: 'GPS-guessed' },
+          { value: 'manual', label: 'Human-confirmed' },
         ],
       },
     ],
@@ -426,7 +426,7 @@ export const DeploymentsPage: React.FC = () => {
                   <TableHead className="text-right">
                     <SortableHeader label="Images" column="images" align="right" sort={sort} onSort={handleSort} />
                   </TableHead>
-                  <TableHead>Site source</TableHead>
+                  <TableHead>Site assignment</TableHead>
                   {canEdit && <TableHead className="w-px" />}
                 </TableRow>
               </TableHeader>
