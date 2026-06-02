@@ -464,7 +464,7 @@ export const DeploymentsPage: React.FC = () => {
                           onClick={() => setEditDep(d)}
                         >
                           <MapPin className="h-4 w-4 mr-1.5" />
-                          Assign site
+                          Change site
                         </Button>
                       </TableCell>
                     )}

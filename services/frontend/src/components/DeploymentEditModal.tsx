@@ -2,13 +2,11 @@
  * Deployment site-assignment modal.
  *
  * A deployment carries no free-text metadata; the only human-editable thing is
- * which site it belongs to (the manual pin). The site detail opens this
- * editable; the camera deployment history shows deployments read-only and does
- * not open it. Assigning a site here marks the deployment site_source='manual'
- * on the backend so GPS ingestion stops re-resolving it.
- *
- * Sheets do not stack in this codebase, so this is a centered Dialog over the
- * site sheet, not another sheet.
+ * which site it belongs to (the manual pin). The Deployments page opens this
+ * from a row's "Change site" button; the camera and site slideouts show
+ * deployments read-only and link to that page instead. Changing the site here
+ * marks the deployment site_source='manual' on the backend so GPS ingestion
+ * stops re-resolving it.
  */
 import React, { useEffect, useState } from 'react';
 import type { QueryKey } from '@tanstack/react-query';
@@ -111,12 +109,10 @@ export const DeploymentEditModal: React.FC<Props> = ({
       <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
         <DialogContent onClose={handleClose}>
           <DialogHeader>
-            <DialogTitle>Assign site</DialogTitle>
+            <DialogTitle>Change site</DialogTitle>
             <DialogDescription>
-              The site comes from the GPS in the incoming photos. That works
-              most of the time, but GPS noise can place a deployment under the
-              wrong site. Correct which site these photos belong to here. This
-              does not move any site on the map.
+              The site was guessed from the photos' GPS. Change it here if the
+              guess is wrong. This does not move any site on the map.
             </DialogDescription>
           </DialogHeader>
 
