@@ -43,3 +43,8 @@ Open follow-ups:
 - [ ] multi language
 - [ ] can we make it feel native on iphone and android without having it like a normal app? You can continue an previous claude session with > claude --resume c24bfc22-4e66-4bdd-abc6-d41f92b5c0c7
 
+
+
+
+
+plan: ~/.claude/plans/eager-coalescing-taco.md

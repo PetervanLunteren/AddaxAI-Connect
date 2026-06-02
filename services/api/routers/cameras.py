@@ -572,8 +572,6 @@ class CameraDeploymentResponse(BaseModel):
     deployment_number: int
     site_id: Optional[int] = None
     site_name: Optional[str] = None
-    label: Optional[str] = None
-    notes: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     start_date: Optional[str] = None
@@ -610,7 +608,6 @@ async def get_camera_deployments(
         await db.execute(
             text("""
                 SELECT d.id, d.deployment_number, d.site_id, s.name AS site_name,
-                       d.name AS label, d.notes,
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
                        d.start_date, d.end_date,
@@ -632,8 +629,6 @@ async def get_camera_deployments(
             deployment_number=r["deployment_number"],
             site_id=r["site_id"],
             site_name=r["site_name"],
-            label=r["label"],
-            notes=r["notes"],
             latitude=float(r["lat"]) if r["lat"] is not None else None,
             longitude=float(r["lon"]) if r["lon"] is not None else None,
             start_date=r["start_date"].isoformat() if r["start_date"] else None,

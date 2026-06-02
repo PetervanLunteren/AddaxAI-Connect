@@ -209,10 +209,10 @@ class Deployment(Base):
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
-    name = Column(String(100), nullable=True)  # optional free-text orientation label, e.g. "NW"
-    notes = Column(Text, nullable=True)  # free-text per-deployment notes
     # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it,
     # so ingestion must not re-resolve or heal the site for this deployment.
+    # A deployment carries no free-text metadata: it is (camera, site, time
+    # range, location). Cameras at one site are distinguished by device_id.
     site_source = Column(String(16), nullable=False, server_default='auto')
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment

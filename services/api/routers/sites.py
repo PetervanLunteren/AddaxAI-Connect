@@ -48,8 +48,6 @@ class DeploymentSummary(BaseModel):
     deployment_number: int
     camera_id: int
     camera_name: str
-    label: Optional[str] = None
-    notes: Optional[str] = None
     # The deployment's own GPS point, used as the default when creating a new
     # site from this deployment.
     latitude: Optional[float] = None
@@ -87,6 +85,11 @@ class UpdateSiteRequest(BaseModel):
     habitat_type: Optional[str] = Field(default=None, max_length=100)
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
+    # Move the site. Both must be sent together to relocate the pin. This only
+    # moves the marker and recenters the 100m catchment for FUTURE readings; it
+    # does not reshuffle existing deployments (their site_id is fixed).
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
 
 
 def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
@@ -142,7 +145,7 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
         await db.execute(
             text("""
                 SELECT d.id, d.deployment_number, d.camera_id, c.device_id AS camera_name,
-                       d.name AS label, d.notes, d.start_date, d.end_date,
+                       d.start_date, d.end_date,
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
                        count(i.id) AS image_count
@@ -163,8 +166,6 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
             deployment_number=r["deployment_number"],
             camera_id=r["camera_id"],
             camera_name=r["camera_name"],
-            label=r["label"],
-            notes=r["notes"],
             latitude=float(r["lat"]) if r["lat"] is not None else None,
             longitude=float(r["lon"]) if r["lon"] is not None else None,
             start_date=r["start_date"].isoformat() if r["start_date"] else None,
@@ -317,6 +318,10 @@ async def update_site(
         site.notes = body.notes or None
     if body.tags is not None:
         site.tags = _normalize_tags(body.tags)
+    if body.latitude is not None and body.longitude is not None:
+        site.location = WKTElement(
+            f"POINT({body.longitude} {body.latitude})", srid=4326
+        )
     try:
         await db.commit()
     except IntegrityError:

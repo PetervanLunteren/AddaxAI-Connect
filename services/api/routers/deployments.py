@@ -1,16 +1,16 @@
 """
 Deployment endpoints.
 
-A deployment is one camera at one site for a time range. See
-future-plans/site-addition.md. The orientation label (`name`, e.g. "NW") and
-free-text notes are editable by a project admin. Reads happen via the site
-detail (sites.py) and the camera deployment history (cameras.py); this router
-only holds the PATCH today.
+A deployment is one camera at one site for a time range, with no free-text
+metadata. The only human-editable field is its site assignment (the manual
+pin): assigning a site marks site_source='manual' so GPS ingestion stops
+re-resolving it. Reads happen via the site detail (sites.py) and the camera
+deployment history (cameras.py); this router only holds the PATCH.
 """
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,12 +28,10 @@ router = APIRouter(
 
 
 class UpdateDeploymentRequest(BaseModel):
-    # Empty after strip becomes NULL on the column, matching the site PATCH.
-    name: Optional[str] = Field(default=None, max_length=100)
-    notes: Optional[str] = Field(default=None, max_length=10000)
-    # Reassign the deployment to a site. Send null to unassign. Omit to leave
-    # unchanged. Setting it (incl. null) marks the deployment site_source manual
-    # so ingestion stops re-resolving it. Presence is read via model_fields_set.
+    # Reassign the deployment to a site (the manual pin). Send null to unassign.
+    # Omit to leave unchanged. Setting it (incl. null) marks the deployment
+    # site_source='manual' so ingestion stops re-resolving it. Presence is read
+    # via model_fields_set.
     site_id: Optional[int] = None
 
 
@@ -43,8 +41,6 @@ class DeploymentDetail(BaseModel):
     camera_id: int
     site_id: Optional[int] = None
     site_source: str = 'auto'
-    name: Optional[str] = None
-    notes: Optional[str] = None
 
 
 @router.patch("/{deployment_id}", response_model=DeploymentDetail)
@@ -56,8 +52,8 @@ async def update_deployment(
     user: User = Depends(require_project_admin_access),
 ):
     """
-    Update a deployment's label and notes. The deployment must belong to a
-    camera in `project_id`; a mismatch returns 404 so existence does not leak.
+    Reassign a deployment's site. The deployment must belong to a camera in
+    `project_id`; a mismatch returns 404 so existence does not leak.
     """
     row = (
         await db.execute(
@@ -72,11 +68,6 @@ async def update_deployment(
         )
 
     deployment: Deployment = row[0]
-
-    if request.name is not None:
-        deployment.name = request.name.strip() or None
-    if request.notes is not None:
-        deployment.notes = request.notes.strip() or None
 
     # site_id is meaningful even when null (unassign), so act on its presence in
     # the request, not on its value. Any human assignment makes the deployment
@@ -106,6 +97,4 @@ async def update_deployment(
         camera_id=deployment.camera_id,
         site_id=deployment.site_id,
         site_source=deployment.site_source,
-        name=deployment.name,
-        notes=deployment.notes,
     )

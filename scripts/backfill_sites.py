@@ -276,8 +276,8 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
                 ).scalar_one()
             for m in group.members:
                 session.execute(
-                    text("UPDATE deployments SET site_id = :sid, name = :label WHERE id = :did"),
-                    {"sid": site_id, "label": labels.get(m.id), "did": m.id},
+                    text("UPDATE deployments SET site_id = :sid WHERE id = :did"),
+                    {"sid": site_id, "did": m.id},
                 )
 
     # Link this project's images to the deployment covering their capture date.
