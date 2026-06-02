@@ -14,12 +14,13 @@ import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
-  MoreVertical,
   Save,
   Trash2,
   ExternalLink,
   MapPin,
   Camera,
+  Move,
+  GitMerge,
 } from 'lucide-react';
 import {
   Sheet,
@@ -29,16 +30,10 @@ import {
   SheetBody,
 } from './ui/Sheet';
 import { Button } from './ui/Button';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from './ui/DropdownMenu';
 import { sitesApi, type DeploymentSummary } from '../api/sites';
 import { DeploymentEditModal } from './DeploymentEditModal';
 import { TagInput } from './TagInput';
-import { SiteLocationPicker } from './sites/SiteLocationPicker';
+import { SiteFormModal } from './sites/SiteFormModal';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
@@ -93,9 +88,8 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editHabitat, setEditHabitat] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
-  const [editLat, setEditLat] = useState('');
-  const [editLon, setEditLon] = useState('');
   const [openDep, setOpenDep] = useState<DeploymentSummary | null>(null);
+  const [showMove, setShowMove] = useState(false);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
@@ -110,27 +104,22 @@ export const SiteDetailSheet: React.FC<Props> = ({
     enabled: open,
   });
 
-  // Reseed the form when the loaded detail changes (open a different site, or
-  // after a save invalidates the cache). On close, reset the tab so reopen
-  // starts on Overview.
-  useEffect(() => {
-    if (detail) {
-      setEditName(detail.name);
-      setEditHabitat(detail.habitat_type ?? '');
-      setEditNotes(detail.notes ?? '');
-      setEditTags(detail.tags ?? []);
-      setEditLat(detail.latitude != null ? String(detail.latitude) : '');
-      setEditLon(detail.longitude != null ? String(detail.longitude) : '');
-    }
-  }, [detail]);
+  // Seed the editable fields from the loaded site. Used both by the effect
+  // below (on load / site switch / after save) and by the Discard button.
+  const resetForm = () => {
+    if (!detail) return;
+    setEditName(detail.name);
+    setEditHabitat(detail.habitat_type ?? '');
+    setEditNotes(detail.notes ?? '');
+    setEditTags(detail.tags ?? []);
+  };
 
-  const latNum = editLat !== '' && !isNaN(Number(editLat)) ? Number(editLat) : null;
-  const lonNum = editLon !== '' && !isNaN(Number(editLon)) ? Number(editLon) : null;
-  const locationChanged =
-    !!detail &&
-    latNum != null &&
-    lonNum != null &&
-    (latNum !== detail.latitude || lonNum !== detail.longitude);
+  // Reseed when the loaded detail changes (open a different site, or after a
+  // save invalidates the cache).
+  useEffect(() => {
+    resetForm();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail]);
 
   useEffect(() => {
     setActiveTab('overview');
@@ -141,8 +130,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
     (editName.trim() !== detail.name ||
       (editHabitat.trim() || null) !== (detail.habitat_type ?? null) ||
       (editNotes.trim() || null) !== (detail.notes ?? null) ||
-      JSON.stringify(editTags) !== JSON.stringify(detail.tags ?? []) ||
-      locationChanged);
+      JSON.stringify(editTags) !== JSON.stringify(detail.tags ?? []));
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -151,7 +139,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
         habitat_type: editHabitat.trim() || null,
         notes: editNotes.trim() || null,
         tags: editTags,
-        ...(locationChanged ? { latitude: latNum as number, longitude: lonNum as number } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
@@ -183,42 +170,39 @@ export const SiteDetailSheet: React.FC<Props> = ({
       <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
         <SheetContent onClose={onClose}>
           <SheetHeader>
-            <div className="flex items-center justify-between gap-2 pr-8">
-              <SheetTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                {detail?.name ?? 'Site'}
-              </SheetTitle>
-              {canEdit && detail && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onMergeRequested({ id: detail.id, name: detail.name })
-                      }
-                    >
-                      Merge into another site
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onDeleteRequested({ id: detail.id, name: detail.name })
-                      }
-                      className="text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete site
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
+            <SheetTitle className="flex items-center gap-2 pr-8">
+              <MapPin className="h-5 w-5" />
+              {detail?.name ?? 'Site'}
+            </SheetTitle>
           </SheetHeader>
 
           <SheetBody className="space-y-6">
+            {canEdit && detail && (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowMove(true)}>
+                  <Move className="h-4 w-4 mr-2" />
+                  Move
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
+                >
+                  <GitMerge className="h-4 w-4 mr-2" />
+                  Merge
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
+            )}
+
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="deployments" label="Deployments" />
@@ -239,6 +223,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
+                        placeholder="e.g. North ridge"
                         className="w-full px-3 py-2 border rounded-md text-sm"
                       />
                     ) : (
@@ -252,7 +237,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                         type="text"
                         value={editHabitat}
                         onChange={(e) => setEditHabitat(e.target.value)}
-                        placeholder="optional, e.g. forest"
+                        placeholder="e.g. mixed forest"
                         className="w-full px-3 py-2 border rounded-md text-sm"
                       />
                     ) : (
@@ -266,6 +251,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                         value={editNotes}
                         onChange={(e) => setEditNotes(e.target.value)}
                         rows={4}
+                        placeholder="e.g. boggy after rain, bring the tall boots"
                         className="w-full px-3 py-2 border rounded-md text-sm"
                       />
                     ) : (
@@ -281,6 +267,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                         value={editTags}
                         onChange={setEditTags}
                         suggestions={tagSuggestions ?? []}
+                        placeholder="wetland, otter-territory"
                       />
                     ) : (
                       <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
@@ -299,84 +286,56 @@ export const SiteDetailSheet: React.FC<Props> = ({
                       </div>
                     )}
                   </div>
-                  {canEdit && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">Location</label>
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Moving the pin recenters where future readings cluster.
-                        It does not move existing deployments.
-                      </p>
-                      <SiteLocationPicker
-                        value={latNum != null && lonNum != null ? { lat: latNum, lon: lonNum } : null}
-                        onChange={(la, lo) => {
-                          setEditLat(la.toFixed(6));
-                          setEditLon(lo.toFixed(6));
-                        }}
-                        sites={[]}
-                        height={260}
-                      />
-                      <div className="grid grid-cols-2 gap-3 mt-2">
-                        <input
-                          type="number"
-                          step="any"
-                          value={editLat}
-                          onChange={(e) => setEditLat(e.target.value)}
-                          placeholder="Latitude"
-                          className="w-full px-3 py-2 border rounded-md text-sm"
-                        />
-                        <input
-                          type="number"
-                          step="any"
-                          value={editLon}
-                          onChange={(e) => setEditLon(e.target.value)}
-                          placeholder="Longitude"
-                          className="w-full px-3 py-2 border rounded-md text-sm"
-                        />
-                      </div>
-                    </div>
-                  )}
                   {coreChanged && canEdit && (
-                    <Button
-                      onClick={() => saveMutation.mutate()}
-                      disabled={saveMutation.isPending || !editName.trim()}
-                      className="w-full"
-                    >
-                      {saveMutation.isPending ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4 mr-2" />
-                          Save changes
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={resetForm}
+                        disabled={saveMutation.isPending}
+                        className="flex-1"
+                      >
+                        Discard
+                      </Button>
+                      <Button
+                        onClick={() => saveMutation.mutate()}
+                        disabled={saveMutation.isPending || !editName.trim()}
+                        className="flex-1"
+                      >
+                        {saveMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save changes
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   )}
                 </div>
 
                 <div className="rounded-lg border p-4 space-y-2 text-sm">
-                  {!canEdit && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Coordinates</span>
-                      {detail.latitude != null && detail.longitude != null ? (
-                        <span className="flex items-center gap-1">
-                          {fmtCoords(detail.latitude, detail.longitude)}
-                          <a
-                            href={`https://www.google.com/maps?q=${detail.latitude},${detail.longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        </span>
-                      ) : (
-                        <span>-</span>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Coordinates</span>
+                    {detail.latitude != null && detail.longitude != null ? (
+                      <span className="flex items-center gap-1">
+                        {fmtCoords(detail.latitude, detail.longitude)}
+                        <a
+                          href={`https://www.google.com/maps?q=${detail.latitude},${detail.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </span>
+                    ) : (
+                      <span>-</span>
+                    )}
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cameras</span>
                     <span>{detail.camera_count}</span>
@@ -447,6 +406,21 @@ export const SiteDetailSheet: React.FC<Props> = ({
           ['sites', projectId],
         ]}
       />
+
+      {detail && (
+        <SiteFormModal
+          open={showMove}
+          onClose={() => setShowMove(false)}
+          projectId={projectId}
+          sites={[]}
+          moveSite={{
+            id: detail.id,
+            name: detail.name,
+            latitude: detail.latitude,
+            longitude: detail.longitude,
+          }}
+        />
+      )}
     </>
   );
 };

@@ -2,7 +2,7 @@
  * Map components exports
  */
 export { DetectionRateMap } from './DetectionRateMap';
-export type { ViewMode, BaseLayer } from './DetectionRateMap';
+export type { ViewMode } from './DetectionRateMap';
 export { DeploymentMarker } from './DeploymentMarker';
 export { DeploymentPopup } from './DeploymentPopup';
 export { MapLegend } from './MapLegend';

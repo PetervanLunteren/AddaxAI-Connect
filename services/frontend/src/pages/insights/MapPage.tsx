@@ -9,7 +9,7 @@ import React, { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { DetectionRateMap, type BaseLayer, type ViewMode } from '../../components/map';
+import { DetectionRateMap, type ViewMode } from '../../components/map';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import {
@@ -36,7 +36,6 @@ const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
   species: 'string',
   view_mode: 'string',
-  base_layer: 'string',
 };
 
 const asString = (v: string | string[] | undefined): string =>
@@ -58,9 +57,6 @@ export const InsightsMapPage: React.FC = () => {
   const viewMode = (parsed.view_mode === 'points' || parsed.view_mode === 'clusters'
     ? parsed.view_mode
     : 'hexbins') as ViewMode;
-  const baseLayer = (parsed.base_layer === 'satellite' || parsed.base_layer === 'osm'
-    ? parsed.base_layer
-    : 'positron') as BaseLayer;
 
   const filterValues: Record<string, FilterValue> = {
     camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
@@ -74,7 +70,6 @@ export const InsightsMapPage: React.FC = () => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
       view_mode: viewMode === 'hexbins' ? undefined : viewMode,
-      base_layer: baseLayer === 'positron' ? undefined : baseLayer,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
@@ -184,18 +179,9 @@ export const InsightsMapPage: React.FC = () => {
         { value: 'clusters', label: 'Clusters' },
       ],
     },
-    {
-      key: 'base_layer',
-      label: 'Map style',
-      options: [
-        { value: 'positron', label: 'Light' },
-        { value: 'satellite', label: 'Satellite' },
-        { value: 'osm', label: 'Street map' },
-      ],
-    },
   ];
 
-  const displayValues = { view_mode: viewMode, base_layer: baseLayer };
+  const displayValues = { view_mode: viewMode };
 
   return (
     <InsightsPageLayout
@@ -220,7 +206,6 @@ export const InsightsMapPage: React.FC = () => {
         <DetectionRateMap
           filters={mapFilters}
           viewMode={viewMode}
-          baseLayer={baseLayer}
         />
       </div>
       <PlotExplainer

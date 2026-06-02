@@ -4,11 +4,12 @@
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Info } from 'lucide-react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, useMap, useMapEvents } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
 import { useProject } from '../../contexts/ProjectContext';
+import { BaseLayersControl } from './BaseLayersControl';
 import type { DetectionRateMapFilters } from '../../api/types';
 import {
   getDetectionRateColor,
@@ -26,12 +27,10 @@ import { FullscreenControl } from './FullscreenControl';
 import 'leaflet/dist/leaflet.css';
 
 export type ViewMode = 'points' | 'hexbins' | 'clusters';
-export type BaseLayer = 'positron' | 'satellite' | 'osm';
 
 interface DetectionRateMapProps {
   filters: DetectionRateMapFilters;
   viewMode: ViewMode;
-  baseLayer: BaseLayer;
 }
 
 /**
@@ -112,7 +111,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export function DetectionRateMap({ filters, viewMode, baseLayer }: DetectionRateMapProps) {
+export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
@@ -210,34 +209,6 @@ export function DetectionRateMap({ filters, viewMode, baseLayer }: DetectionRate
     );
   }
 
-  // Get tile layer configuration based on selected baselayer
-  const getTileLayerConfig = () => {
-    switch (baseLayer) {
-      case 'positron':
-        return {
-          url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        };
-      case 'satellite':
-        return {
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-        };
-      case 'osm':
-        return {
-          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        };
-      default:
-        return {
-          url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        };
-    }
-  };
-
-  const tileLayerConfig = getTileLayerConfig();
-
   // Get description based on view mode
   const getViewDescription = () => {
     const deploymentCount = visibleDeployments?.length || 0;
@@ -262,11 +233,7 @@ export function DetectionRateMap({ filters, viewMode, baseLayer }: DetectionRate
         style={{ height: '600px', width: '100%' }}
         className="rounded-lg border border-gray-200"
       >
-        <TileLayer
-          key={baseLayer}
-          attribution={tileLayerConfig.attribution}
-          url={tileLayerConfig.url}
-        />
+        <BaseLayersControl />
 
         <MapEventHandler onZoomChange={handleZoomChange} onBoundsChange={handleBoundsChange} />
         <FitBounds points={fitBoundsPoints} />

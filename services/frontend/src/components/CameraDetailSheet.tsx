@@ -299,6 +299,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       <textarea
                         value={editForm.notes || ''}
                         onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                        placeholder="e.g. a spider moved in and now treats the camera as its home"
                         className="w-full px-3 py-2 border rounded-md text-sm"
                         rows={4}
                       />
@@ -313,6 +314,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         value={editTags}
                         onChange={setEditTags}
                         suggestions={tagSuggestions ?? []}
+                        placeholder="unreliable-trigger, camouflaged-casing"
                       />
                     ) : (
                       <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
@@ -536,7 +538,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                                 setMetadataFields(updated);
                               }}
                               className="w-1/3 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                              placeholder="Key"
+                              placeholder="e.g. battery type"
                             />
                             <input
                               type="text"
@@ -547,7 +549,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                                 setMetadataFields(updated);
                               }}
                               className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                              placeholder="Value"
+                              placeholder="e.g. lithium"
                             />
                             <button
                               type="button"

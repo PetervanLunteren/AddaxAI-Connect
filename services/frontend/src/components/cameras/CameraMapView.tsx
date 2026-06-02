@@ -3,7 +3,7 @@
  * Displays cameras on a map with markers colored by status, battery, or signal
  */
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import type { Camera } from '../../api/types';
 import { type ColorByMetric } from '../../utils/camera-colors';
@@ -11,6 +11,7 @@ import { SpiderfiedCameraLayer } from './SpiderfiedCameraLayer';
 import { CameraMapLegend } from './CameraMapLegend';
 import { CameraMapControls } from './CameraMapControls';
 import { FullscreenControl } from '../map/FullscreenControl';
+import { BaseLayersControl } from '../map/BaseLayersControl';
 import 'leaflet/dist/leaflet.css';
 
 interface CameraMapViewProps {
@@ -39,19 +40,10 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
     return 'status';
   });
 
-  const [baseLayer, setBaseLayer] = useState(() => {
-    const saved = localStorage.getItem('cameras-map-baselayer');
-    return saved || 'positron';
-  });
-
   // Persist preferences
   useEffect(() => {
     localStorage.setItem('cameras-map-color-by', colorBy);
   }, [colorBy]);
-
-  useEffect(() => {
-    localStorage.setItem('cameras-map-baselayer', baseLayer);
-  }, [baseLayer]);
 
   // Filter cameras by location
   const camerasWithLocation = useMemo(
@@ -83,38 +75,6 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
     return camerasWithLocation.map((c) => [c.location!.lat, c.location!.lon] as [number, number]);
   }, [camerasWithLocation]);
 
-  // Tile layer configuration
-  const getTileLayerConfig = () => {
-    switch (baseLayer) {
-      case 'positron':
-        return {
-          url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        };
-      case 'satellite':
-        return {
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          attribution:
-            'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-        };
-      case 'osm':
-        return {
-          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        };
-      default:
-        return {
-          url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        };
-    }
-  };
-
-  const tileLayerConfig = getTileLayerConfig();
-
   // Handle empty state
   if (camerasWithLocation.length === 0 && camerasWithoutLocation.length === 0) {
     return (
@@ -126,12 +86,7 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
 
   return (
     <div className="relative">
-      <CameraMapControls
-        colorBy={colorBy}
-        onColorByChange={setColorBy}
-        baseLayer={baseLayer}
-        onBaseLayerChange={setBaseLayer}
-      />
+      <CameraMapControls colorBy={colorBy} onColorByChange={setColorBy} />
 
       {camerasWithLocation.length > 0 ? (
         <MapContainer
@@ -140,11 +95,7 @@ export function CameraMapView({ cameras, onCameraClick }: CameraMapViewProps) {
           style={{ height: '500px', width: '100%', zIndex: 0 }}
           className="rounded-lg border border-gray-200"
         >
-          <TileLayer
-            key={baseLayer}
-            attribution={tileLayerConfig.attribution}
-            url={tileLayerConfig.url}
-          />
+          <BaseLayersControl />
           <FitBounds points={fitBoundsPoints} />
 
           <SpiderfiedCameraLayer
