@@ -6,6 +6,7 @@ import { NavLink, useParams } from 'react-router-dom';
 import {
   Camera,
   MapPin,
+  CalendarClock,
   LayoutDashboard,
   Images,
   Bell,
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
+    { to: `/projects/${projectId}/deployments`, icon: CalendarClock, label: 'Deployments' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
     { to: `/projects/${projectId}/exports`, icon: Download, label: 'Exports' },

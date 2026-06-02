@@ -20,6 +20,7 @@ import { ResetPassword } from './pages/ResetPassword';
 import { Dashboard } from './pages/Dashboard';
 import { CamerasPage } from './pages/CamerasPage';
 import { SitesPage } from './pages/SitesPage';
+import { DeploymentsPage } from './pages/DeploymentsPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ExportsPage } from './pages/ExportsPage';
@@ -138,6 +139,7 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="sites" element={<SitesPage />} />
+                <Route path="deployments" element={<DeploymentsPage />} />
                 <Route path="images" element={<ImagesPage />} />
                 {/* Legacy single-page routes redirect into Insights so old
                     bookmarks keep working. The old combined performance page

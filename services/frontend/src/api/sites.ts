@@ -64,18 +64,6 @@ export interface UpdateSiteRequest {
   longitude?: number;
 }
 
-export interface UpdateDeploymentRequest {
-  site_id?: number | null;
-}
-
-export interface DeploymentDetail {
-  id: number;
-  deployment_number: number;
-  camera_id: number;
-  site_id: number | null;
-  site_source: string;
-}
-
 const base = (projectId: number) => `/api/projects/${projectId}/sites`;
 
 export const sitesApi = {
@@ -115,27 +103,5 @@ export const sitesApi = {
   getTags: async (projectId: number): Promise<string[]> => {
     const { data } = await apiClient.get(`${base(projectId)}/tags`);
     return data;
-  },
-  updateDeployment: async (
-    projectId: number,
-    deploymentId: number,
-    body: UpdateDeploymentRequest,
-  ): Promise<DeploymentDetail> => {
-    const { data } = await apiClient.patch(
-      `/api/projects/${projectId}/deployments/${deploymentId}`,
-      body,
-    );
-    return data;
-  },
-  deploymentThumbnails: async (
-    projectId: number,
-    deploymentId: number,
-    limit = 6,
-  ): Promise<string[]> => {
-    const { data } = await apiClient.get(
-      `/api/projects/${projectId}/deployments/${deploymentId}/thumbnails`,
-      { params: { limit } },
-    );
-    return data.uuids as string[];
   },
 };

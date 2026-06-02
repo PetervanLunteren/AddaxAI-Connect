@@ -24,6 +24,7 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
+import { deploymentsApi } from '../api/deployments';
 import { SiteFormModal } from './sites/SiteFormModal';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { useToast } from './ui/Toaster';
@@ -74,7 +75,7 @@ export const DeploymentEditModal: React.FC<Props> = ({
   // it is. Read-only context, so failures just hide the strip.
   const { data: thumbUuids } = useQuery({
     queryKey: ['deployment-thumbnails', projectId, deploymentId],
-    queryFn: () => sitesApi.deploymentThumbnails(projectId, deploymentId, 6),
+    queryFn: () => deploymentsApi.thumbnails(projectId, deploymentId, 6),
     enabled: open && deploymentId > 0,
   });
 
@@ -82,7 +83,7 @@ export const DeploymentEditModal: React.FC<Props> = ({
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      sitesApi.updateDeployment(projectId, deploymentId, { site_id: siteId }),
+      deploymentsApi.update(projectId, deploymentId, { site_id: siteId }),
     onSuccess: () => {
       for (const key of invalidateKeys) {
         queryClient.invalidateQueries({ queryKey: key });
@@ -112,8 +113,10 @@ export const DeploymentEditModal: React.FC<Props> = ({
           <DialogHeader>
             <DialogTitle>Assign site</DialogTitle>
             <DialogDescription>
-              Choose where this camera's photos were taken. The location is
-              normally set from the camera's GPS, but you can correct it here.
+              The site comes from the GPS in the incoming photos. That works
+              most of the time, but GPS noise can place a deployment under the
+              wrong site. Correct which site these photos belong to here. This
+              does not move any site on the map.
             </DialogDescription>
           </DialogHeader>
 
