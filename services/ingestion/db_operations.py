@@ -183,6 +183,7 @@ def update_or_create_site_and_deployment(
     camera_id: int,
     new_gps: Tuple[float, float],
     event_date: date,
+    allow_relocation: bool = True,
 ) -> Tuple[Optional[int], int]:
     """
     Resolve the site and deployment for a new GPS reading and return
@@ -195,6 +196,13 @@ def update_or_create_site_and_deployment(
     are reused when an existing one in the project is within the threshold,
     otherwise one is auto-created. site_id is None only when the camera has no
     project, since sites are project-scoped.
+
+    allow_relocation gates the split: photos pass True (a photo is the evidence a
+    deployment is built from). Daily health reports pass False, because a report
+    carries GPS but no photo, so a report must never move a camera between sites
+    or split its deployment, it would only leave behind a deployment with zero
+    images. A report still creates the first deployment when none is active and
+    still heals a missing site within the threshold.
 
     Raises:
         ValueError: invalid GPS (None, (0, 0), out of range), or unknown camera.
@@ -261,6 +269,19 @@ def update_or_create_site_and_deployment(
                     camera_id=camera_id,
                     deployment_number=active.deployment_number,
                     site_id=active.site_id,
+                    distance_meters=round(distance, 1),
+                )
+                return (active.site_id, active.id)
+
+            # Beyond the site, but this reading is not allowed to relocate the
+            # camera (a daily report: GPS without a photo). Leave the active
+            # deployment where it is and do not start a relocation candidate;
+            # only photos move a camera between sites.
+            if not allow_relocation:
+                logger.info(
+                    "Out-of-range report GPS ignored (reports do not relocate)",
+                    camera_id=camera_id,
+                    deployment_number=active.deployment_number,
                     distance_meters=round(distance, 1),
                 )
                 return (active.site_id, active.id)
@@ -589,7 +610,8 @@ def update_camera_health(device_id: str, health_data: dict) -> bool:
         update_or_create_site_and_deployment(
             camera_id=camera_id,
             new_gps=report_gps,
-            event_date=datetime.now(timezone.utc).date()
+            event_date=datetime.now(timezone.utc).date(),
+            allow_relocation=False,
         )
     elif report_gps is not None:
         logger.warning(
