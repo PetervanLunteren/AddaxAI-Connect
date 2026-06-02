@@ -7,17 +7,17 @@ pin): assigning a site marks site_source='manual' so GPS ingestion stops
 re-resolving it. Reads happen via the site detail (sites.py) and the camera
 deployment history (cameras.py); this router only holds the PATCH.
 """
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import Camera, Deployment, Site, User
-from auth.permissions import require_project_admin_access
+from shared.models import Camera, Deployment, Image, Site, User
+from auth.permissions import require_project_access, require_project_admin_access
 
 logger = get_logger("api.deployments")
 
@@ -98,3 +98,47 @@ async def update_deployment(
         site_id=deployment.site_id,
         site_source=deployment.site_source,
     )
+
+
+class DeploymentThumbnails(BaseModel):
+    uuids: List[str]
+
+
+@router.get("/{deployment_id}/thumbnails", response_model=DeploymentThumbnails)
+async def deployment_thumbnails(
+    project_id: int,
+    deployment_id: int,
+    limit: int = Query(6, ge=1, le=12),
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_access),
+):
+    """
+    A random sample of image UUIDs from this deployment, so the UI can show a
+    few thumbnails as visual confirmation of the location. Skips hidden images
+    and images without stored files. 404 if the deployment is not in the project.
+    """
+    row = (
+        await db.execute(
+            select(Deployment.id, Camera.project_id)
+            .join(Camera, Camera.id == Deployment.camera_id)
+            .where(Deployment.id == deployment_id)
+        )
+    ).first()
+    if row is None or row[1] != project_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found",
+        )
+
+    uuids = (
+        await db.execute(
+            select(Image.uuid)
+            .where(
+                Image.deployment_id == deployment_id,
+                Image.is_hidden == False,  # noqa: E712
+                Image.storage_path.isnot(None),
+            )
+            .order_by(func.random())
+            .limit(limit)
+        )
+    ).scalars().all()
+    return DeploymentThumbnails(uuids=list(uuids))

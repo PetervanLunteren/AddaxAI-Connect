@@ -25,6 +25,7 @@ import {
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
 import { SiteFormModal } from './sites/SiteFormModal';
+import { AuthenticatedImage } from './AuthenticatedImage';
 import { useToast } from './ui/Toaster';
 
 interface Props {
@@ -69,6 +70,14 @@ export const DeploymentEditModal: React.FC<Props> = ({
     enabled: open,
   });
 
+  // A few random photos from this deployment, as visual confirmation of where
+  // it is. Read-only context, so failures just hide the strip.
+  const { data: thumbUuids } = useQuery({
+    queryKey: ['deployment-thumbnails', projectId, deploymentId],
+    queryFn: () => sitesApi.deploymentThumbnails(projectId, deploymentId, 6),
+    enabled: open && deploymentId > 0,
+  });
+
   const dirty = siteId !== initialSiteId;
 
   const saveMutation = useMutation({
@@ -102,10 +111,14 @@ export const DeploymentEditModal: React.FC<Props> = ({
         <DialogContent onClose={handleClose}>
           <DialogHeader>
             <DialogTitle>Assign site</DialogTitle>
-            <DialogDescription>{subhead}</DialogDescription>
+            <DialogDescription>
+              Choose where this camera's photos were taken. The location is
+              normally set from the camera's GPS, but you can correct it here.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="py-2">
+            <p className="text-xs text-muted-foreground mb-3">{subhead}</p>
             <label className="text-xs text-muted-foreground">Site</label>
             <div className="flex gap-2">
               <select
@@ -133,6 +146,22 @@ export const DeploymentEditModal: React.FC<Props> = ({
                 New site
               </Button>
             </div>
+
+            {thumbUuids && thumbUuids.length > 0 && (
+              <div className="mt-4">
+                <label className="text-xs text-muted-foreground">Photos from here</label>
+                <div className="mt-1 grid grid-cols-3 gap-1.5">
+                  {thumbUuids.map((u) => (
+                    <AuthenticatedImage
+                      key={u}
+                      src={`/api/images/${u}/thumbnail`}
+                      alt="Deployment photo"
+                      className="w-full h-20 object-cover rounded-md border"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

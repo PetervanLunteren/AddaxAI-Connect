@@ -127,4 +127,15 @@ export const sitesApi = {
     );
     return data;
   },
+  deploymentThumbnails: async (
+    projectId: number,
+    deploymentId: number,
+    limit = 6,
+  ): Promise<string[]> => {
+    const { data } = await apiClient.get(
+      `/api/projects/${projectId}/deployments/${deploymentId}/thumbnails`,
+      { params: { limit } },
+    );
+    return data.uuids as string[];
+  },
 };
