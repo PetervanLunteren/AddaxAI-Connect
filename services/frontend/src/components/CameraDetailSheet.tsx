@@ -512,11 +512,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
             {/* Deployments tab */}
             {activeTab === 'deployments' && (
-              <CameraDeploymentHistory
-                cameraId={camera.id}
-                projectId={projectId}
-                cameraName={camera.name}
-              />
+              <CameraDeploymentHistory cameraId={camera.id} />
             )}
 
             {/* Details tab: custom fields (admins). Read by default; Edit toggles the editor. */}

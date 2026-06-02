@@ -25,8 +25,6 @@ export interface DeploymentSummary {
   deployment_number: number;
   camera_id: number;
   camera_name: string;
-  label: string | null;
-  notes: string | null;
   latitude: number | null;
   longitude: number | null;
   start_date: string | null;
@@ -62,11 +60,11 @@ export interface UpdateSiteRequest {
   habitat_type?: string | null;
   notes?: string | null;
   tags?: string[] | null;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface UpdateDeploymentRequest {
-  name?: string | null;
-  notes?: string | null;
   site_id?: number | null;
 }
 
@@ -76,8 +74,6 @@ export interface DeploymentDetail {
   camera_id: number;
   site_id: number | null;
   site_source: string;
-  name: string | null;
-  notes: string | null;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/sites`;

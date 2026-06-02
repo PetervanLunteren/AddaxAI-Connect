@@ -38,6 +38,7 @@ import {
 import { sitesApi, type DeploymentSummary } from '../api/sites';
 import { DeploymentEditModal } from './DeploymentEditModal';
 import { TagInput } from './TagInput';
+import { SiteLocationPicker } from './sites/SiteLocationPicker';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
@@ -92,6 +93,8 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editHabitat, setEditHabitat] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
+  const [editLat, setEditLat] = useState('');
+  const [editLon, setEditLon] = useState('');
   const [openDep, setOpenDep] = useState<DeploymentSummary | null>(null);
 
   const { data: detail, isLoading } = useQuery({
@@ -116,8 +119,18 @@ export const SiteDetailSheet: React.FC<Props> = ({
       setEditHabitat(detail.habitat_type ?? '');
       setEditNotes(detail.notes ?? '');
       setEditTags(detail.tags ?? []);
+      setEditLat(detail.latitude != null ? String(detail.latitude) : '');
+      setEditLon(detail.longitude != null ? String(detail.longitude) : '');
     }
   }, [detail]);
+
+  const latNum = editLat !== '' && !isNaN(Number(editLat)) ? Number(editLat) : null;
+  const lonNum = editLon !== '' && !isNaN(Number(editLon)) ? Number(editLon) : null;
+  const locationChanged =
+    !!detail &&
+    latNum != null &&
+    lonNum != null &&
+    (latNum !== detail.latitude || lonNum !== detail.longitude);
 
   useEffect(() => {
     setActiveTab('overview');
@@ -128,7 +141,8 @@ export const SiteDetailSheet: React.FC<Props> = ({
     (editName.trim() !== detail.name ||
       (editHabitat.trim() || null) !== (detail.habitat_type ?? null) ||
       (editNotes.trim() || null) !== (detail.notes ?? null) ||
-      JSON.stringify(editTags) !== JSON.stringify(detail.tags ?? []));
+      JSON.stringify(editTags) !== JSON.stringify(detail.tags ?? []) ||
+      locationChanged);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -137,6 +151,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
         habitat_type: editHabitat.trim() || null,
         notes: editNotes.trim() || null,
         tags: editTags,
+        ...(locationChanged ? { latitude: latNum as number, longitude: lonNum as number } : {}),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
@@ -284,6 +299,42 @@ export const SiteDetailSheet: React.FC<Props> = ({
                       </div>
                     )}
                   </div>
+                  {canEdit && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Location</label>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Moving the pin recenters where future readings cluster.
+                        It does not move existing deployments.
+                      </p>
+                      <SiteLocationPicker
+                        value={latNum != null && lonNum != null ? { lat: latNum, lon: lonNum } : null}
+                        onChange={(la, lo) => {
+                          setEditLat(la.toFixed(6));
+                          setEditLon(lo.toFixed(6));
+                        }}
+                        sites={[]}
+                        height={260}
+                      />
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <input
+                          type="number"
+                          step="any"
+                          value={editLat}
+                          onChange={(e) => setEditLat(e.target.value)}
+                          placeholder="Latitude"
+                          className="w-full px-3 py-2 border rounded-md text-sm"
+                        />
+                        <input
+                          type="number"
+                          step="any"
+                          value={editLon}
+                          onChange={(e) => setEditLon(e.target.value)}
+                          placeholder="Longitude"
+                          className="w-full px-3 py-2 border rounded-md text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
                   {coreChanged && canEdit && (
                     <Button
                       onClick={() => saveMutation.mutate()}
@@ -306,24 +357,26 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </div>
 
                 <div className="rounded-lg border p-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Coordinates</span>
-                    {detail.latitude != null && detail.longitude != null ? (
-                      <span className="flex items-center gap-1">
-                        {fmtCoords(detail.latitude, detail.longitude)}
-                        <a
-                          href={`https://www.google.com/maps?q=${detail.latitude},${detail.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      </span>
-                    ) : (
-                      <span>-</span>
-                    )}
-                  </div>
+                  {!canEdit && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Coordinates</span>
+                      {detail.latitude != null && detail.longitude != null ? (
+                        <span className="flex items-center gap-1">
+                          {fmtCoords(detail.latitude, detail.longitude)}
+                          <a
+                            href={`https://www.google.com/maps?q=${detail.latitude},${detail.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        </span>
+                      ) : (
+                        <span>-</span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cameras</span>
                     <span>{detail.camera_count}</span>
@@ -350,16 +403,17 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     <button
                       key={d.id}
                       type="button"
-                      onClick={() => setOpenDep(d)}
-                      className="w-full text-left rounded-md border p-3 cursor-pointer hover:bg-muted/50"
+                      onClick={canEdit ? () => setOpenDep(d) : undefined}
+                      disabled={!canEdit}
+                      className={cn(
+                        'w-full text-left rounded-md border p-3',
+                        canEdit ? 'cursor-pointer hover:bg-muted/50' : '',
+                      )}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <Camera className="h-4 w-4 shrink-0 text-primary" />
-                          <span className="font-medium truncate">
-                            {d.camera_name}
-                            {d.label ? ` / ${d.label}` : ''}
-                          </span>
+                          <span className="font-medium truncate">{d.camera_name}</span>
                         </div>
                         <span className="text-xs text-muted-foreground shrink-0">
                           {d.image_count.toLocaleString()} images
@@ -385,12 +439,9 @@ export const SiteDetailSheet: React.FC<Props> = ({
         deploymentId={openDep?.id ?? 0}
         cameraName={openDep?.camera_name ?? ''}
         siteName={detail?.name ?? null}
-        initialName={openDep?.label ?? null}
-        initialNotes={openDep?.notes ?? null}
         initialSiteId={siteId}
         deploymentLat={openDep?.latitude ?? null}
         deploymentLon={openDep?.longitude ?? null}
-        editable={canEdit}
         invalidateKeys={[
           ['site', projectId, siteId],
           ['sites', projectId],
