@@ -4,8 +4,9 @@
  * Mirrors CameraDetailSheet so the two entity views feel the same:
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
- * - Deployments: list of deployments at this site, click a row to open the
- *   shared DeploymentEditModal (editable for admins, read-only otherwise).
+ * - Deployments: a read-only journey of which cameras stood here over time.
+ *   Each step links to the Deployments page (pre-filtered to this site), which
+ *   is where reassignment happens.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -29,11 +30,10 @@ import {
   SheetBody,
 } from './ui/Sheet';
 import { Button } from './ui/Button';
-import { sitesApi, type DeploymentSummary } from '../api/sites';
-import { DeploymentEditModal } from './DeploymentEditModal';
+import { sitesApi } from '../api/sites';
 import { TagInput } from './TagInput';
 import { SiteFormModal } from './sites/SiteFormModal';
-import { DeploymentCard } from './DeploymentCard';
+import { DeploymentJourney } from './DeploymentJourney';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
@@ -77,7 +77,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editHabitat, setEditHabitat] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
-  const [openDep, setOpenDep] = useState<DeploymentSummary | null>(null);
   const [showMove, setShowMove] = useState(false);
 
   const { data: detail, isLoading } = useQuery({
@@ -345,46 +344,24 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </div>
               </div>
             ) : (
-              // Deployments tab: same card shape as CameraDeploymentHistory.
-              detail.deployments.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">
-                  No deployments at this site.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {detail.deployments.map((d) => (
-                    <DeploymentCard
-                      key={d.id}
-                      siteName={detail.name}
-                      cameraName={d.camera_name}
-                      startDate={d.start_date}
-                      endDate={d.end_date}
-                      imageCount={d.image_count}
-                      onClick={canEdit ? () => setOpenDep(d) : undefined}
-                    />
-                  ))}
-                </div>
-              )
+              // Deployments tab: a read-only journey of which cameras stood here
+              // over time. Reassignment lives on the Deployments page.
+              <DeploymentJourney
+                mode="site"
+                items={(detail.deployments ?? []).map((d) => ({
+                  id: d.id,
+                  title: d.camera_name,
+                  startDate: d.start_date,
+                  endDate: d.end_date,
+                  imageCount: d.image_count,
+                }))}
+                linkTo={`/projects/${projectId}/deployments?site=${siteId}`}
+                emptyText="No deployments at this site."
+              />
             )}
           </SheetBody>
         </SheetContent>
       </Sheet>
-
-      <DeploymentEditModal
-        open={openDep != null}
-        onClose={() => setOpenDep(null)}
-        projectId={projectId}
-        deploymentId={openDep?.id ?? 0}
-        cameraName={openDep?.camera_name ?? ''}
-        siteName={detail?.name ?? null}
-        initialSiteId={siteId}
-        deploymentLat={openDep?.latitude ?? null}
-        deploymentLon={openDep?.longitude ?? null}
-        invalidateKeys={[
-          ['site', projectId, siteId],
-          ['sites', projectId],
-        ]}
-      />
 
       {detail && (
         <SiteFormModal

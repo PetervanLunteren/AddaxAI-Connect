@@ -1,21 +1,23 @@
 /**
  * Deployment history for one camera, shown in the camera detail sheet.
  *
- * Lists each period the camera spent at a site, oldest first, using the shared
- * DeploymentCard (site name, camera id, date range, image count). Read-only:
- * a deployment carries no editable metadata, and site reassignment lives on the
- * site detail.
+ * Tells the story "where has this camera lived over time?" as a read-only
+ * journey: each step is a site the camera moved to, oldest first. Editing
+ * happens on the Deployments page, which each step links to (pre-filtered to
+ * this camera).
  */
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
-import { DeploymentCard } from './DeploymentCard';
+import { DeploymentJourney } from './DeploymentJourney';
 
 export const CameraDeploymentHistory: React.FC<{
   cameraId: number;
   cameraName: string;
 }> = ({ cameraId, cameraName }) => {
+  const { projectId } = useParams<{ projectId: string }>();
   const { data, isLoading } = useQuery({
     queryKey: ['camera-deployments', cameraId],
     queryFn: () => camerasApi.getDeployments(cameraId),
@@ -30,26 +32,22 @@ export const CameraDeploymentHistory: React.FC<{
     );
   }
 
-  if (!data || data.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-6 text-center">
-        No deployment history for this camera yet.
-      </p>
-    );
-  }
+  // The Deployments page filters cameras by their device-id label, which is what
+  // cameraName holds.
+  const linkTo = `/projects/${projectId}/deployments?camera=${encodeURIComponent(cameraName)}`;
 
   return (
-    <div className="space-y-3">
-      {data.map((d) => (
-        <DeploymentCard
-          key={d.id}
-          siteName={d.site_name}
-          cameraName={cameraName}
-          startDate={d.start_date}
-          endDate={d.end_date}
-          imageCount={d.image_count}
-        />
-      ))}
-    </div>
+    <DeploymentJourney
+      mode="camera"
+      items={(data ?? []).map((d) => ({
+        id: d.id,
+        title: d.site_name,
+        startDate: d.start_date,
+        endDate: d.end_date,
+        imageCount: d.image_count,
+      }))}
+      linkTo={linkTo}
+      emptyText="No deployment history for this camera yet."
+    />
   );
 };
