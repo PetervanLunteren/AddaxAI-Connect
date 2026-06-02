@@ -1103,14 +1103,14 @@ async def get_image(
     if image.deployment_id:
         site_row = (await db.execute(
             text("""
-                SELECT s.name AS name, d.name AS label
+                SELECT s.name AS name
                 FROM deployments d JOIN sites s ON s.id = d.site_id
                 WHERE d.id = :dep
             """),
             {"dep": image.deployment_id},
         )).mappings().first()
         if site_row:
-            site = {"name": site_row["name"], "label": site_row["label"]}
+            site = {"name": site_row["name"]}
 
     return ImageDetailResponse(
         id=image.id,

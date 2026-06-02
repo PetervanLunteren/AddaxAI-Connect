@@ -445,7 +445,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     {camera.current_site ? (
                       <span>
                         {camera.current_site.name}
-                        {camera.current_site.label ? ` / ${camera.current_site.label}` : ''}
                       </span>
                     ) : (
                       <span>Unknown</span>
@@ -514,7 +513,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
             {/* Deployments tab */}
             {activeTab === 'deployments' && (
-              <CameraDeploymentHistory cameraId={camera.id} />
+              <CameraDeploymentHistory cameraId={camera.id} cameraName={camera.name} />
             )}
 
             {/* Details tab: custom fields (admins). Read by default; Edit toggles the editor. */}

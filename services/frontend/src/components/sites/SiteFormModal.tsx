@@ -131,7 +131,7 @@ export const SiteFormModal: React.FC<Props> = ({
           <DialogTitle>{isMove ? 'Move site' : 'Add site'}</DialogTitle>
           <DialogDescription>
             {isMove
-              ? 'Click the map or type the coordinates to reposition this site.'
+              ? 'Move this site to the right place on the map. The cameras and photos here stay linked to it.'
               : 'Click the map to place the site, or type its coordinates. Cameras reporting GPS near this point are grouped here.'}
           </DialogDescription>
         </DialogHeader>

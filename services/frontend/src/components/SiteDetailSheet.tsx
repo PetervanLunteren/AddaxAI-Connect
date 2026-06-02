@@ -18,7 +18,6 @@ import {
   Trash2,
   ExternalLink,
   MapPin,
-  Camera,
   Move,
   GitMerge,
 } from 'lucide-react';
@@ -34,6 +33,7 @@ import { sitesApi, type DeploymentSummary } from '../api/sites';
 import { DeploymentEditModal } from './DeploymentEditModal';
 import { TagInput } from './TagInput';
 import { SiteFormModal } from './sites/SiteFormModal';
+import { DeploymentCard } from './DeploymentCard';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
@@ -51,17 +51,6 @@ interface Props {
   onDeleteRequested: (site: { id: number; name: string }) => void;
 }
 
-function fmtDate(s: string | null): string {
-  if (!s) return '-';
-  const d = new Date(s);
-  return isNaN(d.getTime())
-    ? s
-    : d.toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-}
 
 function fmtCoords(lat: number | null, lon: number | null): string {
   if (lat == null || lon == null) return '-';
@@ -178,28 +167,33 @@ export const SiteDetailSheet: React.FC<Props> = ({
 
           <SheetBody className="space-y-6">
             {canEdit && detail && (
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowMove(true)}>
-                  <Move className="h-4 w-4 mr-2" />
-                  Move
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
-                >
-                  <GitMerge className="h-4 w-4 mr-2" />
-                  Merge
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
+              <div className="rounded-lg border p-3">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowMove(true)}
+                    className="flex-1"
+                  >
+                    <Move className="h-4 w-4 mr-2" />
+                    Move
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
+                    className="flex-1"
+                  >
+                    <GitMerge className="h-4 w-4 mr-2" />
+                    Merge
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
+                    className="flex-1 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -359,30 +353,15 @@ export const SiteDetailSheet: React.FC<Props> = ({
               ) : (
                 <div className="space-y-3">
                   {detail.deployments.map((d) => (
-                    <button
+                    <DeploymentCard
                       key={d.id}
-                      type="button"
+                      siteName={detail.name}
+                      cameraName={d.camera_name}
+                      startDate={d.start_date}
+                      endDate={d.end_date}
+                      imageCount={d.image_count}
                       onClick={canEdit ? () => setOpenDep(d) : undefined}
-                      disabled={!canEdit}
-                      className={cn(
-                        'w-full text-left rounded-md border p-3',
-                        canEdit ? 'cursor-pointer hover:bg-muted/50' : '',
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Camera className="h-4 w-4 shrink-0 text-primary" />
-                          <span className="font-medium truncate">{d.camera_name}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          {d.image_count.toLocaleString()} images
-                        </span>
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        {fmtDate(d.start_date)} to{' '}
-                        {d.end_date ? fmtDate(d.end_date) : 'now'}
-                      </div>
-                    </button>
+                    />
                   ))}
                 </div>
               )

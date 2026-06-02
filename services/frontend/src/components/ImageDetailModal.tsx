@@ -477,7 +477,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     >
                       <MapPin className="h-3 w-3" />
                       {imageDetail.site.name}
-                      {imageDetail.site.label ? ` / ${imageDetail.site.label}` : ''}
                     </div>
                   )}
                   {/* Camera name chip (secondary), top-right */}

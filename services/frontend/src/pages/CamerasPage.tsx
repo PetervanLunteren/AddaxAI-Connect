@@ -743,7 +743,6 @@ export const CamerasPage: React.FC = () => {
         return camera.current_site ? (
           <span className="text-sm">
             {camera.current_site.name}
-            {camera.current_site.label ? ` / ${camera.current_site.label}` : ''}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">-</span>

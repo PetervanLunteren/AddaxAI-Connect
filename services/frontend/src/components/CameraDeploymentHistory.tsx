@@ -1,24 +1,21 @@
 /**
  * Deployment history for one camera, shown in the camera detail sheet.
  *
- * Lists each period the camera spent at a site, oldest first, with the site
- * name, the date range, and the image count. Read-only: a deployment carries no
- * editable metadata, and site reassignment lives on the site detail.
+ * Lists each period the camera spent at a site, oldest first, using the shared
+ * DeploymentCard (site name, camera id, date range, image count). Read-only:
+ * a deployment carries no editable metadata, and site reassignment lives on the
+ * site detail.
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { camerasApi } from '../api/cameras';
+import { DeploymentCard } from './DeploymentCard';
 
-function fmtDate(s: string | null): string {
-  if (!s) return '-';
-  const d = new Date(s);
-  return isNaN(d.getTime())
-    ? s
-    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-export const CameraDeploymentHistory: React.FC<{ cameraId: number }> = ({ cameraId }) => {
+export const CameraDeploymentHistory: React.FC<{
+  cameraId: number;
+  cameraName: string;
+}> = ({ cameraId, cameraName }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['camera-deployments', cameraId],
     queryFn: () => camerasApi.getDeployments(cameraId),
@@ -44,22 +41,14 @@ export const CameraDeploymentHistory: React.FC<{ cameraId: number }> = ({ camera
   return (
     <div className="space-y-3">
       {data.map((d) => (
-        <div key={d.id} className="rounded-md border p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <MapPin className="h-4 w-4 shrink-0 text-primary" />
-              <span className="font-medium truncate">
-                {d.site_name ?? 'Unassigned site'}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground shrink-0">
-              {d.image_count.toLocaleString()} images
-            </span>
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            {fmtDate(d.start_date)} to {d.end_date ? fmtDate(d.end_date) : 'now'}
-          </div>
-        </div>
+        <DeploymentCard
+          key={d.id}
+          siteName={d.site_name}
+          cameraName={cameraName}
+          startDate={d.start_date}
+          endDate={d.end_date}
+          imageCount={d.image_count}
+        />
       ))}
     </div>
   );

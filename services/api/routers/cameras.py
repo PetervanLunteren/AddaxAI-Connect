@@ -34,7 +34,7 @@ class CameraResponse(BaseModel):
     tags: Optional[List[str]] = None
     notes: Optional[str] = None
     location: Optional[dict] = None  # {lat, lon} from the latest daily report (GPS health signal)
-    current_site: Optional[dict] = None  # {id, name, label} of the camera's current deployment site
+    current_site: Optional[dict] = None  # {id, name} of the camera's current deployment site
     battery_percentage: Optional[int] = None
     temperature: Optional[int] = None
     signal_quality: Optional[int] = None
@@ -221,7 +221,7 @@ async def list_cameras(
     if camera_ids:
         site_rows = await db.execute(
             text("""
-                SELECT DISTINCT ON (d.camera_id) d.camera_id, d.name AS label,
+                SELECT DISTINCT ON (d.camera_id) d.camera_id,
                        s.id AS site_id, s.name AS site_name
                 FROM deployments d
                 LEFT JOIN sites s ON s.id = d.site_id
@@ -233,7 +233,7 @@ async def list_cameras(
         for r in site_rows.mappings().all():
             if r["site_id"] is not None:
                 current_site_map[r["camera_id"]] = {
-                    "id": r["site_id"], "name": r["site_name"], "label": r["label"],
+                    "id": r["site_id"], "name": r["site_name"],
                 }
 
     from routers.admin import get_server_timezone
@@ -542,7 +542,7 @@ async def get_camera(
 
     site_row = (await db.execute(
         text("""
-            SELECT d.name AS label, s.id AS site_id, s.name AS site_name
+            SELECT s.id AS site_id, s.name AS site_name
             FROM deployments d
             LEFT JOIN sites s ON s.id = d.site_id
             WHERE d.camera_id = :cam
@@ -554,7 +554,7 @@ async def get_camera(
     current_site = None
     if site_row and site_row["site_id"] is not None:
         current_site = {
-            "id": site_row["site_id"], "name": site_row["site_name"], "label": site_row["label"],
+            "id": site_row["site_id"], "name": site_row["site_name"],
         }
 
     return camera_to_response(

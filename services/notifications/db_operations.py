@@ -131,14 +131,14 @@ def get_project_name(project_id: int) -> Optional[str]:
 
 def get_image_site_label(image_uuid: str) -> Optional[str]:
     """
-    The site (with deployment label) an image was taken at, via its deployment.
-    Returns "Site / label" or "Site", or None when the image has no deployment.
-    Used so detection notifications can lead with where, not which camera.
+    The site an image was taken at, via its deployment. Returns the site name,
+    or None when the image has no deployment. Used so detection notifications
+    can lead with where, not which camera.
     """
     with get_sync_session() as session:
         row = session.execute(
             text("""
-                SELECT s.name AS site_name, d.name AS label
+                SELECT s.name AS site_name
                 FROM images i
                 JOIN deployments d ON d.id = i.deployment_id
                 JOIN sites s ON s.id = d.site_id
@@ -148,4 +148,4 @@ def get_image_site_label(image_uuid: str) -> Optional[str]:
         ).first()
     if not row:
         return None
-    return f"{row.site_name} / {row.label}" if row.label else row.site_name
+    return row.site_name

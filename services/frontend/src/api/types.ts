@@ -11,7 +11,7 @@ export interface Camera {
   tags?: string[];
   notes?: string | null;
   // The camera's current site (from its most recent deployment), or null.
-  current_site: { id: number; name: string; label: string | null } | null;
+  current_site: { id: number; name: string } | null;
   // Health/operational data (visible to all)
   location: { lat: number; lon: number } | null;
   battery_percentage: number | null;
@@ -162,7 +162,7 @@ export interface ImageDetail {
   camera_id: number;
   camera_name: string;
   camera_location: { lat: number; lon: number } | null;
-  site: { name: string; label: string | null } | null;
+  site: { name: string } | null;
   captured_at: string;
   storage_path: string;
   status: string;
