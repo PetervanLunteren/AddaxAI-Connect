@@ -57,6 +57,7 @@ import {
   type CreateCameraRequest,
   type BulkImportResponse,
 } from '../api/cameras';
+import { sitesApi } from '../api/sites';
 import type { Camera } from '../api/types';
 import { CameraMapView } from '../components/cameras/CameraMapView';
 import {
@@ -242,6 +243,14 @@ export const CamerasPage: React.FC = () => {
   const { data: cameras, isLoading } = useQuery({
     queryKey: ['cameras', currentProject?.id],
     queryFn: () => camerasApi.getAll(currentProject?.id),
+    enabled: !!currentProject,
+  });
+
+  // Sites, so the map can pin each camera at its site. One coordinate system,
+  // no drift between a camera's reported GPS and its site location.
+  const { data: sites } = useQuery({
+    queryKey: ['sites', currentProject?.id],
+    queryFn: () => sitesApi.list(currentProject!.id),
     enabled: !!currentProject,
   });
 
@@ -640,6 +649,20 @@ export const CamerasPage: React.FC = () => {
     return result;
   }, [cameras, searchQuery, filters, sort]);
 
+  // For the map, plot each camera at its site location so there is no drift
+  // between the camera's reported GPS and its site. Fall back to the reported
+  // GPS for a camera that has no site yet.
+  const mapCameras = useMemo(() => {
+    const byId = new Map((sites ?? []).map((s) => [s.id, s]));
+    return filteredCameras.map((c) => {
+      const site = c.current_site ? byId.get(c.current_site.id) : undefined;
+      if (site && site.latitude != null && site.longitude != null) {
+        return { ...c, location: { lat: site.latitude, lon: site.longitude } };
+      }
+      return c;
+    });
+  }, [filteredCameras, sites]);
+
   const isFiltered = searchQuery.trim() !== '' ||
     !!filters.status || !!filters.tag ||
     !!filters.battery || !!filters.signal || !!filters.sd_usage || !!filters.location;
@@ -1004,7 +1027,7 @@ export const CamerasPage: React.FC = () => {
 
       {/* Map view */}
       {viewMode === 'map' && cameras && cameras.length > 0 && (
-        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
+        <CameraMapView cameras={mapCameras} onCameraClick={handleRowClick} />
       )}
 
       {/* Table view content */}
