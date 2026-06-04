@@ -55,6 +55,7 @@ import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteFormModal } from '../components/sites/SiteFormModal';
+import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
 
 type SortColumn = 'name' | 'cameras' | 'deployments' | 'images' | 'last_activity';
@@ -65,9 +66,6 @@ const FILTER_SCHEMA: FilterSchema = {
   tag: 'string',
   view_mode: 'string',
 };
-
-const inputClass =
-  'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-ring';
 
 function errMsg(err: unknown): string {
   const e = err as { response?: { data?: { detail?: string } }; message?: string };
@@ -317,7 +315,6 @@ export const SitesPage: React.FC = () => {
     );
   }
 
-  const otherSites = (sites ?? []).filter((s) => s.id !== mergeSite?.id);
   const hasSites = !isLoading && sites && sites.length > 0;
   const isFiltered = !!(searchQuery || habitatFilter || tagFilter);
 
@@ -505,29 +502,22 @@ export const SitesPage: React.FC = () => {
 
       {/* Merge dialog */}
       <Dialog open={mergeSite != null} onOpenChange={(o) => !o && setMergeSite(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Merge site</DialogTitle>
             <DialogDescription>
-              Move every deployment from "{mergeSite?.name}" into another site,
-              then delete "{mergeSite?.name}". This cannot be undone.
+              Pick the site to keep. "{mergeSite?.name}" will be merged into it
+              and then removed. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div>
-            <label className="block text-sm font-medium mb-2">Merge into</label>
-            <select
-              value={mergeTargetId}
-              onChange={(e) => setMergeTargetId(e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Select a site</option>
-              {otherSites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {mergeSite && (
+            <SiteMergePicker
+              sites={sites ?? []}
+              sourceSiteId={mergeSite.id}
+              selectedTargetId={mergeTargetId ? Number(mergeTargetId) : null}
+              onSelectTarget={(id) => setMergeTargetId(String(id))}
+            />
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setMergeSite(null)}>
               Cancel
