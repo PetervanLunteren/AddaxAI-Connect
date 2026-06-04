@@ -112,17 +112,49 @@ def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -
     return R * c
 
 
-def _resolve_site(session, project_id: Optional[int], lat: float, lon: float) -> Optional[int]:
+def _resolve_site(
+    session,
+    project_id: Optional[int],
+    lat: float,
+    lon: float,
+    camera_id: Optional[int] = None,
+) -> Optional[int]:
     """
     Return the id of the site within SITE_THRESHOLD_METERS of (lat, lon) in this
     project, creating one if none is close enough. Returns None when the camera
     has no project, since sites are project-scoped (the deployment then stays
     site-less, matching the pre-site behaviour).
+
+    Per-camera affinity: when camera_id is given, first reuse the most recent
+    site this camera has used that is within the threshold of (lat, lon), even if
+    another site is nearer. This keeps co-located cameras apart, two cameras on
+    one pole pointing different ways share a GPS point, so plain nearest-site
+    would flip between their sites; the camera's own history is the tiebreak.
+    Only the initial collapse still needs a one-time manual split; after that the
+    assignment sticks across GPS glitches and re-deployments.
     """
     if project_id is None:
         return None
 
     wkt = f"POINT({lon} {lat})"
+
+    if camera_id is not None:
+        own = session.execute(
+            text("""
+                SELECT d.site_id
+                FROM deployments d
+                JOIN sites s ON s.id = d.site_id
+                WHERE d.camera_id = :camera_id
+                  AND d.site_id IS NOT NULL
+                  AND ST_Distance(s.location, ST_GeogFromText(:wkt)) <= :threshold
+                ORDER BY d.deployment_number DESC
+                LIMIT 1
+            """),
+            {"wkt": wkt, "camera_id": camera_id, "threshold": SITE_THRESHOLD_METERS},
+        ).fetchone()
+        if own:
+            return own.site_id
+
     nearest = session.execute(
         text("""
             SELECT id, ST_Distance(location, ST_GeogFromText(:wkt)) AS dist
@@ -265,7 +297,7 @@ def update_or_create_site_and_deployment(
                 # work) from the current GPS. site_source is only a label of who
                 # set the site, it does not gate this.
                 if active.site_id is None:
-                    active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
+                    active.site_id = _resolve_site(session, project_id, new_lat, new_lon, camera_id)
                     session.flush()
                     _recompute_site_location(session, active.site_id)
                 if event_date < active.start_date:
@@ -356,7 +388,7 @@ def update_or_create_site_and_deployment(
             next_number = 1 if max_number is None else max_number + 1
             log_msg = "Creating new deployment for camera"
 
-        site_id = _resolve_site(session, project_id, new_lat, new_lon)
+        site_id = _resolve_site(session, project_id, new_lat, new_lon, camera_id)
         deployment_id = _insert_deployment(
             session, camera_id, next_number, site_id, new_start_date, new_lat, new_lon
         )
