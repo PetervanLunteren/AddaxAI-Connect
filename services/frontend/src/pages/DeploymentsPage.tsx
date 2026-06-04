@@ -46,6 +46,7 @@ import { cn } from '../lib/utils';
 import { deploymentsApi, type DeploymentListItem } from '../api/deployments';
 import { sitesApi } from '../api/sites';
 import { DeploymentEditModal } from '../components/DeploymentEditModal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 type SortColumn = 'camera' | 'site' | 'start' | 'end' | 'images';
 
@@ -158,6 +159,7 @@ export const DeploymentsPage: React.FC = () => {
   const [editDep, setEditDep] = useState<DeploymentListItem | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkChoice, setBulkChoice] = useState('');
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const { data: deployments, isLoading } = useQuery({
@@ -329,9 +331,13 @@ export const DeploymentsPage: React.FC = () => {
       invalidate();
       clearSelection();
       setBulkChoice('');
+      setShowBulkConfirm(false);
       toast.success(`${res.updated} deployment${res.updated === 1 ? '' : 's'} updated`);
     },
-    onError: (err) => toast.error(`Could not reassign, ${errMsg(err)}`),
+    onError: (err) => {
+      setShowBulkConfirm(false);
+      toast.error(`Could not reassign, ${errMsg(err)}`);
+    },
   });
 
   if (!selectedProject) {
@@ -400,10 +406,9 @@ export const DeploymentsPage: React.FC = () => {
             </select>
             <Button
               size="sm"
-              onClick={() => bulkMutation.mutate()}
+              onClick={() => setShowBulkConfirm(true)}
               disabled={bulkChoice === '' || bulkMutation.isPending}
             >
-              {bulkMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Apply
             </Button>
             <Button variant="ghost" size="sm" onClick={clearSelection}>
@@ -511,6 +516,22 @@ export const DeploymentsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={showBulkConfirm}
+        onClose={() => setShowBulkConfirm(false)}
+        onConfirm={() => bulkMutation.mutate()}
+        title="Change site"
+        body={
+          bulkChoice === UNASSIGNED
+            ? `Unassign ${selected.size} deployment${selected.size === 1 ? '' : 's'} from their site? You can change this again later.`
+            : `Move ${selected.size} deployment${selected.size === 1 ? '' : 's'} to "${
+                (sites ?? []).find((s) => String(s.id) === bulkChoice)?.name ?? 'this site'
+              }"? You can change this again later.`
+        }
+        confirmLabel="Change site"
+        isPending={bulkMutation.isPending}
+      />
 
       {editDep && (
         <DeploymentEditModal
