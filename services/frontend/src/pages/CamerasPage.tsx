@@ -651,9 +651,9 @@ export const CamerasPage: React.FC = () => {
     switch (id) {
       case 'device_id':
         return camera.device_id ? (
-          <span className="font-mono text-xs">{camera.device_id}</span>
+          camera.device_id
         ) : (
-          <span className="text-xs text-muted-foreground">-</span>
+          <span className="text-muted-foreground">-</span>
         );
       case 'tags':
         return camera.tags && camera.tags.length > 0 ? (
