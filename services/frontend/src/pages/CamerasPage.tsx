@@ -831,79 +831,9 @@ export const CamerasPage: React.FC = () => {
         )}
       </div>
 
-      {/* Shared filter bar (drives both table and map views) */}
-      {cameras && cameras.length > 0 && (
-        <div className="space-y-3">
-          <FilterBar
-            fields={filterFields}
-            values={filterValues}
-            onChange={onFilterChange}
-            onClearAll={onClearAll}
-            displayControls={
-              viewMode === 'table'
-                ? [
-                    {
-                      key: 'columns',
-                      label: 'Visible columns',
-                      render: () => (
-                        <ColumnPicker
-                          visible={visibleColumns}
-                          onChange={setVisibleColumns}
-                        />
-                      ),
-                    },
-                  ]
-                : undefined
-            }
-            displayValues={{}}
-            onDisplayChange={() => {}}
-          />
-          {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredCameras.length} of {cameras.length} cameras
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Tab navigation */}
-      <div className="flex border-b">
-        <button
-          onClick={() => setViewMode('table')}
-          className={cn(
-            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-            viewMode === 'table'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <TableIcon className="h-4 w-4" />
-          Table
-        </button>
-        <button
-          onClick={() => setViewMode('map')}
-          className={cn(
-            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-            viewMode === 'map'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <MapIcon className="h-4 w-4" />
-          Map
-        </button>
-      </div>
-
-      {/* Map view */}
-      {viewMode === 'map' && cameras && cameras.length > 0 && (
-        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
-      )}
-
-      {/* Table view content */}
-      {viewMode === 'table' && (
-        <>
-          {/* Summary Statistics */}
-          {cameras && cameras.length > 0 && (() => {
+      {/* Fleet summary. Page-wide stats over all cameras, independent of the
+          table/map view and of the filters, so they live above both. */}
+      {cameras && cameras.length > 0 && (() => {
         const activeCount = cameras.filter((c: Camera) => c.status === 'active').length;
         const inactiveCount = cameras.filter((c: Camera) => c.status === 'inactive').length;
         const neverReportedCount = cameras.filter((c: Camera) => c.status === 'never_reported').length;
@@ -923,7 +853,7 @@ export const CamerasPage: React.FC = () => {
           : 0;
 
         return (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {/* Camera status bar */}
             <Card>
               <CardContent className="p-6">
@@ -1009,6 +939,77 @@ export const CamerasPage: React.FC = () => {
         );
       })()}
 
+      {/* Shared filter bar (drives both table and map views) */}
+      {cameras && cameras.length > 0 && (
+        <div className="space-y-3">
+          <FilterBar
+            fields={filterFields}
+            values={filterValues}
+            onChange={onFilterChange}
+            onClearAll={onClearAll}
+            displayControls={
+              viewMode === 'table'
+                ? [
+                    {
+                      key: 'columns',
+                      label: 'Visible columns',
+                      render: () => (
+                        <ColumnPicker
+                          visible={visibleColumns}
+                          onChange={setVisibleColumns}
+                        />
+                      ),
+                    },
+                  ]
+                : undefined
+            }
+            displayValues={{}}
+            onDisplayChange={() => {}}
+          />
+          {isFiltered && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              {filteredCameras.length} of {cameras.length} cameras
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Tab navigation */}
+      <div className="flex border-b">
+        <button
+          onClick={() => setViewMode('table')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+            viewMode === 'table'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <TableIcon className="h-4 w-4" />
+          Table
+        </button>
+        <button
+          onClick={() => setViewMode('map')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+            viewMode === 'map'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <MapIcon className="h-4 w-4" />
+          Map
+        </button>
+      </div>
+
+      {/* Map view */}
+      {viewMode === 'map' && cameras && cameras.length > 0 && (
+        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
+      )}
+
+      {/* Table view content */}
+      {viewMode === 'table' && (
+        <>
       {/* Bulk-action bar. Only renders for admins with at least one camera
           selected. Sits between the toolbar and the table, same shape as
           ManageImagesPage's bulk bar. */}
