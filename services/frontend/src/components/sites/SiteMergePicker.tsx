@@ -90,6 +90,10 @@ export function SiteMergePicker({
     () => located.filter((s) => s.id !== sourceSiteId),
     [located, sourceSiteId],
   );
+  const target =
+    selectedTargetId != null
+      ? others.find((s) => s.id === selectedTargetId) ?? null
+      : null;
 
   const points = useMemo<[number, number][]>(
     () => located.map((s) => [s.latitude as number, s.longitude as number]),
@@ -141,7 +145,7 @@ export function SiteMergePicker({
                 icon={isTarget ? keptIcon : otherIcon}
                 eventHandlers={{ click: () => onSelectTarget(s.id) }}
               >
-                <Tooltip>{isTarget ? `${s.name} kept` : s.name}</Tooltip>
+                <Tooltip>{isTarget ? `${s.name} (destination)` : s.name}</Tooltip>
               </Marker>
             );
           })}
@@ -153,12 +157,38 @@ export function SiteMergePicker({
           <LegendDot color={REMOVED_COLOR} /> Removed
         </span>
         <span className="flex items-center gap-1.5">
-          <LegendDot color={KEPT_COLOR} /> Kept
+          <LegendDot color={KEPT_COLOR} /> Destination
         </span>
         <span className="flex items-center gap-1.5">
-          <LegendDot color={OTHER_COLOR} /> Other site
+          <LegendDot color={OTHER_COLOR} /> Other sites
         </span>
+      </div>
+
+      {/* Live summary of the merge that will run. Updates as the target is
+          picked, so the action is explicit before confirming. */}
+      <div className="rounded-md border bg-muted/40 p-3 text-sm">
+        {target ? (
+          <p>
+            <span className="font-medium">{source?.name}</span> will be merged
+            into <span className="font-medium">{target.name}</span>. Its{' '}
+            {plural(source?.deployment_count ?? 0, 'deployment')} and{' '}
+            {plural(source?.image_count ?? 0, 'image')} move to{' '}
+            <span className="font-medium">{target.name}</span>, then{' '}
+            <span className="font-medium">{source?.name}</span> is removed. This
+            cannot be undone.
+          </p>
+        ) : (
+          <p className="text-muted-foreground">
+            Pick a site on the map to merge{' '}
+            <span className="font-medium">{source?.name}</span> into.
+          </p>
+        )}
       </div>
     </div>
   );
+}
+
+// "3 deployments", "1 image" (count formatted with thousands separators).
+function plural(count: number, noun: string): string {
+  return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`;
 }
