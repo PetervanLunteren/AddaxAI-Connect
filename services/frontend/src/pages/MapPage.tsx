@@ -12,27 +12,36 @@
  * everything". Clicking a marker opens that entity's page for the detail.
  */
 import React from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { MapPin, Camera as CameraIcon } from 'lucide-react';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MapPin, Camera as CameraIcon, Activity } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { sitesApi } from '../api/sites';
 import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { CameraMapView } from '../components/cameras/CameraMapView';
+import { CameraDetailSheet } from '../components/CameraDetailSheet';
+import { SiteDetailWithActions } from '../components/SiteDetailWithActions';
+import { DetectionRatePanel } from '../components/map/DetectionRatePanel';
 import { cn } from '../lib/utils';
 
-type Layer = 'sites' | 'cameras';
+type Layer = 'sites' | 'cameras' | 'detections';
 
 export const MapPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const pid = Number(projectId);
-  const { selectedProject } = useProject();
-  const navigate = useNavigate();
+  const { selectedProject, isProjectAdmin, isServerAdmin, canAdminCurrentProject } =
+    useProject();
+  const canEdit = isProjectAdmin || isServerAdmin;
+  const queryClient = useQueryClient();
+
+  const [detailSiteId, setDetailSiteId] = React.useState<number | null>(null);
+  const [detailCamera, setDetailCamera] = React.useState<Camera | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const layer: Layer = searchParams.get('layer') === 'cameras' ? 'cameras' : 'sites';
+  const raw = searchParams.get('layer');
+  const layer: Layer = raw === 'cameras' || raw === 'detections' ? raw : 'sites';
   const setLayer = (l: Layer) => {
     const next = new URLSearchParams(searchParams);
     if (l === 'sites') next.delete('layer');
@@ -99,19 +108,39 @@ export const MapPage: React.FC = () => {
       <div className="inline-flex rounded-md border p-0.5 bg-muted/50">
         {tab('sites', 'Sites', MapPin)}
         {tab('cameras', 'Cameras', CameraIcon)}
+        {tab('detections', 'Detections', Activity)}
       </div>
 
-      {layer === 'sites' ? (
+      {layer === 'sites' && (
         <SitesMapView
           sites={sites ?? []}
-          onSiteClick={() => navigate(`/projects/${pid}/sites`)}
-        />
-      ) : (
-        <CameraMapView
-          cameras={camerasAtSites}
-          onCameraClick={() => navigate(`/projects/${pid}/cameras`)}
+          onSiteClick={(id) => setDetailSiteId(id)}
         />
       )}
+      {layer === 'cameras' && (
+        <CameraMapView
+          cameras={camerasAtSites}
+          onCameraClick={(c) => setDetailCamera(c)}
+        />
+      )}
+      {layer === 'detections' && <DetectionRatePanel />}
+
+      <SiteDetailWithActions
+        open={detailSiteId != null}
+        onClose={() => setDetailSiteId(null)}
+        projectId={pid}
+        siteId={detailSiteId}
+        canEdit={canEdit}
+      />
+      <CameraDetailSheet
+        camera={detailCamera}
+        isOpen={detailCamera != null}
+        onClose={() => setDetailCamera(null)}
+        canAdmin={canAdminCurrentProject}
+        isServerAdmin={isServerAdmin}
+        projectId={pid}
+        onUpdate={() => queryClient.invalidateQueries({ queryKey: ['cameras', pid] })}
+      />
     </div>
   );
 };
