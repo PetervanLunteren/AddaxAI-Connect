@@ -19,7 +19,6 @@ import {
   ArrowDown,
   ArrowUpDown,
   MapPin,
-  X,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -377,6 +376,43 @@ export const DeploymentsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Bulk reassign bar. Sits between the filters and the table, same shape
+          as the Cameras page bulk bar (not a floating overlay). */}
+      {canEdit && selected.size > 0 && total > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-muted rounded-md flex-wrap">
+          <span className="text-sm font-medium">
+            {selected.size} of {total} deployments selected
+          </span>
+          <div className="flex items-center gap-2 flex-wrap ml-auto">
+            <select
+              value={bulkChoice}
+              onChange={(e) => setBulkChoice(e.target.value)}
+              disabled={bulkMutation.isPending}
+              className="px-3 py-2 border rounded-md text-sm bg-background disabled:bg-muted"
+            >
+              <option value="">Assign to site...</option>
+              <option value={UNASSIGNED}>Unassigned</option>
+              {(sites ?? []).map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              onClick={() => bulkMutation.mutate()}
+              disabled={bulkChoice === '' || bulkMutation.isPending}
+            >
+              {bulkMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Apply
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* List / empty / loading */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -458,14 +494,14 @@ export const DeploymentsPage: React.FC = () => {
                     </TableCell>
                     {canEdit && (
                       <TableCell className="text-right whitespace-nowrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => setEditDep(d)}
+                          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                         >
-                          <MapPin className="h-4 w-4 mr-1.5" />
+                          <MapPin className="h-4 w-4" />
                           Change site
-                        </Button>
+                        </button>
                       </TableCell>
                     )}
                   </TableRow>
@@ -474,39 +510,6 @@ export const DeploymentsPage: React.FC = () => {
             </Table>
           </CardContent>
         </Card>
-      )}
-
-      {/* Bulk reassign bar. Appears when rows are selected. */}
-      {canEdit && selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-lg border bg-card shadow-lg px-4 py-3">
-          <span className="text-sm font-medium whitespace-nowrap">
-            {selected.size} selected
-          </span>
-          <select
-            value={bulkChoice}
-            onChange={(e) => setBulkChoice(e.target.value)}
-            disabled={bulkMutation.isPending}
-            className="px-3 py-2 border rounded-md text-sm disabled:bg-muted"
-          >
-            <option value="">Assign to site...</option>
-            <option value={UNASSIGNED}>Unassigned</option>
-            {(sites ?? []).map((s) => (
-              <option key={s.id} value={String(s.id)}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <Button
-            onClick={() => bulkMutation.mutate()}
-            disabled={bulkChoice === '' || bulkMutation.isPending}
-          >
-            {bulkMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Apply
-          </Button>
-          <Button variant="ghost" size="icon" onClick={clearSelection} aria-label="Clear selection">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
       )}
 
       {editDep && (
