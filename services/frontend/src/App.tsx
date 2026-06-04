@@ -37,6 +37,7 @@ import { ProjectSettingsPage } from './pages/admin/ProjectSettingsPage';
 import { ManageImagesPage } from './pages/admin/ManageImagesPage';
 import { BulkUploadPage } from './pages/admin/BulkUploadPage';
 import { NaiveOccupancyPage } from './pages/insights/NaiveOccupancyPage';
+import { InsightsMapPage } from './pages/insights/MapPage';
 import { ConfusionMatrixPage } from './pages/insights/ConfusionMatrixPage';
 import { PerClassPerformancePage } from './pages/insights/PerClassPerformancePage';
 import { ActivityOverlapPage } from './pages/insights/ActivityOverlapPage';
@@ -151,8 +152,7 @@ function App() {
                 <Route path="insights/naive-occupancy" element={<NaiveOccupancyPage />} />
                 <Route path="insights/activity-overlap" element={<ActivityOverlapPage />} />
                 <Route path="insights/deployment-timeline" element={<DeploymentTimelinePage />} />
-                {/* Detection-rate map moved into the unified Map page. */}
-                <Route path="insights/map" element={<Navigate to="../map?layer=detections" replace />} />
+                <Route path="insights/map" element={<InsightsMapPage />} />
                 <Route path="insights/confusion-matrix" element={<ConfusionMatrixPage />} />
                 <Route path="insights/per-class-performance" element={<PerClassPerformancePage />} />
                 <Route path="insights/performance" element={<Navigate to="../insights/confusion-matrix" replace />} />

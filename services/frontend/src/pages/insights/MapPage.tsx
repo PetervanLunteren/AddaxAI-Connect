@@ -1,23 +1,23 @@
 /**
- * Detection-rate map panel.
+ * Insights -> Map page (detection-rate map).
  *
- * The detection-rate heatmap plus its own filter/display controls, self-
- * contained so it can be dropped into the project Map page as the "Detections"
- * layer. URL-synced like the other map layers. Lifted out of the old
- * Insights -> Map page, which has been retired in favor of the unified Map.
+ * Owns the filter and display state for the detection-rate map. The map
+ * itself is presentational; this page wires the shared FilterBar, syncs
+ * everything through the URL, and passes plain props down.
  */
 import React, { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { DetectionRateMap, type ViewMode } from './index';
-import { PlotExplainer } from '../plots/PlotExplainer';
+import { DetectionRateMap, type ViewMode } from '../../components/map';
+import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
+import { PlotExplainer } from '../../components/plots/PlotExplainer';
 import {
   FilterBar,
   type DisplayControlDef,
   type FilterFieldDef,
   type FilterValue,
-} from '../ui/FilterBar';
+} from '../../components/ui/FilterBar';
 import {
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -43,7 +43,7 @@ const asString = (v: string | string[] | undefined): string =>
 const asStringArray = (v: string | string[] | undefined): string[] =>
   Array.isArray(v) ? v : [];
 
-export const DetectionRatePanel: React.FC = () => {
+export const InsightsMapPage: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -106,8 +106,8 @@ export const DetectionRatePanel: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  // camera_ids passed to the map API: the union of explicitly-picked cameras
-  // and cameras matching the selected tags.
+  // Compute the camera_ids string passed to the map API, mirroring the
+  // union-of-cameras-and-tag-matches pattern used elsewhere.
   const cameraIdsParam = useMemo(() => {
     if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
     const ids = new Set<string>(cameraIdValues);
@@ -181,8 +181,13 @@ export const DetectionRatePanel: React.FC = () => {
     },
   ];
 
+  const displayValues = { view_mode: viewMode };
+
   return (
-    <div className="space-y-4">
+    <InsightsPageLayout
+      title="Map"
+      subtitle="Detection rate per camera deployment, corrected for trap-days"
+    >
       {/* Leaflet's panes stack up to z-index 700 within its own context.
           Lift the FilterBar above so the MultiSelect dropdown and the
           More/Display popovers render on top of the map below. */}
@@ -193,12 +198,15 @@ export const DetectionRatePanel: React.FC = () => {
           onChange={onFilterChange}
           onClearAll={onClearAll}
           displayControls={displayControls}
-          displayValues={{ view_mode: viewMode }}
+          displayValues={displayValues}
           onDisplayChange={onDisplayChange}
         />
       </div>
       <div className="rounded-lg border bg-card p-4">
-        <DetectionRateMap filters={mapFilters} viewMode={viewMode} />
+        <DetectionRateMap
+          filters={mapFilters}
+          viewMode={viewMode}
+        />
       </div>
       <PlotExplainer
         plotKey="detection-rate-map"
@@ -222,6 +230,6 @@ export const DetectionRatePanel: React.FC = () => {
           </p>
         }
       />
-    </div>
+    </InsightsPageLayout>
   );
 };

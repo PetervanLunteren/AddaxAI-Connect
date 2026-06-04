@@ -9,7 +9,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
   Plus,
@@ -29,6 +29,15 @@ import {
 } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '../components/ui/Dialog';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import {
   FilterBar,
   type FilterFieldDef,
   type FilterValue,
@@ -39,10 +48,12 @@ import {
   type FilterSchema,
 } from '../lib/filter-url';
 import { useProject } from '../contexts/ProjectContext';
+import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
 import { SiteFormModal } from '../components/sites/SiteFormModal';
-import { SiteDetailWithActions } from '../components/SiteDetailWithActions';
+import { SiteMergePicker } from '../components/sites/SiteMergePicker';
+import { SiteDetailSheet } from '../components/SiteDetailSheet';
 
 type SortColumn = 'name' | 'cameras' | 'deployments' | 'images' | 'last_activity';
 
@@ -52,6 +63,10 @@ const FILTER_SCHEMA: FilterSchema = {
   tag: 'string',
 };
 
+function errMsg(err: unknown): string {
+  const e = err as { response?: { data?: { detail?: string } }; message?: string };
+  return e?.response?.data?.detail || e?.message || 'Unknown error';
+}
 
 function fmtDate(s: string | null): string {
   if (!s) return '-';
@@ -119,6 +134,8 @@ export const SitesPage: React.FC = () => {
   const pid = Number(projectId);
   const { selectedProject, isProjectAdmin, isServerAdmin } = useProject();
   const canEdit = isProjectAdmin || isServerAdmin;
+  const toast = useToast();
+  const queryClient = useQueryClient();
 
   // Filter and view-mode live in the URL so refreshing or sharing a link
   // preserves state. Same pattern as CamerasPage.
@@ -131,6 +148,9 @@ export const SitesPage: React.FC = () => {
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState('');
+  const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
 
   // Sort state stays local, like cameras. Default Name asc.
   const [sort, setSort] = useState<{
@@ -247,6 +267,35 @@ export const SitesPage: React.FC = () => {
         ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
         : { column, direction: 'asc' },
     );
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['sites', pid] });
+    queryClient.invalidateQueries({ queryKey: ['site', pid] });
+    queryClient.invalidateQueries({ queryKey: ['site-tags', pid] });
+  };
+
+  const mergeMutation = useMutation({
+    mutationFn: () => sitesApi.merge(pid, mergeSite!.id, Number(mergeTargetId)),
+    onSuccess: () => {
+      invalidate();
+      setMergeSite(null);
+      setMergeTargetId('');
+      setDetailSiteId(null);
+      toast.success('Sites merged');
+    },
+    onError: (err) => toast.error(`Could not merge sites, ${errMsg(err)}`),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => sitesApi.remove(pid, deleteSite!.id),
+    onSuccess: () => {
+      invalidate();
+      setDeleteSite(null);
+      setDetailSiteId(null);
+      toast.success('Site deleted');
+    },
+    onError: (err) => toast.error(`Could not delete site, ${errMsg(err)}`),
+  });
 
   if (!selectedProject) {
     return (
@@ -388,12 +437,17 @@ export const SitesPage: React.FC = () => {
         </Card>
       )}
 
-      <SiteDetailWithActions
+      <SiteDetailSheet
         open={detailSiteId != null}
         onClose={() => setDetailSiteId(null)}
         projectId={pid}
         siteId={detailSiteId}
         canEdit={canEdit}
+        onMergeRequested={(s) => {
+          setMergeSite(s);
+          setMergeTargetId('');
+        }}
+        onDeleteRequested={setDeleteSite}
       />
 
       <SiteFormModal
@@ -401,6 +455,56 @@ export const SitesPage: React.FC = () => {
         onClose={() => setShowCreate(false)}
         projectId={pid}
         sites={sites ?? []}
+      />
+
+      {/* Merge dialog */}
+      <Dialog open={mergeSite != null} onOpenChange={(o) => !o && setMergeSite(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Merge site</DialogTitle>
+            <DialogDescription>
+              Pick the site to keep. "{mergeSite?.name}" will be merged into it
+              and then removed. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {mergeSite && (
+            <SiteMergePicker
+              sites={sites ?? []}
+              sourceSiteId={mergeSite.id}
+              selectedTargetId={mergeTargetId ? Number(mergeTargetId) : null}
+              onSelectTarget={(id) => setMergeTargetId(String(id))}
+            />
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeSite(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => mergeMutation.mutate()}
+              disabled={mergeMutation.isPending || mergeTargetId === ''}
+            >
+              {mergeMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Merge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={deleteSite != null}
+        onClose={() => setDeleteSite(null)}
+        onConfirm={() => deleteMutation.mutate()}
+        title="Delete site"
+        body={
+          <>
+            Delete "{deleteSite?.name}"? Its deployments keep their data but lose
+            the site link. This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        isPending={deleteMutation.isPending}
       />
     </div>
   );
