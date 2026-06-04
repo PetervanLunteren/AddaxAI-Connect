@@ -32,6 +32,7 @@ import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
 import { TagInput } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
+import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
@@ -299,7 +300,13 @@ export const SiteDetailSheet: React.FC<Props> = ({
                   )}
                 </div>
 
-                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                <div className="rounded-lg border p-4 space-y-3 text-sm">
+                  {detail.latitude != null && detail.longitude != null && (
+                    <SiteLocationMiniMap
+                      latitude={detail.latitude}
+                      longitude={detail.longitude}
+                    />
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Coordinates</span>
                     {detail.latitude != null && detail.longitude != null ? (
