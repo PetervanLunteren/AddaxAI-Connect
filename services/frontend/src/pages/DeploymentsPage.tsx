@@ -367,7 +367,7 @@ export const DeploymentsPage: React.FC = () => {
 
       {/* Filters */}
       {total > 0 && (
-        <div className="flex items-end gap-3">
+        <div className="space-y-3">
           <FilterBar
             fields={filterFields}
             values={filterValues}
@@ -375,9 +375,9 @@ export const DeploymentsPage: React.FC = () => {
             onClearAll={onClearAll}
           />
           {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
+            <p className="text-sm text-muted-foreground">
               {sorted.length} of {total} deployments
-            </span>
+            </p>
           )}
         </div>
       )}

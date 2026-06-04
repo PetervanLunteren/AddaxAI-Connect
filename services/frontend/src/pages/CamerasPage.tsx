@@ -942,37 +942,35 @@ export const CamerasPage: React.FC = () => {
       {/* Shared filter bar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-end gap-3">
-            <FilterBar
-              fields={filterFields}
-              values={filterValues}
-              onChange={onFilterChange}
-              onClearAll={onClearAll}
-              displayControls={
-                viewMode === 'table'
-                  ? [
-                      {
-                        key: 'columns',
-                        label: 'Visible columns',
-                        render: () => (
-                          <ColumnPicker
-                            visible={visibleColumns}
-                            onChange={setVisibleColumns}
-                          />
-                        ),
-                      },
-                    ]
-                  : undefined
-              }
-              displayValues={{}}
-              onDisplayChange={() => {}}
-            />
-            {isFiltered && (
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                {filteredCameras.length} of {cameras.length} cameras
-              </span>
-            )}
-          </div>
+          <FilterBar
+            fields={filterFields}
+            values={filterValues}
+            onChange={onFilterChange}
+            onClearAll={onClearAll}
+            displayControls={
+              viewMode === 'table'
+                ? [
+                    {
+                      key: 'columns',
+                      label: 'Visible columns',
+                      render: () => (
+                        <ColumnPicker
+                          visible={visibleColumns}
+                          onChange={setVisibleColumns}
+                        />
+                      ),
+                    },
+                  ]
+                : undefined
+            }
+            displayValues={{}}
+            onDisplayChange={() => {}}
+          />
+          {isFiltered && (
+            <p className="text-sm text-muted-foreground">
+              {filteredCameras.length} of {cameras.length} cameras
+            </p>
+          )}
 
           {/* Table / map switcher */}
           <div className="flex border-b">
