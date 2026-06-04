@@ -186,7 +186,7 @@ export const InsightsMapPage: React.FC = () => {
   return (
     <InsightsPageLayout
       title="Map"
-      subtitle="Detection rate per camera deployment, corrected for trap-days"
+      subtitle="Detection rate per site, corrected for trap-days"
     >
       {/* Leaflet's panes stack up to z-index 700 within its own context.
           Lift the FilterBar above so the MultiSelect dropdown and the
@@ -212,21 +212,25 @@ export const InsightsMapPage: React.FC = () => {
         plotKey="detection-rate-map"
         what={
           <p>
-            One coloured cell per camera deployment, mapped to the deployment&apos;s
-            recorded GPS. Three view modes choose how the cells are drawn: hexbins
-            aggregate nearby deployments onto a hex grid, points show each deployment
-            individually, and clusters group nearby points into a single circle with
-            the count inside. The species and camera-tag filters narrow which
-            detections and which sites enter the calculation.
+            One coloured cell per site, at the site location. A site pools all of
+            its deployments, so a place with several deployments (relocations, or
+            more than one camera) is a single point, not a stack. Three view modes
+            choose how the cells are drawn: hexbins aggregate nearby sites onto a
+            hex grid, points show each site individually, and clusters group nearby
+            sites into a single circle with the count inside. The species and
+            camera-tag filters narrow which detections and deployments enter the
+            calculation. Deployments with no site are not shown.
           </p>
         }
         how={
           <p>
-            Detection rate = detections in the window divided by the days the camera
-            was deployed. Active deployments count up to today. Detections below the
-            project&apos;s confidence threshold are dropped, and a human-verified
-            image always wins over the AI. Colours rescale to fit the cells currently
-            in view, not a fixed scale across projects.
+            Detection rate is the detections in the window divided by the trap-days,
+            summed across the site&apos;s deployments, so more cameras or longer
+            coverage adds effort and the rate stays comparable. Active deployments
+            count up to today. Detections below the project&apos;s confidence
+            threshold are dropped, and a human-verified image always wins over the
+            AI. Colours rescale to fit the cells currently in view, not a fixed
+            scale across projects.
           </p>
         }
       />

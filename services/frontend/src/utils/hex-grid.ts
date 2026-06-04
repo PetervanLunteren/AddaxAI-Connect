@@ -16,7 +16,7 @@ export interface HexCell {
   detection_count: number;
   detection_rate: number;
   detection_rate_per_100: number;
-  camera_count: number;
+  site_count: number;
 }
 
 /**
@@ -135,7 +135,7 @@ export function aggregateDeploymentsToHexes(
       const [lon, lat] = (pt.geometry as Point).coordinates;
       return {
         type: 'Feature' as const,
-        id: `${props.camera_id}-${props.deployment_id}`,
+        id: `site-${props.site_id}`,
         geometry: {
           type: 'Point' as const,
           coordinates: [lon, lat],
@@ -147,12 +147,12 @@ export function aggregateDeploymentsToHexes(
     // Aggregate metrics
     let totalTrapDays = 0;
     let totalDetections = 0;
-    const uniqueCameras = new Set<number>();
+    const uniqueSites = new Set<number>();
 
     for (const deployment of deploymentFeaturesInHex) {
       totalTrapDays += deployment.properties.trap_days;
       totalDetections += deployment.properties.detection_count;
-      uniqueCameras.add(deployment.properties.camera_id);
+      uniqueSites.add(deployment.properties.site_id);
     }
 
     const detectionRate = totalTrapDays > 0 ? totalDetections / totalTrapDays : 0;
@@ -165,7 +165,7 @@ export function aggregateDeploymentsToHexes(
       detection_count: totalDetections,
       detection_rate: detectionRate,
       detection_rate_per_100: detectionRatePer100,
-      camera_count: uniqueCameras.size,
+      site_count: uniqueSites.size,
     });
   }
 

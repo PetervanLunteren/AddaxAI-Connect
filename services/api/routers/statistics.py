@@ -438,37 +438,38 @@ async def get_last_update(
     return LastUpdateResponse(last_update=utc_dt.isoformat())
 
 
-class DeploymentFeatureProperties(BaseModel):
-    """Properties for a single deployment feature in GeoJSON"""
-    camera_id: int
-    camera_name: str
-    deployment_id: int
-    start_date: str  # YYYY-MM-DD
-    end_date: Optional[str]  # YYYY-MM-DD or null for active deployments
-    trap_days: int
+class SiteFeatureProperties(BaseModel):
+    """Properties for a single site feature in GeoJSON. The detection rate is
+    pooled over all of the site's deployments (effort-corrected)."""
+    site_id: int
+    site_name: str
+    deployment_count: int  # how many deployments pooled into this point
+    first_date: str  # earliest deployment start, YYYY-MM-DD
+    last_date: Optional[str]  # latest deployment end, or null if any is active
+    trap_days: int  # summed across the site's deployments
     detection_count: int
     detection_rate: float  # detections per trap-day
     detection_rate_per_100: float  # detections per 100 trap-days (for display)
 
 
-class DeploymentFeatureGeometry(BaseModel):
+class SiteFeatureGeometry(BaseModel):
     """GeoJSON geometry for point feature"""
     type: str = "Point"
     coordinates: List[float]  # [longitude, latitude]
 
 
-class DeploymentFeature(BaseModel):
-    """Single deployment feature in GeoJSON format"""
+class SiteFeature(BaseModel):
+    """Single site feature in GeoJSON format"""
     type: str = "Feature"
-    id: str  # camera_id-deployment_id (e.g., "23-2")
-    geometry: DeploymentFeatureGeometry
-    properties: DeploymentFeatureProperties
+    id: str  # site-<id> (e.g., "site-23")
+    geometry: SiteFeatureGeometry
+    properties: SiteFeatureProperties
 
 
 class DetectionRateMapResponse(BaseModel):
-    """GeoJSON FeatureCollection for detection rate map"""
+    """GeoJSON FeatureCollection for detection rate map (one point per site)"""
     type: str = "FeatureCollection"
-    features: List[DeploymentFeature]
+    features: List[SiteFeature]
 
 
 @router.get(
@@ -488,8 +489,10 @@ async def get_detection_rate_map(
     """
     Get detection rate map data as GeoJSON.
 
-    Returns camera deployment locations with detection rates (detections per trap-day).
-    Each deployment period appears as a separate point on the map.
+    Returns one point per SITE with its pooled detection rate (detections per
+    trap-day). Each site's deployments are summed together, so a place with
+    several deployments (relocations, or more than one camera) is a single point
+    instead of overlapping points. Deployments with no site are excluded.
 
     Filtering:
     - Automatically filtered by user's accessible projects
@@ -623,47 +626,45 @@ async def get_detection_rate_map(
             -- and clamps same-day relocations, but we still skip Null Island
             -- deployments and inverted-date zombies in case any future code
             -- path or restored backup re-introduces a bad row.
+            -- Joined to its site: the point is plotted at the site location and
+            -- deployments are pooled by site downstream. INNER JOIN sites drops
+            -- site-less deployments (unassigned / zombie rows).
             SELECT
                 cdp.id as deployment_id,
                 cdp.camera_id,
                 cdp.deployment_number as deployment_number,
                 cdp.start_date,
                 cdp.end_date,
-                ST_X(cdp.location::geometry) as lon,
-                ST_Y(cdp.location::geometry) as lat,
+                s.id as site_id,
+                s.name as site_name,
+                ST_X(s.location::geometry) as lon,
+                ST_Y(s.location::geometry) as lat,
                 COALESCE(
                     (cdp.end_date - cdp.start_date + 1),
                     (CURRENT_DATE - cdp.start_date + 1)
-                ) as trap_days,
-                c.device_id as camera_name
+                ) as trap_days
             FROM deployments cdp
             INNER JOIN cameras c ON cdp.camera_id = c.id
+            INNER JOIN sites s ON s.id = cdp.site_id
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
               AND NOT (ST_X(cdp.location::geometry) = 0 AND ST_Y(cdp.location::geometry) = 0)
               AND (cdp.end_date IS NULL OR cdp.end_date >= cdp.start_date)
         )
         SELECT
+            di.site_id,
+            di.site_name,
             di.camera_id,
-            di.camera_name,
             di.deployment_number,
             di.start_date,
             di.end_date,
             di.lon,
             di.lat,
             di.trap_days,
-            COALESCE(cc.detection_count, 0) as detection_count,
-            CASE
-                WHEN di.trap_days > 0 THEN COALESCE(cc.detection_count, 0)::float / di.trap_days
-                ELSE 0.0
-            END as detection_rate,
-            CASE
-                WHEN di.trap_days > 0 THEN (COALESCE(cc.detection_count, 0)::float / di.trap_days) * 100
-                ELSE 0.0
-            END as detection_rate_per_100
+            COALESCE(cc.detection_count, 0) as detection_count
         FROM deployment_info di
         LEFT JOIN combined_counts cc ON cc.deployment_id = di.deployment_id
-        ORDER BY di.camera_id, di.deployment_number
+        ORDER BY di.site_id, di.camera_id, di.deployment_number
     """
 
     # Execute query
@@ -693,36 +694,61 @@ async def get_detection_rate_map(
             end_date=end_dt,
         )
 
-    # Convert to GeoJSON features
-    features = []
+    # Pool the per-deployment rows into one point per site. Detection counts and
+    # trap-days sum across the site's deployments, so the rate stays effort-
+    # corrected. The independence-interval override is applied per deployment
+    # (keyed by camera + deployment number) before summing.
+    buckets: dict = {}
     for row in rows:
         det_count = row.detection_count
-        trap_days = row.trap_days
-
         if indep_counts is not None:
             det_count = indep_counts.get((row.camera_id, row.deployment_number), 0)
 
-        det_rate = det_count / trap_days if trap_days > 0 else 0.0
-        det_rate_100 = det_rate * 100
+        b = buckets.get(row.site_id)
+        if b is None:
+            b = {
+                "site_name": row.site_name,
+                "lon": row.lon,
+                "lat": row.lat,
+                "detections": 0,
+                "trap_days": 0,
+                "deployments": 0,
+                "first": row.start_date,
+                "last_end": None,
+                "has_active": False,
+            }
+            buckets[row.site_id] = b
 
-        feature = DeploymentFeature(
-            id=f"{row.camera_id}-{row.deployment_number}",
-            geometry=DeploymentFeatureGeometry(
-                coordinates=[row.lon, row.lat]
-            ),
-            properties=DeploymentFeatureProperties(
-                camera_id=row.camera_id,
-                camera_name=row.camera_name,
-                deployment_id=row.deployment_number,
-                start_date=row.start_date.isoformat(),
-                end_date=row.end_date.isoformat() if row.end_date else None,
-                trap_days=trap_days,
-                detection_count=det_count,
-                detection_rate=round(det_rate, 4),
-                detection_rate_per_100=round(det_rate_100, 2),
+        b["detections"] += det_count
+        b["trap_days"] += row.trap_days
+        b["deployments"] += 1
+        if row.start_date < b["first"]:
+            b["first"] = row.start_date
+        if row.end_date is None:
+            b["has_active"] = True
+        elif b["last_end"] is None or row.end_date > b["last_end"]:
+            b["last_end"] = row.end_date
+
+    features = []
+    for site_id, b in buckets.items():
+        det_rate = b["detections"] / b["trap_days"] if b["trap_days"] > 0 else 0.0
+        features.append(
+            SiteFeature(
+                id=f"site-{site_id}",
+                geometry=SiteFeatureGeometry(coordinates=[b["lon"], b["lat"]]),
+                properties=SiteFeatureProperties(
+                    site_id=site_id,
+                    site_name=b["site_name"],
+                    deployment_count=b["deployments"],
+                    first_date=b["first"].isoformat(),
+                    last_date=None if b["has_active"] else b["last_end"].isoformat(),
+                    trap_days=b["trap_days"],
+                    detection_count=b["detections"],
+                    detection_rate=round(det_rate, 4),
+                    detection_rate_per_100=round(det_rate * 100, 2),
+                ),
             )
         )
-        features.append(feature)
 
     return DetectionRateMapResponse(features=features)
 

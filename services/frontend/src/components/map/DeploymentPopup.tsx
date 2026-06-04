@@ -1,6 +1,6 @@
 /**
- * Deployment popup component
- * Shows deployment details when marker is clicked
+ * Site popup for the detection-rate map. Shows a site's pooled detection rate
+ * (over all its deployments) when its point is clicked.
  */
 import type { DeploymentFeatureProperties } from '../../api/types';
 
@@ -10,58 +10,44 @@ interface DeploymentPopupProps {
 
 export function DeploymentPopup({ properties }: DeploymentPopupProps) {
   const {
-    camera_name,
-    deployment_id,
-    start_date,
-    end_date,
+    site_name,
+    deployment_count,
+    first_date,
+    last_date,
     trap_days,
     detection_count,
     detection_rate_per_100,
   } = properties;
 
-  const isActive = end_date === null;
-
   return (
     <div className="p-1 min-w-[200px]">
-      <div className="font-semibold text-base mb-2">
-        {camera_name}
-        {deployment_id > 1 && (
-          <span className="text-sm text-gray-500 ml-1">
-            (Deployment {deployment_id})
-          </span>
-        )}
-      </div>
+      <div className="font-semibold text-base mb-2">{site_name}</div>
 
       <div className="space-y-1 text-sm">
-        <div className="flex justify-between">
-          <span className="text-gray-600">Period:</span>
-          <span className="font-medium">
-            {start_date} — {end_date || 'Active'}
+        <div className="flex justify-between border-b pb-1 mb-1">
+          <span className="text-gray-600">Detection rate</span>
+          <span className="font-semibold">
+            {detection_rate_per_100.toFixed(2)} per 100 trap-days
           </span>
         </div>
-
         <div className="flex justify-between">
-          <span className="text-gray-600">Trap-days:</span>
-          <span className="font-medium">{trap_days}</span>
-        </div>
-
-        <div className="flex justify-between">
-          <span className="text-gray-600">Detections:</span>
+          <span className="text-gray-600">Detections</span>
           <span className="font-medium">{detection_count}</span>
         </div>
-
-        <div className="flex justify-between border-t pt-1 mt-1">
-          <span className="text-gray-600">Rate:</span>
-          <span className="font-semibold">
-            {detection_rate_per_100.toFixed(2)} / 100 trap-days
+        <div className="flex justify-between">
+          <span className="text-gray-600">Trap-days</span>
+          <span className="font-medium">{trap_days}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Deployments pooled</span>
+          <span className="font-medium">{deployment_count}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">Covered</span>
+          <span className="font-medium">
+            {first_date} to {last_date || 'now'}
           </span>
         </div>
-
-        {isActive && (
-          <div className="mt-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-            Currently active
-          </div>
-        )}
       </div>
     </div>
   );

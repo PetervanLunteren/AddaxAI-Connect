@@ -214,14 +214,16 @@ export interface LastUpdateResponse {
   last_update: string | null;
 }
 
-// Detection rate map types (GeoJSON)
+// Detection rate map types (GeoJSON). One feature per site: the rate is pooled
+// over the site's deployments. The interface names keep the historic
+// "Deployment" prefix to avoid a wide rename; the unit is now a site.
 export interface DeploymentFeatureProperties {
-  camera_id: number;
-  camera_name: string;
-  deployment_id: number;
-  start_date: string;  // YYYY-MM-DD
-  end_date: string | null;  // YYYY-MM-DD or null for active
-  trap_days: number;
+  site_id: number;
+  site_name: string;
+  deployment_count: number;  // deployments pooled into this point
+  first_date: string;  // earliest deployment start, YYYY-MM-DD
+  last_date: string | null;  // latest deployment end, or null if any active
+  trap_days: number;  // summed across the site's deployments
   detection_count: number;
   detection_rate: number;  // detections per trap-day
   detection_rate_per_100: number;  // detections per 100 trap-days
@@ -234,7 +236,7 @@ export interface DeploymentFeatureGeometry {
 
 export interface DeploymentFeature {
   type: 'Feature';
-  id: string;  // camera_id-deployment_id
+  id: string;  // site-<id>
   geometry: DeploymentFeatureGeometry;
   properties: DeploymentFeatureProperties;
 }
