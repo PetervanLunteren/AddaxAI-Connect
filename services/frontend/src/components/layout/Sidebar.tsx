@@ -56,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/deployments`, icon: CalendarClock, label: 'Deployments' },
+    { to: `/projects/${projectId}/map`, icon: Map, label: 'Map' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },
     { to: `/projects/${projectId}/exports`, icon: Download, label: 'Exports' },
@@ -67,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // here. Naive occupancy is Connect-only (WebUI does not have it) and
   // appears last in the group.
   const insightsItems = [
-    { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Map' },
+    { to: `/projects/${projectId}/insights/map`, icon: Map, label: 'Detection rate' },
     { to: `/projects/${projectId}/insights/deployment-timeline`, icon: GanttChartSquare, label: 'Timeline' },
     { to: `/projects/${projectId}/insights/activity-overlap`, icon: LineChart, label: 'Activity overlap' },
     { to: `/projects/${projectId}/insights/confusion-matrix`, icon: Grid3x3, label: 'Confusion matrix' },
