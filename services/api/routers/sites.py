@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
+from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
 from shared.logger import get_logger
 from shared.models import Site, Deployment, User
 from auth.permissions import require_project_access, require_project_admin_access
@@ -26,6 +27,14 @@ router = APIRouter(
     prefix="/api/projects/{project_id}/sites",
     tags=["sites"],
 )
+
+
+async def _recompute_site_location(db: AsyncSession, site_id: Optional[int]) -> None:
+    """Reset a site's pin to the centroid of its deployments. No-op when site_id
+    is None or the site has no deployments."""
+    if site_id is None:
+        return
+    await db.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": site_id})
 
 
 class SiteListItem(BaseModel):
@@ -85,11 +94,6 @@ class UpdateSiteRequest(BaseModel):
     habitat_type: Optional[str] = Field(default=None, max_length=100)
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
-    # Move the site. Both must be sent together to relocate the pin. This only
-    # moves the marker and recenters the 100m catchment for FUTURE readings; it
-    # does not reshuffle existing deployments (their site_id is fixed).
-    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
-    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
 
 
 def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
@@ -318,10 +322,6 @@ async def update_site(
         site.notes = body.notes or None
     if body.tags is not None:
         site.tags = _normalize_tags(body.tags)
-    if body.latitude is not None and body.longitude is not None:
-        site.location = WKTElement(
-            f"POINT({body.longitude} {body.latitude})", srid=4326
-        )
     try:
         await db.commit()
     except IntegrityError:
@@ -354,6 +354,9 @@ async def merge_site(
         update(Deployment).where(Deployment.site_id == source.id).values(site_id=target.id)
     )
     await db.delete(source)
+    # The target absorbed the source's deployments, so recompute its pin.
+    await db.flush()
+    await _recompute_site_location(db, target.id)
     await db.commit()
     logger.info(
         "Merged site",

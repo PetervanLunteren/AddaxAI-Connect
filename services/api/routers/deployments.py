@@ -17,6 +17,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
+from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
@@ -27,6 +28,14 @@ router = APIRouter(
     prefix="/api/projects/{project_id}/deployments",
     tags=["deployments"],
 )
+
+
+async def _recompute_site_location(db: AsyncSession, site_id: Optional[int]) -> None:
+    """Reset a site's pin to the centroid of its deployments. No-op when site_id
+    is None or the site has no deployments."""
+    if site_id is None:
+        return
+    await db.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": site_id})
 
 
 class DeploymentListItem(BaseModel):
@@ -156,9 +165,16 @@ async def bulk_assign_site(
             detail="One or more deployments not found in this project",
         )
 
+    # Sites that lose or gain deployments here all need their pin recomputed.
+    affected_site_ids = {d.site_id for d in deployments}
     for deployment in deployments:
         deployment.site_id = request.site_id
         deployment.site_source = 'manual'
+    affected_site_ids.add(request.site_id)
+
+    await db.flush()
+    for sid in affected_site_ids:
+        await _recompute_site_location(db, sid)
 
     await db.commit()
     return BulkAssignSiteResponse(updated=len(deployments))
@@ -204,6 +220,7 @@ async def update_deployment(
         )
 
     deployment: Deployment = row[0]
+    old_site_id = deployment.site_id
 
     # site_id is meaningful even when null (unassign), so act on its presence in
     # the request, not on its value. Any human assignment marks the deployment
@@ -223,6 +240,10 @@ async def update_deployment(
                 )
         deployment.site_id = request.site_id
         deployment.site_source = 'manual'
+        # The old and new site both change membership, so recompute both pins.
+        await db.flush()
+        await _recompute_site_location(db, old_site_id)
+        await _recompute_site_location(db, request.site_id)
 
     await db.commit()
     await db.refresh(deployment)

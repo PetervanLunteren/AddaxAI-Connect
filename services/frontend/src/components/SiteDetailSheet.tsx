@@ -19,7 +19,6 @@ import {
   Trash2,
   ExternalLink,
   MapPin,
-  Move,
   GitMerge,
 } from 'lucide-react';
 import {
@@ -32,7 +31,6 @@ import {
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
 import { TagInput } from './TagInput';
-import { SiteFormModal } from './sites/SiteFormModal';
 import { DeploymentJourney } from './DeploymentJourney';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
@@ -77,7 +75,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
   const [editHabitat, setEditHabitat] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
-  const [showMove, setShowMove] = useState(false);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ['site', projectId, siteId],
@@ -168,14 +165,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
             {canEdit && detail && (
               <div className="rounded-lg border p-3">
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowMove(true)}
-                    className="flex-1"
-                  >
-                    <Move className="h-4 w-4 mr-2" />
-                    Move
-                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
@@ -362,21 +351,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetBody>
         </SheetContent>
       </Sheet>
-
-      {detail && (
-        <SiteFormModal
-          open={showMove}
-          onClose={() => setShowMove(false)}
-          projectId={projectId}
-          sites={[]}
-          moveSite={{
-            id: detail.id,
-            name: detail.name,
-            latitude: detail.latitude,
-            longitude: detail.longitude,
-          }}
-        />
-      )}
     </>
   );
 };

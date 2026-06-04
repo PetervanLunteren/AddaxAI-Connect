@@ -22,3 +22,19 @@ SITE_THRESHOLD_METERS = 100.0
 # case; the cost is that a real move sending only one reading before the camera
 # dies attaches to the old deployment. See update_or_create_site_and_deployment.
 RELOCATION_CONFIRMATIONS = 2
+
+# A site's pin is the centroid of its deployments' locations. Run this after a
+# site's deployment membership changes (a deployment is created at, reassigned
+# to, merged into, or removed from it). It is a no-op for a site with no
+# deployments, which keeps its current location. Bind :site_id. Works from both
+# the sync ingestion session and the async API session.
+RECOMPUTE_SITE_LOCATION_SQL = """
+    UPDATE sites s
+    SET location = c.centroid
+    FROM (
+        SELECT ST_Centroid(ST_Collect(location::geometry))::geography AS centroid
+        FROM deployments
+        WHERE site_id = :site_id
+    ) c
+    WHERE s.id = :site_id AND c.centroid IS NOT NULL
+"""

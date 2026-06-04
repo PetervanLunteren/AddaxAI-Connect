@@ -60,8 +60,6 @@ export interface UpdateSiteRequest {
   habitat_type?: string | null;
   notes?: string | null;
   tags?: string[] | null;
-  latitude?: number;
-  longitude?: number;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/sites`;

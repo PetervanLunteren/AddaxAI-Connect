@@ -13,7 +13,11 @@ from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
 from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, ServerSettings
 from shared.logger import get_logger
-from shared.geo import SITE_THRESHOLD_METERS, RELOCATION_CONFIRMATIONS
+from shared.geo import (
+    SITE_THRESHOLD_METERS,
+    RELOCATION_CONFIRMATIONS,
+    RECOMPUTE_SITE_LOCATION_SQL,
+)
 from camera_profiles import CameraProfile
 from utils import is_valid_gps
 
@@ -155,6 +159,14 @@ def _resolve_site(session, project_id: Optional[int], lat: float, lon: float) ->
     return site_id
 
 
+def _recompute_site_location(session, site_id: Optional[int]) -> None:
+    """Reset a site's pin to the centroid of its deployments. No-op when site_id
+    is None or the site has no deployments."""
+    if site_id is None:
+        return
+    session.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": site_id})
+
+
 def _insert_deployment(session, camera_id: int, number: int, site_id: Optional[int],
                        start_date: date, lat: float, lon: float,
                        end_date: Optional[date] = None) -> int:
@@ -254,6 +266,8 @@ def update_or_create_site_and_deployment(
                 # set the site, it does not gate this.
                 if active.site_id is None:
                     active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
+                    session.flush()
+                    _recompute_site_location(session, active.site_id)
                 if event_date < active.start_date:
                     logger.info(
                         "Backdating deployment start_date for out-of-order image",
@@ -347,6 +361,7 @@ def update_or_create_site_and_deployment(
             session, camera_id, next_number, site_id, new_start_date, new_lat, new_lon
         )
         session.flush()
+        _recompute_site_location(session, site_id)
         logger.info(
             log_msg,
             camera_id=camera_id,

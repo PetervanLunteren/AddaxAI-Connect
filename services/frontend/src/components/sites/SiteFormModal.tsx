@@ -1,14 +1,12 @@
 /**
- * Site location modal with a map coordinate picker.
+ * Add-site modal with a map coordinate picker.
  *
- * Two modes:
- * - Create (default): name + coordinates, used by the Sites page "Add site"
- *   button and the deployment modal's "Create new site". Returns the new site
- *   via onCreated so the caller can select it.
- * - Move (`moveSite` set): the name is fixed and only the coordinates change.
- *   Used by the site slideout's "Move" action.
- *
+ * Used by the Sites page "Add site" button and the deployment modal's "Create
+ * new site". Returns the new site via onCreated so the caller can select it.
  * Click the map or type lat/lon; existing sites show as context markers.
+ *
+ * Sites are not movable after creation: a site's location is derived from the
+ * centroid of its deployments, so there is no manual move mode here.
  */
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,13 +24,6 @@ import { SiteLocationPicker } from './SiteLocationPicker';
 import { sitesApi, type SiteDetail, type SiteListItem } from '../../api/sites';
 import { useToast } from '../ui/Toaster';
 
-interface MoveSite {
-  id: number;
-  name: string;
-  latitude: number | null;
-  longitude: number | null;
-}
-
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -41,8 +32,6 @@ interface Props {
   defaultLat?: number | null;
   defaultLon?: number | null;
   onCreated?: (site: SiteDetail) => void;
-  // When set, the modal moves this site (name fixed, only coordinates change).
-  moveSite?: MoveSite;
 }
 
 const inputClass =
@@ -61,30 +50,21 @@ export const SiteFormModal: React.FC<Props> = ({
   defaultLat,
   defaultLon,
   onCreated,
-  moveSite,
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
-  const isMove = !!moveSite;
   const [name, setName] = useState('');
   const [lat, setLat] = useState('');
   const [lon, setLon] = useState('');
 
-  // Seed the fields when the modal opens. Move mode seeds from the site being
-  // moved; create mode starts blank (coords optionally prefilled from a
-  // deployment's GPS).
+  // Seed when the modal opens. Coords are optionally prefilled from a
+  // deployment's GPS (the "Create new site" path in the deployment modal).
   useEffect(() => {
     if (!open) return;
-    if (moveSite) {
-      setName(moveSite.name);
-      setLat(moveSite.latitude != null ? String(moveSite.latitude) : '');
-      setLon(moveSite.longitude != null ? String(moveSite.longitude) : '');
-    } else {
-      setName('');
-      setLat(defaultLat != null ? String(defaultLat) : '');
-      setLon(defaultLon != null ? String(defaultLon) : '');
-    }
-  }, [open, moveSite, defaultLat, defaultLon]);
+    setName('');
+    setLat(defaultLat != null ? String(defaultLat) : '');
+    setLon(defaultLon != null ? String(defaultLon) : '');
+  }, [open, defaultLat, defaultLon]);
 
   const value =
     lat !== '' && lon !== '' && !isNaN(Number(lat)) && !isNaN(Number(lon))
@@ -96,35 +76,23 @@ export const SiteFormModal: React.FC<Props> = ({
   // (trimmed, case-sensitive) so the form never blocks a name the server allows.
   const trimmedName = name.trim();
   const isDuplicateName =
-    !isMove && trimmedName !== '' && sites.some((s) => s.name === trimmedName);
+    trimmedName !== '' && sites.some((s) => s.name === trimmedName);
 
   const mutation = useMutation({
-    mutationFn: () => {
-      if (moveSite) {
-        return sitesApi.update(projectId, moveSite.id, {
-          latitude: Number(lat),
-          longitude: Number(lon),
-        });
-      }
-      return sitesApi.create(projectId, {
+    mutationFn: () =>
+      sitesApi.create(projectId, {
         name: name.trim(),
         latitude: Number(lat),
         longitude: Number(lon),
-      });
-    },
+      }),
     onSuccess: (site) => {
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['site', projectId] });
-      if (moveSite) {
-        toast.success('Site moved');
-      } else {
-        toast.success('Site created');
-        onCreated?.(site as SiteDetail);
-      }
+      toast.success('Site created');
+      onCreated?.(site);
       onClose();
     },
-    onError: (err) =>
-      toast.error(`Could not ${isMove ? 'move' : 'create'} site, ${errMsg(err)}`),
+    onError: (err) => toast.error(`Could not create site, ${errMsg(err)}`),
   });
 
   const handleClose = () => {
@@ -135,29 +103,24 @@ export const SiteFormModal: React.FC<Props> = ({
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent onClose={handleClose} className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{isMove ? 'Move site' : 'Add site'}</DialogTitle>
+          <DialogTitle>Add site</DialogTitle>
           <DialogDescription>
-            {isMove
-              ? 'The location is estimated from the GPS in the incoming photos, so it can be slightly off. Fix where the pin sits on the map here. Nothing moves between sites, the same photos and cameras stay here.'
-              : 'Click the map to place the site, or type its coordinates. Cameras reporting GPS near this point are grouped here.'}
+            Click the map to place the site, or type its coordinates. Cameras
+            reporting GPS near this point are grouped here.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">Name</label>
-            {isMove ? (
-              <p className="text-sm px-3 py-2">{name}</p>
-            ) : (
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-invalid={isDuplicateName}
-                className={inputClass + (isDuplicateName ? ' border-destructive' : '')}
-                placeholder="e.g. North ridge"
-              />
-            )}
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-invalid={isDuplicateName}
+              className={inputClass + (isDuplicateName ? ' border-destructive' : '')}
+              placeholder="e.g. North ridge"
+            />
             {isDuplicateName && (
               <p className="text-sm text-destructive mt-1">
                 A site with this name already exists
@@ -172,7 +135,6 @@ export const SiteFormModal: React.FC<Props> = ({
               setLon(lo.toFixed(6));
             }}
             sites={sites}
-            excludeSiteId={moveSite?.id}
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -208,14 +170,11 @@ export const SiteFormModal: React.FC<Props> = ({
           <Button
             onClick={() => mutation.mutate()}
             disabled={
-              mutation.isPending ||
-              value === null ||
-              (!isMove && !name.trim()) ||
-              isDuplicateName
+              mutation.isPending || value === null || !name.trim() || isDuplicateName
             }
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isMove ? 'Save location' : 'Create'}
+            Create
           </Button>
         </DialogFooter>
       </DialogContent>
