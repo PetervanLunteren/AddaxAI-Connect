@@ -214,10 +214,9 @@ export interface LastUpdateResponse {
   last_update: string | null;
 }
 
-// Detection rate map types (GeoJSON). One feature per site: the rate is pooled
-// over the site's deployments. The interface names keep the historic
-// "Deployment" prefix to avoid a wide rename; the unit is now a site.
-export interface DeploymentFeatureProperties {
+// Detection rate map types (GeoJSON). One feature per site; the rate is pooled
+// over the site's deployments.
+export interface SiteFeatureProperties {
   site_id: number;
   site_name: string;
   deployment_count: number;  // deployments pooled into this point
@@ -229,21 +228,21 @@ export interface DeploymentFeatureProperties {
   detection_rate_per_100: number;  // detections per 100 trap-days
 }
 
-export interface DeploymentFeatureGeometry {
+export interface SiteFeatureGeometry {
   type: 'Point';
   coordinates: [number, number];  // [longitude, latitude]
 }
 
-export interface DeploymentFeature {
+export interface SiteFeature {
   type: 'Feature';
   id: string;  // site-<id>
-  geometry: DeploymentFeatureGeometry;
-  properties: DeploymentFeatureProperties;
+  geometry: SiteFeatureGeometry;
+  properties: SiteFeatureProperties;
 }
 
 export interface DetectionRateMapResponse {
   type: 'FeatureCollection';
-  features: DeploymentFeature[];
+  features: SiteFeature[];
 }
 
 export interface DetectionRateMapFilters {

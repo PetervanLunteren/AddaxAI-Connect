@@ -1,23 +1,23 @@
 /**
  * Cluster layer for detection rate map
- * Groups nearby deployments into colored clusters
+ * Groups nearby sites into colored clusters
  */
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
-import type { DeploymentFeature } from '../../api/types';
-import { DeploymentMarker } from './DeploymentMarker';
+import type { SiteFeature } from '../../api/types';
+import { SiteMarker } from './SiteMarker';
 import { getDetectionRateColor } from '../../utils/color-scale';
 
 interface ClusterLayerProps {
-  deployments: DeploymentFeature[];
+  sites: SiteFeature[];
   maxDetectionRate: number;
-  getMarkerColor: (feature: DeploymentFeature) => string;
+  getMarkerColor: (feature: SiteFeature) => string;
 }
 
-export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: ClusterLayerProps) {
-  // Create a map of coordinates to deployment features for quick lookup
-  const coordsToFeature = new Map<string, DeploymentFeature>();
-  deployments.forEach((feature) => {
+export function ClusterLayer({ sites, maxDetectionRate, getMarkerColor }: ClusterLayerProps) {
+  // Map of coordinates to site feature for quick lookup.
+  const coordsToFeature = new Map<string, SiteFeature>();
+  sites.forEach((feature) => {
     const key = `${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}`;
     coordsToFeature.set(key, feature);
   });
@@ -44,7 +44,7 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
     // Calculate overall rate: total detections / total trap-days × 100
     const overallRate = totalTrapDays > 0 ? (totalDetections / totalTrapDays) * 100 : 0;
 
-    // Hollow cluster icon when every member deployment has zero detections,
+    // Hollow cluster icon when every member site has zero detections,
     // matching the points and hexbin views.
     const isZero = totalDetections === 0;
     const color = getDetectionRateColor(overallRate, maxDetectionRate);
@@ -80,11 +80,11 @@ export function ClusterLayer({ deployments, maxDetectionRate, getMarkerColor }: 
       showCoverageOnHover={false}
       zoomToBoundsOnClick={true}
     >
-      {deployments.map((feature) => {
+      {sites.map((feature) => {
         const color = getMarkerColor(feature);
 
         return (
-          <DeploymentMarker
+          <SiteMarker
             key={feature.id}
             feature={feature}
             color={color}

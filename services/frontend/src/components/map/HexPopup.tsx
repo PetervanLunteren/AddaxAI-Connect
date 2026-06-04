@@ -1,6 +1,6 @@
 /**
- * Popup component for hexbin cells
- * Shows aggregated metrics and list of cameras in the hex
+ * Popup for a hexbin cell on the detection-rate map. Shows the cell's pooled
+ * metrics and the sites inside it.
  */
 import type { HexCell } from '../../utils/hex-grid';
 
@@ -9,67 +9,63 @@ interface HexPopupProps {
 }
 
 export function HexPopup({ hexCell }: HexPopupProps) {
-  const {
-    trap_days,
-    detection_count,
-    detection_rate_per_100,
-    camera_count,
-    deployments,
-  } = hexCell;
+  const { trap_days, detection_count, detection_rate_per_100, site_count, sites } =
+    hexCell;
 
   return (
     <div className="p-2 min-w-[280px] max-w-[400px]">
-      {/* Aggregated metrics */}
+      {/* Pooled metrics for the cell */}
       <div className="mb-3 pb-2 border-b border-gray-200">
-        <div className="font-semibold text-gray-900 mb-1">Aggregated metrics</div>
+        <div className="font-semibold text-gray-900 mb-1">This area</div>
         <div className="space-y-1 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Cameras:</span>
-            <span className="font-medium">{camera_count}</span>
+            <span className="text-gray-600">Sites</span>
+            <span className="font-medium">{site_count}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Total trap-days:</span>
+            <span className="text-gray-600">Trap-days</span>
             <span className="font-medium">{trap_days}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Total detections:</span>
+            <span className="text-gray-600">Detections</span>
             <span className="font-medium">{detection_count}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Detection rate:</span>
-            <span className="font-medium">{detection_rate_per_100.toFixed(2)} / 100 trap-days</span>
+            <span className="text-gray-600">Detection rate</span>
+            <span className="font-medium">
+              {detection_rate_per_100.toFixed(2)} per 100 trap-days
+            </span>
           </div>
         </div>
       </div>
 
-      {/* List of deployments */}
+      {/* The sites pooled into this cell */}
       <div>
         <div className="font-semibold text-gray-900 mb-2">
-          {deployments.length === 1 ? 'Deployment' : 'Deployments'} ({deployments.length})
+          {sites.length === 1 ? 'Site' : 'Sites'} ({sites.length})
         </div>
         <div className="max-h-[200px] overflow-y-auto space-y-2">
-          {deployments.map((deployment) => {
-            const { camera_name, deployment_id, trap_days, detection_count, detection_rate_per_100 } =
-              deployment.properties;
+          {sites.map((site) => {
+            const { site_id, site_name, trap_days, detection_count, detection_rate_per_100 } =
+              site.properties;
             const isZeroDetections = detection_count === 0;
 
             return (
               <div
-                key={`${deployment.properties.camera_id}-${deployment_id}`}
+                key={`site-${site_id}`}
                 className="p-2 bg-gray-50 rounded text-xs space-y-1"
               >
-                <div className="font-medium text-gray-900">{camera_name}</div>
-                <div className="text-gray-600">Deployment #{deployment_id}</div>
+                <div className="font-medium text-gray-900">{site_name}</div>
                 <div className="flex justify-between text-gray-700">
-                  <span>Trap-days: {trap_days}</span>
+                  <span>{trap_days} trap-days</span>
                   <span>
-                    Detections: {detection_count}
-                    {isZeroDetections && <span className="text-gray-500 ml-1">(Empty)</span>}
+                    {detection_count} detections
+                    {isZeroDetections && <span className="text-gray-500 ml-1">(none)</span>}
                   </span>
                 </div>
                 {!isZeroDetections && (
                   <div className="text-gray-700">
-                    Rate: {detection_rate_per_100.toFixed(2)} / 100 trap-days
+                    {detection_rate_per_100.toFixed(2)} per 100 trap-days
                   </div>
                 )}
               </div>

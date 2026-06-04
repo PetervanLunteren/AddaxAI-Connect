@@ -1,16 +1,16 @@
 /**
  * Hexbin layer for detection rate map
- * Aggregates camera deployments into hexagonal cells
+ * Aggregates sites into hexagonal cells
  */
 import { useMemo, useCallback } from 'react';
 import { GeoJSON } from 'react-leaflet';
 import type { FeatureCollection, Polygon, Feature } from 'geojson';
 import type { Layer, PathOptions } from 'leaflet';
 import { featureCollection } from '@turf/helpers';
-import type { DeploymentFeature } from '../../api/types';
+import type { SiteFeature } from '../../api/types';
 import {
   generateHexGrid,
-  aggregateDeploymentsToHexes,
+  aggregateSitesToHexes,
   type HexCell,
 } from '../../utils/hex-grid';
 import { getDetectionRateColor } from '../../utils/color-scale';
@@ -18,7 +18,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { HexPopup } from './HexPopup';
 
 interface HexbinLayerProps {
-  deployments: DeploymentFeature[];
+  sites: SiteFeature[];
   zoomLevel: number;
   mapBounds: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
   maxDetectionRate?: number; // For color scale normalization
@@ -31,19 +31,19 @@ interface HexFeatureProperties {
   isZero: boolean;
 }
 
-export function HexbinLayer({ deployments, zoomLevel, mapBounds, maxDetectionRate }: HexbinLayerProps) {
-  // Generate hex grid and aggregate deployments
+export function HexbinLayer({ sites, zoomLevel, mapBounds, maxDetectionRate }: HexbinLayerProps) {
+  // Generate hex grid and aggregate sites
   const hexCells = useMemo(() => {
-    if (deployments.length === 0) {
+    if (sites.length === 0) {
       return [];
     }
 
-    // Use map viewport bounds instead of deployment bounds for consistent zoom-based sizing
+    // Use map viewport bounds for consistent zoom-based sizing.
     const hexGrid = generateHexGrid(mapBounds, zoomLevel);
-    const cells = aggregateDeploymentsToHexes(deployments, hexGrid);
+    const cells = aggregateSitesToHexes(sites, hexGrid);
 
     return cells;
-  }, [deployments, zoomLevel, mapBounds]);
+  }, [sites, zoomLevel, mapBounds]);
 
   // Calculate max detection rate for color scale
   const maxRate = useMemo(() => {

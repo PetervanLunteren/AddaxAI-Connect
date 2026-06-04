@@ -1,23 +1,23 @@
 /**
- * Deployment marker component
- * Displays a single camera deployment as a colored circle marker
+ * Site marker component
+ * Displays a single site as a colored circle marker on the detection-rate map
  */
 import { CircleMarker, Popup } from 'react-leaflet';
-import type { DeploymentFeature } from '../../api/types';
-import { DeploymentPopup } from './DeploymentPopup';
+import type { SiteFeature } from '../../api/types';
+import { SitePopup } from './SitePopup';
 
-interface DeploymentMarkerProps {
-  feature: DeploymentFeature;
+interface SiteMarkerProps {
+  feature: SiteFeature;
   color: string;
 }
 
-export function DeploymentMarker({ feature, color }: DeploymentMarkerProps) {
+export function SiteMarker({ feature, color }: SiteMarkerProps) {
   const [lat, lon] = [
     feature.geometry.coordinates[1],
     feature.geometry.coordinates[0],
   ];
 
-  // Hollow circle for zero detections so they read as "deployed, nothing seen"
+  // Hollow circle for zero detections so they read as "covered, nothing seen"
   // instead of blending with the low end of the colour gradient.
   const isZero = feature.properties.detection_count === 0;
 
@@ -34,7 +34,7 @@ export function DeploymentMarker({ feature, color }: DeploymentMarkerProps) {
       }}
     >
       <Popup>
-        <DeploymentPopup properties={feature.properties} />
+        <SitePopup properties={feature.properties} />
       </Popup>
     </CircleMarker>
   );

@@ -2,13 +2,13 @@
  * Site popup for the detection-rate map. Shows a site's pooled detection rate
  * (over all its deployments) when its point is clicked.
  */
-import type { DeploymentFeatureProperties } from '../../api/types';
+import type { SiteFeatureProperties } from '../../api/types';
 
-interface DeploymentPopupProps {
-  properties: DeploymentFeatureProperties;
+interface SitePopupProps {
+  properties: SiteFeatureProperties;
 }
 
-export function DeploymentPopup({ properties }: DeploymentPopupProps) {
+export function SitePopup({ properties }: SitePopupProps) {
   const {
     site_name,
     deployment_count,

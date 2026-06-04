@@ -1,5 +1,5 @@
 /**
- * Hexbin grid utilities for aggregating camera deployments
+ * Hexbin grid utilities for aggregating sites on the detection-rate map.
  */
 import { hexGrid } from '@turf/hex-grid';
 import { squareGrid } from '@turf/square-grid';
@@ -7,11 +7,11 @@ import { pointsWithinPolygon } from '@turf/points-within-polygon';
 import { bbox as turfBbox } from '@turf/bbox';
 import { point, featureCollection } from '@turf/helpers';
 import type { Feature, FeatureCollection, Polygon, Point, BBox } from 'geojson';
-import type { DeploymentFeature, DeploymentFeatureProperties } from '../api/types';
+import type { SiteFeature, SiteFeatureProperties } from '../api/types';
 
 export interface HexCell {
   hex: Feature<Polygon>;
-  deployments: DeploymentFeature[];
+  sites: SiteFeature[];
   trap_days: number;
   detection_count: number;
   detection_rate: number;
@@ -73,7 +73,7 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
   }
 
   try {
-    // Pad bounds to ensure grid covers all deployments
+    // Pad bounds to ensure grid covers all sites
     // Turf anchors hex lattice at top/left, so pad generously to guarantee coverage
     // Use 2x cell size to account for hex spacing and ensure full coverage
     const pad = cellSizeDegrees * 2;
@@ -95,43 +95,42 @@ export function generateHexGrid(bounds: BBox, zoomLevel: number): FeatureCollect
 }
 
 /**
- * Aggregate camera deployments into hex cells
+ * Aggregate sites into hex cells.
  *
- * For each hex that contains at least one deployment:
- * - Sum trap-days across all deployments
- * - Sum detection counts across all deployments
- * - Calculate aggregated detection rate
+ * For each hex that contains at least one site:
+ * - Sum trap-days across the sites in it
+ * - Sum detection counts across the sites in it
+ * - Calculate the aggregated detection rate
  *
- * @param deployments - Array of deployment features from API
- * @param hexGrid - FeatureCollection of hexagon polygons
+ * @param sites - Array of site features from the API
+ * @param hexGridCollection - FeatureCollection of hexagon polygons
  * @returns Array of hex cells with aggregated metrics
  */
-export function aggregateDeploymentsToHexes(
-  deployments: DeploymentFeature[],
+export function aggregateSitesToHexes(
+  sites: SiteFeature[],
   hexGridCollection: FeatureCollection<Polygon>
 ): HexCell[] {
-  // Convert deployment features to GeoJSON points for spatial join
-  const deploymentPoints = featureCollection(
-    deployments.map((deployment) => {
-      const [lon, lat] = deployment.geometry.coordinates;
-      return point([lon, lat], deployment.properties);
+  // Convert site features to GeoJSON points for the spatial join.
+  const sitePoints = featureCollection(
+    sites.map((site) => {
+      const [lon, lat] = site.geometry.coordinates;
+      return point([lon, lat], site.properties);
     })
   );
 
   const hexCells: HexCell[] = [];
 
-  // For each hex, find deployments within it and aggregate metrics
+  // For each hex, find the sites within it and aggregate their metrics.
   for (const hex of hexGridCollection.features) {
-    const deploymentsInHex = pointsWithinPolygon(deploymentPoints, hex);
+    const sitesInHex = pointsWithinPolygon(sitePoints, hex);
 
-    // Skip hexes with no cameras (no data)
-    if (deploymentsInHex.features.length === 0) {
+    if (sitesInHex.features.length === 0) {
       continue;
     }
 
-    // Extract original deployment features (with full properties)
-    const deploymentFeaturesInHex: DeploymentFeature[] = deploymentsInHex.features.map((pt) => {
-      const props = pt.properties as DeploymentFeatureProperties;
+    // Rebuild the original site features (with full properties).
+    const siteFeaturesInHex: SiteFeature[] = sitesInHex.features.map((pt) => {
+      const props = pt.properties as SiteFeatureProperties;
       const [lon, lat] = (pt.geometry as Point).coordinates;
       return {
         type: 'Feature' as const,
@@ -144,15 +143,14 @@ export function aggregateDeploymentsToHexes(
       };
     });
 
-    // Aggregate metrics
     let totalTrapDays = 0;
     let totalDetections = 0;
     const uniqueSites = new Set<number>();
 
-    for (const deployment of deploymentFeaturesInHex) {
-      totalTrapDays += deployment.properties.trap_days;
-      totalDetections += deployment.properties.detection_count;
-      uniqueSites.add(deployment.properties.site_id);
+    for (const site of siteFeaturesInHex) {
+      totalTrapDays += site.properties.trap_days;
+      totalDetections += site.properties.detection_count;
+      uniqueSites.add(site.properties.site_id);
     }
 
     const detectionRate = totalTrapDays > 0 ? totalDetections / totalTrapDays : 0;
@@ -160,7 +158,7 @@ export function aggregateDeploymentsToHexes(
 
     hexCells.push({
       hex,
-      deployments: deploymentFeaturesInHex,
+      sites: siteFeaturesInHex,
       trap_days: totalTrapDays,
       detection_count: totalDetections,
       detection_rate: detectionRate,
@@ -173,18 +171,18 @@ export function aggregateDeploymentsToHexes(
 }
 
 /**
- * Calculate bounding box from array of deployment features
- * Returns [minLon, minLat, maxLon, maxLat]
+ * Calculate the bounding box from an array of site features.
+ * Returns [minLon, minLat, maxLon, maxLat].
  */
-export function getDeploymentsBounds(deployments: DeploymentFeature[]): BBox {
-  if (deployments.length === 0) {
-    // Default to world bounds if no deployments
+export function getSiteBounds(sites: SiteFeature[]): BBox {
+  if (sites.length === 0) {
+    // Default to world bounds if there are no sites.
     return [-180, -90, 180, 90];
   }
 
   const points = featureCollection(
-    deployments.map((d) => {
-      const [lon, lat] = d.geometry.coordinates;
+    sites.map((s) => {
+      const [lon, lat] = s.geometry.coordinates;
       return point([lon, lat]);
     })
   );

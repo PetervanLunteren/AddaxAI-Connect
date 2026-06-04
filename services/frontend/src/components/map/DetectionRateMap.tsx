@@ -1,6 +1,6 @@
 /**
  * Detection rate map component
- * Displays camera deployments with detection rates as colored markers or hexbins
+ * Displays sites with detection rates as colored markers, clusters or hexbins
  */
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Info } from 'lucide-react';
@@ -17,9 +17,9 @@ import {
 } from '../../utils/color-scale';
 import {
   generateHexGrid,
-  aggregateDeploymentsToHexes,
+  aggregateSitesToHexes,
 } from '../../utils/hex-grid';
-import { DeploymentMarker } from './DeploymentMarker';
+import { SiteMarker } from './SiteMarker';
 import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
 import { MapLegend } from './MapLegend';
@@ -133,8 +133,8 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
     enabled: projectId !== undefined,
   });
 
-  // Filter deployments to only those visible in current viewport
-  const visibleDeployments = useMemo(() => {
+  // Filter sites to only those visible in current viewport
+  const visibleSites = useMemo(() => {
     if (!data?.features || !mapBounds) return data?.features || [];
 
     return data.features.filter((feature) => {
@@ -145,13 +145,13 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
 
   // Calculate color scale domain from visible data only
   const colorDomain = useMemo(() => {
-    if (!visibleDeployments || visibleDeployments.length === 0) {
+    if (!visibleSites || visibleSites.length === 0) {
       return { min: 0, max: 0, p33: 0, p66: 0 };
     }
 
-    const rates = visibleDeployments.map((f) => f.properties.detection_rate_per_100);
+    const rates = visibleSites.map((f) => f.properties.detection_rate_per_100);
     return calculateColorScaleDomain(rates);
-  }, [visibleDeployments]);
+  }, [visibleSites]);
 
   // Convert Leaflet bounds to bbox array for hex grid generation
   const bboxBounds = useMemo<[number, number, number, number] | null>(() => {
@@ -163,15 +163,15 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
 
   // Calculate hex cells count for description (only when in hexbins view)
   const hexCellsCount = useMemo(() => {
-    if (viewMode !== 'hexbins' || !visibleDeployments || visibleDeployments.length === 0 || !bboxBounds) {
+    if (viewMode !== 'hexbins' || !visibleSites || visibleSites.length === 0 || !bboxBounds) {
       return 0;
     }
     const hexGrid = generateHexGrid(bboxBounds, zoomLevel);
-    const cells = aggregateDeploymentsToHexes(visibleDeployments, hexGrid);
+    const cells = aggregateSitesToHexes(visibleSites, hexGrid);
     return cells.length;
-  }, [viewMode, visibleDeployments, bboxBounds, zoomLevel]);
+  }, [viewMode, visibleSites, bboxBounds, zoomLevel]);
 
-  // Calculate map center (average of all deployment locations)
+  // Calculate map center (average of all site locations)
   const mapCenter = useMemo<[number, number]>(() => {
     if (!data?.features || data.features.length === 0) {
       return [52.0, 5.0]; // Default center (Netherlands)
@@ -211,15 +211,13 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
 
   // Get description based on view mode
   const getViewDescription = () => {
-    const deploymentCount = visibleDeployments?.length || 0;
-
     switch (viewMode) {
       case 'hexbins':
-        return `Deployments are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the overall detection rate across all deployments within it.`;
+        return `Sites are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the overall detection rate across the sites within it.`;
       case 'points':
-        return `Each point represents one camera deployment. Color shows its detection rate per 100 trap-days.`;
+        return `Each point represents one site. Color shows its detection rate per 100 trap-days.`;
       case 'clusters':
-        return `Nearby deployments are grouped into clusters. Each cluster shows the overall detection rate across all deployments within it.`;
+        return `Nearby sites are grouped into clusters. Each cluster shows the overall detection rate across the sites within it.`;
       default:
         return '';
     }
@@ -240,14 +238,14 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
 
         {/* Render markers, clusters, or hexbin layer based on view mode */}
         {viewMode === 'points' ? (
-          visibleDeployments?.map((feature) => {
+          visibleSites?.map((feature) => {
             const color = getDetectionRateColor(
               feature.properties.detection_rate_per_100,
               colorDomain.max
             );
 
             return (
-              <DeploymentMarker
+              <SiteMarker
                 key={feature.id}
                 feature={feature}
                 color={color}
@@ -255,9 +253,9 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
             );
           })
         ) : viewMode === 'clusters' ? (
-          visibleDeployments && (
+          visibleSites && (
             <ClusterLayer
-              deployments={visibleDeployments}
+              sites={visibleSites}
               maxDetectionRate={colorDomain.max}
               getMarkerColor={(feature) =>
                 getDetectionRateColor(
@@ -268,9 +266,9 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
             />
           )
         ) : (
-          visibleDeployments && bboxBounds && (
+          visibleSites && bboxBounds && (
             <HexbinLayer
-              deployments={visibleDeployments}
+              sites={visibleSites}
               zoomLevel={zoomLevel}
               mapBounds={bboxBounds}
               maxDetectionRate={colorDomain.max}
@@ -285,11 +283,11 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
       {/* Info footer — mirrors the WebUI pattern: thin border-t row with an
           Info icon prefix and concise contextual metadata about what the
           viewer is currently seeing. */}
-      {visibleDeployments && visibleDeployments.length > 0 && (
+      {visibleSites && visibleSites.length > 0 && (
         <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <Info className="h-3.5 w-3.5 shrink-0" />
           <span>
-            {visibleDeployments.length} deployment{visibleDeployments.length === 1 ? '' : 's'} shown
+            {visibleSites.length} site{visibleSites.length === 1 ? '' : 's'} shown
           </span>
           <span aria-hidden="true">·</span>
           <span>{getViewDescription()}</span>
