@@ -3,8 +3,9 @@
  *
  * Plots each site as a marker. Mirrors the cameras map (same base layers,
  * fit-to-bounds, fullscreen control, marker style). Clicking a marker opens
- * the site detail panel. Sites are physical places more than 100 m apart, so
- * no clustering is needed.
+ * the site detail panel. Sites are usually >100 m apart, but sub-100 m sites
+ * exist (e.g. cameras on one pole), so overlapping pins spiderfy out like the
+ * cameras map.
  */
 import { useMemo, useEffect, useRef } from 'react';
 import { MapContainer, Marker, Tooltip, useMap } from 'react-leaflet';
@@ -13,6 +14,8 @@ import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
 import { FullscreenControl } from '../map/FullscreenControl';
 import { BaseLayersControl } from '../map/BaseLayersControl';
+import { SpiderLegLine } from '../map/SpiderLegLine';
+import { useSpiderfied } from '../../hooks/useSpiderfied';
 import 'leaflet/dist/leaflet.css';
 
 // Primary teal, matching the design system.
@@ -21,6 +24,41 @@ const SITE_COLOR = '#0f6064';
 interface SitesMapViewProps {
   sites: SiteListItem[];
   onSiteClick: (siteId: number) => void;
+}
+
+// Spreads overlapping site pins (sub-100 m sites) like the cameras map.
+function SpiderfiedSiteLayer({
+  sites,
+  icon,
+  onSiteClick,
+}: {
+  sites: SiteListItem[];
+  icon: L.DivIcon;
+  onSiteClick: (siteId: number) => void;
+}) {
+  const { spread, legs } = useSpiderfied(
+    sites,
+    (s) => (s.latitude != null && s.longitude != null ? { lat: s.latitude, lon: s.longitude } : null),
+    (s) => s.id,
+    { proximityThresholdPixels: 10, spreadRadiusPixels: 20 },
+  );
+  return (
+    <>
+      {legs.map((leg) => (
+        <SpiderLegLine key={`leg-${leg.id}`} leg={leg} />
+      ))}
+      {spread.map(({ item, displayPosition }) => (
+        <Marker
+          key={item.id}
+          position={[displayPosition.lat, displayPosition.lon]}
+          icon={icon}
+          eventHandlers={{ click: () => onSiteClick(item.id) }}
+        >
+          <Tooltip>{item.name}</Tooltip>
+        </Marker>
+      ))}
+    </>
+  );
 }
 
 function FitBounds({ points }: { points: [number, number][] }) {
@@ -88,16 +126,11 @@ export function SitesMapView({ sites, onSiteClick }: SitesMapViewProps) {
       >
         <BaseLayersControl />
         <FitBounds points={points} />
-        {sitesWithLocation.map((s) => (
-          <Marker
-            key={s.id}
-            position={[s.latitude as number, s.longitude as number]}
-            icon={icon}
-            eventHandlers={{ click: () => onSiteClick(s.id) }}
-          >
-            <Tooltip>{s.name}</Tooltip>
-          </Marker>
-        ))}
+        <SpiderfiedSiteLayer
+          sites={sitesWithLocation}
+          icon={icon}
+          onSiteClick={onSiteClick}
+        />
         <FullscreenControl />
       </MapContainer>
     </div>
