@@ -942,65 +942,67 @@ export const CamerasPage: React.FC = () => {
       {/* Shared filter bar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
         <div className="space-y-3">
-          <FilterBar
-            fields={filterFields}
-            values={filterValues}
-            onChange={onFilterChange}
-            onClearAll={onClearAll}
-            displayControls={
-              viewMode === 'table'
-                ? [
-                    {
-                      key: 'columns',
-                      label: 'Visible columns',
-                      render: () => (
-                        <ColumnPicker
-                          visible={visibleColumns}
-                          onChange={setVisibleColumns}
-                        />
-                      ),
-                    },
-                  ]
-                : undefined
-            }
-            displayValues={{}}
-            onDisplayChange={() => {}}
-          />
-          {isFiltered && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap">
-              {filteredCameras.length} of {cameras.length} cameras
-            </span>
-          )}
+          <div className="flex items-end gap-3">
+            <FilterBar
+              fields={filterFields}
+              values={filterValues}
+              onChange={onFilterChange}
+              onClearAll={onClearAll}
+              displayControls={
+                viewMode === 'table'
+                  ? [
+                      {
+                        key: 'columns',
+                        label: 'Visible columns',
+                        render: () => (
+                          <ColumnPicker
+                            visible={visibleColumns}
+                            onChange={setVisibleColumns}
+                          />
+                        ),
+                      },
+                    ]
+                  : undefined
+              }
+              displayValues={{}}
+              onDisplayChange={() => {}}
+            />
+            {isFiltered && (
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {filteredCameras.length} of {cameras.length} cameras
+              </span>
+            )}
+          </div>
+
+          {/* Table / map switcher */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setViewMode('table')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                viewMode === 'table'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <TableIcon className="h-4 w-4" />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                viewMode === 'map'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <MapIcon className="h-4 w-4" />
+              Map
+            </button>
+          </div>
         </div>
       )}
-
-      {/* Tab navigation */}
-      <div className="flex border-b">
-        <button
-          onClick={() => setViewMode('table')}
-          className={cn(
-            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-            viewMode === 'table'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <TableIcon className="h-4 w-4" />
-          Table
-        </button>
-        <button
-          onClick={() => setViewMode('map')}
-          className={cn(
-            'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-            viewMode === 'map'
-              ? 'border-primary text-foreground'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <MapIcon className="h-4 w-4" />
-          Map
-        </button>
-      </div>
 
       {/* Map view */}
       {viewMode === 'map' && cameras && cameras.length > 0 && (
