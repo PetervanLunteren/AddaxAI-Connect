@@ -4,8 +4,8 @@
  * Lists the project's sites (physical places that group camera deployments)
  * with their camera, deployment and image counts. Project admins can add,
  * rename, merge and delete sites. Clicking a site opens the SiteDetailSheet
- * with its deployments. Filter and sort are URL-synced so links and refreshes
- * preserve state. The map lives on the project Map page, not here.
+ * with its deployments. Filter, sort and view-mode are URL-synced so links
+ * and refreshes preserve state, same as CamerasPage.
  */
 import React, { useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -14,6 +14,8 @@ import {
   MapPin,
   Plus,
   Loader2,
+  Map as MapIcon,
+  Table as TableIcon,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -51,6 +53,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
+import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteFormModal } from '../components/sites/SiteFormModal';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
@@ -61,6 +64,7 @@ const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
   habitat: 'string',
   tag: 'string',
+  view_mode: 'string',
 };
 
 function errMsg(err: unknown): string {
@@ -144,6 +148,9 @@ export const SitesPage: React.FC = () => {
   const searchQuery = asString(parsedFilters.search);
   const habitatFilter = asString(parsedFilters.habitat);
   const tagFilter = asString(parsedFilters.tag);
+  const viewMode = (parsedFilters.view_mode === 'map' ? 'map' : 'table') as
+    | 'table'
+    | 'map';
 
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
@@ -190,6 +197,7 @@ export const SitesPage: React.FC = () => {
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
+      view_mode: viewMode === 'table' ? undefined : viewMode,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
@@ -199,6 +207,8 @@ export const SitesPage: React.FC = () => {
   const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
     writeAll({ search: undefined, habitat: undefined, tag: undefined });
+  const setViewMode = (m: 'table' | 'map') =>
+    writeAll({ view_mode: m === 'table' ? undefined : m });
 
   const filterFields: FilterFieldDef[] = useMemo(
     () => [
@@ -327,7 +337,7 @@ export const SitesPage: React.FC = () => {
         )}
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar (drives both table and map views) */}
       {hasSites && (
         <div className="space-y-3">
           <FilterBar
@@ -341,6 +351,34 @@ export const SitesPage: React.FC = () => {
               {sortedSites.length} of {sites.length} sites
             </p>
           )}
+
+          {/* Table / map switcher */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setViewMode('table')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                viewMode === 'table'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <TableIcon className="h-4 w-4" />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                viewMode === 'map'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <MapIcon className="h-4 w-4" />
+              Map
+            </button>
+          </div>
         </div>
       )}
 
@@ -360,6 +398,11 @@ export const SitesPage: React.FC = () => {
             </p>
           </CardContent>
         </Card>
+      ) : viewMode === 'map' ? (
+        <SitesMapView
+          sites={sortedSites}
+          onSiteClick={(id) => setDetailSiteId(id)}
+        />
       ) : (
         <Card>
           <CardContent className="p-0">

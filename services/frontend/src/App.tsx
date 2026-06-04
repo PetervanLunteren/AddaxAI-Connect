@@ -21,7 +21,6 @@ import { Dashboard } from './pages/Dashboard';
 import { CamerasPage } from './pages/CamerasPage';
 import { SitesPage } from './pages/SitesPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
-import { MapPage } from './pages/MapPage';
 import { ImagesPage } from './pages/ImagesPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ExportsPage } from './pages/ExportsPage';
@@ -142,10 +141,10 @@ function App() {
                 <Route path="sites" element={<SitesPage />} />
                 <Route path="deployments" element={<DeploymentsPage />} />
                 <Route path="images" element={<ImagesPage />} />
-                <Route path="map" element={<MapPage />} />
                 {/* Legacy single-page routes redirect into Insights so old
                     bookmarks keep working. The old combined performance page
                     now lands on the confusion matrix. */}
+                <Route path="map" element={<Navigate to="../insights/map" replace />} />
                 <Route path="performance" element={<Navigate to="../insights/confusion-matrix" replace />} />
                 {/* Insights section */}
                 <Route path="insights" element={<Navigate to="insights/naive-occupancy" replace />} />

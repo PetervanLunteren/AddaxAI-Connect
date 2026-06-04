@@ -18,6 +18,8 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  Map as MapIcon,
+  Table as TableIcon,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -56,6 +58,7 @@ import {
   type BulkImportResponse,
 } from '../api/cameras';
 import type { Camera } from '../api/types';
+import { CameraMapView } from '../components/cameras/CameraMapView';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -86,6 +89,7 @@ const FILTER_SCHEMA: FilterSchema = {
   sd_usage: 'string',
   location: 'string',
   search: 'string',
+  view_mode: 'string',
 };
 
 const asString = (v: string | string[] | undefined): string =>
@@ -105,6 +109,7 @@ import {
   saveVisibleColumns,
   type ColumnId,
 } from '../components/cameras/columnDefs';
+import { cn } from '../lib/utils';
 import { formatRelative } from '../utils/datetime';
 import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
 import { useDropzone } from 'react-dropzone';
@@ -184,6 +189,9 @@ export const CamerasPage: React.FC = () => {
     location: asString(parsedFilters.location),
   };
   const searchQuery = asString(parsedFilters.search);
+  const viewMode = (parsedFilters.view_mode === 'map' ? 'map' : 'table') as
+    | 'table'
+    | 'map';
 
   const filterValues: Record<string, FilterValue> = {
     status: filters.status || undefined,
@@ -198,6 +206,7 @@ export const CamerasPage: React.FC = () => {
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
+      view_mode: viewMode === 'table' ? undefined : viewMode,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
@@ -215,6 +224,8 @@ export const CamerasPage: React.FC = () => {
       location: undefined,
       search: undefined,
     });
+  const setViewMode = (m: 'table' | 'map') =>
+    writeAll({ view_mode: m === 'table' ? undefined : m });
 
   // Visible columns persist per-browser, same pattern as cameras-view-mode.
   const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => loadVisibleColumns());
@@ -928,7 +939,7 @@ export const CamerasPage: React.FC = () => {
         );
       })()}
 
-      {/* Filter bar */}
+      {/* Shared filter bar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
         <div className="space-y-3">
           <FilterBar
@@ -936,18 +947,22 @@ export const CamerasPage: React.FC = () => {
             values={filterValues}
             onChange={onFilterChange}
             onClearAll={onClearAll}
-            displayControls={[
-              {
-                key: 'columns',
-                label: 'Visible columns',
-                render: () => (
-                  <ColumnPicker
-                    visible={visibleColumns}
-                    onChange={setVisibleColumns}
-                  />
-                ),
-              },
-            ]}
+            displayControls={
+              viewMode === 'table'
+                ? [
+                    {
+                      key: 'columns',
+                      label: 'Visible columns',
+                      render: () => (
+                        <ColumnPicker
+                          visible={visibleColumns}
+                          onChange={setVisibleColumns}
+                        />
+                      ),
+                    },
+                  ]
+                : undefined
+            }
             displayValues={{}}
             onDisplayChange={() => {}}
           />
@@ -956,9 +971,45 @@ export const CamerasPage: React.FC = () => {
               {filteredCameras.length} of {cameras.length} cameras
             </p>
           )}
+
+          {/* Table / map switcher */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setViewMode('table')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                viewMode === 'table'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <TableIcon className="h-4 w-4" />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                viewMode === 'map'
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <MapIcon className="h-4 w-4" />
+              Map
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Map view */}
+      {viewMode === 'map' && cameras && cameras.length > 0 && (
+        <CameraMapView cameras={filteredCameras} onCameraClick={handleRowClick} />
+      )}
+
+      {/* Table view content */}
+      {viewMode === 'table' && (
+        <>
       {/* Bulk-action bar. Only renders for admins with at least one camera
           selected. Sits between the toolbar and the table, same shape as
           ManageImagesPage's bulk bar. */}
@@ -1100,6 +1151,8 @@ export const CamerasPage: React.FC = () => {
         <div className="flex items-center justify-center py-8">
           <p className="text-muted-foreground">No cameras registered yet.</p>
         </div>
+      )}
+        </>
       )}
 
       {/* Camera Detail Side Panel */}
