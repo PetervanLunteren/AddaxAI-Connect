@@ -91,6 +91,13 @@ export const SiteFormModal: React.FC<Props> = ({
       ? { lat: Number(lat), lon: Number(lon) }
       : null;
 
+  // Site names are unique per project (DB constraint). Catch a collision while
+  // typing instead of failing on submit. Mirror the backend match exactly
+  // (trimmed, case-sensitive) so the form never blocks a name the server allows.
+  const trimmedName = name.trim();
+  const isDuplicateName =
+    !isMove && trimmedName !== '' && sites.some((s) => s.name === trimmedName);
+
   const mutation = useMutation({
     mutationFn: () => {
       if (moveSite) {
@@ -146,9 +153,15 @@ export const SiteFormModal: React.FC<Props> = ({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className={inputClass}
+                aria-invalid={isDuplicateName}
+                className={inputClass + (isDuplicateName ? ' border-destructive' : '')}
                 placeholder="e.g. North ridge"
               />
+            )}
+            {isDuplicateName && (
+              <p className="text-sm text-destructive mt-1">
+                A site with this name already exists
+              </p>
             )}
           </div>
 
@@ -194,7 +207,12 @@ export const SiteFormModal: React.FC<Props> = ({
           </Button>
           <Button
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || value === null || (!isMove && !name.trim())}
+            disabled={
+              mutation.isPending ||
+              value === null ||
+              (!isMove && !name.trim()) ||
+              isDuplicateName
+            }
           >
             {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {isMove ? 'Save location' : 'Create'}
