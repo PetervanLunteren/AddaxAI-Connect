@@ -12,6 +12,7 @@ import {
   Plus,
   Upload,
   Loader2,
+  AlertTriangle,
   CheckCircle,
   XCircle,
   ArrowUp,
@@ -865,44 +866,43 @@ export const CamerasPage: React.FC = () => {
           { count: sdHighCount, label: 'SD nearly full', patch: { sd_usage: 'high' } },
         ];
 
+        if (allClear) {
+          return (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle className="h-4 w-4 text-primary" />
+                  All cameras look healthy
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+
         return (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Needs attention
-                </span>
-                {allClear ? (
-                  <span className="text-sm text-muted-foreground">
-                    All cameras look healthy
-                  </span>
-                ) : (
-                  items.map((it) => (
-                    <button
-                      key={it.label}
-                      type="button"
-                      disabled={it.count === 0}
-                      onClick={() => onFilterChange(it.patch)}
-                      className={cn(
-                        'flex items-baseline gap-1.5 text-sm transition-colors',
-                        it.count > 0
-                          ? 'hover:text-primary'
-                          : 'text-muted-foreground cursor-default',
-                      )}
-                    >
-                      <span
-                        className="text-xl font-bold"
-                        style={it.count > 0 ? { color: '#882000' } : undefined}
-                      >
-                        {it.count}
-                      </span>
-                      {it.label}
-                    </button>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 text-amber-900">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4" />
+                Needs attention
+              </span>
+              {items.map((it) => (
+                <button
+                  key={it.label}
+                  type="button"
+                  disabled={it.count === 0}
+                  onClick={() => onFilterChange(it.patch)}
+                  className={cn(
+                    'flex items-baseline gap-1.5 text-sm transition-colors',
+                    it.count > 0 ? 'hover:text-amber-700' : 'opacity-50 cursor-default',
+                  )}
+                >
+                  <span className="text-xl font-bold">{it.count}</span>
+                  {it.label}
+                </button>
+              ))}
+            </div>
+          </div>
         );
       })()}
 
