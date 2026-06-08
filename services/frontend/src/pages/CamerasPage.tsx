@@ -423,13 +423,13 @@ export const CamerasPage: React.FC = () => {
       kind: 'select',
       key: 'tag',
       label: 'Tag',
+      primary: false,
       options: tagOptions.map((t) => ({ value: t, label: t })),
     },
     {
       kind: 'select',
       key: 'site',
       label: 'Site',
-      primary: false,
       options: siteOptions,
     },
     {
