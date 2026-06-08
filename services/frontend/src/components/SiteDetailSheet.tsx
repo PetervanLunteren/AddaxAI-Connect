@@ -12,12 +12,14 @@
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
  */
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
   Save,
   Trash2,
   ExternalLink,
+  ChevronRight,
   MapPin,
   GitMerge,
 } from 'lucide-react';
@@ -43,16 +45,18 @@ import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
 import { cn } from '../lib/utils';
 import { useToast } from './ui/Toaster';
 
-type TabType = 'overview' | 'deployments';
+type TabType = 'overview' | 'cameras' | 'deployments';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   projectId: number;
   siteId: number | null;
-  // Cameras currently at this site, for the health summary. Optional: the
-  // section hides when not provided.
+  // Cameras currently at this site, for the cameras tab health summary.
   cameras?: Camera[];
+  // Which tab to open on. Defaults to overview; the map opens straight to
+  // cameras when a health colour is active.
+  initialTab?: TabType;
   canEdit: boolean;
   // The merge and delete dialogs still live on the parent (they need the full
   // sites list and the existing mutations), so the kebab just signals up.
@@ -70,21 +74,24 @@ function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
 
-// One labelled health metric with a colour dot, for the camera summary.
-const Metric: React.FC<{ label: string; color: string; text: string }> = ({
+// One health metric as a labelled row (label left, dotted value right),
+// matching the counts card style on the overview tab.
+const HealthRow: React.FC<{ label: string; color: string; text: string }> = ({
   label,
   color,
   text,
 }) => (
-  <span className="inline-flex items-center gap-1.5 text-xs">
+  <div className="flex justify-between">
     <span className="text-muted-foreground">{label}</span>
-    <span
-      className="w-2 h-2 rounded-full"
-      style={{ backgroundColor: color }}
-      aria-hidden="true"
-    />
-    <span>{text}</span>
-  </span>
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="w-2 h-2 rounded-full"
+        style={{ backgroundColor: color }}
+        aria-hidden="true"
+      />
+      {text}
+    </span>
+  </div>
 );
 
 export const SiteDetailSheet: React.FC<Props> = ({
@@ -93,6 +100,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
   projectId,
   siteId,
   cameras,
+  initialTab = 'overview',
   canEdit,
   onMergeRequested,
   onDeleteRequested,
@@ -135,8 +143,11 @@ export const SiteDetailSheet: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail]);
 
+  // Open on the requested tab when a different site is selected. Read fresh so
+  // a clicked dot lands on cameras while a health colour is active.
   useEffect(() => {
-    setActiveTab('overview');
+    setActiveTab(initialTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
 
   const coreChanged =
@@ -216,6 +227,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
 
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
+              <TabButton tab="cameras" label="Cameras" />
               <TabButton tab="deployments" label="Deployments" />
             </div>
 
@@ -366,35 +378,55 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     <span>{detail.image_count.toLocaleString()}</span>
                   </div>
                 </div>
-
-                {cameras && cameras.length > 0 && (
-                  <div className="rounded-lg border p-4 space-y-3 text-sm">
-                    <div className="text-xs text-muted-foreground">Cameras at this site</div>
-                    {cameras.map((c) => (
-                      <div key={c.id} className="space-y-1">
-                        <div className="font-medium">{c.device_id ?? c.name}</div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1">
-                          <Metric
-                            label="Status"
-                            color={getStatusColor(c.status)}
-                            text={STATUS_LABELS[c.status] ?? c.status}
-                          />
-                          <Metric
-                            label="Battery"
-                            color={getBatteryColor(c.battery_percentage)}
-                            text={c.battery_percentage != null ? `${c.battery_percentage}%` : '-'}
-                          />
-                          <Metric
-                            label="Signal"
-                            color={getSignalColor(c.signal_quality)}
-                            text={c.signal_quality != null ? String(c.signal_quality) : '-'}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
+            ) : activeTab === 'cameras' ? (
+              // Cameras tab: the cameras at this site with their health, so a
+              // colour-coded site dot explains itself. Each camera and the
+              // footer link open the Cameras page, same as the deployments tab.
+              cameras && cameras.length > 0 ? (
+                <div className="space-y-4">
+                  {cameras.map((c) => (
+                    <Link
+                      key={c.id}
+                      to={`/projects/${projectId}/cameras?search=${encodeURIComponent(c.device_id ?? c.name)}`}
+                      className="block rounded-lg border p-4 space-y-2 text-sm hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2 font-medium">
+                        <span className="truncate">{c.device_id ?? c.name}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
+                      <div className="space-y-1">
+                        <HealthRow
+                          label="Status"
+                          color={getStatusColor(c.status)}
+                          text={STATUS_LABELS[c.status] ?? c.status}
+                        />
+                        <HealthRow
+                          label="Battery"
+                          color={getBatteryColor(c.battery_percentage)}
+                          text={c.battery_percentage != null ? `${c.battery_percentage}%` : '-'}
+                        />
+                        <HealthRow
+                          label="Signal"
+                          color={getSignalColor(c.signal_quality)}
+                          text={c.signal_quality != null ? String(c.signal_quality) : '-'}
+                        />
+                      </div>
+                    </Link>
+                  ))}
+                  <Link
+                    to={`/projects/${projectId}/cameras`}
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    Open in Cameras
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  No cameras at this site.
+                </p>
+              )
             ) : (
               // Deployments tab: a read-only journey of which cameras stood here
               // over time. Reassignment lives on the Deployments page.

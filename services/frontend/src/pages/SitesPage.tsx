@@ -399,32 +399,56 @@ export const SitesPage: React.FC = () => {
             </p>
           )}
 
-          {/* Table / map switcher */}
-          <div className="flex border-b">
-            <button
-              onClick={() => setViewMode('table')}
-              className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-                viewMode === 'table'
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <TableIcon className="h-4 w-4" />
-              Table
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
-                viewMode === 'map'
-                  ? 'border-primary text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <MapIcon className="h-4 w-4" />
-              Map
-            </button>
+          {/* Table / map switcher, with the map colour control on the same
+              row (map view only) so it stays visible without a separate bar. */}
+          <div className="flex items-center justify-between border-b">
+            <div className="flex">
+              <button
+                onClick={() => setViewMode('table')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                  viewMode === 'table'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <TableIcon className="h-4 w-4" />
+                Table
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center gap-2 transition-colors',
+                  viewMode === 'map'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <MapIcon className="h-4 w-4" />
+                Map
+              </button>
+            </div>
+            {viewMode === 'map' && (
+              <div className="flex items-center gap-2 pb-1">
+                <span className="text-sm text-muted-foreground">Colour</span>
+                <div className="inline-flex rounded-md border divide-x overflow-hidden">
+                  {COLOR_MODES.map((m) => (
+                    <button
+                      key={m.value}
+                      onClick={() => setColorMode(m.value)}
+                      className={cn(
+                        'px-3 py-1.5 text-sm transition-colors',
+                        colorMode === m.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-background text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -447,26 +471,6 @@ export const SitesPage: React.FC = () => {
         </Card>
       ) : viewMode === 'map' ? (
         <div className="space-y-3">
-          {/* Colour the site dots by the worst camera at each site. */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Colour</span>
-            <div className="inline-flex rounded-md border overflow-hidden">
-              {COLOR_MODES.map((m) => (
-                <button
-                  key={m.value}
-                  onClick={() => setColorMode(m.value)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm transition-colors',
-                    colorMode === m.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          </div>
           <SitesMapView
             sites={sortedSites}
             onSiteClick={(id) => setDetailSiteId(id)}
@@ -569,6 +573,9 @@ export const SitesPage: React.FC = () => {
         projectId={pid}
         siteId={detailSiteId}
         cameras={detailSiteId != null ? camerasBySite.get(detailSiteId) : undefined}
+        // When a health colour is active on the map, open straight to the
+        // cameras tab so a clicked dot explains its colour. Otherwise overview.
+        initialTab={viewMode === 'map' && colorMode !== 'none' ? 'cameras' : 'overview'}
         canEdit={canEdit}
         onMergeRequested={(s) => {
           setMergeSite(s);
