@@ -8,11 +8,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Battery,
   ExternalLink,
-  Camera as CameraIcon,
-  HardDrive,
-  Activity,
   Plus,
   Upload,
   Loader2,
@@ -107,6 +103,7 @@ import {
   saveVisibleColumns,
   type ColumnId,
 } from '../components/cameras/columnDefs';
+import { cn } from '../lib/utils';
 import { formatRelative } from '../utils/datetime';
 import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
 import { useDropzone } from 'react-dropzone';
@@ -848,111 +845,64 @@ export const CamerasPage: React.FC = () => {
         )}
       </div>
 
-      {/* Fleet summary. Page-wide stats over all cameras, independent of the
-          table/map view and of the filters, so they live above both. */}
+      {/* Needs attention. Page-wide counts of cameras that want a visit,
+          independent of the table filters. Clicking a count applies the
+          matching filter. Thresholds match the battery/SD filter buckets
+          (low battery <30%, SD nearly full >80%). */}
       {cameras && cameras.length > 0 && (() => {
-        const activeCount = cameras.filter((c: Camera) => c.status === 'active').length;
         const inactiveCount = cameras.filter((c: Camera) => c.status === 'inactive').length;
-        const neverReportedCount = cameras.filter((c: Camera) => c.status === 'never_reported').length;
-        const total = cameras.length;
-        const activePercent = (activeCount / total) * 100;
-        const inactivePercent = (inactiveCount / total) * 100;
-        const neverReportedPercent = (neverReportedCount / total) * 100;
+        const lowBatteryCount = cameras.filter(
+          (c: Camera) => c.battery_percentage != null && c.battery_percentage < 30,
+        ).length;
+        const sdHighCount = cameras.filter(
+          (c: Camera) => c.sd_utilization_percentage != null && c.sd_utilization_percentage > 80,
+        ).length;
+        const allClear = inactiveCount === 0 && lowBatteryCount === 0 && sdHighCount === 0;
 
-        const camerasWithBattery = cameras.filter((c: Camera) => c.battery_percentage !== null);
-        const avgBattery = camerasWithBattery.length > 0
-          ? Math.round(camerasWithBattery.reduce((sum: number, c: Camera) => sum + (c.battery_percentage || 0), 0) / camerasWithBattery.length)
-          : 0;
-
-        const camerasWithSD = cameras.filter((c: Camera) => c.sd_utilization_percentage !== null);
-        const avgSD = camerasWithSD.length > 0
-          ? Math.round(camerasWithSD.reduce((sum: number, c: Camera) => sum + (c.sd_utilization_percentage || 0), 0) / camerasWithSD.length)
-          : 0;
+        const items: { count: number; label: string; patch: Record<string, FilterValue> }[] = [
+          { count: inactiveCount, label: 'inactive', patch: { status: 'inactive' } },
+          { count: lowBatteryCount, label: 'low battery', patch: { battery: 'low' } },
+          { count: sdHighCount, label: 'SD nearly full', patch: { sd_usage: 'high' } },
+        ];
 
         return (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {/* Camera status bar */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 mr-4">
-                    <p className="text-sm font-medium text-muted-foreground mb-3">Camera status</p>
-                    <div className="flex h-3 rounded-full overflow-hidden">
-                      {activePercent > 0 && (
-                        <div
-                          className="cursor-default"
-                          style={{ width: `${activePercent}%`, backgroundColor: '#0f6064' }}
-                          title={`${activeCount} active`}
-                        />
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Needs attention
+                </span>
+                {allClear ? (
+                  <span className="text-sm text-muted-foreground">
+                    All cameras look healthy
+                  </span>
+                ) : (
+                  items.map((it) => (
+                    <button
+                      key={it.label}
+                      type="button"
+                      disabled={it.count === 0}
+                      onClick={() => onFilterChange(it.patch)}
+                      className={cn(
+                        'flex items-baseline gap-1.5 text-sm transition-colors',
+                        it.count > 0
+                          ? 'hover:text-primary'
+                          : 'text-muted-foreground cursor-default',
                       )}
-                      {inactivePercent > 0 && (
-                        <div
-                          className="cursor-default"
-                          style={{ width: `${inactivePercent}%`, backgroundColor: '#882000' }}
-                          title={`${inactiveCount} inactive`}
-                        />
-                      )}
-                      {neverReportedPercent > 0 && (
-                        <div
-                          className="cursor-default"
-                          style={{ width: `${neverReportedPercent}%`, backgroundColor: '#71b7ba' }}
-                          title={`${neverReportedCount} never reported`}
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                    <Activity className="h-6 w-6" style={{ color: '#0f6064' }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Total cameras */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total cameras</p>
-                    <p className="text-2xl font-bold mt-1">{total}</p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                    <CameraIcon className="h-6 w-6" style={{ color: '#0f6064' }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Average battery */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Average battery</p>
-                    <p className="text-2xl font-bold mt-1">{avgBattery}%</p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                    <Battery className="h-6 w-6" style={{ color: '#0f6064' }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Average SD card */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Average SD used</p>
-                    <p className="text-2xl font-bold mt-1">{avgSD}%</p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: '#0f606420' }}>
-                    <HardDrive className="h-6 w-6" style={{ color: '#0f6064' }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                    >
+                      <span
+                        className="text-xl font-bold"
+                        style={it.count > 0 ? { color: '#882000' } : undefined}
+                      >
+                        {it.count}
+                      </span>
+                      {it.label}
+                    </button>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
         );
       })()}
 
