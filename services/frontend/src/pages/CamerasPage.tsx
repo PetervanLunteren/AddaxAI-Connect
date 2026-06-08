@@ -429,6 +429,7 @@ export const CamerasPage: React.FC = () => {
       kind: 'select',
       key: 'site',
       label: 'Site',
+      primary: false,
       options: siteOptions,
     },
     {

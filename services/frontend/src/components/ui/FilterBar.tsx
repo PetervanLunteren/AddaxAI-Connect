@@ -167,18 +167,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   return (
     <div className="rounded-lg border bg-card pt-2 pb-3 px-3 space-y-3">
-      {/* Filters fill the left and wrap among themselves; the More/Display
-          buttons stay pinned top-right as their own group, so they never
-          orphan onto a lonely row no matter how many filters a page has. */}
-      <div className="flex items-end gap-3">
-        <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
-          {primaryFields.map((field) => (
-            <FieldCell key={fieldKey(field)} field={field} values={values} onChange={onChange} />
-          ))}
-        </div>
+      <div className="flex flex-wrap items-end gap-3">
+        {primaryFields.map((field) => (
+          <FieldCell key={fieldKey(field)} field={field} values={values} onChange={onChange} />
+        ))}
 
         {(overflowFields.length > 0 || (displayControls && displayControls.length > 0)) && (
-          <div className="flex items-end gap-2 shrink-0">
+          <div className="flex items-end gap-2 ml-auto">
             {overflowFields.length > 0 && (
               <MorePopover
                 fields={overflowFields}
