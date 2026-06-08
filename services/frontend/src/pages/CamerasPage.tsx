@@ -76,6 +76,7 @@ type CameraFilterState = {
   signal: string;
   sd_usage: string;
   location: string;
+  site: string;
 };
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -85,6 +86,7 @@ const FILTER_SCHEMA: FilterSchema = {
   signal: 'string',
   sd_usage: 'string',
   location: 'string',
+  site: 'string',
   search: 'string',
 };
 
@@ -182,6 +184,7 @@ export const CamerasPage: React.FC = () => {
     signal: asString(parsedFilters.signal),
     sd_usage: asString(parsedFilters.sd_usage),
     location: asString(parsedFilters.location),
+    site: asString(parsedFilters.site),
   };
   const searchQuery = asString(parsedFilters.search);
 
@@ -192,6 +195,7 @@ export const CamerasPage: React.FC = () => {
     signal: filters.signal || undefined,
     sd_usage: filters.sd_usage || undefined,
     location: filters.location || undefined,
+    site: filters.site || undefined,
     search: searchQuery || undefined,
   };
 
@@ -213,6 +217,7 @@ export const CamerasPage: React.FC = () => {
       signal: undefined,
       sd_usage: undefined,
       location: undefined,
+      site: undefined,
       search: undefined,
     });
 
@@ -385,6 +390,18 @@ export const CamerasPage: React.FC = () => {
   });
   const tagOptions = allTags || [];
 
+  // Site options for the site filter, built from the cameras' current site so
+  // there is no extra fetch. A camera links to its site via its deployment.
+  const siteOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const c of cameras ?? []) {
+      if (c.current_site) byId.set(String(c.current_site.id), c.current_site.name);
+    }
+    return Array.from(byId, ([value, label]) => ({ value, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [cameras]);
+
   const filterFields: FilterFieldDef[] = [
     {
       kind: 'search',
@@ -407,6 +424,12 @@ export const CamerasPage: React.FC = () => {
       key: 'tag',
       label: 'Tag',
       options: tagOptions.map((t) => ({ value: t, label: t })),
+    },
+    {
+      kind: 'select',
+      key: 'site',
+      label: 'Site',
+      options: siteOptions,
     },
     {
       kind: 'select',
@@ -592,6 +615,9 @@ export const CamerasPage: React.FC = () => {
         filters.location === 'known' ? c.location !== null : c.location === null
       );
     }
+    if (filters.site) {
+      result = result.filter((c) => String(c.current_site?.id) === filters.site);
+    }
 
     // Sort (nulls last). Non-sortable columns return null and fall through
     // to the unsorted branch below if the user somehow ends up sorting on one.
@@ -631,7 +657,8 @@ export const CamerasPage: React.FC = () => {
 
   const isFiltered = searchQuery.trim() !== '' ||
     !!filters.status || !!filters.tag ||
-    !!filters.battery || !!filters.signal || !!filters.sd_usage || !!filters.location;
+    !!filters.battery || !!filters.signal || !!filters.sd_usage ||
+    !!filters.location || !!filters.site;
 
   // Per-column cell renderer. Lives inside the component so it closes over
   // the format helpers (getBatteryColor, getSignalLabel, etc.) defined

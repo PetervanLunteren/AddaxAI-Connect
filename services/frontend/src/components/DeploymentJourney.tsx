@@ -27,8 +27,12 @@ export interface JourneyItem {
 interface Props {
   mode: 'camera' | 'site';
   items: JourneyItem[];
-  // Deployments page URL pre-filtered to this camera or site.
+  // Deployments page URL pre-filtered to this camera or site (the footer link).
   linkTo: string;
+  // Per-card link. When given, each card opens the deployments page focused on
+  // that one deployment, while the footer still shows all of them. Falls back
+  // to linkTo when omitted.
+  itemLinkTo?: (id: number) => string;
   emptyText: string;
 }
 
@@ -46,7 +50,7 @@ function startMs(s: string | null): number {
   return isNaN(t) ? Number.POSITIVE_INFINITY : t;
 }
 
-export const DeploymentJourney: React.FC<Props> = ({ mode, items, linkTo, emptyText }) => {
+export const DeploymentJourney: React.FC<Props> = ({ mode, items, linkTo, itemLinkTo, emptyText }) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
   }
@@ -63,7 +67,7 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, linkTo, emptyT
           <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
             <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
             <Link
-              to={linkTo}
+              to={itemLinkTo ? itemLinkTo(it.id) : linkTo}
               className="block rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors"
             >
               <div className="flex items-center gap-2 font-medium min-w-0">

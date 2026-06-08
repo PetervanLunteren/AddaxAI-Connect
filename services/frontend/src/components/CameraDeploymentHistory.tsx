@@ -47,6 +47,7 @@ export const CameraDeploymentHistory: React.FC<{
         imageCount: d.image_count,
       }))}
       linkTo={linkTo}
+      itemLinkTo={(id) => `/projects/${projectId}/deployments?deployment=${id}`}
       emptyText="No deployment history for this camera yet."
     />
   );

@@ -391,7 +391,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     ))}
                   </ol>
                   <Link
-                    to={`/projects/${projectId}/cameras`}
+                    to={`/projects/${projectId}/cameras?site=${siteId}`}
                     className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                   >
                     Open in Cameras
@@ -416,6 +416,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                   imageCount: d.image_count,
                 }))}
                 linkTo={`/projects/${projectId}/deployments?site=${siteId}`}
+                itemLinkTo={(id) => `/projects/${projectId}/deployments?deployment=${id}`}
                 emptyText="No deployments at this site."
               />
             )}

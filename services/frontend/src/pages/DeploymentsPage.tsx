@@ -55,6 +55,9 @@ const FILTER_SCHEMA: FilterSchema = {
   site: 'string',
   camera: 'string',
   source: 'string',
+  // Focus the table on a single deployment, set by deep links from the site
+  // and camera slideouts. URL-only, cleared with Clear all.
+  deployment: 'string',
 };
 
 // Special site-filter value: deployments with no site assigned.
@@ -150,6 +153,7 @@ export const DeploymentsPage: React.FC = () => {
   const siteFilter = asString(parsed.site);
   const cameraFilter = asString(parsed.camera);
   const sourceFilter = asString(parsed.source);
+  const deploymentFilter = asString(parsed.deployment);
 
   const [sort, setSort] = useState<{
     column: SortColumn | null;
@@ -189,6 +193,7 @@ export const DeploymentsPage: React.FC = () => {
     site: siteFilter || undefined,
     camera: cameraFilter || undefined,
     source: sourceFilter || undefined,
+    deployment: deploymentFilter || undefined,
   };
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -196,7 +201,13 @@ export const DeploymentsPage: React.FC = () => {
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
   };
   const onClearAll = () =>
-    writeAll({ search: undefined, site: undefined, camera: undefined, source: undefined });
+    writeAll({
+      search: undefined,
+      site: undefined,
+      camera: undefined,
+      source: undefined,
+      deployment: undefined,
+    });
 
   const filterFields: FilterFieldDef[] = useMemo(
     () => [
@@ -256,8 +267,11 @@ export const DeploymentsPage: React.FC = () => {
     if (sourceFilter) {
       result = result.filter((d) => d.site_source === sourceFilter);
     }
+    if (deploymentFilter) {
+      result = result.filter((d) => String(d.id) === deploymentFilter);
+    }
     return result;
-  }, [deployments, searchQuery, siteFilter, cameraFilter, sourceFilter]);
+  }, [deployments, searchQuery, siteFilter, cameraFilter, sourceFilter, deploymentFilter]);
 
   const sorted = useMemo(() => {
     if (!sort.column) return filtered;
@@ -350,7 +364,7 @@ export const DeploymentsPage: React.FC = () => {
     );
   }
 
-  const isFiltered = !!(searchQuery || siteFilter || cameraFilter || sourceFilter);
+  const isFiltered = !!(searchQuery || siteFilter || cameraFilter || sourceFilter || deploymentFilter);
   const total = deployments?.length ?? 0;
 
   return (
