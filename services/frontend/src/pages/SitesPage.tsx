@@ -372,8 +372,7 @@ export const SitesPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold mb-0">Sites</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Physical places where cameras are deployed. Each site groups the
-            deployments at that location.
+            Physical places that group camera deployments
           </p>
         </div>
         {canEdit && (

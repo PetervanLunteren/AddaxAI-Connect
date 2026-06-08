@@ -373,9 +373,7 @@ export const DeploymentsPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold mb-0">Deployments</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Each deployment is one camera at one site for a time range. The site is
-          set automatically from the GPS in the photos. Fix where photos landed by
-          reassigning a deployment to the right site.
+          One camera at one site for a time range, with the site set from image GPS
         </p>
       </div>
 
