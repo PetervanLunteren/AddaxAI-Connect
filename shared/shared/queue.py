@@ -5,6 +5,7 @@ Provides simple interface for pub/sub messaging between services.
 """
 import redis
 import json
+import time
 from typing import Any, Optional, Callable
 from .config import get_settings
 from .logger import get_logger
@@ -49,6 +50,22 @@ class RedisQueue:
             return json.loads(message)
         return None
 
+    def _reconnect(self, backoff_seconds: float = 1.0) -> None:
+        """
+        Recreate the Redis client after a connection or read error.
+
+        A long-running consumer must survive a transient Redis blip (dropped
+        connection, socket read timeout) instead of letting the exception
+        crash the worker. Sleeps briefly first so a persistent failure does
+        not become a tight reconnect loop.
+        """
+        time.sleep(backoff_seconds)
+        try:
+            self.client.close()
+        except Exception:
+            pass
+        self.client = redis.from_url(settings.redis_url, decode_responses=True)
+
     def consume_forever(self, callback: Callable[[dict], None]) -> None:
         """
         Consume messages in infinite loop.
@@ -58,7 +75,16 @@ class RedisQueue:
         """
         logger.info("Worker listening on queue", queue=self.queue_name)
         while True:
-            message = self.consume()
+            try:
+                message = self.consume()
+            except (redis.ConnectionError, redis.TimeoutError) as e:
+                logger.warning(
+                    "Redis read failed, reconnecting",
+                    queue=self.queue_name,
+                    error=str(e),
+                )
+                self._reconnect()
+                continue
             if message:
                 try:
                     callback(message)
@@ -92,7 +118,16 @@ class RedisQueue:
         """
         logger.info("Worker listening on priority queues", queues=queues)
         while True:
-            result = self.client.brpop(queues, timeout=0)
+            try:
+                result = self.client.brpop(queues, timeout=0)
+            except (redis.ConnectionError, redis.TimeoutError) as e:
+                logger.warning(
+                    "Redis read failed, reconnecting",
+                    queues=queues,
+                    error=str(e),
+                )
+                self._reconnect()
+                continue
             if not result:
                 continue
             source_queue, raw = result
