@@ -30,6 +30,13 @@ import {
 } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
+import type { Camera } from '../api/types';
+import {
+  getStatusColor,
+  getBatteryColor,
+  getSignalColor,
+  STATUS_LABELS,
+} from '../utils/camera-colors';
 import { TagInput } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
@@ -43,6 +50,9 @@ interface Props {
   onClose: () => void;
   projectId: number;
   siteId: number | null;
+  // Cameras currently at this site, for the health summary. Optional: the
+  // section hides when not provided.
+  cameras?: Camera[];
   canEdit: boolean;
   // The merge and delete dialogs still live on the parent (they need the full
   // sites list and the existing mutations), so the kebab just signals up.
@@ -60,11 +70,29 @@ function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
 
+// One labelled health metric with a colour dot, for the camera summary.
+const Metric: React.FC<{ label: string; color: string; text: string }> = ({
+  label,
+  color,
+  text,
+}) => (
+  <span className="inline-flex items-center gap-1.5 text-xs">
+    <span className="text-muted-foreground">{label}</span>
+    <span
+      className="w-2 h-2 rounded-full"
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    />
+    <span>{text}</span>
+  </span>
+);
+
 export const SiteDetailSheet: React.FC<Props> = ({
   open,
   onClose,
   projectId,
   siteId,
+  cameras,
   canEdit,
   onMergeRequested,
   onDeleteRequested,
@@ -338,6 +366,34 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     <span>{detail.image_count.toLocaleString()}</span>
                   </div>
                 </div>
+
+                {cameras && cameras.length > 0 && (
+                  <div className="rounded-lg border p-4 space-y-3 text-sm">
+                    <div className="text-xs text-muted-foreground">Cameras at this site</div>
+                    {cameras.map((c) => (
+                      <div key={c.id} className="space-y-1">
+                        <div className="font-medium">{c.device_id ?? c.name}</div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          <Metric
+                            label="Status"
+                            color={getStatusColor(c.status)}
+                            text={STATUS_LABELS[c.status] ?? c.status}
+                          />
+                          <Metric
+                            label="Battery"
+                            color={getBatteryColor(c.battery_percentage)}
+                            text={c.battery_percentage != null ? `${c.battery_percentage}%` : '-'}
+                          />
+                          <Metric
+                            label="Signal"
+                            color={getSignalColor(c.signal_quality)}
+                            text={c.signal_quality != null ? String(c.signal_quality) : '-'}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               // Deployments tab: a read-only journey of which cameras stood here

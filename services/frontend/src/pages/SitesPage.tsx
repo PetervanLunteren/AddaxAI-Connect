@@ -8,7 +8,7 @@
  * and refreshes preserve state, same as CamerasPage.
  */
 import React, { useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
@@ -53,6 +53,9 @@ import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { sitesApi, type SiteListItem } from '../api/sites';
+import { camerasApi } from '../api/cameras';
+import type { Camera } from '../api/types';
+import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteFormModal } from '../components/sites/SiteFormModal';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
@@ -65,7 +68,15 @@ const FILTER_SCHEMA: FilterSchema = {
   habitat: 'string',
   tag: 'string',
   view_mode: 'string',
+  color_mode: 'string',
 };
+
+const COLOR_MODES: { value: SiteColorMode; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'status', label: 'Status' },
+  { value: 'battery', label: 'Battery' },
+  { value: 'signal', label: 'Signal' },
+];
 
 function errMsg(err: unknown): string {
   const e = err as { response?: { data?: { detail?: string } }; message?: string };
@@ -151,6 +162,11 @@ export const SitesPage: React.FC = () => {
   const viewMode = (parsedFilters.view_mode === 'map' ? 'map' : 'table') as
     | 'table'
     | 'map';
+  const colorModeRaw = asString(parsedFilters.color_mode);
+  const colorMode: SiteColorMode =
+    colorModeRaw === 'status' || colorModeRaw === 'battery' || colorModeRaw === 'signal'
+      ? colorModeRaw
+      : 'none';
 
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
@@ -179,6 +195,34 @@ export const SitesPage: React.FC = () => {
     enabled: Number.isFinite(pid),
   });
 
+  // Project cameras feed the map's health colouring and the detail sheet's
+  // camera list. Loads in parallel; the map renders without waiting for it and
+  // recolours when it arrives.
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', pid],
+    queryFn: () => camerasApi.getAll(pid),
+    enabled: Number.isFinite(pid),
+  });
+
+  // Worst-camera health per site, the cameras grouped by site (for the detail
+  // sheet), and the count of cameras not yet placed at any site.
+  const siteHealth = useMemo(() => buildSiteHealth(cameras ?? []), [cameras]);
+  const camerasBySite = useMemo(() => {
+    const bySite = new Map<number, Camera[]>();
+    for (const c of cameras ?? []) {
+      const siteId = c.current_site?.id;
+      if (siteId == null) continue;
+      const arr = bySite.get(siteId) ?? [];
+      arr.push(c);
+      bySite.set(siteId, arr);
+    }
+    return bySite;
+  }, [cameras]);
+  const orphanCount = useMemo(
+    () => (cameras ?? []).filter((c) => c.current_site == null).length,
+    [cameras],
+  );
+
   // Habitat options: distinct non-null habitat_type values across the project.
   const habitatOptions = useMemo(() => {
     const set = new Set<string>();
@@ -198,6 +242,7 @@ export const SitesPage: React.FC = () => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
       view_mode: viewMode === 'table' ? undefined : viewMode,
+      color_mode: colorMode === 'none' ? undefined : colorMode,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), {
@@ -209,6 +254,8 @@ export const SitesPage: React.FC = () => {
     writeAll({ search: undefined, habitat: undefined, tag: undefined });
   const setViewMode = (m: 'table' | 'map') =>
     writeAll({ view_mode: m === 'table' ? undefined : m });
+  const setColorMode = (m: SiteColorMode) =>
+    writeAll({ color_mode: m === 'none' ? undefined : m });
 
   const filterFields: FilterFieldDef[] = useMemo(
     () => [
@@ -399,10 +446,46 @@ export const SitesPage: React.FC = () => {
           </CardContent>
         </Card>
       ) : viewMode === 'map' ? (
-        <SitesMapView
-          sites={sortedSites}
-          onSiteClick={(id) => setDetailSiteId(id)}
-        />
+        <div className="space-y-3">
+          {/* Colour the site dots by the worst camera at each site. */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Colour</span>
+            <div className="inline-flex rounded-md border overflow-hidden">
+              {COLOR_MODES.map((m) => (
+                <button
+                  key={m.value}
+                  onClick={() => setColorMode(m.value)}
+                  className={cn(
+                    'px-3 py-1.5 text-sm transition-colors',
+                    colorMode === m.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <SitesMapView
+            sites={sortedSites}
+            onSiteClick={(id) => setDetailSiteId(id)}
+            colorMode={colorMode}
+            siteHealth={siteHealth}
+          />
+          {orphanCount > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {orphanCount} {orphanCount === 1 ? 'camera is' : 'cameras are'} not placed at a
+              site.{' '}
+              <Link
+                to={`/projects/${pid}/cameras`}
+                className="text-primary hover:underline"
+              >
+                View cameras
+              </Link>
+            </p>
+          )}
+        </div>
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -485,6 +568,7 @@ export const SitesPage: React.FC = () => {
         onClose={() => setDetailSiteId(null)}
         projectId={pid}
         siteId={detailSiteId}
+        cameras={detailSiteId != null ? camerasBySite.get(detailSiteId) : undefined}
         canEdit={canEdit}
         onMergeRequested={(s) => {
           setMergeSite(s);

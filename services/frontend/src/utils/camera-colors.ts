@@ -1,7 +1,8 @@
 /**
- * Camera color utilities for consistent styling across table and map views
+ * Camera health color utilities for consistent styling across the cameras
+ * table, the camera status badge, and the sites map (which colours each site
+ * by the worst camera there).
  */
-import type { Camera } from '../api/types';
 
 // Status colors matching the app's color palette
 export const STATUS_COLORS = {
@@ -48,23 +49,6 @@ export function getSignalColor(csq: number | null): string {
   if (csq >= 15) return '#0f6064';
   if (csq >= 10) return '#71b7ba';
   return '#882000';
-}
-
-/**
- * Get marker color for a camera based on the selected metric
- */
-export function getCameraMarkerColor(
-  camera: Camera,
-  colorBy: ColorByMetric
-): string {
-  switch (colorBy) {
-    case 'status':
-      return getStatusColor(camera.status);
-    case 'battery':
-      return getBatteryColor(camera.battery_percentage);
-    case 'signal':
-      return getSignalColor(camera.signal_quality);
-  }
 }
 
 /**

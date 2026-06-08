@@ -3,7 +3,7 @@
  *
  * Click the map to set a coordinate; an existing-sites layer shows context.
  * Mirrors the AddaxAI-WebUI add-site map UX, built on react-leaflet to match
- * the rest of this app (SitesMapView, CameraMapView). The parent owns the
+ * the rest of this app (SitesMapView). The parent owns the
  * lat/lon value and keeps manual number inputs in sync, so typing and clicking
  * both drive the same marker.
  */
