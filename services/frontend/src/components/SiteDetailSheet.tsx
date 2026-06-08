@@ -22,6 +22,11 @@ import {
   ChevronRight,
   MapPin,
   GitMerge,
+  Camera as CameraIcon,
+  Activity,
+  Battery,
+  Signal,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   Sheet,
@@ -74,24 +79,22 @@ function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
 
-// One health metric as a labelled row (label left, dotted value right),
-// matching the counts card style on the overview tab.
-const HealthRow: React.FC<{ label: string; color: string; text: string }> = ({
-  label,
+// One camera health metric as an icon-led line with a coloured health dot,
+// mirroring the deployment journey card rows so the two tabs read the same.
+const CameraMetric: React.FC<{ icon: LucideIcon; color: string; text: string }> = ({
+  icon: Icon,
   color,
   text,
 }) => (
-  <div className="flex justify-between">
-    <span className="text-muted-foreground">{label}</span>
-    <span className="inline-flex items-center gap-1.5">
-      <span
-        className="w-2 h-2 rounded-full"
-        style={{ backgroundColor: color }}
-        aria-hidden="true"
-      />
-      {text}
-    </span>
-  </div>
+  <p className="flex items-center gap-2 text-muted-foreground">
+    <Icon className="h-3.5 w-3.5 shrink-0" />
+    <span
+      className="w-2 h-2 rounded-full shrink-0"
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    />
+    {text}
+  </p>
 );
 
 export const SiteDetailSheet: React.FC<Props> = ({
@@ -381,39 +384,44 @@ export const SiteDetailSheet: React.FC<Props> = ({
               </div>
             ) : activeTab === 'cameras' ? (
               // Cameras tab: the cameras at this site with their health, so a
-              // colour-coded site dot explains itself. Each camera and the
-              // footer link open the Cameras page, same as the deployments tab.
+              // colour-coded site dot explains itself. Mirrors the deployment
+              // journey layout. Each camera and the footer link open the
+              // Cameras page, same as the deployments tab.
               cameras && cameras.length > 0 ? (
-                <div className="space-y-4">
-                  {cameras.map((c) => (
-                    <Link
-                      key={c.id}
-                      to={`/projects/${projectId}/cameras?search=${encodeURIComponent(c.device_id ?? c.name)}`}
-                      className="block rounded-lg border p-4 space-y-2 text-sm hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2 font-medium">
-                        <span className="truncate">{c.device_id ?? c.name}</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                      </div>
-                      <div className="space-y-1">
-                        <HealthRow
-                          label="Status"
-                          color={getStatusColor(c.status)}
-                          text={STATUS_LABELS[c.status] ?? c.status}
-                        />
-                        <HealthRow
-                          label="Battery"
-                          color={getBatteryColor(c.battery_percentage)}
-                          text={c.battery_percentage != null ? `${c.battery_percentage}%` : '-'}
-                        />
-                        <HealthRow
-                          label="Signal"
-                          color={getSignalColor(c.signal_quality)}
-                          text={c.signal_quality != null ? String(c.signal_quality) : '-'}
-                        />
-                      </div>
-                    </Link>
-                  ))}
+                <div className="space-y-3">
+                  <ol className="relative ml-2 border-l border-border">
+                    {cameras.map((c) => (
+                      <li key={c.id} className="relative ml-5 pb-4 last:pb-0">
+                        <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
+                        <Link
+                          to={`/projects/${projectId}/cameras?search=${encodeURIComponent(c.device_id ?? c.name)}`}
+                          className="block rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 font-medium min-w-0">
+                            <CameraIcon className="h-4 w-4 text-primary shrink-0" />
+                            <span className="truncate">{c.device_id ?? c.name}</span>
+                          </div>
+                          <div className="mt-1 space-y-1">
+                            <CameraMetric
+                              icon={Activity}
+                              color={getStatusColor(c.status)}
+                              text={STATUS_LABELS[c.status] ?? c.status}
+                            />
+                            <CameraMetric
+                              icon={Battery}
+                              color={getBatteryColor(c.battery_percentage)}
+                              text={c.battery_percentage != null ? `${c.battery_percentage}%` : 'Unknown'}
+                            />
+                            <CameraMetric
+                              icon={Signal}
+                              color={getSignalColor(c.signal_quality)}
+                              text={c.signal_quality != null ? String(c.signal_quality) : 'Unknown'}
+                            />
+                          </div>
+                        </Link>
+                      </li>
+                    ))}
+                  </ol>
                   <Link
                     to={`/projects/${projectId}/cameras`}
                     className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
