@@ -7,16 +7,21 @@ name = "addaxai-connect-shared"
 version = "0.1.0"
 description = "Shared library for AddaxAI Connect services"
 requires-python = ">=3.11"
+# Exact pins. This is the single source of truth for the shared runtime
+# dependencies; services must not re-pin these in their own requirements.txt,
+# so every image resolves the same versions and builds stay reproducible.
+# An unpinned floor here is what let the telegram image drift to redis 8.0.0
+# (default 5s socket timeout) and crash its queue consumer.
 dependencies = [
-    "sqlalchemy>=2.0.0",
-    "psycopg2-binary>=2.9.0",
-    "redis>=5.0.0",
-    "boto3>=1.34.0",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-    "geoalchemy2>=0.14.0",
-    "python-json-logger>=2.0.7",
-    "jinja2>=3.1.0",
+    "sqlalchemy==2.0.23",
+    "psycopg2-binary==2.9.9",
+    "redis==5.0.1",
+    "boto3==1.34.0",
+    "pydantic==2.5.0",
+    "pydantic-settings==2.1.0",
+    "geoalchemy2==0.14.3",
+    "python-json-logger==2.0.7",
+    "jinja2==3.1.2",
 ]
 
 [tool.setuptools.packages.find]
