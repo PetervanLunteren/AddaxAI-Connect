@@ -34,7 +34,12 @@ import {
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
 import type { Camera } from '../api/types';
-import { getStatusColor, STATUS_LABELS } from '../utils/camera-colors';
+import {
+  getStatusColor,
+  getBatteryColor,
+  getSignalColor,
+  STATUS_LABELS,
+} from '../utils/camera-colors';
 import { TagInput } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
@@ -69,6 +74,19 @@ function fmtCoords(lat: number | null, lon: number | null): string {
 function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
+
+// A camera health line on the cameras tab: a coloured dot then the words.
+// Same text size and spacing as the deployment journey rows.
+const MetricRow: React.FC<{ color: string; text: string }> = ({ color, text }) => (
+  <p className="flex items-center gap-2 text-muted-foreground">
+    <span
+      className="w-2 h-2 rounded-full shrink-0"
+      style={{ backgroundColor: color }}
+      aria-hidden="true"
+    />
+    {text}
+  </p>
+);
 
 export const SiteDetailSheet: React.FC<Props> = ({
   open,
@@ -377,14 +395,19 @@ export const SiteDetailSheet: React.FC<Props> = ({
                             <CameraIcon className="h-4 w-4 text-primary shrink-0" />
                             <span className="truncate">{c.device_id ?? c.name}</span>
                           </div>
-                          <div className="mt-1 space-y-1">
-                            <p className="text-muted-foreground">{STATUS_LABELS[c.status] ?? c.status}</p>
-                            <p className="text-muted-foreground">
-                              Battery {c.battery_percentage != null ? `${c.battery_percentage}%` : 'unknown'}
-                            </p>
-                            <p className="text-muted-foreground">
-                              Signal {c.signal_quality != null ? c.signal_quality : 'unknown'}
-                            </p>
+                          <div className="mt-1">
+                            <MetricRow
+                              color={getStatusColor(c.status)}
+                              text={`Status ${STATUS_LABELS[c.status] ?? c.status}`}
+                            />
+                            <MetricRow
+                              color={getBatteryColor(c.battery_percentage)}
+                              text={`Battery ${c.battery_percentage != null ? `${c.battery_percentage}%` : 'unknown'}`}
+                            />
+                            <MetricRow
+                              color={getSignalColor(c.signal_quality)}
+                              text={`Signal ${c.signal_quality != null ? c.signal_quality : 'unknown'}`}
+                            />
                           </div>
                         </Link>
                       </li>
