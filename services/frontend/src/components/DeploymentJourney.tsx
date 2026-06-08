@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Camera, ChevronRight, Calendar, Image as ImageIcon } from 'lucide-react';
+import { MapPin, Camera, ChevronRight } from 'lucide-react';
 
 export interface JourneyItem {
   id: number;
@@ -70,16 +70,10 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, linkTo, emptyT
                 <Icon className="h-4 w-4 text-primary shrink-0" />
                 <span className="truncate">{it.title ?? fallback}</span>
               </div>
-              <div className="mt-1 space-y-1">
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-3.5 w-3.5 shrink-0" />
-                  {fmtDate(it.startDate)} to {it.endDate ? fmtDate(it.endDate) : 'now'}
-                </p>
-                <p className="flex items-center gap-2 text-muted-foreground">
-                  <ImageIcon className="h-3.5 w-3.5 shrink-0" />
-                  {it.imageCount.toLocaleString()} images
-                </p>
-              </div>
+              <p className="text-muted-foreground mt-1">
+                {fmtDate(it.startDate)} to {it.endDate ? fmtDate(it.endDate) : 'now'}
+              </p>
+              <p className="text-muted-foreground">{it.imageCount.toLocaleString()} images</p>
             </Link>
           </li>
         ))}

@@ -23,10 +23,6 @@ import {
   MapPin,
   GitMerge,
   Camera as CameraIcon,
-  Activity,
-  Battery,
-  Signal,
-  type LucideIcon,
 } from 'lucide-react';
 import {
   Sheet,
@@ -38,12 +34,7 @@ import {
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
 import type { Camera } from '../api/types';
-import {
-  getStatusColor,
-  getBatteryColor,
-  getSignalColor,
-  STATUS_LABELS,
-} from '../utils/camera-colors';
+import { getStatusColor, STATUS_LABELS } from '../utils/camera-colors';
 import { TagInput } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
 import { SiteLocationMiniMap } from './sites/SiteLocationMiniMap';
@@ -78,24 +69,6 @@ function fmtCoords(lat: number | null, lon: number | null): string {
 function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
 }
-
-// One camera health metric as an icon-led line with a coloured health dot,
-// mirroring the deployment journey card rows so the two tabs read the same.
-const CameraMetric: React.FC<{ icon: LucideIcon; color: string; text: string }> = ({
-  icon: Icon,
-  color,
-  text,
-}) => (
-  <p className="flex items-center gap-2 text-muted-foreground">
-    <Icon className="h-3.5 w-3.5 shrink-0" />
-    <span
-      className="w-2 h-2 rounded-full shrink-0"
-      style={{ backgroundColor: color }}
-      aria-hidden="true"
-    />
-    {text}
-  </p>
-);
 
 export const SiteDetailSheet: React.FC<Props> = ({
   open,
@@ -392,7 +365,10 @@ export const SiteDetailSheet: React.FC<Props> = ({
                   <ol className="relative ml-2 border-l border-border">
                     {cameras.map((c) => (
                       <li key={c.id} className="relative ml-5 pb-4 last:pb-0">
-                        <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
+                        <span
+                          className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full ring-2 ring-card"
+                          style={{ backgroundColor: getStatusColor(c.status) }}
+                        />
                         <Link
                           to={`/projects/${projectId}/cameras?search=${encodeURIComponent(c.device_id ?? c.name)}`}
                           className="block rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors"
@@ -402,21 +378,13 @@ export const SiteDetailSheet: React.FC<Props> = ({
                             <span className="truncate">{c.device_id ?? c.name}</span>
                           </div>
                           <div className="mt-1 space-y-1">
-                            <CameraMetric
-                              icon={Activity}
-                              color={getStatusColor(c.status)}
-                              text={STATUS_LABELS[c.status] ?? c.status}
-                            />
-                            <CameraMetric
-                              icon={Battery}
-                              color={getBatteryColor(c.battery_percentage)}
-                              text={c.battery_percentage != null ? `${c.battery_percentage}%` : 'Unknown'}
-                            />
-                            <CameraMetric
-                              icon={Signal}
-                              color={getSignalColor(c.signal_quality)}
-                              text={c.signal_quality != null ? String(c.signal_quality) : 'Unknown'}
-                            />
+                            <p className="text-muted-foreground">{STATUS_LABELS[c.status] ?? c.status}</p>
+                            <p className="text-muted-foreground">
+                              Battery {c.battery_percentage != null ? `${c.battery_percentage}%` : 'unknown'}
+                            </p>
+                            <p className="text-muted-foreground">
+                              Signal {c.signal_quality != null ? c.signal_quality : 'unknown'}
+                            </p>
                           </div>
                         </Link>
                       </li>
