@@ -47,7 +47,7 @@ import { sitesApi } from '../api/sites';
 import { DeploymentDetailSheet } from '../components/DeploymentDetailSheet';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
-type SortColumn = 'site' | 'label' | 'start' | 'end' | 'images';
+type SortColumn = 'label' | 'site' | 'start' | 'camera' | 'images';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -74,18 +74,24 @@ function fmtDate(s: string | null): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+// "18 Jan 2026 to now" for an open deployment, "... to 22 Apr 2026" for a closed one.
+function fmtRange(start: string | null, end: string | null): string {
+  if (!start) return '-';
+  return `${fmtDate(start)} to ${end ? fmtDate(end) : 'now'}`;
+}
+
 const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 
 function depSortValue(d: DeploymentListItem, column: SortColumn): string | number | null {
   switch (column) {
-    case 'site':
-      return (d.site_name ?? '').toLowerCase();
     case 'label':
       return (d.label ?? '').toLowerCase();
+    case 'site':
+      return (d.site_name ?? '').toLowerCase();
     case 'start':
       return d.start_date ?? null;
-    case 'end':
-      return d.end_date ?? null;
+    case 'camera':
+      return (d.camera_label ?? '').toLowerCase();
     case 'images':
       return d.image_count;
   }
@@ -119,22 +125,6 @@ const SortableHeader: React.FC<{
         <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
       )}
     </button>
-  );
-};
-
-const SourceBadge: React.FC<{ source: string }> = ({ source }) => {
-  const manual = source === 'manual';
-  return (
-    <span
-      className={cn(
-        'inline-block px-2 py-0.5 rounded-full text-xs font-medium',
-        manual
-          ? 'bg-primary/10 text-primary'
-          : 'bg-muted text-muted-foreground',
-      )}
-    >
-      {manual ? 'Human-confirmed' : 'GPS-guessed'}
-    </span>
   );
 };
 
@@ -467,21 +457,20 @@ export const DeploymentsPage: React.FC = () => {
                     </TableHead>
                   )}
                   <TableHead>
-                    <SortableHeader label="Site" column="site" sort={sort} onSort={handleSort} />
-                  </TableHead>
-                  <TableHead>
                     <SortableHeader label="Label" column="label" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>
-                    <SortableHeader label="Start" column="start" sort={sort} onSort={handleSort} />
+                    <SortableHeader label="Site" column="site" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>
-                    <SortableHeader label="End" column="end" sort={sort} onSort={handleSort} />
+                    <SortableHeader label="Date range" column="start" sort={sort} onSort={handleSort} />
+                  </TableHead>
+                  <TableHead>
+                    <SortableHeader label="Camera" column="camera" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead className="text-right">
                     <SortableHeader label="Images" column="images" align="right" sort={sort} onSort={handleSort} />
                   </TableHead>
-                  <TableHead>Site assignment</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -504,18 +493,15 @@ export const DeploymentsPage: React.FC = () => {
                         />
                       </TableCell>
                     )}
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium">{d.label ?? '-'}</TableCell>
+                    <TableCell>
                       {d.site_name ?? (
-                        <span className="text-muted-foreground italic font-normal">Unassigned</span>
+                        <span className="text-muted-foreground italic">Unassigned</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{d.label ?? '-'}</TableCell>
-                    <TableCell className="text-muted-foreground">{fmtDate(d.start_date)}</TableCell>
-                    <TableCell className="text-muted-foreground">{fmtDate(d.end_date)}</TableCell>
+                    <TableCell className="text-muted-foreground">{fmtRange(d.start_date, d.end_date)}</TableCell>
+                    <TableCell className="text-muted-foreground">{d.camera_label ?? '-'}</TableCell>
                     <TableCell className="text-right">{d.image_count.toLocaleString()}</TableCell>
-                    <TableCell>
-                      <SourceBadge source={d.site_source} />
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -546,6 +532,7 @@ export const DeploymentsPage: React.FC = () => {
           deploymentId={editDep.id}
           cameraName={editDep.camera_label ?? 'camera'}
           initialSiteId={editDep.site_id}
+          initialSiteSource={editDep.site_source}
           initialLabel={editDep.label}
           canEdit={canEdit}
           deploymentLat={editDep.latitude}

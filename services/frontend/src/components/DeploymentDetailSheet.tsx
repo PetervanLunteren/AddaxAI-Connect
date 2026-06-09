@@ -35,6 +35,8 @@ interface Props {
   deploymentId: number;
   cameraName: string;
   initialSiteId: number | null;
+  // How the site was assigned: 'auto' (GPS-guessed) or 'manual' (human-confirmed).
+  initialSiteSource?: string;
   // The deployment's current position label ("North"), or null.
   initialLabel?: string | null;
   // Whether the viewer may edit. False shows the panel read-only.
@@ -65,6 +67,7 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
   deploymentId,
   cameraName,
   initialSiteId,
+  initialSiteSource,
   initialLabel,
   canEdit,
   deploymentLat,
@@ -158,7 +161,20 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
 
           <SheetBody className="space-y-4">
             <div>
-              <label className="text-xs text-muted-foreground">Site</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground">Site</label>
+                {initialSiteId != null && (
+                  <span
+                    className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                      initialSiteSource === 'manual'
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {initialSiteSource === 'manual' ? 'Human-confirmed' : 'GPS-guessed'}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <select
                   value={siteId ?? ''}
