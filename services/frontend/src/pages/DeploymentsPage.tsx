@@ -530,6 +530,7 @@ export const DeploymentsPage: React.FC = () => {
           onClose={() => setEditDep(null)}
           projectId={pid}
           deploymentId={editDep.id}
+          cameraId={editDep.camera_id}
           cameraName={editDep.camera_label ?? 'camera'}
           initialSiteId={editDep.site_id}
           initialSiteSource={editDep.site_source}

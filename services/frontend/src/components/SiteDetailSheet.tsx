@@ -12,7 +12,7 @@
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
  */
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2,
@@ -102,6 +102,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [editName, setEditName] = useState('');
   const [editHabitat, setEditHabitat] = useState('');
@@ -197,38 +198,42 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            {siteId != null && (
-              <Link
-                to={`/projects/${projectId}/images?site_id=${siteId}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-              >
-                <Images className="h-4 w-4" />
-                View images
-              </Link>
-            )}
-
-            {canEdit && detail && (
-              <div className="rounded-lg border p-3">
-                <div className="flex gap-2">
+            {/* Action card: View images for everyone, Merge/Delete for admins.
+                flex-1 means one action fills the row, up to three share it. */}
+            <div className="rounded-lg border p-3">
+              <div className="flex gap-2">
+                {siteId != null && (
                   <Button
                     variant="outline"
-                    onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
                     className="flex-1"
+                    onClick={() => navigate(`/projects/${projectId}/images?site_id=${siteId}`)}
                   >
-                    <GitMerge className="h-4 w-4 mr-2" />
-                    Merge
+                    <Images className="h-4 w-4 mr-2" />
+                    View images
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
-                    className="flex-1 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                </div>
+                )}
+                {canEdit && detail && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
+                      className="flex-1"
+                    >
+                      <GitMerge className="h-4 w-4 mr-2" />
+                      Merge
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
+                      className="flex-1 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </>
+                )}
               </div>
-            )}
+            </div>
 
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />

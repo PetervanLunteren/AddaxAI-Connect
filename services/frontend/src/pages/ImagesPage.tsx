@@ -19,6 +19,7 @@ import {
 } from '../lib/filter-url';
 import { imagesApi } from '../api/images';
 import { camerasApi } from '../api/cameras';
+import { sitesApi } from '../api/sites';
 import { statisticsApi } from '../api/statistics';
 import { ImageDetailModal } from '../components/ImageDetailModal';
 import { ImageThumbnailWithBoxes } from '../components/ImageThumbnailWithBoxes';
@@ -30,10 +31,10 @@ import type { ImageListItem } from '../api/types';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
-  // Deep-link filters set by the "View images" buttons on the site and
-  // deployment slideouts. URL-only (no dropdown), shown as a context bar.
+  // The site slideout's "View images" deep-links here; rendered as a Site
+  // dropdown so it shows a clearable chip like every other filter. The
+  // deployment slideout instead deep-links camera + date range (existing fields).
   site_id: 'string',
-  deployment_id: 'string',
   tags: 'string[]',
   species: 'string[]',
   date_from: 'date',
@@ -75,7 +76,6 @@ export const ImagesPage: React.FC = () => {
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const cameraIdValues = asStringArray(parsed.camera_ids);
   const siteId = asString(parsed.site_id);
-  const deploymentId = asString(parsed.deployment_id);
   const tagValues = asStringArray(parsed.tags);
   const speciesValues = asStringArray(parsed.species);
   const startDate = asString(parsed.date_from);
@@ -94,7 +94,6 @@ export const ImagesPage: React.FC = () => {
     () => ({
       camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
       site_id: siteId || undefined,
-      deployment_id: deploymentId || undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
       species: speciesValues.length > 0 ? speciesValues : undefined,
       date_from: startDate || undefined,
@@ -109,7 +108,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, siteId, deploymentId, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteId, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -139,7 +138,6 @@ export const ImagesPage: React.FC = () => {
         project_id: projectId,
         camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
         site_id: siteId ? Number(siteId) : undefined,
-        deployment_id: deploymentId ? Number(deploymentId) : undefined,
         tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
@@ -161,6 +159,13 @@ export const ImagesPage: React.FC = () => {
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Fetch sites for the Site filter dropdown (and to label the site chip).
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -238,6 +243,12 @@ export const ImagesPage: React.FC = () => {
         options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
         placeholder: 'All cameras',
         summary: (n) => `${n} cameras`,
+      },
+      {
+        kind: 'select',
+        key: 'site_id',
+        label: 'Site',
+        options: (sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
       },
       {
         kind: 'multi-select',
@@ -328,7 +339,7 @@ export const ImagesPage: React.FC = () => {
         primary: false,
       },
     ],
-    [cameras, tagOptions, speciesOptions, speciesLoading, overview, selectedProject],
+    [cameras, sites, tagOptions, speciesOptions, speciesLoading, overview, selectedProject],
   );
 
   // Set species context using the full species list for consistent colors app-wide
@@ -421,22 +432,6 @@ export const ImagesPage: React.FC = () => {
         onChange={onFilterChange}
         onClearAll={onClearAll}
       />
-
-      {/* Deep-link context from a slideout's "View images" button. */}
-      {(siteId || deploymentId) && (
-        <div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2 text-sm">
-          <span className="text-muted-foreground">
-            Showing images from a single {deploymentId ? 'deployment' : 'site'}.
-          </span>
-          <button
-            type="button"
-            onClick={() => onFilterChange({ site_id: undefined, deployment_id: undefined })}
-            className="font-medium text-primary hover:underline"
-          >
-            Clear
-          </button>
-        </div>
-      )}
 
       {/* Image Grid */}
       {imagesLoading ? (

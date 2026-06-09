@@ -9,10 +9,10 @@
  * the same panel read-only (canEdit=false).
  */
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { QueryKey } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Plus, CalendarClock } from 'lucide-react';
+import { Loader2, Save, Plus, CalendarClock, Images } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -33,6 +33,7 @@ interface Props {
   onClose: () => void;
   projectId: number;
   deploymentId: number;
+  cameraId: number;
   cameraName: string;
   initialSiteId: number | null;
   // How the site was assigned: 'auto' (GPS-guessed) or 'manual' (human-confirmed).
@@ -60,11 +61,16 @@ function fmtDate(s: string | null | undefined): string {
     : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+// Hidden for now. The GPS-guessed / Human-confirmed badge and its wiring stay;
+// flip this to true to show it again.
+const SHOW_SITE_SOURCE_BADGE = false;
+
 export const DeploymentDetailSheet: React.FC<Props> = ({
   open,
   onClose,
   projectId,
   deploymentId,
+  cameraId,
   cameraName,
   initialSiteId,
   initialSiteSource,
@@ -78,6 +84,7 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
   const [siteId, setSiteId] = useState<number | null>(initialSiteId);
   const [label, setLabel] = useState(initialLabel ?? '');
   const [showCreateSite, setShowCreateSite] = useState(false);
@@ -148,6 +155,13 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
     : null;
   const subhead = period ? `Camera ${cameraName}, ${period}` : `Camera ${cameraName}`;
 
+  // A deployment is this camera over this date range, so its images are exactly
+  // that camera filter plus the period (the images API treats a date-only end as
+  // the whole day, so the range is inclusive).
+  const imagesLink = `/projects/${projectId}/images?camera_ids=${cameraId}${
+    startDate ? `&date_from=${startDate}` : ''
+  }${endDate ? `&date_to=${endDate}` : ''}`;
+
   return (
     <>
       <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -160,10 +174,24 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-4">
+            {/* Action card. Only View images here, so it fills the row. */}
+            <div className="rounded-lg border p-3">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => navigate(imagesLink)}
+                >
+                  <Images className="h-4 w-4 mr-2" />
+                  View images
+                </Button>
+              </div>
+            </div>
+
             <div>
               <div className="flex items-center justify-between">
                 <label className="text-xs text-muted-foreground">Site</label>
-                {initialSiteId != null && (
+                {SHOW_SITE_SOURCE_BADGE && initialSiteId != null && (
                   <span
                     className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                       initialSiteSource === 'manual'
@@ -223,15 +251,7 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
 
             {thumbUuids && thumbUuids.length > 0 && (
               <div>
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-muted-foreground">A few random photos</label>
-                  <Link
-                    to={`/projects/${projectId}/images?deployment_id=${deploymentId}`}
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    View all images
-                  </Link>
-                </div>
+                <label className="text-xs text-muted-foreground">A few random photos</label>
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
                   {thumbUuids.map((u) => (
                     <AuthenticatedImage

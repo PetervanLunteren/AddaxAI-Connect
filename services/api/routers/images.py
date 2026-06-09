@@ -328,7 +328,6 @@ async def list_images(
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
     tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
     site_id: Optional[int] = Query(None, description="Filter to images at one site, via their deployment"),
-    deployment_id: Optional[int] = Query(None, description="Filter to images of one deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -375,11 +374,8 @@ async def list_images(
         if camera_ids:
             filters.append(Image.camera_id.in_(camera_ids))
 
-    # Filter to one deployment's images, or all images at one site (every image
-    # whose deployment belongs to that site). Used by the "View images" links on
-    # the deployment, camera and site slideouts.
-    if deployment_id is not None:
-        filters.append(Image.deployment_id == deployment_id)
+    # All images at one site: every image whose deployment belongs to that site.
+    # Used by the "View images" link on the site slideout.
     if site_id is not None:
         filters.append(
             Image.deployment_id.in_(

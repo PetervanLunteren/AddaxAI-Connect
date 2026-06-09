@@ -9,7 +9,7 @@
  * Delete lives in a kebab menu in the header (server admins only).
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -60,6 +60,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -279,14 +280,20 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
+            {/* Action card. Only View images here, so it fills the row. */}
             {projectId != null && (
-              <Link
-                to={`/projects/${projectId}/images?camera_ids=${camera.id}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-              >
-                <Images className="h-4 w-4" />
-                View images
-              </Link>
+              <div className="rounded-lg border p-3">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => navigate(`/projects/${projectId}/images?camera_ids=${camera.id}`)}
+                  >
+                    <Images className="h-4 w-4 mr-2" />
+                    View images
+                  </Button>
+                </div>
+              </div>
             )}
 
             {/* Tab navigation */}
