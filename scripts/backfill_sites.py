@@ -124,6 +124,15 @@ def load_projects(session: Session, project_id: Optional[int]) -> List[int]:
     return [r.id for r in rows]
 
 
+# The camera's old friendly name, preserved in cameras.notes by the
+# drop-Camera.name migration ("Previous friendly name: <X>"), else the device_id.
+# Used to derive both site names and deployment labels on data predating the drop.
+CAMERA_NAME_SQL = (
+    "COALESCE(trim((regexp_match(c.notes, "
+    "'Previous friendly name:\\s*([^\\n]+)'))[1]), c.device_id)"
+)
+
+
 def load_deployments(session: Session, project_id: int) -> list:
     """Project deployments with decoded coordinates and the camera's label.
 
@@ -135,10 +144,7 @@ def load_deployments(session: Session, project_id: int) -> list:
     """
     sql = text(f"""
         SELECT d.id, d.camera_id, d.site_id,
-               COALESCE(
-                   trim((regexp_match(c.notes, 'Previous friendly name:\\s*([^\\n]+)'))[1]),
-                   c.device_id
-               ) AS camera_name,
+               {CAMERA_NAME_SQL} AS camera_name,
                ST_Y(d.location::geometry) AS lat,
                ST_X(d.location::geometry) AS lon
         FROM deployments d
@@ -215,13 +221,13 @@ def unique_name(name: str, used: set) -> str:
 def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
     deployments = load_deployments(session, project_id)
     if not deployments:
-        return {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0}
+        return {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0, "labeled": 0}
 
     existing_sites = load_existing_sites(session, project_id)
     used_names = {s.name for s in existing_sites}
     groups = cluster_deployments(deployments)
 
-    stats = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0}
+    stats = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0, "labeled": 0}
     print(f"\n=== project {project_id}: {len(deployments)} deployments, "
           f"{len(groups)} new group(s), {len(existing_sites)} existing site(s) ===")
 
@@ -321,6 +327,33 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
             {"project_id": project_id},
         )
 
+    # Label any already-sited deployment that still has none. The main loop only
+    # labels deployments it newly sites, so this covers data sited before the
+    # label column existed (e.g. a server that adopted sites, then upgraded). The
+    # site name is the shared prefix, so the label is the camera's friendly name
+    # with that prefix removed. Idempotent: only NULL-name rows are touched.
+    label_rows = session.execute(
+        text(f"""
+            SELECT d.id, {CAMERA_NAME_SQL} AS camera_name, s.name AS site_name
+            FROM deployments d
+            JOIN cameras c ON c.id = d.camera_id
+            JOIN sites s ON s.id = d.site_id
+            WHERE c.project_id = :project_id AND d.name IS NULL
+        """),
+        {"project_id": project_id},
+    ).mappings().all()
+    for r in label_rows:
+        lbl = remainder_label(r["camera_name"], len(tokenize(r["site_name"]))) or None
+        if not lbl:
+            continue
+        stats["labeled"] += 1
+        print(f"  label deployment #{r['id']} ({r['camera_name']} at {r['site_name']}) -> {lbl!r}")
+        if not dry_run:
+            session.execute(
+                text("UPDATE deployments SET name = :lbl WHERE id = :id"),
+                {"lbl": lbl, "id": r["id"]},
+            )
+
     return stats
 
 
@@ -336,7 +369,7 @@ def main() -> None:
     logger.info("Starting site backfill", mode=mode, project_id=args.project_id)
 
     engine = create_engine(settings.database_url)
-    totals = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0}
+    totals = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0, "labeled": 0}
 
     with Session(engine) as session:
         for project_id in load_projects(session, args.project_id):
@@ -354,6 +387,7 @@ def main() -> None:
     print(f"  sites reused  : {totals['sites_reused']}")
     print(f"  flagged sites : {totals['flagged']}")
     print(f"  images linked : {totals['deployments_linked']}")
+    print(f"  labeled       : {totals['labeled']}")
     print(f"  mode          : {mode}")
     logger.info("Site backfill complete", **totals, mode=mode)
 
