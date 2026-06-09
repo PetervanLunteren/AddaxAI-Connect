@@ -36,6 +36,12 @@ DEPLOYMENT_MERGE_GAP_DAYS = 1
 # a different site never match. The earlier must be closed (an open deployment can
 # only be the later half, absorbed so the survivor stays open). Bind :camera_id
 # and :gap_days.
+#
+# The :gap_days cast to int is required: asyncpg sends bound params untyped, so
+# `date + :gap_days` is the ambiguous `date + unknown` (date + int vs date +
+# interval). psycopg2 sends a typed int and does not need it, but the cast keeps
+# one SQL string working under both drivers (the API uses asyncpg, the script
+# uses psycopg2).
 FIND_NEXT_MERGEABLE_PAIR_SQL = """
     SELECT earlier.id AS earlier_id,
            later.id   AS later_id,
@@ -48,7 +54,7 @@ FIND_NEXT_MERGEABLE_PAIR_SQL = """
       AND earlier.site_id IS NOT NULL
       AND earlier.end_date IS NOT NULL
       AND later.start_date > earlier.start_date
-      AND later.start_date <= earlier.end_date + :gap_days
+      AND later.start_date <= earlier.end_date + (:gap_days)::int
     ORDER BY earlier.start_date, later.start_date
     LIMIT 1
 """
