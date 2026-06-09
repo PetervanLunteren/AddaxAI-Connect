@@ -198,7 +198,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            {/* Action card: View images for everyone, Merge/Delete for admins.
+            {/* Action card: Images for everyone, Merge/Delete for admins.
                 flex-1 means one action fills the row, up to three share it. */}
             <div className="rounded-lg border p-3">
               <div className="flex gap-2">
@@ -209,7 +209,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     onClick={() => navigate(`/projects/${projectId}/images?site_id=${siteId}`)}
                   >
                     <Images className="h-4 w-4 mr-2" />
-                    View images
+                    Images
                   </Button>
                 )}
                 {canEdit && detail && (

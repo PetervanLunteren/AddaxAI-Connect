@@ -6,7 +6,8 @@
  * - History: Health history charts (all users)
  * - Deployments: Where this camera has been over time (all users)
  * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
- * Delete lives in a kebab menu in the header (server admins only).
+ * An action card at the top of the body holds "Images" (everyone) and,
+ * for server admins, "Delete" (the page owns the confirm dialog).
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +24,7 @@ import {
   XCircle,
   Upload,
   Images,
+  Trash2,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
@@ -45,6 +47,8 @@ interface CameraDetailSheetProps {
   isServerAdmin: boolean;
   projectId?: number;
   onUpdate?: (updatedCamera: Camera) => void;
+  // Server admins can delete this camera; the page owns the confirm dialog.
+  onDeleteRequested?: (camera: { id: number; name: string }) => void;
 }
 
 type TabType = 'overview' | 'history' | 'deployments' | 'details';
@@ -57,6 +61,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   isServerAdmin,
   projectId,
   onUpdate,
+  onDeleteRequested,
 }) => {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -280,21 +285,32 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            {/* Action card. Only View images here, so it fills the row. */}
-            {projectId != null && (
-              <div className="rounded-lg border p-3">
-                <div className="flex gap-2">
+            {/* Action card: Images for everyone, Delete for server admins.
+                flex-1 means one action fills the row, two share it. */}
+            <div className="rounded-lg border p-3">
+              <div className="flex gap-2">
+                {projectId != null && (
                   <Button
                     variant="outline"
                     className="flex-1"
                     onClick={() => navigate(`/projects/${projectId}/images?camera_ids=${camera.id}`)}
                   >
                     <Images className="h-4 w-4 mr-2" />
-                    View images
+                    Images
                   </Button>
-                </div>
+                )}
+                {isServerAdmin && onDeleteRequested && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-destructive hover:text-destructive"
+                    onClick={() => onDeleteRequested({ id: camera.id, name: camera.name })}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">

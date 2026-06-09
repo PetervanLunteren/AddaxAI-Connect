@@ -145,6 +145,8 @@ export const CamerasPage: React.FC = () => {
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
+  // Single-camera delete requested from the detail sheet (server admins).
+  const [cameraToDelete, setCameraToDelete] = useState<{ id: number; name: string } | null>(null);
 
   // Bulk-edit selection. The Set persists across filter / sort / search
   // changes; the header checkbox only flips what is currently visible.
@@ -1081,6 +1083,19 @@ export const CamerasPage: React.FC = () => {
         isServerAdmin={isServerAdmin}
         projectId={currentProject?.id}
         onUpdate={(updatedCamera) => setSelectedCamera(updatedCamera)}
+        onDeleteRequested={(cam) => setCameraToDelete(cam)}
+      />
+
+      {/* Delete one camera, requested from its detail sheet. */}
+      <DeleteCamerasModal
+        open={cameraToDelete != null}
+        onClose={() => setCameraToDelete(null)}
+        cameraIds={cameraToDelete ? [cameraToDelete.id] : []}
+        onDeleted={() => {
+          setCameraToDelete(null);
+          setShowDetailSheet(false);
+          setSelectedCamera(null);
+        }}
       />
 
       {/* Bulk-edit dialogs. Suggestions for the remove dialog come from
