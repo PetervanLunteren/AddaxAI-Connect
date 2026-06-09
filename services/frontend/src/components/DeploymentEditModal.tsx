@@ -149,7 +149,10 @@ export const DeploymentEditModal: React.FC<Props> = ({
                 disabled={saveMutation.isPending}
                 className="flex-1 px-3 py-2 border rounded-md text-sm disabled:bg-muted"
               >
-                <option value="">Unassigned</option>
+                {/* Only a deployment that has no site can show (and stay)
+                    Unassigned. A sited deployment moves between real sites or a
+                    new one, never back to nowhere. */}
+                {initialSiteId == null && <option value="">Unassigned</option>}
                 {(sites ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}

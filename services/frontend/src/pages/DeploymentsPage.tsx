@@ -337,10 +337,10 @@ export const DeploymentsPage: React.FC = () => {
   };
 
   const bulkMutation = useMutation({
-    mutationFn: () => {
-      const siteId = bulkChoice === UNASSIGNED ? null : Number(bulkChoice);
-      return deploymentsApi.bulkAssignSite(pid, Array.from(selected), siteId);
-    },
+    mutationFn: () =>
+      // bulkChoice is always a real site id here (the empty option disables
+      // Apply, and Unassigned is no longer offered).
+      deploymentsApi.bulkAssignSite(pid, Array.from(selected), Number(bulkChoice)),
     onSuccess: (res) => {
       invalidate();
       clearSelection();
@@ -412,7 +412,6 @@ export const DeploymentsPage: React.FC = () => {
               className="px-3 py-2 border rounded-md text-sm bg-background disabled:bg-muted"
             >
               <option value="">Assign to site...</option>
-              <option value={UNASSIGNED}>Unassigned</option>
               {(sites ?? []).map((s) => (
                 <option key={s.id} value={String(s.id)}>
                   {s.name}
@@ -538,11 +537,9 @@ export const DeploymentsPage: React.FC = () => {
         onConfirm={() => bulkMutation.mutate()}
         title="Change site"
         body={
-          bulkChoice === UNASSIGNED
-            ? `Unassign ${selected.size} deployment${selected.size === 1 ? '' : 's'} from their site? You can change this again later.`
-            : `Move ${selected.size} deployment${selected.size === 1 ? '' : 's'} to "${
-                (sites ?? []).find((s) => String(s.id) === bulkChoice)?.name ?? 'this site'
-              }"? You can change this again later.`
+          `Move ${selected.size} deployment${selected.size === 1 ? '' : 's'} to "${
+            (sites ?? []).find((s) => String(s.id) === bulkChoice)?.name ?? 'this site'
+          }"? You can change this again later.`
         }
         confirmLabel="Change site"
         isPending={bulkMutation.isPending}
