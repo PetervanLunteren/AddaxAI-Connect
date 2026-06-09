@@ -285,33 +285,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            {/* Action card: Images for everyone, Delete for server admins.
-                flex-1 means one action fills the row, two share it. */}
-            <div className="rounded-lg border p-3">
-              <div className="flex gap-2">
-                {projectId != null && (
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/projects/${projectId}/images?camera_ids=${camera.id}`)}
-                  >
-                    <Images className="h-4 w-4 mr-2" />
-                    Images
-                  </Button>
-                )}
-                {isServerAdmin && onDeleteRequested && (
-                  <Button
-                    variant="outline"
-                    className="flex-1 text-destructive hover:text-destructive"
-                    onClick={() => onDeleteRequested({ id: camera.id, name: camera.name })}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </Button>
-                )}
-              </div>
-            </div>
-
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
@@ -323,6 +296,32 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Overview tab: key info (read by default, Edit toggles) then a read-only health card */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
+                {/* Actions: Images for everyone, Delete for server admins.
+                    grid-cols-3 caps each button at a third of the width. */}
+                <div>
+                  <label className="text-xs text-muted-foreground">Actions</label>
+                  <div className="mt-1 grid grid-cols-3 gap-2">
+                    {projectId != null && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/projects/${projectId}/images?camera_ids=${camera.id}`)}
+                      >
+                        <Images className="h-4 w-4 mr-2" />
+                        Images
+                      </Button>
+                    )}
+                    {isServerAdmin && onDeleteRequested && (
+                      <Button
+                        variant="outline"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => onDeleteRequested({ id: camera.id, name: camera.name })}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs text-muted-foreground">Remarks</label>

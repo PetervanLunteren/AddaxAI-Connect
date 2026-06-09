@@ -198,43 +198,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
-            {/* Action card: Images for everyone, Merge/Delete for admins.
-                flex-1 means one action fills the row, up to three share it. */}
-            <div className="rounded-lg border p-3">
-              <div className="flex gap-2">
-                {siteId != null && (
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(`/projects/${projectId}/images?site_id=${siteId}`)}
-                  >
-                    <Images className="h-4 w-4 mr-2" />
-                    Images
-                  </Button>
-                )}
-                {canEdit && detail && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
-                      className="flex-1"
-                    >
-                      <GitMerge className="h-4 w-4 mr-2" />
-                      Merge
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
-                      className="flex-1 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="cameras" label="Cameras" />
@@ -248,6 +211,41 @@ export const SiteDetailSheet: React.FC<Props> = ({
               </div>
             ) : activeTab === 'overview' ? (
               <div className="space-y-6">
+                {/* Actions: Images for everyone, Merge/Delete for admins.
+                    grid-cols-3 caps each button at a third of the width. */}
+                <div>
+                  <label className="text-xs text-muted-foreground">Actions</label>
+                  <div className="mt-1 grid grid-cols-3 gap-2">
+                    {siteId != null && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/projects/${projectId}/images?site_id=${siteId}`)}
+                      >
+                        <Images className="h-4 w-4 mr-2" />
+                        Images
+                      </Button>
+                    )}
+                    {canEdit && detail && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => onMergeRequested({ id: detail.id, name: detail.name })}
+                        >
+                          <GitMerge className="h-4 w-4 mr-2" />
+                          Merge
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => onDeleteRequested({ id: detail.id, name: detail.name })}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
                 <div className="space-y-4">
                   <div>
                     <label className="text-xs text-muted-foreground">Name</label>

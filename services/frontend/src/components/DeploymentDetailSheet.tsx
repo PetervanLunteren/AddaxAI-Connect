@@ -174,12 +174,12 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-4">
-            {/* Action card. Only the Images link here, so it fills the row. */}
-            <div className="rounded-lg border p-3">
-              <div className="flex gap-2">
+            {/* Actions. grid-cols-3 caps the button at a third of the width. */}
+            <div>
+              <label className="text-xs text-muted-foreground">Actions</label>
+              <div className="mt-1 grid grid-cols-3 gap-2">
                 <Button
                   variant="outline"
-                  className="flex-1"
                   onClick={() => navigate(imagesLink)}
                 >
                   <Images className="h-4 w-4 mr-2" />
