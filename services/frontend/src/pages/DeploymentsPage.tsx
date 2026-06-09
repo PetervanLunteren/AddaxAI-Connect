@@ -555,10 +555,11 @@ export const DeploymentsPage: React.FC = () => {
           projectId={pid}
           deploymentId={editDep.id}
           cameraName={editDep.camera_label ?? 'camera'}
-          siteName={editDep.site_name}
           initialSiteId={editDep.site_id}
           deploymentLat={editDep.latitude}
           deploymentLon={editDep.longitude}
+          startDate={editDep.start_date}
+          endDate={editDep.end_date}
           invalidateKeys={[['deployments', pid]]}
         />
       )}

@@ -33,13 +33,24 @@ interface Props {
   projectId: number;
   deploymentId: number;
   cameraName: string;
-  siteName: string | null;
   initialSiteId: number | null;
   // The deployment's own GPS point, used to prefill a new site's coordinates.
   deploymentLat?: number | null;
   deploymentLon?: number | null;
+  // The deployment's time range, shown in the subhead to identify which
+  // placement this is (a camera can have several over time). end null = open.
+  startDate?: string | null;
+  endDate?: string | null;
   // React-Query keys to invalidate on a successful save.
   invalidateKeys: QueryKey[];
+}
+
+function fmtDate(s: string | null | undefined): string {
+  if (!s) return '';
+  const d = new Date(s);
+  return isNaN(d.getTime())
+    ? s
+    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export const DeploymentEditModal: React.FC<Props> = ({
@@ -48,10 +59,11 @@ export const DeploymentEditModal: React.FC<Props> = ({
   projectId,
   deploymentId,
   cameraName,
-  siteName,
   initialSiteId,
   deploymentLat,
   deploymentLon,
+  startDate,
+  endDate,
   invalidateKeys,
 }) => {
   const queryClient = useQueryClient();
@@ -106,7 +118,12 @@ export const DeploymentEditModal: React.FC<Props> = ({
     if (!saveMutation.isPending) onClose();
   };
 
-  const subhead = `${cameraName} at ${siteName ?? 'unassigned site'}`;
+  // Identify the deployment by camera and time range; the site lives in the
+  // dropdown below, so it is not repeated here.
+  const period = startDate
+    ? `${fmtDate(startDate)} to ${endDate ? fmtDate(endDate) : 'now'}`
+    : null;
+  const subhead = period ? `Camera ${cameraName}, ${period}` : `Camera ${cameraName}`;
 
   return (
     <>
