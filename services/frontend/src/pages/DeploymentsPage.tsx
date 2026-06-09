@@ -18,7 +18,6 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  MapPin,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -45,7 +44,7 @@ import { useToast } from '../components/ui/Toaster';
 import { cn } from '../lib/utils';
 import { deploymentsApi, type DeploymentListItem } from '../api/deployments';
 import { sitesApi } from '../api/sites';
-import { DeploymentEditModal } from '../components/DeploymentEditModal';
+import { DeploymentDetailSheet } from '../components/DeploymentDetailSheet';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 type SortColumn = 'camera' | 'site' | 'start' | 'end' | 'images';
@@ -482,14 +481,19 @@ export const DeploymentsPage: React.FC = () => {
                     <SortableHeader label="Images" column="images" align="right" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>Site assignment</TableHead>
-                  {canEdit && <TableHead className="w-px" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sorted.map((d) => (
-                  <TableRow key={d.id}>
+                  <TableRow
+                    key={d.id}
+                    onClick={() => setEditDep(d)}
+                    className="cursor-pointer"
+                  >
                     {canEdit && (
-                      <TableCell>
+                      // Stop the click here so selecting a row does not also open
+                      // the detail sheet.
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           aria-label={`Select deployment ${d.deployment_number}`}
@@ -518,18 +522,6 @@ export const DeploymentsPage: React.FC = () => {
                     <TableCell>
                       <SourceBadge source={d.site_source} />
                     </TableCell>
-                    {canEdit && (
-                      <TableCell className="text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setEditDep(d)}
-                          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                        >
-                          <MapPin className="h-4 w-4" />
-                          Edit
-                        </button>
-                      </TableCell>
-                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -553,7 +545,7 @@ export const DeploymentsPage: React.FC = () => {
       />
 
       {editDep && (
-        <DeploymentEditModal
+        <DeploymentDetailSheet
           open={editDep != null}
           onClose={() => setEditDep(null)}
           projectId={pid}
@@ -561,6 +553,7 @@ export const DeploymentsPage: React.FC = () => {
           cameraName={editDep.camera_label ?? 'camera'}
           initialSiteId={editDep.site_id}
           initialLabel={editDep.label}
+          canEdit={canEdit}
           deploymentLat={editDep.latitude}
           deploymentLon={editDep.longitude}
           startDate={editDep.start_date}

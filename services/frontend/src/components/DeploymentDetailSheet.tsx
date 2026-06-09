@@ -1,25 +1,26 @@
 /**
- * Deployment site-assignment modal.
+ * Deployment detail slideout.
  *
- * A deployment carries no free-text metadata; the only human-editable thing is
- * which site it belongs to. The Deployments page opens this from a row's
- * "Change site" button; the camera and site slideouts show deployments
- * read-only and link to that page instead. Changing the site here marks the
- * deployment site_source='manual', recording that a human confirmed the site
- * (drives the badge and filter); it does not change ingestion.
+ * Opened by clicking a row on the Deployments page, matching the camera and site
+ * detail sheets. Shows which camera stood where and when, a few photos, and the
+ * two editable fields: the site assignment and an optional position label.
+ * Saving a site marks site_source='manual' (a human confirmed it); the label
+ * tells apart the cameras at one site. Neither changes ingestion. Non-admins see
+ * the same panel read-only (canEdit=false).
  */
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { QueryKey } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, Plus } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from './ui/Dialog';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetBody,
+  SheetFooter,
+} from './ui/Sheet';
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
 import { deploymentsApi, type UpdateDeploymentRequest } from '../api/deployments';
@@ -36,6 +37,8 @@ interface Props {
   initialSiteId: number | null;
   // The deployment's current position label ("North"), or null.
   initialLabel?: string | null;
+  // Whether the viewer may edit. False shows the panel read-only.
+  canEdit: boolean;
   // The deployment's own GPS point, used to prefill a new site's coordinates.
   deploymentLat?: number | null;
   deploymentLon?: number | null;
@@ -55,7 +58,7 @@ function fmtDate(s: string | null | undefined): string {
     : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-export const DeploymentEditModal: React.FC<Props> = ({
+export const DeploymentDetailSheet: React.FC<Props> = ({
   open,
   onClose,
   projectId,
@@ -63,6 +66,7 @@ export const DeploymentEditModal: React.FC<Props> = ({
   cameraName,
   initialSiteId,
   initialLabel,
+  canEdit,
   deploymentLat,
   deploymentLon,
   startDate,
@@ -131,6 +135,9 @@ export const DeploymentEditModal: React.FC<Props> = ({
     if (!saveMutation.isPending) onClose();
   };
 
+  // Inputs are read-only for viewers, and locked mid-save for everyone.
+  const locked = !canEdit || saveMutation.isPending;
+
   // Identify the deployment by camera and time range; the site lives in the
   // dropdown below, so it is not repeated here.
   const period = startDate
@@ -140,51 +147,56 @@ export const DeploymentEditModal: React.FC<Props> = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-        <DialogContent onClose={handleClose}>
-          <DialogHeader>
-            <DialogTitle>Edit deployment</DialogTitle>
-            <DialogDescription>
+      <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
+        <SheetContent onClose={handleClose}>
+          <SheetHeader>
+            <SheetTitle className="pr-8">Deployment</SheetTitle>
+            <SheetDescription>{subhead}</SheetDescription>
+          </SheetHeader>
+
+          <SheetBody className="space-y-4">
+            <p className="text-xs text-muted-foreground">
               The site was guessed from the photos' GPS. Fix it here if the guess
               is wrong, and add a position label to tell apart the cameras at one
               site. This does not move any site on the map.
-            </DialogDescription>
-          </DialogHeader>
+            </p>
 
-          <div className="py-2">
-            <p className="text-xs text-muted-foreground mb-3">{subhead}</p>
-            <label className="text-xs text-muted-foreground">Site</label>
-            <div className="flex gap-2">
-              <select
-                value={siteId ?? ''}
-                onChange={(e) =>
-                  setSiteId(e.target.value === '' ? null : Number(e.target.value))
-                }
-                disabled={saveMutation.isPending}
-                className="flex-1 px-3 py-2 border rounded-md text-sm disabled:bg-muted"
-              >
-                {/* Only a deployment that has no site can show (and stay)
-                    Unassigned. A sited deployment moves between real sites or a
-                    new one, never back to nowhere. */}
-                {initialSiteId == null && <option value="">Unassigned</option>}
-                {(sites ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreateSite(true)}
-                disabled={saveMutation.isPending}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                New site
-              </Button>
+            <div>
+              <label className="text-xs text-muted-foreground">Site</label>
+              <div className="flex gap-2">
+                <select
+                  value={siteId ?? ''}
+                  onChange={(e) =>
+                    setSiteId(e.target.value === '' ? null : Number(e.target.value))
+                  }
+                  disabled={locked}
+                  className="flex-1 px-3 py-2 border rounded-md text-sm disabled:bg-muted"
+                >
+                  {/* Only a deployment that has no site can show (and stay)
+                      Unassigned. A sited deployment moves between real sites or a
+                      new one, never back to nowhere. */}
+                  {initialSiteId == null && <option value="">Unassigned</option>}
+                  {(sites ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCreateSite(true)}
+                    disabled={locked}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    New site
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="mt-3">
+            <div>
               <label className="text-xs text-muted-foreground">Label</label>
               <input
                 type="text"
@@ -192,13 +204,13 @@ export const DeploymentEditModal: React.FC<Props> = ({
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="e.g. North"
                 maxLength={100}
-                disabled={saveMutation.isPending}
+                disabled={locked}
                 className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted"
               />
             </div>
 
             {thumbUuids && thumbUuids.length > 0 && (
-              <div className="mt-4">
+              <div>
                 <label className="text-xs text-muted-foreground">Photos from here</label>
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
                   {thumbUuids.map((u) => (
@@ -212,35 +224,37 @@ export const DeploymentEditModal: React.FC<Props> = ({
                 </div>
               </div>
             )}
-          </div>
+          </SheetBody>
 
-          <DialogFooter>
+          <SheetFooter>
             <Button
               variant="outline"
               onClick={handleClose}
               disabled={saveMutation.isPending}
             >
-              Cancel
+              {canEdit ? 'Cancel' : 'Close'}
             </Button>
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={!dirty || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save changes
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            {canEdit && (
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={!dirty || saveMutation.isPending}
+              >
+                {saveMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save changes
+                  </>
+                )}
+              </Button>
+            )}
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <SiteFormModal
         open={showCreateSite}
