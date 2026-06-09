@@ -49,4 +49,12 @@ echo "Backfilling sites from deployments and linking images to deployments..."
 docker compose exec -T api python /app/scripts/backfill_sites.py
 
 echo ""
+echo "Cleaning up empty deployment debris..."
+# Removes closed, zero-image deployments left by the pre-fix ingestion bug
+# (daily reports with GPS but no photo opened a deployment that closed before
+# any image landed). Conservative: only deletes deployments nothing references,
+# so a healthy server finds nothing to remove. Runs last, after sites are built.
+docker compose exec -T api python /app/scripts/cleanup_empty_deployments.py
+
+echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
