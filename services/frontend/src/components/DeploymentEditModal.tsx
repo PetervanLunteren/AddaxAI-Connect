@@ -82,13 +82,17 @@ export const DeploymentEditModal: React.FC<Props> = ({
   const saveMutation = useMutation({
     mutationFn: () =>
       deploymentsApi.update(projectId, deploymentId, { site_id: siteId }),
-    onSuccess: () => {
+    onSuccess: (res) => {
       for (const key of invalidateKeys) {
         queryClient.invalidateQueries({ queryKey: key });
       }
       queryClient.invalidateQueries({ queryKey: ['sites', projectId] });
       queryClient.invalidateQueries({ queryKey: ['camera-deployments'] });
-      toast.success('Deployment updated');
+      toast.success(
+        res.merged > 0
+          ? `Deployment updated, merged ${res.merged} continuous deployment${res.merged === 1 ? '' : 's'}`
+          : 'Deployment updated',
+      );
       onClose();
     },
     onError: (error: any) => {

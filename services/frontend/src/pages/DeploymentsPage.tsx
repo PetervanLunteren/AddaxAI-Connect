@@ -346,7 +346,10 @@ export const DeploymentsPage: React.FC = () => {
       clearSelection();
       setBulkChoice('');
       setShowBulkConfirm(false);
-      toast.success(`${res.updated} deployment${res.updated === 1 ? '' : 's'} updated`);
+      const updated = `${res.updated} deployment${res.updated === 1 ? '' : 's'} updated`;
+      toast.success(
+        res.merged > 0 ? `${updated}, merged ${res.merged} continuous` : updated,
+      );
     },
     onError: (err) => {
       setShowBulkConfirm(false);

@@ -57,4 +57,12 @@ echo "Cleaning up empty deployment debris..."
 docker compose exec -T api python /app/scripts/cleanup_empty_deployments.py
 
 echo ""
+echo "Merging contiguous same-site deployments left by old GPS splits..."
+# Collapses a camera's adjacent same-site deployments that have no real gap (the
+# (0,0) split also cut one real placement into a before/after pair). Conservative
+# and idempotent: a genuine remove-and-redeploy has a multi-day gap and is never
+# merged, so a healthy server merges nothing.
+docker compose exec -T api python /app/scripts/merge_contiguous_deployments.py
+
+echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."

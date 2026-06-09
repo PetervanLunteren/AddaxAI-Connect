@@ -29,12 +29,15 @@ export interface UpdateDeploymentRequest {
   site_id?: number | null;
 }
 
-export interface DeploymentDetail {
-  id: number;
-  deployment_number: number;
-  camera_id: number;
-  site_id: number | null;
-  site_source: string;
+// `merged` is how many deployments the reassignment merged away (a camera's
+// adjacent same-site deployments collapse into one); 0 in the common case.
+export interface UpdateDeploymentResponse {
+  merged: number;
+}
+
+export interface BulkAssignSiteResponse {
+  updated: number;
+  merged: number;
 }
 
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
@@ -48,7 +51,7 @@ export const deploymentsApi = {
     projectId: number,
     deploymentId: number,
     body: UpdateDeploymentRequest,
-  ): Promise<DeploymentDetail> => {
+  ): Promise<UpdateDeploymentResponse> => {
     const { data } = await apiClient.patch(`${base(projectId)}/${deploymentId}`, body);
     return data;
   },
@@ -56,7 +59,7 @@ export const deploymentsApi = {
     projectId: number,
     deploymentIds: number[],
     siteId: number | null,
-  ): Promise<{ updated: number }> => {
+  ): Promise<BulkAssignSiteResponse> => {
     const { data } = await apiClient.post(`${base(projectId)}/bulk-site`, {
       deployment_ids: deploymentIds,
       site_id: siteId,
