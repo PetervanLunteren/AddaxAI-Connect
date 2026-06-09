@@ -208,12 +208,15 @@ class Deployment(Base):
     id = Column(Integer, primary_key=True, index=True)
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
+    # Optional human-set position label like "North" or "NW", to tell apart the
+    # several cameras at one site, where the device_id (an IMEI) is not readable.
+    # Per deployment, so it resets when a camera moves (a new deployment starts
+    # blank). NULL = unlabelled.
+    name = Column(String(100), nullable=True)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
     # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it.
     # A label only (drives the GPS-guessed vs human-confirmed badge and filter
     # on the Deployments page); it does not change ingestion behavior.
-    # A deployment carries no free-text metadata: it is (camera, site, time
-    # range, location). Cameras at one site are distinguished by device_id.
     site_source = Column(String(16), nullable=False, server_default='auto')
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment

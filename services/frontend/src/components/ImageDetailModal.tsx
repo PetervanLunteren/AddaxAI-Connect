@@ -469,7 +469,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                       Showing AI predictions
                     </div>
                   )}
-                  {/* Site chip (the primary "where"), top-left */}
+                  {/* Site chip (the primary "where"), top-left. The location
+                      belongs to the site, so the maps link lives here. */}
                   {imageDetail.site && (
                     <div
                       className="absolute top-3 left-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
@@ -477,18 +478,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     >
                       <MapPin className="h-3 w-3" />
                       {imageDetail.site.name}
-                    </div>
-                  )}
-                  {/* Camera name chip (secondary), top-right */}
-                  <div
-                    className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
-                    style={{ backgroundColor: '#0f6064' }}
-                  >
-                    <Camera className="h-3 w-3" />
-                    {imageDetail.camera_name}
-                    {imageDetail.camera_location && (
+                      {imageDetail.site.label && ` · ${imageDetail.site.label}`}
                       <a
-                        href={`https://www.google.com/maps?q=${imageDetail.camera_location.lat},${imageDetail.camera_location.lon}`}
+                        href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ml-0.5 p-0.5 rounded hover:bg-white/20"
@@ -497,7 +489,16 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                       >
                         <ExternalLink className="h-3 w-3" />
                       </a>
-                    )}
+                    </div>
+                  )}
+                  {/* Camera chip (secondary), top-right. Identifies the camera;
+                      the location is on the site chip, not here. */}
+                  <div
+                    className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
+                    style={{ backgroundColor: '#0f6064' }}
+                  >
+                    <Camera className="h-3 w-3" />
+                    {imageDetail.camera_name}
                   </div>
                   {/* Zoom controls */}
                   <div

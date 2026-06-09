@@ -23,10 +23,12 @@ export interface DeploymentListItem {
   end_date: string | null;
   image_count: number;
   site_source: string;
+  label: string | null;
 }
 
 export interface UpdateDeploymentRequest {
   site_id?: number | null;
+  label?: string | null;
 }
 
 // `merged` is how many deployments the reassignment merged away (a camera's

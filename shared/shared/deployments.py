@@ -60,11 +60,14 @@ FIND_NEXT_MERGEABLE_PAIR_SQL = """
 """
 
 # Extend the earlier deployment over the later one: take the later's end_date
-# (NULL if the later is still open, so the survivor stays open) and keep the
-# human-confirmed flag if either deployment carried it. Bind :earlier, :later.
+# (NULL if the later is still open, so the survivor stays open), keep the
+# human-confirmed flag if either deployment carried it, and take the latest
+# label (the later one wins when set, since the two halves are one placement and
+# its most recent name is the intended one). Bind :earlier, :later.
 EXTEND_EARLIER_SQL = """
     UPDATE deployments earlier
     SET end_date = later.end_date,
+        name = COALESCE(later.name, earlier.name),
         site_source = CASE
             WHEN earlier.site_source = 'manual' OR later.site_source = 'manual'
             THEN 'manual' ELSE earlier.site_source

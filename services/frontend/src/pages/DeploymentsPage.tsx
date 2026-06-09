@@ -501,7 +501,14 @@ export const DeploymentsPage: React.FC = () => {
                     )}
                     <TableCell className="font-medium">{d.camera_label ?? '-'}</TableCell>
                     <TableCell>
-                      {d.site_name ?? (
+                      {d.site_name ? (
+                        <>
+                          {d.site_name}
+                          {d.label && (
+                            <span className="text-muted-foreground"> · {d.label}</span>
+                          )}
+                        </>
+                      ) : (
                         <span className="text-muted-foreground italic">Unassigned</span>
                       )}
                     </TableCell>
@@ -519,7 +526,7 @@ export const DeploymentsPage: React.FC = () => {
                           className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                         >
                           <MapPin className="h-4 w-4" />
-                          Change site
+                          Edit
                         </button>
                       </TableCell>
                     )}
@@ -553,6 +560,7 @@ export const DeploymentsPage: React.FC = () => {
           deploymentId={editDep.id}
           cameraName={editDep.camera_label ?? 'camera'}
           initialSiteId={editDep.site_id}
+          initialLabel={editDep.label}
           deploymentLat={editDep.latitude}
           deploymentLon={editDep.longitude}
           startDate={editDep.start_date}

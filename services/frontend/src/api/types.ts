@@ -162,7 +162,7 @@ export interface ImageDetail {
   camera_id: number;
   camera_name: string;
   camera_location: { lat: number; lon: number } | null;
-  site: { name: string } | null;
+  site: { name: string; label: string | null; lat: number; lon: number } | null;
   captured_at: string;
   storage_path: string;
   status: string;

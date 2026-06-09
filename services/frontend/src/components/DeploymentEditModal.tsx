@@ -22,7 +22,7 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { sitesApi } from '../api/sites';
-import { deploymentsApi } from '../api/deployments';
+import { deploymentsApi, type UpdateDeploymentRequest } from '../api/deployments';
 import { SiteFormModal } from './sites/SiteFormModal';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { useToast } from './ui/Toaster';
@@ -34,6 +34,8 @@ interface Props {
   deploymentId: number;
   cameraName: string;
   initialSiteId: number | null;
+  // The deployment's current position label ("North"), or null.
+  initialLabel?: string | null;
   // The deployment's own GPS point, used to prefill a new site's coordinates.
   deploymentLat?: number | null;
   deploymentLon?: number | null;
@@ -60,6 +62,7 @@ export const DeploymentEditModal: React.FC<Props> = ({
   deploymentId,
   cameraName,
   initialSiteId,
+  initialLabel,
   deploymentLat,
   deploymentLon,
   startDate,
@@ -69,11 +72,15 @@ export const DeploymentEditModal: React.FC<Props> = ({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [siteId, setSiteId] = useState<number | null>(initialSiteId);
+  const [label, setLabel] = useState(initialLabel ?? '');
   const [showCreateSite, setShowCreateSite] = useState(false);
 
   useEffect(() => {
-    if (open) setSiteId(initialSiteId);
-  }, [open, initialSiteId]);
+    if (open) {
+      setSiteId(initialSiteId);
+      setLabel(initialLabel ?? '');
+    }
+  }, [open, initialSiteId, initialLabel]);
 
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
@@ -89,11 +96,17 @@ export const DeploymentEditModal: React.FC<Props> = ({
     enabled: open && deploymentId > 0,
   });
 
-  const dirty = siteId !== initialSiteId;
+  const dirty = siteId !== initialSiteId || label.trim() !== (initialLabel ?? '');
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      deploymentsApi.update(projectId, deploymentId, { site_id: siteId }),
+    mutationFn: () => {
+      // Send only what changed, so a label-only edit does not also re-stamp the
+      // site as human-confirmed or trigger a merge.
+      const body: UpdateDeploymentRequest = {};
+      if (siteId !== initialSiteId) body.site_id = siteId;
+      if (label.trim() !== (initialLabel ?? '')) body.label = label.trim() || null;
+      return deploymentsApi.update(projectId, deploymentId, body);
+    },
     onSuccess: (res) => {
       for (const key of invalidateKeys) {
         queryClient.invalidateQueries({ queryKey: key });
@@ -130,10 +143,11 @@ export const DeploymentEditModal: React.FC<Props> = ({
       <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
         <DialogContent onClose={handleClose}>
           <DialogHeader>
-            <DialogTitle>Change site</DialogTitle>
+            <DialogTitle>Edit deployment</DialogTitle>
             <DialogDescription>
-              The site was guessed from the photos' GPS. Change it here if the
-              guess is wrong. This does not move any site on the map.
+              The site was guessed from the photos' GPS. Fix it here if the guess
+              is wrong, and add a position label to tell apart the cameras at one
+              site. This does not move any site on the map.
             </DialogDescription>
           </DialogHeader>
 
@@ -168,6 +182,19 @@ export const DeploymentEditModal: React.FC<Props> = ({
                 <Plus className="h-4 w-4 mr-1" />
                 New site
               </Button>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-xs text-muted-foreground">Label</label>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g. North"
+                maxLength={100}
+                disabled={saveMutation.isPending}
+                className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted"
+              />
             </div>
 
             {thumbUuids && thumbUuids.length > 0 && (

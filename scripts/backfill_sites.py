@@ -275,9 +275,16 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
                     },
                 ).scalar_one()
             for m in group.members:
+                # COALESCE keeps a label a human already set; otherwise the
+                # derived orientation label ("NW", "North") lands here. None for
+                # a single-camera site leaves it blank.
                 session.execute(
-                    text("UPDATE deployments SET site_id = :sid WHERE id = :did"),
-                    {"sid": site_id, "did": m.id},
+                    text("""
+                        UPDATE deployments
+                        SET site_id = :sid, name = COALESCE(name, :label)
+                        WHERE id = :did
+                    """),
+                    {"sid": site_id, "did": m.id, "label": labels.get(m.id)},
                 )
 
     # Link this project's images to the deployment covering their capture date.
