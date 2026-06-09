@@ -42,4 +42,11 @@ echo "Backfilling deployment periods from image GPS data..."
 docker compose exec -T api python /app/scripts/backfill_deployment_periods.py
 
 echo ""
+echo "Backfilling sites from deployments and linking images to deployments..."
+# Must run after the deployment backfill, since sites are clustered from
+# deployment rows. Idempotent: deployments that already have a site are left
+# untouched, so this is safe on every update.
+docker compose exec -T api python /app/scripts/backfill_sites.py
+
+echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
