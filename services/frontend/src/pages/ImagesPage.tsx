@@ -30,6 +30,10 @@ import type { ImageListItem } from '../api/types';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
+  // Deep-link filters set by the "View images" buttons on the site and
+  // deployment slideouts. URL-only (no dropdown), shown as a context bar.
+  site_id: 'string',
+  deployment_id: 'string',
   tags: 'string[]',
   species: 'string[]',
   date_from: 'date',
@@ -70,6 +74,8 @@ export const ImagesPage: React.FC = () => {
   // useSearchParams on every render; writes go through filtersToSearchParams.
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const cameraIdValues = asStringArray(parsed.camera_ids);
+  const siteId = asString(parsed.site_id);
+  const deploymentId = asString(parsed.deployment_id);
   const tagValues = asStringArray(parsed.tags);
   const speciesValues = asStringArray(parsed.species);
   const startDate = asString(parsed.date_from);
@@ -87,6 +93,8 @@ export const ImagesPage: React.FC = () => {
   const filterValues = useMemo<Record<string, FilterValue>>(
     () => ({
       camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+      site_id: siteId || undefined,
+      deployment_id: deploymentId || undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
       species: speciesValues.length > 0 ? speciesValues : undefined,
       date_from: startDate || undefined,
@@ -101,7 +109,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteId, deploymentId, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -130,6 +138,8 @@ export const ImagesPage: React.FC = () => {
         limit,
         project_id: projectId,
         camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
+        site_id: siteId ? Number(siteId) : undefined,
+        deployment_id: deploymentId ? Number(deploymentId) : undefined,
         tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
@@ -412,6 +422,21 @@ export const ImagesPage: React.FC = () => {
         onClearAll={onClearAll}
       />
 
+      {/* Deep-link context from a slideout's "View images" button. */}
+      {(siteId || deploymentId) && (
+        <div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">
+            Showing images from a single {deploymentId ? 'deployment' : 'site'}.
+          </span>
+          <button
+            type="button"
+            onClick={() => onFilterChange({ site_id: undefined, deployment_id: undefined })}
+            className="font-medium text-primary hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Image Grid */}
       {imagesLoading ? (

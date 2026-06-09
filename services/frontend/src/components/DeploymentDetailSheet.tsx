@@ -9,15 +9,15 @@
  * the same panel read-only (canEdit=false).
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { QueryKey } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Plus } from 'lucide-react';
+import { Loader2, Save, Plus, CalendarClock } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
   SheetBody,
   SheetFooter,
 } from './ui/Sheet';
@@ -150,17 +150,13 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
       <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
         <SheetContent onClose={handleClose}>
           <SheetHeader>
-            <SheetTitle className="pr-8">Deployment</SheetTitle>
-            <SheetDescription>{subhead}</SheetDescription>
+            <SheetTitle className="flex items-center gap-2 pr-8">
+              <CalendarClock className="h-5 w-5" />
+              {subhead}
+            </SheetTitle>
           </SheetHeader>
 
           <SheetBody className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              The site was guessed from the photos' GPS. Fix it here if the guess
-              is wrong, and add a position label to tell apart the cameras at one
-              site. This does not move any site on the map.
-            </p>
-
             <div>
               <label className="text-xs text-muted-foreground">Site</label>
               <div className="flex gap-2">
@@ -211,7 +207,15 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
 
             {thumbUuids && thumbUuids.length > 0 && (
               <div>
-                <label className="text-xs text-muted-foreground">Photos from here</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-muted-foreground">A few random photos</label>
+                  <Link
+                    to={`/projects/${projectId}/images?deployment_id=${deploymentId}`}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    View all images
+                  </Link>
+                </div>
                 <div className="mt-1 grid grid-cols-3 gap-1.5">
                   {thumbUuids.map((u) => (
                     <AuthenticatedImage

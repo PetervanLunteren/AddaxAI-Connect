@@ -9,6 +9,7 @@
  * Delete lives in a kebab menu in the header (server admins only).
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -21,6 +22,7 @@ import {
   Plus,
   XCircle,
   Upload,
+  Images,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
@@ -277,6 +279,16 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
+            {projectId != null && (
+              <Link
+                to={`/projects/${projectId}/images?camera_ids=${camera.id}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <Images className="h-4 w-4" />
+                View images
+              </Link>
+            )}
+
             {/* Tab navigation */}
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
@@ -289,10 +301,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Camera ID</span>
-                    <span>{camera.device_id || '-'}</span>
-                  </div>
                   <div>
                     <label className="text-xs text-muted-foreground">Remarks</label>
                     {canAdmin ? (
@@ -430,6 +438,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
                 {/* Health metrics, read-only */}
                 <div className="rounded-lg border p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Camera ID</span>
+                    <span>{camera.device_id || '-'}</span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status</span>
                     <span className="flex items-center gap-2">

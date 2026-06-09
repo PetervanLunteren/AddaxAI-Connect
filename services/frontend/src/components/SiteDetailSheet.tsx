@@ -23,6 +23,7 @@ import {
   MapPin,
   GitMerge,
   Camera as CameraIcon,
+  Images,
 } from 'lucide-react';
 import {
   Sheet,
@@ -196,6 +197,16 @@ export const SiteDetailSheet: React.FC<Props> = ({
           </SheetHeader>
 
           <SheetBody className="space-y-6">
+            {siteId != null && (
+              <Link
+                to={`/projects/${projectId}/images?site_id=${siteId}`}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <Images className="h-4 w-4" />
+                View images
+              </Link>
+            )}
+
             {canEdit && detail && (
               <div className="rounded-lg border p-3">
                 <div className="flex gap-2">

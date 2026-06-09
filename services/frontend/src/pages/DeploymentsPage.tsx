@@ -47,7 +47,7 @@ import { sitesApi } from '../api/sites';
 import { DeploymentDetailSheet } from '../components/DeploymentDetailSheet';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
-type SortColumn = 'camera' | 'site' | 'start' | 'end' | 'images';
+type SortColumn = 'site' | 'label' | 'start' | 'end' | 'images';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -78,10 +78,10 @@ const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 
 function depSortValue(d: DeploymentListItem, column: SortColumn): string | number | null {
   switch (column) {
-    case 'camera':
-      return (d.camera_label ?? '').toLowerCase();
     case 'site':
       return (d.site_name ?? '').toLowerCase();
+    case 'label':
+      return (d.label ?? '').toLowerCase();
     case 'start':
       return d.start_date ?? null;
     case 'end':
@@ -214,7 +214,7 @@ export const DeploymentsPage: React.FC = () => {
         kind: 'search',
         key: 'search',
         label: 'Search',
-        placeholder: 'Camera or site...',
+        placeholder: 'Site, label, or camera...',
       },
       {
         kind: 'select',
@@ -250,8 +250,9 @@ export const DeploymentsPage: React.FC = () => {
       const q = searchQuery.toLowerCase();
       result = result.filter(
         (d) =>
-          (d.camera_label ?? '').toLowerCase().includes(q) ||
-          (d.site_name ?? '').toLowerCase().includes(q),
+          (d.site_name ?? '').toLowerCase().includes(q) ||
+          (d.label ?? '').toLowerCase().includes(q) ||
+          (d.camera_label ?? '').toLowerCase().includes(q),
       );
     }
     if (siteFilter) {
@@ -466,10 +467,10 @@ export const DeploymentsPage: React.FC = () => {
                     </TableHead>
                   )}
                   <TableHead>
-                    <SortableHeader label="Camera" column="camera" sort={sort} onSort={handleSort} />
+                    <SortableHeader label="Site" column="site" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>
-                    <SortableHeader label="Site" column="site" sort={sort} onSort={handleSort} />
+                    <SortableHeader label="Label" column="label" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>
                     <SortableHeader label="Start" column="start" sort={sort} onSort={handleSort} />
@@ -503,19 +504,12 @@ export const DeploymentsPage: React.FC = () => {
                         />
                       </TableCell>
                     )}
-                    <TableCell className="font-medium">{d.camera_label ?? '-'}</TableCell>
-                    <TableCell>
-                      {d.site_name ? (
-                        <>
-                          {d.site_name}
-                          {d.label && (
-                            <span className="text-muted-foreground"> · {d.label}</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground italic">Unassigned</span>
+                    <TableCell className="font-medium">
+                      {d.site_name ?? (
+                        <span className="text-muted-foreground italic font-normal">Unassigned</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-muted-foreground">{d.label ?? '-'}</TableCell>
                     <TableCell className="text-muted-foreground">{fmtDate(d.start_date)}</TableCell>
                     <TableCell className="text-muted-foreground">{fmtDate(d.end_date)}</TableCell>
                     <TableCell className="text-right">{d.image_count.toLocaleString()}</TableCell>

@@ -23,6 +23,8 @@ export interface ImageFilters {
   min_classification_confidence?: number;
   max_classification_confidence?: number;
   project_id?: number;
+  site_id?: number;        // all images at one site, via their deployment
+  deployment_id?: number;  // images of one deployment
 }
 
 export interface SpeciesOption {

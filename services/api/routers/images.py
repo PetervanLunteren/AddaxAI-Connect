@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload, aliased
 from pydantic import BaseModel
 import io
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment
 from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
@@ -327,6 +327,8 @@ async def list_images(
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
     tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
+    site_id: Optional[int] = Query(None, description="Filter to images at one site, via their deployment"),
+    deployment_id: Optional[int] = Query(None, description="Filter to images of one deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -372,6 +374,18 @@ async def list_images(
         camera_ids = [int(id.strip()) for id in camera_id.split(',') if id.strip()]
         if camera_ids:
             filters.append(Image.camera_id.in_(camera_ids))
+
+    # Filter to one deployment's images, or all images at one site (every image
+    # whose deployment belongs to that site). Used by the "View images" links on
+    # the deployment, camera and site slideouts.
+    if deployment_id is not None:
+        filters.append(Image.deployment_id == deployment_id)
+    if site_id is not None:
+        filters.append(
+            Image.deployment_id.in_(
+                select(Deployment.id).where(Deployment.site_id == site_id)
+            )
+        )
 
     # Handle tags filter: find cameras matching any tag, then filter images
     if tags:
