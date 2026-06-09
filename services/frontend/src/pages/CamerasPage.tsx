@@ -865,18 +865,9 @@ export const CamerasPage: React.FC = () => {
           { count: sdHighCount, label: 'SD nearly full', patch: { sd_usage: 'high' } },
         ];
 
-        if (allClear) {
-          return (
-            <Card>
-              <CardContent className="p-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle className="h-4 w-4 text-primary" />
-                  All cameras look healthy
-                </div>
-              </CardContent>
-            </Card>
-          );
-        }
+        // Nothing to flag means no banner at all, rather than a reassuring
+        // line that just takes up space.
+        if (allClear) return null;
 
         return (
           <Card>
