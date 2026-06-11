@@ -85,6 +85,25 @@ The `docker-compose.yml` uses profiles to support different configurations:
 - **`speciesnet`** is the full stack with SpeciesNet classifier (2,498 global species)
 - **`demo`** runs only the API, database, and frontend (no ML workers, for demos and development)
 
+## Data storage
+
+By default, all data stays on your own server. PostgreSQL holds the metadata (projects, cameras, detections, users), and MinIO holds the image files (raw images, thumbnails, crops, annotated images). Neither is reachable from the internet.
+
+Two optional features copy data to a remote S3-compatible bucket:
+
+- **Cold storage tier**. When the raw images on local disk grow past a configurable budget, the oldest ones move to a remote bucket. Reads stay transparent, MinIO fetches cold objects on demand. Thumbnails, crops, and annotated images always stay on the server. See [operations](operations.md#cold-storage-tier).
+- **Daily backups**. A nightly job dumps the database and mirrors all image buckets to a separate remote bucket, so a lost server can be rebuilt from the backup alone. See the [restore guide](restore-guide.md).
+
+You choose the remote provider yourself. Any S3-compatible service works (Wasabi, AWS S3, Backblaze B2, and similar). You bring your own buckets and access keys, so the remote data stays under your own account. The system is developed and tested with [Wasabi](https://wasabi.com), and the servers hosted by Addax Data Science and Smart Parks store their cold images and backups on Wasabi as well.
+
+Security of the remote storage:
+
+- All transfers to the remote bucket go over HTTPS.
+- Access keys are scoped to a single bucket with minimal permissions. The backup key has no delete permission.
+- Cold tier and backups use separate buckets with separate keys, so one leaked key never exposes both.
+- The backup bucket keeps old versions of every object for 90 days, so an accidental overwrite or a compromised server cannot silently destroy the backup history.
+- Objects are stored as-is, encryption at rest is handled by the provider. Wasabi encrypts all stored data at rest by default.
+
 ## Security
 
 The system uses multiple layers of protection:

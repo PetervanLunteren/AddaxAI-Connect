@@ -26,6 +26,6 @@ Before you start, check [camera compatibility](camera-requirements.md): any FTPS
 
 ## Reference
 
-- [Architecture](architecture.md): technology stack, data flow, services, security, and user roles
+- [Architecture](architecture.md): technology stack, data flow, services, data storage, security, and user roles
 
 Questions? [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.
