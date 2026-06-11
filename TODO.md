@@ -38,6 +38,7 @@ Open follow-ups:
 - [ ] if detected its a dev server (there is already a check in place that proposes to reomve all the users), we should probabaly remove all the notifications too. Now I'm getting emails that the dev server is not getting any images in the past 48 hours.... 
 - [ ] We should probabaly document whats going on. Perhaps add a page to the documentation? What happens exactly, how are deployments created, how are sites created, what is the threshold, how does it work, how can we add / edit / move / merge sites, and how does it affect the DB. 
 - [ ] check the default species list for a new project in AddaxAI. WHich species are selected now? SHould we auto sleect all and then let the user change that himself? Or add this to the add project modal as a required input? What do you think?  
+- [ ] We need to make sure it is noted somewhere in the docs where we host the Data (Wasabi). Not sure how to do that, since everybody can choose themselves, but only we use wasabi. Perhaps add a paragraph on the https://petervanlunteren.github.io/AddaxAI-Connect/architecture/ page aboput data storage, how it wporks, hoe everybody can choose their own S3 host, but that it is testtes with wasabi. ??Some thing like that? How secure is it? 
 
 
 
