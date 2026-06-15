@@ -16,7 +16,7 @@ from sqlalchemy import select, func, and_, or_, desc, asc, update, delete as sql
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
@@ -229,17 +229,18 @@ async def _build_filter_clauses(
         from sqlalchemy.dialects.postgresql import JSONB, ARRAY, TEXT as PG_TEXT
         tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
         if tag_list:
-            tag_camera_query = (
-                select(Camera.id)
-                .where(
-                    Camera.project_id == project_id,
-                    Camera.tags.isnot(None),
-                    cast(Camera.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
+            # Tags describe the place, so they live on the Site. An image matches
+            # when its deployment's site carries any of the given tags.
+            filters.append(
+                Image.deployment_id.in_(
+                    select(Deployment.id)
+                    .join(Site, Deployment.site_id == Site.id)
+                    .where(
+                        Site.tags.isnot(None),
+                        cast(Site.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
+                    )
                 )
             )
-            tag_result = await db.execute(tag_camera_query)
-            matching_camera_ids = [row[0] for row in tag_result.all()]
-            filters.append(Image.camera_id.in_(matching_camera_ids))
 
     if species:
         species_list = [s.strip() for s in species.split(',') if s.strip()]
@@ -404,7 +405,7 @@ async def list_all_images(
     verified: Optional[str] = Query(None),
     hidden: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
+    tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     liked: Optional[str] = Query(None),
     needs_review: Optional[str] = Query(None),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),

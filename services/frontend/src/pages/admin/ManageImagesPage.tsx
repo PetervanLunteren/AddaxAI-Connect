@@ -40,6 +40,7 @@ import { AuthenticatedImage } from '../../components/AuthenticatedImage';
 import { useProject } from '../../contexts/ProjectContext';
 import { imageAdminApi } from '../../api/imageAdmin';
 import { camerasApi } from '../../api/cameras';
+import { sitesApi } from '../../api/sites';
 import { imagesApi } from '../../api/images';
 import type { ImageListItem } from '../../api/types';
 import { formatDateTime } from '../../utils/datetime';
@@ -255,10 +256,11 @@ export const ManageImagesPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  // Fetch tag options
+  // Fetch site tag options. Tags describe the place, so they live on the site;
+  // the filter resolves images via their deployment.
   const { data: tagOptions } = useQuery({
-    queryKey: ['camera-tags', projectId],
-    queryFn: () => camerasApi.getTags(projectId),
+    queryKey: ['site-tags', projectId],
+    queryFn: () => sitesApi.getTags(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -424,7 +426,7 @@ export const ManageImagesPage: React.FC = () => {
     {
       kind: 'multi-select',
       key: 'tags',
-      label: 'Camera tags',
+      label: 'Site tags',
       options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
       placeholder: 'Any tags',
       summary: (n) => `${n} tags`,

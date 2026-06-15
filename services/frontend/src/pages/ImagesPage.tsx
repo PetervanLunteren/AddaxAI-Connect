@@ -169,10 +169,11 @@ export const ImagesPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  // Fetch tag options for filter dropdown
+  // Fetch site tag options for the filter dropdown. Tags describe the place,
+  // so they live on the site; the filter resolves images via their deployment.
   const { data: tagOptions } = useQuery({
-    queryKey: ['camera-tags', projectId],
-    queryFn: () => camerasApi.getTags(projectId),
+    queryKey: ['site-tags', projectId],
+    queryFn: () => sitesApi.getTags(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -253,7 +254,7 @@ export const ImagesPage: React.FC = () => {
       {
         kind: 'multi-select',
         key: 'tags',
-        label: 'Camera tags',
+        label: 'Site tags',
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,

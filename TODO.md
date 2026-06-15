@@ -34,12 +34,16 @@ Open follow-ups:
 
 ## TODO
 - [x] Add site concept
+
+- [ ] All nice that we have moved camera name to sites, and deployments etc. But what do do with existing tags? 
+
+- [ ] And what do do with the filters in de pages etc? What is sensible in the new version? 
+
+
 - [ ] Always store all raw images on wasabi if keys are given at deployment. That means two separate MinIO DB right? One for the thumbs, etc we want on the server always, and one for the raw images we can store on wasabi (if keys are set up during deployment). Cameras ingest and are sent to the twop separate minIOs? And bulk upload also? How would that look? Is this a good idea? Or would you advise agaionst it? I want to do this beacuse the current set up of tagging images hot/cold with a watchdog is kind of complex. I just want to store all raw images cold. Makes sense? Or would you advise a different technique? Like an ILM rule of 0 days? What would the consequences be? Give me a few options with the expected behaciour, pros and cons, etc. 
 - [ ] if detected its a dev server (there is already a check in place that proposes to reomve all the users), we should probabaly remove all the notifications too. Now I'm getting emails that the dev server is not getting any images in the past 48 hours.... 
 - [ ] We should probabaly document whats going on. Perhaps add a page to the documentation? What happens exactly, how are deployments created, how are sites created, what is the threshold, how does it work, how can we add / edit / move / merge sites, and how does it affect the DB. 
 - [ ] check the default species list for a new project in AddaxAI. WHich species are selected now? SHould we auto sleect all and then let the user change that himself? Or add this to the add project modal as a required input? What do you think?  
-- [ ] We need to make sure it is noted somewhere in the docs where we host the Data (Wasabi). Not sure how to do that, since everybody can choose themselves, but only we use wasabi. Perhaps add a paragraph on the https://petervanlunteren.github.io/AddaxAI-Connect/architecture/ page aboput data storage, how it wporks, hoe everybody can choose their own S3 host, but that it is testtes with wasabi. ??Some thing like that? How secure is it? 
-
 
 
 

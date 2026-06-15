@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload, aliased
 from pydantic import BaseModel
 import io
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site
 from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
@@ -326,7 +326,7 @@ async def list_images(
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
-    tags: Optional[str] = Query(None, description="Comma-separated camera tags"),
+    tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     site_id: Optional[int] = Query(None, description="Filter to images at one site, via their deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -383,22 +383,23 @@ async def list_images(
             )
         )
 
-    # Handle tags filter: find cameras matching any tag, then filter images
+    # Handle tags filter: an image matches when its deployment's site carries
+    # any of the given tags. Tags describe the place, so they live on the Site;
+    # an image reaches its site through deployment_id (see site_id filter above).
     if tags:
         tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
         if tag_list:
             from sqlalchemy.dialects.postgresql import JSONB, ARRAY, TEXT as PG_TEXT
-            tag_camera_query = (
-                select(Camera.id)
-                .where(
-                    Camera.project_id.in_(accessible_project_ids),
-                    Camera.tags.isnot(None),
-                    cast(Camera.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
+            filters.append(
+                Image.deployment_id.in_(
+                    select(Deployment.id)
+                    .join(Site, Deployment.site_id == Site.id)
+                    .where(
+                        Site.tags.isnot(None),
+                        cast(Site.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
+                    )
                 )
             )
-            tag_camera_result = await db.execute(tag_camera_query)
-            matching_camera_ids = [row[0] for row in tag_camera_result.all()]
-            filters.append(Image.camera_id.in_(matching_camera_ids))
 
     if start_date:
         try:

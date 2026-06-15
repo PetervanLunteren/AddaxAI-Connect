@@ -65,4 +65,12 @@ echo "Merging contiguous same-site deployments left by old GPS splits..."
 docker compose exec -T api python /app/scripts/merge_contiguous_deployments.py
 
 echo ""
+echo "Moving legacy camera tags onto their sites..."
+# Place-describing tags set back when a camera was the location belong on the
+# Site now. Moves each camera's tags to every site it deploys to, then clears
+# the camera. Runs last, after sites are final. Idempotent: once moved the tags
+# are gone from the camera, so a healthy server moves nothing on the next run.
+docker compose exec -T api python /app/scripts/backfill_camera_tags_to_sites.py
+
+echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
