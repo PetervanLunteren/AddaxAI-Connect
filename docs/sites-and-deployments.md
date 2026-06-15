@@ -18,20 +18,11 @@ Every photo carries the GPS the camera recorded, and the app builds sites and de
 
 ## How deployments are created
 
-Deployments are built automatically from the GPS stored in your images. You do not create them by hand.
-
-- The first image from a camera opens its first deployment.
-- Every later image is checked against the camera's active deployment. If the new GPS is within the threshold, it is the same place and the same deployment. If it is further away, the camera has moved, so the active deployment is closed and a new one opens.
-- A single bad GPS fix does not move a camera. A relocation has to be confirmed by two readings near the new spot before a new deployment opens. One lone outlier is attached to the current deployment instead.
-
-A deployment with an empty end date is the one that is active now.
+Deployments are built automatically from the GPS in your images, you do not make them by hand. The first photo from a camera opens its first deployment. After that, every new photo is compared with the camera's active deployment. If the GPS is within the threshold, it is the same place, so the photo joins the same deployment. If it is further away, the camera has moved, so the active deployment is closed and a new one starts. One bad GPS fix is not enough to move a camera. A move must be confirmed by two readings near the new spot, otherwise a single odd reading stays on the current deployment. The deployment without an end date is the active one.
 
 ## How sites are created
 
-Sites are created automatically too, by grouping deployments that sit close together.
-
-- When a deployment is created, its location is compared to the existing sites in the project. If one is within the threshold, that site is reused. If none is close enough, a new site is created.
-- A site's location is the centre point of its deployments. It is recalculated whenever its deployments change, so the pin always sits in the middle of the cameras that belong to it.
+Sites are created the same way, by grouping deployments that sit close together. When a deployment is created, its location is compared with the sites already in the project. If one is within the threshold, that site is reused. If none is close enough, a new site is made. A site sits at the centre point of its deployments, and that point is recalculated whenever its deployments change, so the pin stays in the middle of the cameras that belong to it.
 
 ## Managing sites in the web interface
 
