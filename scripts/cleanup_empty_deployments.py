@@ -13,6 +13,15 @@ This deletes those rows. It is conservative and safe:
     reporting but has not photographed yet keeps its current open deployment
   - real deployments already hold all photos and sites, so nothing is lost
 
+A debris deployment can be the only deployment a site has. That happens when a
+bad GPS fix drops a camera more than the site threshold away from its real spot,
+opening a short empty deployment that backfill_sites then clusters into its own
+site. Deleting the deployment used to leave that site behind with zero cameras,
+zero deployments, and zero images, pinned at the glitch coordinate. So after the
+deletes, any site whose last deployment just went is removed too. A site that
+never had a deployment (a user creates one in the UI before a camera arrives) is
+never in scope here, so manual empty sites are left alone.
+
 Idempotent and re-runnable. Run --dry-run first.
 
 Usage:
@@ -55,6 +64,29 @@ def find_empty_deployments(session: Session, project_id):
     return rows
 
 
+def find_sites_left_empty(session: Session, dep_ids):
+    """Sites whose every deployment is in dep_ids, so deleting those rows leaves
+    the site with none. A site with another deployment outside the set survives;
+    a site that never had a deployment is not considered, since it has no row in
+    dep_ids pointing at it."""
+    if not dep_ids:
+        return []
+    return session.execute(
+        text("""
+            SELECT DISTINCT s.id, s.name
+            FROM sites s
+            JOIN deployments d ON d.site_id = s.id AND d.id = ANY(:dep_ids)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM deployments other
+                WHERE other.site_id = s.id
+                  AND other.id <> ALL(:dep_ids)
+            )
+            ORDER BY s.id
+        """),
+        {"dep_ids": list(dep_ids)},
+    ).mappings().all()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Delete empty (zero-image) deployment rows.")
     parser.add_argument("--dry-run", action="store_true",
@@ -69,6 +101,8 @@ def main() -> None:
     engine = create_engine(settings.database_url)
     with Session(engine) as session:
         rows = find_empty_deployments(session, args.project_id)
+        dep_ids = [r["id"] for r in rows]
+        empty_sites = find_sites_left_empty(session, dep_ids)
 
         print(f"\n=== {mode}: {len(rows)} empty deployment(s) ===")
         for r in rows:
@@ -78,19 +112,41 @@ def main() -> None:
                 f"{r['start_date']} -> {r['end_date']}  site_id={r['site_id']}"
             )
 
+        print(f"=== sites left empty by the above: {len(empty_sites)} ===")
+        for s in empty_sites:
+            print(f"  site id={s['id']:>4}  \"{s['name']}\"")
+
         if rows and not args.dry_run:
-            ids = [r["id"] for r in rows]
             session.execute(
                 text("DELETE FROM deployments WHERE id = ANY(:ids)"),
-                {"ids": ids},
+                {"ids": dep_ids},
             )
+            site_ids = [s["id"] for s in empty_sites]
+            if site_ids:
+                # Re-check NOT EXISTS at delete time, so a deployment that landed
+                # on one of these sites between the scan and now keeps the site.
+                session.execute(
+                    text("""
+                        DELETE FROM sites
+                        WHERE id = ANY(:ids)
+                          AND NOT EXISTS (
+                              SELECT 1 FROM deployments d WHERE d.site_id = sites.id
+                          )
+                    """),
+                    {"ids": site_ids},
+                )
             session.commit()
-            print(f"\nDeleted {len(ids)} deployment(s).")
+            print(f"\nDeleted {len(dep_ids)} deployment(s) and {len(site_ids)} empty site(s).")
         elif args.dry_run:
             session.rollback()
             print("\nDry run, nothing written.")
         else:
             print("\nNothing to delete.")
+
+    logger.info("Empty-deployment cleanup complete",
+                deployments_deleted=0 if args.dry_run else len(dep_ids),
+                sites_deleted=0 if args.dry_run else len(empty_sites),
+                mode=mode)
 
 
 if __name__ == "__main__":
