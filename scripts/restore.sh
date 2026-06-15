@@ -153,18 +153,26 @@ log "Applying any pending Alembic migrations"
 bash scripts/update-database.sh > /dev/null
 log "Schema is at HEAD"
 
-# Mirror only when the source prefix has at least one object. mc mirror errors
-# on a missing source ("Object does not exist"), and the dev/demo flow leaves
-# several buckets (crops, models, project-*) empty until real activity happens.
-# Empty prefixes are silently skipped so the log stays focused on real work.
+# Mirror a bucket or host dir from the backup. An empty source prefix holds no
+# object, so mc mirror fails with "does not exist"; that is the dev/demo case
+# (crops, models, project-* stay empty until real activity) and is a safe skip.
+# Any other mirror failure means real data did not land, so it stops the restore
+# loudly instead of being swallowed. The earlier `mc ls | grep` pre-check could
+# not tell a transient list error from "empty" and once silently dropped the
+# whole thumbnails bucket, so it is gone.
 mirror_if_present() {
   local label="$1"
   local src="$2"
   local dst="$3"
-  if docker compose exec -T minio mc ls "$src/" 2>/dev/null | grep -q .; then
-    log "Mirroring $label"
-    docker compose exec -T minio mc mirror --overwrite --remove "$src" "$dst" > /dev/null
+  local out
+  if out="$(docker compose exec -T minio mc mirror --overwrite --remove "$src" "$dst" 2>&1)"; then
+    log "Mirrored $label"
+    return 0
   fi
+  if echo "$out" | grep -qi 'does not exist'; then
+    return 0  # empty source prefix in the backup, nothing to mirror
+  fi
+  die "mirror of $label failed: $out"
 }
 
 # ---- MinIO buckets ----
