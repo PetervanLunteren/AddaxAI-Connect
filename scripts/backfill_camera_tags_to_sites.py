@@ -77,6 +77,9 @@ def load_tagged_cameras(session: Session, project_id: int) -> list:
 
     site_ids is the distinct set of sites the camera has a deployment at; it is
     empty when the camera has no sited deployment (inventory or missing GPS)."""
+    # Group by the camera primary key only. Postgres returns device_id and tags
+    # via functional dependency on the PK, so the json `tags` column never has to
+    # be grouped (json has no equality operator and cannot appear in GROUP BY).
     sql = text("""
         SELECT c.id AS camera_id,
                c.device_id AS device_id,
@@ -86,7 +89,7 @@ def load_tagged_cameras(session: Session, project_id: int) -> list:
         LEFT JOIN deployments d ON d.camera_id = c.id
         WHERE c.project_id = :project_id
           AND c.tags IS NOT NULL
-        GROUP BY c.id, c.device_id, c.tags
+        GROUP BY c.id
         ORDER BY c.id
     """)
     return session.execute(sql, {"project_id": project_id}).all()
