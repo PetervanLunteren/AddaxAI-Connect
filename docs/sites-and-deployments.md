@@ -26,11 +26,7 @@ Sites are created the same way, by grouping deployments that sit close together.
 
 ## Managing sites in the web interface
 
-Most site handling is automatic, but you can adjust things on the Sites page.
-
-- Edit a site's name, habitat type, notes, and tags. Tags describe the place and are used to filter images, so put place labels here, not on the camera.
-- Merge a site into another one. This moves every deployment from the open site into the site you pick, then deletes the open site. Use it to fix a place that got split into two sites due to GPS noise. Merging cannot be undone, and the site you pick is the one that survives, so check the direction before you confirm.
-- Delete a site.
+Most site handling is automatic, but you can adjust things on the Sites page. You can edit a site's name, habitat type, notes, and tags. Tags describe the place and are used to filter images, so put place labels here, not on the camera. You can also delete a site, or merge one site into another. A merge moves every deployment from the open site into the site you pick, then deletes the open site. Use it to fix a place that got split into two sites due to GPS noise. A merge cannot be undone, and the site you pick is the one that survives, so check the direction before you confirm.
 
 ## When a site appears that should not
 
