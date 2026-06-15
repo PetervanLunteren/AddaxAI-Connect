@@ -12,7 +12,6 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MapPin,
-  Plus,
   Loader2,
   Map as MapIcon,
   Table as TableIcon,
@@ -57,7 +56,6 @@ import { camerasApi } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
-import { SiteFormModal } from '../components/sites/SiteFormModal';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
 
@@ -170,7 +168,6 @@ export const SitesPage: React.FC = () => {
 
   // Local UI state
   const [detailSiteId, setDetailSiteId] = useState<number | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
   const [mergeSite, setMergeSite] = useState<{ id: number; name: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
@@ -375,12 +372,6 @@ export const SitesPage: React.FC = () => {
             Physical places that group camera deployments
           </p>
         </div>
-        {canEdit && (
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add site
-          </Button>
-        )}
       </div>
 
       {/* Filter bar (drives both table and map views) */}
@@ -581,13 +572,6 @@ export const SitesPage: React.FC = () => {
           setMergeTargetId('');
         }}
         onDeleteRequested={setDeleteSite}
-      />
-
-      <SiteFormModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        projectId={pid}
-        sites={sites ?? []}
       />
 
       {/* Merge dialog */}
