@@ -65,7 +65,7 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
     try {
       const result = await adminApi.purgeNonAdminUsers(confirmDomain);
       toast.success(
-        `Purged ${result.deleted_users} users, drained ${result.drained_email} emails and ${result.drained_telegram} Telegram messages`,
+        `Removed ${result.deleted_users} users and ${result.deleted_notification_preferences} notification preferences, drained ${result.drained_email} emails and ${result.drained_telegram} Telegram messages`,
       );
       logger.info('Dev purge completed', { ...result });
       onPurged();
@@ -86,11 +86,12 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
         <DialogHeader>
           <div className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            <DialogTitle>Remove all non-admin users</DialogTitle>
+            <DialogTitle>Reset dev server</DialogTitle>
           </div>
           <DialogDescription>
             This action cannot be undone. Server admins stay, every other user
-            on this server will be hard-deleted.
+            on this server will be hard-deleted, and all notification
+            preferences will be cleared so the scheduled emails stop.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,6 +104,10 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>{status.non_admin_user_count} non-admin user accounts</li>
                   <li>{status.project_membership_count} project memberships</li>
+                  <li>
+                    {status.notification_preference_count} notification
+                    preferences (for everyone, including server admins)
+                  </li>
                   <li>
                     {status.queued_notification_email_count} pending email
                     notifications in the queue
@@ -166,7 +171,7 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Remove all users
+                  Reset dev server
                 </>
               )}
             </Button>

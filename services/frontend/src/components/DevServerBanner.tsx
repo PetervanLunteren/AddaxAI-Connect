@@ -2,8 +2,8 @@
  * Dev-server banner.
  *
  * Visible only to server admins when the API reports this box looks like a
- * dev server and there are still non-admin users present. Dismissible for
- * the current browser session.
+ * dev server and there are still production users or notification preferences
+ * present. Dismissible for the current browser session.
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
@@ -41,7 +41,8 @@ export const DevServerBanner: React.FC = () => {
   if (dismissed) return null;
   if (!status) return null;
   if (!status.is_dev_server) return null;
-  if (status.non_admin_user_count === 0) return null;
+  if (status.non_admin_user_count === 0 && status.notification_preference_count === 0)
+    return null;
 
   const handleDismiss = () => {
     sessionStorage.setItem(DISMISS_KEY, '1');
@@ -57,15 +58,15 @@ export const DevServerBanner: React.FC = () => {
         <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-700" />
         <div className="flex-1 text-sm">
           <span className="font-semibold">Dev server detected.</span>{' '}
-          This server looks like a dev box. {status.non_admin_user_count} non-admin
-          users from production are still here, and pending notifications could fire.
+          This server looks like a dev box. Production users and notification
+          settings are still here, and notifications could keep firing.
         </div>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
           className="text-sm font-medium px-3 py-1.5 rounded-md bg-amber-900 text-amber-50 hover:bg-amber-950"
         >
-          Remove all users
+          Reset dev server
         </button>
         <button
           type="button"
