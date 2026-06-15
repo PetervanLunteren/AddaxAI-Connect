@@ -69,6 +69,8 @@ All services run as Docker containers on a single host, connected through a shar
 
 - **Frontend** (React via Nginx, port 3000) is the web interface
 
+Ingestion also groups images into cameras, sites, and deployments from their GPS. See [sites and deployments](sites-and-deployments.md) for how that works.
+
 ### Workers
 - **Ingestion** watches the FTPS upload directory for new files
 - **Detection** runs MegaDetector object detection

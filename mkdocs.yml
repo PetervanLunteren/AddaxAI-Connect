@@ -54,5 +54,6 @@ nav:
     - Restore guide: restore-guide.md
   - Reference:
     - Architecture: architecture.md
+    - Sites and deployments: sites-and-deployments.md
   - Developer:
     - Dev server setup: dev-server-setup.md
