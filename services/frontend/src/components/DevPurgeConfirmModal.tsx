@@ -106,7 +106,7 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
                   <li>{status.project_membership_count} project memberships</li>
                   <li>
                     {status.notification_preference_count} notification
-                    preferences (for everyone, including server admins)
+                    preferences
                   </li>
                   <li>
                     {status.queued_notification_email_count} pending email
