@@ -2,9 +2,11 @@
  * Live feed page
  *
  * Shows the most recent items flowing into the project, newest first, and
- * refreshes on its own. Successful images show how far they are through the
- * pipeline. Rejected files (for example an image sent at setup before the GPS
- * fix) show why they were refused, even though they never enter the database.
+ * refreshes on its own while the tab is focused. Successful images show how far
+ * they are through the pipeline. Rejected files (for example an image sent at
+ * setup before the GPS fix) show why they were refused, even though they never
+ * enter the database. The newest item sits in a large focus area with its
+ * metadata beside it; the filmstrip below swaps another item into focus.
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -12,13 +14,6 @@ import { AlertTriangle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { liveFeedApi, type LiveFeedItem } from '../api/liveFeed';
 import { AuthenticatedImage } from '../components/AuthenticatedImage';
-import { ImageDetailModal } from '../components/ImageDetailModal';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/Dialog';
 
 // Status colours follow the repo convention: teal done, light teal in flight,
 // burnt orange for failure or rejection.
@@ -32,7 +27,7 @@ function statusLabel(status: string | null | undefined): string {
     case 'processing': return 'Processing';
     case 'detected': return 'Detected';
     case 'classifying': return 'Classifying';
-    case 'classified': return 'Classified';
+    case 'classified': return 'Done';
     case 'failed': return 'Failed';
     default: return status ?? 'Unknown';
   }
@@ -74,23 +69,29 @@ function relativeTime(iso: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+function capturedLabel(iso: string): string {
+  // Camera clock, naive ISO like 2026-06-16T09:30:00. Show date and time only.
+  return iso.replace('T', ' ').slice(0, 16);
+}
+
 function itemKey(item: LiveFeedItem): string {
   return item.kind === 'image' ? `image-${item.uuid}` : `rejection-${item.rejection_id}`;
 }
 
-// One tile, used both as the large hero (newest item) and the smaller filmstrip
+// One tile, used both as the large hero (focus) and the smaller filmstrip
 // thumbnails. Shows just the pixels with a status/reason badge and a relative
-// time, no camera id or filename.
+// time. The hero is static (its metadata sits beside it); thumbnails are
+// buttons that swap an item into focus.
 const FeedTile: React.FC<{
   item: LiveFeedItem;
   variant: 'hero' | 'thumb';
-  onClick: () => void;
   selected?: boolean;
-}> = ({ item, variant, onClick, selected }) => {
+  onClick?: () => void;
+}> = ({ item, variant, selected, onClick }) => {
   const isRejection = item.kind === 'rejection';
+  const hero = variant === 'hero';
   const badgeColor = isRejection ? COLOR_BAD : statusColor(item.status);
   const badgeText = isRejection ? reasonLabel(item.reason) : statusLabel(item.status);
-  const hero = variant === 'hero';
   // Hero shows the full image so it stays sharp when enlarged; thumbnails use
   // the small thumbnail. Rejected files only have their on-disk image.
   const src = isRejection
@@ -105,17 +106,13 @@ const FeedTile: React.FC<{
     </div>
   );
 
-  return (
-    <button
-      onClick={onClick}
-      className={
-        (hero
-          ? 'mx-auto flex h-[60vh] w-fit items-center justify-center'
-          : 'h-24 w-32 shrink-0') +
-        ' relative overflow-hidden rounded-lg bg-muted ring-offset-background transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-ring' +
-        (selected ? ' ring-2 ring-primary' : '')
-      }
-    >
+  const base =
+    (hero ? 'flex h-[60vh] w-fit items-center justify-center' : 'h-24 w-32 shrink-0') +
+    ' relative overflow-hidden rounded-lg bg-muted' +
+    (selected ? ' ring-2 ring-primary' : '');
+
+  const inner = (
+    <>
       {src ? (
         <AuthenticatedImage
           src={src}
@@ -143,24 +140,61 @@ const FeedTile: React.FC<{
       >
         {relativeTime(item.timestamp)}
       </span>
-    </button>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button
+        onClick={onClick}
+        className={base + ' ring-offset-background transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-ring'}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className={base}>{inner}</div>;
 };
+
+// Metadata of the focused item, shown beside the focus area.
+const FocusMeta: React.FC<{ item: LiveFeedItem }> = ({ item }) => (
+  <div className="w-full rounded-lg border p-4 lg:w-80 lg:shrink-0">
+    <dl className="grid grid-cols-3 gap-x-3 gap-y-2 text-sm">
+      <dt className="text-muted-foreground">Camera</dt>
+      <dd className="col-span-2 break-all">{item.device_id ?? 'Unknown'}</dd>
+      <dt className="text-muted-foreground">File</dt>
+      <dd className="col-span-2 break-all">{item.filename}</dd>
+      {item.captured_at && (
+        <>
+          <dt className="text-muted-foreground">Captured</dt>
+          <dd className="col-span-2">{capturedLabel(item.captured_at)}</dd>
+        </>
+      )}
+      <dt className="text-muted-foreground">Arrived</dt>
+      <dd className="col-span-2">{relativeTime(item.timestamp)}</dd>
+      {item.kind === 'rejection' && (
+        <>
+          <dt className="text-muted-foreground">Reason</dt>
+          <dd className="col-span-2">{reasonLabel(item.reason)}</dd>
+          {item.details && (
+            <>
+              <dt className="text-muted-foreground">Detail</dt>
+              <dd className="col-span-2">{item.details}</dd>
+            </>
+          )}
+        </>
+      )}
+    </dl>
+  </div>
+);
 
 export const LiveFeedPage: React.FC = () => {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
-  const [openImageUuid, setOpenImageUuid] = useState<string | null>(null);
-  const [openRejection, setOpenRejection] = useState<LiveFeedItem | null>(null);
-  // Which item sits in the hero. Null means follow the newest; clicking a
+  // Which item sits in the focus area. Null means follow the newest; clicking a
   // filmstrip tile pins that one into focus instead.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-
-  const openItem = (item: LiveFeedItem) =>
-    item.kind === 'rejection'
-      ? setOpenRejection(item)
-      : setOpenImageUuid(item.uuid ?? null);
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['live-feed', projectId],
@@ -169,8 +203,7 @@ export const LiveFeedPage: React.FC = () => {
     // Poll every 3s, but only while the tab is focused. react-query pauses the
     // interval in the background (refetchIntervalInBackground is off by
     // default), so it costs nothing when nobody is looking. That is why a fast
-    // tick is fine here. The refresh button is for users who do not want to
-    // wait for the next tick.
+    // tick is fine here.
     refetchInterval: 3000,
   });
 
@@ -193,14 +226,17 @@ export const LiveFeedPage: React.FC = () => {
         </div>
       ) : (
         (() => {
-          // Hero shows the pinned item, or the newest when nothing is pinned
+          // Focus shows the pinned item, or the newest when nothing is pinned
           // (or the pinned one has aged out of the list).
           const heroItem = items.find((i) => itemKey(i) === selectedKey) ?? items[0];
           const heroKey = itemKey(heroItem);
           return (
             <div className="space-y-4">
-              {/* Focus area: click opens full detail */}
-              <FeedTile item={heroItem} variant="hero" onClick={() => openItem(heroItem)} />
+              {/* Focus area with its metadata beside it */}
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                <FeedTile item={heroItem} variant="hero" />
+                <FocusMeta item={heroItem} />
+              </div>
 
               {/* Filmstrip: click swaps the image into the focus area */}
               {items.length > 1 && (
@@ -220,60 +256,6 @@ export const LiveFeedPage: React.FC = () => {
           );
         })()
       )}
-
-      {/* Image detail reuses the standard modal */}
-      {openImageUuid && (
-        <ImageDetailModal
-          imageUuid={openImageUuid}
-          isOpen={true}
-          onClose={() => setOpenImageUuid(null)}
-        />
-      )}
-
-      {/* Rejection detail: full image from disk plus why it was refused */}
-      <Dialog open={openRejection !== null} onOpenChange={(o) => !o && setOpenRejection(null)}>
-        {openRejection && (
-          <DialogContent onClose={() => setOpenRejection(null)} className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>{reasonLabel(openRejection.reason)}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {openRejection.image_url && (
-                <AuthenticatedImage
-                  src={openRejection.image_url}
-                  alt={openRejection.filename}
-                  className="max-h-[60vh] w-full rounded-md object-contain"
-                  fallback={
-                    <div className="flex h-40 w-full items-center justify-center rounded-md bg-muted text-sm text-muted-foreground">
-                      Image is no longer available
-                    </div>
-                  }
-                />
-              )}
-              <dl className="grid grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                <dt className="text-muted-foreground">File</dt>
-                <dd className="col-span-2 break-all">{openRejection.filename}</dd>
-                <dt className="text-muted-foreground">Camera</dt>
-                <dd className="col-span-2">{openRejection.device_id ?? 'Unknown'}</dd>
-                {openRejection.captured_at && (
-                  <>
-                    <dt className="text-muted-foreground">Camera time</dt>
-                    <dd className="col-span-2">{openRejection.captured_at}</dd>
-                  </>
-                )}
-                <dt className="text-muted-foreground">Arrived</dt>
-                <dd className="col-span-2">{relativeTime(openRejection.timestamp)}</dd>
-                {openRejection.details && (
-                  <>
-                    <dt className="text-muted-foreground">Detail</dt>
-                    <dd className="col-span-2">{openRejection.details}</dd>
-                  </>
-                )}
-              </dl>
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
     </div>
   );
 };
