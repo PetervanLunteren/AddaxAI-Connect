@@ -6,11 +6,6 @@ scheduled run did not happen at all). The two toggles on ServerSettings
 gate each feature independently. When the underlying feature is disabled
 (BACKUP_ENABLED=false or COLD_TIER_ENABLED=false), no alert fires even if
 the toggle is on.
-
-TEMP: during initial verification the same job also emails `admin_email`
-on status=ok for both features, so Peter can watch the healthy path from
-his inbox. The TEMP block is marked and tracked in TODO.md. Remove once
-both features have run clean for a week.
 """
 import json
 import os
@@ -78,19 +73,17 @@ def _load_status(redis_client, key: str) -> Optional[Dict]:
         return None
 
 
-def _build_email(feature_label: str, status: str, payload: Dict,
+def _build_email(feature_label: str, payload: Dict,
                  hostname: str, extra_fields: Optional[List[Tuple[str, str]]] = None
                  ) -> Tuple[str, str, str]:
-    is_error = status == "error"
-    headline = f"{'Failure' if is_error else 'Success'}: {feature_label}"
-    status_text = "FAILED" if is_error else "OK"
-    status_color = "#882000" if is_error else "#0f6064"
-    subject_tag = "failed" if is_error else "ok"
-    subject = f"{hostname} - {feature_label} {subject_tag}"
+    headline = f"Failure: {feature_label}"
+    status_text = "FAILED"
+    status_color = "#882000"
+    subject = f"{hostname} - {feature_label} failed"
 
     timestamp = payload.get("timestamp", "?")
     duration_s = payload.get("duration_s")
-    error_msg = payload.get("error") if is_error else None
+    error_msg = payload.get("error")
 
     domain = settings.domain_name or hostname
     health_url = f"https://{domain}/server/health"
@@ -110,7 +103,7 @@ def _build_email(feature_label: str, status: str, payload: Dict,
     )
 
     lines = [
-        f"{hostname} - {feature_label} {subject_tag}",
+        f"{hostname} - {feature_label} failed",
         f"Status: {status_text}",
         f"Last run: {timestamp}",
     ]
@@ -157,25 +150,6 @@ def _queue_email(recipients: List[Tuple[int, str]], subject: str,
     return queued
 
 
-def _temp_email_admin(subject: str, text_body: str, html_body: str,
-                      trigger_data: Dict) -> None:
-    """TEMP: success-path email to admin_email during verification. Remove once
-    backup + cold tier have been stable for a week. See TODO.md.
-    """
-    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
-    if not admin_email:
-        return
-    with get_sync_session() as db:
-        row = db.execute(
-            select(User.id).where(User.email == admin_email).limit(1)
-        ).first()
-    if not row:
-        logger.warning("ADMIN_EMAIL not found as a user, skipping TEMP success mail",
-                       admin_email=admin_email)
-        return
-    _queue_email([(row.id, admin_email)], subject, text_body, html_body, trigger_data)
-
-
 def _check_cold_tier(redis_client, hostname: str, notify_on_failure: bool) -> None:
     if os.environ.get("COLD_TIER_ENABLED", "false").lower() != "true":
         return
@@ -205,18 +179,10 @@ def _check_cold_tier(redis_client, hostname: str, notify_on_failure: bool) -> No
             logger.warning("Cold tier failure but no active server admins to notify")
         else:
             subject, text_body, html = _build_email(
-                "Cold tier migration", "error", payload, hostname, extra)
+                "Cold tier migration", payload, hostname, extra)
             queued = _queue_email(recipients, subject, text_body, html, trigger)
             logger.info("Cold tier failure alert queued",
                         admins_notified=queued, timestamp=payload.get("timestamp"))
-
-    # TEMP: also email admin_email on status=ok. Remove after verification week.
-    # See TODO.md entry "revert TEMP success-email branch in infra_alert.py".
-    if status == "ok":
-        subject, text_body, html = _build_email(
-            "Cold tier migration", "ok", payload, hostname, extra)
-        _temp_email_admin(subject, text_body, html, trigger)
-        logger.info("TEMP cold tier success mail sent", timestamp=payload.get("timestamp"))
 
 
 def _check_backup(redis_client, hostname: str, notify_on_failure: bool) -> None:
@@ -249,18 +215,10 @@ def _check_backup(redis_client, hostname: str, notify_on_failure: bool) -> None:
             logger.warning("Backup failure but no active server admins to notify")
         else:
             subject, text_body, html = _build_email(
-                "Automated backup", "error", payload, hostname, [])
+                "Automated backup", payload, hostname, [])
             queued = _queue_email(recipients, subject, text_body, html, trigger)
             logger.info("Backup failure alert queued",
                         admins_notified=queued, timestamp=payload.get("timestamp"))
-
-    # TEMP: also email admin_email on status=ok. Remove after verification week.
-    # See TODO.md entry "revert TEMP success-email branch in infra_alert.py".
-    if status == "ok":
-        subject, text_body, html = _build_email(
-            "Automated backup", "ok", payload, hostname, [])
-        _temp_email_admin(subject, text_body, html, trigger)
-        logger.info("TEMP backup success mail sent", timestamp=payload.get("timestamp"))
 
 
 def check_infra_alerts() -> None:

@@ -124,19 +124,15 @@ docker compose exec -T minio mc alias set local \
 # bucket enables versioning and installs the 90-day noncurrent-version
 # expiration rule. Every later run (on any host pointing at this bucket)
 # sees the rule and skips.
-# TEMP: stdout redirects to /dev/null are removed in this block so every mc
-# call prints what it does (per-object uploads, retention rule output, alias
-# confirmation). Revert by re-adding `> /dev/null` after every mc invocation
-# once cold-tier and backup verification is done. See TODO.md.
 if docker compose exec -T minio mc ilm rule ls "backup-target/$BUCKET" 2>&1 | grep -q Enabled; then
   log "Backup bucket lifecycle already configured, skipping install"
 else
   log "Configuring backup bucket: versioning + 90-day retention rule"
-  docker compose exec -T minio mc version enable "backup-target/$BUCKET"
+  docker compose exec -T minio mc version enable "backup-target/$BUCKET" > /dev/null
   docker compose exec -T minio mc ilm rule add \
     --noncurrentversion-expiration-days 90 \
     --expired-object-delete-marker \
-    "backup-target/$BUCKET"
+    "backup-target/$BUCKET" > /dev/null
 fi
 
 log "Dumping postgres"
@@ -160,18 +156,16 @@ log "Postgres dump uploaded"
 #   giving up on an object.
 for MINIO_BUCKET in raw-images crops thumbnails project-images project-documents models; do
   log "Mirroring minio/$MINIO_BUCKET"
-  # TEMP: verbose mirror (no `> /dev/null`). See TODO.md.
   docker compose exec -T minio mc mirror --overwrite --remove --skip-errors --retry \
-    "local/$MINIO_BUCKET" "backup-target/$BUCKET/$HOST/minio/$MINIO_BUCKET"
+    "local/$MINIO_BUCKET" "backup-target/$BUCKET/$HOST/minio/$MINIO_BUCKET" > /dev/null
 done
 log "All MinIO buckets mirrored"
 
 # Host image dirs, bind-mounted into the minio container read-only at /host/*.
 for HOST_DIR in project-images reference-images; do
   log "Mirroring host/$HOST_DIR"
-  # TEMP: verbose mirror (no `> /dev/null`). See TODO.md.
   docker compose exec -T minio mc mirror --overwrite --remove --skip-errors --retry \
-    "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR"
+    "/host/$HOST_DIR" "backup-target/$BUCKET/$HOST/$HOST_DIR" > /dev/null
 done
 log "Host image dirs mirrored"
 
