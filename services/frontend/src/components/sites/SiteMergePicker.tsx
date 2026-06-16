@@ -10,7 +10,7 @@
  * Selection only; the parent owns the chosen target id and runs the merge.
  */
 import { useMemo, useEffect, useRef } from 'react';
-import { MapContainer, Marker, Circle, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import L from 'leaflet';
 import type { SiteListItem } from '../../api/sites';
@@ -24,9 +24,6 @@ const REMOVED_COLOR = '#882000';
 const KEPT_COLOR = '#0f6064';
 const OTHER_COLOR = '#71b7ba';
 
-// The grouping threshold from shared/shared/geo.py (SITE_THRESHOLD_METERS):
-// a photo within this distance of a site's pin is grouped into that site.
-const CATCHMENT_RADIUS_M = 100;
 
 interface Props {
   sites: SiteListItem[];
@@ -132,30 +129,6 @@ export function SiteMergePicker({
         >
           <BaseLayersControl />
           <FitBounds points={points} />
-          {/* Each site's 100 m catchment, drawn under the markers. Overlapping
-              rings mean two sites cover the same spot. */}
-          {located.map((s) => {
-            const color =
-              s.id === sourceSiteId
-                ? REMOVED_COLOR
-                : s.id === selectedTargetId
-                  ? KEPT_COLOR
-                  : OTHER_COLOR;
-            return (
-              <Circle
-                key={`ring-${s.id}`}
-                center={[s.latitude as number, s.longitude as number]}
-                radius={CATCHMENT_RADIUS_M}
-                pathOptions={{
-                  color,
-                  weight: 1,
-                  opacity: 0.5,
-                  fillColor: color,
-                  fillOpacity: 0.08,
-                }}
-              />
-            );
-          })}
           {source && (
             <Marker
               position={[source.latitude as number, source.longitude as number]}
@@ -191,11 +164,6 @@ export function SiteMergePicker({
           <LegendDot color={OTHER_COLOR} /> Other sites
         </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        The ring is each site's 100 m catchment. New photos that fall inside a
-        ring are grouped into that site, so overlapping rings mean two sites
-        cover the same spot.
-      </p>
 
       {/* Live summary of the merge that will run. Updates as the target is
           picked, so the action is explicit before confirming. */}
