@@ -36,6 +36,9 @@ User must have at least one project membership to register (enforced at registra
 
 ## Repository structure
 
+Each service directory also contains a `Dockerfile` and `requirements.txt`, and
+most contain a `README.md`. Those are omitted below to keep the tree readable.
+
 ```
 addaxai-connect/
 ├── services/                          # All microservices
@@ -60,8 +63,8 @@ addaxai-connect/
 │   │
 │   ├── classification-deepfaune/      # DeepFaune species classifier (38 European species)
 │   │   ├── worker.py                  # Entry point
-│   │   ├── classifier.py             # Classification logic
-│   │   ├── annotated_image.py        # Generates annotated images with boxes, labels, privacy blur
+│   │   ├── classifier.py              # Classification logic
+│   │   ├── annotated_image.py         # Generates annotated images with boxes, labels, privacy blur
 │   │   ├── model_loader.py
 │   │   ├── config.py
 │   │   ├── db_operations.py
@@ -76,15 +79,23 @@ addaxai-connect/
 │   │   ├── db_operations.py
 │   │   └── storage_operations.py
 │   │
+│   ├── bulk-upload/                    # Bulk-upload worker (SD-card imports)
+│   │   └── worker.py                  # Entry point (ingests staged files into the bulk pipeline)
+│   │
 │   ├── notifications/                 # Notification coordinator and scheduled jobs
 │   │   ├── worker.py                  # Entry point (event routing + APScheduler)
 │   │   ├── event_handlers.py          # Handles species_detection, low_battery, etc.
 │   │   ├── rule_engine.py             # Evaluates per-user notification preferences
 │   │   ├── email_report.py            # Daily/weekly/monthly email report generation
+│   │   ├── report_stats.py            # Report statistics
 │   │   ├── battery_digest.py          # Daily battery status summaries
 │   │   ├── excessive_images.py        # Excessive image alerts
 │   │   ├── project_inactivity.py      # Project inactivity alerts
-│   │   ├── report_stats.py            # Report statistics
+│   │   ├── disk_usage_alert.py        # Disk usage alerts
+│   │   ├── infra_alert.py             # Infrastructure health alerts
+│   │   ├── sim_expiry.py              # SIM card expiry alerts
+│   │   ├── reminders.py               # Project reminder digests
+│   │   ├── templates/                 # Notification-specific email templates
 │   │   └── db_operations.py
 │   │
 │   ├── notifications-email/           # Email delivery via SMTP
@@ -101,43 +112,86 @@ addaxai-connect/
 │   ├── alerts/                        # Alert evaluation (stub, not yet implemented)
 │   │   └── worker.py
 │   │
+│   ├── minio-init/                    # One-shot MinIO bootstrap (buckets, ILM rules)
+│   │   └── entrypoint.sh
+│   │
+│   ├── minio-tier-watchdog/           # Cold-tier watchdog
+│   │   ├── watchdog.py                # Entry point (tags old raw images for cold transition)
+│   │   └── healthcheck.py             # Docker healthcheck
+│   │
 │   ├── api/                           # FastAPI backend
 │   │   ├── main.py                    # Entry point (FastAPI app, middleware, route registration)
 │   │   ├── alembic/                   # Database migrations
 │   │   │   └── versions/              # Migration files (chronological)
+│   │   ├── alembic.ini
+│   │   ├── migrate.sh                 # Run migrations inside the container
 │   │   ├── auth/                      # Authentication and permissions
-│   │   ├── mailer/                    # Email templates for auth flows
-│   │   ├── middleware/                # Request middleware (DB sessions, etc.)
+│   │   │   ├── routes.py              # Auth route wiring (FastAPI-Users)
+│   │   │   ├── users.py               # User auth backend and dependencies
+│   │   │   ├── user_manager.py        # Registration, verification, password reset hooks
+│   │   │   ├── permissions.py         # Role checks
+│   │   │   ├── project_access.py      # Per-project access checks
+│   │   │   └── schemas.py             # Auth request/response schemas
+│   │   ├── mailer/                    # Email sending for auth flows
+│   │   │   └── sender.py
+│   │   ├── middleware/                # Request middleware
+│   │   │   └── logging.py             # Request logging and correlation IDs
 │   │   ├── routers/                   # API route handlers
 │   │   │   ├── admin.py               # Server admin endpoints
 │   │   │   ├── cameras.py             # Camera CRUD
 │   │   │   ├── camera_groups.py       # Camera group management
-│   │   │   ├── export.py              # Data export
-│   │   │   ├── health.py             # System health checks
+│   │   │   ├── camera_reference_images.py # Reference images per camera
+│   │   │   ├── sites.py               # Site CRUD
+│   │   │   ├── deployments.py         # Deployment CRUD
 │   │   │   ├── images.py              # Image queries
 │   │   │   ├── image_admin.py         # Image admin operations
+│   │   │   ├── bulk_upload.py         # Bulk-upload job management
+│   │   │   ├── live_feed.py           # Live feed endpoints
+│   │   │   ├── export.py              # Data export
+│   │   │   ├── health.py              # System health checks
 │   │   │   ├── ingestion_monitoring.py # Rejected files, upload monitoring
 │   │   │   ├── logs.py                # Notification log queries
 │   │   │   ├── notifications.py       # Notification preference management
+│   │   │   ├── reminders.py           # Project reminders
 │   │   │   ├── projects.py            # Project CRUD
 │   │   │   ├── project_documents.py   # Project document uploads
 │   │   │   ├── project_images.py      # Project image uploads
 │   │   │   ├── species.py             # Species data and taxonomy
 │   │   │   ├── statistics.py          # Dashboard statistics and pipeline status
-│   │   │   └── users.py              # User management
+│   │   │   ├── devtools.py            # Dev-mode tools (data purge, etc.)
+│   │   │   └── users.py               # User management
 │   │   ├── static/                    # Static files
 │   │   └── utils/                     # API utilities
+│   │       ├── activity_analysis.py   # Activity pattern analysis
+│   │       ├── annotated_image_generator.py # On-demand annotated image rendering
+│   │       ├── camera_status.py       # Camera online/offline status
+│   │       ├── detection_filtering.py # Detection confidence and class filtering
+│   │       ├── independence_filter.py # Independent-detection (capture event) filtering
+│   │       ├── occupancy_model.py     # Naive occupancy estimation
+│   │       ├── preferred_counts.py    # Preferred per-image counts
+│   │       ├── image_processing.py    # Image helpers
+│   │       ├── sun_time.py            # Sunrise/sunset times
+│   │       ├── timeline.py            # Deployment timeline
+│   │       ├── timeline_activity.py   # Activity over the timeline
+│   │       └── dev_mode.py            # Dev-mode helpers
 │   │
 │   └── frontend/                      # React + Vite + TypeScript web interface
 │       ├── src/
 │       │   ├── main.tsx               # Entry point
 │       │   ├── App.tsx                # Root component, routing
 │       │   ├── api/                   # API client and typed endpoints
-│       │   ├── components/            # Reusable UI components
+│       │   ├── components/            # Reusable UI components (grouped by feature)
 │       │   ├── contexts/              # AuthContext, ProjectContext, ImageCacheContext
 │       │   ├── hooks/                 # Custom React hooks
-│       │   ├── pages/                 # Page components
+│       │   ├── lib/                   # Stores, query client, feature flags, helpers
+│       │   ├── pages/                 # Page components (with admin/, insights/, server/ subdirs)
+│       │   ├── geodata/               # Country and timezone lookup data
+│       │   ├── workers/               # Web workers (bulk scan)
+│       │   ├── styles/                # Global CSS
 │       │   └── utils/                 # Helpers (colors, hex-grid, detection overlays)
+│       ├── public/                    # Static assets served as-is
+│       ├── nginx.conf                 # Nginx config for the frontend container
+│       ├── FRONTEND_CONVENTIONS.md    # Frontend-specific conventions
 │       ├── vite.config.js
 │       └── tailwind.config.js
 │
@@ -147,12 +201,16 @@ addaxai-connect/
 │       ├── config.py                  # Pydantic settings (env vars)
 │       ├── database.py                # SQLAlchemy sync/async engines and sessions
 │       ├── models.py                  # ORM models (Image, Camera, Detection, User, Project, etc.)
-│       ├── queue.py                   # RedisQueue (publish, consume, consume_forever)
+│       ├── queue.py                   # RedisQueue (publish, consume, consume_forever, priority)
 │       ├── storage.py                 # StorageClient (MinIO/S3 wrapper)
 │       ├── logger.py                  # Structured JSON logging with correlation IDs
 │       ├── email_renderer.py          # Jinja2 email template rendering
 │       ├── taxonomy.py                # Species taxonomy utilities
-│       └── species.py                 # Species data helpers
+│       ├── species.py                 # Species data helpers
+│       ├── geo.py                     # GPS and spatial helpers
+│       ├── deployments.py             # Site and deployment grouping logic
+│       ├── classification_threshold.py # Per-project classification thresholds
+│       └── templates/                 # Shared email templates (base + per-notification)
 │
 ├── models/                            # ML model weights (gitignored, downloaded at runtime)
 │   ├── detection/                     # MegaDetector (auto-downloaded from GitHub)
@@ -163,6 +221,15 @@ addaxai-connect/
 │   ├── populate_demo_data.py          # Generate demo dataset
 │   ├── shift_demo_dates.py            # Shift demo dates for freshness
 │   ├── backfill_deployment_periods.py # Backfill camera deployment data
+│   ├── backfill_sites.py              # Backfill sites from camera positions
+│   ├── backfill_camera_tags_to_sites.py # Migrate legacy camera tags to sites
+│   ├── merge_contiguous_deployments.py # Merge adjacent deployments
+│   ├── cleanup_empty_deployments.py   # Remove deployments with no images
+│   ├── regenerate_thumbnails.py       # Rebuild image thumbnails
+│   ├── rehydrate_cold_to_hot.py       # Pull cold-tier objects back to local storage
+│   ├── cold_tier_orphan_check.sh      # Find cold-tier objects with no DB record
+│   ├── backup.sh                      # Nightly database and image backup
+│   ├── restore.sh                     # Restore from backup
 │   ├── update-database.sh             # Run Alembic migrations and backfills
 │   └── verify-redis-security.sh       # Redis security validation
 │
@@ -181,17 +248,21 @@ addaxai-connect/
 │   ├── playbook.yml                   # Main playbook
 │   ├── inventory.yml.example
 │   ├── group_vars/                    # Config variables (passwords, domain, email, etc.)
-│   └── roles/                         # app-deploy, docker, nginx, pure-ftpd, security, ssl, etc.
+│   └── roles/                         # app-deploy, docker, nginx, pure-ftpd, ssl,
+│                                      #   security, security-check, dev-tools
 │
 ├── docs/                              # MkDocs documentation site
 │   ├── index.md
 │   ├── deployment.md
 │   ├── setup-guide.md
 │   ├── camera-requirements.md
+│   ├── sites-and-deployments.md
 │   ├── speciesnet-setup.md
 │   ├── update-guide.md
 │   ├── operations.md
+│   ├── restore-guide.md
 │   ├── dev-server-setup.md
+│   ├── install-on-phone.md
 │   └── architecture.md
 │
 ├── email_previews/                    # HTML previews of all email templates
@@ -211,18 +282,29 @@ addaxai-connect/
 ```
 FTPS upload → Ingestion → [image-ingested]
                               → Detection → [detection-complete]
-                                                → Classification → [classification-complete]
+                                                → Classification → [notification-events]
                                                                         → Notifications → [notification-email]
                                                                                         → [notification-telegram]
+
+Bulk upload → API stages files → [bulk-upload-job-process]
+                                     → Bulk-upload worker → [image-ingested-bulk]
+                                                                → Detection → [detection-complete-bulk]
+                                                                                  → Classification → ...
 ```
+
+Camera uploads and bulk (SD-card) uploads run through the same detection and
+classification workers. Bulk-origin images use parallel `-bulk` queues, and the
+workers consume both with strict priority, so live camera traffic always jumps
+ahead of a large import.
 
 Queue names (defined in `shared/shared/queue.py`):
 - `image-ingested` carries new images from ingestion to detection
 - `detection-complete` carries detected images from detection to classification
-- `classification-complete` carries classified images to notifications
-- `notification-events` carries notification triggers to the notification coordinator
+- `notification-events` carries notification triggers (from classification and other producers) to the notification coordinator
 - `notification-email` carries email messages to the email worker
 - `notification-telegram` carries Telegram messages to the Telegram worker
+- `image-ingested-bulk` and `detection-complete-bulk` are the lower-priority bulk-upload variants of the two pipeline queues
+- `bulk-upload-job` and `bulk-upload-job-process` carry bulk-upload jobs to the bulk-upload worker (the process variant jumps ahead of pending jobs)
 - `failed-jobs` is the dead-letter queue
 
 ## Docker Compose profiles
@@ -309,3 +391,5 @@ pytest tests/ingestion/test_daily_report_parser.py -v
 # Skip ML-dependent tests (used in CI)
 pytest tests/ -m "not ml"
 ```
+</content>
+</invoke>
