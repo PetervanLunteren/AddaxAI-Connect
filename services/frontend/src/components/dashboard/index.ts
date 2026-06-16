@@ -8,3 +8,4 @@ export { DetectionTrendChart } from './DetectionTrendChart';
 export { AlertCounters } from './AlertCounters';
 export { PipelineStatus } from './PipelineStatus';
 export { NaiveOccupancyChart } from './NaiveOccupancyChart';
+export { SpeciesFilterHintBanner } from './SpeciesFilterHintBanner';

@@ -39,6 +39,7 @@ import {
   ActivityPatternChart,
   DetectionTrendChart,
   AlertCounters,
+  SpeciesFilterHintBanner,
 } from '../components/dashboard';
 import { DemographicChart } from '../components/dashboard/DemographicChart';
 import { VerificationProgressCard } from '../components/dashboard/VerificationProgressCard';
@@ -306,6 +307,9 @@ export const Dashboard: React.FC = () => {
         <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
         <p className="text-sm text-gray-600 mt-1">Project overview with statistics and trends. Observation counts are based on MaxN, the peak number of individuals per species visible in a single image within each event, summed across all events.</p>
       </div>
+
+      {/* Species filtering hint (DeepFaune projects, admins, not yet narrowed) */}
+      <SpeciesFilterHintBanner />
 
       {/* Filter bar — always visible, matching the Insights pages */}
       <FilterBar

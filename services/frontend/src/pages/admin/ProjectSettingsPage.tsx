@@ -4,7 +4,7 @@
  * Allows project admins and server admins to adjust project-level settings.
  * Includes detection confidence threshold and species filtering.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Save, AlertCircle, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
@@ -79,13 +79,6 @@ export const ProjectSettingsPage: React.FC = () => {
       setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
       setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
       setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
-      const included = currentProject.included_species || [];
-      setIncludedSpecies(
-        included.map(species => ({
-          label: normalizeLabel(species),
-          value: species
-        }))
-      );
     }
   }, [currentProject]);
 
@@ -143,6 +136,29 @@ export const ProjectSettingsPage: React.FC = () => {
   });
   const isSpeciesNet = availableSpeciesData?.model === 'speciesnet';
 
+  // Seed the species multiselect once per project. On DeepFaune an empty or
+  // null stored value means "all species", which we show as every option
+  // selected rather than an empty box. A ref guards this so a background
+  // refetch of the species list never wipes the admin's in-progress edits.
+  // SpeciesNet ignores the list, so there we just mirror what is stored.
+  const seededProjectRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!currentProject) return;
+    const stored = currentProject.included_species || [];
+    const allSpecies = availableSpeciesData?.species ?? [];
+    if (!isSpeciesNet && allSpecies.length === 0) return; // wait for the model's species list
+    if (seededProjectRef.current === currentProject.id) return; // already seeded this project
+    seededProjectRef.current = currentProject.id;
+
+    const seed = !isSpeciesNet && stored.length === 0 ? allSpecies : stored;
+    setIncludedSpecies(
+      seed.map(species => ({
+        label: normalizeLabel(species),
+        value: species,
+      }))
+    );
+  }, [currentProject, availableSpeciesData, isSpeciesNet]);
+
   // Sync fetched groups into pending state
   useEffect(() => {
     setPendingGroups(cameraGroups);
@@ -163,8 +179,22 @@ export const ProjectSettingsPage: React.FC = () => {
 
   // Check for unsaved changes
   const hasThresholdChanges = threshold !== currentProject.detection_threshold;
-  const currentSpeciesValues = (currentProject.included_species || []).sort().join(',');
-  const selectedSpeciesValues = includedSpecies.map(s => s.value as string).sort().join(',');
+
+  // "All species" is stored as an empty list (the classifier treats empty as
+  // "no filter"). On DeepFaune, every option selected is the same thing, so
+  // both collapse to one canonical value and selecting all reads as no change.
+  // SpeciesNet ignores the list, so keep a plain comparison there.
+  const allSpeciesValues = availableSpeciesData?.species ?? [];
+  const selectedIsAll =
+    !isSpeciesNet && allSpeciesValues.length > 0 && includedSpecies.length === allSpeciesValues.length;
+  const currentStored = currentProject.included_species || [];
+  const currentSpeciesValues =
+    !isSpeciesNet && currentStored.length === 0
+      ? '__all__'
+      : [...currentStored].sort().join(',');
+  const selectedSpeciesValues = selectedIsAll
+    ? '__all__'
+    : includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
   const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
@@ -242,7 +272,11 @@ export const ProjectSettingsPage: React.FC = () => {
       if (hasSpeciesChanges || hasBlurChanges || hasIntervalChanges) {
         const update: ProjectUpdate = {};
         if (hasSpeciesChanges) {
-          update.included_species = includedSpecies.map(s => s.value as string);
+          // Every species selected is stored as an empty list ("all"), so the
+          // project keeps tracking the model instead of freezing a snapshot.
+          update.included_species = selectedIsAll
+            ? []
+            : includedSpecies.map(s => s.value as string);
         }
         if (hasBlurChanges) {
           update.blur_people_vehicles = blurPeopleVehicles;
@@ -461,7 +495,7 @@ export const ProjectSettingsPage: React.FC = () => {
                     Species filtering
                   </label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Only selected species will be classified when new images are uploaded. Already classified images are not affected. Leave empty to include all species.
+                    All species are selected by default. Remove the ones that do not occur in your area to make classification more accurate. This applies to new images only, already classified images are not affected.
                   </p>
                 </div>
                 <div className="flex-1">
