@@ -6,7 +6,7 @@
  * pipeline. Rejected files (for example an image sent at setup before the GPS
  * fix) show why they were refused, even though they never enter the database.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -19,10 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/Dialog';
-
-// Pipeline phases still in progress. While any image sits in one of these the
-// feed polls fast, otherwise it idles.
-const IN_FLIGHT = new Set(['pending', 'processing', 'detected', 'classifying']);
 
 // Status colours follow the repo convention: teal done, light teal in flight,
 // burnt orange for failure or rejection.
@@ -161,13 +157,6 @@ export const LiveFeedPage: React.FC = () => {
   // filmstrip tile pins that one into focus instead.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  // Re-render every 15s so the relative times stay current between polls.
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 15000);
-    return () => clearInterval(id);
-  }, []);
-
   const openItem = (item: LiveFeedItem) =>
     item.kind === 'rejection'
       ? setOpenRejection(item)
@@ -177,13 +166,12 @@ export const LiveFeedPage: React.FC = () => {
     queryKey: ['live-feed', projectId],
     queryFn: () => liveFeedApi.get(projectId!, 20),
     enabled: projectId !== undefined,
-    refetchInterval: (q) => {
-      const data = q.state.data as LiveFeedItem[] | undefined;
-      const anyInFlight = (data ?? []).some(
-        (i) => i.kind === 'image' && IN_FLIGHT.has(i.status ?? ''),
-      );
-      return anyInFlight ? 3000 : 30000;
-    },
+    // Poll every 3s, but only while the tab is focused. react-query pauses the
+    // interval in the background (refetchIntervalInBackground is off by
+    // default), so it costs nothing when nobody is looking. That is why a fast
+    // tick is fine here. The refresh button is for users who do not want to
+    // wait for the next tick.
+    refetchInterval: 3000,
   });
 
   return (
