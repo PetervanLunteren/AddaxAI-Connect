@@ -32,6 +32,8 @@ class ProjectWithRole(BaseModel):
     independence_interval_minutes: int
     image_url: str | None = None
     thumbnail_url: str | None = None
+    created_at: str
+    updated_at: str | None = None
 
 
 class UserProjectsResponse(BaseModel):
@@ -82,6 +84,8 @@ async def get_my_projects(
                     independence_interval_minutes=project.independence_interval_minutes,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
+                    created_at=project.created_at.isoformat(),
+                    updated_at=project.updated_at.isoformat() if project.updated_at else None,
                 )
             )
     else:
@@ -109,6 +113,8 @@ async def get_my_projects(
                     independence_interval_minutes=project.independence_interval_minutes,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
+                    created_at=project.created_at.isoformat(),
+                    updated_at=project.updated_at.isoformat() if project.updated_at else None,
                 )
             )
 

@@ -319,19 +319,10 @@ export interface ClassificationThresholds {
   overrides: Record<string, number>;
 }
 
-// Project with user's role
-export interface ProjectWithRole {
-  id: number;
-  name: string;
-  description: string | null;
+// Project with user's role. A true superset of Project (the /users/me/projects
+// endpoint returns every Project field plus the caller's role).
+export interface ProjectWithRole extends Project {
   role: string;
-  included_species: string[] | null;
-  detection_threshold: number;
-  classification_thresholds: ClassificationThresholds | null;
-  blur_people_vehicles: boolean;
-  independence_interval_minutes: number;
-  image_url: string | null;
-  thumbnail_url: string | null;
 }
 
 // Server-wide settings

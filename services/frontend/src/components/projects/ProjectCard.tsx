@@ -93,7 +93,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
             <img
               src={project.thumbnail_url}
               alt={project.name}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-400 to-blue-500">
