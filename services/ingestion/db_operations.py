@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, ServerSettings
+from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, Rejection, ServerSettings
 from shared.logger import get_logger
 from shared.geo import (
     SITE_THRESHOLD_METERS,
@@ -73,6 +73,86 @@ def get_camera_by_device_id(device_id: str) -> Optional[int]:
             device_id=device_id
         )
         return None
+
+
+def create_rejection_record(
+    disk_path: str,
+    filename: str,
+    reason: str,
+    details: Optional[str] = None,
+    device_id: Optional[str] = None,
+    captured_at: Optional[datetime] = None,
+    exif_metadata: Optional[dict] = None,
+) -> None:
+    """
+    Record a rejected file so the Live feed can show it without scanning disk.
+
+    Resolves camera_id and project_id from device_id where possible. The camera
+    lookup runs here (not at the call site) because most rejections happen before
+    ingestion's own camera lookup. project_id stays None when device_id is missing
+    or the camera is not registered, so the row never appears in a project feed.
+
+    Args:
+        disk_path: Absolute path of the moved file in the rejected/ tree
+        filename: Original camera filename
+        reason: Rejection reason (matches the rejected/ subdirectory)
+        details: Human-readable rejection detail
+        device_id: Camera device id if it was extracted before the reject
+        captured_at: Camera wall-clock at capture (naive) if known
+        exif_metadata: EXIF metadata captured at reject time, if any
+    """
+    try:
+        file_size_bytes = os.path.getsize(disk_path)
+    except OSError:
+        file_size_bytes = None
+
+    with get_db_session() as session:
+        camera_id = None
+        project_id = None
+        if device_id:
+            camera = session.query(Camera).filter_by(device_id=device_id).first()
+            if camera:
+                camera_id = camera.id
+                project_id = camera.project_id
+
+        rejection = Rejection(
+            filename=filename,
+            disk_path=disk_path,
+            reason=reason,
+            details=details,
+            device_id=device_id,
+            camera_id=camera_id,
+            project_id=project_id,
+            captured_at=captured_at,
+            exif_metadata=exif_metadata,
+            file_size_bytes=file_size_bytes,
+        )
+        session.add(rejection)
+        session.flush()
+        logger.info(
+            "Recorded rejection",
+            reason=reason,
+            device_id=device_id,
+            project_id=project_id,
+            disk_path=disk_path,
+        )
+
+
+def delete_old_rejections(retention_days: int = 30) -> int:
+    """
+    Delete Rejection rows older than the retention window.
+
+    Called from cleanup_old_rejected_files so the table ages out in lockstep
+    with the rejected/ files on disk. Returns the number of rows deleted.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    with get_db_session() as session:
+        deleted = (
+            session.query(Rejection)
+            .filter(Rejection.rejected_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+    return deleted
 
 
 def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

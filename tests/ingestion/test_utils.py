@@ -63,6 +63,18 @@ class TestRejectFileFlat:
         assert data["reason"] == "missing_datetime"
         assert data["details"] == "no timestamp"
 
+    def test_returns_moved_file_path(self, upload_root):
+        # The persistence layer stores this path on the Rejection row, so the
+        # return value must point at the moved file.
+        src = upload_root / "IMG_0002.jpg"
+        src.write_bytes(b"\xff\xd8\xff\x00")
+
+        dest = reject_file(str(src), "missing_gps", "no gps")
+
+        expected = upload_root / "rejected" / "missing_gps" / "IMG_0002.jpg"
+        assert dest == str(expected)
+        assert Path(dest).exists()
+
 
 class TestRejectFileNested:
     def _setup_instar_tree(self, upload_root, filename="Test-Snapshot.jpeg"):

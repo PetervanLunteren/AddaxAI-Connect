@@ -22,6 +22,7 @@ import { CamerasPage } from './pages/CamerasPage';
 import { SitesPage } from './pages/SitesPage';
 import { DeploymentsPage } from './pages/DeploymentsPage';
 import { ImagesPage } from './pages/ImagesPage';
+import { LiveFeedPage } from './pages/LiveFeedPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
@@ -141,6 +142,7 @@ function App() {
                 <Route path="sites" element={<SitesPage />} />
                 <Route path="deployments" element={<DeploymentsPage />} />
                 <Route path="images" element={<ImagesPage />} />
+                <Route path="live-feed" element={<LiveFeedPage />} />
                 {/* Legacy single-page routes redirect into Insights so old
                     bookmarks keep working. The old combined performance page
                     now lands on the confusion matrix. */}

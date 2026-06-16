@@ -28,6 +28,14 @@ class Image(Base):
     status = Column(String(50), nullable=False, default="pending", index=True)
     image_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved name
 
+    # Server wall-clock at ingestion (aware UTC). captured_at is the camera clock,
+    # which can be wrong at setup, so it is not a reliable arrival order. This is
+    # the chronological key for the Live feed and is directly comparable to
+    # Rejection.rejected_at. Filled automatically by server_default.
+    ingested_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
     # Origin: 'live' for FTPS-ingested images, 'bulk' for SD-card uploads
     # via the bulk-upload feature. Drives notification suppression so a
     # bulk batch never fires species_detection alerts retroactively.
@@ -535,6 +543,47 @@ class BulkUploadJob(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
+class Rejection(Base):
+    """
+    A file that ingestion refused to turn into an Image.
+
+    Rejected files never reach the images table; they are moved to
+    <upload_root>/rejected/<reason>/ on disk with an .error.json sidecar. This
+    row mirrors that, so the Live feed can show rejections (e.g. an image sent
+    at setup before the GPS fix) without scanning the filesystem at read time.
+
+    project_id is resolved from device_id at rejection time where possible. It
+    is null when the file carries no usable device id (corrupt file, stripped
+    EXIF, or a camera that is not registered yet); those rows never appear in a
+    project feed and stay visible only on the server-admin file page.
+    """
+    __tablename__ = "rejections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)  # original camera filename
+    # Absolute path of the moved file under <upload_root>/rejected/<reason>/.
+    # Matches what ingestion_monitoring reports; both api and ingestion
+    # containers mount the same /uploads volume.
+    disk_path = Column(String(512), nullable=False)
+    reason = Column(String(50), nullable=False, index=True)
+    details = Column(Text, nullable=True)
+    device_id = Column(String(50), nullable=True, index=True)
+    camera_id = Column(
+        Integer, ForeignKey("cameras.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    project_id = Column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Camera wall-clock at capture, stored naive (only set where known).
+    captured_at = Column(DateTime(timezone=False), nullable=True)
+    exif_metadata = Column(JSON, nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+    # Server wall-clock at rejection (aware UTC), the feed sort key.
+    rejected_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
 
 
 class TelegramConfig(Base):

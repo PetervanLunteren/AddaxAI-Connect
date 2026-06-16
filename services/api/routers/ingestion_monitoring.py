@@ -11,9 +11,12 @@ from typing import List
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models import User
+from shared.models import User, Rejection
 from shared.config import get_settings
+from shared.database import get_async_session
 from shared.logger import get_logger
 from auth.permissions import require_server_admin
 
@@ -251,6 +254,7 @@ async def get_rejected_files(
 async def delete_rejected_files(
     request: BulkActionRequest,
     current_user: User = Depends(require_server_admin),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """
     Delete rejected files and their error logs (server admin only)
@@ -262,6 +266,11 @@ async def delete_rejected_files(
     Returns:
         Count of successfully deleted files and any errors
     """
+    # Drop the matching Rejection rows so the Live feed does not show phantoms.
+    # Match on disk_path, which is the absolute path the scan reports.
+    await db.execute(delete(Rejection).where(Rejection.disk_path.in_(request.filepaths)))
+    await db.commit()
+
     success_count = 0
     failed_count = 0
     errors = []
@@ -311,6 +320,7 @@ async def delete_rejected_files(
 async def reprocess_rejected_files(
     request: BulkActionRequest,
     current_user: User = Depends(require_server_admin),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """
     Move rejected files back to uploads directory for reprocessing (server admin only)
@@ -322,6 +332,11 @@ async def reprocess_rejected_files(
     Returns:
         Count of successfully moved files and any errors
     """
+    # Drop the matching Rejection rows. The file goes back to /uploads and
+    # ingestion writes a fresh row if it rejects again.
+    await db.execute(delete(Rejection).where(Rejection.disk_path.in_(request.filepaths)))
+    await db.commit()
+
     ftps_dir = os.getenv("FTPS_UPLOAD_DIR", "/uploads")
     uploads_dir = Path(ftps_dir)
 

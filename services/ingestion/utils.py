@@ -87,7 +87,7 @@ def _rejected_filename(filepath: str) -> str:
     return "_".join(rel.parts)
 
 
-def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_metadata: Optional[dict] = None) -> None:
+def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_metadata: Optional[dict] = None) -> str:
     """
     Move file to rejected directory with error log.
 
@@ -107,6 +107,10 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
         reason: Rejection reason (becomes subdirectory name)
         details: Additional error details
         exif_metadata: EXIF metadata extracted from file (if any)
+
+    Returns:
+        Absolute path of the moved file in the rejected/ tree. Used by the
+        caller to record a Rejection row pointing at the same file.
     """
     original_filename = os.path.basename(filepath)
     rejected_filename = _rejected_filename(filepath)
@@ -145,6 +149,8 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
 
     # Clean up any now-empty parent dirs left behind by the move
     prune_empty_parents(filepath)
+
+    return str(dest_path)
 
 
 def delete_file(filepath: str) -> None:

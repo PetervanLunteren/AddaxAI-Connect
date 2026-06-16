@@ -23,6 +23,8 @@ from camera_profiles import identify_camera_profile
 from db_operations import (
     get_camera_by_device_id,
     create_image_record,
+    create_rejection_record,
+    delete_old_rejections,
     update_camera_health
 )
 from storage_operations import upload_image_to_minio, generate_and_upload_thumbnail
@@ -36,6 +38,34 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 logger = get_logger("ingestion")
 settings = get_settings()
+
+
+def _reject(
+    filepath: str,
+    reason: str,
+    details: str = None,
+    exif: dict = None,
+    device_id: str = None,
+    captured_at=None,
+) -> None:
+    """
+    Reject a file and record it.
+
+    Single rejection path: move the file to the rejected/ tree (reject_file)
+    and write a Rejection row pointing at the moved file (create_rejection_record).
+    Pass device_id / captured_at when they were already extracted so the row can
+    be resolved to a project. Centralised here so no rejection path is missed.
+    """
+    dest_path = reject_file(filepath, reason, details, exif_metadata=exif)
+    create_rejection_record(
+        disk_path=dest_path,
+        filename=os.path.basename(filepath),
+        reason=reason,
+        details=details,
+        device_id=device_id,
+        captured_at=captured_at,
+        exif_metadata=exif,
+    )
 
 
 def _is_under_rejected_tree(filepath: str) -> bool:
@@ -85,7 +115,7 @@ def _dispatch_file(filepath: str, base_ext: str) -> None:
                 error=str(e),
             )
     else:
-        reject_file(filepath, "unsupported_file_type", "Extension not recognized")
+        _reject(filepath, "unsupported_file_type", "Extension not recognized")
 
 
 class IngestionEventHandler(FileSystemEventHandler):
@@ -256,24 +286,24 @@ def process_image(filepath: str) -> None:
             # No path-based profile matched. Try EXIF-based identification.
             exif = extract_exif(filepath) or {}
             if not exif:
-                reject_file(
+                _reject(
                     filepath,
                     "exif_extraction_failed",
                     "Could not extract EXIF metadata",
-                    exif_metadata={}
+                    exif={}
                 )
                 return
 
             make = exif.get('Make')
             model = exif.get('Model')
             if not make and not model:
-                reject_file(
+                _reject(
                     filepath,
                     "no_camera_exif",
                     f"Image file has no camera EXIF data (Make/Model missing). "
                     f"File may have been edited or EXIF stripped. "
                     f"Basic metadata present: {list(exif.keys())}",
-                    exif_metadata=exif
+                    exif=exif
                 )
                 return
 
@@ -282,7 +312,7 @@ def process_image(filepath: str) -> None:
                     exif=exif, filename=clean_filename, relative_path=relative_path
                 )
             except ValueError as e:
-                reject_file(filepath, "unsupported_camera", str(e), exif_metadata=exif)
+                _reject(filepath, "unsupported_camera", str(e), exif=exif)
                 return
 
         logger.info(
@@ -300,7 +330,7 @@ def process_image(filepath: str) -> None:
                 # Covers Test-Snapshot.jpeg and any other filename without a
                 # timestamp. Route to missing_datetime so it lands next to the
                 # other datetime rejections.
-                reject_file(filepath, "missing_datetime", str(e))
+                _reject(filepath, "missing_datetime", str(e))
                 return
 
             device_id = parsed["device_id"]
@@ -313,11 +343,11 @@ def process_image(filepath: str) -> None:
             # EXIF-based profile (exif has already been extracted above)
             device_id = profile.get_camera_id(exif, clean_filename)
             if not device_id:
-                reject_file(
+                _reject(
                     filepath,
                     "missing_device_id",
                     f"Could not extract device ID for profile {profile.name}",
-                    exif_metadata=exif
+                    exif=exif
                 )
                 return
 
@@ -328,7 +358,7 @@ def process_image(filepath: str) -> None:
                     allow_fallback=not profile.requires_datetime
                 )
             except ValueError as e:
-                reject_file(filepath, "missing_datetime", str(e), exif_metadata=exif)
+                _reject(filepath, "missing_datetime", str(e), exif=exif, device_id=device_id)
                 return
 
             check_exif_offset(exif, captured_at)
@@ -340,30 +370,37 @@ def process_image(filepath: str) -> None:
         # or out-of-range. Doing this before the missing_gps check below so
         # that (0, 0) is recorded under invalid_gps, not missing_gps.
         if gps_location and not is_valid_gps(gps_location):
-            reject_file(
+            _reject(
                 filepath,
                 "invalid_gps",
                 f"Image GPS is invalid: {gps_location}. Expected a real coordinate, not (0, 0) or out of range.",
-                exif_metadata=exif
+                exif=exif,
+                device_id=device_id,
+                captured_at=captured_at,
             )
             return
 
         if not gps_location and profile.requires_gps:
-            reject_file(
+            _reject(
                 filepath,
                 "missing_gps",
                 f"Image has no GPS coordinates. Profile {profile.name} requires GPS for deployment tracking.",
-                exif_metadata=exif
+                exif=exif,
+                device_id=device_id,
+                captured_at=captured_at,
             )
             return
 
         # Step 5: Look up camera (returns database ID or None)
         camera_db_id = get_camera_by_device_id(device_id)
         if camera_db_id is None:
-            reject_file(
+            _reject(
                 filepath,
                 "unknown_camera",
-                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files."
+                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files.",
+                exif=exif,
+                device_id=device_id,
+                captured_at=captured_at,
             )
             return
 
@@ -423,7 +460,7 @@ def process_image(filepath: str) -> None:
 
     except ValidationError as e:
         # Validation failed - reject file
-        reject_file(filepath, "validation_failed", str(e))
+        _reject(filepath, "validation_failed", str(e))
 
     except Exception as e:
         # Unexpected error - crash loudly (don't delete file)
@@ -465,7 +502,7 @@ def process_daily_report(filepath: str) -> None:
         try:
             health_data = parse_daily_report(filepath)
         except ValueError as e:
-            reject_file(filepath, "parse_failed", str(e))
+            _reject(filepath, "parse_failed", str(e))
             return
 
         # Step 3: Extract device ID (camera_id field from daily report is the device ID)
@@ -475,10 +512,11 @@ def process_daily_report(filepath: str) -> None:
         camera_updated = update_camera_health(device_id, health_data)
 
         if not camera_updated:
-            reject_file(
+            _reject(
                 filepath,
                 "unknown_camera",
-                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files."
+                f"Camera not registered. Device ID: {device_id}. Please create camera in Camera Management before uploading files.",
+                device_id=device_id,
             )
             return
 
@@ -496,7 +534,7 @@ def process_daily_report(filepath: str) -> None:
 
     except ValidationError as e:
         # Validation failed - reject file
-        reject_file(filepath, "validation_failed", str(e))
+        _reject(filepath, "validation_failed", str(e))
 
     except Exception as e:
         # Unexpected error - crash loudly (don't delete file)
@@ -567,10 +605,18 @@ def cleanup_old_rejected_files() -> None:
                     error=str(e)
                 )
 
-    if deleted_count > 0:
+    # Age out the matching Rejection rows so the table tracks the disk.
+    try:
+        deleted_rows = delete_old_rejections(retention_days=30)
+    except Exception as e:
+        logger.error("Failed to delete old rejection rows", error=str(e), exc_info=True)
+        deleted_rows = 0
+
+    if deleted_count > 0 or deleted_rows > 0:
         logger.info(
             "Cleanup completed",
             deleted_count=deleted_count,
+            deleted_rows=deleted_rows,
             retention_days=30
         )
     else:
