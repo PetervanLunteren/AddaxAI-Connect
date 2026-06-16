@@ -6,14 +6,13 @@
  * pipeline. Rejected files (for example an image sent at setup before the GPS
  * fix) show why they were refused, even though they never enter the database.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Camera, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { liveFeedApi, type LiveFeedItem } from '../api/liveFeed';
 import { AuthenticatedImage } from '../components/AuthenticatedImage';
 import { ImageDetailModal } from '../components/ImageDetailModal';
-import { Card } from '../components/ui/Card';
 import {
   Dialog,
   DialogContent,
@@ -69,14 +68,80 @@ function reasonLabel(reason: string | null | undefined): string {
   return REASON_LABELS[reason] ?? reason.replace(/_/g, ' ');
 }
 
-function shortTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+function relativeTime(iso: string): string {
+  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 
 function itemKey(item: LiveFeedItem): string {
   return item.kind === 'image' ? `image-${item.uuid}` : `rejection-${item.rejection_id}`;
 }
+
+// One tile, used both as the large hero (newest item) and the smaller filmstrip
+// thumbnails. Shows just the pixels with a status/reason badge and a relative
+// time, no camera id or filename.
+const FeedTile: React.FC<{
+  item: LiveFeedItem;
+  variant: 'hero' | 'thumb';
+  onClick: () => void;
+}> = ({ item, variant, onClick }) => {
+  const isRejection = item.kind === 'rejection';
+  const badgeColor = isRejection ? COLOR_BAD : statusColor(item.status);
+  const badgeText = isRejection ? reasonLabel(item.reason) : statusLabel(item.status);
+  const src = isRejection ? item.image_url : item.thumbnail_url;
+  const hero = variant === 'hero';
+
+  const fallback = (
+    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+      <AlertTriangle className={hero ? 'h-10 w-10' : 'h-5 w-5'} />
+    </div>
+  );
+
+  return (
+    <button
+      onClick={onClick}
+      className={
+        (hero
+          ? 'flex h-[60vh] w-full items-center justify-center'
+          : 'h-24 w-32 shrink-0') +
+        ' relative overflow-hidden rounded-lg bg-muted ring-offset-background transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-ring'
+      }
+    >
+      {src ? (
+        <AuthenticatedImage
+          src={src}
+          alt=""
+          className={hero ? 'max-h-[60vh] max-w-full object-contain' : 'h-24 w-32 object-cover'}
+          fallback={fallback}
+        />
+      ) : (
+        fallback
+      )}
+      <span
+        className={
+          'absolute top-2 left-2 rounded-full font-semibold ' +
+          (hero ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-[10px]')
+        }
+        style={{ backgroundColor: badgeColor, color: 'white' }}
+      >
+        {badgeText}
+      </span>
+      <span
+        className={
+          'absolute bottom-2 right-2 rounded-full bg-black/60 text-white ' +
+          (hero ? 'px-2.5 py-1 text-xs' : 'px-1.5 py-0.5 text-[10px]')
+        }
+      >
+        {relativeTime(item.timestamp)}
+      </span>
+    </button>
+  );
+};
 
 export const LiveFeedPage: React.FC = () => {
   const { selectedProject } = useProject();
@@ -84,6 +149,18 @@ export const LiveFeedPage: React.FC = () => {
 
   const [openImageUuid, setOpenImageUuid] = useState<string | null>(null);
   const [openRejection, setOpenRejection] = useState<LiveFeedItem | null>(null);
+
+  // Re-render every 15s so the relative times stay current between polls.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const openItem = (item: LiveFeedItem) =>
+    item.kind === 'rejection'
+      ? setOpenRejection(item)
+      : setOpenImageUuid(item.uuid ?? null);
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['live-feed', projectId],
@@ -103,10 +180,7 @@ export const LiveFeedPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold mb-1">Live feed</h1>
         <p className="text-sm text-muted-foreground max-w-3xl">
-          The most recent images for this project, newest first. Each image shows how
-          far it is through the pipeline. Files that were refused (for example an image
-          sent before the camera had a GPS fix) appear here too, so you get instant
-          feedback during setup. This page refreshes on its own.
+          The most recent images for this project, newest first.
         </p>
       </div>
 
@@ -119,58 +193,23 @@ export const LiveFeedPage: React.FC = () => {
           Nothing has come in yet.
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {items.map((item) => {
-            const isRejection = item.kind === 'rejection';
-            const badgeColor = isRejection ? COLOR_BAD : statusColor(item.status);
-            const badgeText = isRejection ? reasonLabel(item.reason) : statusLabel(item.status);
-            const thumbSrc = isRejection ? item.image_url : item.thumbnail_url;
+        <div className="space-y-4">
+          {/* Newest item, large and in focus */}
+          <FeedTile item={items[0]} variant="hero" onClick={() => openItem(items[0])} />
 
-            return (
-              <Card
-                key={itemKey(item)}
-                className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() =>
-                  isRejection ? setOpenRejection(item) : setOpenImageUuid(item.uuid ?? null)
-                }
-              >
-                <div className="relative h-40 bg-muted">
-                  {thumbSrc ? (
-                    <AuthenticatedImage
-                      src={thumbSrc}
-                      alt={item.filename}
-                      className="h-40 w-full object-cover"
-                      fallback={
-                        <div className="flex h-40 w-full items-center justify-center text-muted-foreground">
-                          <AlertTriangle className="h-6 w-6" />
-                        </div>
-                      }
-                    />
-                  ) : (
-                    <div className="flex h-40 w-full items-center justify-center text-muted-foreground">
-                      <AlertTriangle className="h-6 w-6" />
-                    </div>
-                  )}
-                  <span
-                    className="absolute top-2 left-2 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                    style={{ backgroundColor: badgeColor, color: 'white' }}
-                  >
-                    {badgeText}
-                  </span>
-                </div>
-                <div className="space-y-1 p-3">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Camera className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{item.device_id ?? 'Unknown camera'}</span>
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground" title={item.filename}>
-                    {item.filename}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{shortTime(item.timestamp)}</p>
-                </div>
-              </Card>
-            );
-          })}
+          {/* Older items as a filmstrip below */}
+          {items.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {items.slice(1).map((item) => (
+                <FeedTile
+                  key={itemKey(item)}
+                  item={item}
+                  variant="thumb"
+                  onClick={() => openItem(item)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -215,7 +254,7 @@ export const LiveFeedPage: React.FC = () => {
                   </>
                 )}
                 <dt className="text-muted-foreground">Arrived</dt>
-                <dd className="col-span-2">{shortTime(openRejection.timestamp)}</dd>
+                <dd className="col-span-2">{relativeTime(openRejection.timestamp)}</dd>
                 {openRejection.details && (
                   <>
                     <dt className="text-muted-foreground">Detail</dt>
