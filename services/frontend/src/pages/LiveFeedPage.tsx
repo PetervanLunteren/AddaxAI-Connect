@@ -233,7 +233,7 @@ export const LiveFeedPage: React.FC = () => {
           return (
             <div className="space-y-4">
               {/* Focus area with its metadata beside it, centered on screen */}
-              <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-center">
+              <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-start lg:justify-center">
                 <FeedTile item={heroItem} variant="hero" />
                 <FocusMeta item={heroItem} />
               </div>
