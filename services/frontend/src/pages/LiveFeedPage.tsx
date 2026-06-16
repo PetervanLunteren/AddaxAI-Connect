@@ -89,12 +89,19 @@ const FeedTile: React.FC<{
   item: LiveFeedItem;
   variant: 'hero' | 'thumb';
   onClick: () => void;
-}> = ({ item, variant, onClick }) => {
+  selected?: boolean;
+}> = ({ item, variant, onClick, selected }) => {
   const isRejection = item.kind === 'rejection';
   const badgeColor = isRejection ? COLOR_BAD : statusColor(item.status);
   const badgeText = isRejection ? reasonLabel(item.reason) : statusLabel(item.status);
-  const src = isRejection ? item.image_url : item.thumbnail_url;
   const hero = variant === 'hero';
+  // Hero shows the full image so it stays sharp when enlarged; thumbnails use
+  // the small thumbnail. Rejected files only have their on-disk image.
+  const src = isRejection
+    ? item.image_url
+    : hero && item.uuid
+      ? `/api/images/${item.uuid}/full`
+      : item.thumbnail_url;
 
   const fallback = (
     <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -107,16 +114,17 @@ const FeedTile: React.FC<{
       onClick={onClick}
       className={
         (hero
-          ? 'flex h-[60vh] w-full items-center justify-center'
+          ? 'mx-auto flex h-[60vh] w-fit items-center justify-center'
           : 'h-24 w-32 shrink-0') +
-        ' relative overflow-hidden rounded-lg bg-muted ring-offset-background transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-ring'
+        ' relative overflow-hidden rounded-lg bg-muted ring-offset-background transition hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-ring' +
+        (selected ? ' ring-2 ring-primary' : '')
       }
     >
       {src ? (
         <AuthenticatedImage
           src={src}
           alt=""
-          className={hero ? 'max-h-[60vh] max-w-full object-contain' : 'h-24 w-32 object-cover'}
+          className={hero ? 'h-[60vh] w-auto object-contain' : 'h-24 w-32 object-cover'}
           fallback={fallback}
         />
       ) : (
@@ -149,6 +157,9 @@ export const LiveFeedPage: React.FC = () => {
 
   const [openImageUuid, setOpenImageUuid] = useState<string | null>(null);
   const [openRejection, setOpenRejection] = useState<LiveFeedItem | null>(null);
+  // Which item sits in the hero. Null means follow the newest; clicking a
+  // filmstrip tile pins that one into focus instead.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   // Re-render every 15s so the relative times stay current between polls.
   const [, setTick] = useState(0);
@@ -193,24 +204,33 @@ export const LiveFeedPage: React.FC = () => {
           Nothing has come in yet.
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* Newest item, large and in focus */}
-          <FeedTile item={items[0]} variant="hero" onClick={() => openItem(items[0])} />
+        (() => {
+          // Hero shows the pinned item, or the newest when nothing is pinned
+          // (or the pinned one has aged out of the list).
+          const heroItem = items.find((i) => itemKey(i) === selectedKey) ?? items[0];
+          const heroKey = itemKey(heroItem);
+          return (
+            <div className="space-y-4">
+              {/* Focus area: click opens full detail */}
+              <FeedTile item={heroItem} variant="hero" onClick={() => openItem(heroItem)} />
 
-          {/* Older items as a filmstrip below */}
-          {items.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {items.slice(1).map((item) => (
-                <FeedTile
-                  key={itemKey(item)}
-                  item={item}
-                  variant="thumb"
-                  onClick={() => openItem(item)}
-                />
-              ))}
+              {/* Filmstrip: click swaps the image into the focus area */}
+              {items.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {items.map((item) => (
+                    <FeedTile
+                      key={itemKey(item)}
+                      item={item}
+                      variant="thumb"
+                      selected={itemKey(item) === heroKey}
+                      onClick={() => setSelectedKey(itemKey(item))}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })()
       )}
 
       {/* Image detail reuses the standard modal */}
