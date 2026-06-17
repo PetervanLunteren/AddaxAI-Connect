@@ -254,6 +254,15 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     return 'No signal';
   };
 
+  // Point-in-time health readings (battery, signal, SD) keep showing the
+  // last value a camera reported even after it goes silent. For a non-active
+  // camera, mute the value and flag it as stale so it does not read as if the
+  // camera is still healthy.
+  const staleProps = (active: boolean) =>
+    active
+      ? {}
+      : { className: 'text-muted-foreground', title: 'Camera is not active, showing the last reported value' };
+
   const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
   };
@@ -486,17 +495,17 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Battery</span>
-                    <span>
+                    <span {...staleProps(camera.status === 'active')}>
                       {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Signal</span>
-                    <span>{getSignalLabel(camera.signal_quality)}</span>
+                    <span {...staleProps(camera.status === 'active')}>{getSignalLabel(camera.signal_quality)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">SD used</span>
-                    <span>
+                    <span {...staleProps(camera.status === 'active')}>
                       {camera.sd_utilization_percentage !== null
                         ? `${Math.round(camera.sd_utilization_percentage)}%`
                         : 'N/A'}

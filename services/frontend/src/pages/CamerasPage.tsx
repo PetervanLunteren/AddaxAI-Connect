@@ -660,10 +660,27 @@ export const CamerasPage: React.FC = () => {
     !!filters.battery || !!filters.signal || !!filters.sd_usage ||
     !!filters.location || !!filters.site;
 
+  // Point-in-time health readings (battery, signal, SD, temperature) keep
+  // showing the last value a camera reported even after it goes silent,
+  // which reads as if the camera is still healthy. For any non-active
+  // camera, grey the dot and mute the text so the value reads as stale.
+  const STALE_DOT = '#9ca3af';
+  const STALE_TITLE = 'Camera is not active, showing the last reported value';
+  const renderMetricCell = (active: boolean, dotColor: string, text: string) => (
+    <div className="flex items-center gap-1.5" title={active ? undefined : STALE_TITLE}>
+      <span
+        className="w-3 h-3 rounded-full"
+        style={{ backgroundColor: active ? dotColor : STALE_DOT }}
+      />
+      <span className={active ? 'text-sm' : 'text-sm text-muted-foreground'}>{text}</span>
+    </div>
+  );
+
   // Per-column cell renderer. Lives inside the component so it closes over
   // the format helpers (getBatteryColor, getSignalLabel, etc.) defined
   // above. Each ColumnId returns the cell body, not the wrapping <TableCell>.
   const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
+    const isActive = camera.status === 'active';
     switch (id) {
       case 'device_id':
         return camera.device_id ? (
@@ -694,44 +711,31 @@ export const CamerasPage: React.FC = () => {
       case 'status':
         return <CameraStatusBadge status={camera.status} />;
       case 'battery':
-        return (
-          <div className="flex items-center gap-1.5">
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: getBatteryColor(camera.battery_percentage) }}
-            />
-            <span className="text-sm">
-              {camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A'}
-            </span>
-          </div>
+        return renderMetricCell(
+          isActive,
+          getBatteryColor(camera.battery_percentage),
+          camera.battery_percentage !== null ? `${camera.battery_percentage}%` : 'N/A',
         );
       case 'signal':
-        return (
-          <div className="flex items-center gap-1.5">
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: getSignalColor(camera.signal_quality) }}
-            />
-            <span className="text-sm">{getSignalLabel(camera.signal_quality)}</span>
-          </div>
+        return renderMetricCell(
+          isActive,
+          getSignalColor(camera.signal_quality),
+          getSignalLabel(camera.signal_quality),
         );
       case 'sd_used':
-        return (
-          <div className="flex items-center gap-1.5">
-            <span
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: getSDColor(camera.sd_utilization_percentage) }}
-            />
-            <span className="text-sm">
-              {camera.sd_utilization_percentage !== null
-                ? `${Math.round(camera.sd_utilization_percentage)}%`
-                : 'N/A'}
-            </span>
-          </div>
+        return renderMetricCell(
+          isActive,
+          getSDColor(camera.sd_utilization_percentage),
+          camera.sd_utilization_percentage !== null
+            ? `${Math.round(camera.sd_utilization_percentage)}%`
+            : 'N/A',
         );
       case 'temperature':
         return (
-          <span className="text-sm">
+          <span
+            className={isActive ? 'text-sm' : 'text-sm text-muted-foreground'}
+            title={isActive ? undefined : STALE_TITLE}
+          >
             {camera.temperature !== null ? `${camera.temperature} °C` : 'N/A'}
           </span>
         );
