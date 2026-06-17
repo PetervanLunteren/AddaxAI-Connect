@@ -43,6 +43,7 @@ from shared.models import BulkUploadJob, Camera, Image, Site, User
 from shared.queue import QUEUE_BULK_UPLOAD_JOB_PROCESS, RedisQueue
 from shared.storage import BUCKET_BULK_UPLOAD_STAGING, StorageClient
 from auth.permissions import require_project_admin_access
+from routers.image_admin import delete_images_by_ids
 
 router = APIRouter(
     prefix="/api/projects/{project_id}/bulk-upload",
@@ -839,9 +840,11 @@ async def cancel_bulk_upload(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Cancel an in-flight upload. Deletes staging and marks the job
-    failed. Refuses once processing has started, because the worker
-    is mid-pipeline.
+    Stop a bulk upload. Allowed while uploading (and the legacy pre-processing
+    states) and while processing. Marks the job 'cancelled' and clears staging;
+    the bulk worker stops its loop and the detection/classification workers skip
+    the job's remaining images. Images already imported are kept (use the
+    delete-images endpoint to remove them).
     """
     job = (
         await db.execute(
@@ -853,17 +856,19 @@ async def cancel_bulk_upload(
     ).scalar_one_or_none()
     if job is None:
         raise HTTPException(status_code=404, detail="Bulk upload job not found")
-    cancellable = ("uploading", "queued", "inspecting", "awaiting_confirmation")
+    cancellable = ("uploading", "queued", "inspecting", "awaiting_confirmation", "processing")
     if job.status not in cancellable:
         raise HTTPException(
             status_code=400,
-            detail=f"Job is in status '{job.status}', cannot cancel",
+            detail=f"Job is in status '{job.status}', cannot stop",
         )
 
+    # Safe in both phases: pre-processing has no worker touching staging, and a
+    # processing job's worker tolerates a missing staged object (per-file skip).
     _delete_staging(job.staged_object_key)
 
-    job.status = "failed"
-    job.error_message = "Cancelled by user"
+    job.status = "cancelled"
+    job.error_message = None
     job.finished_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(job)
@@ -880,6 +885,49 @@ async def cancel_bulk_upload(
         created_by_email=user.email,
         processed_files=0,
     )
+
+
+@router.delete("/jobs/{job_uuid}/images")
+async def delete_bulk_upload_images(
+    project_id: int,
+    job_uuid: str,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Delete every image imported by this job, with its detections,
+    classifications, and stored files. The cleanup action offered on a stopped
+    job. The job row itself stays; discard it separately. Only meaningful while
+    the job exists, since discarding the job unlinks its images.
+    """
+    job = (
+        await db.execute(
+            select(BulkUploadJob).where(
+                BulkUploadJob.project_id == project_id,
+                BulkUploadJob.uuid == job_uuid,
+            )
+        )
+    ).scalar_one_or_none()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Bulk upload job not found")
+
+    image_ids = [
+        row[0]
+        for row in (
+            await db.execute(
+                select(Image.id).where(Image.bulk_upload_job_id == job.id)
+            )
+        ).all()
+    ]
+    deleted, errors = await delete_images_by_ids(db, image_ids)
+    logger.info(
+        "Deleted bulk upload images",
+        job_uuid=job_uuid,
+        deleted=deleted,
+        failed=len(errors),
+        user_id=user.id,
+    )
+    return {"deleted": deleted, "failed": len(errors), "errors": errors}
 
 
 @router.delete("/jobs/{job_uuid}", status_code=status.HTTP_204_NO_CONTENT)

@@ -624,46 +624,36 @@ async def bulk_unhide_images(
     )
 
 
-@router.post(
-    "/delete",
-    response_model=BulkImageActionResponse,
-)
-async def bulk_delete_images(
-    body: BulkImageActionRequest,
-    project_id: int = Query(..., description="Project ID"),
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_verified_user),
-):
-    """Permanently delete images and all associated data (detections, classifications, files)."""
-    if not await can_admin_project(current_user, project_id, db):
-        raise HTTPException(status_code=403, detail="Project admin access required")
+async def delete_images_by_ids(
+    db: AsyncSession, image_ids: List[int]
+) -> Tuple[int, List[str]]:
+    """
+    Permanently delete the given images and everything tied to them
+    (detections, classifications, human observations, and the raw/thumbnail/crop
+    MinIO objects), prune any now-empty deployments, and commit.
 
-    image_ids, valid_uuids, errors = await _resolve_target_image_ids(db, project_id, body)
-    requested_count = (
-        len(body.image_uuids) if body.image_uuids is not None else len(valid_uuids)
-    )
-
+    Returns (success_count, errors). Shared by the curation bulk-delete endpoint
+    and the bulk-upload "delete imported images" cleanup, so the rules stay in
+    one place.
+    """
+    errors: List[str] = []
     if not image_ids:
-        return BulkImageActionResponse(
-            success_count=0,
-            failed_count=requested_count,
-            errors=errors,
-        )
+        return 0, errors
 
-    images_result = await db.execute(
-        select(Image).where(Image.id.in_(image_ids))
-    )
-    images = images_result.scalars().all()
+    images = (
+        await db.execute(select(Image).where(Image.id.in_(image_ids)))
+    ).scalars().all()
     affected_camera_ids = {img.camera_id for img in images}
 
     success_count = 0
     for image in images:
         try:
             # Delete classifications via detections
-            detections_result = await db.execute(
-                select(Detection).where(Detection.image_id == image.id)
-            )
-            detections = detections_result.scalars().all()
+            detections = (
+                await db.execute(
+                    select(Detection).where(Detection.image_id == image.id)
+                )
+            ).scalars().all()
 
             for detection in detections:
                 await db.execute(
@@ -708,11 +698,40 @@ async def bulk_delete_images(
 
     await cleanup_empty_deployments(db, affected_camera_ids)
     await db.commit()
+    return success_count, errors
 
+
+@router.post(
+    "/delete",
+    response_model=BulkImageActionResponse,
+)
+async def bulk_delete_images(
+    body: BulkImageActionRequest,
+    project_id: int = Query(..., description="Project ID"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """Permanently delete images and all associated data (detections, classifications, files)."""
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(status_code=403, detail="Project admin access required")
+
+    image_ids, valid_uuids, errors = await _resolve_target_image_ids(db, project_id, body)
+    requested_count = (
+        len(body.image_uuids) if body.image_uuids is not None else len(valid_uuids)
+    )
+
+    if not image_ids:
+        return BulkImageActionResponse(
+            success_count=0,
+            failed_count=requested_count,
+            errors=errors,
+        )
+
+    success_count, delete_errors = await delete_images_by_ids(db, image_ids)
     return BulkImageActionResponse(
         success_count=success_count,
         failed_count=requested_count - success_count,
-        errors=errors,
+        errors=errors + delete_errors,
     )
 
 

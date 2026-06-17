@@ -40,7 +40,8 @@ export interface BulkUploadJob {
     | 'awaiting_confirmation'
     | 'processing'
     | 'done'
-    | 'failed';
+    | 'failed'
+    | 'cancelled';
   total_files: number;
   processed_files: number;
   skipped_files: number;
@@ -221,5 +222,19 @@ export const bulkUploadApi = {
 
   discard: async (projectId: number, jobUuid: string): Promise<void> => {
     await apiClient.delete(`/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}`);
+  },
+
+  /**
+   * Delete every image imported by this job (cleanup after stopping it).
+   * The job row stays; discard it separately.
+   */
+  deleteImages: async (
+    projectId: number,
+    jobUuid: string,
+  ): Promise<{ deleted: number; failed: number }> => {
+    const response = await apiClient.delete<{ deleted: number; failed: number }>(
+      `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/images`,
+    );
+    return response.data;
   },
 };

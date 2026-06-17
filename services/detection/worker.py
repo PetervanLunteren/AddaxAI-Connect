@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from shared.bulk_jobs import is_bulk_image_cancelled
 from shared.logger import get_logger, set_image_id
 from shared.queue import (
     RedisQueue,
@@ -56,6 +57,13 @@ def process_image(message: dict, detector) -> None:
 
     # Set correlation ID for logging
     set_image_id(image_uuid)
+
+    # Cooperative stop: skip images of a cancelled bulk job before any download
+    # or detection. Only bulk-origin images can belong to a job, so the live
+    # pipeline never pays for this check.
+    if origin == "bulk" and is_bulk_image_cancelled(image_uuid):
+        logger.info("Skipping cancelled bulk image", image_uuid=image_uuid)
+        return
 
     logger.info(
         "Processing image",

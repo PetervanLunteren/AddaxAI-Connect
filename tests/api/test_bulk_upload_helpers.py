@@ -359,3 +359,36 @@ class TestModeSelection:
         assert self._synthetic_device_id(12) == "bulk-cam-12"
         # Same site always yields the same id, so re-uploads reuse the camera.
         assert self._synthetic_device_id(12) == self._synthetic_device_id(12)
+
+
+class TestStopJob:
+    """Stopping (cancelling) a bulk job during upload or analyse."""
+
+    # Copy of the cancel endpoint's allowed states and the in-flight cap set.
+    CANCELLABLE = ("uploading", "queued", "inspecting", "awaiting_confirmation", "processing")
+    IN_FLIGHT = ("uploading", "processing")
+    TERMINAL = {"done", "failed", "cancelled"}
+
+    @staticmethod
+    def _worker_skips(job_status: str) -> bool:
+        # Copy of the detection/classification skip rule for bulk images.
+        return job_status == "cancelled"
+
+    def test_processing_is_now_cancellable(self):
+        assert "processing" in self.CANCELLABLE
+
+    def test_uploading_still_cancellable(self):
+        assert "uploading" in self.CANCELLABLE
+
+    def test_terminal_states_not_cancellable(self):
+        for s in self.TERMINAL:
+            assert s not in self.CANCELLABLE
+
+    def test_cancelled_is_terminal_and_not_in_flight(self):
+        assert "cancelled" in self.TERMINAL
+        assert "cancelled" not in self.IN_FLIGHT
+
+    def test_worker_skips_only_cancelled(self):
+        assert self._worker_skips("cancelled") is True
+        for s in ("uploading", "processing", "done", "failed"):
+            assert self._worker_skips(s) is False

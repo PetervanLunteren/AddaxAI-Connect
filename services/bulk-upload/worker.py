@@ -37,6 +37,7 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 from sqlalchemy import func, select, text
 
+from shared.bulk_jobs import is_bulk_job_cancelled
 from shared.camera_profiles import identify_camera_profile
 from shared.database import get_db_session
 from shared.logger import get_logger, set_image_id
@@ -739,6 +740,16 @@ def _process_prefix_job(
 
         if idx % PROGRESS_PERSIST_EVERY == 0:
             _set_status(job_uuid, skipped_files=duplicates + other_skipped)
+            # Cooperative stop: if the user cancelled mid-run, stop creating and
+            # enqueuing more images. What is already queued is handled by the
+            # detection/classification skip checks.
+            if is_bulk_job_cancelled(job_uuid):
+                logger.info(
+                    "Bulk job cancelled, stopping processing loop",
+                    job_uuid=job_uuid,
+                    processed=processed,
+                )
+                break
 
     # Stash the breakdown so the UI can say "all 30 were duplicates"
     # instead of "30 skipped". Per-file outcomes go alongside so the
@@ -831,6 +842,13 @@ def _process_legacy_zip_job(
                 })
                 if idx % PROGRESS_PERSIST_EVERY == 0:
                     _set_status(job_uuid, skipped_files=duplicates + other_skipped)
+                    if is_bulk_job_cancelled(job_uuid):
+                        logger.info(
+                            "Bulk job cancelled, stopping legacy processing loop",
+                            job_uuid=job_uuid,
+                            processed=processed,
+                        )
+                        break
 
         with get_db_session() as session:
             row = session.execute(

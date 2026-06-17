@@ -5,6 +5,7 @@ Consumes detections from the detection queue, runs species classification, and s
 """
 import os
 
+from shared.bulk_jobs import is_bulk_image_cancelled
 from shared.logger import get_logger, set_image_id
 from shared.queue import (
     RedisQueue,
@@ -80,6 +81,12 @@ def process_detection_complete(message: dict, classifier) -> None:
 
     # Set correlation ID for logging
     set_image_id(image_uuid)
+
+    # Cooperative stop: skip images of a cancelled bulk job before any download
+    # or classification. Only bulk-origin images can belong to a job.
+    if is_bulk and is_bulk_image_cancelled(image_uuid):
+        logger.info("Skipping cancelled bulk image", image_uuid=image_uuid)
+        return
 
     logger.info(
         "Processing classification request",

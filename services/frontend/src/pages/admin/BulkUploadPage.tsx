@@ -22,11 +22,14 @@ import {
   Images,
   RotateCw,
   FileDown,
+  CircleStop,
+  X,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Select } from '../../components/ui/Select';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import {
   Dialog,
   DialogContent,
@@ -50,7 +53,7 @@ import {
   type ActiveUpload,
 } from '../../lib/bulkUploadStore';
 
-const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed']);
+const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed', 'cancelled']);
 
 function statusLabel(status: BulkUploadJob['status']): string {
   // Collapse every in-flight server status to "Active" so the
@@ -62,6 +65,8 @@ function statusLabel(status: BulkUploadJob['status']): string {
       return 'Done';
     case 'failed':
       return 'Failed';
+    case 'cancelled':
+      return 'Cancelled';
     default:
       return 'Active';
   }
@@ -77,6 +82,9 @@ function statusBadgeStyle(status: BulkUploadJob['status']): React.CSSProperties 
       return { backgroundColor: '#0f6064', color: 'white' };
     case 'failed':
       return { backgroundColor: '#882000', color: 'white' };
+    case 'cancelled':
+      // Stopped on purpose, not an error: muted grey rather than the bad colour.
+      return { backgroundColor: '#6b7280', color: 'white' };
     default:
       return { backgroundColor: '#71b7ba', color: 'white' };
   }
@@ -251,20 +259,53 @@ export const BulkUploadPage: React.FC = () => {
     },
   });
 
-  // Discard handler. For an active client-side upload, stop the loop
-  // FIRST and let it clean up via the store, otherwise the discard
-  // API races against in-flight per-file POSTs. For everything else
-  // hit the DELETE endpoint directly.
+  // Discard (Remove) only applies to terminal rows now, so it never
+  // collides with an active upload; just hit the DELETE endpoint.
   const handleDiscard = useCallback(
-    (uuid: string) => {
-      if (uuid === activeUploadUuid) {
-        cancelActiveUpload();
-        return;
-      }
-      discardMutation.mutate(uuid);
-    },
-    [activeUploadUuid, cancelActiveUpload, discardMutation],
+    (uuid: string) => discardMutation.mutate(uuid),
+    [discardMutation],
   );
+
+  const cancelMutation = useMutation({
+    mutationFn: (uuid: string) => bulkUploadApi.cancel(projectId!, uuid),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      toast.success('Upload stopped');
+    },
+    onError: (err: any) => {
+      toast.error(`Stop failed, ${err.response?.data?.detail || err.message}`);
+    },
+  });
+
+  const deleteImagesMutation = useMutation({
+    mutationFn: (uuid: string) => bulkUploadApi.deleteImages(projectId!, uuid),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
+      toast.success(`Deleted ${res.deleted} image${res.deleted === 1 ? '' : 's'}`);
+    },
+    onError: (err: any) => {
+      toast.error(`Delete failed, ${err.response?.data?.detail || err.message}`);
+    },
+  });
+
+  // One confirm dialog drives both the Stop and Delete-images actions.
+  const [confirm, setConfirm] = useState<{ kind: 'stop' | 'delete-images'; uuid: string } | null>(null);
+
+  const handleConfirm = useCallback(() => {
+    if (!confirm) return;
+    if (confirm.kind === 'stop') {
+      // An active client-side upload stops via the store (which halts the
+      // loop, then marks the job cancelled). Anything else hits the API.
+      if (confirm.uuid === activeUploadUuid) {
+        cancelActiveUpload();
+      } else {
+        cancelMutation.mutate(confirm.uuid);
+      }
+    } else {
+      deleteImagesMutation.mutate(confirm.uuid);
+    }
+    setConfirm(null);
+  }, [confirm, activeUploadUuid, cancelActiveUpload, cancelMutation, deleteImagesMutation]);
 
   // Watch every poll for a job that just moved from 'processing' to a
   // terminal state and surface it. Toast for users on the page, plus
@@ -389,19 +430,34 @@ export const BulkUploadPage: React.FC = () => {
                     projectId={projectId!}
                     etaText={computeEta(job, jobs ?? [])}
                     onResume={
-                      // Paused upload, no live session for this job
-                      // in this tab. The Discard button stays, and
-                      // a Resume sits next to it.
+                      // Paused upload, no live session for this job in this tab.
                       job.status === 'uploading' && job.uuid !== activeUploadUuid
                         ? () => handleResume(job)
                         : undefined
                     }
+                    onStop={
+                      // In-flight (uploading or analysing) can be stopped.
+                      job.status === 'uploading' || job.status === 'processing'
+                        ? () => setConfirm({ kind: 'stop', uuid: job.uuid })
+                        : undefined
+                    }
                     onDiscard={
-                      job.status !== 'processing'
+                      // Remove the row once the job is finished/stopped.
+                      TERMINAL_STATUSES.has(job.status)
                         ? () => handleDiscard(job.uuid)
                         : undefined
                     }
+                    onDeleteImages={
+                      // Cleanup: only jobs that imported images.
+                      job.status === 'done' || job.status === 'cancelled'
+                        ? () => setConfirm({ kind: 'delete-images', uuid: job.uuid })
+                        : undefined
+                    }
                     isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
+                    isStopping={cancelMutation.isPending && cancelMutation.variables === job.uuid}
+                    isDeletingImages={
+                      deleteImagesMutation.isPending && deleteImagesMutation.variables === job.uuid
+                    }
                   />
                 </React.Fragment>
               ))}
@@ -419,6 +475,20 @@ export const BulkUploadPage: React.FC = () => {
         projectId={projectId!}
         resumableJobs={(jobs ?? []).filter((j) => j.status === 'uploading')}
         initialResumeJob={resumeIntent}
+      />
+
+      <ConfirmDialog
+        open={confirm !== null}
+        onClose={() => setConfirm(null)}
+        onConfirm={handleConfirm}
+        variant="destructive"
+        title={confirm?.kind === 'delete-images' ? 'Delete imported images?' : 'Stop this upload?'}
+        confirmLabel={confirm?.kind === 'delete-images' ? 'Delete images' : 'Stop'}
+        body={
+          confirm?.kind === 'delete-images'
+            ? 'This permanently deletes the images imported by this upload, with their detections and stored files. The job row stays until you remove it.'
+            : 'Images already analysed stay in the project. The remaining images are skipped.'
+        }
       />
     </div>
   );
@@ -1169,10 +1239,8 @@ const ReviewStep: React.FC<{
         <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-start gap-2">
           <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
           <div className="text-sm">
-            Camera <span className="font-medium">{profile.device_id}</span>
-            {profile.camera_registered
-              ? ', detected from the image metadata.'
-              : ', detected from the image metadata. It will be added to this project.'}
+            Detected camera ID <span className="font-medium">{profile.device_id}</span>.
+            {!profile.camera_registered && ' This camera will be added to this project.'}
           </div>
         </div>
       ) : (
@@ -1295,9 +1363,24 @@ const JobRow: React.FC<{
   projectId: number;
   etaText: string | null;
   onResume?: () => void;
+  onStop?: () => void;
   onDiscard?: () => void;
+  onDeleteImages?: () => void;
   isDiscarding?: boolean;
-}> = ({ job, projectId, etaText, onResume, onDiscard, isDiscarding }) => {
+  isStopping?: boolean;
+  isDeletingImages?: boolean;
+}> = ({
+  job,
+  projectId,
+  etaText,
+  onResume,
+  onStop,
+  onDiscard,
+  onDeleteImages,
+  isDiscarding,
+  isStopping,
+  isDeletingImages,
+}) => {
   // Subscribe to the active client-side upload session. If this row
   // is the one currently uploading from THIS browser, the store has
   // live counts; otherwise we fall back to the server-recorded state.
@@ -1367,6 +1450,22 @@ const JobRow: React.FC<{
               Resume
             </Button>
           )}
+          {onStop && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onStop}
+              disabled={isStopping}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              {isStopping ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <CircleStop className="h-4 w-4 mr-1" />
+              )}
+              Stop
+            </Button>
+          )}
           {isTerminal && (
             <a href={bulkUploadApi.logCsvUrl(projectId, job.uuid)}>
               <Button size="sm" variant="outline">
@@ -1383,26 +1482,35 @@ const JobRow: React.FC<{
               </Button>
             </Link>
           )}
+          {onDeleteImages && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onDeleteImages}
+              disabled={isDeletingImages}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              {isDeletingImages ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-1" />
+              )}
+              Delete images
+            </Button>
+          )}
           {onDiscard && (
             <Button
               size="sm"
               variant="outline"
               onClick={onDiscard}
               disabled={isDiscarding}
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               {isDiscarding ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
-                <Trash2 className="h-4 w-4 mr-1" />
+                <X className="h-4 w-4 mr-1" />
               )}
-              {/* Same button, three different consequences depending
-                  on state. "Remove" only takes the row off the list,
-                  any classified Image rows survive. "Cancel" stops
-                  the in-tab upload loop and deletes its staging.
-                  "Discard" deletes a paused job that nobody is
-                  actively driving. */}
-              {isTerminal ? 'Remove' : isActiveUpload ? 'Cancel' : 'Discard'}
+              Remove
             </Button>
           )}
         </div>

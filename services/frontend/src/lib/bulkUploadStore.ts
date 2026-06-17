@@ -301,10 +301,13 @@ async function finishOrCancel(
 ) {
   if (isCancelledNow(get)) {
     try {
-      await bulkUploadApi.discard(projectId, jobUuid);
+      // Mark the job cancelled (keeps the row as "Cancelled", clears staging)
+      // rather than removing it, so a stopped upload behaves like a stopped
+      // processing job. The user can remove the row separately.
+      await bulkUploadApi.cancel(projectId, jobUuid);
     } catch {
       // The row may already be gone, or the worker may have flipped
-      // state. Either way the user asked to discard, do not block.
+      // state. Either way the user asked to stop, do not block.
     }
     set({ active: null });
     onCacheInvalidate();
