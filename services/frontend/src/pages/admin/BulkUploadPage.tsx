@@ -1353,10 +1353,12 @@ function jobSummaryText(job: BulkUploadJob): string {
 }
 
 function buildCurationHref(projectId: number, job: BulkUploadJob): string | null {
-  // Done jobs only. Curation shows classified images, which is the whole import
-  // for a done job. A cancelled job has non-classified leftovers curation can't
-  // show, so it uses the row's "Delete images" (all statuses) instead.
-  if (job.status !== 'done') return null;
+  // Done jobs that actually imported images. Curation shows classified images,
+  // which is the whole import for a done job. Skip when nothing was imported
+  // (all duplicates, or images later deleted) so the link never lands on an
+  // empty curation view. A cancelled job has non-classified leftovers curation
+  // cannot show, so it uses the row's "Delete images" (all statuses) instead.
+  if (job.status !== 'done' || job.processed_files <= 0) return null;
   const params = new URLSearchParams();
   params.set('bulk_upload_job', job.uuid);
   return `/projects/${projectId}/manage-images?${params.toString()}`;

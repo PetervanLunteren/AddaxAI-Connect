@@ -403,10 +403,15 @@ class TestCurationBulkUploadFilter:
 
     class _Filter(BaseModel):
         camera_id: Optional[int] = None
+        origin: Optional[str] = None
         bulk_upload_job: Optional[str] = None
 
     def test_accepts_job_uuid(self):
         assert self._Filter(bulk_upload_job="368b40ae-uuid").bulk_upload_job == "368b40ae-uuid"
 
+    def test_accepts_origin(self):
+        assert self._Filter(origin="bulk").origin == "bulk"
+
     def test_optional_by_default(self):
         assert self._Filter().bulk_upload_job is None
+        assert self._Filter().origin is None

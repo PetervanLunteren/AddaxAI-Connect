@@ -129,6 +129,8 @@ class AdminImageFilterParams(BaseModel):
     tags: Optional[str] = None
     liked: Optional[str] = None
     needs_review: Optional[str] = None
+    # Image source: 'live' (FTPS) or 'bulk' (bulk upload).
+    origin: Optional[str] = None
     # Scope to one bulk-upload job (its uuid). Used by the "Review in curation"
     # link so a wrong import can be reviewed and deleted on its own.
     bulk_upload_job: Optional[str] = None
@@ -168,6 +170,7 @@ async def _build_filter_clauses(
     tags: Optional[str] = None,
     liked: Optional[str] = None,
     needs_review: Optional[str] = None,
+    origin: Optional[str] = None,
     bulk_upload_job: Optional[str] = None,
     min_detection_confidence: Optional[float] = None,
     max_detection_confidence: Optional[float] = None,
@@ -179,6 +182,10 @@ async def _build_filter_clauses(
         Camera.project_id == project_id,
         Image.status == "classified",
     ]
+
+    # Image source: 'live' (FTPS) or 'bulk' (bulk upload).
+    if origin:
+        filters.append(Image.origin == origin)
 
     # Scope to a single bulk-upload job by its uuid. Scalar subquery so the same
     # clause serves both the list and the select-all-matching bulk delete; the
@@ -424,6 +431,7 @@ async def list_all_images(
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     liked: Optional[str] = Query(None),
     needs_review: Optional[str] = Query(None),
+    origin: Optional[str] = Query(None),
     bulk_upload_job: Optional[str] = Query(None),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -454,6 +462,7 @@ async def list_all_images(
         tags=tags,
         liked=liked,
         needs_review=needs_review,
+        origin=origin,
         bulk_upload_job=bulk_upload_job,
         min_detection_confidence=min_detection_confidence,
         max_detection_confidence=max_detection_confidence,
