@@ -1394,23 +1394,15 @@ const JobRow: React.FC<{
 
   const counts = deriveRowCounts(job, isActiveUpload ? active : null);
 
-  // Per-phase elapsed shown only after the phase has finished
-  // ("took X"). In-flight phases stay silent on duration so the ETA
-  // is the only forward-looking number in the row.
-  const uploadElapsedSec =
-    job.status === 'uploading'
-      ? null
-      : diffSeconds(job.created_at, job.process_started_at);
-  const processElapsedSec =
-    job.status === 'processing'
-      ? null
-      : diffSeconds(job.process_started_at, job.finished_at);
-
+  // No per-phase "took X" durations: a bulk job's images wait in the shared
+  // detection/classification queues behind other work, so the wall-clock is
+  // mostly queue time, not analysis. The "Started X ago" line still gives the
+  // timeline, and a waiting job shows its queue position instead.
   const uploadCaption = renderUploadCaption({
-    job, counts, isActiveUpload, uploadEta, uploadElapsedSec, failed: active?.failed ?? 0,
+    job, counts, isActiveUpload, uploadEta, failed: active?.failed ?? 0,
   });
   const processCaption = renderProcessCaption({
-    job, counts, etaText, processElapsedSec,
+    job, counts, etaText,
   });
 
   return (
@@ -1590,13 +1582,12 @@ function honestPercent(done: number, total: number): number {
 }
 
 function renderUploadCaption({
-  job, counts, isActiveUpload, uploadEta, uploadElapsedSec, failed,
+  job, counts, isActiveUpload, uploadEta, failed,
 }: {
   job: BulkUploadJob;
   counts: RowCounts;
   isActiveUpload: boolean;
   uploadEta: string | null;
-  uploadElapsedSec: number | null;
   failed: number;
 }): string {
   if (isActiveUpload) {
@@ -1605,35 +1596,33 @@ function renderUploadCaption({
     if (failed > 0) s += ` · ${failed.toLocaleString()} failed`;
     return s;
   }
-  if (counts.uploadPercent === 100) {
-    return uploadElapsedSec !== null
-      ? `Uploaded in ${formatDuration(uploadElapsedSec)}`
-      : 'Uploaded';
-  }
+  if (counts.uploadPercent === 100) return 'Uploaded';
   if (job.status === 'failed') return 'Incomplete';
   if (job.status === 'uploading') return 'Paused';
   return '—';
 }
 
 function renderProcessCaption({
-  job, counts, etaText, processElapsedSec,
+  job, counts, etaText,
 }: {
   job: BulkUploadJob;
   counts: RowCounts;
   etaText: string | null;
-  processElapsedSec: number | null;
 }): string {
   if (job.status === 'processing') {
+    // Waiting behind other uploads with nothing analysed yet: show the queue
+    // position instead of a 0% bar with a misleading ETA. The job's images sit
+    // in the shared detection/classification queues until the ones ahead clear.
+    const ahead = job.queue_position ?? 0;
+    if (ahead > 0 && counts.processDone === 0) {
+      return `In queue · ${ahead} upload${ahead === 1 ? '' : 's'} ahead`;
+    }
     let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · ${counts.processPercent} %`;
     if (etaText) s += ` · ${etaText} left`;
     return s;
   }
   if (job.status === 'done') {
-    let s = `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · 100 %`;
-    if (processElapsedSec !== null) {
-      s += ` · Analysed in ${formatDuration(processElapsedSec)}`;
-    }
-    return s;
+    return `${counts.processDone.toLocaleString()} / ${counts.total.toLocaleString()} · 100 %`;
   }
   if (counts.uploadPercent === 100) return 'Pending';
   return 'Waiting on upload';
@@ -1677,24 +1666,6 @@ function PhaseRow({
       </p>
     </div>
   );
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.max(0, Math.round(seconds))} s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remMin = minutes % 60;
-  if (remMin === 0) return `${hours} h`;
-  return `${hours} h ${remMin} min`;
-}
-
-function diffSeconds(start: string | null, end: string | null): number | null {
-  if (!start || !end) return null;
-  const a = new Date(start).getTime();
-  const b = new Date(end).getTime();
-  if (isNaN(a) || isNaN(b)) return null;
-  return Math.max(0, (b - a) / 1000);
 }
 
 // Re-evaluate the upload ETA at most every THROTTLE_MS. The bucket
