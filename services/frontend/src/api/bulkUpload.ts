@@ -16,18 +16,6 @@ export interface BulkUploadManifest {
     start: string | null;
     end: string | null;
   };
-  suggested_camera: {
-    camera_id: number;
-    camera_name: string;
-    device_id: string | null;
-    match_count: number;
-  } | null;
-  matched_cameras?: {
-    camera_id: number;
-    camera_name: string;
-    device_id: string | null;
-    match_count: number;
-  }[];
   // Added by the worker once the process phase finishes. Lets the UI
   // split duplicates out from other skips so a re-upload of an
   // already-imported SD card reads as "all duplicates" rather than
@@ -70,34 +58,40 @@ export interface BulkUploadJob {
   created_by_email: string | null;
 }
 
-export interface ScanSuggestResponse {
-  matched_cameras: {
-    camera_id: number;
-    camera_name: string;
-    device_id: string | null;
-    match_count: number;
-  }[];
-  suggested_camera: {
-    camera_id: number;
-    camera_name: string;
-    device_id: string | null;
-    match_count: number;
-  } | null;
+export interface ScanProfileEntry {
+  make: string | null;
+  model: string | null;
+  serial: string | null;
+  filename: string;
+}
+
+export interface ScanProfileResponse {
+  // "profile" = an EXIF camera profile matched (Mode A, no site prompt).
+  // "manual" = no profile, the user must pick a site (Mode B).
+  mode: 'profile' | 'manual';
+  device_id: string | null;
+  profile_name: string | null;
+  camera_registered: boolean;
+  camera_id: number | null;
+  // Set when the sample resolves more than one camera; the batch must be
+  // split per camera before uploading.
+  multiple_cameras: boolean;
+  device_ids: string[];
 }
 
 export const bulkUploadApi = {
   /**
-   * Match EXIF SerialNumbers from the client scan against registered
-   * cameras in this project. Returns the auto-suggested camera (if
-   * any) and the full match list for the preview UI.
+   * Run the same camera-profile hunt as live ingestion against the EXIF read
+   * locally, to decide the upload mode before any byte is sent. Returns
+   * 'profile' mode with the resolved device_id, or 'manual' mode (pick a site).
    */
-  scanSuggest: async (
+  scanProfile: async (
     projectId: number,
-    serialCounts: Record<string, number>,
-  ): Promise<ScanSuggestResponse> => {
-    const response = await apiClient.post<ScanSuggestResponse>(
-      `/api/projects/${projectId}/bulk-upload/scan-suggest`,
-      { serial_counts: serialCounts },
+    entries: ScanProfileEntry[],
+  ): Promise<ScanProfileResponse> => {
+    const response = await apiClient.post<ScanProfileResponse>(
+      `/api/projects/${projectId}/bulk-upload/scan-profile`,
+      { entries },
     );
     return response.data;
   },
@@ -131,8 +125,10 @@ export const bulkUploadApi = {
     projectId: number,
     body: {
       folder_name: string;
-      camera_id: number;
-      site_id: number;
+      // Exactly one of device_id (Mode A, profile-matched camera) or site_id
+      // (Mode B, manual site + synthetic camera).
+      device_id?: string;
+      site_id?: number;
       total_files: number;
       total_bytes: number;
       manifest: BulkUploadManifest;

@@ -24,6 +24,10 @@ export interface ScanEntry {
   // Image.captured_at without timezone shifting.
   captured_at: string | null;
   serial: string | null;
+  // EXIF Make/Model, read so the server pre-flight can run the same camera
+  // -profile hunt as live ingestion. Null when absent or unreadable.
+  make: string | null;
+  model: string | null;
   status: 'valid' | 'missing_exif_datetime' | 'corrupt';
 }
 
@@ -124,6 +128,8 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
     size: file.size,
     captured_at: null,
     serial: null,
+    make: null,
+    model: null,
     status: 'corrupt',
   };
   try {
@@ -136,14 +142,18 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
           DateTimeOriginal?: Date | string;
           BodySerialNumber?: string | number;
           SerialNumber?: string | number;
+          Make?: string;
+          Model?: string;
         }
       | null;
+    const make = meta?.Make ? String(meta.Make).trim() || null : null;
+    const model = meta?.Model ? String(meta.Model).trim() || null : null;
     if (!meta || !meta.DateTimeOriginal) {
-      return { ...base, status: 'missing_exif_datetime' };
+      return { ...base, make, model, status: 'missing_exif_datetime' };
     }
     const naive = parseExifDateNaive(meta.DateTimeOriginal);
     if (!naive) {
-      return { ...base, status: 'missing_exif_datetime' };
+      return { ...base, make, model, status: 'missing_exif_datetime' };
     }
     const rawSerial = meta.BodySerialNumber ?? meta.SerialNumber ?? null;
     const serial =
@@ -153,6 +163,8 @@ async function scanOne(index: number, file: File): Promise<ScanEntry> {
       status: 'valid',
       captured_at: naive,
       serial: serial && serial.length > 0 ? serial : null,
+      make,
+      model,
     };
   } catch {
     return base;

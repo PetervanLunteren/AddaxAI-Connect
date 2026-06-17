@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from camera_profiles import parse_instar_path
+from shared.camera_profiles import parse_instar_path
 from exif_parser import (
     _parse_exif_offset,
     check_exif_offset,

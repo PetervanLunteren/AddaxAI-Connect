@@ -32,10 +32,11 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.camera_profiles import identify_camera_profile
 from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import BulkUploadJob, Camera, Image, Site, User
@@ -114,13 +115,20 @@ class BulkUploadJobResponse(BaseModel):
 
 
 class CreateBulkUploadRequest(BaseModel):
-    """Create an empty bulk-upload job. Files are uploaded separately."""
+    """
+    Create an empty bulk-upload job. Files are uploaded separately.
+
+    Exactly one of `device_id` / `site_id` selects the mode:
+
+    - **device_id (Mode A):** the pre-flight matched a camera profile. The
+      camera is resolved (and auto-created within this project if new), and
+      each image's site + deployment are resolved from its own GPS, like FTPS.
+    - **site_id (Mode B):** no profile matched, so the whole batch is pinned to
+      one user-chosen site via a synthetic per-site camera.
+    """
     folder_name: str = Field(min_length=1, max_length=255)
-    camera_id: int
-    # The site this batch belongs to. Required: every site has a location, so
-    # this gives the whole batch a known place (bulk images carry no reliable
-    # per-image GPS). The user picks an existing site or creates one.
-    site_id: int
+    device_id: Optional[str] = Field(default=None, max_length=50)
+    site_id: Optional[int] = None
     total_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
     # Sum of the byte sizes of the files about to be uploaded. Used to
     # refuse a job up front when it would not fit on the local data disk.
@@ -129,15 +137,42 @@ class CreateBulkUploadRequest(BaseModel):
     # back in the review UI. See the bulk-upload worker for the shape.
     manifest: Dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> "CreateBulkUploadRequest":
+        if bool(self.device_id) == bool(self.site_id):
+            raise ValueError(
+                "Provide exactly one of device_id (profile mode) or site_id (manual mode)"
+            )
+        return self
 
-class ScanSuggestRequest(BaseModel):
-    """Match EXIF SerialNumbers from the client scan against cameras."""
-    serial_counts: Dict[str, int] = Field(default_factory=dict)
+
+class ScanProfileEntry(BaseModel):
+    """One sampled image's identifying EXIF, as read by the client scan."""
+    make: Optional[str] = None
+    model: Optional[str] = None
+    serial: Optional[str] = None
+    filename: str = ""
 
 
-class ScanSuggestResponse(BaseModel):
-    matched_cameras: List[Dict[str, Any]]
-    suggested_camera: Optional[Dict[str, Any]] = None
+class ScanProfileRequest(BaseModel):
+    """A representative sample of scanned images for the pre-flight profile hunt."""
+    entries: List[ScanProfileEntry] = Field(default_factory=list)
+
+
+class ScanProfileResponse(BaseModel):
+    # "profile" = an EXIF profile matched and yielded one device_id (Mode A).
+    # "manual" = no profile matched, the user must pick a site (Mode B).
+    mode: str
+    device_id: Optional[str] = None
+    profile_name: Optional[str] = None
+    # Whether that device_id is already a camera in this project. False means
+    # the job will auto-create it.
+    camera_registered: bool = False
+    camera_id: Optional[int] = None
+    # Set when the sample resolves more than one camera. The batch must be
+    # split per camera (bulk attaches one camera per job).
+    multiple_cameras: bool = False
+    device_ids: List[str] = Field(default_factory=list)
 
 
 class CheckDuplicatesRequest(BaseModel):
@@ -365,54 +400,69 @@ def _job_to_response(
     )
 
 
-@router.post("/scan-suggest", response_model=ScanSuggestResponse)
-async def scan_suggest(
+@router.post("/scan-profile", response_model=ScanProfileResponse)
+async def scan_profile(
     project_id: int,
-    body: ScanSuggestRequest,
+    body: ScanProfileRequest,
     user: User = Depends(require_project_admin_access),
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Given the EXIF SerialNumber counts the client read locally, return
-    the matched cameras in this project. Used by the pre-flight scan
-    UI to suggest a camera before any byte crosses the network.
-    """
-    if not body.serial_counts:
-        return ScanSuggestResponse(matched_cameras=[], suggested_camera=None)
+    Run the same camera-profile hunt as live ingestion against the EXIF the
+    client read locally, to decide the upload mode before any byte is sent.
 
-    rows = (
+    Path-based profiles (INSTAR) cannot match here, a browser upload has no
+    FTPS upload path, so only EXIF profiles resolve. Returns 'profile' mode
+    with the device_id when one camera resolves, 'manual' mode (pick a site)
+    when none does, and flags a multi-camera sample so the user splits it.
+    """
+    device_id_to_profile: Dict[str, str] = {}
+    for entry in body.entries:
+        exif: Dict[str, Any] = {}
+        if entry.make:
+            exif["Make"] = entry.make
+        if entry.model:
+            exif["Model"] = entry.model
+        if entry.serial:
+            exif["SerialNumber"] = entry.serial
+        try:
+            profile = identify_camera_profile(
+                exif=exif, filename=entry.filename, relative_path=""
+            )
+        except ValueError:
+            continue
+        if profile.is_path_based:
+            continue
+        device_id = profile.get_camera_id(exif, entry.filename)
+        if device_id:
+            device_id_to_profile[device_id] = profile.name
+
+    if not device_id_to_profile:
+        return ScanProfileResponse(mode="manual")
+
+    device_ids = sorted(device_id_to_profile.keys())
+    if len(device_ids) > 1:
+        return ScanProfileResponse(
+            mode="manual", multiple_cameras=True, device_ids=device_ids
+        )
+
+    device_id = device_ids[0]
+    camera_id = (
         await db.execute(
-            select(Camera.id, Camera.device_id).where(
+            select(Camera.id).where(
+                Camera.device_id == device_id,
                 Camera.project_id == project_id,
-                Camera.device_id.in_(list(body.serial_counts.keys())),
             )
         )
-    ).all()
+    ).scalar_one_or_none()
 
-    matched: List[Dict[str, Any]] = []
-    for cam_id, device_id in rows:
-        count = body.serial_counts.get(device_id, 0)
-        if count <= 0:
-            continue
-        matched.append({
-            "camera_id": cam_id,
-            "camera_name": device_id,
-            "device_id": device_id,
-            "match_count": count,
-        })
-    matched.sort(key=lambda c: c["match_count"], reverse=True)
-
-    # Auto-suggest only when one camera dominates. Treat a one-image
-    # match as noise (an EXIF coincidence) so we never auto-pick the
-    # wrong camera on a near-miss.
-    suggested: Optional[Dict[str, Any]] = None
-    total_serial_count = sum(body.serial_counts.values())
-    if matched and matched[0]["match_count"] >= 2:
-        top = matched[0]
-        if total_serial_count > 0 and top["match_count"] / total_serial_count >= 0.5:
-            suggested = top
-
-    return ScanSuggestResponse(matched_cameras=matched, suggested_camera=suggested)
+    return ScanProfileResponse(
+        mode="profile",
+        device_id=device_id,
+        profile_name=device_id_to_profile[device_id],
+        camera_registered=camera_id is not None,
+        camera_id=camera_id,
+    )
 
 
 @router.post("/check-duplicates", response_model=CheckDuplicatesResponse)
@@ -485,6 +535,57 @@ async def check_duplicates(
     return CheckDuplicatesResponse(duplicate_counts=counts)
 
 
+async def _get_or_create_camera_by_device_id(
+    db: AsyncSession, project_id: int, device_id: str
+) -> Camera:
+    """
+    Return the project's camera for this device_id, creating it if needed.
+
+    Unlike live FTPS ingestion (which rejects unknown device_ids because an
+    incoming file has no project context), a bulk job already carries its
+    project, so it is safe to auto-create the camera here.
+    """
+    camera = (
+        await db.execute(select(Camera).where(Camera.device_id == device_id))
+    ).scalar_one_or_none()
+    if camera is not None:
+        if camera.project_id != project_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Camera {device_id} belongs to another project",
+            )
+        return camera
+
+    camera = Camera(
+        device_id=device_id,
+        project_id=project_id,
+        status="inventory",
+        config={},
+    )
+    db.add(camera)
+    await db.flush()
+    logger.info(
+        "Auto-created camera for bulk upload",
+        device_id=device_id,
+        project_id=project_id,
+        camera_id=camera.id,
+    )
+    return camera
+
+
+async def _get_or_create_synthetic_camera(
+    db: AsyncSession, project_id: int, site_id: int
+) -> Camera:
+    """
+    Return the synthetic per-site camera used by manual (no-profile) bulk
+    uploads. One camera per site (`bulk-site-{site_id}`), reused on later
+    uploads to the same site so re-imports never spawn phantom cameras.
+    """
+    return await _get_or_create_camera_by_device_id(
+        db, project_id, f"bulk-site-{site_id}"
+    )
+
+
 @router.post("/jobs", status_code=status.HTTP_201_CREATED, response_model=BulkUploadJobResponse)
 async def create_bulk_upload_job(
     project_id: int,
@@ -493,39 +594,12 @@ async def create_bulk_upload_job(
     db: AsyncSession = Depends(get_async_session),
 ):
     """
-    Create an empty bulk-upload job. The frontend has already scanned
-    the user's folder, picked a camera, and computed the manifest. Now
-    it uploads files one at a time to /jobs/{uuid}/files and finishes
-    with /jobs/{uuid}/finalize.
+    Create an empty bulk-upload job. The frontend has already scanned the
+    folder, run the pre-flight profile check, and computed the manifest.
+    Exactly one of device_id (Mode A) / site_id (Mode B) is set; see
+    CreateBulkUploadRequest. Files are then uploaded one at a time to
+    /jobs/{uuid}/files and finished with /jobs/{uuid}/finalize.
     """
-    camera = (
-        await db.execute(
-            select(Camera).where(
-                Camera.id == body.camera_id,
-                Camera.project_id == project_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if camera is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Camera does not belong to this project",
-        )
-
-    site = (
-        await db.execute(
-            select(Site.id).where(
-                Site.id == body.site_id,
-                Site.project_id == project_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if site is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Site does not belong to this project",
-        )
-
     # Soft cap on in-flight jobs per project so one user cannot
     # starve the bulk worker queue with twenty parallel SD-card
     # uploads. Counts both 'uploading' (client streaming files) and
@@ -552,13 +626,34 @@ async def create_bulk_upload_job(
     # Refuse the job if the import would not fit on the local data disk.
     _check_disk_headroom(body.total_bytes)
 
+    # Resolve the target camera. Mode A uses the profile-matched device_id (auto
+    # -created if new); Mode B uses a synthetic per-site camera and pins the site.
+    manifest = dict(body.manifest or {})
+    if body.device_id:
+        camera = await _get_or_create_camera_by_device_id(
+            db, project_id, body.device_id
+        )
+    else:
+        site_id = (
+            await db.execute(
+                select(Site.id).where(
+                    Site.id == body.site_id,
+                    Site.project_id == project_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if site_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Site does not belong to this project",
+            )
+        camera = await _get_or_create_synthetic_camera(db, project_id, body.site_id)
+        # The chosen site rides along in the manifest so the worker can pin the
+        # batch to it after the queue hop, without a dedicated column.
+        manifest["site_id"] = body.site_id
+
     job_uuid = str(uuid.uuid4())
     safe_folder_name = _safe_basename(body.folder_name) or "upload"
-
-    # The chosen site rides along in the manifest so the worker can pin the
-    # batch to it after the queue hop, without a dedicated column.
-    manifest = dict(body.manifest or {})
-    manifest["site_id"] = body.site_id
 
     job = BulkUploadJob(
         uuid=job_uuid,

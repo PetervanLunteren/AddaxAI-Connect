@@ -14,12 +14,12 @@ from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileMovedE
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger, set_image_id
-from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED, QUEUE_NOTIFICATION_EVENTS
+from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED
 from shared.config import get_settings
 
 from validators import validate_image, validate_daily_report
 from exif_parser import extract_exif, get_datetime_original, check_exif_offset
-from camera_profiles import identify_camera_profile
+from shared.camera_profiles import identify_camera_profile
 from db_operations import (
     get_camera_by_device_id,
     create_image_record,

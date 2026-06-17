@@ -58,8 +58,10 @@ export interface ActiveUpload {
 interface BeginNewArgs {
   projectId: number;
   folderName: string;
-  cameraId: number;
-  siteId: number;
+  // Exactly one of deviceId (Mode A, profile-matched camera) or siteId
+  // (Mode B, manual site + synthetic camera).
+  deviceId?: string;
+  siteId?: number;
   manifest: BulkUploadManifest;
   excludedCapturedAts: string[];
   files: File[];
@@ -138,7 +140,7 @@ async function runNewUpload(
   try {
     job = await bulkUploadApi.createJob(args.projectId, {
       folder_name: args.folderName,
-      camera_id: args.cameraId,
+      device_id: args.deviceId,
       site_id: args.siteId,
       total_files: total,
       total_bytes: totalBytes,

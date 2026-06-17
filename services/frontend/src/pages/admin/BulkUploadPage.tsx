@@ -36,13 +36,13 @@ import {
 } from '../../components/ui/Dialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { useToast } from '../../components/ui/Toaster';
-import { camerasApi } from '../../api/cameras';
 import { sitesApi } from '../../api/sites';
 import { SiteFormModal } from '../../components/sites/SiteFormModal';
 import {
   bulkUploadApi,
   type BulkUploadJob,
   type BulkUploadManifest,
+  type ScanProfileEntry,
 } from '../../api/bulkUpload';
 import type { ScanEntry, ScanResult } from '../../workers/bulkScanWorker';
 import {
@@ -459,8 +459,10 @@ function manifestsLookCompatible(job: BulkUploadJob, entries: ScanEntry[]): bool
 }
 
 interface UploadContext {
-  camera_id: number;
-  site_id: number;
+  // Exactly one of device_id (Mode A, profile-matched camera) or site_id
+  // (Mode B, manual site + synthetic camera).
+  device_id?: string;
+  site_id?: number;
   folder_name: string;
   manifest: BulkUploadManifest;
   // Naive captured_at timestamps flagged as duplicates during
@@ -605,7 +607,7 @@ const BulkUploadModal: React.FC<{
                 beginNew({
                   projectId,
                   folderName: ctx.folder_name,
-                  cameraId: ctx.camera_id,
+                  deviceId: ctx.device_id,
                   siteId: ctx.site_id,
                   manifest: ctx.manifest,
                   excludedCapturedAts: ctx.excluded_captured_ats,
@@ -931,17 +933,8 @@ const ReviewStep: React.FC<{
   onConfirm: (ctx: UploadContext) => void;
 }> = ({ projectId, folderName, entries, files, onBack, onCancel, onConfirm }) => {
   const toast = useToast();
-  const queryClient = useQueryClient();
-  const [cameraId, setCameraId] = useState<string>('');
   const [siteId, setSiteId] = useState<string>('');
-  const [showAddCamera, setShowAddCamera] = useState(false);
-  const [newCameraName, setNewCameraName] = useState('');
   const [showCreateSite, setShowCreateSite] = useState(false);
-
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
-  });
 
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
@@ -954,15 +947,11 @@ const ReviewStep: React.FC<{
     const byStatus: Record<string, number> = {};
     let minDt: string | null = null;
     let maxDt: string | null = null;
-    const serialCounts: Record<string, number> = {};
     for (const e of entries) {
       byStatus[e.status] = (byStatus[e.status] ?? 0) + 1;
       if (e.captured_at) {
         if (!minDt || e.captured_at < minDt) minDt = e.captured_at;
         if (!maxDt || e.captured_at > maxDt) maxDt = e.captured_at;
-      }
-      if (e.serial) {
-        serialCounts[e.serial] = (serialCounts[e.serial] ?? 0) + 1;
       }
     }
     return {
@@ -970,17 +959,7 @@ const ReviewStep: React.FC<{
       valid_count: byStatus.valid ?? 0,
       by_status: byStatus,
       date_range: { start: minDt, end: maxDt },
-      suggested_camera: null,
-      matched_cameras: [],
     };
-  }, [entries]);
-
-  const serialCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const e of entries) {
-      if (e.serial) counts[e.serial] = (counts[e.serial] ?? 0) + 1;
-    }
-    return counts;
   }, [entries]);
 
   const validCapturedAts = useMemo(() => {
@@ -1004,14 +983,36 @@ const ReviewStep: React.FC<{
     return m;
   }, [entries]);
 
-  // Pre-flight duplicate count, scoped to whichever camera the user
-  // has picked. One indexed lookup on Image.captured_at returns a
-  // map of timestamp -> DB count.
-  const cameraIdNum = Number(cameraId);
+  // Pre-flight: run the same camera-profile hunt as live ingestion on a sample
+  // of the scanned EXIF, to decide the mode before any byte is uploaded.
+  const profileSample = useMemo(() => {
+    const n = entries.length;
+    if (n === 0) return [] as ScanProfileEntry[];
+    const size = Math.min(200, n);
+    const out: ScanProfileEntry[] = [];
+    for (let i = 0; i < size; i++) {
+      const idx = Math.floor((i * (n - 1)) / Math.max(1, size - 1));
+      const e = entries[idx];
+      out.push({ make: e.make, model: e.model, serial: e.serial, filename: e.name });
+    }
+    return out;
+  }, [entries]);
+
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    queryKey: ['bulk-scan-profile', projectId, folderName, entries.length],
+    queryFn: () => bulkUploadApi.scanProfile(projectId, profileSample),
+    enabled: entries.length > 0,
+  });
+
+  // Pre-flight duplicate count. Only meaningful for a Mode A camera that is
+  // already registered; a brand-new (auto-created) or synthetic Mode B camera
+  // has no prior images, so server-side content-hash dedup covers those.
+  const dupCameraId =
+    profile?.mode === 'profile' && profile.camera_registered ? profile.camera_id : null;
   const { data: duplicateCounts } = useQuery({
-    queryKey: ['bulk-check-duplicates', projectId, cameraIdNum, validCapturedAts],
-    queryFn: () => bulkUploadApi.checkDuplicates(projectId, cameraIdNum, validCapturedAts),
-    enabled: !!cameraId && validCapturedAts.length > 0,
+    queryKey: ['bulk-check-duplicates', projectId, dupCameraId, validCapturedAts],
+    queryFn: () => bulkUploadApi.checkDuplicates(projectId, dupCameraId!, validCapturedAts),
+    enabled: !!dupCameraId && validCapturedAts.length > 0,
   });
 
   // 1:1 safety rule. Only skip a captured_at when both the scan and
@@ -1029,39 +1030,6 @@ const ReviewStep: React.FC<{
   }, [duplicateCounts, scanCounts]);
 
   const duplicateCount = safeDuplicateSet.size;
-
-  // Ask the server which registered camera matches the EXIF
-  // SerialNumbers. Only fires when there's at least one serial; if
-  // every image has no SerialNumber we skip it.
-  const { data: suggest } = useQuery({
-    queryKey: ['bulk-scan-suggest', projectId, serialCounts],
-    queryFn: () => bulkUploadApi.scanSuggest(projectId, serialCounts),
-    enabled: Object.keys(serialCounts).length > 0,
-  });
-
-  // Auto-pick the suggested camera the first time it arrives.
-  useEffect(() => {
-    if (!cameraId && suggest?.suggested_camera) {
-      setCameraId(String(suggest.suggested_camera.camera_id));
-    }
-  }, [suggest, cameraId]);
-
-  // The dominant EXIF SerialNumber across the scan, used to auto-fill
-  // the new-camera device_id so scan-suggest will match this camera on
-  // a future upload. Falls back to a generated id if no clear serial.
-  const dominantSerial = useMemo(() => {
-    let best: [string, number] | null = null;
-    for (const [s, c] of Object.entries(serialCounts)) {
-      if (!best || c > best[1]) best = [s, c];
-    }
-    return best && best[1] >= 2 ? best[0] : null;
-  }, [serialCounts]);
-
-  const enrichedManifest: BulkUploadManifest = useMemo(() => ({
-    ...manifest,
-    suggested_camera: suggest?.suggested_camera ?? null,
-    matched_cameras: suggest?.matched_cameras ?? [],
-  }), [manifest, suggest]);
 
   const rawValidCount = manifest.by_status.valid ?? 0;
   // Effective "uploadable" count after removing per-camera duplicate
@@ -1102,61 +1070,34 @@ const ReviewStep: React.FC<{
     };
   }, [thumbnails]);
 
-  const createCameraMutation = useMutation({
-    mutationFn: () => {
-      // device_id is hidden in the bulk-upload form. Pre-fill with the
-      // dominant EXIF SerialNumber so scan-suggest matches this camera
-      // on a future bulk upload from the same hardware. Generate a
-      // unique fallback when no serial dominates.
-      const trimmed = newCameraName.trim();
-      const slug = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-      const random = Math.random().toString(36).slice(2, 6);
-      const deviceId = dominantSerial || `bulk-${slug || 'cam'}-${random}`;
-      return camerasApi.create({
-        device_id: deviceId,
-        project_id: projectId,
-      });
-    },
-    onSuccess: (camera) => {
-      queryClient.invalidateQueries({ queryKey: ['cameras', projectId] });
-      setCameraId(String(camera.id));
-      setShowAddCamera(false);
-      setNewCameraName('');
-      toast.success(`Camera "${camera.name}" created`);
-    },
-    onError: (err: any) => {
-      toast.error(`Failed to create camera, ${err.response?.data?.detail || err.message}`);
-    },
-  });
-
   const handleConfirm = () => {
-    const id = Number(cameraId);
-    if (!id) {
-      toast.error('Pick a camera before uploading');
-      return;
-    }
-    if (!siteId) {
-      toast.error('Pick a site before uploading');
-      return;
-    }
     if (validCount === 0) {
       toast.error('No images can be uploaded from this folder');
       return;
     }
+    // Mode A: the profile-matched camera (auto-created server-side if new).
+    // Site and deployment are resolved per image from GPS, like a live upload.
+    if (profile?.mode === 'profile' && profile.device_id) {
+      onConfirm({
+        device_id: profile.device_id,
+        folder_name: folderName,
+        manifest,
+        excluded_captured_ats: Array.from(safeDuplicateSet),
+      });
+      return;
+    }
+    // Mode B: no profile, so the whole batch is pinned to the chosen site.
+    if (!siteId) {
+      toast.error('Pick a site before uploading');
+      return;
+    }
     onConfirm({
-      camera_id: id,
       site_id: Number(siteId),
       folder_name: folderName,
-      manifest: enrichedManifest,
-      excluded_captured_ats: Array.from(safeDuplicateSet),
+      manifest,
+      excluded_captured_ats: [],
     });
   };
-
-  const cameraOptions = (cameras ?? []).map((c) => ({
-    value: String(c.id),
-    label: c.name,
-  }));
-  const suggested = suggest?.suggested_camera;
 
   return (
     <div className="space-y-4">
@@ -1181,10 +1122,10 @@ const ReviewStep: React.FC<{
         <div className="text-xs text-muted-foreground">
           Date range, {formatDateRange(manifest.date_range.start, manifest.date_range.end)}
         </div>
-        {suggested && (
+        {profile?.mode === 'profile' && profile.device_id && (
           <div className="flex items-center gap-1.5 text-xs text-primary">
             <Sparkles className="h-3.5 w-3.5" />
-            Auto-detected camera, {suggested.camera_name} ({suggested.match_count} of {validCount} images match by EXIF serial)
+            Camera detected from metadata, {profile.device_id}
           </div>
         )}
       </div>
@@ -1205,100 +1146,66 @@ const ReviewStep: React.FC<{
         </div>
       )}
 
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Camera</label>
-        {!showAddCamera ? (
+      {profileLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Checking which camera these images came from
+        </div>
+      ) : profile?.multiple_cameras ? (
+        <div
+          role="note"
+          className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900"
+        >
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+          <div>
+            <span className="font-medium">This folder holds more than one camera.</span>
+            {' '}
+            Bulk upload handles one camera per folder. Split the images per camera and
+            upload each set separately.
+          </div>
+        </div>
+      ) : profile?.mode === 'profile' ? (
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Camera</label>
+          <div className="flex items-center gap-1.5 text-sm">
+            <CameraIcon className="h-4 w-4 text-primary" />
+            <span className="font-medium">{profile.device_id}</span>
+            {!profile.camera_registered && (
+              <span className="text-muted-foreground">new, will be added to this project</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Detected from the image metadata. The site and deployment are read from each
+            image's GPS, the same way a live upload works.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Site</label>
           <div className="flex gap-2">
             <select
               className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm"
-              value={cameraId}
-              onChange={(e) => setCameraId(e.target.value)}
+              value={siteId}
+              onChange={(e) => setSiteId(e.target.value)}
             >
-              <option value="">Select a camera</option>
-              {cameraOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              <option value="">Select a site</option>
+              {(sites ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
                 </option>
               ))}
             </select>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowAddCamera(true)}
-            >
+            <Button type="button" variant="outline" onClick={() => setShowCreateSite(true)}>
               <Plus className="h-4 w-4 mr-1" />
-              Add new
+              New site
             </Button>
           </div>
-        ) : (
-          <div className="border border-input rounded-md p-3 space-y-3 bg-muted/30">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Add a new camera</span>
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setShowAddCamera(false);
-                  setNewCameraName('');
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Camera name</label>
-                <input
-                  type="text"
-                  value={newCameraName}
-                  onChange={(e) => setNewCameraName(e.target.value)}
-                  placeholder="e.g. Duinpoort NW"
-                  className="w-full h-9 px-3 border border-input rounded-md bg-background text-sm"
-                />
-              </div>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              disabled={!newCameraName.trim() || createCameraMutation.isPending}
-              onClick={() => createCameraMutation.mutate()}
-            >
-              {createCameraMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <CameraIcon className="h-4 w-4 mr-1" />
-              )}
-              Create camera
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Site</label>
-        <div className="flex gap-2">
-          <select
-            className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm"
-            value={siteId}
-            onChange={(e) => setSiteId(e.target.value)}
-          >
-            <option value="">Select a site</option>
-            {(sites ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          <Button type="button" variant="outline" onClick={() => setShowCreateSite(true)}>
-            <Plus className="h-4 w-4 mr-1" />
-            New site
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            These images carry no known camera profile, so pick the place they were taken.
+            All images in one upload must be from a single site.
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          The place these images were taken. Pick an existing site or create one.
-          For an SD card pulled after the camera moved, choose where it actually was.
-        </p>
-      </div>
+      )}
 
       <div
         role="note"
@@ -1323,7 +1230,12 @@ const ReviewStep: React.FC<{
         </div>
         <Button
           type="button"
-          disabled={!cameraId || !siteId || validCount === 0}
+          disabled={
+            validCount === 0
+            || profileLoading
+            || profile?.multiple_cameras
+            || (profile?.mode !== 'profile' && !siteId)
+          }
           onClick={handleConfirm}
         >
           <Upload className="h-4 w-4 mr-1" />

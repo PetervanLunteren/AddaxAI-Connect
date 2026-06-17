@@ -7,6 +7,12 @@ FastAPI app, MinIO client, or database. Same pattern as
 test_camera_tags.py.
 """
 import re
+from typing import Optional
+
+import pytest
+from pydantic import BaseModel, Field, ValidationError, model_validator
+
+from shared.camera_profiles import identify_camera_profile
 
 
 # --- copies of _safe_basename and _staging_prefix ---
@@ -196,3 +202,160 @@ class TestStatusTransitions:
     def test_terminal_states_have_no_outgoing(self):
         assert self.LEGAL_TRANSITIONS["done"] == set()
         assert self.LEGAL_TRANSITIONS["failed"] == set()
+
+
+# --- copy of the scan-profile resolution loop in routers/bulk_upload.py ---
+# Calls the real shared camera-profile matcher so the substantive matching is
+# exercised; only the thin tally/decision around it is copied.
+def _resolve_scan_mode(entries: list[dict]) -> dict:
+    device_id_to_profile: dict[str, str] = {}
+    for entry in entries:
+        exif: dict = {}
+        if entry.get("make"):
+            exif["Make"] = entry["make"]
+        if entry.get("model"):
+            exif["Model"] = entry["model"]
+        if entry.get("serial"):
+            exif["SerialNumber"] = entry["serial"]
+        filename = entry.get("filename", "")
+        try:
+            profile = identify_camera_profile(
+                exif=exif, filename=filename, relative_path=""
+            )
+        except ValueError:
+            continue
+        if profile.is_path_based:
+            continue
+        device_id = profile.get_camera_id(exif, filename)
+        if device_id:
+            device_id_to_profile[device_id] = profile.name
+    if not device_id_to_profile:
+        return {"mode": "manual", "multiple_cameras": False, "device_id": None}
+    device_ids = sorted(device_id_to_profile)
+    if len(device_ids) > 1:
+        return {
+            "mode": "manual",
+            "multiple_cameras": True,
+            "device_id": None,
+            "device_ids": device_ids,
+        }
+    return {
+        "mode": "profile",
+        "multiple_cameras": False,
+        "device_id": device_ids[0],
+        "profile_name": device_id_to_profile[device_ids[0]],
+    }
+
+
+# A real 15-digit Swift Enduro IMEI filename, from the camera_profiles docstring.
+SWIFT_FILENAME = "868020035314870-30032026102652-4-SYPR0260.JPG"
+
+
+class TestScanProfileResolution:
+    """The pre-flight that decides Mode A (profile) vs Mode B (manual site)."""
+
+    def test_willfine_serial_resolves_to_device_id(self):
+        out = _resolve_scan_mode([
+            {"make": "Willfine", "model": "4.0T CG", "serial": "WF123", "filename": "IMG_1.JPG"},
+        ])
+        assert out["mode"] == "profile"
+        assert out["device_id"] == "WF123"
+        assert out["profile_name"] == "Willfine-2025"
+
+    def test_swift_imei_from_filename(self):
+        out = _resolve_scan_mode([
+            {"make": "SY", "model": "4.0PCG-R", "filename": SWIFT_FILENAME},
+        ])
+        assert out["mode"] == "profile"
+        assert out["device_id"] == "868020035314870"
+
+    def test_unknown_camera_is_manual(self):
+        out = _resolve_scan_mode([
+            {"make": "Canon", "model": "EOS 5D", "filename": "IMG_1.JPG"},
+        ])
+        assert out["mode"] == "manual"
+        assert out["multiple_cameras"] is False
+
+    def test_matched_profile_without_device_id_is_manual(self):
+        # Willfine matches on Make/Model but has no SerialNumber, so no
+        # device_id resolves: fall through to manual rather than guess.
+        out = _resolve_scan_mode([
+            {"make": "Willfine", "model": "4.0T CG", "filename": "IMG_1.JPG"},
+        ])
+        assert out["mode"] == "manual"
+
+    def test_two_cameras_flags_multiple(self):
+        out = _resolve_scan_mode([
+            {"make": "Willfine", "model": "4.0T CG", "serial": "WF1", "filename": "a.JPG"},
+            {"make": "Willfine", "model": "4.0T CG", "serial": "WF2", "filename": "b.JPG"},
+        ])
+        assert out["multiple_cameras"] is True
+        assert out["mode"] == "manual"
+        assert out["device_ids"] == ["WF1", "WF2"]
+
+    def test_empty_sample_is_manual(self):
+        assert _resolve_scan_mode([])["mode"] == "manual"
+
+
+# --- copy of CreateBulkUploadRequest's exactly-one-target rule ---
+class _CreateReq(BaseModel):
+    folder_name: str = Field(min_length=1, max_length=255)
+    device_id: Optional[str] = Field(default=None, max_length=50)
+    site_id: Optional[int] = None
+    total_files: int = Field(ge=1)
+    total_bytes: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> "_CreateReq":
+        if bool(self.device_id) == bool(self.site_id):
+            raise ValueError(
+                "Provide exactly one of device_id (profile mode) or site_id (manual mode)"
+            )
+        return self
+
+
+class TestCreateRequestTargetValidation:
+    """Exactly one of device_id / site_id must be set on a create request."""
+
+    def _make(self, **kwargs):
+        base = {"folder_name": "trip", "total_files": 1, "total_bytes": 1}
+        base.update(kwargs)
+        return _CreateReq(**base)
+
+    def test_device_id_only_ok(self):
+        assert self._make(device_id="WF1").device_id == "WF1"
+
+    def test_site_id_only_ok(self):
+        assert self._make(site_id=7).site_id == 7
+
+    def test_both_rejected(self):
+        with pytest.raises(ValidationError):
+            self._make(device_id="WF1", site_id=7)
+
+    def test_neither_rejected(self):
+        with pytest.raises(ValidationError):
+            self._make()
+
+
+class TestModeSelection:
+    """How the worker and API decide Mode A vs Mode B."""
+
+    @staticmethod
+    def _use_profile(manifest: dict) -> bool:
+        # Copy of the worker's _process_job mode decision.
+        return not manifest.get("site_id")
+
+    @staticmethod
+    def _synthetic_device_id(site_id: int) -> str:
+        return f"bulk-site-{site_id}"
+
+    def test_pinned_site_is_mode_b(self):
+        assert self._use_profile({"site_id": 12}) is False
+
+    def test_no_site_is_mode_a(self):
+        assert self._use_profile({"date_range": {}}) is True
+
+    def test_synthetic_device_id_per_site(self):
+        assert self._synthetic_device_id(12) == "bulk-site-12"
+        # Same site always yields the same id, so re-uploads reuse the camera.
+        assert self._synthetic_device_id(12) == self._synthetic_device_id(12)

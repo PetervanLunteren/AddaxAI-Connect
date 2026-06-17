@@ -1,9 +1,9 @@
-"""Tests for ingestion camera_profiles profile matching."""
+"""Tests for shared camera_profiles profile matching."""
 from datetime import datetime
 
 import pytest
 
-from camera_profiles import (
+from shared.camera_profiles import (
     CameraProfile,
     INSTAR_PROFILE,
     SWIFT_ENDURO_PROFILE,

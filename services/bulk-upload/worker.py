@@ -37,6 +37,7 @@ from PIL import Image as PILImage
 from PIL.ExifTags import TAGS
 from sqlalchemy import func, select, text
 
+from shared.camera_profiles import identify_camera_profile
 from shared.database import get_db_session
 from shared.logger import get_logger, set_image_id
 from shared.models import BulkUploadJob, Camera, Image
@@ -55,6 +56,7 @@ from storage_operations import (  # noqa: E402
     upload_image_to_minio,
 )
 from validators import validate_image  # noqa: E402
+from utils import is_valid_gps  # noqa: E402
 
 PROGRESS_PERSIST_EVERY = 25
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png")
@@ -174,6 +176,7 @@ def _process_zip_entry(
     bulk_queue: RedisQueue,
     bulk_upload_job_id: int,
     bulk_deployment_id: Optional[int] = None,
+    use_profile: bool = False,
 ) -> str:
     """
     Process a single ZIP entry end-to-end.
@@ -185,6 +188,18 @@ def _process_zip_entry(
     these straight back out of manifest.file_log. Per-file issues
     become outcome='skipped' with a warning log so a single bad JPEG
     never sinks the whole batch.
+
+    Two metadata modes:
+
+    - **Mode A (use_profile=True):** the same camera-profile hunt as live
+      FTPS. The file's EXIF must match an EXIF profile (path profiles never
+      match here, the relative path is empty for a browser upload). GPS is
+      read per image and the deployment is resolved from it by
+      create_image_record, so a registered camera's SD card builds sites and
+      deployments exactly like FTPS. `gps_location` / `bulk_deployment_id` are
+      ignored.
+    - **Mode B (use_profile=False):** no profile, the batch is pinned to the
+      caller-chosen site via `bulk_deployment_id`. DateTimeOriginal is required.
     """
     if not name.lower().endswith(IMAGE_EXTENSIONS):
         return {"outcome": "skipped", "reason": "unsupported_extension"}
@@ -225,18 +240,72 @@ def _process_zip_entry(
             return {"outcome": "skipped", "reason": "validation_failed"}
 
         exif = extract_exif(tmp_path)
-        try:
-            captured_at = get_datetime_original(exif, tmp_path, allow_fallback=False)
-        except Exception as exc:
-            logger.warning(
-                "Skipping bulk upload entry, no DateTimeOriginal",
-                entry=name,
-                error=str(exc),
-            )
-            return {"outcome": "skipped", "reason": "missing_datetime"}
+        clean_filename = os.path.basename(name)
+
+        if use_profile:
+            # Mode A: identify the camera profile and extract metadata the
+            # same way live ingestion does. relative_path is empty because a
+            # browser upload has no FTPS upload path, so only EXIF profiles
+            # can match.
+            try:
+                profile = identify_camera_profile(
+                    exif=exif, filename=clean_filename, relative_path=""
+                )
+            except ValueError as exc:
+                logger.warning(
+                    "Skipping bulk upload entry, no camera profile matched",
+                    entry=name,
+                    error=str(exc),
+                )
+                return {"outcome": "skipped", "reason": "unsupported_camera"}
+
+            try:
+                captured_at = get_datetime_original(
+                    exif, tmp_path, allow_fallback=not profile.requires_datetime
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Skipping bulk upload entry, no DateTimeOriginal",
+                    entry=name,
+                    error=str(exc),
+                )
+                return {"outcome": "skipped", "reason": "missing_datetime"}
+
+            image_gps = exif.get("gps_decimal")
+            if image_gps and not is_valid_gps(image_gps):
+                logger.warning(
+                    "Skipping bulk upload entry, invalid GPS",
+                    entry=name,
+                    gps=image_gps,
+                )
+                return {"outcome": "skipped", "reason": "invalid_gps"}
+            if not image_gps and profile.requires_gps:
+                logger.warning(
+                    "Skipping bulk upload entry, no GPS",
+                    entry=name,
+                    profile=profile.name,
+                )
+                return {"outcome": "skipped", "reason": "missing_gps"}
+
+            # Per-image GPS, no pinned deployment: create_image_record resolves
+            # the site and deployment through the shared FTPS resolver.
+            record_gps = image_gps
+            record_deployment_id = None
+        else:
+            # Mode B: chosen-site deployment, DateTimeOriginal required.
+            try:
+                captured_at = get_datetime_original(exif, tmp_path, allow_fallback=False)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping bulk upload entry, no DateTimeOriginal",
+                    entry=name,
+                    error=str(exc),
+                )
+                return {"outcome": "skipped", "reason": "missing_datetime"}
+            record_gps = gps_location
+            record_deployment_id = bulk_deployment_id
 
         image_uuid = str(uuid.uuid4())
-        clean_filename = os.path.basename(name)
         storage_path = upload_image_to_minio(
             tmp_path, camera_storage_id, image_uuid, clean_filename
         )
@@ -259,12 +328,12 @@ def _process_zip_entry(
             storage_path=storage_path,
             thumbnail_path=thumbnail_path,
             captured_at=captured_at,
-            gps_location=gps_location,
+            gps_location=record_gps,
             exif_metadata=exif,
             origin="bulk",
             content_hash=content_hash,
             bulk_upload_job_id=bulk_upload_job_id,
-            deployment_id=bulk_deployment_id,
+            deployment_id=record_deployment_id,
         )
 
         set_image_id(image_uuid)
@@ -566,6 +635,7 @@ def _process_prefix_job(
     gps_location,
     staged_prefix: str,
     bulk_deployment_id: Optional[int] = None,
+    use_profile: bool = False,
 ) -> None:
     """
     Process a new-style per-file bulk-upload job. Lists MinIO under
@@ -625,6 +695,7 @@ def _process_prefix_job(
                     bulk_queue,
                     job_id,
                     bulk_deployment_id,
+                    use_profile,
                 )
         except _FileTimeout:
             logger.warning(
@@ -703,11 +774,13 @@ def _process_legacy_zip_job(
     gps_location,
     staged_object_key: str,
     bulk_deployment_id: Optional[int] = None,
+    use_profile: bool = False,
 ) -> None:
     """
     Drain a pre-refactor bulk-upload job whose staged_object_key points
     at a single ZIP. Kept so anything created before the per-file
-    rollout can still complete.
+    rollout can still complete. Legacy jobs always carry a chosen site,
+    so use_profile is False in practice.
     """
     storage = StorageClient()
     tmp_zip_path: Optional[str] = None
@@ -730,6 +803,7 @@ def _process_legacy_zip_job(
                         result = _process_zip_entry(
                             info.filename, raw, camera_id, camera_storage_id,
                             gps_location, bulk_queue, job_id, bulk_deployment_id,
+                            use_profile,
                         )
                 except _FileTimeout:
                     logger.warning(
@@ -810,38 +884,44 @@ def _process_job(job_uuid: str) -> None:
         job_id = job.id
         camera_id = camera.id
         camera_storage_id = _camera_storage_id(camera)
-        # Default batch location (used only when the user did not pin a site):
-        # the camera's most recent deployment site, i.e. where the camera is
-        # now. A brand-new camera with no deployment yet has none, in which case
-        # the user should pin a site in the upload form.
-        gps_location = None
-        loc_row = session.execute(
-            text("""
-                SELECT ST_Y(s.location::geometry) AS lat, ST_X(s.location::geometry) AS lon
-                FROM deployments d
-                JOIN sites s ON s.id = d.site_id
-                WHERE d.camera_id = :camera_id
-                ORDER BY d.deployment_number DESC
-                LIMIT 1
-            """),
-            {"camera_id": camera.id},
-        ).fetchone()
-        if loc_row:
-            gps_location = (loc_row.lat, loc_row.lon)
         staged_object_key = job.staged_object_key
         manifest = job.manifest or {}
+
+        # Mode A (no pinned site): run the camera-profile hunt per image and
+        # resolve site + deployment from each image's GPS, exactly like FTPS.
+        # Mode B (pinned site): attach the whole batch to one deployment at the
+        # chosen site.
+        use_profile = not manifest.get("site_id")
+
+        # In Mode B, default each image's location to where the camera is now
+        # (its most recent deployment site). Unused in Mode A, where per-image
+        # GPS drives the deployment, so the lookup is skipped there.
+        gps_location = None
+        if not use_profile:
+            loc_row = session.execute(
+                text("""
+                    SELECT ST_Y(s.location::geometry) AS lat, ST_X(s.location::geometry) AS lon
+                    FROM deployments d
+                    JOIN sites s ON s.id = d.site_id
+                    WHERE d.camera_id = :camera_id
+                    ORDER BY d.deployment_number DESC
+                    LIMIT 1
+                """),
+                {"camera_id": camera.id},
+            ).fetchone()
+            if loc_row:
+                gps_location = (loc_row.lat, loc_row.lon)
+
         # The API flips status to 'processing' at finalize so users see
         # the right state during the brief queue hop; we still own
         # process_started_at since that drives the self-calibrating ETA.
         job.status = "processing"
         job.process_started_at = datetime.now(timezone.utc)
 
-    # If the user pinned this batch to a site, attach every image to one
-    # deployment at that site instead of resolving per-image from the camera's
-    # current location. Falls back to per-image resolution if the site is gone.
+    # Mode B pins every image to one deployment at the chosen site.
     bulk_deployment_id = None
-    site_id = manifest.get("site_id")
-    if site_id:
+    if not use_profile:
+        site_id = manifest.get("site_id")
         date_range = manifest.get("date_range") or {}
         try:
             bulk_deployment_id = get_or_create_bulk_deployment(
@@ -866,18 +946,19 @@ def _process_job(job_uuid: str) -> None:
         staged_object_key=staged_object_key,
         layout="prefix" if is_prefix else "legacy_zip",
         bulk_deployment_id=bulk_deployment_id,
+        use_profile=use_profile,
     )
 
     try:
         if is_prefix:
             _process_prefix_job(
                 job_uuid, job_id, camera_id, camera_storage_id,
-                gps_location, staged_object_key, bulk_deployment_id,
+                gps_location, staged_object_key, bulk_deployment_id, use_profile,
             )
         else:
             _process_legacy_zip_job(
                 job_uuid, job_id, camera_id, camera_storage_id,
-                gps_location, staged_object_key, bulk_deployment_id,
+                gps_location, staged_object_key, bulk_deployment_id, use_profile,
             )
     except Exception as exc:
         logger.error(

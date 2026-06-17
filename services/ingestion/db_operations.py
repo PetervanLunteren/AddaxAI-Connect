@@ -11,14 +11,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, Deployment, CameraHealthReport, Image, Project, Rejection, ServerSettings
+from shared.models import Camera, Deployment, CameraHealthReport, Image, Rejection, ServerSettings
 from shared.logger import get_logger
 from shared.geo import (
     SITE_THRESHOLD_METERS,
     RELOCATION_CONFIRMATIONS,
     RECOMPUTE_SITE_LOCATION_SQL,
 )
-from camera_profiles import CameraProfile
 from utils import is_valid_gps
 
 logger = get_logger("ingestion")
