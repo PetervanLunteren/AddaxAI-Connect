@@ -10,7 +10,7 @@
  */
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Minus, X, Loader2, Check, Copy } from 'lucide-react';
+import { Plus, Minus, X, Loader2, Check, Copy, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Card, CardContent } from './ui/Card';
 import { CreatableSpeciesSelect, Option } from './ui/CreatableSelect';
@@ -43,6 +43,36 @@ const BEHAVIOR_OPTIONS = [
   'unknown', 'traveling', 'foraging', 'resting', 'vigilance',
   'drinking', 'grooming', 'courtship', 'nursing', 'aggression', 'marking',
 ] as const;
+
+// Compact attribute dropdown (sex / life stage / behaviour). Native selects
+// hide the OS arrow with appearance-none, so render our own small chevron and
+// keep the tight h-7 sizing these rows need. The wrapper carries the flex
+// shrink behaviour so the select can stay w-full inside it.
+function CompactSelect({
+  value,
+  onChange,
+  title,
+  children,
+}: {
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative min-w-0 shrink">
+      <select
+        value={value}
+        onChange={onChange}
+        title={title}
+        className="h-7 w-full pl-1.5 pr-6 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        {children}
+      </select>
+      <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+    </div>
+  );
+}
 
 // Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
@@ -643,12 +673,11 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
 
               {/* Row 3: sex, age, behaviour */}
               <div className="flex flex-wrap items-center gap-1">
-                <select
+                <CompactSelect
                   value={obs.sex}
                   onChange={(e) => setObservations(prev =>
                     prev.map(o => o.id === obs.id ? { ...o, sex: e.target.value, isAiSuggested: false } : o)
                   )}
-                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink"
                   title="Sex"
                 >
                   {SEX_OPTIONS.map(v => (
@@ -656,13 +685,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                       {v === 'unknown' ? 'Sex: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
                     </option>
                   ))}
-                </select>
-                <select
+                </CompactSelect>
+                <CompactSelect
                   value={obs.life_stage}
                   onChange={(e) => setObservations(prev =>
                     prev.map(o => o.id === obs.id ? { ...o, life_stage: e.target.value, isAiSuggested: false } : o)
                   )}
-                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink"
                   title="Life stage"
                 >
                   {LIFE_STAGE_OPTIONS.map(v => (
@@ -670,21 +698,20 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                       {v === 'unknown' ? 'Age: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
                     </option>
                   ))}
-                </select>
-                <select
+                </CompactSelect>
+                <CompactSelect
                   value={obs.behavior}
                   onChange={(e) => setObservations(prev =>
                     prev.map(o => o.id === obs.id ? { ...o, behavior: e.target.value, isAiSuggested: false } : o)
                   )}
-                  className="h-7 px-1.5 text-xs border border-input rounded bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring min-w-0 shrink"
                   title="Behaviour"
                 >
                   {BEHAVIOR_OPTIONS.map(v => (
                     <option key={v} value={v}>
                       {v === 'unknown' ? 'Behaviour: unknown' : v.charAt(0).toUpperCase() + v.slice(1)}
-                  </option>
-                ))}
-                </select>
+                    </option>
+                  ))}
+                </CompactSelect>
               </div>
             </div>
           ))}

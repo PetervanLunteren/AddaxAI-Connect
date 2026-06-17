@@ -2,6 +2,7 @@
  * Dialog component for modals
  */
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
 
@@ -32,7 +33,11 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
 
   if (!open) return null;
 
-  return (
+  // Portal to <body> so the fixed overlay is positioned against the viewport,
+  // not against any transformed ancestor. DialogContent uses a translate
+  // transform, which would otherwise become the containing block for a nested
+  // dialog's position:fixed and clip it inside the parent modal.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
@@ -41,7 +46,8 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
       />
       {/* Content */}
       <div className="relative z-50">{children}</div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

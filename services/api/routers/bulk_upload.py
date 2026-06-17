@@ -578,11 +578,12 @@ async def _get_or_create_synthetic_camera(
 ) -> Camera:
     """
     Return the synthetic per-site camera used by manual (no-profile) bulk
-    uploads. One camera per site (`bulk-site-{site_id}`), reused on later
-    uploads to the same site so re-imports never spawn phantom cameras.
+    uploads. The device_id is `bulk-cam-{site_id}`: it reads as a camera id
+    (which it is), and keying it on the site means one camera per site, reused
+    on later uploads to the same site so re-imports never spawn phantom cameras.
     """
     return await _get_or_create_camera_by_device_id(
-        db, project_id, f"bulk-site-{site_id}"
+        db, project_id, f"bulk-cam-{site_id}"
     )
 
 

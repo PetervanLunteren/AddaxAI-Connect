@@ -27,6 +27,7 @@ import {
 
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Select } from '../../components/ui/Select';
 import {
   Dialog,
   DialogContent,
@@ -534,13 +535,13 @@ const BulkUploadModal: React.FC<{
           </DialogTitle>
           <DialogDescription>
             {step === 'pick' && (
-              <>One folder per camera. Each image needs a DateTimeOriginal EXIF tag. Up to {MAX_FILES_PER_JOB.toLocaleString()} images per upload.</>
+              <>One folder per upload, all from one camera and one site. Up to {MAX_FILES_PER_JOB.toLocaleString()} images per upload.</>
             )}
             {step === 'scan' && (
-              <>Reading EXIF on every image without leaving your browser.</>
+              <>Reading the date and camera details from every image.</>
             )}
             {step === 'review' && (
-              <>Confirm the camera and start uploading. The modal closes once you click Upload, progress shows on the job row.</>
+              <>Check the details and start uploading.</>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -1043,14 +1044,15 @@ const ReviewStep: React.FC<{
     ...(Object.entries(manifest.by_status).filter(([k]) => k !== 'valid') as [string, number][]),
   ];
 
-  // Thumbnail strip: pick up to 8 valid entries spread evenly across
-  // the date range. Render the File objects via createObjectURL.
+  // Thumbnail strip: a few sample images so the user can confirm they picked
+  // the right folder before uploading. Spread evenly so it is not all from one
+  // moment. Render the File objects via createObjectURL.
   const thumbnails = useMemo(() => {
     const validEntries = entries
       .filter((e) => e.status === 'valid' && e.captured_at)
       .sort((a, b) => (a.captured_at! < b.captured_at! ? -1 : 1));
     if (validEntries.length === 0) return [];
-    const sampleSize = Math.min(8, validEntries.length);
+    const sampleSize = Math.min(4, validEntries.length);
     const picks: ScanEntry[] = [];
     for (let i = 0; i < sampleSize; i++) {
       const idx = Math.floor((i * (validEntries.length - 1)) / Math.max(1, sampleSize - 1));
@@ -1132,7 +1134,7 @@ const ReviewStep: React.FC<{
 
       {thumbnails.length > 0 && (
         <div className="space-y-1">
-          <div className="text-xs text-muted-foreground">Sample, spread across the date range.</div>
+          <div className="text-xs text-muted-foreground">Quick check you picked the right folder.</div>
           <div className="flex gap-1.5 overflow-x-auto">
             {thumbnails.map((t) => (
               <img
@@ -1183,26 +1185,27 @@ const ReviewStep: React.FC<{
         <div className="space-y-2">
           <label className="text-sm font-medium">Site</label>
           <div className="flex gap-2">
-            <select
-              className="flex-1 h-10 px-3 border border-input rounded-md bg-background text-sm"
-              value={siteId}
-              onChange={(e) => setSiteId(e.target.value)}
-            >
-              <option value="">Select a site</option>
-              {(sites ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex-1">
+              <Select
+                value={siteId}
+                onChange={(e) => setSiteId(e.target.value)}
+              >
+                <option value="">Select a site</option>
+                {(sites ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <Button type="button" variant="outline" onClick={() => setShowCreateSite(true)}>
               <Plus className="h-4 w-4 mr-1" />
               New site
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            These images carry no known camera profile, so pick the place they were taken.
-            All images in one upload must be from a single site.
+            Pick the place they were taken. Choose an existing site, or add a new one.
+            All images in one upload must be from a single site and a single camera.
           </p>
         </div>
       )}

@@ -347,7 +347,7 @@ class TestModeSelection:
 
     @staticmethod
     def _synthetic_device_id(site_id: int) -> str:
-        return f"bulk-site-{site_id}"
+        return f"bulk-cam-{site_id}"
 
     def test_pinned_site_is_mode_b(self):
         assert self._use_profile({"site_id": 12}) is False
@@ -356,6 +356,6 @@ class TestModeSelection:
         assert self._use_profile({"date_range": {}}) is True
 
     def test_synthetic_device_id_per_site(self):
-        assert self._synthetic_device_id(12) == "bulk-site-12"
+        assert self._synthetic_device_id(12) == "bulk-cam-12"
         # Same site always yields the same id, so re-uploads reuse the camera.
         assert self._synthetic_device_id(12) == self._synthetic_device_id(12)

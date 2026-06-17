@@ -22,6 +22,7 @@ import {
   SheetFooter,
 } from './ui/Sheet';
 import { Button } from './ui/Button';
+import { Select } from './ui/Select';
 import { sitesApi } from '../api/sites';
 import { deploymentsApi, type UpdateDeploymentRequest } from '../api/deployments';
 import { SiteFormModal } from './sites/SiteFormModal';
@@ -204,24 +205,25 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
                 )}
               </div>
               <div className="flex gap-2">
-                <select
-                  value={siteId ?? ''}
-                  onChange={(e) =>
-                    setSiteId(e.target.value === '' ? null : Number(e.target.value))
-                  }
-                  disabled={locked}
-                  className="flex-1 px-3 py-2 border rounded-md text-sm disabled:bg-muted"
-                >
-                  {/* Only a deployment that has no site can show (and stay)
-                      Unassigned. A sited deployment moves between real sites or a
-                      new one, never back to nowhere. */}
-                  {initialSiteId == null && <option value="">Unassigned</option>}
-                  {(sites ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex-1">
+                  <Select
+                    value={siteId ?? ''}
+                    onChange={(e) =>
+                      setSiteId(e.target.value === '' ? null : Number(e.target.value))
+                    }
+                    disabled={locked}
+                  >
+                    {/* Only a deployment that has no site can show (and stay)
+                        Unassigned. A sited deployment moves between real sites or a
+                        new one, never back to nowhere. */}
+                    {initialSiteId == null && <option value="">Unassigned</option>}
+                    {(sites ?? []).map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
                 {canEdit && (
                   <Button
                     type="button"

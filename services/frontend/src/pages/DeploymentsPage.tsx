@@ -29,6 +29,7 @@ import {
   TableRow,
 } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
+import { Select } from '../components/ui/Select';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -395,19 +396,20 @@ export const DeploymentsPage: React.FC = () => {
             {selected.size} of {total} deployments selected
           </span>
           <div className="flex items-center gap-2 flex-wrap ml-auto">
-            <select
-              value={bulkChoice}
-              onChange={(e) => setBulkChoice(e.target.value)}
-              disabled={bulkMutation.isPending}
-              className="px-3 py-2 border rounded-md text-sm bg-background disabled:bg-muted"
-            >
-              <option value="">Assign to site...</option>
-              {(sites ?? []).map((s) => (
-                <option key={s.id} value={String(s.id)}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+            <div className="w-48">
+              <Select
+                value={bulkChoice}
+                onChange={(e) => setBulkChoice(e.target.value)}
+                disabled={bulkMutation.isPending}
+              >
+                <option value="">Assign to site...</option>
+                {(sites ?? []).map((s) => (
+                  <option key={s.id} value={String(s.id)}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <Button
               size="sm"
               onClick={() => setShowBulkConfirm(true)}
