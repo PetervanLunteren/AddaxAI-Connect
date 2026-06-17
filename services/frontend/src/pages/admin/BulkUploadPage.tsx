@@ -49,7 +49,6 @@ import {
   useBulkUploadStore,
   type ActiveUpload,
 } from '../../lib/bulkUploadStore';
-import { FEATURES } from '../../lib/features';
 
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed']);
 
@@ -200,12 +199,6 @@ export const BulkUploadPage: React.FC = () => {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  // FEATURES.bulkUpload gates the page entirely while the feature
-  // is still in development. A bookmarked or guessed URL lands here
-  // and gets redirected away without exposing the workflow.
-  if (!FEATURES.bulkUpload) {
-    return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
-  }
   if (!canAdminCurrentProject) {
     return <Navigate to={`/projects/${projectId}/dashboard`} replace />;
   }
