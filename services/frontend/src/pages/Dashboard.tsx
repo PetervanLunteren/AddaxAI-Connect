@@ -269,7 +269,7 @@ export const Dashboard: React.FC = () => {
 
   // Camera activity chart data
   const activityData = {
-    labels: ['Active', 'Inactive', 'Never reported'],
+    labels: ['Active', 'Inactive', 'No live signal yet'],
     datasets: [
       {
         data: [
@@ -280,7 +280,7 @@ export const Dashboard: React.FC = () => {
         backgroundColor: [
           '#0f6064',  // Active - teal
           '#882000',  // Inactive - dark red
-          '#71b7ba',  // Never reported - light teal
+          '#71b7ba',  // No live signal yet - light teal
         ],
         borderWidth: 0,
       },

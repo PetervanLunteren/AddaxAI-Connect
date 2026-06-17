@@ -673,7 +673,7 @@ export function DeploymentTimelineChart({
 function labelForStatus(status: string): string {
   if (status === 'active') return 'Active';
   if (status === 'inactive') return 'Inactive';
-  if (status === 'never_reported') return 'Never reported';
+  if (status === 'never_reported') return 'No live signal yet';
   return status;
 }
 

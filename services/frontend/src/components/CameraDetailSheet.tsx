@@ -240,7 +240,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     const labels = {
       active: 'Active',
       inactive: 'Inactive',
-      never_reported: 'Never reported',
+      never_reported: 'No live signal yet',
     };
     return labels[status as keyof typeof labels] || status;
   };
@@ -262,6 +262,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     active
       ? {}
       : { className: 'text-muted-foreground', title: 'Camera is not active, showing the last reported value' };
+
+  // A camera with no live signal yet (e.g. a bulk-upload camera) has no
+  // telemetry, so its last-report / last-image / location read "N/A" rather
+  // than "Never" / a stale date / "Unknown". Battery, signal, and SD are
+  // already null (so they show N/A) for such a camera.
+  const noLiveSignal = camera.status === 'never_reported';
 
   const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
@@ -521,15 +527,17 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Last report</span>
-                    <span>{formatDateTime(camera.last_report_timestamp, 'Never')}</span>
+                    <span>{noLiveSignal ? 'N/A' : formatDateTime(camera.last_report_timestamp, 'Never')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Last image</span>
-                    <span>{formatDateTime(camera.last_image_timestamp, 'Never')}</span>
+                    <span>{noLiveSignal ? 'N/A' : formatDateTime(camera.last_image_timestamp, 'Never')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Location</span>
-                    {camera.location ? (
+                    {noLiveSignal ? (
+                      <span>N/A</span>
+                    ) : camera.location ? (
                       <span className="flex items-center gap-1">
                         {camera.location.lat.toFixed(6)}, {camera.location.lon.toFixed(6)}
                         <a

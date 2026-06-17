@@ -14,7 +14,7 @@ export const STATUS_COLORS = {
 export const STATUS_LABELS = {
   active: 'Active',
   inactive: 'Inactive',
-  never_reported: 'Never reported',
+  never_reported: 'No live signal yet',
 } as const;
 
 // Unknown/null value color
@@ -65,7 +65,7 @@ export function getLegendItems(colorBy: ColorByMetric): LegendItem[] {
       return [
         { color: STATUS_COLORS.active, label: 'Active' },
         { color: STATUS_COLORS.inactive, label: 'Inactive' },
-        { color: STATUS_COLORS.never_reported, label: 'Never reported' },
+        { color: STATUS_COLORS.never_reported, label: 'No live signal yet' },
       ];
     case 'battery':
       return [

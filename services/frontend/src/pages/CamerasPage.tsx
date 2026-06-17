@@ -415,7 +415,7 @@ export const CamerasPage: React.FC = () => {
       options: [
         { value: 'active', label: 'Active' },
         { value: 'inactive', label: 'Inactive' },
-        { value: 'never_reported', label: 'Never reported' },
+        { value: 'never_reported', label: 'No live signal yet' },
       ],
     },
     {
@@ -681,6 +681,20 @@ export const CamerasPage: React.FC = () => {
   // above. Each ColumnId returns the cell body, not the wrapping <TableCell>.
   const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
     const isActive = camera.status === 'active';
+    // A camera with no live signal yet (e.g. a bulk-upload camera) has no
+    // telemetry, so its health/recency/location columns show a plain "N/A"
+    // rather than stale dates or red "unknown" flags. The device id, status,
+    // site, tags, and notes still render normally.
+    const TELEMETRY_COLUMNS = new Set<ColumnId>([
+      'battery', 'signal', 'sd_used', 'temperature', 'last_report', 'last_image', 'location',
+    ]);
+    if (camera.status === 'never_reported' && TELEMETRY_COLUMNS.has(id)) {
+      return (
+        <span className="text-sm text-muted-foreground" title="No live signal from this camera yet">
+          N/A
+        </span>
+      );
+    }
     switch (id) {
       case 'device_id':
         return camera.device_id ? (
