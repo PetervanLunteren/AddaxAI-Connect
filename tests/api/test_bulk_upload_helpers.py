@@ -26,6 +26,19 @@ def _recover_filename(key: str) -> str:
     return tail.split("_", 1)[1] if "_" in tail else tail
 
 
+# --- copies of the disk-headroom guard logic ---
+def _gb(num_bytes: int) -> str:
+    return f"{max(num_bytes, 0) / (1024 ** 3):.1f}"
+
+
+def _fits(upload_bytes: int, free_bytes: int, reserve_bytes: int) -> bool:
+    """True when the import fits, mirroring _check_disk_headroom's test."""
+    return upload_bytes <= free_bytes - reserve_bytes
+
+
+GB = 1024 ** 3
+
+
 class TestSafeBasename:
     def test_plain_name(self):
         assert _safe_basename("IMG_0001.JPG") == "IMG_0001.JPG"
@@ -116,6 +129,43 @@ class TestUploadedIndexParse:
         # If somehow a key without the standard index prefix lands in
         # the staging bucket, the endpoint must skip it, not 500.
         assert self._parse_index("9/abc/oops_file.jpg") is None
+
+
+class TestDiskHeadroom:
+    """The guard that refuses a bulk job too big for the local data disk."""
+
+    RESERVE = 5 * GB
+
+    def test_small_import_fits(self):
+        assert _fits(2 * GB, free_bytes=100 * GB, reserve_bytes=self.RESERVE)
+
+    def test_import_larger_than_free_is_refused(self):
+        assert not _fits(50 * GB, free_bytes=30 * GB, reserve_bytes=self.RESERVE)
+
+    def test_reserve_is_kept_aside(self):
+        # 28 GB import, 30 GB free, 5 GB reserve leaves only 25 GB usable.
+        assert not _fits(28 * GB, free_bytes=30 * GB, reserve_bytes=self.RESERVE)
+
+    def test_exactly_at_usable_limit_fits(self):
+        assert _fits(25 * GB, free_bytes=30 * GB, reserve_bytes=self.RESERVE)
+
+    def test_one_byte_over_usable_is_refused(self):
+        assert not _fits(25 * GB + 1, free_bytes=30 * GB, reserve_bytes=self.RESERVE)
+
+
+class TestGbFormatting:
+    """GB formatting used in the user-facing headroom message."""
+
+    def test_whole_gb(self):
+        assert _gb(50 * GB) == "50.0"
+
+    def test_one_decimal(self):
+        assert _gb(int(1.5 * GB)) == "1.5"
+
+    def test_negative_clamped_to_zero(self):
+        # usable can go negative when free disk is below the reserve; the
+        # message must still read 0.0, never "-3.0".
+        assert _gb(-3 * GB) == "0.0"
 
 
 class TestStatusTransitions:

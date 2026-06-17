@@ -16,7 +16,9 @@ resumed; they expire via the orphan-cleanup pass.
 import asyncio
 import csv
 import io
+import os
 import re
+import shutil
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -68,6 +70,17 @@ UPLOAD_TTL = timedelta(hours=24)
 # headroom.
 MAX_CONCURRENT_JOBS_PER_PROJECT = 3
 
+# A bulk import lands its full size on the local data disk (first in the
+# staging bucket, then in raw-images) before the cold tier can drain it.
+# Postgres, Redis, and MinIO share that one volume, so an import that does
+# not fit would fill the disk and take the database down. Refuse such a job
+# up front instead. The API container sees the same volume through its
+# project-images mount, so free space there matches the disk MinIO writes to.
+DATA_DISK_PROBE_PATH = "/app/project-images"
+DISK_RESERVE_BYTES = int(
+    float(os.environ.get("BULK_UPLOAD_DISK_RESERVE_GB", "5")) * (1024 ** 3)
+)
+
 # Soft cap on in-flight per-file uploads handled by this API process.
 # The client uploads with concurrency 4, so a single legitimate user
 # never hits the limit; the bound mostly defends against a user who
@@ -109,6 +122,9 @@ class CreateBulkUploadRequest(BaseModel):
     # per-image GPS). The user picks an existing site or creates one.
     site_id: int
     total_files: int = Field(ge=1, le=MAX_FILES_PER_JOB)
+    # Sum of the byte sizes of the files about to be uploaded. Used to
+    # refuse a job up front when it would not fit on the local data disk.
+    total_bytes: int = Field(ge=0)
     # Free-form client-computed scan summary. Stored on the job and shown
     # back in the review UI. See the bulk-upload worker for the shape.
     manifest: Dict[str, Any] = Field(default_factory=dict)
@@ -146,6 +162,39 @@ class CheckDuplicatesResponse(BaseModel):
 def _staging_prefix(project_id: int, job_uuid: str) -> str:
     """MinIO key prefix that holds every file for one bulk-upload job."""
     return f"{project_id}/{job_uuid}/"
+
+
+def _gb(num_bytes: int) -> str:
+    """Format a byte count as a one-decimal GB string for user messages."""
+    return f"{max(num_bytes, 0) / (1024 ** 3):.1f}"
+
+
+def _check_disk_headroom(upload_bytes: int) -> None:
+    """Refuse a bulk job that would not fit on the local data disk.
+
+    The whole import sits on disk before the cold tier can move it off, so
+    a job larger than the free space minus the safety reserve would fill
+    the volume that Postgres and MinIO share. Fail early with a message
+    that tells the user to split the upload instead of letting the disk
+    fill and the server fall over.
+    """
+    # Probe the data-disk mount, falling back to the container root (same
+    # disk on a single-VM deploy) so a missing mount cannot 500 every job.
+    probe_path = DATA_DISK_PROBE_PATH if os.path.exists(DATA_DISK_PROBE_PATH) else "/"
+    free = shutil.disk_usage(probe_path).free
+    usable = free - DISK_RESERVE_BYTES
+    if upload_bytes > usable:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=(
+                f"This upload is {_gb(upload_bytes)} GB but the server has only "
+                f"{_gb(usable)} GB free right now "
+                f"(a {_gb(DISK_RESERVE_BYTES)} GB safety reserve is kept aside). "
+                "Please upload it in parts. Send about half now, wait until it "
+                "finishes processing, then send the rest. Each finished part "
+                "frees its space again."
+            ),
+        )
 
 
 def _safe_basename(name: str) -> str:
@@ -499,6 +548,9 @@ async def create_bulk_upload_job(
                 "before starting another."
             ),
         )
+
+    # Refuse the job if the import would not fit on the local data disk.
+    _check_disk_headroom(body.total_bytes)
 
     job_uuid = str(uuid.uuid4())
     safe_folder_name = _safe_basename(body.folder_name) or "upload"

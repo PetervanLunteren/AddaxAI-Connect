@@ -132,6 +132,7 @@ async function runNewUpload(
   const excluded = new Set(args.excludedCapturedAts);
   const validEntries = makeValidEntries(args.entries, excluded);
   const total = validEntries.length;
+  const totalBytes = validEntries.reduce((sum, e) => sum + e.size, 0);
 
   let job: BulkUploadJob;
   try {
@@ -140,6 +141,7 @@ async function runNewUpload(
       camera_id: args.cameraId,
       site_id: args.siteId,
       total_files: total,
+      total_bytes: totalBytes,
       manifest: args.manifest,
     });
   } catch (err: any) {

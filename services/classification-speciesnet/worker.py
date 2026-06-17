@@ -32,6 +32,30 @@ logger = get_logger("classification-speciesnet")
 settings = get_settings()
 
 
+def tier_bulk_raw_cold(image_uuid: str) -> None:
+    """Push a finished bulk image's raw straight to the cold tier.
+
+    Bulk uploads are old SD-card data that nobody browses in real time, so
+    there is no reason to keep the raw on local disk waiting for the daily
+    disk-budget watchdog. Once classification is done the raw is no longer
+    read by the pipeline, so tag it cold here and let the ILM rule move it
+    off-box. Best-effort: a tagging failure must not fail an already
+    classified image. Inert when the cold tier is disabled.
+    """
+    from shared.database import get_db_session
+    from shared.models import Image as ImageModel
+    from shared.storage import StorageClient, BUCKET_RAW_IMAGES
+    try:
+        with get_db_session() as db:
+            record = db.query(ImageModel).filter(ImageModel.uuid == image_uuid).first()
+            storage_path = record.storage_path if record else None
+        if storage_path:
+            StorageClient().tag_object_cold(BUCKET_RAW_IMAGES, storage_path)
+            logger.info("Tagged bulk raw image for cold tier", image_uuid=image_uuid)
+    except Exception as e:
+        logger.warning("Failed to tag bulk image cold", image_uuid=image_uuid, error=str(e))
+
+
 def process_detection_complete(message: dict, classifier, taxonomy_map: dict[str, str], ensemble=None, geofencing_config: dict | None = None) -> None:
     """
     Process detection-complete message through classification pipeline.
@@ -517,6 +541,9 @@ def main():
         current_map = get_taxonomy_mapping()
         current_geo = get_geofencing_config()
         process_detection_complete(msg, classifier, current_map, ensemble, current_geo)
+        # Only reached when classification succeeded (it raises on failure).
+        if msg.get("origin") == "bulk":
+            tier_bulk_raw_cold(msg.get("image_uuid"))
 
     logger.info("Listening for messages", queues=priority_queues)
     queue.consume_forever_priority(priority_queues, handle_message)

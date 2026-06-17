@@ -88,6 +88,22 @@ class StorageClient:
         response = self.client.get_object(Bucket=bucket, Key=object_name)
         return response['Body'].read()
 
+    def tag_object_cold(self, bucket: str, object_name: str) -> None:
+        """
+        Tag an object tier=cold so the cold-tier ILM rule transitions it to
+        remote storage. When the cold tier is disabled there is no rule to
+        act on the tag, so this is harmless (the tag just sits there).
+
+        Args:
+            bucket: Bucket name
+            object_name: Object name in bucket
+        """
+        self.client.put_object_tagging(
+            Bucket=bucket,
+            Key=object_name,
+            Tagging={"TagSet": [{"Key": "tier", "Value": "cold"}]},
+        )
+
     def delete_object(self, bucket: str, object_name: str) -> None:
         """
         Delete object from MinIO.

@@ -134,6 +134,7 @@ export const bulkUploadApi = {
       camera_id: number;
       site_id: number;
       total_files: number;
+      total_bytes: number;
       manifest: BulkUploadManifest;
     },
   ): Promise<BulkUploadJob> => {
