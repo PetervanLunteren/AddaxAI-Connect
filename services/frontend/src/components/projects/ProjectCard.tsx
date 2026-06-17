@@ -88,7 +88,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
         onClick={handleCardClick}
       >
         {/* Project Image */}
-        <div className="relative w-full bg-gray-200 overflow-hidden" style={{ aspectRatio: '4/3' }}>
+        <div className="relative w-full bg-gray-200 overflow-hidden rounded-t-lg" style={{ aspectRatio: '4/3' }}>
           {project.thumbnail_url ? (
             <img
               src={project.thumbnail_url}
