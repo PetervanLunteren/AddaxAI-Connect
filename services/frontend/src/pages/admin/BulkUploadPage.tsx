@@ -1512,12 +1512,12 @@ const JobRow: React.FC<{
         <PhaseRow
           label="Upload"
           percent={counts.uploadPercent}
-          caption={uploadCaption}
+          caption={isTerminal ? undefined : uploadCaption}
         />
         <PhaseRow
           label="Analyse"
           percent={counts.processPercent}
-          caption={processCaption}
+          caption={isTerminal ? undefined : processCaption}
           dim={job.status === 'uploading' || isActiveUpload}
         />
       </div>
@@ -1650,7 +1650,9 @@ function PhaseRow({
 }: {
   label: string;
   percent: number;
-  caption: string;
+  // Omitted on finished rows: the single summary line below states the
+  // outcome, so a per-phase caption there would just repeat it.
+  caption?: string;
   dim?: boolean;
 }) {
   return (
@@ -1661,9 +1663,11 @@ function PhaseRow({
           <PhaseBar percent={percent} dim={dim} />
         </div>
       </div>
-      <p className="text-muted-foreground tabular-nums pl-[calc(5rem+0.75rem)] mt-0.5">
-        {caption}
-      </p>
+      {caption && (
+        <p className="text-muted-foreground tabular-nums pl-[calc(5rem+0.75rem)] mt-0.5">
+          {caption}
+        </p>
+      )}
     </div>
   );
 }
