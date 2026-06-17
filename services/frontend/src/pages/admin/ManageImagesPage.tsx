@@ -9,7 +9,7 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   EyeOff, Eye, Trash2, Loader2, ArrowUp, ArrowDown, ArrowUpDown,
-  ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Check, Download,
+  ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Check, Download, Info,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import {
@@ -58,6 +58,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_to: 'date',
   liked: 'string',
   needs_review: 'string',
+  bulk_upload_job: 'string',
   min_detection_confidence: 'number',
   max_detection_confidence: 'number',
   min_classification_confidence: 'number',
@@ -115,6 +116,7 @@ export const ManageImagesPage: React.FC = () => {
   const dateTo = asString(parsedFilters.date_to);
   const likedFilter = asString(parsedFilters.liked);
   const needsReviewFilter = asString(parsedFilters.needs_review);
+  const bulkUploadJob = asString(parsedFilters.bulk_upload_job);
   const minDetConf = asString(parsedFilters.min_detection_confidence);
   const maxDetConf = asString(parsedFilters.max_detection_confidence);
   const minClsConf = asString(parsedFilters.min_classification_confidence);
@@ -132,6 +134,7 @@ export const ManageImagesPage: React.FC = () => {
     date_to: dateTo || undefined,
     liked: likedFilter || undefined,
     needs_review: needsReviewFilter || undefined,
+    bulk_upload_job: bulkUploadJob || undefined,
     min_detection_confidence: minDetConf || undefined,
     max_detection_confidence: maxDetConf || undefined,
     min_classification_confidence: minClsConf || undefined,
@@ -151,11 +154,12 @@ export const ManageImagesPage: React.FC = () => {
     tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
     liked: likedFilter || undefined,
     needs_review: needsReviewFilter || undefined,
+    bulk_upload_job: bulkUploadJob || undefined,
     min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
     max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
     min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
     max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
-  }), [cameraFilter, dateFrom, dateTo, speciesFilter, verifiedFilter, hiddenFilter, debouncedSearch, tagValues, likedFilter, needsReviewFilter, minDetConf, maxDetConf, minClsConf, maxClsConf]);
+  }), [cameraFilter, dateFrom, dateTo, speciesFilter, verifiedFilter, hiddenFilter, debouncedSearch, tagValues, likedFilter, needsReviewFilter, bulkUploadJob, minDetConf, maxDetConf, minClsConf, maxClsConf]);
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
     const next = { ...filterValues, ...patch };
@@ -538,6 +542,24 @@ export const ManageImagesPage: React.FC = () => {
         onChange={onFilterChange}
         onClearAll={onClearAll}
       />
+
+      {/* Scoped to a single bulk upload (opened from the bulk-upload page).
+          Makes the narrow scope obvious before a select-all delete. */}
+      {bulkUploadJob && (
+        <div className="flex items-center justify-between gap-3 p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-md text-sm">
+          <span className="flex items-center gap-2">
+            <Info className="h-4 w-4 flex-shrink-0" />
+            Showing images from one bulk upload only.
+          </span>
+          <Button
+            variant="link"
+            size="sm"
+            onClick={() => onFilterChange({ bulk_upload_job: undefined })}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
 
       {/* Promotion banner. Shows up when the user has ticked every
           image on the page and there's more on other pages. Clicking

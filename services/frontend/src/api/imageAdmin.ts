@@ -15,6 +15,7 @@ export interface AdminImageFilterParams {
   tags?: string;
   liked?: string;
   needs_review?: string;
+  bulk_upload_job?: string;
   min_detection_confidence?: number;
   max_detection_confidence?: number;
   min_classification_confidence?: number;

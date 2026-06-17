@@ -16,7 +16,7 @@ from sqlalchemy import select, func, and_, or_, desc, asc, update, delete as sql
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site, BulkUploadJob
 from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
@@ -129,6 +129,9 @@ class AdminImageFilterParams(BaseModel):
     tags: Optional[str] = None
     liked: Optional[str] = None
     needs_review: Optional[str] = None
+    # Scope to one bulk-upload job (its uuid). Used by the "Review in curation"
+    # link so a wrong import can be reviewed and deleted on its own.
+    bulk_upload_job: Optional[str] = None
     min_detection_confidence: Optional[float] = None
     max_detection_confidence: Optional[float] = None
     min_classification_confidence: Optional[float] = None
@@ -165,6 +168,7 @@ async def _build_filter_clauses(
     tags: Optional[str] = None,
     liked: Optional[str] = None,
     needs_review: Optional[str] = None,
+    bulk_upload_job: Optional[str] = None,
     min_detection_confidence: Optional[float] = None,
     max_detection_confidence: Optional[float] = None,
     min_classification_confidence: Optional[float] = None,
@@ -175,6 +179,17 @@ async def _build_filter_clauses(
         Camera.project_id == project_id,
         Image.status == "classified",
     ]
+
+    # Scope to a single bulk-upload job by its uuid. Scalar subquery so the same
+    # clause serves both the list and the select-all-matching bulk delete; the
+    # project_id clause above already keeps a foreign uuid from matching.
+    if bulk_upload_job:
+        filters.append(
+            Image.bulk_upload_job_id
+            == select(BulkUploadJob.id)
+            .where(BulkUploadJob.uuid == bulk_upload_job)
+            .scalar_subquery()
+        )
 
     if camera_id is not None:
         filters.append(Image.camera_id == camera_id)
@@ -409,6 +424,7 @@ async def list_all_images(
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     liked: Optional[str] = Query(None),
     needs_review: Optional[str] = Query(None),
+    bulk_upload_job: Optional[str] = Query(None),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -438,6 +454,7 @@ async def list_all_images(
         tags=tags,
         liked=liked,
         needs_review=needs_review,
+        bulk_upload_job=bulk_upload_job,
         min_detection_confidence=min_detection_confidence,
         max_detection_confidence=max_detection_confidence,
         min_classification_confidence=min_classification_confidence,

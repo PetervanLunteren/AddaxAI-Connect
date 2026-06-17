@@ -23,7 +23,6 @@ import {
   RotateCw,
   FileDown,
   CircleStop,
-  X,
 } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
@@ -249,23 +248,6 @@ export const BulkUploadPage: React.FC = () => {
     s.active && !s.active.done ? s.active.jobUuid : null,
   );
 
-  const discardMutation = useMutation({
-    mutationFn: (uuid: string) => bulkUploadApi.discard(projectId!, uuid),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bulk-upload-jobs', projectId] });
-    },
-    onError: (err: any) => {
-      toast.error(`Discard failed, ${err.response?.data?.detail || err.message}`);
-    },
-  });
-
-  // Discard (Remove) only applies to terminal rows now, so it never
-  // collides with an active upload; just hit the DELETE endpoint.
-  const handleDiscard = useCallback(
-    (uuid: string) => discardMutation.mutate(uuid),
-    [discardMutation],
-  );
-
   const cancelMutation = useMutation({
     mutationFn: (uuid: string) => bulkUploadApi.cancel(projectId!, uuid),
     onSuccess: () => {
@@ -456,12 +438,6 @@ export const BulkUploadPage: React.FC = () => {
                         ? () => setConfirm({ kind: 'stop', job })
                         : undefined
                     }
-                    onDiscard={
-                      // Remove the row once the job is finished/stopped.
-                      TERMINAL_STATUSES.has(job.status)
-                        ? () => handleDiscard(job.uuid)
-                        : undefined
-                    }
                     onDeleteImages={
                       // Cleanup is for stopped imports only. A finished (done)
                       // import is kept; delete its images via curation if needed.
@@ -469,7 +445,6 @@ export const BulkUploadPage: React.FC = () => {
                         ? () => setConfirm({ kind: 'delete-images', job })
                         : undefined
                     }
-                    isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
                     isStopping={cancelMutation.isPending && cancelMutation.variables === job.uuid}
                     isDeletingImages={
                       deleteImagesMutation.isPending && deleteImagesMutation.variables === job.uuid
@@ -1377,16 +1352,14 @@ function jobSummaryText(job: BulkUploadJob): string {
     + (skipParts.length ? `, ${skipParts.join(', ')}` : '');
 }
 
-function buildResultsHref(projectId: number, job: BulkUploadJob): string | null {
-  if (job.status !== 'done' || job.camera_id == null) return null;
+function buildCurationHref(projectId: number, job: BulkUploadJob): string | null {
+  // Done jobs only. Curation shows classified images, which is the whole import
+  // for a done job. A cancelled job has non-classified leftovers curation can't
+  // show, so it uses the row's "Delete images" (all statuses) instead.
+  if (job.status !== 'done') return null;
   const params = new URLSearchParams();
-  params.set('camera_ids', String(job.camera_id));
-  const start = job.manifest?.date_range?.start;
-  const end = job.manifest?.date_range?.end;
-  if (start) params.set('date_from', start.slice(0, 10));
-  if (end) params.set('date_to', end.slice(0, 10));
-  params.set('show_empty', 'true');
-  return `/projects/${projectId}/images?${params.toString()}`;
+  params.set('bulk_upload_job', job.uuid);
+  return `/projects/${projectId}/manage-images?${params.toString()}`;
 }
 
 const JobRow: React.FC<{
@@ -1395,9 +1368,7 @@ const JobRow: React.FC<{
   etaText: string | null;
   onResume?: () => void;
   onStop?: () => void;
-  onDiscard?: () => void;
   onDeleteImages?: () => void;
-  isDiscarding?: boolean;
   isStopping?: boolean;
   isDeletingImages?: boolean;
 }> = ({
@@ -1406,9 +1377,7 @@ const JobRow: React.FC<{
   etaText,
   onResume,
   onStop,
-  onDiscard,
   onDeleteImages,
-  isDiscarding,
   isStopping,
   isDeletingImages,
 }) => {
@@ -1421,7 +1390,7 @@ const JobRow: React.FC<{
   const uploadEta = useThrottledUploadEta(isActiveUpload ? active : null);
 
   const isTerminal = TERMINAL_STATUSES.has(job.status);
-  const resultsHref = buildResultsHref(projectId, job);
+  const curationHref = buildCurationHref(projectId, job);
 
   const counts = deriveRowCounts(job, isActiveUpload ? active : null);
 
@@ -1497,11 +1466,11 @@ const JobRow: React.FC<{
               </Button>
             </a>
           )}
-          {resultsHref && (
-            <Link to={resultsHref}>
+          {curationHref && (
+            <Link to={curationHref}>
               <Button size="sm" variant="outline">
                 <Images className="h-4 w-4 mr-1" />
-                View images
+                Review in curation
               </Button>
             </Link>
           )}
@@ -1520,22 +1489,6 @@ const JobRow: React.FC<{
                 <Trash2 className="h-4 w-4 mr-1" />
               )}
               Delete images
-            </Button>
-          )}
-          {onDiscard && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onDiscard}
-              disabled={isDiscarding}
-              title="Removes this job from the list. The imported images stay in the project."
-            >
-              {isDiscarding ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <X className="h-4 w-4 mr-1" />
-              )}
-              Remove from list
             </Button>
           )}
         </div>

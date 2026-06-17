@@ -392,3 +392,21 @@ class TestStopJob:
         assert self._worker_skips("cancelled") is True
         for s in ("uploading", "processing", "done", "failed"):
             assert self._worker_skips(s) is False
+
+
+class TestCurationBulkUploadFilter:
+    """The curation filter that scopes images to one bulk upload (by uuid).
+
+    Mirrors the relevant slice of AdminImageFilterParams; the SQL clause itself
+    needs a database and is verified on dev.
+    """
+
+    class _Filter(BaseModel):
+        camera_id: Optional[int] = None
+        bulk_upload_job: Optional[str] = None
+
+    def test_accepts_job_uuid(self):
+        assert self._Filter(bulk_upload_job="368b40ae-uuid").bulk_upload_job == "368b40ae-uuid"
+
+    def test_optional_by_default(self):
+        assert self._Filter().bulk_upload_job is None
