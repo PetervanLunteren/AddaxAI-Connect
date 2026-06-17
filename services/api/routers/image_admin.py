@@ -65,9 +65,10 @@ async def cleanup_empty_deployments(db: AsyncSession, camera_ids: set[int]):
             image_count = count_result.scalar_one()
 
             if image_count == 0:
-                # Keep deployments the user has touched (label or notes) so we
-                # never silently delete user-entered data along with the row.
-                if dep.name or dep.notes:
+                # Keep deployments the user has labelled so we never silently
+                # delete user-entered data along with the row. (Deployment has
+                # no notes field; name is the only user-set label.)
+                if dep.name:
                     logger.info(
                         "Skipping empty deployment with user data",
                         camera_id=camera_id,

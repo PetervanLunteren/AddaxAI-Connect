@@ -463,8 +463,9 @@ export const BulkUploadPage: React.FC = () => {
                         : undefined
                     }
                     onDeleteImages={
-                      // Cleanup: only jobs that imported images.
-                      job.status === 'done' || job.status === 'cancelled'
+                      // Cleanup is for stopped imports only. A finished (done)
+                      // import is kept; delete its images via curation if needed.
+                      job.status === 'cancelled'
                         ? () => setConfirm({ kind: 'delete-images', job })
                         : undefined
                     }
