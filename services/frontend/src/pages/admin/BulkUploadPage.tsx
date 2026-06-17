@@ -289,23 +289,38 @@ export const BulkUploadPage: React.FC = () => {
   });
 
   // One confirm dialog drives both the Stop and Delete-images actions.
-  const [confirm, setConfirm] = useState<{ kind: 'stop' | 'delete-images'; uuid: string } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: 'stop' | 'delete-images'; job: BulkUploadJob } | null>(null);
+  // Stop dialog only: also delete the images already imported by the job.
+  const [alsoDelete, setAlsoDelete] = useState(false);
+
+  const closeConfirm = useCallback(() => {
+    setConfirm(null);
+    setAlsoDelete(false);
+  }, []);
 
   const handleConfirm = useCallback(() => {
     if (!confirm) return;
+    const uuid = confirm.job.uuid;
     if (confirm.kind === 'stop') {
       // An active client-side upload stops via the store (which halts the
       // loop, then marks the job cancelled). Anything else hits the API.
-      if (confirm.uuid === activeUploadUuid) {
+      if (uuid === activeUploadUuid) {
         cancelActiveUpload();
+      } else if (alsoDelete) {
+        // Stop first so the workers stop touching the job, then delete what
+        // already landed.
+        cancelMutation
+          .mutateAsync(uuid)
+          .then(() => deleteImagesMutation.mutate(uuid))
+          .catch(() => {});
       } else {
-        cancelMutation.mutate(confirm.uuid);
+        cancelMutation.mutate(uuid);
       }
     } else {
-      deleteImagesMutation.mutate(confirm.uuid);
+      deleteImagesMutation.mutate(uuid);
     }
-    setConfirm(null);
-  }, [confirm, activeUploadUuid, cancelActiveUpload, cancelMutation, deleteImagesMutation]);
+    closeConfirm();
+  }, [confirm, alsoDelete, activeUploadUuid, cancelActiveUpload, cancelMutation, deleteImagesMutation, closeConfirm]);
 
   // Watch every poll for a job that just moved from 'processing' to a
   // terminal state and surface it. Toast for users on the page, plus
@@ -438,7 +453,7 @@ export const BulkUploadPage: React.FC = () => {
                     onStop={
                       // In-flight (uploading or analysing) can be stopped.
                       job.status === 'uploading' || job.status === 'processing'
-                        ? () => setConfirm({ kind: 'stop', uuid: job.uuid })
+                        ? () => setConfirm({ kind: 'stop', job })
                         : undefined
                     }
                     onDiscard={
@@ -450,7 +465,7 @@ export const BulkUploadPage: React.FC = () => {
                     onDeleteImages={
                       // Cleanup: only jobs that imported images.
                       job.status === 'done' || job.status === 'cancelled'
-                        ? () => setConfirm({ kind: 'delete-images', uuid: job.uuid })
+                        ? () => setConfirm({ kind: 'delete-images', job })
                         : undefined
                     }
                     isDiscarding={discardMutation.isPending && discardMutation.variables === job.uuid}
@@ -479,15 +494,30 @@ export const BulkUploadPage: React.FC = () => {
 
       <ConfirmDialog
         open={confirm !== null}
-        onClose={() => setConfirm(null)}
+        onClose={closeConfirm}
         onConfirm={handleConfirm}
         variant="destructive"
         title={confirm?.kind === 'delete-images' ? 'Delete imported images?' : 'Stop this upload?'}
         confirmLabel={confirm?.kind === 'delete-images' ? 'Delete images' : 'Stop'}
         body={
-          confirm?.kind === 'delete-images'
-            ? 'This permanently deletes the images imported by this upload, with their detections and stored files. The job row stays until you remove it.'
-            : 'Images already analysed stay in the project. The remaining images are skipped.'
+          confirm?.kind === 'delete-images' ? (
+            'This permanently deletes the images imported by this upload, with their detections and stored files. The job row stays until you remove it.'
+          ) : (
+            <>
+              Images already analysed stay in the project. The remaining images are skipped.
+              {confirm && confirm.job.processed_files > 0 && (
+                <label className="mt-3 flex items-center gap-2 text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={alsoDelete}
+                    onChange={(e) => setAlsoDelete(e.target.checked)}
+                  />
+                  Also delete the {confirm.job.processed_files} image
+                  {confirm.job.processed_files === 1 ? '' : 's'} already imported
+                </label>
+              )}
+            </>
+          )
         }
       />
     </div>
@@ -1480,6 +1510,7 @@ const JobRow: React.FC<{
               variant="outline"
               onClick={onDeleteImages}
               disabled={isDeletingImages}
+              title="Permanently deletes the images this upload added. The job stays in the list."
               className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               {isDeletingImages ? (
@@ -1496,13 +1527,14 @@ const JobRow: React.FC<{
               variant="outline"
               onClick={onDiscard}
               disabled={isDiscarding}
+              title="Removes this job from the list. The imported images stay in the project."
             >
               {isDiscarding ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
                 <X className="h-4 w-4 mr-1" />
               )}
-              Remove
+              Remove from list
             </Button>
           )}
         </div>
