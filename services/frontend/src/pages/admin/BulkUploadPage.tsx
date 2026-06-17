@@ -1052,7 +1052,7 @@ const ReviewStep: React.FC<{
       .filter((e) => e.status === 'valid' && e.captured_at)
       .sort((a, b) => (a.captured_at! < b.captured_at! ? -1 : 1));
     if (validEntries.length === 0) return [];
-    const sampleSize = Math.min(4, validEntries.length);
+    const sampleSize = Math.min(8, validEntries.length);
     const picks: ScanEntry[] = [];
     for (let i = 0; i < sampleSize; i++) {
       const idx = Math.floor((i * (validEntries.length - 1)) / Math.max(1, sampleSize - 1));
@@ -1351,7 +1351,7 @@ const JobRow: React.FC<{
               {statusLabel(job.status)}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground mt-1.5">
             {job.camera_name && (
               <>
                 For{' '}
