@@ -14,11 +14,10 @@ import {
   Loader2,
   Upload,
   Plus,
-  Camera as CameraIcon,
+  Info,
   FolderOpen,
   Check,
   AlertTriangle,
-  Sparkles,
   Trash2,
   Images,
   RotateCw,
@@ -98,7 +97,13 @@ function formatRelative(iso: string | null): string {
 
 function formatDateRange(start: string | null, end: string | null): string {
   if (!start && !end) return 'no dates found';
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString();
+  // Unambiguous day-month-year using the browser locale, e.g. "3 Jun 2026".
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   if (start && end && start.slice(0, 10) === end.slice(0, 10)) return fmt(start);
   return `${start ? fmt(start) : '?'} to ${end ? fmt(end) : '?'}`;
 }
@@ -1124,12 +1129,6 @@ const ReviewStep: React.FC<{
         <div className="text-xs text-muted-foreground">
           Date range, {formatDateRange(manifest.date_range.start, manifest.date_range.end)}
         </div>
-        {profile?.mode === 'profile' && profile.device_id && (
-          <div className="flex items-center gap-1.5 text-xs text-primary">
-            <Sparkles className="h-3.5 w-3.5" />
-            Camera detected from metadata, {profile.device_id}
-          </div>
-        )}
       </div>
 
       {thumbnails.length > 0 && (
@@ -1167,19 +1166,14 @@ const ReviewStep: React.FC<{
           </div>
         </div>
       ) : profile?.mode === 'profile' ? (
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Camera</label>
-          <div className="flex items-center gap-1.5 text-sm">
-            <CameraIcon className="h-4 w-4 text-primary" />
-            <span className="font-medium">{profile.device_id}</span>
-            {!profile.camera_registered && (
-              <span className="text-muted-foreground">new, will be added to this project</span>
-            )}
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-start gap-2">
+          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            Camera <span className="font-medium">{profile.device_id}</span>
+            {profile.camera_registered
+              ? ', detected from the image metadata.'
+              : ', detected from the image metadata. It will be added to this project.'}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Detected from the image metadata. The site and deployment are read from each
-            image's GPS, the same way a live upload works.
-          </p>
         </div>
       ) : (
         <div className="space-y-2">
