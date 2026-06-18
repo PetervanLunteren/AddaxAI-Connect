@@ -63,6 +63,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/documents`, icon: FileText, label: 'Documents' },
   ];
 
+  // Labels that begin a new visual section. A thin divider is drawn before
+  // each so the flat list reads as groups (field, data, outputs) without
+  // nesting the items, which would add a click to high-traffic pages.
+  const SECTION_STARTS = new Set(['Sites', 'Images', 'Exports']);
+
   // Insights group - deeper analytical views, ordered + iconed identically
   // to AddaxAI WebUI's Insights submenu so the two products feel the same
   // here. Naive occupancy is Connect-only (WebUI does not have it) and
@@ -170,22 +175,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
           {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center space-x-3 px-4 py-3 rounded-md text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )
-              }
-            >
-              <item.icon className="h-5 w-5" />
-              <span>{item.label}</span>
-            </NavLink>
+            <React.Fragment key={item.to}>
+              {SECTION_STARTS.has(item.label) && (
+                <div className="my-2 border-t border-border" aria-hidden="true" />
+              )}
+              <NavLink
+                to={item.to}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center space-x-3 px-4 py-3 rounded-md text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  )
+                }
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </NavLink>
+            </React.Fragment>
           ))}
 
           {/* Insights section (collapsible) */}
