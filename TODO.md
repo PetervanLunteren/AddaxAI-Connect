@@ -14,17 +14,8 @@ Open follow-ups:
 - Confirm what the `A_` filename prefix means once more INSTAR firmwares are seen. If it turns out to be a per-unit channel ID, the device_id scheme needs to grow another segment.
 - INSTAR sends no daily health reports, so the camera health page will stay empty for these cameras. Worth a UI hint someday.
 
-
-
-
-
 ## TODO
-- [ ] do the bulk upload no that we have fixed the site concept
-
-
-
-
-
+- [ ] 
 
 ## Possible future features
 - [ ] multi language
