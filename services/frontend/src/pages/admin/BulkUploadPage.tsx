@@ -54,6 +54,18 @@ import {
 
 const TERMINAL_STATUSES = new Set<BulkUploadJob['status']>(['done', 'failed', 'cancelled']);
 
+// Save a fetched blob to disk via a temporary anchor.
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+
 function statusLabel(status: BulkUploadJob['status']): string {
   // Collapse every in-flight server status to "Active" so the
   // badge matches the filter chips above. The per-row caption and
@@ -1383,6 +1395,7 @@ const JobRow: React.FC<{
   isStopping,
   isDeletingImages,
 }) => {
+  const toast = useToast();
   // Subscribe to the active client-side upload session. If this row
   // is the one currently uploading from THIS browser, the store has
   // live counts; otherwise we fall back to the server-recorded state.
@@ -1461,12 +1474,21 @@ const JobRow: React.FC<{
             </Button>
           )}
           {isTerminal && (
-            <a href={bulkUploadApi.logCsvUrl(projectId, job.uuid)}>
-              <Button size="sm" variant="outline">
-                <FileDown className="h-4 w-4 mr-1" />
-                Log
-              </Button>
-            </a>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const { blob, filename } = await bulkUploadApi.downloadLog(projectId, job.uuid);
+                  downloadBlob(blob, filename);
+                } catch (err: any) {
+                  toast.error(`Log download failed, ${err.response?.data?.detail || err.message}`);
+                }
+              }}
+            >
+              <FileDown className="h-4 w-4 mr-1" />
+              Log
+            </Button>
           )}
           {curationHref && (
             <Link to={curationHref}>

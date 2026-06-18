@@ -199,12 +199,23 @@ export const bulkUploadApi = {
   },
 
   /**
-   * URL for the per-file CSV log of a job. Used as the href on the
-   * "Download log" button so the browser handles the streamed
-   * download natively.
+   * Fetch the per-file CSV log of a job as a blob. Goes through the
+   * axios client so the Bearer token is attached; a plain <a href> to
+   * this endpoint would be unauthorized. The caller saves the blob.
    */
-  logCsvUrl: (projectId: number, jobUuid: string): string =>
-    `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/log.csv`,
+  downloadLog: async (
+    projectId: number,
+    jobUuid: string,
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const response = await apiClient.get<Blob>(
+      `/api/projects/${projectId}/bulk-upload/jobs/${jobUuid}/log.csv`,
+      { responseType: 'blob' },
+    );
+    const disposition = response.headers['content-disposition'] ?? '';
+    const match = /filename="?([^"]+)"?/.exec(disposition);
+    const filename = match?.[1] ?? `bulk-upload-${jobUuid.slice(0, 8)}.csv`;
+    return { blob: response.data, filename };
+  },
 
   get: async (projectId: number, jobUuid: string): Promise<BulkUploadJob> => {
     const response = await apiClient.get<BulkUploadJob>(
