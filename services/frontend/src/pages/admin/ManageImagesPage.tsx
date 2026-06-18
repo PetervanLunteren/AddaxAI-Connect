@@ -42,6 +42,7 @@ import { imageAdminApi } from '../../api/imageAdmin';
 import { camerasApi } from '../../api/cameras';
 import { sitesApi } from '../../api/sites';
 import { imagesApi } from '../../api/images';
+import { bulkUploadApi } from '../../api/bulkUpload';
 import type { ImageListItem } from '../../api/types';
 import { formatDateTime } from '../../utils/datetime';
 
@@ -277,6 +278,15 @@ export const ManageImagesPage: React.FC = () => {
     queryKey: ['statistics', 'overview', projectId],
     queryFn: () => statisticsApi.getOverview(projectId),
     enabled: projectId !== undefined,
+  });
+
+  // When scoped to one bulk upload (the "Review in curation" link), look up the
+  // job so its filter chip can name the folder you uploaded rather than the
+  // generic word "Bulk upload" (which would collide with the Source filter).
+  const { data: bulkJob } = useQuery({
+    queryKey: ['bulk-upload-job', projectId, bulkUploadJob],
+    queryFn: () => bulkUploadApi.get(projectId!, bulkUploadJob),
+    enabled: projectId !== undefined && !!bulkUploadJob,
   });
 
   // Mutations
@@ -531,16 +541,20 @@ export const ManageImagesPage: React.FC = () => {
       primary: false,
     },
     // Scoped to one bulk upload (set by the "Review in curation" link). Only
-    // present when active, so it shows as a normal filter chip ("Bulk upload",
-    // with a cross, cleared by "Clear all") instead of a bespoke banner. The
-    // single option is the job uuid so the chip reads "Bulk upload", not a uuid.
+    // present when active, so it shows as a normal filter chip (cleared by its
+    // cross or "Clear all") instead of a bespoke banner. The chip names the
+    // uploaded folder so it reads as one specific import, not the whole "Bulk
+    // upload" category (which is the Source filter). Falls back while loading.
     ...(bulkUploadJob
       ? [{
           kind: 'select' as const,
           key: 'bulk_upload_job',
           label: 'Bulk upload',
           primary: false,
-          options: [{ value: bulkUploadJob, label: 'Bulk upload' }],
+          options: [{
+            value: bulkUploadJob,
+            label: bulkJob?.original_filename || 'One bulk upload',
+          }],
         }]
       : []),
   ];
