@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { QueryKey } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Plus, CalendarClock, Images } from 'lucide-react';
+import { Loader2, Save, Plus, CalendarClock, Images, Camera as CameraIcon, MapPin } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -186,6 +186,22 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
                   <Images className="h-4 w-4 mr-2" />
                   Images
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/projects/${projectId}/cameras?search=${encodeURIComponent(cameraName)}`)}
+                >
+                  <CameraIcon className="h-4 w-4 mr-2" />
+                  Camera
+                </Button>
+                {siteId != null && (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(`/projects/${projectId}/sites?site=${siteId}`)}
+                  >
+                    <MapPin className="h-4 w-4 mr-2" />
+                    Site
+                  </Button>
+                )}
               </div>
             </div>
 

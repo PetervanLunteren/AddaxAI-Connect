@@ -65,6 +65,9 @@ const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
   habitat: 'string',
   tag: 'string',
+  // Focus the list on a single site, set by deep links from the camera and
+  // deployment slideouts. Cleared via its chip or Clear all.
+  site: 'string',
   view_mode: 'string',
   color_mode: 'string',
 };
@@ -157,6 +160,7 @@ export const SitesPage: React.FC = () => {
   const searchQuery = asString(parsedFilters.search);
   const habitatFilter = asString(parsedFilters.habitat);
   const tagFilter = asString(parsedFilters.tag);
+  const siteFocus = asString(parsedFilters.site);
   const viewMode = (parsedFilters.view_mode === 'map' ? 'map' : 'table') as
     | 'table'
     | 'map';
@@ -233,6 +237,7 @@ export const SitesPage: React.FC = () => {
     search: searchQuery || undefined,
     habitat: habitatFilter || undefined,
     tag: tagFilter || undefined,
+    site: siteFocus || undefined,
   };
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -248,7 +253,7 @@ export const SitesPage: React.FC = () => {
   };
   const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
-    writeAll({ search: undefined, habitat: undefined, tag: undefined });
+    writeAll({ search: undefined, habitat: undefined, tag: undefined, site: undefined });
   const setViewMode = (m: 'table' | 'map') =>
     writeAll({ view_mode: m === 'table' ? undefined : m });
   const setColorMode = (m: SiteColorMode) =>
@@ -274,8 +279,22 @@ export const SitesPage: React.FC = () => {
         label: 'Tag',
         options: (tagSuggestions ?? []).map((t) => ({ value: t, label: t })),
       },
+      // Single-site focus from a slideout deep link. Only present while active,
+      // so it shows as a chip (the site's name) you can clear, like any filter.
+      ...(siteFocus
+        ? [{
+            kind: 'select' as const,
+            key: 'site',
+            label: 'Site',
+            primary: false,
+            options: [{
+              value: siteFocus,
+              label: (sites ?? []).find((s) => String(s.id) === siteFocus)?.name ?? 'This site',
+            }],
+          }]
+        : []),
     ],
-    [habitatOptions, tagSuggestions],
+    [habitatOptions, tagSuggestions, siteFocus, sites],
   );
 
   // Filter then sort. Nulls last regardless of direction.
@@ -296,8 +315,11 @@ export const SitesPage: React.FC = () => {
     if (tagFilter) {
       result = result.filter((s) => (s.tags ?? []).includes(tagFilter));
     }
+    if (siteFocus) {
+      result = result.filter((s) => String(s.id) === siteFocus);
+    }
     return result;
-  }, [sites, searchQuery, habitatFilter, tagFilter]);
+  }, [sites, searchQuery, habitatFilter, tagFilter, siteFocus]);
 
   const sortedSites = useMemo(() => {
     if (!sort.column) return filteredSites;
@@ -360,7 +382,7 @@ export const SitesPage: React.FC = () => {
   }
 
   const hasSites = !isLoading && sites && sites.length > 0;
-  const isFiltered = !!(searchQuery || habitatFilter || tagFilter);
+  const isFiltered = !!(searchQuery || habitatFilter || tagFilter || siteFocus);
 
   return (
     <div className="space-y-6">

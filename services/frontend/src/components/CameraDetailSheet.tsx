@@ -10,7 +10,7 @@
  * for server admins, "Delete" (the page owns the confirm dialog).
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
 import {
@@ -25,6 +25,7 @@ import {
   Upload,
   Images,
   Trash2,
+  CalendarClock,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
@@ -325,6 +326,15 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         Images
                       </Button>
                     )}
+                    {projectId != null && camera.device_id && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/projects/${projectId}/deployments?camera=${encodeURIComponent(camera.device_id!)}`)}
+                      >
+                        <CalendarClock className="h-4 w-4 mr-2" />
+                        Deployments
+                      </Button>
+                    )}
                     {isServerAdmin && onDeleteRequested && (
                       <Button
                         variant="outline"
@@ -492,9 +502,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Site</span>
                     {camera.current_site ? (
-                      <span>
+                      <Link
+                        to={`/projects/${projectId}/sites?site=${camera.current_site.id}`}
+                        className="text-primary hover:underline"
+                      >
                         {camera.current_site.name}
-                      </span>
+                      </Link>
                     ) : (
                       <span>Unknown</span>
                     )}
