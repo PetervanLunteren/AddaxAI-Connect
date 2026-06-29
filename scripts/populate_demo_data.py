@@ -12,6 +12,7 @@ Usage:
 Set demo_mode: true in Ansible group_vars to auto-populate on deploy
 and refresh daily via cron.
 """
+import gc
 import io
 import json
 import math
@@ -2291,25 +2292,57 @@ def main():
 
         # Step 5: Insert in FK order
         print("[5/6] Inserting into the database...")
+        # Row counts captured before the big lists are freed below.
+        counts = {
+            "sites": len(sites), "cameras": len(cameras), "deployments": len(deployments),
+            "images": len(images), "bulk": len(bulk_images), "detections": len(detections),
+            "classifications": len(classifications), "observations": len(observations),
+            "health": len(health_reports), "rejections": len(rejections), "reminders": len(reminders),
+        }
+
+        # Commit in stages and free each big list once inserted. The demo VM is
+        # small (4 GB, no swap); one giant transaction plus all the data held in
+        # memory at once overruns it. Staged commits keep Postgres from holding
+        # a single multi-hundred-thousand-row transaction, and the del + gc keep
+        # Python's resident set down.
         site_key_to_id = insert_sites(session, sites, project_id)
         cam_index_to_id = insert_cameras(session, cameras, project_id, species_image_info)
         dep_key_to_id = insert_deployments(session, deployments, cam_index_to_id, site_key_to_id)
         job_uuid_to_id = insert_bulk_jobs(session, [bulk_job], project_id, cam_index_to_id)
+        device_to_cam_id = {cam["device_id"]: cam_index_to_id[cam["index"]] for cam in cameras}
+        session.commit()
+        del sites, deployments, bulk_images
+        gc.collect()
 
-        print(f"   Inserting {len(images)} images...")
+        print(f"   Inserting {counts['images']} images...")
         image_uuid_to_id = insert_images_batch(
             session, images, cam_index_to_id, dep_key_to_id, job_uuid_to_id
         )
-        print(f"   Inserting {len(detections)} detections...")
+        session.commit()
+
+        print(f"   Inserting {counts['detections']} detections...")
         old_to_new_det = insert_detections_batch(session, detections, image_uuid_to_id, images)
-        print(f"   Inserting {len(classifications)} classifications...")
+        session.commit()
+        del images, detections
+        gc.collect()
+
+        print(f"   Inserting {counts['classifications']} classifications...")
         insert_classifications_batch(session, classifications, old_to_new_det)
+        session.commit()
+        del classifications, old_to_new_det
+        gc.collect()
+
         insert_human_observations(session, observations, image_uuid_to_id)
+        session.commit()
+        del observations, image_uuid_to_id
+        gc.collect()
 
         insert_health_reports_batch(session, health_reports, cam_index_to_id)
         update_camera_latest_fields(session, cam_index_to_id, cameras)
+        session.commit()
+        del health_reports
+        gc.collect()
 
-        device_to_cam_id = {cam["device_id"]: cam_index_to_id[cam["index"]] for cam in cameras}
         insert_rejections(session, rejections, project_id, device_to_cam_id)
         insert_reminders(session, reminders, project_id)
 
@@ -2317,8 +2350,6 @@ def main():
         print("[6/6] Setting up Telegram and notification preferences...")
         insert_telegram_config(session)
         insert_notification_preferences(session, project_id, user_ids)
-
-        print("   Committing...")
         session.commit()
 
     print()
@@ -2328,21 +2359,21 @@ def main():
     print()
     print(f"  Project: {PROJECT_NAME}")
     print(f"  Date range: {DATE_START} to {DATE_END}")
-    print(f"  Sites: {len(sites)}")
-    print(f"  Cameras: {len(cameras)}")
-    print(f"  Deployments: {len(deployments)}")
+    print(f"  Sites: {counts['sites']}")
+    print(f"  Cameras: {counts['cameras']}")
+    print(f"  Deployments: {counts['deployments']}")
     print(f"  Users: {len(DEMO_USERS)}")
-    print(f"  Images:  {len(images)} ({len(bulk_images)} from bulk upload)")
-    print(f"  Detections: {len(detections)}")
-    print(f"  Classifications: {len(classifications)}")
-    print(f"  Human observations: {len(observations)}")
-    print(f"  Health reports: {len(health_reports)}")
-    print(f"  Rejections: {len(rejections)}")
-    print(f"  Reminders: {len(reminders)}")
+    print(f"  Images:  {counts['images']} ({counts['bulk']} from bulk upload)")
+    print(f"  Detections: {counts['detections']}")
+    print(f"  Classifications: {counts['classifications']}")
+    print(f"  Human observations: {counts['observations']}")
+    print(f"  Health reports: {counts['health']}")
+    print(f"  Rejections: {counts['rejections']}")
+    print(f"  Reminders: {counts['reminders']}")
     total = (
-        1 + len(DEMO_USERS) + len(sites) + len(cameras) + len(deployments)
-        + len(images) + len(detections) + len(classifications) + len(observations)
-        + len(health_reports) + len(rejections) + len(reminders)
+        1 + len(DEMO_USERS) + counts["sites"] + counts["cameras"] + counts["deployments"]
+        + counts["images"] + counts["detections"] + counts["classifications"]
+        + counts["observations"] + counts["health"] + counts["rejections"] + counts["reminders"]
     )
     print(f"  Total DB rows: ~{total:,}")
     print()
