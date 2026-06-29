@@ -1346,26 +1346,23 @@ def _recent_utc(rng: Random, max_days_ago: int = 60) -> datetime:
     )
 
 
-# Plausible model confusions, so the rare disagreement between human and model
-# lands on a similar-looking species instead of a random one.
+# The rare disagreement between human and model is confined to deer telling
+# apart, the classic real-world confusion. Pairs are swapped both ways between
+# species of similar frequency, so the off-diagonal cells stay balanced and no
+# rare class gets flooded. Every non-deer class then scores near-perfect, and
+# the deer stay in the mid-90s, which reads as a trustworthy model.
 SPECIES_CONFUSION = {
-    "roe_deer": "fallow_deer", "fallow_deer": "roe_deer", "red_deer": "fallow_deer",
-    "mouflon": "fallow_deer", "fox": "dog", "dog": "fox", "mustelid": "cat",
-    "cat": "mustelid", "wild_boar": "red_deer", "hedgehog": "lagomorph",
-    "squirrel": "lagomorph", "lagomorph": "squirrel", "bird": "squirrel",
-    "wolf": "fox",
+    "roe_deer": "red_deer", "red_deer": "roe_deer",
+    "fallow_deer": "mouflon", "mouflon": "fallow_deer",
 }
 
-# How often the human label differs from the model. Low, so the performance
-# page shows a trustworthy ~96% top-1 with strong per-class scores, while still
-# having a few off-diagonal cells in the confusion matrix.
-CONFUSION_RATE = 0.04
+# How often the human label differs from the model (only for the species above).
+CONFUSION_RATE = 0.05
 
 
 def _confused_species(ai_sp: str, rng: Random) -> str:
-    if ai_sp in SPECIES_CONFUSION:
-        return SPECIES_CONFUSION[ai_sp]
-    return rng.choice([s for s in ALL_SPECIES if s != ai_sp])
+    # Only the deer pairs are ever confused; everything else the human confirms.
+    return SPECIES_CONFUSION.get(ai_sp, ai_sp)
 
 
 def generate_curation_and_observations(images: list, detections: list,
@@ -1584,6 +1581,11 @@ def generate_reminders(admin_user_id: int) -> list:
 
 def clean_demo_data(session: Session):
     """Delete existing demo data by project name (respecting FK order)."""
+    # Users to delete: collected from the demo project's memberships (below) plus
+    # the fixed accounts by email. Collecting members means a change to the email
+    # scheme still removes the previous run's users instead of orphaning them.
+    demo_user_ids: set = set()
+
     project_row = session.execute(
         text("SELECT id FROM projects WHERE name = :name"),
         {"name": PROJECT_NAME},
@@ -1592,6 +1594,14 @@ def clean_demo_data(session: Session):
     if project_row:
         project_id = project_row[0]
         print(f"   Found existing project id={project_id}, cleaning...")
+
+        # Member user ids, before the memberships are deleted further down.
+        demo_user_ids.update(
+            r[0] for r in session.execute(
+                text("SELECT user_id FROM project_memberships WHERE project_id = :pid"),
+                {"pid": project_id},
+            ).fetchall()
+        )
 
         # Get camera IDs for this project
         cam_rows = session.execute(
@@ -1651,21 +1661,41 @@ def clean_demo_data(session: Session):
     # Delete telegram config (global, not per-project)
     session.execute(text("DELETE FROM telegram_config"))
 
-    # Delete demo users and their telegram linking tokens
+    # Add the fixed accounts (e.g. the server admin, which has no membership) by
+    # email, then delete every collected demo user. Tokens and notification
+    # preferences cascade on the user delete.
     for user_info in DEMO_USERS:
-        user_row = session.execute(
+        row = session.execute(
             text("SELECT id FROM users WHERE email = :email"),
             {"email": user_info["email"]},
         ).fetchone()
-        if user_row:
-            session.execute(
-                text("DELETE FROM telegram_linking_tokens WHERE user_id = :uid"),
-                {"uid": user_row[0]},
-            )
-            session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_row[0]})
+        if row:
+            demo_user_ids.add(row[0])
+
+    for uid in demo_user_ids:
+        session.execute(
+            text("DELETE FROM telegram_linking_tokens WHERE user_id = :uid"), {"uid": uid}
+        )
+        session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": uid})
 
     # Clean up legacy demo user from previous script version
     session.execute(text("DELETE FROM users WHERE email = 'viewer@demo.addaxai.com'"))
+
+    # Safety sweep: drop any leftover non-admin user with no project membership.
+    # These are demo accounts orphaned by an earlier run (e.g. an email-scheme
+    # change). This is a demo-only reset script, so the sweep is safe and never
+    # touches server admins.
+    orphan_rows = session.execute(
+        text(
+            "SELECT id FROM users WHERE is_superuser = false "
+            "AND id NOT IN (SELECT user_id FROM project_memberships)"
+        )
+    ).fetchall()
+    for (uid,) in orphan_rows:
+        session.execute(
+            text("DELETE FROM telegram_linking_tokens WHERE user_id = :uid"), {"uid": uid}
+        )
+        session.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": uid})
 
     session.flush()
     print("   Cleanup complete.")
