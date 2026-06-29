@@ -1709,7 +1709,11 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict,
         values_parts = []
         params = {}
         for j, img in enumerate(chunk):
-            k = f"_{i + j}"
+            # Chunk-local bind names (not the absolute row index). Every full
+            # chunk then compiles to the same SQL, so SQLAlchemy caches one
+            # statement instead of one per chunk. Absolute indices made each
+            # chunk a unique statement and bloated the compiled cache to ~3 GB.
+            k = f"_{j}"
             values_parts.append(
                 f"(:uuid{k}, :filename{k}, :camera_id{k}, :captured_at{k}, "
                 f":storage_path{k}, :thumbnail_path{k}, :status{k}, "
@@ -1772,7 +1776,7 @@ def insert_detections_batch(session: Session, detections: list, image_uuid_to_id
         values_parts = []
         params = {}
         for j, det in enumerate(chunk):
-            key = f"_{i + j}"
+            key = f"_{j}"
             img_uuid = old_img_id_to_uuid[det["image_id"]]
             db_image_id = image_uuid_to_id[img_uuid]
             values_parts.append(
@@ -1807,7 +1811,7 @@ def insert_classifications_batch(session: Session, classifications: list, old_to
         values_parts = []
         params = {}
         for j, cls in enumerate(chunk):
-            key = f"_{i + j}"
+            key = f"_{j}"
             values_parts.append(
                 f"(:detection_id{key}, :species{key}, :confidence{key})"
             )
@@ -1831,7 +1835,7 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
         values_parts = []
         params = {}
         for j, rep in enumerate(chunk):
-            key = f"_{i + j}"
+            key = f"_{j}"
             values_parts.append(
                 f"(:camera_id{key}, :reported_at{key}, :battery{key}, "
                 f":signal{key}, :temp{key}, :sd{key}, :total{key}, :sent{key})"
