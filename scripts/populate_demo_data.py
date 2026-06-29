@@ -33,7 +33,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from shared.config import get_settings
-from shared.storage import BUCKET_RAW_IMAGES, BUCKET_THUMBNAILS, StorageClient
+from shared.storage import (
+    BUCKET_PROJECT_DOCUMENTS, BUCKET_RAW_IMAGES, BUCKET_THUMBNAILS, StorageClient,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -81,8 +83,8 @@ DATE_END = date.today()
 DATE_START = DATE_END - timedelta(days=729)
 NUM_DAYS = (DATE_END - DATE_START).days + 1
 
-# Target number of cameras
-NUM_CAMERAS_TARGET = 100
+# Target number of cameras. An odd, non-round count reads less like fake data.
+NUM_CAMERAS_TARGET = 103
 
 # Image generation rate
 IMAGES_PER_CAMERA_PER_DAY = 0.7  # Poisson lambda
@@ -103,26 +105,55 @@ THUMB_WIDTH, THUMB_HEIGHT = 300, 225
 PLACEHOLDER_STORAGE_PATH = "demo/placeholder.jpg"
 PLACEHOLDER_THUMBNAIL_PATH = "demo/placeholder.jpg"
 
-# Demo users (passwords are random unless specified - those accounts exist for realistic data only)
-DEMO_USERS = [
-    {"email": "demo@email.com",             "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin", "password": "xK9#mW2$vQ7!bN4p"},
-    {"email": "admin@demo.addaxai.com",   "is_superuser": True,  "is_verified": True,  "is_active": True,  "role": "server-admin"},
-    {"email": "j.devries@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
-    {"email": "m.bakker@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-admin"},
-    {"email": "s.jansen@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "l.visser@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "p.deboer@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "a.mulder@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "k.devos@hogeveluwe.nl",    "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "r.hendriks@hogeveluwe.nl", "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "n.smit@uu.nl",            "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "t.dejong@wur.nl",          "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "d.meijer@sovon.nl",        "is_superuser": False, "is_verified": True,  "is_active": True,  "role": "project-viewer"},
-    {"email": "e.vandenberg@gmail.com",   "is_superuser": False, "is_verified": False, "is_active": True,  "role": "project-viewer"},
-    {"email": "f.bos@outlook.com",        "is_superuser": False, "is_verified": False, "is_active": True,  "role": "project-viewer"},
-    {"email": "b.willems@hogeveluwe.nl",  "is_superuser": False, "is_verified": True,  "is_active": False, "role": "project-viewer"},
-    {"email": "c.kuiper@hogeveluwe.nl",   "is_superuser": False, "is_verified": True,  "is_active": False, "role": "project-viewer"},
+# Demo users. The login account and the server admin keep fixed addresses; all
+# the data-only accounts get an obviously fake john.doe / jane.doe local part
+# per domain, iterating (john.doe2, jane.doe2, ...) so nobody mistakes them for
+# real people. Passwords are random unless specified.
+_FIXED_USERS = [
+    {"email": "demo@email.com",           "is_superuser": False, "is_verified": True, "is_active": True, "role": "project-admin", "password": "xK9#mW2$vQ7!bN4p"},
+    {"email": "admin@demo.addaxai.com",   "is_superuser": True,  "is_verified": True, "is_active": True, "role": "server-admin"},
 ]
+
+# (domain, is_verified, is_active, role) for the data-only accounts.
+_DEMO_USER_SPECS = [
+    ("hogeveluwe.nl", True,  True,  "project-admin"),
+    ("hogeveluwe.nl", True,  True,  "project-admin"),
+    ("hogeveluwe.nl", True,  True,  "project-viewer"),
+    ("hogeveluwe.nl", True,  True,  "project-viewer"),
+    ("hogeveluwe.nl", True,  True,  "project-viewer"),
+    ("hogeveluwe.nl", True,  True,  "project-viewer"),
+    ("hogeveluwe.nl", True,  True,  "project-viewer"),
+    ("hogeveluwe.nl", True,  True,  "project-viewer"),
+    ("uu.nl",         True,  True,  "project-viewer"),
+    ("wur.nl",        True,  True,  "project-viewer"),
+    ("sovon.nl",      True,  True,  "project-viewer"),
+    ("gmail.com",     False, True,  "project-viewer"),
+    ("outlook.com",   False, True,  "project-viewer"),
+    ("hogeveluwe.nl", True,  False, "project-viewer"),
+    ("hogeveluwe.nl", True,  False, "project-viewer"),
+]
+
+
+def _build_demo_users() -> list:
+    users = [dict(u) for u in _FIXED_USERS]
+    per_domain: dict = {}
+    for domain, verified, active, role in _DEMO_USER_SPECS:
+        n = per_domain.get(domain, 0)
+        per_domain[domain] = n + 1
+        base = "john.doe" if n % 2 == 0 else "jane.doe"
+        suffix = (n // 2) + 1
+        local = base if suffix == 1 else f"{base}{suffix}"
+        users.append({
+            "email": f"{local}@{domain}",
+            "is_superuser": False,
+            "is_verified": verified,
+            "is_active": active,
+            "role": role,
+        })
+    return users
+
+
+DEMO_USERS = _build_demo_users()
 
 # Species configuration
 SPECIES_CONFIG = {
@@ -293,9 +324,10 @@ SERVER_TIMEZONE = "Europe/Amsterdam"
 # Site, deployment and curation showcase constants
 # ---------------------------------------------------------------------------
 
-# Real place names in and around De Hoge Veluwe. Single-camera sites take one
-# name each; multi-camera sites reuse one name as a shared base and label each
-# camera by compass position.
+# Real and plausible place names in and around De Hoge Veluwe. Single-camera
+# sites take one name each; multi-camera sites reuse one name as a shared base
+# and label each camera by compass position. The pool is larger than the number
+# of sites so every site gets a name and none falls back to coordinates.
 SITE_NAME_POOL = [
     "Deelense Veld", "Oud-Reemsterveld", "Kemperberg", "Otterlose Bos",
     "Franse Berg", "Pampel", "Wildbaan", "Compagnieberg", "Hertenkamp",
@@ -306,6 +338,22 @@ SITE_NAME_POOL = [
     "Groevenbeek", "Stille Zandweg", "Vossenheuvel", "Reeënkamp", "Beukenlaan",
     "Heideveld", "Drift", "Boswachterspad", "Galgenberg", "Wildkansel",
     "Eperweg", "Kompagnieweg", "Doornberg", "Bedafse Berg", "Mosselse Veld",
+    "Deelense Zand", "Reemsterheide", "Otterlose Heide", "Kempervennen",
+    "Hoge Veld", "Lage Veld", "Oude Postweg", "Nieuwe Plijmen", "Plijmenweg",
+    "Hoenderloseweg", "Woldhuis", "Vijverberg", "Zilvervennen", "Goudsberg",
+    "Roekelse Bos", "Sysselt", "Ginkelse Heide", "Edese Bos", "Wolfheze",
+    "Doorwerthse Bos", "Hartense Molen", "Quadenoord", "Kievitsdel", "Heveadorp",
+    "Renkums Beekdal", "Oranje Nassau", "Schaapsdrift", "Imbosch", "Terlet",
+    "Veluwezoom", "Posbank", "Herikhuizerveld", "Onzalige Bossen", "Carolinaberg",
+    "Rozendaalse Veld", "Beekhuizen", "Worth-Rheden", "Heuven", "Middachten",
+    "Elsbroek", "Speulderbos", "Sprielderbos", "Garderense Veld", "Putterheide",
+    "Hulshorsterzand", "Leuvenumse Bos", "Ermelose Heide", "Stakenberg", "Elspeet",
+    "Vierhouterbos", "Gortelse Bos", "Niersen", "Tongeren", "Wisselse Veen",
+    "Epese Bos", "Tonnenberg", "Wenum", "Beekbergerwoud", "Loenermark",
+    "Hoog Soeren", "Assel", "Echoput", "Aardmansberg", "Hoog Buurloseweg",
+    "Caitwickerzand", "Stroese Zand", "Drieseberg", "Meervelderbos", "Uddelermeer",
+    "Solse Gat", "Het Hol", "Bleek Meer", "Gerritsfles", "Kootwijkerzand",
+    "Radioweg", "Harskampse Zand", "Otterloseweg", "Deelenseweg", "Kreelseweg",
 ]
 
 # Compass labels for the cameras that share a multi-camera site.
@@ -523,6 +571,89 @@ def generate_thumbnail(raw_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+def make_text_pdf_bytes(title: str, lines: list) -> bytes:
+    """Render a simple one-page A4 PDF with a title and text lines via Pillow.
+
+    Pillow writes a real, valid PDF (an image-backed page), which avoids
+    hand-rolling PDF structure and works without extra dependencies.
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    width, height = 1240, 1754  # A4 at ~150 DPI
+    img = PILImage.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+    y = 120
+    draw.text((100, y), title, fill="black")
+    y += 70
+    for line in lines:
+        draw.text((100, y), line, fill="black")
+        y += 38
+    buf = io.BytesIO()
+    img.save(buf, format="PDF", resolution=150.0)
+    return buf.getvalue()
+
+
+def demo_documents() -> list:
+    """Build the example project documents (filename, content_type, description,
+    bytes). Showcases the project documents feature with a mix of file types."""
+    field_protocol = (
+        "De Hoge Veluwe - camera trap field protocol\n"
+        "===========================================\n\n"
+        "1. Mount the camera at 80-100 cm, angled slightly down.\n"
+        "2. Clear branches and tall grass from the field of view.\n"
+        "3. Note the site name and compass position on the housing.\n"
+        "4. Check the SIM and battery, confirm a test image arrives.\n"
+        "5. Log the deployment date in the web interface.\n\n"
+        "Maintenance every 6 weeks, sooner if the battery alert fires.\n"
+    )
+    camera_settings = (
+        "# Willfine 4.0CG reference settings\n"
+        "mode = photo\n"
+        "photo_burst = 3\n"
+        "interval_seconds = 5\n"
+        "sensitivity = high\n"
+        "night_mode = balanced\n"
+        "daily_report = 08:00\n"
+        "ftp_upload = enabled\n"
+        "timezone = Europe/Amsterdam\n"
+    )
+    species_csv = "common_name,scientific_name,protected\n" + "\n".join(
+        f"{name.replace('_', ' ')},,{'yes' if name in ('wolf', 'otter', 'lynx') else 'no'}"
+        for name in ALL_SPECIES
+    ) + "\n"
+
+    permit_pdf = make_text_pdf_bytes(
+        "Research permit - De Hoge Veluwe National Park",
+        [
+            "Permit number: HV-2024-0417 (demo)",
+            "Holder: De Hoge Veluwe monitoring programme",
+            "Scope: non-invasive camera trap monitoring of mammals.",
+            "Valid: 1 January 2024 to 31 December 2026.",
+            "Conditions: no baiting, blur people, share yearly summary.",
+            "",
+            "This is an example document for the demo dataset.",
+        ],
+    )
+    monitoring_pdf = make_text_pdf_bytes(
+        "Monitoring plan 2024-2026",
+        [
+            "Goal: track large mammals and mesocarnivores across the park.",
+            "Cameras: ~100, on a grid across forest, heath and sand drift.",
+            "Reporting: monthly battery digest, yearly biodiversity report.",
+            "Species of interest: wolf, wild boar, red deer, pine marten.",
+            "",
+            "This is an example document for the demo dataset.",
+        ],
+    )
+    return [
+        ("field-protocol.txt", "text/plain", "Field protocol for deploying and maintaining cameras", field_protocol.encode()),
+        ("camera-settings.txt", "text/plain", "Reference settings for the Willfine 4.0CG", camera_settings.encode()),
+        ("species-list.csv", "text/csv", "Target species list for the project", species_csv.encode()),
+        ("research-permit.pdf", "application/pdf", "Research permit for camera trap monitoring", permit_pdf),
+        ("monitoring-plan.pdf", "application/pdf", "Monitoring plan 2024-2026", monitoring_pdf),
+    ]
+
+
 def download_species_images(storage: "StorageClient") -> dict:
     """Download one real camera trap image per species from LILA BC.
 
@@ -582,6 +713,36 @@ def _habitat_for_zones(zones: set, rng: Random) -> str:
 def _next_site_name(name_pool: list):
     """Pop the next reserved place name, or None to fall back to coordinates."""
     return name_pool.pop() if name_pool else None
+
+
+def _date_in_gaps(d: date, gaps: list) -> bool:
+    """True if date d falls inside any (start, end) offline range."""
+    return any(gs <= d <= ge for gs, ge in gaps)
+
+
+def assign_camera_gaps(cameras: list, rng: Random) -> None:
+    """Give about half the deployed cameras one or more offline periods, so the
+    activity timeline shows realistic gaps: some of a few months, some a few
+    weeks, some a few days. No images and no health reports land during a gap.
+    Stored on each camera as `gaps`, a list of (start_date, end_date)."""
+    for cam in cameras:
+        cam["gaps"] = []
+    deployed = [c for c in cameras if not c["never_deployed"]]
+    span = NUM_DAYS
+    for cam in deployed:
+        roll = rng.random()
+        offsets = []  # (start_offset_days, length_days)
+        if roll < 0.12:
+            offsets.append((rng.randint(int(span * 0.2), int(span * 0.7)), rng.randint(60, 110)))
+        elif roll < 0.30:
+            offsets.append((rng.randint(int(span * 0.1), int(span * 0.85)), rng.randint(14, 35)))
+        elif roll < 0.55:
+            for _ in range(rng.choice([1, 2])):
+                offsets.append((rng.randint(0, span - 12), rng.randint(3, 9)))
+        for start_off, length in offsets:
+            gs = DATE_START + timedelta(days=start_off)
+            ge = min(gs + timedelta(days=length - 1), DATE_END)
+            cam["gaps"].append((gs, ge))
 
 
 def assign_camera_showcase_fields(cameras: list, rng: Random) -> None:
@@ -786,6 +947,7 @@ def generate_layout(rng: Random):
     })
 
     assign_camera_showcase_fields(cameras, rng)
+    assign_camera_gaps(cameras, rng)
     return sites, cameras, deployments
 
 
@@ -896,7 +1058,7 @@ def _emit_one_image(out, counters, *, device_id, camera_index, dep_key, lat, lon
         # AI result kept for downstream generators (observations, curation); not inserted directly.
         "ai_species": species,
         "ai_category": category,
-        # Curation, filled in later by generate_curation_flags.
+        # Curation, filled in later by generate_curation_and_observations.
         "is_verified": False, "verified_at": None, "verified_by": None, "verification_notes": None,
         "is_liked": False, "liked_at": None, "liked_by": None,
         "needs_review": False, "needs_review_at": None, "needs_review_by": None,
@@ -964,13 +1126,17 @@ def generate_all_data(deployments: list, cameras: list, rng: Random, species_ima
     out = {"images": [], "detections": [], "classifications": []}
     counters = {"image": 1, "detection": 1, "classification": 1, "img": 1}
     device_by_index = {c["index"]: c["device_id"] for c in cameras}
+    gaps_by_index = {c["index"]: c.get("gaps", []) for c in cameras}
 
     for dep in deployments:
         device_id = device_by_index[dep["camera_index"]]
+        gaps = gaps_by_index[dep["camera_index"]]
         end = dep["end_date"] or DATE_END
         n_days = (end - dep["start_date"]).days + 1
         for day_offset in range(n_days):
             current_date = dep["start_date"] + timedelta(days=day_offset)
+            if _date_in_gaps(current_date, gaps):
+                continue  # camera offline: no images this day
             season = get_season(current_date)
             for _ in range(_day_image_count(dep["zones"], season, rng)):
                 _emit_one_image(
@@ -1042,6 +1208,8 @@ def generate_health_reports(cameras: list, rng: Random) -> list:
 
         for day_offset in range(NUM_DAYS - days_short):
             current_date = DATE_START + timedelta(days=day_offset)
+            if _date_in_gaps(current_date, cam["gaps"]):
+                continue  # camera offline: no daily report
             season = get_season(current_date)
 
             # Battery: decay + solar recharge
@@ -1178,15 +1346,54 @@ def _recent_utc(rng: Random, max_days_ago: int = 60) -> datetime:
     )
 
 
-def generate_curation_flags(images: list, members: list, rng: Random) -> None:
-    """Mark a slice of animal images as verified / liked / needs-review.
+# Plausible model confusions, so the rare disagreement between human and model
+# lands on a similar-looking species instead of a random one.
+SPECIES_CONFUSION = {
+    "roe_deer": "fallow_deer", "fallow_deer": "roe_deer", "red_deer": "fallow_deer",
+    "mouflon": "fallow_deer", "fox": "dog", "dog": "fox", "mustelid": "cat",
+    "cat": "mustelid", "wild_boar": "red_deer", "hedgehog": "lagomorph",
+    "squirrel": "lagomorph", "lagomorph": "squirrel", "bird": "squirrel",
+    "wolf": "fox",
+}
 
-    `members` is a list of user ids to attribute the actions to. Mutates the
-    live image dicts in place, so call it after the first page is curated.
+# How often the human label differs from the model. Low, so the performance
+# page shows a trustworthy ~96% top-1 with strong per-class scores, while still
+# having a few off-diagonal cells in the confusion matrix.
+CONFUSION_RATE = 0.04
+
+
+def _confused_species(ai_sp: str, rng: Random) -> str:
+    if ai_sp in SPECIES_CONFUSION:
+        return SPECIES_CONFUSION[ai_sp]
+    return rng.choice([s for s in ALL_SPECIES if s != ai_sp])
+
+
+def generate_curation_and_observations(images: list, detections: list,
+                                       classifications: list, members: list,
+                                       rng: Random) -> list:
+    """Mark images verified / liked / needs-review and create human observations.
+
+    Every verified image gets exactly one human observation whose species
+    matches the model ~96% of the time, and its detection + classification
+    confidence is raised above the project thresholds. This makes the
+    performance page (verified images only) show a believable ~96% top-1
+    accuracy and strong per-class F1, instead of comparing the model against
+    images that have no human label. A sprinkle of observations on unverified
+    images keeps the demographic and behaviour charts rich.
+
+    Mutates the image / detection / classification dicts in place; returns the
+    list of observation dicts. Call after the first page is curated.
     """
     animal = [im for im in images if im["ai_category"] == "animal" and im["ai_species"]]
+    obs: list = []
     if not animal or not members:
-        return
+        return obs
+
+    det_by_image: dict = {}
+    for d in detections:
+        if d["category"] == "animal" and d["image_id"] not in det_by_image:
+            det_by_image[d["image_id"]] = d
+    cls_by_det = {c["detection_id"]: c for c in classifications}
 
     verify_notes = [
         "Confirmed, clear broadside view.",
@@ -1194,12 +1401,43 @@ def generate_curation_flags(images: list, members: list, rng: Random) -> None:
         "Reclassified after checking the antlers.",
         "Good capture, identification is certain.",
     ]
+
+    def add_observation(im: dict, species: str, when) -> None:
+        season = get_season(im["captured_at"].date())
+        sex, life_stage, behavior, count = pick_demographics(species, season, rng)
+        obs.append({
+            "image_uuid": im["uuid"],
+            "species": species,
+            "count": count,
+            "sex": sex,
+            "life_stage": life_stage,
+            "behavior": behavior,
+            "created_by": rng.choice(members),
+            "created_at": when,
+        })
+
+    verified_ids = set()
     for im in rng.sample(animal, max(1, int(len(animal) * VERIFIED_RATE))):
+        verified_ids.add(id(im))
         im["is_verified"] = True
         im["verified_at"] = _recent_utc(rng)
         im["verified_by"] = rng.choice(members)
         if rng.random() < 0.25:
             im["verification_notes"] = rng.choice(verify_notes)
+
+        # Make the detection unambiguously visible so the AI top-1 is the
+        # species (not "empty" from a sub-threshold detection).
+        ai_sp = im["ai_species"]
+        det = det_by_image.get(im["id"])
+        if det:
+            det["confidence"] = round(rng.uniform(0.80, 0.985), 4)
+            cls = cls_by_det.get(det["id"])
+            if cls:
+                cls["confidence"] = round(rng.uniform(0.88, 0.99), 4)
+                ai_sp = cls["species"]
+
+        species = ai_sp if rng.random() >= CONFUSION_RATE else _confused_species(ai_sp, rng)
+        add_observation(im, species, im["verified_at"])
 
     # Force-like the most recent few so the first page shows favourites.
     by_recent = sorted(animal, key=lambda im: im["captured_at"], reverse=True)
@@ -1221,40 +1459,14 @@ def generate_curation_flags(images: list, members: list, rng: Random) -> None:
         im["needs_review_at"] = _recent_utc(rng, 21)
         im["needs_review_by"] = rng.choice(members)
 
-
-# Plausible model confusions, so some human observations correct the AISpecies.
-SPECIES_CONFUSION = {
-    "roe_deer": "fallow_deer", "red_deer": "fallow_deer", "fallow_deer": "roe_deer",
-    "fox": "dog", "mustelid": "cat", "wild_boar": "red_deer",
-}
-
-
-def generate_human_observations(images: list, members: list, rng: Random) -> list:
-    """Image-level human observations (count + sex/life-stage/behaviour) for a
-    slice of animal images, powering the demographic and behaviour charts."""
-    animal = [im for im in images if im["ai_category"] == "animal" and im["ai_species"]]
-    obs = []
-    if not animal or not members:
-        return obs
-
-    for im in rng.sample(animal, max(1, int(len(animal) * OBSERVATION_RATE))):
+    # Extra observations on unverified images, for chart richness only (these
+    # do not enter the performance matrix, which is verified images only).
+    unverified = [im for im in animal if id(im) not in verified_ids]
+    for im in rng.sample(unverified, max(1, int(len(unverified) * OBSERVATION_RATE))):
         ai_sp = im["ai_species"]
-        if rng.random() < 0.15 and ai_sp in SPECIES_CONFUSION:
-            species = SPECIES_CONFUSION[ai_sp]   # human corrects the model
-        else:
-            species = ai_sp
-        season = get_season(im["captured_at"].date())
-        sex, life_stage, behavior, count = pick_demographics(species, season, rng)
-        obs.append({
-            "image_uuid": im["uuid"],
-            "species": species,
-            "count": count,
-            "sex": sex,
-            "life_stage": life_stage,
-            "behavior": behavior,
-            "created_by": rng.choice(members),
-            "created_at": _recent_utc(rng),
-        })
+        species = ai_sp if rng.random() >= 0.10 else _confused_species(ai_sp, rng)
+        add_observation(im, species, _recent_utc(rng))
+
     return obs
 
 
@@ -1618,7 +1830,9 @@ def insert_sites(session: Session, sites: list, project_id: int) -> dict:
     coordinate string, which keeps the per-project name unique."""
     key_to_id = {}
     for site in sites:
-        name = site["name"] or f"{site['lat']:.5f}, {site['lon']:.5f}"
+        # Every site carries a real name from the pool; this fallback is only a
+        # safety net and still avoids coordinate-style names.
+        name = site["name"] or f"Perceel {site['key'] + 1}"
         result = session.execute(
             text("""
                 INSERT INTO sites (uuid, project_id, name, location, habitat_type)
@@ -2018,6 +2232,35 @@ def insert_reminders(session: Session, reminders: list, project_id: int):
     session.flush()
 
 
+def insert_project_documents(session: Session, project_id: int, uploaded_by: int) -> int:
+    """Upload a few example documents to storage and register them, to showcase
+    the project documents feature. Returns the number inserted."""
+    storage = StorageClient()
+    docs = demo_documents()
+    for filename, content_type, description, content in docs:
+        storage_path = f"{project_id}/{uuid.uuid4()}_{filename}"
+        storage.upload_fileobj(io.BytesIO(content), BUCKET_PROJECT_DOCUMENTS, storage_path)
+        session.execute(
+            text("""
+                INSERT INTO project_documents (
+                    project_id, original_filename, storage_path, file_size,
+                    content_type, description, uploaded_by_user_id
+                ) VALUES (:pid, :name, :path, :size, :ctype, :descr, :uid)
+            """),
+            {
+                "pid": project_id,
+                "name": filename,
+                "path": storage_path,
+                "size": len(content),
+                "ctype": content_type,
+                "descr": description,
+                "uid": uploaded_by,
+            },
+        )
+    session.flush()
+    return len(docs)
+
+
 def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras: list):
     """Update cameras with latest health/image data and config JSON."""
     cam_by_index = {cam["index"]: cam for cam in cameras}
@@ -2107,13 +2350,13 @@ def insert_telegram_config(session: Session):
 
 
 def insert_notification_preferences(session: Session, project_id: int, user_ids: dict):
-    """Insert notification preferences for a few demo users."""
-    notif_users = [
-        ("j.devries@hogeveluwe.nl", "100001"),
-        ("m.bakker@hogeveluwe.nl",  "100002"),
-        ("s.jansen@hogeveluwe.nl",  "100003"),
-        ("n.smit@uu.nl",            "100004"),
+    """Insert notification preferences for the first few project members."""
+    member_emails = [
+        u["email"] for u in DEMO_USERS
+        if u["role"] in ("project-admin", "project-viewer")
+        and u["is_active"] and u["is_verified"] and u["email"] in user_ids
     ]
+    notif_users = [(email, str(100001 + i)) for i, email in enumerate(member_emails[:4])]
 
     for email, chat_id in notif_users:
         if email not in user_ids:
@@ -2236,12 +2479,6 @@ def main():
     print("=" * 60)
     print()
 
-    # Users that curate (verify / like / observe). All have project access.
-    attribution_emails = [
-        "demo@email.com", "j.devries@hogeveluwe.nl", "m.bakker@hogeveluwe.nl",
-        "s.jansen@hogeveluwe.nl", "l.visser@hogeveluwe.nl",
-    ]
-
     # Step 1: MinIO
     print("[1/6] Uploading demo images to MinIO...")
     species_image_info = upload_demo_images()
@@ -2259,8 +2496,19 @@ def main():
         project_id = insert_project(session)
         set_project_image(session, project_id, species_image_info)
         user_ids = insert_users(session, project_id)
-        members = [user_ids[e] for e in attribution_emails if e in user_ids]
-        admin_creator = user_ids.get("j.devries@hogeveluwe.nl") or user_ids["demo@email.com"]
+        # Users that curate (verify / like / observe): active, verified project
+        # members. Attribution is by role, not hardcoded emails.
+        member_emails = [
+            u["email"] for u in DEMO_USERS
+            if u["role"] in ("project-admin", "project-viewer")
+            and u["is_active"] and u["is_verified"] and u["email"] in user_ids
+        ]
+        members = [user_ids[e] for e in member_emails]
+        admin_creator = next(
+            (user_ids[u["email"]] for u in DEMO_USERS
+             if u["role"] == "project-admin" and u["email"] in user_ids),
+            members[0],
+        )
         print(f"   Project '{PROJECT_NAME}' (id={project_id}) and {len(user_ids)} users created.")
 
         # Step 4: Generate everything in memory
@@ -2272,8 +2520,9 @@ def main():
             deployments, cameras, rng, species_image_info
         )
         curate_first_page(images, detections, classifications, species_image_info, rng)
-        generate_curation_flags(images, members, rng)
-        observations = generate_human_observations(images, members, rng)
+        observations = generate_curation_and_observations(
+            images, detections, classifications, members, rng
+        )
 
         job_uuid = str(uuid.uuid4())
         bulk_images, bulk_dets, bulk_cls, bulk_cam_index, win_start, win_end = generate_bulk_data(
@@ -2349,6 +2598,7 @@ def main():
 
         insert_rejections(session, rejections, project_id, device_to_cam_id)
         insert_reminders(session, reminders, project_id)
+        n_docs = insert_project_documents(session, project_id, admin_creator)
 
         # Step 6: Telegram and notification preferences
         print("[6/6] Setting up Telegram and notification preferences...")
@@ -2374,6 +2624,7 @@ def main():
     print(f"  Health reports: {counts['health']}")
     print(f"  Rejections: {counts['rejections']}")
     print(f"  Reminders: {counts['reminders']}")
+    print(f"  Documents: {n_docs}")
     total = (
         1 + len(DEMO_USERS) + counts["sites"] + counts["cameras"] + counts["deployments"]
         + counts["images"] + counts["detections"] + counts["classifications"]
