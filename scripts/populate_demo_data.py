@@ -1749,8 +1749,9 @@ def insert_images_batch(session: Session, images: list, cam_index_to_id: dict,
             text(f"INSERT INTO images ({columns}) VALUES " + ", ".join(values_parts)),
             params,
         )
-
-    session.flush()
+        # Commit per chunk. The images table carries many indexes, so one big
+        # transaction spikes Postgres memory and OOMs the small demo VM.
+        session.commit()
 
     rows = session.execute(
         text("SELECT uuid, id FROM images WHERE storage_path LIKE 'demo/%'"),
@@ -1793,7 +1794,8 @@ def insert_detections_batch(session: Session, detections: list, image_uuid_to_id
         for j, det in enumerate(chunk):
             old_to_new_det[det["id"]] = new_ids[j]
 
-    session.flush()
+        session.commit()  # bound transaction size for the small demo VM
+
     return old_to_new_det
 
 
@@ -1818,8 +1820,7 @@ def insert_classifications_batch(session: Session, classifications: list, old_to
             + ", ".join(values_parts)
         )
         session.execute(text(sql), params)
-
-    session.flush()
+        session.commit()  # bound transaction size for the small demo VM
 
 
 def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id: dict):
@@ -1851,8 +1852,7 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
             + ", ".join(values_parts)
         )
         session.execute(text(sql), params)
-
-    session.flush()
+        session.commit()  # bound transaction size for the small demo VM
 
 
 def insert_deployments(session: Session, deployments: list, cam_index_to_id: dict,
