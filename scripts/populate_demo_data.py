@@ -283,6 +283,91 @@ SPECIES_IMAGES = {
 CAMERA_MAKE = "Willfine"
 CAMERA_MODEL = "4.0CG"
 
+# The park sits in the Netherlands. Camera clocks are wall-clock local, stored
+# naive and interpreted under ServerSettings.timezone (see DEVELOPERS.md). The
+# demo sets this timezone so captured_at reads correctly everywhere.
+SERVER_TIMEZONE = "Europe/Amsterdam"
+
+# ---------------------------------------------------------------------------
+# Site, deployment and curation showcase constants
+# ---------------------------------------------------------------------------
+
+# Real place names in and around De Hoge Veluwe. Single-camera sites take one
+# name each; multi-camera sites reuse one name as a shared base and label each
+# camera by compass position.
+SITE_NAME_POOL = [
+    "Deelense Veld", "Oud-Reemsterveld", "Kemperberg", "Otterlose Bos",
+    "Franse Berg", "Pampel", "Wildbaan", "Compagnieberg", "Hertenkamp",
+    "Reemsterzand", "Deelerwoud", "Planken Wambuis", "Mossel", "Pollenberg",
+    "Aardhuis", "Hoog Buurlo", "Wekeromse Zand", "Harskamp", "Kreelse Plas",
+    "Zandverstuiving", "Koningsweg", "Schaarsbergen", "Rijzenburg", "De Pampel",
+    "Hoenderloo", "Schaapskooi", "Jachthuis", "Bunkermuseum", "Houtkampweg",
+    "Groevenbeek", "Stille Zandweg", "Vossenheuvel", "Reeënkamp", "Beukenlaan",
+    "Heideveld", "Drift", "Boswachterspad", "Galgenberg", "Wildkansel",
+    "Eperweg", "Kompagnieweg", "Doornberg", "Bedafse Berg", "Mosselse Veld",
+]
+
+# Compass labels for the cameras that share a multi-camera site.
+POSITION_LABELS = ["N", "O", "Z", "W", "NO", "NW", "ZO", "ZW"]
+
+# Habitat per spatial zone, picked when a site is created (Camtrap-DP "habitat").
+ZONE_HABITAT = {
+    "north": "Forest",
+    "south_east": "Mixed woodland",
+    "central_west": "Heathland",
+    "edges": "Forest edge",
+    "everywhere": "Sand drift",
+}
+
+# Layout knobs.
+P_MULTI_CAMERA_SITE = 0.18   # share of sites that host 2-3 cameras
+P_CAMERA_RELOCATED = 0.10    # share of deployed cameras that moved once
+
+# Human observation vocabularies, kept in sync with the verification panel
+# (services/frontend/src/components/VerificationPanel.tsx).
+SEX_OPTIONS = ["unknown", "male", "female"]
+LIFE_STAGE_OPTIONS = ["unknown", "adult", "subadult", "juvenile"]
+BEHAVIOR_OPTIONS = [
+    "unknown", "traveling", "foraging", "resting", "vigilance",
+    "drinking", "grooming", "courtship", "nursing", "aggression", "marking",
+]
+
+# Species that move in groups, so observations record more than one animal.
+HERD_DEER = {"roe_deer", "red_deer", "fallow_deer", "mouflon"}
+
+# Share of animal images that get a human observation, a verification, a like,
+# or a needs-review flag. Kept low so the demo looks worked-on, not fabricated.
+OBSERVATION_RATE = 0.05
+VERIFIED_RATE = 0.08
+LIKED_RATE = 0.025
+NEEDS_REVIEW_RATE = 0.02
+
+# Rejection reasons the Live feed and ingestion monitoring know about (see
+# services/ingestion/main.py). Weighted toward the everyday setup mistakes.
+REJECTION_REASONS = [
+    ("missing_gps", "Image has no GPS fix yet (camera sent before first lock)."),
+    ("missing_datetime", "EXIF has no DateTimeOriginal, cannot place on the timeline."),
+    ("no_camera_exif", "File has no camera EXIF (Make/Model missing)."),
+    ("unsupported_camera", "No camera profile matches this make/model."),
+    ("missing_device_id", "EXIF carries no serial number to match a camera."),
+    ("invalid_gps", "GPS reads (0, 0), dropped before the missing-GPS check."),
+    ("file_size", "File is smaller than the minimum valid image size."),
+    ("mime_type", "Upload is not a recognised image MIME type."),
+]
+
+# One finished bulk upload (SD-card import) to showcase the bulk pipeline.
+BULK_UPLOAD_FILENAME = "SD-card-Deelense-Veld-2024.zip"
+BULK_UPLOAD_IMAGE_COUNT = 280
+BULK_UPLOAD_DUPLICATES = 22
+BULK_UPLOAD_OTHER_SKIPPED = 6
+
+# Project reminder digests created by an admin.
+DEMO_REMINDERS = [
+    {"in_days": 6,   "message": "Swap SD cards and check batteries on the Deelense Veld cluster."},
+    {"in_days": 19,  "message": "Quarterly export for the province biodiversity report."},
+    {"in_days": -12, "message": "Replace the SIM that expired on the Kemperberg camera."},  # already sent
+]
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -290,6 +375,39 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
+
+def pick_demographics(species: str, season: str, rng: Random):
+    """Return (sex, life_stage, behavior, count) for a human observation.
+
+    Rough field priors: deer and boar move in groups and drop young in spring
+    and summer; small mammals and birds are usually logged as single unknown
+    adults. Used only to make the demographic charts look believable.
+    """
+    if species == "wild_boar":
+        count = rng.choices([1, 2, 3, 4, 6], weights=[3, 3, 2, 2, 1])[0]
+    elif species in HERD_DEER:
+        count = rng.choices([1, 2, 3], weights=[6, 3, 1])[0]
+    else:
+        count = 1
+
+    if species in ("bird", "squirrel", "hedgehog", "lagomorph", "mustelid", "fox", "cat"):
+        sex = rng.choices(["unknown", "male", "female"], weights=[6, 2, 2])[0]
+    else:
+        sex = rng.choices(["unknown", "male", "female"], weights=[2, 4, 4])[0]
+
+    young_weight = 3 if season in ("spring", "summer") else 1
+    life_stage = rng.choices(
+        ["adult", "subadult", "juvenile", "unknown"],
+        weights=[6, 2, young_weight, 1],
+    )[0]
+
+    nursing_weight = 2 if (life_stage == "juvenile" and species in HERD_DEER | {"wild_boar"}) else 0
+    behavior = rng.choices(
+        ["foraging", "traveling", "vigilance", "resting", "grooming",
+         "drinking", "marking", "nursing"],
+        weights=[6, 5, 3, 2, 1, 1, 1, nursing_weight],
+    )[0]
+    return sex, life_stage, behavior, count
 
 def get_season(d: date) -> str:
     """Map month to season name."""
@@ -453,258 +571,449 @@ def download_species_images(storage: "StorageClient") -> dict:
 # Data generation functions
 # ---------------------------------------------------------------------------
 
-def generate_cameras(rng: Random) -> list:
-    """Generate ~100 cameras inside the real park boundary polygon."""
-    # Create a dense grid over the bounding box, filter points inside polygon
+def _habitat_for_zones(zones: set, rng: Random) -> str:
+    """Pick a habitat label from a position's spatial zones."""
+    specific = [z for z in zones if z != "everywhere"]
+    zone = rng.choice(specific) if specific else "everywhere"
+    return ZONE_HABITAT[zone]
+
+
+def _next_site_name(name_pool: list):
+    """Pop the next reserved place name, or None to fall back to coordinates."""
+    return name_pool.pop() if name_pool else None
+
+
+def assign_camera_showcase_fields(cameras: list, rng: Random) -> None:
+    """Fill SIM expiry, reference-image species, custom fields and notes.
+
+    Spreads SIM dates so one camera is already expired and two expire within
+    two weeks (drives the SIM-expiry alert), and tags a handful of cameras with
+    a reference photo and free-form custom fields.
+    """
+    deployed = [c for c in cameras if not c["never_deployed"]]
+
+    # SIM expiry: most far out, a few null, one expired, two expiring soon.
+    for cam in cameras:
+        roll = rng.random()
+        if roll < 0.12:
+            cam["sim_expiry_date"] = None
+        else:
+            cam["sim_expiry_date"] = DATE_END + timedelta(days=rng.randint(40, 700))
+    if deployed:
+        deployed[3]["sim_expiry_date"] = DATE_END - timedelta(days=4)        # expired
+        deployed[7]["sim_expiry_date"] = DATE_END + timedelta(days=6)         # expiring soon
+        deployed[11]["sim_expiry_date"] = DATE_END + timedelta(days=12)       # expiring soon
+
+    # Reference images on a handful of deployed cameras (resolved to a real
+    # MinIO path at insert time from species_image_info).
+    ref_species = ["roe_deer", "red_deer", "fox", "wild_boar", "fallow_deer",
+                   "mouflon", "bird", "mustelid"]
+    for cam in cameras:
+        cam["reference_species"] = None
+    for cam, sp in zip(rng.sample(deployed, min(len(ref_species), len(deployed))), ref_species):
+        cam["reference_species"] = sp
+
+    # Custom fields, hardware revision, tags and notes on a subset.
+    mounts = ["tree", "post", "pole", "rock"]
+    housings = ["v1 housing", "v2 housing", "steel box"]
+    for cam in cameras:
+        cam["hardware_revision"] = rng.choice(["Rev A", "Rev B", "Rev C"])
+        cam["custom_fields"] = None
+        cam["tags"] = None
+        cam["notes"] = None
+    for cam in rng.sample(deployed, max(1, len(deployed) // 3)):
+        cam["custom_fields"] = {
+            "mount": rng.choice(mounts),
+            "housing": rng.choice(housings),
+        }
+    for cam in rng.sample(deployed, max(1, len(deployed) // 6)):
+        cam["tags"] = rng.choice([["solar"], ["priority"], ["solar", "priority"], ["wolf-watch"]])
+    for cam in rng.sample(deployed, 4):
+        cam["notes"] = rng.choice([
+            "Lens fogs up on cold mornings, clean during maintenance.",
+            "Mounted low for boar, expect many empty triggers from grass.",
+            "Shared view with the neighbouring unit, watch for double counts.",
+            "Solar panel angled south, battery holds well through winter.",
+        ])
+
+
+def generate_layout(rng: Random):
+    """Build sites, cameras and deployments inside the park boundary.
+
+    Most sites hold one camera; about a fifth hold two or three that share a
+    view and are told apart by a compass label. About a tenth of deployed
+    cameras moved once, so they carry a second deployment at a fresh site. One
+    camera stays in inventory and is never deployed.
+
+    Returns (sites, cameras, deployments). Deployments reference cameras by
+    `camera_index` and sites by `site_key`, and carry their own `key` that
+    images link to.
+    """
+    # Candidate anchor points evenly spread inside the polygon.
     grid_density = 16
     candidates = []
     lat_step = (LAT_MAX - LAT_MIN) / (grid_density - 1)
     lon_step = (LON_MAX - LON_MIN) / (grid_density - 1)
-
-    # At latitude ~52°N: 1° lat ≈ 111km, 1° lon ≈ 68km
-    # 100m jitter: ~0.0009° lat, ~0.00147° lon
+    # At latitude ~52°N: 1° lat ≈ 111km, 1° lon ≈ 68km.
     for row in range(grid_density):
         for col in range(grid_density):
             lat = LAT_MIN + row * lat_step + rng.uniform(-0.0009, 0.0009)
             lon = LON_MIN + col * lon_step + rng.uniform(-0.00147, 0.00147)
             if point_in_polygon(lon, lat, PARK_BOUNDARY):
                 candidates.append((round(lat, 6), round(lon, 6)))
+    rng.shuffle(candidates)
 
-    # Select evenly distributed subset to reach target count
-    if len(candidates) > NUM_CAMERAS_TARGET:
-        step = len(candidates) / NUM_CAMERAS_TARGET
-        selected = [candidates[int(i * step)] for i in range(NUM_CAMERAS_TARGET)]
-    else:
-        selected = candidates
+    name_pool = list(SITE_NAME_POOL)
+    rng.shuffle(name_pool)
 
-    cameras = []
-    for idx, (lat, lon) in enumerate(selected):
-        device_id = f"DHV{idx + 1:03d}"
-        cameras.append({
-            "index": idx,
+    sites: list = []
+    cameras: list = []
+    deployments: list = []
+    cam_index = 0
+    dep_key = 1
+    anchor_i = 0
+
+    # The last camera (target - 1) stays in inventory, so deploy up to that.
+    deploy_target = NUM_CAMERAS_TARGET - 1
+
+    while cam_index < deploy_target and anchor_i < len(candidates):
+        lat, lon = candidates[anchor_i]
+        anchor_i += 1
+        zones = camera_zone(lat, lon)
+        site_key = len(sites)
+
+        remaining = deploy_target - cam_index
+        if remaining >= 2 and rng.random() < P_MULTI_CAMERA_SITE:
+            n_here = min(rng.choice([2, 3]), remaining)
+        else:
+            n_here = 1
+
+        sites.append({
+            "key": site_key,
+            "name": _next_site_name(name_pool),     # None -> coordinates at insert
+            "habitat": _habitat_for_zones(zones, rng),
             "lat": lat,
             "lon": lon,
-            "device_id": device_id,
-            "name": f"Camera {device_id}",
-            "zones": camera_zone(lat, lon),
-            # Camera 97 is inventory only — no location, deployment, or health reports
-            "never_deployed": idx == 97,
         })
-    return cameras
+
+        labels = rng.sample(POSITION_LABELS, n_here) if n_here > 1 else [None]
+        for k in range(n_here):
+            if n_here > 1:
+                clat = round(lat + rng.uniform(-0.0003, 0.0003), 6)
+                clon = round(lon + rng.uniform(-0.0005, 0.0005), 6)
+            else:
+                clat, clon = lat, lon
+            czones = camera_zone(clat, clon)
+            cameras.append({
+                "index": cam_index,
+                "device_id": f"DHV{cam_index + 1:03d}",
+                "never_deployed": False,
+                "current_lat": clat,
+                "current_lon": clon,
+            })
+            deployments.append({
+                "key": dep_key,
+                "camera_index": cam_index,
+                "deployment_number": 1,
+                "site_key": site_key,
+                "label": labels[k],
+                "lat": clat,
+                "lon": clon,
+                "zones": czones,
+                "start_date": DATE_START,
+                "end_date": None,
+                # Multi-camera sites are human-confirmed (a person split them by
+                # position); single-camera sites are GPS-guessed.
+                "site_source": "manual" if n_here > 1 else "auto",
+            })
+            dep_key += 1
+            cam_index += 1
+            if cam_index >= deploy_target:
+                break
+
+    # Relocate a tenth of deployed cameras: close deployment 1 mid-timeline and
+    # open deployment 2 at a fresh single-camera site.
+    deployed = [c for c in cameras if not c["never_deployed"]]
+    n_movers = max(1, int(len(deployed) * P_CAMERA_RELOCATED))
+    for cam in rng.sample(deployed, n_movers):
+        dep1 = next(
+            d for d in deployments
+            if d["camera_index"] == cam["index"] and d["deployment_number"] == 1
+        )
+        reloc_date = DATE_START + timedelta(days=rng.randint(int(NUM_DAYS * 0.35), int(NUM_DAYS * 0.70)))
+        dep1["end_date"] = reloc_date - timedelta(days=1)
+
+        if anchor_i < len(candidates):
+            nlat, nlon = candidates[anchor_i]
+            anchor_i += 1
+        else:
+            nlat = round(rng.uniform(LAT_MIN, LAT_MAX), 6)
+            nlon = round(rng.uniform(LON_MIN, LON_MAX), 6)
+        nzones = camera_zone(nlat, nlon)
+        site2_key = len(sites)
+        sites.append({
+            "key": site2_key,
+            "name": _next_site_name(name_pool),
+            "habitat": _habitat_for_zones(nzones, rng),
+            "lat": nlat,
+            "lon": nlon,
+        })
+        deployments.append({
+            "key": dep_key,
+            "camera_index": cam["index"],
+            "deployment_number": 2,
+            "site_key": site2_key,
+            "label": None,
+            "lat": nlat,
+            "lon": nlon,
+            "zones": nzones,
+            "start_date": reloc_date,
+            "end_date": None,
+            "site_source": "auto",
+        })
+        cam["current_lat"] = nlat
+        cam["current_lon"] = nlon
+        dep_key += 1
+
+    # Inventory-only camera: no site, no deployment, no health reports.
+    cameras.append({
+        "index": cam_index,
+        "device_id": f"DHV{cam_index + 1:03d}",
+        "never_deployed": True,
+        "current_lat": None,
+        "current_lon": None,
+    })
+
+    assign_camera_showcase_fields(cameras, rng)
+    return sites, cameras, deployments
 
 
-def generate_all_data(cameras: list, rng: Random, species_image_info: dict):
+def _day_image_count(zones: set, season: str, rng: Random) -> int:
+    """Poisson draw for the number of images a deployment produces in a day."""
+    rate = IMAGES_PER_CAMERA_PER_DAY
+    if season == "winter":
+        rate *= WINTER_GLOBAL_MULTIPLIER
+    if "north" in zones:
+        rate *= 1.8
+    elif "south_east" in zones:
+        rate *= 1.5
+    elif "edges" in zones:
+        rate *= 0.6
+    return rng.choices(
+        range(6),  # 0 to 5
+        weights=[math.exp(-rate) * (rate ** k) / math.factorial(k) for k in range(6)],
+        k=1,
+    )[0]
+
+
+def _emit_one_image(out, counters, *, device_id, camera_index, dep_key, lat, lon,
+                    zones, current_date, species_image_info, rng,
+                    origin="live", bulk_job_uuid=None):
+    """Create one image plus its detection/classification and append the records
+    to the `out` lists. Shared by the live and bulk-upload generators.
+
+    captured_at is naive local (no tzinfo); it is interpreted under
+    ServerSettings.timezone. ingested_at is derived from it at insert time.
     """
-    Generate all images, detections, classifications for all cameras.
+    season = get_season(current_date)
 
-    Returns (images, detections, classifications) as lists of dicts.
+    roll = rng.random()
+    if roll < DETECTION_RATES["animal"]:
+        category = "animal"
+    elif roll < DETECTION_RATES["animal"] + DETECTION_RATES["person"]:
+        category = "person"
+    elif roll < DETECTION_RATES["animal"] + DETECTION_RATES["person"] + DETECTION_RATES["vehicle"]:
+        category = "vehicle"
+    else:
+        category = None  # empty image
+
+    species = None
+    if category == "animal":
+        weights = []
+        for sp, cfg in SPECIES_CONFIG.items():
+            w = cfg["weight"] * zone_weight(cfg["zone"], zones)
+            sp_seasons = SEASON_MULTIPLIERS.get(sp, {})
+            if season in sp_seasons:
+                w *= sp_seasons[season]
+            weights.append(w)
+        species = rng.choices(ALL_SPECIES, weights=weights, k=1)[0]
+        species_activity = SPECIES_CONFIG[species]["activity"]
+    elif category in ("person", "vehicle"):
+        species_activity = "day_visitor"
+    else:
+        species_activity = "diurnal"
+
+    hour = sample_hour(species_activity, rng)
+    capture_dt = datetime(
+        current_date.year, current_date.month, current_date.day,
+        hour, rng.randint(0, 59), rng.randint(0, 59),
+    )  # naive local
+
+    img_uuid = str(uuid.UUID(int=rng.getrandbits(128), version=4))
+
+    sp_info = species_image_info.get(species) if (category == "animal" and species) else None
+    if sp_info is None:
+        available = [v for v in species_image_info.values() if v is not None]
+        if available:
+            sp_info = rng.choice(available)
+
+    if sp_info is not None:
+        img_storage_path = sp_info["storage_path"]
+        img_thumb_path = sp_info["thumbnail_path"]
+        img_w = sp_info["width"]
+        img_h = sp_info["height"]
+    else:
+        img_storage_path = PLACEHOLDER_STORAGE_PATH
+        img_thumb_path = PLACEHOLDER_THUMBNAIL_PATH
+        img_w = IMG_WIDTH
+        img_h = IMG_HEIGHT
+
+    metadata = {
+        "width": img_w,
+        "height": img_h,
+        "gps_decimal": [lat, lon],
+        "DateTimeOriginal": capture_dt.strftime("%Y:%m:%d %H:%M:%S"),
+        "Make": CAMERA_MAKE,
+        "Model": CAMERA_MODEL,
+        "SerialNumber": device_id,
+    }
+
+    image_id = counters["image"]
+    image_rec = {
+        "id": image_id,
+        "uuid": img_uuid,
+        "filename": f"IMG_{counters['img']:06d}.JPG",
+        "camera_index": camera_index,
+        "deployment_key": dep_key,
+        "captured_at": capture_dt,
+        "storage_path": img_storage_path,
+        "thumbnail_path": img_thumb_path,
+        "status": "classified",
+        "image_metadata": json.dumps(metadata),
+        "origin": origin,
+        "bulk_job_uuid": bulk_job_uuid,
+        # AI result kept for downstream generators (observations, curation); not inserted directly.
+        "ai_species": species,
+        "ai_category": category,
+        # Curation, filled in later by generate_curation_flags.
+        "is_verified": False, "verified_at": None, "verified_by": None, "verification_notes": None,
+        "is_liked": False, "liked_at": None, "liked_by": None,
+        "needs_review": False, "needs_review_at": None, "needs_review_by": None,
+    }
+    out["images"].append(image_rec)
+    counters["image"] += 1
+    counters["img"] += 1
+
+    if category is None:
+        return
+
+    det_confidence = round(rng.uniform(0.3, 0.985), 4)
+    if sp_info is not None:
+        x_norm, y_norm, w_frac, h_frac = sp_info["bbox"]
+    else:
+        if category == "animal":
+            w_frac = rng.uniform(0.15, 0.40)
+            h_frac = rng.uniform(0.15, 0.40)
+        elif category == "person":
+            w_frac = rng.uniform(0.10, 0.25)
+            h_frac = rng.uniform(0.30, 0.60)
+        else:  # vehicle
+            w_frac = rng.uniform(0.20, 0.50)
+            h_frac = rng.uniform(0.15, 0.30)
+        x_norm = rng.uniform(0.0, max(1.0 - w_frac, 0.01))
+        y_norm = rng.uniform(0.0, max(1.0 - h_frac, 0.01))
+
+    bbox = {
+        "x_min": int(x_norm * img_w),
+        "y_min": int(y_norm * img_h),
+        "width": int(w_frac * img_w),
+        "height": int(h_frac * img_h),
+        "normalized": [round(x_norm, 4), round(y_norm, 4), round(w_frac, 4), round(h_frac, 4)],
+    }
+
+    detection_id = counters["detection"]
+    out["detections"].append({
+        "id": detection_id,
+        "image_id": image_id,
+        "category": category,
+        "confidence": det_confidence,
+        "bbox": json.dumps(bbox),
+    })
+    counters["detection"] += 1
+
+    if category == "animal" and species:
+        conf_lo, conf_hi = CONFIDENCE_RANGES.get(species, (0.55, 0.90))
+        cls_confidence = round(rng.uniform(conf_lo, conf_hi), 4)
+        out["classifications"].append({
+            "id": counters["classification"],
+            "detection_id": detection_id,
+            "species": species,
+            "confidence": cls_confidence,
+        })
+        counters["classification"] += 1
+
+
+def generate_all_data(deployments: list, cameras: list, rng: Random, species_image_info: dict):
+    """Generate live images, detections and classifications, one deployment at a
+    time over the deployment's active date range.
+
+    Returns (images, detections, classifications, counters). The counters dict
+    is threaded into generate_bulk_data so the bulk import keeps unique ids.
     """
-    all_images = []
-    all_detections = []
-    all_classifications = []
+    out = {"images": [], "detections": [], "classifications": []}
+    counters = {"image": 1, "detection": 1, "classification": 1, "img": 1}
+    device_by_index = {c["index"]: c["device_id"] for c in cameras}
 
-    image_id = 1
-    detection_id = 1
-    classification_id = 1
-    img_counter = 1
-
-    for cam in cameras:
-        if cam.get("never_deployed"):
-            continue
-        cam_zones = cam["zones"]
-
-        for day_offset in range(NUM_DAYS):
-            current_date = DATE_START + timedelta(days=day_offset)
+    for dep in deployments:
+        device_id = device_by_index[dep["camera_index"]]
+        end = dep["end_date"] or DATE_END
+        n_days = (end - dep["start_date"]).days + 1
+        for day_offset in range(n_days):
+            current_date = dep["start_date"] + timedelta(days=day_offset)
             season = get_season(current_date)
-
-            # Seasonal global multiplier
-            rate = IMAGES_PER_CAMERA_PER_DAY
-            if season == "winter":
-                rate *= WINTER_GLOBAL_MULTIPLIER
-            # Spatial activity variation for heatmap
-            if "north" in cam_zones:
-                rate *= 1.8
-            elif "south_east" in cam_zones:
-                rate *= 1.5
-            elif "edges" in cam_zones:
-                rate *= 0.6
-
-            # Poisson draw for number of images this camera-day
-            num_images = rng.choices(
-                range(6),  # 0 to 5
-                weights=[
-                    math.exp(-rate) * (rate ** k) / math.factorial(k)
-                    for k in range(6)
-                ],
-                k=1,
-            )[0]
-
-            for _ in range(num_images):
-                # Decide detection category
-                roll = rng.random()
-                if roll < DETECTION_RATES["animal"]:
-                    category = "animal"
-                elif roll < DETECTION_RATES["animal"] + DETECTION_RATES["person"]:
-                    category = "person"
-                elif roll < DETECTION_RATES["animal"] + DETECTION_RATES["person"] + DETECTION_RATES["vehicle"]:
-                    category = "vehicle"
-                else:
-                    category = None  # empty image
-
-                # Select species (only for animal detections)
-                species = None
-                species_activity = "crepuscular"
-                if category == "animal":
-                    # Build weighted species list for this camera + season
-                    weights = []
-                    for sp, cfg in SPECIES_CONFIG.items():
-                        w = cfg["weight"]
-                        w *= zone_weight(cfg["zone"], cam_zones)
-                        # Seasonal multiplier
-                        sp_seasons = SEASON_MULTIPLIERS.get(sp, {})
-                        if season in sp_seasons:
-                            w *= sp_seasons[season]
-                        weights.append(w)
-
-                    species = rng.choices(ALL_SPECIES, weights=weights, k=1)[0]
-                    species_activity = SPECIES_CONFIG[species]["activity"]
-                elif category == "person":
-                    species_activity = "day_visitor"
-                elif category == "vehicle":
-                    species_activity = "day_visitor"
-                else:
-                    species_activity = "diurnal"
-
-                # Generate timestamp
-                hour = sample_hour(species_activity, rng)
-                minute = rng.randint(0, 59)
-                second = rng.randint(0, 59)
-                capture_dt = datetime(
-                    current_date.year, current_date.month, current_date.day,
-                    hour, minute, second,
-                    tzinfo=timezone.utc,
+            for _ in range(_day_image_count(dep["zones"], season, rng)):
+                _emit_one_image(
+                    out, counters,
+                    device_id=device_id, camera_index=dep["camera_index"],
+                    dep_key=dep["key"], lat=dep["lat"], lon=dep["lon"],
+                    zones=dep["zones"], current_date=current_date,
+                    species_image_info=species_image_info, rng=rng,
                 )
 
-                # Generate deterministic UUID from seed
-                img_uuid = str(uuid.UUID(int=rng.getrandbits(128), version=4))
+    return out["images"], out["detections"], out["classifications"], counters
 
-                # Resolve image path and dimensions per species
-                sp_info = None
-                if category == "animal" and species:
-                    sp_info = species_image_info.get(species)
 
-                # For non-animal images, pick a random real species image
-                if sp_info is None:
-                    available = [v for v in species_image_info.values() if v is not None]
-                    if available:
-                        sp_info = rng.choice(available)
+def generate_bulk_data(deployments: list, cameras: list, rng: Random,
+                       species_image_info: dict, counters: dict, job_uuid: str):
+    """Generate the images for one finished bulk SD-card import.
 
-                if sp_info is not None:
-                    img_storage_path = sp_info["storage_path"]
-                    img_thumb_path = sp_info["thumbnail_path"]
-                    img_w = sp_info["width"]
-                    img_h = sp_info["height"]
-                else:
-                    img_storage_path = PLACEHOLDER_STORAGE_PATH
-                    img_thumb_path = PLACEHOLDER_THUMBNAIL_PATH
-                    img_w = IMG_WIDTH
-                    img_h = IMG_HEIGHT
+    Emits BULK_UPLOAD_IMAGE_COUNT images for one active deployment across a
+    six-week window, all origin='bulk' and linked to the job. Returns
+    (images, detections, classifications, camera_index, window_start, window_end).
+    """
+    device_by_index = {c["index"]: c["device_id"] for c in cameras}
+    active = [d for d in deployments if d["end_date"] is None]
+    dep = rng.choice(active)
+    device_id = device_by_index[dep["camera_index"]]
 
-                # Image metadata (EXIF-like)
-                dt_original = capture_dt.strftime("%Y:%m:%d %H:%M:%S")
-                metadata = {
-                    "width": img_w,
-                    "height": img_h,
-                    "gps_decimal": [cam["lat"], cam["lon"]],
-                    "DateTimeOriginal": dt_original,
-                    "Make": CAMERA_MAKE,
-                    "Model": CAMERA_MODEL,
-                    "SerialNumber": cam["device_id"],
-                }
+    window_end = DATE_END - timedelta(days=10)
+    window_start = window_end - timedelta(days=42)
+    span_days = (window_end - window_start).days + 1
 
-                image_rec = {
-                    "id": image_id,
-                    "uuid": img_uuid,
-                    "filename": f"IMG_{img_counter:06d}.JPG",
-                    "camera_index": cam["index"],
-                    "captured_at": capture_dt,
-                    "storage_path": img_storage_path,
-                    "thumbnail_path": img_thumb_path,
-                    "status": "classified",
-                    "image_metadata": json.dumps(metadata),
-                }
-                all_images.append(image_rec)
+    out = {"images": [], "detections": [], "classifications": []}
+    for _ in range(BULK_UPLOAD_IMAGE_COUNT):
+        current_date = window_start + timedelta(days=rng.randint(0, span_days - 1))
+        _emit_one_image(
+            out, counters,
+            device_id=device_id, camera_index=dep["camera_index"],
+            dep_key=dep["key"], lat=dep["lat"], lon=dep["lon"],
+            zones=dep["zones"], current_date=current_date,
+            species_image_info=species_image_info, rng=rng,
+            origin="bulk", bulk_job_uuid=job_uuid,
+        )
 
-                # Generate detection (if not empty)
-                if category is not None:
-                    det_confidence = round(rng.uniform(0.3, 0.985), 4)
-
-                    if sp_info is not None:
-                        # Use real bbox from the species image
-                        x_norm, y_norm, w_frac, h_frac = sp_info["bbox"]
-                    elif category == "animal":
-                        w_frac = rng.uniform(0.15, 0.40)
-                        h_frac = rng.uniform(0.15, 0.40)
-                    elif category == "person":
-                        w_frac = rng.uniform(0.10, 0.25)
-                        h_frac = rng.uniform(0.30, 0.60)
-                    else:  # vehicle
-                        w_frac = rng.uniform(0.20, 0.50)
-                        h_frac = rng.uniform(0.15, 0.30)
-
-                    if sp_info is None:
-                        # Random position, clamped to image
-                        max_x = 1.0 - w_frac
-                        max_y = 1.0 - h_frac
-                        x_norm = rng.uniform(0.0, max(max_x, 0.01))
-                        y_norm = rng.uniform(0.0, max(max_y, 0.01))
-
-                    x_px = int(x_norm * img_w)
-                    y_px = int(y_norm * img_h)
-                    w_px = int(w_frac * img_w)
-                    h_px = int(h_frac * img_h)
-
-                    bbox = {
-                        "x_min": x_px,
-                        "y_min": y_px,
-                        "width": w_px,
-                        "height": h_px,
-                        "normalized": [
-                            round(x_norm, 4),
-                            round(y_norm, 4),
-                            round(w_frac, 4),
-                            round(h_frac, 4),
-                        ],
-                    }
-
-                    det_rec = {
-                        "id": detection_id,
-                        "image_id": image_id,
-                        "category": category,
-                        "confidence": det_confidence,
-                        "bbox": json.dumps(bbox),
-                    }
-                    all_detections.append(det_rec)
-
-                    # Classification (only for animal detections)
-                    if category == "animal" and species:
-                        conf_lo, conf_hi = CONFIDENCE_RANGES.get(species, (0.55, 0.90))
-                        cls_confidence = round(rng.uniform(conf_lo, conf_hi), 4)
-                        cls_rec = {
-                            "id": classification_id,
-                            "detection_id": detection_id,
-                            "species": species,
-                            "confidence": cls_confidence,
-                        }
-                        all_classifications.append(cls_rec)
-                        classification_id += 1
-
-                    detection_id += 1
-
-                image_id += 1
-                img_counter += 1
-
-    return all_images, all_detections, all_classifications
+    return (out["images"], out["detections"], out["classifications"],
+            dep["camera_index"], window_start, window_end)
 
 
 def generate_health_reports(cameras: list, rng: Random) -> list:
@@ -859,22 +1168,201 @@ def curate_first_page(images, detections, classifications, species_image_info, r
         cls["confidence"] = round(rng.uniform(conf_lo, conf_hi), 4)
 
 
-def generate_deployment_periods(cameras: list) -> list:
-    """Generate one active deployment per camera (skip never-deployed)."""
-    periods = []
-    for i, cam in enumerate(cameras):
-        if cam.get("never_deployed"):
+def _recent_utc(rng: Random, max_days_ago: int = 60) -> datetime:
+    """An aware UTC timestamp somewhere within the last `max_days_ago` days."""
+    return datetime.now(timezone.utc) - timedelta(
+        days=rng.randint(0, max_days_ago),
+        hours=rng.randint(0, 23),
+        minutes=rng.randint(0, 59),
+    )
+
+
+def generate_curation_flags(images: list, members: list, rng: Random) -> None:
+    """Mark a slice of animal images as verified / liked / needs-review.
+
+    `members` is a list of user ids to attribute the actions to. Mutates the
+    live image dicts in place, so call it after the first page is curated.
+    """
+    animal = [im for im in images if im["ai_category"] == "animal" and im["ai_species"]]
+    if not animal or not members:
+        return
+
+    verify_notes = [
+        "Confirmed, clear broadside view.",
+        "Agree with the model.",
+        "Reclassified after checking the antlers.",
+        "Good capture, identification is certain.",
+    ]
+    for im in rng.sample(animal, max(1, int(len(animal) * VERIFIED_RATE))):
+        im["is_verified"] = True
+        im["verified_at"] = _recent_utc(rng)
+        im["verified_by"] = rng.choice(members)
+        if rng.random() < 0.25:
+            im["verification_notes"] = rng.choice(verify_notes)
+
+    # Force-like the most recent few so the first page shows favourites.
+    by_recent = sorted(animal, key=lambda im: im["captured_at"], reverse=True)
+    liked_ids = set()
+    for im in by_recent[:6]:
+        im["is_liked"] = True
+        im["liked_at"] = _recent_utc(rng, 14)
+        im["liked_by"] = rng.choice(members)
+        liked_ids.add(id(im))
+    for im in rng.sample(animal, max(1, int(len(animal) * LIKED_RATE))):
+        if id(im) in liked_ids:
             continue
-        periods.append({
-            "id": i + 1,
-            "camera_index": cam["index"],
-            "deployment_id": 1,
-            "start_date": DATE_START,
-            "end_date": None,
-            "lat": cam["lat"],
-            "lon": cam["lon"],
+        im["is_liked"] = True
+        im["liked_at"] = _recent_utc(rng)
+        im["liked_by"] = rng.choice(members)
+
+    for im in rng.sample(animal, max(1, int(len(animal) * NEEDS_REVIEW_RATE))):
+        im["needs_review"] = True
+        im["needs_review_at"] = _recent_utc(rng, 21)
+        im["needs_review_by"] = rng.choice(members)
+
+
+# Plausible model confusions, so some human observations correct the AISpecies.
+SPECIES_CONFUSION = {
+    "roe_deer": "fallow_deer", "red_deer": "fallow_deer", "fallow_deer": "roe_deer",
+    "fox": "dog", "mustelid": "cat", "wild_boar": "red_deer",
+}
+
+
+def generate_human_observations(images: list, members: list, rng: Random) -> list:
+    """Image-level human observations (count + sex/life-stage/behaviour) for a
+    slice of animal images, powering the demographic and behaviour charts."""
+    animal = [im for im in images if im["ai_category"] == "animal" and im["ai_species"]]
+    obs = []
+    if not animal or not members:
+        return obs
+
+    for im in rng.sample(animal, max(1, int(len(animal) * OBSERVATION_RATE))):
+        ai_sp = im["ai_species"]
+        if rng.random() < 0.15 and ai_sp in SPECIES_CONFUSION:
+            species = SPECIES_CONFUSION[ai_sp]   # human corrects the model
+        else:
+            species = ai_sp
+        season = get_season(im["captured_at"].date())
+        sex, life_stage, behavior, count = pick_demographics(species, season, rng)
+        obs.append({
+            "image_uuid": im["uuid"],
+            "species": species,
+            "count": count,
+            "sex": sex,
+            "life_stage": life_stage,
+            "behavior": behavior,
+            "created_by": rng.choice(members),
+            "created_at": _recent_utc(rng),
         })
-    return periods
+    return obs
+
+
+def build_bulk_job_record(job_uuid: str, camera_index: int, window_start: date,
+                          window_end: date, n_images: int, created_by: int) -> dict:
+    """Build the BulkUploadJob row for one finished SD-card import."""
+    duplicates = BULK_UPLOAD_DUPLICATES
+    other = BULK_UPLOAD_OTHER_SKIPPED
+    total = n_images + duplicates + other
+
+    finished = datetime.now(timezone.utc) - timedelta(days=9, hours=3)
+    process_started = finished - timedelta(minutes=38)
+    started = process_started - timedelta(minutes=4)
+    created = started - timedelta(minutes=1)
+
+    manifest = {
+        "total_entries": total,
+        "valid_count": n_images + duplicates,
+        "by_status": {"valid": n_images + duplicates, "skipped_other": other},
+        "date_range": {
+            "start": datetime.combine(window_start, time(0, 0)).isoformat(),
+            "end": datetime.combine(window_end, time(23, 59)).isoformat(),
+        },
+        "suggested_camera": None,
+        "matched_cameras": [],
+        "process_summary": {
+            "queued_for_pipeline": n_images,
+            "duplicates": duplicates,
+            "other_skipped": other,
+        },
+        "file_log": [
+            {"filename": "IMG_000001.JPG", "status": "queued"},
+            {"filename": "IMG_000002.JPG", "status": "duplicate"},
+            {"filename": "Thumbs.db", "status": "skipped_other"},
+        ],
+    }
+    return {
+        "uuid": job_uuid,
+        "camera_index": camera_index,
+        "created_by": created_by,
+        "original_filename": BULK_UPLOAD_FILENAME,
+        "staged_object_key": f"{job_uuid}/{BULK_UPLOAD_FILENAME}",
+        "status": "done",
+        "total_files": total,
+        "processed_files": n_images,
+        "skipped_files": duplicates + other,
+        "manifest": json.dumps(manifest),
+        "created_at": created,
+        "started_at": started,
+        "process_started_at": process_started,
+        "finished_at": finished,
+    }
+
+
+def generate_rejections(cameras: list, rng: Random) -> list:
+    """Rejected-file rows for the Live feed and ingestion monitoring.
+
+    About a third come from an unregistered device (no camera match, no
+    project, server-admin page only); the rest map to a real demo camera.
+    """
+    deployed = [c for c in cameras if not c["never_deployed"]]
+    rejections = []
+    for _ in range(16):
+        reason, details = rng.choice(REJECTION_REASONS)
+        if rng.random() < 0.30 or not deployed:
+            device_id = f"UNREG-{rng.randint(1000, 9999)}"
+            known = False
+        else:
+            device_id = rng.choice(deployed)["device_id"]
+            known = True
+
+        # Only the GPS reasons carry a usable capture time (naive local).
+        if reason in ("missing_gps", "invalid_gps"):
+            captured_at = (datetime.now() - timedelta(
+                days=rng.randint(0, 12), hours=rng.randint(0, 23))).replace(microsecond=0)
+        else:
+            captured_at = None
+
+        filename = "Test-Snapshot.jpeg" if reason == "missing_datetime" else f"IMG_{rng.randint(1, 9999):04d}.JPG"
+        rejections.append({
+            "filename": filename,
+            "disk_path": f"/uploads/rejected/{reason}/{filename}",
+            "reason": reason,
+            "details": details,
+            "device_id": device_id,
+            "known_device": known,
+            "captured_at": captured_at,
+            "exif_metadata": json.dumps({"Make": CAMERA_MAKE, "Model": CAMERA_MODEL}) if known else None,
+            "file_size_bytes": rng.randint(180_000, 3_500_000),
+            "rejected_at": _recent_utc(rng, 12),
+        })
+    return rejections
+
+
+def generate_reminders(admin_user_id: int) -> list:
+    """Project reminder digests: two pending, one already sent."""
+    reminders = []
+    for r in DEMO_REMINDERS:
+        send_on = DATE_END + timedelta(days=r["in_days"])
+        sent_at = None
+        if r["in_days"] < 0:
+            sent_at = datetime.combine(send_on, time(6, 45)).replace(tzinfo=timezone.utc)
+        reminders.append({
+            "send_on": send_on,
+            "message": r["message"],
+            "created_by": admin_user_id,
+            "sent_at": sent_at,
+        })
+    return reminders
 
 
 # ---------------------------------------------------------------------------
@@ -929,12 +1417,18 @@ def clean_demo_data(session: Session):
 
                     session.execute(text(f"DELETE FROM images WHERE id IN ({chunk_str})"))
 
+            # Bulk jobs reference cameras with NO ACTION, so clear them first.
+            session.execute(text("DELETE FROM bulk_upload_jobs WHERE project_id = :pid"), {"pid": project_id})
+
             # Delete camera-related data
             session.execute(text(f"DELETE FROM camera_health_reports WHERE camera_id IN ({cam_ids_str})"))
             session.execute(text(f"DELETE FROM deployments WHERE camera_id IN ({cam_ids_str})"))
+            session.execute(text("DELETE FROM sites WHERE project_id = :pid"), {"pid": project_id})
             session.execute(text(f"DELETE FROM cameras WHERE id IN ({cam_ids_str})"))
 
-        # Delete notification preferences and project memberships
+        # Project-scoped feature rows, then access rows, then the project.
+        session.execute(text("DELETE FROM rejections WHERE project_id = :pid"), {"pid": project_id})
+        session.execute(text("DELETE FROM project_reminders WHERE project_id = :pid"), {"pid": project_id})
         session.execute(text("DELETE FROM project_notification_preferences WHERE project_id = :pid"), {"pid": project_id})
         session.execute(text("DELETE FROM project_memberships WHERE project_id = :pid"), {"pid": project_id})
         session.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": project_id})
@@ -964,19 +1458,42 @@ def clean_demo_data(session: Session):
     print("   Cleanup complete.")
 
 
+def insert_server_settings(session: Session) -> None:
+    """Set the server timezone (single-row table), so camera-clock timestamps
+    read correctly. SpeciesNet region is set too in case the demo runs that
+    classifier. Upserts the single row."""
+    session.execute(text("DELETE FROM server_settings"))
+    session.execute(
+        text("""
+            INSERT INTO server_settings (
+                timezone, speciesnet_country_code, speciesnet_admin1_region
+            ) VALUES (:tz, :country, NULL)
+        """),
+        {"tz": SERVER_TIMEZONE, "country": "NLD"},
+    )
+    session.flush()
+
+
 def insert_project(session: Session) -> int:
     """Create project with PostGIS polygon boundary from real park shape."""
     coords = ", ".join(f"{lon} {lat}" for lon, lat in PARK_BOUNDARY)
     boundary_wkt = f"POLYGON(({coords}))"
+    # Per-species classification thresholds: a default plus a couple of
+    # overrides, to showcase the threshold feature on the project settings page.
+    classification_thresholds = {
+        "default": 0.5,
+        "overrides": {"wolf": 0.4, "lynx": 0.4, "bird": 0.6},
+    }
     result = session.execute(
         text("""
             INSERT INTO projects (
                 name, description, location, included_species,
-                detection_threshold, blur_people_vehicles,
-                independence_interval_minutes
+                detection_threshold, classification_thresholds,
+                blur_people_vehicles, independence_interval_minutes
             ) VALUES (
                 :name, :description, ST_GeogFromText(:boundary),
-                :species, :threshold, :blur, :independence
+                :species, :threshold, CAST(:cls_thresholds AS json),
+                :blur, :independence
             ) RETURNING id
         """),
         {
@@ -985,6 +1502,7 @@ def insert_project(session: Session) -> int:
             "species": json.dumps(ALL_SPECIES),
             "boundary": boundary_wkt,
             "threshold": 0.5,
+            "cls_thresholds": json.dumps(classification_thresholds),
             "blur": True,
             "independence": 30,
         },
@@ -1094,97 +1612,149 @@ def insert_users(session: Session, project_id: int) -> dict:
     return user_ids
 
 
-def insert_cameras(session: Session, cameras: list, project_id: int) -> dict:
-    """Bulk insert cameras. Returns {camera_index: db_id} mapping."""
+def insert_sites(session: Session, sites: list, project_id: int) -> dict:
+    """Insert sites. Returns {site_key: db_id}. Unnamed sites fall back to a
+    coordinate string, which keeps the per-project name unique."""
+    key_to_id = {}
+    for site in sites:
+        name = site["name"] or f"{site['lat']:.5f}, {site['lon']:.5f}"
+        result = session.execute(
+            text("""
+                INSERT INTO sites (uuid, project_id, name, location, habitat_type)
+                VALUES (:uuid, :pid, :name, ST_GeogFromText(:loc), :habitat)
+                RETURNING id
+            """),
+            {
+                "uuid": str(uuid.uuid4()),
+                "pid": project_id,
+                "name": name,
+                "loc": f"POINT({site['lon']} {site['lat']})",
+                "habitat": site["habitat"],
+            },
+        )
+        key_to_id[site["key"]] = result.fetchone()[0]
+    session.flush()
+    return key_to_id
+
+
+def insert_cameras(session: Session, cameras: list, project_id: int,
+                   species_image_info: dict) -> dict:
+    """Insert cameras (device_id only, no name/location). Returns {camera_index: db_id}.
+
+    Sets SIM expiry, reference image (resolved to a MinIO path), custom fields,
+    tags and notes from the showcase fields on each camera dict.
+    """
     index_to_id = {}
+    installed = datetime(DATE_START.year, DATE_START.month, DATE_START.day, tzinfo=timezone.utc)
     for cam in cameras:
-        if cam.get("never_deployed"):
-            # Inventory-only camera: no location, not yet deployed
-            result = session.execute(
-                text("""
-                    INSERT INTO cameras (
-                        name, device_id, manufacturer, model, project_id,
-                        status, location, installed_at
-                    ) VALUES (
-                        :name, :device_id, :make, :model, :pid,
-                        'inventory',
-                        NULL, NULL
-                    ) RETURNING id
-                """),
-                {
-                    "name": cam["name"],
-                    "device_id": cam["device_id"],
-                    "make": CAMERA_MAKE,
-                    "model": CAMERA_MODEL,
-                    "pid": project_id,
-                },
-            )
-        else:
-            result = session.execute(
-                text("""
-                    INSERT INTO cameras (
-                        name, device_id, manufacturer, model, project_id,
-                        status, location, installed_at
-                    ) VALUES (
-                        :name, :device_id, :make, :model, :pid,
-                        'active',
-                        ST_GeogFromText(:loc), :installed
-                    ) RETURNING id
-                """),
-                {
-                    "name": cam["name"],
-                    "device_id": cam["device_id"],
-                    "make": CAMERA_MAKE,
-                    "model": CAMERA_MODEL,
-                    "pid": project_id,
-                    "loc": f"POINT({cam['lon']} {cam['lat']})",
-                    "installed": datetime(DATE_START.year, DATE_START.month, DATE_START.day, tzinfo=timezone.utc),
-                },
-            )
-        db_id = result.fetchone()[0]
-        index_to_id[cam["index"]] = db_id
+        ref_path = ref_thumb = None
+        ref_species = cam.get("reference_species")
+        if ref_species:
+            info = species_image_info.get(ref_species)
+            if info:
+                ref_path = info["storage_path"]
+                ref_thumb = info["thumbnail_path"]
+
+        result = session.execute(
+            text("""
+                INSERT INTO cameras (
+                    device_id, manufacturer, model, hardware_revision, project_id,
+                    status, installed_at, sim_expiry_date,
+                    reference_image_path, reference_thumbnail_path,
+                    custom_fields, tags, notes
+                ) VALUES (
+                    :device_id, :make, :model, :hw, :pid,
+                    :status, :installed, :sim_expiry,
+                    :ref_path, :ref_thumb,
+                    CAST(:custom_fields AS json), CAST(:tags AS json), :notes
+                ) RETURNING id
+            """),
+            {
+                "device_id": cam["device_id"],
+                "make": CAMERA_MAKE,
+                "model": CAMERA_MODEL,
+                "hw": cam.get("hardware_revision"),
+                "pid": project_id,
+                "status": "inventory" if cam["never_deployed"] else "active",
+                "installed": None if cam["never_deployed"] else installed,
+                "sim_expiry": cam.get("sim_expiry_date"),
+                "ref_path": ref_path,
+                "ref_thumb": ref_thumb,
+                "custom_fields": json.dumps(cam["custom_fields"]) if cam.get("custom_fields") else None,
+                "tags": json.dumps(cam["tags"]) if cam.get("tags") else None,
+                "notes": cam.get("notes"),
+            },
+        )
+        index_to_id[cam["index"]] = result.fetchone()[0]
     session.flush()
     return index_to_id
 
 
-def insert_images_batch(session: Session, images: list, cam_index_to_id: dict):
-    """Batch insert images using raw SQL in chunks."""
-    chunk_size = 2000
+def insert_images_batch(session: Session, images: list, cam_index_to_id: dict,
+                        dep_key_to_id: dict, job_uuid_to_id: dict):
+    """Batch insert images in chunks. Resolves deployment and bulk-job links,
+    derives ingested_at from captured_at under the server timezone, and carries
+    the curation columns. Returns {uuid: db_id}."""
+    columns = (
+        "uuid, filename, camera_id, captured_at, storage_path, thumbnail_path, "
+        "status, image_metadata, origin, deployment_id, bulk_upload_job_id, "
+        "ingested_at, is_hidden, is_verified, verified_at, verified_by_user_id, "
+        "verification_notes, is_liked, liked_at, liked_by_user_id, "
+        "needs_review, needs_review_at, needs_review_by_user_id"
+    )
+    chunk_size = 1000
     for i in range(0, len(images), chunk_size):
         chunk = images[i:i + chunk_size]
         values_parts = []
         params = {}
         for j, img in enumerate(chunk):
-            key = f"_{i + j}"
+            k = f"_{i + j}"
             values_parts.append(
-                f"(:uuid{key}, :filename{key}, :camera_id{key}, :captured_at{key}, "
-                f":storage_path{key}, :thumbnail_path{key}, :status{key}, "
-                f"CAST(:metadata{key} AS jsonb), false)"
+                f"(:uuid{k}, :filename{k}, :camera_id{k}, :captured_at{k}, "
+                f":storage_path{k}, :thumbnail_path{k}, :status{k}, "
+                f"CAST(:metadata{k} AS jsonb), :origin{k}, :deployment_id{k}, "
+                f":bulk_job_id{k}, "
+                f"(CAST(:captured_at{k} AS timestamp) AT TIME ZONE '{SERVER_TIMEZONE}'), "
+                f"false, :is_verified{k}, :verified_at{k}, :verified_by{k}, "
+                f":verification_notes{k}, :is_liked{k}, :liked_at{k}, :liked_by{k}, "
+                f":needs_review{k}, :needs_review_at{k}, :needs_review_by{k})"
             )
-            params[f"uuid{key}"] = img["uuid"]
-            params[f"filename{key}"] = img["filename"]
-            params[f"camera_id{key}"] = cam_index_to_id[img["camera_index"]]
-            params[f"captured_at{key}"] = img["captured_at"]
-            params[f"storage_path{key}"] = img["storage_path"]
-            params[f"thumbnail_path{key}"] = img["thumbnail_path"]
-            params[f"status{key}"] = img["status"]
-            params[f"metadata{key}"] = img["image_metadata"]
+            bulk_uuid = img.get("bulk_job_uuid")
+            params.update({
+                f"uuid{k}": img["uuid"],
+                f"filename{k}": img["filename"],
+                f"camera_id{k}": cam_index_to_id[img["camera_index"]],
+                f"captured_at{k}": img["captured_at"],
+                f"storage_path{k}": img["storage_path"],
+                f"thumbnail_path{k}": img["thumbnail_path"],
+                f"status{k}": img["status"],
+                f"metadata{k}": img["image_metadata"],
+                f"origin{k}": img["origin"],
+                f"deployment_id{k}": dep_key_to_id.get(img["deployment_key"]),
+                f"bulk_job_id{k}": job_uuid_to_id.get(bulk_uuid) if bulk_uuid else None,
+                f"is_verified{k}": img["is_verified"],
+                f"verified_at{k}": img["verified_at"],
+                f"verified_by{k}": img["verified_by"],
+                f"verification_notes{k}": img["verification_notes"],
+                f"is_liked{k}": img["is_liked"],
+                f"liked_at{k}": img["liked_at"],
+                f"liked_by{k}": img["liked_by"],
+                f"needs_review{k}": img["needs_review"],
+                f"needs_review_at{k}": img["needs_review_at"],
+                f"needs_review_by{k}": img["needs_review_by"],
+            })
 
-        sql = (
-            "INSERT INTO images (uuid, filename, camera_id, captured_at, "
-            "storage_path, thumbnail_path, status, image_metadata, is_verified) VALUES "
-            + ", ".join(values_parts)
+        session.execute(
+            text(f"INSERT INTO images ({columns}) VALUES " + ", ".join(values_parts)),
+            params,
         )
-        session.execute(text(sql), params)
 
     session.flush()
 
-    # Build image uuid -> db_id mapping
     rows = session.execute(
         text("SELECT uuid, id FROM images WHERE storage_path LIKE 'demo/%'"),
     ).fetchall()
-    uuid_to_id = {r[0]: r[1] for r in rows}
-    return uuid_to_id
+    return {r[0]: r[1] for r in rows}
 
 
 def insert_detections_batch(session: Session, detections: list, image_uuid_to_id: dict, images: list):
@@ -1284,24 +1854,160 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
     session.flush()
 
 
-def insert_deployment_periods(session: Session, periods: list, cam_index_to_id: dict):
-    """Insert deployment periods."""
-    for period in periods:
-        session.execute(
+def insert_deployments(session: Session, deployments: list, cam_index_to_id: dict,
+                       site_key_to_id: dict) -> dict:
+    """Insert deployments linked to their site, with a position label and the
+    GPS-guessed vs human-confirmed source. Returns {deployment_key: db_id}."""
+    key_to_id = {}
+    for dep in deployments:
+        result = session.execute(
             text("""
                 INSERT INTO deployments (
-                    camera_id, deployment_number, start_date, end_date, location
+                    camera_id, deployment_number, name, site_id, site_source,
+                    start_date, end_date, location
                 ) VALUES (
-                    :camera_id, :dep_id, :start, :end,
-                    ST_GeogFromText(:loc)
+                    :camera_id, :num, :label, :site_id, :site_source,
+                    :start, :end, ST_GeogFromText(:loc)
+                ) RETURNING id
+            """),
+            {
+                "camera_id": cam_index_to_id[dep["camera_index"]],
+                "num": dep["deployment_number"],
+                "label": dep["label"],
+                "site_id": site_key_to_id[dep["site_key"]],
+                "site_source": dep["site_source"],
+                "start": dep["start_date"],
+                "end": dep["end_date"],
+                "loc": f"POINT({dep['lon']} {dep['lat']})",
+            },
+        )
+        key_to_id[dep["key"]] = result.fetchone()[0]
+    session.flush()
+    return key_to_id
+
+
+def insert_bulk_jobs(session: Session, jobs: list, project_id: int,
+                     cam_index_to_id: dict) -> dict:
+    """Insert bulk-upload job rows. Returns {uuid: db_id}. Must run before the
+    image insert, since bulk images reference the job."""
+    uuid_to_id = {}
+    for job in jobs:
+        result = session.execute(
+            text("""
+                INSERT INTO bulk_upload_jobs (
+                    uuid, project_id, created_by_user_id, camera_id,
+                    original_filename, staged_object_key, status,
+                    total_files, processed_files, skipped_files, manifest,
+                    created_at, started_at, process_started_at, finished_at
+                ) VALUES (
+                    :uuid, :pid, :created_by, :camera_id,
+                    :orig, :staged, :status,
+                    :total, :processed, :skipped, CAST(:manifest AS json),
+                    :created_at, :started_at, :process_started_at, :finished_at
+                ) RETURNING id
+            """),
+            {
+                "uuid": job["uuid"],
+                "pid": project_id,
+                "created_by": job["created_by"],
+                "camera_id": cam_index_to_id[job["camera_index"]],
+                "orig": job["original_filename"],
+                "staged": job["staged_object_key"],
+                "status": job["status"],
+                "total": job["total_files"],
+                "processed": job["processed_files"],
+                "skipped": job["skipped_files"],
+                "manifest": job["manifest"],
+                "created_at": job["created_at"],
+                "started_at": job["started_at"],
+                "process_started_at": job["process_started_at"],
+                "finished_at": job["finished_at"],
+            },
+        )
+        uuid_to_id[job["uuid"]] = result.fetchone()[0]
+    session.flush()
+    return uuid_to_id
+
+
+def insert_human_observations(session: Session, observations: list, image_uuid_to_id: dict):
+    """Insert image-level human observations, resolving images by uuid."""
+    for obs in observations:
+        image_id = image_uuid_to_id.get(obs["image_uuid"])
+        if image_id is None:
+            continue
+        session.execute(
+            text("""
+                INSERT INTO human_observations (
+                    image_id, species, count, sex, life_stage, behavior,
+                    created_by_user_id, created_at
+                ) VALUES (
+                    :image_id, :species, :count, :sex, :life_stage, :behavior,
+                    :created_by, :created_at
                 )
             """),
             {
-                "camera_id": cam_index_to_id[period["camera_index"]],
-                "dep_id": period["deployment_id"],
-                "start": period["start_date"],
-                "end": period["end_date"],
-                "loc": f"POINT({period['lon']} {period['lat']})",
+                "image_id": image_id,
+                "species": obs["species"],
+                "count": obs["count"],
+                "sex": obs["sex"],
+                "life_stage": obs["life_stage"],
+                "behavior": obs["behavior"],
+                "created_by": obs["created_by"],
+                "created_at": obs["created_at"],
+            },
+        )
+    session.flush()
+
+
+def insert_rejections(session: Session, rejections: list, project_id: int,
+                      device_to_cam_id: dict):
+    """Insert rejected-file rows. Known devices link to their camera and the
+    project; unknown devices stay unlinked (server-admin page only)."""
+    for rj in rejections:
+        camera_id = device_to_cam_id.get(rj["device_id"]) if rj["known_device"] else None
+        pid = project_id if rj["known_device"] else None
+        session.execute(
+            text("""
+                INSERT INTO rejections (
+                    filename, disk_path, reason, details, device_id, camera_id,
+                    project_id, captured_at, exif_metadata, file_size_bytes, rejected_at
+                ) VALUES (
+                    :filename, :disk_path, :reason, :details, :device_id, :camera_id,
+                    :pid, :captured_at, CAST(:exif AS json), :size, :rejected_at
+                )
+            """),
+            {
+                "filename": rj["filename"],
+                "disk_path": rj["disk_path"],
+                "reason": rj["reason"],
+                "details": rj["details"],
+                "device_id": rj["device_id"],
+                "camera_id": camera_id,
+                "pid": pid,
+                "captured_at": rj["captured_at"],
+                "exif": rj["exif_metadata"],
+                "size": rj["file_size_bytes"],
+                "rejected_at": rj["rejected_at"],
+            },
+        )
+    session.flush()
+
+
+def insert_reminders(session: Session, reminders: list, project_id: int):
+    """Insert project reminder digests."""
+    for r in reminders:
+        session.execute(
+            text("""
+                INSERT INTO project_reminders (
+                    project_id, send_on, message, created_by_user_id, sent_at
+                ) VALUES (:pid, :send_on, :message, :created_by, :sent_at)
+            """),
+            {
+                "pid": project_id,
+                "send_on": r["send_on"],
+                "message": r["message"],
+                "created_by": r["created_by"],
+                "sent_at": r["sent_at"],
             },
         )
     session.flush()
@@ -1350,8 +2056,8 @@ def update_camera_latest_fields(session: Session, cam_index_to_id: dict, cameras
                     "sent_images": latest[5],
                 },
                 "gps_from_report": {
-                    "lat": cam["lat"],
-                    "lon": cam["lon"],
+                    "lat": cam["current_lat"],
+                    "lon": cam["current_lon"],
                 },
             }
 
@@ -1525,81 +2231,93 @@ def main():
     print("=" * 60)
     print()
 
+    # Users that curate (verify / like / observe). All have project access.
+    attribution_emails = [
+        "demo@email.com", "j.devries@hogeveluwe.nl", "m.bakker@hogeveluwe.nl",
+        "s.jansen@hogeveluwe.nl", "l.visser@hogeveluwe.nl",
+    ]
+
     # Step 1: MinIO
-    print("[1/9] Uploading demo images to MinIO...")
+    print("[1/6] Uploading demo images to MinIO...")
     species_image_info = upload_demo_images()
     print("   Done.")
 
     with Session(engine) as session:
-        # Step 2: Clean
-        print("[2/9] Cleaning existing demo data...")
+        # Step 2: Clean and configure
+        print("[2/6] Cleaning existing demo data...")
         clean_demo_data(session)
+        insert_server_settings(session)
         session.commit()
 
-        # Step 3: Project
-        print("[3/9] Creating project...")
+        # Step 3: Project and users
+        print("[3/6] Creating project and users...")
         project_id = insert_project(session)
-        print(f"   Project '{PROJECT_NAME}' created (id={project_id}).")
         set_project_image(session, project_id, species_image_info)
-
-        # Step 4: Users
-        print("[4/9] Creating users...")
         user_ids = insert_users(session, project_id)
-        print(f"   {len(user_ids)} users created.")
-        for u in DEMO_USERS[:3]:
-            print(f"   - {u['email']} ({u['role']})")
-        print(f"   - ... and {len(DEMO_USERS) - 3} more")
+        members = [user_ids[e] for e in attribution_emails if e in user_ids]
+        admin_creator = user_ids.get("j.devries@hogeveluwe.nl") or user_ids["demo@email.com"]
+        print(f"   Project '{PROJECT_NAME}' (id={project_id}) and {len(user_ids)} users created.")
 
-        # Step 5: Generate data in memory
-        print("[5/9] Generating all data in memory...")
-        cameras = generate_cameras(rng)
-        print(f"   {len(cameras)} cameras defined.")
+        # Step 4: Generate everything in memory
+        print("[4/6] Generating data in memory...")
+        sites, cameras, deployments = generate_layout(rng)
+        print(f"   {len(sites)} sites, {len(cameras)} cameras, {len(deployments)} deployments.")
 
-        images, detections, classifications = generate_all_data(cameras, rng, species_image_info)
-        print(f"   {len(images)} images generated.")
-        print(f"   {len(detections)} detections generated.")
-        print(f"   {len(classifications)} classifications generated.")
-
-        # Curate first page: all 14 species, no consecutive duplicates
-        print("   Curating first page (24 images, all species)...")
+        images, detections, classifications, counters = generate_all_data(
+            deployments, cameras, rng, species_image_info
+        )
         curate_first_page(images, detections, classifications, species_image_info, rng)
+        generate_curation_flags(images, members, rng)
+        observations = generate_human_observations(images, members, rng)
+
+        job_uuid = str(uuid.uuid4())
+        bulk_images, bulk_dets, bulk_cls, bulk_cam_index, win_start, win_end = generate_bulk_data(
+            deployments, cameras, rng, species_image_info, counters, job_uuid
+        )
+        bulk_job = build_bulk_job_record(
+            job_uuid, bulk_cam_index, win_start, win_end, len(bulk_images), admin_creator
+        )
+        images += bulk_images
+        detections += bulk_dets
+        classifications += bulk_cls
 
         health_reports = generate_health_reports(cameras, rng)
-        print(f"   {len(health_reports)} health reports generated.")
+        rejections = generate_rejections(cameras, rng)
+        reminders = generate_reminders(admin_creator)
+        print(f"   {len(images)} images ({len(bulk_images)} bulk), {len(detections)} detections, "
+              f"{len(classifications)} classifications.")
+        print(f"   {len(observations)} observations, {len(rejections)} rejections, "
+              f"{len(reminders)} reminders, {len(health_reports)} health reports.")
 
-        deployment_periods = generate_deployment_periods(cameras)
-        print(f"   {len(deployment_periods)} deployment periods generated.")
+        # Step 5: Insert in FK order
+        print("[5/6] Inserting into the database...")
+        site_key_to_id = insert_sites(session, sites, project_id)
+        cam_index_to_id = insert_cameras(session, cameras, project_id, species_image_info)
+        dep_key_to_id = insert_deployments(session, deployments, cam_index_to_id, site_key_to_id)
+        job_uuid_to_id = insert_bulk_jobs(session, [bulk_job], project_id, cam_index_to_id)
 
-        # Step 6: Insert cameras
-        print("[6/9] Inserting cameras...")
-        cam_index_to_id = insert_cameras(session, cameras, project_id)
-        print(f"   {len(cam_index_to_id)} cameras inserted.")
-
-        # Step 7: Insert images, detections, classifications
-        print("[7/9] Inserting images, detections, classifications...")
         print(f"   Inserting {len(images)} images...")
-        image_uuid_to_id = insert_images_batch(session, images, cam_index_to_id)
+        image_uuid_to_id = insert_images_batch(
+            session, images, cam_index_to_id, dep_key_to_id, job_uuid_to_id
+        )
         print(f"   Inserting {len(detections)} detections...")
         old_to_new_det = insert_detections_batch(session, detections, image_uuid_to_id, images)
         print(f"   Inserting {len(classifications)} classifications...")
         insert_classifications_batch(session, classifications, old_to_new_det)
+        insert_human_observations(session, observations, image_uuid_to_id)
 
-        # Step 8: Health reports and deployment periods
-        print("[8/9] Inserting health reports and deployment periods...")
         insert_health_reports_batch(session, health_reports, cam_index_to_id)
-        insert_deployment_periods(session, deployment_periods, cam_index_to_id)
-
-        # Update camera fields from generated data (including config JSON)
-        print("   Updating camera latest fields and config...")
         update_camera_latest_fields(session, cam_index_to_id, cameras)
 
-        # Step 9: Telegram config and notification preferences
-        print("[9/9] Setting up Telegram and notification preferences...")
+        device_to_cam_id = {cam["device_id"]: cam_index_to_id[cam["index"]] for cam in cameras}
+        insert_rejections(session, rejections, project_id, device_to_cam_id)
+        insert_reminders(session, reminders, project_id)
+
+        # Step 6: Telegram and notification preferences
+        print("[6/6] Setting up Telegram and notification preferences...")
         insert_telegram_config(session)
         insert_notification_preferences(session, project_id, user_ids)
-        print("   Telegram configured, 4 users with notification preferences.")
 
-        # Commit everything
         print("   Committing...")
         session.commit()
 
@@ -1610,16 +2328,21 @@ def main():
     print()
     print(f"  Project: {PROJECT_NAME}")
     print(f"  Date range: {DATE_START} to {DATE_END}")
+    print(f"  Sites: {len(sites)}")
     print(f"  Cameras: {len(cameras)}")
+    print(f"  Deployments: {len(deployments)}")
     print(f"  Users: {len(DEMO_USERS)}")
-    print(f"  Images:  {len(images)}")
+    print(f"  Images:  {len(images)} ({len(bulk_images)} from bulk upload)")
     print(f"  Detections: {len(detections)}")
     print(f"  Classifications: {len(classifications)}")
+    print(f"  Human observations: {len(observations)}")
     print(f"  Health reports: {len(health_reports)}")
-    print(f"  Deployment periods: {len(deployment_periods)}")
+    print(f"  Rejections: {len(rejections)}")
+    print(f"  Reminders: {len(reminders)}")
     total = (
-        1 + len(DEMO_USERS) + 1 + len(cameras) + len(images) + len(detections)
-        + len(classifications) + len(health_reports) + len(deployment_periods)
+        1 + len(DEMO_USERS) + len(sites) + len(cameras) + len(deployments)
+        + len(images) + len(detections) + len(classifications) + len(observations)
+        + len(health_reports) + len(rejections) + len(reminders)
     )
     print(f"  Total DB rows: ~{total:,}")
     print()

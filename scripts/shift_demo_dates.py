@@ -54,6 +54,12 @@ def main():
 
         print(f"Shifting demo dates forward by {delta} day(s)...")
 
+        # Resolve the demo project id once, for the project-scoped tables below.
+        project_id = session.execute(
+            text("SELECT id FROM projects WHERE name = :project"),
+            {"project": PROJECT_NAME},
+        ).scalar_one()
+
         # Subquery that resolves the demo project's camera IDs
         demo_cameras = """
             SELECT c.id FROM cameras c
@@ -121,14 +127,88 @@ def main():
             {"project": PROJECT_NAME, "offset": temp_offset, "delta": delta},
         )
 
-        # 4) deployments.start_date
+        # 4) deployments.start_date and end_date (NULL end_date = active, stays)
         session.execute(
             text(f"""
                 UPDATE deployments
-                SET start_date = start_date + :delta
+                SET start_date = start_date + :delta,
+                    end_date = end_date + :delta
                 WHERE camera_id IN ({demo_cameras})
             """),
             {"project": PROJECT_NAME, "delta": delta},
+        )
+
+        # 5) images.ingested_at (Live feed sort key) and the human-action
+        #    wall-clock stamps. NULL + interval stays NULL, so unflagged images
+        #    are left alone. They track real time, staying at a fixed offset
+        #    from now, so recent curation keeps looking recent.
+        session.execute(
+            text(f"""
+                UPDATE images
+                SET ingested_at     = ingested_at     + (:delta * INTERVAL '1 day'),
+                    verified_at     = verified_at     + (:delta * INTERVAL '1 day'),
+                    liked_at        = liked_at        + (:delta * INTERVAL '1 day'),
+                    needs_review_at = needs_review_at + (:delta * INTERVAL '1 day')
+                WHERE camera_id IN ({demo_cameras})
+            """),
+            {"project": PROJECT_NAME, "delta": delta},
+        )
+
+        # 6) cameras.sim_expiry_date (keeps the "expiring soon" alert soon)
+        session.execute(
+            text(f"""
+                UPDATE cameras
+                SET sim_expiry_date = sim_expiry_date + :delta
+                WHERE id IN ({demo_cameras})
+            """),
+            {"project": PROJECT_NAME, "delta": delta},
+        )
+
+        # 7) human_observations.created_at
+        session.execute(
+            text(f"""
+                UPDATE human_observations
+                SET created_at = created_at + (:delta * INTERVAL '1 day')
+                WHERE image_id IN (
+                    SELECT i.id FROM images i WHERE i.camera_id IN ({demo_cameras})
+                )
+            """),
+            {"project": PROJECT_NAME, "delta": delta},
+        )
+
+        # 8) rejections (captured_at is naive local, rejected_at is aware UTC)
+        session.execute(
+            text(f"""
+                UPDATE rejections
+                SET rejected_at = rejected_at + (:delta * INTERVAL '1 day'),
+                    captured_at = captured_at + (:delta * INTERVAL '1 day')
+                WHERE project_id = :pid OR camera_id IN ({demo_cameras})
+            """),
+            {"project": PROJECT_NAME, "delta": delta, "pid": project_id},
+        )
+
+        # 9) bulk_upload_jobs timestamps
+        session.execute(
+            text("""
+                UPDATE bulk_upload_jobs
+                SET created_at         = created_at         + (:delta * INTERVAL '1 day'),
+                    started_at         = started_at         + (:delta * INTERVAL '1 day'),
+                    process_started_at = process_started_at + (:delta * INTERVAL '1 day'),
+                    finished_at        = finished_at        + (:delta * INTERVAL '1 day')
+                WHERE project_id = :pid
+            """),
+            {"delta": delta, "pid": project_id},
+        )
+
+        # 10) project_reminders (send_on is a Date, sent_at is aware UTC)
+        session.execute(
+            text("""
+                UPDATE project_reminders
+                SET send_on = send_on + :delta,
+                    sent_at = sent_at + (:delta * INTERVAL '1 day')
+                WHERE project_id = :pid
+            """),
+            {"delta": delta, "pid": project_id},
         )
 
         session.commit()
