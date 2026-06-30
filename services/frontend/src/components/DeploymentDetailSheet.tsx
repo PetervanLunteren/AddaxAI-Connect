@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { QueryKey } from '@tanstack/react-query';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, Plus, CalendarClock, Images, Camera as CameraIcon, MapPin } from 'lucide-react';
+import { Loader2, Save, CalendarClock, Images, Camera as CameraIcon, MapPin } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -25,7 +25,6 @@ import { Button } from './ui/Button';
 import { Select } from './ui/Select';
 import { sitesApi } from '../api/sites';
 import { deploymentsApi, type UpdateDeploymentRequest } from '../api/deployments';
-import { SiteFormModal } from './sites/SiteFormModal';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { useToast } from './ui/Toaster';
 
@@ -43,9 +42,6 @@ interface Props {
   initialLabel?: string | null;
   // Whether the viewer may edit. False shows the panel read-only.
   canEdit: boolean;
-  // The deployment's own GPS point, used to prefill a new site's coordinates.
-  deploymentLat?: number | null;
-  deploymentLon?: number | null;
   // The deployment's time range, shown in the subhead to identify which
   // placement this is (a camera can have several over time). end null = open.
   startDate?: string | null;
@@ -77,8 +73,6 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
   initialSiteSource,
   initialLabel,
   canEdit,
-  deploymentLat,
-  deploymentLon,
   startDate,
   endDate,
   invalidateKeys,
@@ -88,7 +82,6 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
   const navigate = useNavigate();
   const [siteId, setSiteId] = useState<number | null>(initialSiteId);
   const [label, setLabel] = useState(initialLabel ?? '');
-  const [showCreateSite, setShowCreateSite] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -164,8 +157,7 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
   }${endDate ? `&date_to=${endDate}` : ''}`;
 
   return (
-    <>
-      <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
+    <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
         <SheetContent onClose={handleClose}>
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 pr-8">
@@ -230,8 +222,8 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
                     disabled={locked}
                   >
                     {/* Only a deployment that has no site can show (and stay)
-                        Unassigned. A sited deployment moves between real sites or a
-                        new one, never back to nowhere. */}
+                        Unassigned. A sited deployment moves between existing
+                        sites, never back to nowhere. */}
                     {initialSiteId == null && <option value="">Unassigned</option>}
                     {(sites ?? []).map((s) => (
                       <option key={s.id} value={s.id}>
@@ -240,17 +232,6 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
                     ))}
                   </Select>
                 </div>
-                {canEdit && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowCreateSite(true)}
-                    disabled={locked}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    New site
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -312,17 +293,6 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
             )}
           </SheetFooter>
         </SheetContent>
-      </Sheet>
-
-      <SiteFormModal
-        open={showCreateSite}
-        onClose={() => setShowCreateSite(false)}
-        projectId={projectId}
-        sites={sites ?? []}
-        defaultLat={deploymentLat ?? null}
-        defaultLon={deploymentLon ?? null}
-        onCreated={(site) => setSiteId(site.id)}
-      />
-    </>
+    </Sheet>
   );
 };

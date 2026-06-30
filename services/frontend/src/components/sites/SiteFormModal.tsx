@@ -1,8 +1,8 @@
 /**
  * Add-site modal with a map coordinate picker.
  *
- * Used by the Sites page "Add site" button and the deployment modal's "Create
- * new site". Returns the new site via onCreated so the caller can select it.
+ * Used by the bulk upload page to attach an SD-card batch to a new site.
+ * Returns the new site via onCreated so the caller can select it.
  * Click the map or type lat/lon; existing sites show as context markers.
  *
  * Sites are not movable after creation: a site's location is derived from the

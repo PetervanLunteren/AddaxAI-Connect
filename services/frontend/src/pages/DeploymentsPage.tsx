@@ -538,8 +538,6 @@ export const DeploymentsPage: React.FC = () => {
           initialSiteSource={editDep.site_source}
           initialLabel={editDep.label}
           canEdit={canEdit}
-          deploymentLat={editDep.latitude}
-          deploymentLon={editDep.longitude}
           startDate={editDep.start_date}
           endDate={editDep.end_date}
           invalidateKeys={[['deployments', pid]]}
