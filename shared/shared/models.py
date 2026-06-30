@@ -198,7 +198,7 @@ class Deployment(Base):
     Deployment: one camera at one place for a time range.
 
     Renamed from CameraDeploymentPeriod. A new deployment is created when:
-    - Camera GPS moves >100m from previous location
+    - Camera GPS moves more than SITE_THRESHOLD_METERS from previous location
     - First image/report received for a camera
 
     Used for:

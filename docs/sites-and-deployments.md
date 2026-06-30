@@ -14,7 +14,15 @@ So the same camera can produce several deployments over time (each time it moves
 
 ## How GPS is used
 
-Every photo carries the GPS the camera recorded, and the app builds sites and deployments from it. One distance is the cutoff, set at a default value of 100 metres. Readings within it are the same place; readings beyond it mean the camera moved. The number sits between normal GPS jitter (a few metres) and a real move (much larger). The hard part is that GPS is noisy, so it sometimes drifts past the cutoff on its own and one place can look like two.
+Every photo carries the GPS the camera recorded, and the app builds sites and deployments from it. One distance is the cutoff, set to 250 metres. Readings within it are the same place. Readings beyond it mean the camera moved.
+
+The cutoff is 250 metres because GPS is noisy. The noise was measured on 7257 photos from 25 cameras that never moved. Almost every reading lands within a few metres of the true spot. But GPS sometimes drifts much further on its own. The worst single photo was 215 metres off, with the camera standing still. A cutoff of 250 metres stays clear of that, so normal noise is not read as a move.
+
+![GPS noise of stationary cameras](https://github.com/user-attachments/assets/e43bbafe-2191-46a1-b624-269a50439ee6)
+
+*Distance of each photo's GPS from the camera's true spot, for 25 cameras that never moved. Almost all readings fall within a few metres. The worst was 215 metres, and the 250 metre cutoff stays past all of it.*
+
+The size of the cutoff is a balance. A small cutoff splits one real place into two sites when GPS drifts, which is over-splitting. A large cutoff merges two real places that sit close together into one site, which is under-splitting. Because the noise reaches past 200 metres, a small cutoff would over-split often, so 250 metres leans to the safe side. Two cameras within 250 metres of each other share one site. That is fine. They stay separate cameras, each with its own deployment, and GPS this noisy could not tell them apart anyway.
 
 ## How deployments are created
 

@@ -10,10 +10,17 @@ Shared geographic constants for the spatial model.
 # than this distance away). One number governs both. There is no separate
 # relocation threshold.
 #
-# 100 m is about 16x the observed per-camera GPS jitter (under 6 m) and matches
-# the historical relocation distance, so existing deployments stay consistent.
-# Not per-project configurable in v1; can become a Project field later.
-SITE_THRESHOLD_METERS = 100.0
+# 250 m is set from measured noise. Across ~1000 images from cameras that were
+# never moved, per-camera GPS noise has a median near 9 m but a fat tail that
+# reaches 215 m on the noisiest camera. The old 100 m sat inside that tail and
+# split stationary cameras into phantom deployments (observed jumps of 106 to
+# 147 m). 250 m clears the full observed tail with margin, so noise no longer
+# relocates a camera. The cost is that two real stations closer than 250 m share
+# one site, but GPS noise that large cannot separate them anyway. Those cameras
+# still stay distinct: one site can hold several cameras, each its own deployment,
+# keyed by device_id, not by GPS. Not per-project configurable in v1; can become
+# a Project field later.
+SITE_THRESHOLD_METERS = 250.0
 
 # How many consecutive out-of-range GPS readings near the same new spot are
 # required before ingestion believes a camera relocated and opens a new
