@@ -17,6 +17,7 @@ export interface ImageFilters {
   verified?: string;  // "true", "false", or undefined for all
   liked?: string;  // "true", "false", or undefined for all
   needs_review?: string;  // "true", "false", or undefined for all
+  origin?: string;  // "live", "bulk", or undefined for all
   tags?: string;  // Comma-separated camera tags
   min_detection_confidence?: number;
   max_detection_confidence?: number;

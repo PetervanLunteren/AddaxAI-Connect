@@ -192,6 +192,7 @@ export interface StatisticsOverview {
   images_today: number;
   first_image_date: string | null;  // YYYY-MM-DD or null if no images
   last_image_date: string | null;  // YYYY-MM-DD or null if no images
+  has_bulk_images: boolean;  // project has at least one bulk-uploaded image; gates the Source filter
 }
 
 export interface TimelineDataPoint {

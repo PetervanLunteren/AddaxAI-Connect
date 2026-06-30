@@ -42,6 +42,7 @@ const FILTER_SCHEMA: FilterSchema = {
   verified: 'string',
   liked: 'string',
   needs_review: 'string',
+  origin: 'string',
   min_detection_confidence: 'number',
   max_detection_confidence: 'number',
   min_classification_confidence: 'number',
@@ -83,6 +84,7 @@ export const ImagesPage: React.FC = () => {
   const verified = asString(parsed.verified) as '' | 'true' | 'false';
   const liked = asString(parsed.liked) as '' | 'true' | 'false';
   const needsReview = asString(parsed.needs_review) as '' | 'true' | 'false';
+  const origin = asString(parsed.origin) as '' | 'live' | 'bulk';
   const humanTop = asString(parsed.human_top);
   const aiTop = asString(parsed.ai_top);
   const minDetConf = asString(parsed.min_detection_confidence);
@@ -101,6 +103,7 @@ export const ImagesPage: React.FC = () => {
       verified: verified || undefined,
       liked: liked || undefined,
       needs_review: needsReview || undefined,
+      origin: origin || undefined,
       min_detection_confidence: minDetConf || undefined,
       max_detection_confidence: maxDetConf || undefined,
       min_classification_confidence: minClsConf || undefined,
@@ -108,7 +111,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, siteId, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteId, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -145,6 +148,7 @@ export const ImagesPage: React.FC = () => {
         verified: verified || undefined,
         liked: liked || undefined,
         needs_review: needsReview || undefined,
+        origin: origin || undefined,
         min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
         max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
         min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
@@ -309,6 +313,21 @@ export const ImagesPage: React.FC = () => {
           { value: 'false', label: 'No review needed' },
         ],
       },
+      // Source only matters when the project has both kinds of images. Hide it
+      // for FTPS-only projects so it is not a dead control. Mirrors the curation
+      // page's Source filter.
+      ...(overview?.has_bulk_images
+        ? [{
+            kind: 'select' as const,
+            key: 'origin',
+            label: 'Source',
+            primary: false,
+            options: [
+              { value: 'live', label: 'Live (camera)' },
+              { value: 'bulk', label: 'Bulk upload' },
+            ],
+          }]
+        : []),
       {
         kind: 'range',
         minKey: 'min_detection_confidence',

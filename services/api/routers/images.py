@@ -326,6 +326,7 @@ async def list_images(
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
+    origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     site_id: Optional[int] = Query(None, description="Filter to images at one site, via their deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -468,6 +469,10 @@ async def list_images(
             filters.append(Image.needs_review == True)
         elif needs_review.lower() == "false":
             filters.append(Image.needs_review == False)
+
+    # Handle source filter ('live' camera ingest vs 'bulk' SD-card upload)
+    if origin in ("live", "bulk"):
+        filters.append(Image.origin == origin)
 
     # Confidence-range filter. Slider in the UI lets users narrow on
     # AI detection or classification confidence to find borderline cases.

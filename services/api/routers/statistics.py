@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select, func, and_, desc, text
+from sqlalchemy import select, func, and_, desc, text, exists
 from pydantic import BaseModel
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
@@ -103,6 +103,7 @@ class StatisticsOverview(BaseModel):
     images_today: int
     first_image_date: Optional[str]  # YYYY-MM-DD or null if no images
     last_image_date: Optional[str]  # YYYY-MM-DD or null if no images
+    has_bulk_images: bool  # project has at least one bulk-uploaded image; gates the Images page Source filter
 
 
 class TimelineDataPoint(BaseModel):
@@ -213,6 +214,22 @@ async def get_overview(
     )
     last_image_date = last_image_result.scalar_one()
 
+    # Whether the project has any bulk-uploaded image. Project-scoped (ignores the
+    # camera filter) so the Images page Source filter shows or hides consistently
+    # as cameras are toggled. EXISTS short-circuits and origin is indexed.
+    has_bulk_result = await db.execute(
+        select(
+            exists().where(
+                and_(
+                    Image.camera_id == Camera.id,
+                    Camera.project_id.in_(accessible_project_ids),
+                    Image.origin == "bulk",
+                )
+            )
+        )
+    )
+    has_bulk_images = bool(has_bulk_result.scalar())
+
     return StatisticsOverview(
         total_images=total_images,
         total_cameras=total_cameras,
@@ -220,6 +237,7 @@ async def get_overview(
         images_today=images_today,
         first_image_date=first_image_date.isoformat() if first_image_date else None,
         last_image_date=last_image_date.isoformat() if last_image_date else None,
+        has_bulk_images=has_bulk_images,
     )
 
 
