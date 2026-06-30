@@ -1,0 +1,19 @@
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0a6063;
+  --md-primary-fg-color--light: #0a6063;
+  --md-primary-fg-color--dark: #084e50;
+  --md-accent-fg-color: #0a6063;
+}
+
+.md-header__button.md-logo img {
+  border: 2px solid white;
+  border-radius: 4px;
+  padding: 1px;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #0a6063;
+  --md-primary-fg-color--light: #0a6063;
+  --md-primary-fg-color--dark: #084e50;
+  --md-accent-fg-color: #0a6063;
+}
