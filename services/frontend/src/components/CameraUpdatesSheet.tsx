@@ -22,6 +22,7 @@ import { useToast } from './ui/Toaster';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { feedApi, type FeedEventItem, type ResolveRequest } from '../api/feed';
 import { deploymentsApi } from '../api/deployments';
+import { imagesApi } from '../api/images';
 
 interface CameraUpdatesSheetProps {
   open: boolean;
@@ -387,11 +388,22 @@ const FeedEntry: React.FC<{
   onAction: (kind: 'rename' | 'different_site' | 'new_site' | 'not_moved') => void;
 }> = ({ event: e, projectId, canEdit, onAction }) => {
   // A small photo strip as visual confirmation of where the camera looks.
+  // When the entry's deployment was merged away (an undone move), fall back
+  // to the camera's recent photos; after an undo that is the same spot.
   const { data: thumbUuids } = useQuery({
     queryKey: ['deployment-thumbnails', projectId, e.deployment_id],
     queryFn: () => deploymentsApi.thumbnails(projectId, e.deployment_id!, 3),
     enabled: e.deployment_id != null,
   });
+  const { data: cameraThumbs } = useQuery({
+    queryKey: ['camera-recent-thumbnails', e.camera_id],
+    queryFn: async () => {
+      const page = await imagesApi.getAll({ camera_id: String(e.camera_id), limit: 3 });
+      return page.items.map((img) => img.uuid);
+    },
+    enabled: e.deployment_id == null,
+  });
+  const thumbs = e.deployment_id != null ? thumbUuids : cameraThumbs;
 
   const Icon = e.event_type === 'camera_moved' ? Route : CameraIcon;
   // "Different site" only helps when there is a nearby alternative besides
@@ -415,9 +427,9 @@ const FeedEntry: React.FC<{
         </div>
       </div>
 
-      {thumbUuids && thumbUuids.length > 0 && (
+      {thumbs && thumbs.length > 0 && (
         <div className="mt-2 grid grid-cols-3 gap-1.5">
-          {thumbUuids.map((u) => (
+          {thumbs.map((u) => (
             <AuthenticatedImage
               key={u}
               src={`/api/images/${u}/thumbnail`}
