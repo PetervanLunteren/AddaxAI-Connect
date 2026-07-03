@@ -396,9 +396,15 @@ const FeedEntry: React.FC<{
     enabled: e.deployment_id != null,
   });
   const { data: cameraThumbs } = useQuery({
-    queryKey: ['camera-recent-thumbnails', e.camera_id],
+    queryKey: ['camera-event-thumbnails', e.camera_id, e.id],
     queryFn: async () => {
-      const page = await imagesApi.getAll({ camera_id: String(e.camera_id), limit: 3 });
+      // Bounded to the event's day so the strip shows what the camera saw
+      // around the time of this entry, and cannot drift to later placements.
+      const page = await imagesApi.getAll({
+        camera_id: String(e.camera_id),
+        end_date: e.created_at.slice(0, 10),
+        limit: 3,
+      });
       return page.items.map((img) => img.uuid);
     },
     enabled: e.deployment_id == null,
