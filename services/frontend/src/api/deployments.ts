@@ -3,10 +3,9 @@
  *
  * A deployment is one camera at one site for a time range, auto-created by GPS
  * ingestion. It carries no free-text metadata; the only human-editable thing is
- * which site it belongs to. Assigning a site, one at a time or in bulk, marks
- * the deployment site_source='manual', recording that a human confirmed the
- * site rather than GPS. That flag only drives the badge and filter on the
- * Deployments page; it does not change ingestion.
+ * which site it belongs to. Assigning a site marks the deployment
+ * site_source='manual', recording that a human confirmed the site rather than
+ * GPS. That flag does not change ingestion.
  */
 import apiClient from './client';
 
@@ -23,12 +22,10 @@ export interface DeploymentListItem {
   end_date: string | null;
   image_count: number;
   site_source: string;
-  label: string | null;
 }
 
 export interface UpdateDeploymentRequest {
   site_id?: number | null;
-  label?: string | null;
 }
 
 // `merged` is how many deployments the reassignment merged away (a camera's

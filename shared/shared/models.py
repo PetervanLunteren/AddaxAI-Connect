@@ -203,24 +203,19 @@ class Deployment(Base):
 
     Used for:
     - Effort-corrected detection rate calculations (trap-days)
-    - CamtrapDP export (future)
+    - CamtrapDP export
     - Camera relocation history
 
     `site_id` links the deployment to a shared physical Site (nullable, legacy
-    rows and missing-GPS edge cases stay null). `name` is an optional free-text
-    orientation label like "NW" or "main view". `deployment_number` is the
-    per-camera sequence (1, 2, 3...); it is not a foreign key.
+    rows and missing-GPS edge cases stay null). `deployment_number` is the
+    per-camera sequence (1, 2, 3...); it is not a foreign key. Deployments
+    carry no free-text metadata; the site name is the human-readable "where".
     """
     __tablename__ = "deployments"
 
     id = Column(Integer, primary_key=True, index=True)
     camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     deployment_number = Column(Integer, nullable=False)  # Sequence number per camera (1, 2, 3...)
-    # Optional human-set position label like "North" or "NW", to tell apart the
-    # several cameras at one site, where the device_id (an IMEI) is not readable.
-    # Per deployment, so it resets when a camera moves (a new deployment starts
-    # blank). NULL = unlabelled.
-    name = Column(String(100), nullable=True)
     site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True, index=True)
     # 'auto' = site assigned by GPS clustering; 'manual' = a human assigned it.
     # A label only (drives the GPS-guessed vs human-confirmed badge and filter

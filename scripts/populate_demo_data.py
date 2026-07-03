@@ -324,10 +324,9 @@ SERVER_TIMEZONE = "Europe/Amsterdam"
 # Site, deployment and curation showcase constants
 # ---------------------------------------------------------------------------
 
-# Real and plausible place names in and around De Hoge Veluwe. Single-camera
-# sites take one name each; multi-camera sites reuse one name as a shared base
-# and label each camera by compass position. The pool is larger than the number
-# of sites so every site gets a name and none falls back to coordinates.
+# Real and plausible place names in and around De Hoge Veluwe. The pool is
+# larger than the number of sites so every site gets a name and none falls
+# back to coordinates.
 SITE_NAME_POOL = [
     "Deelense Veld", "Oud-Reemsterveld", "Kemperberg", "Otterlose Bos",
     "Franse Berg", "Pampel", "Wildbaan", "Compagnieberg", "Hertenkamp",
@@ -355,9 +354,6 @@ SITE_NAME_POOL = [
     "Solse Gat", "Het Hol", "Bleek Meer", "Gerritsfles", "Kootwijkerzand",
     "Radioweg", "Harskampse Zand", "Otterloseweg", "Deelenseweg", "Kreelseweg",
 ]
-
-# Compass labels for the cameras that share a multi-camera site.
-POSITION_LABELS = ["N", "O", "Z", "W", "NO", "NW", "ZO", "ZW"]
 
 # Habitat per spatial zone, picked when a site is created (Camtrap-DP "habitat").
 ZONE_HABITAT = {
@@ -803,7 +799,7 @@ def generate_layout(rng: Random):
     """Build sites, cameras and deployments inside the park boundary.
 
     Most sites hold one camera; about a fifth hold two or three that share a
-    view and are told apart by a compass label. About a tenth of deployed
+    view and are told apart by device_id. About a tenth of deployed
     cameras moved once, so they carry a second deployment at a fresh site. One
     camera stays in inventory and is never deployed.
 
@@ -858,7 +854,6 @@ def generate_layout(rng: Random):
             "lon": lon,
         })
 
-        labels = rng.sample(POSITION_LABELS, n_here) if n_here > 1 else [None]
         for k in range(n_here):
             if n_here > 1:
                 clat = round(lat + rng.uniform(-0.0003, 0.0003), 6)
@@ -878,7 +873,6 @@ def generate_layout(rng: Random):
                 "camera_index": cam_index,
                 "deployment_number": 1,
                 "site_key": site_key,
-                "label": labels[k],
                 "lat": clat,
                 "lon": clon,
                 "zones": czones,
@@ -925,7 +919,6 @@ def generate_layout(rng: Random):
             "camera_index": cam["index"],
             "deployment_number": 2,
             "site_key": site2_key,
-            "label": None,
             "lat": nlat,
             "lon": nlon,
             "zones": nzones,
@@ -2108,24 +2101,23 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
 
 def insert_deployments(session: Session, deployments: list, cam_index_to_id: dict,
                        site_key_to_id: dict) -> dict:
-    """Insert deployments linked to their site, with a position label and the
-    GPS-guessed vs human-confirmed source. Returns {deployment_key: db_id}."""
+    """Insert deployments linked to their site, with the GPS-guessed vs
+    human-confirmed source. Returns {deployment_key: db_id}."""
     key_to_id = {}
     for dep in deployments:
         result = session.execute(
             text("""
                 INSERT INTO deployments (
-                    camera_id, deployment_number, name, site_id, site_source,
+                    camera_id, deployment_number, site_id, site_source,
                     start_date, end_date, location
                 ) VALUES (
-                    :camera_id, :num, :label, :site_id, :site_source,
+                    :camera_id, :num, :site_id, :site_source,
                     :start, :end, ST_GeogFromText(:loc)
                 ) RETURNING id
             """),
             {
                 "camera_id": cam_index_to_id[dep["camera_index"]],
                 "num": dep["deployment_number"],
-                "label": dep["label"],
                 "site_id": site_key_to_id[dep["site_key"]],
                 "site_source": dep["site_source"],
                 "start": dep["start_date"],

@@ -11,13 +11,12 @@ For each project it:
      whose locations are within SITE_THRESHOLD_METERS of each other share
      one Site).
   2. Derives a Site name from the member cameras' names:
-     - one camera in the group  -> Site name = that camera's name, no deployment label
+     - one camera in the group  -> Site name = that camera's name
      - several cameras with a shared name prefix (Duinpoort NW + Duinpoort NO)
-       -> Site name = the shared prefix ("Duinpoort"), each deployment gets the
-          remainder as its label ("NW", "NO")
-     - several cameras with no shared prefix -> Site name = coordinates, each
-       deployment keeps its full camera name as label, flagged for manual cleanup
-  3. Sets deployments.site_id (and deployments.name for the label).
+       -> Site name = the shared prefix ("Duinpoort")
+     - several cameras with no shared prefix -> Site name = coordinates,
+       flagged for manual cleanup
+  3. Sets deployments.site_id.
   4. Sets images.deployment_id for every image whose camera + capture date falls
      inside a deployment's date range.
 
@@ -92,11 +91,6 @@ def common_prefix_tokens(token_lists: List[List[str]]) -> List[str]:
     return prefix
 
 
-def remainder_label(name: str, prefix_len: int) -> str:
-    """Camera name with the shared prefix tokens removed, joined back to a label."""
-    return " ".join(tokenize(name)[prefix_len:])
-
-
 class Group:
     """A set of deployments that resolve to one Site."""
 
@@ -126,7 +120,7 @@ def load_projects(session: Session, project_id: Optional[int]) -> List[int]:
 
 # The camera's old friendly name, preserved in cameras.notes by the
 # drop-Camera.name migration ("Previous friendly name: <X>"), else the device_id.
-# Used to derive both site names and deployment labels on data predating the drop.
+# Used to derive site names on data predating the drop.
 CAMERA_NAME_SQL = (
     "COALESCE(trim((regexp_match(c.notes, "
     "'Previous friendly name:\\s*([^\\n]+)'))[1]), c.device_id)"
@@ -134,9 +128,9 @@ CAMERA_NAME_SQL = (
 
 
 def load_deployments(session: Session, project_id: int) -> list:
-    """Project deployments with decoded coordinates and the camera's label.
+    """Project deployments with decoded coordinates and the camera's name.
 
-    The label is the camera's old friendly name when the drop-Camera.name
+    The name is the camera's old friendly name when the drop-Camera.name
     migration preserved one in `cameras.notes` (line "Previous friendly name:
     <X>"), otherwise the device_id. Reusing the preserved name lets the site
     naming heuristic still produce human-readable sites ("Duinpoort" out of
@@ -186,26 +180,22 @@ def cluster_deployments(deployments: list) -> List[Group]:
     return groups
 
 
-def derive_name_and_labels(group: Group):
+def derive_name(group: Group):
     """
-    Return (site_name, {deployment_id: label}, flagged).
+    Return (site_name, flagged).
 
     flagged is True when the cameras share no name prefix, so a human should
     rename the site later.
     """
     camera_names = sorted({m.camera_name for m in group.members})
     if len(camera_names) == 1:
-        return camera_names[0], {m.id: None for m in group.members}, False
+        return camera_names[0], False
 
     prefix = common_prefix_tokens([tokenize(n) for n in camera_names])
     if prefix:
-        site_name = " ".join(prefix)
-        labels = {m.id: (remainder_label(m.camera_name, len(prefix)) or None) for m in group.members}
-        return site_name, labels, False
+        return " ".join(prefix), False
 
-    site_name = f"Site at {group.lat:.4f}, {group.lon:.4f}"
-    labels = {m.id: m.camera_name for m in group.members}
-    return site_name, labels, True
+    return f"Site at {group.lat:.4f}, {group.lon:.4f}", True
 
 
 def unique_name(name: str, used: set) -> str:
@@ -221,13 +211,13 @@ def unique_name(name: str, used: set) -> str:
 def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
     deployments = load_deployments(session, project_id)
     if not deployments:
-        return {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0, "labeled": 0}
+        return {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0}
 
     existing_sites = load_existing_sites(session, project_id)
     used_names = {s.name for s in existing_sites}
     groups = cluster_deployments(deployments)
 
-    stats = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0, "labeled": 0}
+    stats = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0}
     print(f"\n=== project {project_id}: {len(deployments)} deployments, "
           f"{len(groups)} new group(s), {len(existing_sites)} existing site(s) ===")
 
@@ -242,13 +232,11 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
         if reuse is not None:
             site_id = reuse.id
             site_name = reuse.name
-            prefix = common_prefix_tokens([tokenize(reuse.name)])
-            labels = {m.id: (remainder_label(m.camera_name, len(prefix)) or None) for m in group.members}
             flagged = False
             stats["sites_reused"] += 1
             tag = f"reuse site #{site_id}"
         else:
-            site_name, labels, flagged = derive_name_and_labels(group)
+            site_name, flagged = derive_name(group)
             site_name = unique_name(site_name, used_names)
             used_names.add(site_name)
             site_id = None  # assigned on insert
@@ -261,8 +249,7 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
         flag_txt = "  [FLAG: no shared prefix, rename manually]" if flagged else ""
         print(f"  {tag}: \"{site_name}\" @ ({group.lat:.5f}, {group.lon:.5f}){flag_txt}")
         for m in group.members:
-            lbl = labels.get(m.id)
-            print(f"      deployment #{m.id}  camera \"{m.camera_name}\"  -> label {lbl!r}")
+            print(f"      deployment #{m.id}  camera \"{m.camera_name}\"")
 
         if not dry_run:
             if site_id is None:
@@ -281,16 +268,9 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
                     },
                 ).scalar_one()
             for m in group.members:
-                # COALESCE keeps a label a human already set; otherwise the
-                # derived orientation label ("NW", "North") lands here. None for
-                # a single-camera site leaves it blank.
                 session.execute(
-                    text("""
-                        UPDATE deployments
-                        SET site_id = :sid, name = COALESCE(name, :label)
-                        WHERE id = :did
-                    """),
-                    {"sid": site_id, "did": m.id, "label": labels.get(m.id)},
+                    text("UPDATE deployments SET site_id = :sid WHERE id = :did"),
+                    {"sid": site_id, "did": m.id},
                 )
 
     # Link this project's images to the deployment covering their capture date.
@@ -327,33 +307,6 @@ def process_project(session: Session, project_id: int, dry_run: bool) -> dict:
             {"project_id": project_id},
         )
 
-    # Label any already-sited deployment that still has none. The main loop only
-    # labels deployments it newly sites, so this covers data sited before the
-    # label column existed (e.g. a server that adopted sites, then upgraded). The
-    # site name is the shared prefix, so the label is the camera's friendly name
-    # with that prefix removed. Idempotent: only NULL-name rows are touched.
-    label_rows = session.execute(
-        text(f"""
-            SELECT d.id, {CAMERA_NAME_SQL} AS camera_name, s.name AS site_name
-            FROM deployments d
-            JOIN cameras c ON c.id = d.camera_id
-            JOIN sites s ON s.id = d.site_id
-            WHERE c.project_id = :project_id AND d.name IS NULL
-        """),
-        {"project_id": project_id},
-    ).mappings().all()
-    for r in label_rows:
-        lbl = remainder_label(r["camera_name"], len(tokenize(r["site_name"]))) or None
-        if not lbl:
-            continue
-        stats["labeled"] += 1
-        print(f"  label deployment #{r['id']} ({r['camera_name']} at {r['site_name']}) -> {lbl!r}")
-        if not dry_run:
-            session.execute(
-                text("UPDATE deployments SET name = :lbl WHERE id = :id"),
-                {"lbl": lbl, "id": r["id"]},
-            )
-
     return stats
 
 
@@ -369,7 +322,7 @@ def main() -> None:
     logger.info("Starting site backfill", mode=mode, project_id=args.project_id)
 
     engine = create_engine(settings.database_url)
-    totals = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0, "labeled": 0}
+    totals = {"sites_created": 0, "sites_reused": 0, "deployments_linked": 0, "flagged": 0}
 
     with Session(engine) as session:
         for project_id in load_projects(session, args.project_id):
@@ -387,7 +340,6 @@ def main() -> None:
     print(f"  sites reused  : {totals['sites_reused']}")
     print(f"  flagged sites : {totals['flagged']}")
     print(f"  images linked : {totals['deployments_linked']}")
-    print(f"  labeled       : {totals['labeled']}")
     print(f"  mode          : {mode}")
     logger.info("Site backfill complete", **totals, mode=mode)
 

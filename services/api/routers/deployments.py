@@ -49,7 +49,6 @@ class DeploymentListItem(BaseModel):
     end_date: Optional[str] = None
     image_count: int
     site_source: str = 'auto'
-    label: Optional[str] = None  # human-set position label ("North"), or null
 
 
 @router.get("", response_model=List[DeploymentListItem])
@@ -70,7 +69,7 @@ async def list_deployments(
                        d.site_id, s.name AS site_name,
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
-                       d.start_date, d.end_date, d.site_source, d.name AS label,
+                       d.start_date, d.end_date, d.site_source,
                        count(i.id) AS image_count
                 FROM deployments d
                 JOIN cameras c ON c.id = d.camera_id
@@ -98,7 +97,6 @@ async def list_deployments(
             end_date=r["end_date"].isoformat() if r["end_date"] else None,
             image_count=r["image_count"],
             site_source=r["site_source"],
-            label=r["label"],
         )
         for r in rows
     ]
@@ -193,9 +191,6 @@ class UpdateDeploymentRequest(BaseModel):
     # unchanged. Setting it (incl. null) marks the deployment site_source='manual'
     # to record it was human-confirmed. Presence is read via model_fields_set.
     site_id: Optional[int] = None
-    # Position label like "North". Send "" or null to clear, omit to leave
-    # unchanged. Presence is read via model_fields_set.
-    label: Optional[str] = None
 
 
 class UpdateDeploymentResponse(BaseModel):
@@ -214,9 +209,8 @@ async def update_deployment(
     user: User = Depends(require_project_admin_access),
 ):
     """
-    Edit a deployment's site and/or its position label. The deployment must
-    belong to a camera in `project_id`; a mismatch returns 404 so existence does
-    not leak.
+    Reassign a deployment's site. The deployment must belong to a camera in
+    `project_id`; a mismatch returns 404 so existence does not leak.
     """
     row = (
         await db.execute(
@@ -236,10 +230,6 @@ async def update_deployment(
     # the request, not on its value. Any human assignment marks the deployment
     # site_source='manual' to record it was human-confirmed.
     merged = 0
-    # Set the label first, so if the site change below merges this deployment
-    # into a neighbour, the merge's COALESCE carries the just-set label over.
-    if 'label' in request.model_fields_set:
-        deployment.name = (request.label or '').strip() or None
     if 'site_id' in request.model_fields_set:
         if request.site_id is not None:
             site = (
@@ -256,8 +246,6 @@ async def update_deployment(
         # The merge inside can delete the edited deployment itself, which is
         # why we no longer refresh and return it.
         merged = await reassign_deployment_site(db, deployment, request.site_id)
-    elif 'label' in request.model_fields_set:
-        await db.flush()
 
     await db.commit()
     return UpdateDeploymentResponse(merged=merged)

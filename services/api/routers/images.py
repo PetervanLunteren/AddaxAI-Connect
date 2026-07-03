@@ -117,7 +117,7 @@ class ImageDetailResponse(BaseModel):
     image_metadata: dict
     full_image_url: str
     camera_location: Optional[dict] = None
-    site: Optional[dict] = None  # {name, label, lat, lon} of the deployment site, or null
+    site: Optional[dict] = None  # {name, lat, lon} of the deployment site, or null
     detections: List[DetectionResponse]
     verification: VerificationInfo
     human_observations: List[HumanObservationResponse]
@@ -1120,7 +1120,6 @@ async def get_image(
         site_row = (await db.execute(
             text("""
                 SELECT s.name AS name,
-                       d.name AS label,
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon
                 FROM deployments d JOIN sites s ON s.id = d.site_id
@@ -1131,7 +1130,6 @@ async def get_image(
         if site_row:
             site = {
                 "name": site_row["name"],
-                "label": site_row["label"],
                 "lat": float(site_row["lat"]),
                 "lon": float(site_row["lon"]),
             }

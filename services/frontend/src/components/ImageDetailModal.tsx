@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, CalendarClock, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2 } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2 } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
@@ -488,17 +488,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                       >
                         <ExternalLink className="h-3 w-3" />
                       </a>
-                    </div>
-                  )}
-                  {/* Deployment label chip (the position within the site),
-                      top-right, only when a label is set. */}
-                  {imageDetail.site?.label && (
-                    <div
-                      className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
-                      style={{ backgroundColor: '#0f6064' }}
-                    >
-                      <CalendarClock className="h-3 w-3" />
-                      {imageDetail.site.label}
                     </div>
                   )}
                   {/* Zoom controls */}

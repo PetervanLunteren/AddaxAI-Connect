@@ -2,11 +2,10 @@
  * Deployment detail slideout.
  *
  * Opened by clicking a row on the Deployments page, matching the camera and site
- * detail sheets. Shows which camera stood where and when, a few photos, and the
- * two editable fields: the site assignment and an optional position label.
- * Saving a site marks site_source='manual' (a human confirmed it); the label
- * tells apart the cameras at one site. Neither changes ingestion. Non-admins see
- * the same panel read-only (canEdit=false).
+ * detail sheets. Shows which camera stood where and when, a few photos, and one
+ * editable field: the site assignment. Saving a site marks site_source='manual'
+ * (a human confirmed it); it does not change ingestion. Non-admins see the same
+ * panel read-only (canEdit=false).
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -38,8 +37,6 @@ interface Props {
   initialSiteId: number | null;
   // How the site was assigned: 'auto' (GPS-guessed) or 'manual' (human-confirmed).
   initialSiteSource?: string;
-  // The deployment's current position label ("North"), or null.
-  initialLabel?: string | null;
   // Whether the viewer may edit. False shows the panel read-only.
   canEdit: boolean;
   // The deployment's time range, shown in the subhead to identify which
@@ -71,7 +68,6 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
   cameraName,
   initialSiteId,
   initialSiteSource,
-  initialLabel,
   canEdit,
   startDate,
   endDate,
@@ -81,14 +77,12 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
   const toast = useToast();
   const navigate = useNavigate();
   const [siteId, setSiteId] = useState<number | null>(initialSiteId);
-  const [label, setLabel] = useState(initialLabel ?? '');
 
   useEffect(() => {
     if (open) {
       setSiteId(initialSiteId);
-      setLabel(initialLabel ?? '');
     }
-  }, [open, initialSiteId, initialLabel]);
+  }, [open, initialSiteId]);
 
   const { data: sites } = useQuery({
     queryKey: ['sites', projectId],
@@ -104,15 +98,11 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
     enabled: open && deploymentId > 0,
   });
 
-  const dirty = siteId !== initialSiteId || label.trim() !== (initialLabel ?? '');
+  const dirty = siteId !== initialSiteId;
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      // Send only what changed, so a label-only edit does not also re-stamp the
-      // site as human-confirmed or trigger a merge.
-      const body: UpdateDeploymentRequest = {};
-      if (siteId !== initialSiteId) body.site_id = siteId;
-      if (label.trim() !== (initialLabel ?? '')) body.label = label.trim() || null;
+      const body: UpdateDeploymentRequest = { site_id: siteId };
       return deploymentsApi.update(projectId, deploymentId, body);
     },
     onSuccess: (res) => {
@@ -233,19 +223,6 @@ export const DeploymentDetailSheet: React.FC<Props> = ({
                   </Select>
                 </div>
               </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">Label</label>
-              <input
-                type="text"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                placeholder="e.g. North"
-                maxLength={100}
-                disabled={locked}
-                className="w-full px-3 py-2 border rounded-md text-sm disabled:bg-muted"
-              />
             </div>
 
             {thumbUuids && thumbUuids.length > 0 && (

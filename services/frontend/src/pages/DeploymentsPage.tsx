@@ -48,7 +48,7 @@ import { sitesApi } from '../api/sites';
 import { DeploymentDetailSheet } from '../components/DeploymentDetailSheet';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
-type SortColumn = 'label' | 'site' | 'start' | 'camera' | 'images';
+type SortColumn = 'site' | 'start' | 'camera' | 'images';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -85,8 +85,6 @@ const asString = (v: FilterValue): string => (typeof v === 'string' ? v : '');
 
 function depSortValue(d: DeploymentListItem, column: SortColumn): string | number | null {
   switch (column) {
-    case 'label':
-      return (d.label ?? '').toLowerCase();
     case 'site':
       return (d.site_name ?? '').toLowerCase();
     case 'start':
@@ -205,7 +203,7 @@ export const DeploymentsPage: React.FC = () => {
         kind: 'search',
         key: 'search',
         label: 'Search',
-        placeholder: 'Site, label, or camera...',
+        placeholder: 'Site or camera...',
       },
       {
         kind: 'select',
@@ -242,7 +240,6 @@ export const DeploymentsPage: React.FC = () => {
       result = result.filter(
         (d) =>
           (d.site_name ?? '').toLowerCase().includes(q) ||
-          (d.label ?? '').toLowerCase().includes(q) ||
           (d.camera_label ?? '').toLowerCase().includes(q),
       );
     }
@@ -459,9 +456,6 @@ export const DeploymentsPage: React.FC = () => {
                     </TableHead>
                   )}
                   <TableHead>
-                    <SortableHeader label="Label" column="label" sort={sort} onSort={handleSort} />
-                  </TableHead>
-                  <TableHead>
                     <SortableHeader label="Site" column="site" sort={sort} onSort={handleSort} />
                   </TableHead>
                   <TableHead>
@@ -495,7 +489,6 @@ export const DeploymentsPage: React.FC = () => {
                         />
                       </TableCell>
                     )}
-                    <TableCell className="font-medium">{d.label ?? '-'}</TableCell>
                     <TableCell>
                       {d.site_name ?? (
                         <span className="text-muted-foreground italic">Unassigned</span>
@@ -536,7 +529,6 @@ export const DeploymentsPage: React.FC = () => {
           cameraName={editDep.camera_label ?? 'camera'}
           initialSiteId={editDep.site_id}
           initialSiteSource={editDep.site_source}
-          initialLabel={editDep.label}
           canEdit={canEdit}
           startDate={editDep.start_date}
           endDate={editDep.end_date}
