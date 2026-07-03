@@ -615,6 +615,10 @@ class FeedEvent(Base):
     # site reused). Drives the entry copy, and the "new site" action only
     # shows when the site already existed.
     site_created = Column(Boolean, nullable=False, server_default='false')
+    # The site's name when the event happened, frozen. The live name can be
+    # renamed later; the entry must keep saying what the site was called at
+    # the time ("automatically named Site at 53.2460, 5.2620").
+    original_site_name = Column(String(255), nullable=True)
     # Server wall-clock (aware UTC), the feed sort key and unseen-badge cutoff.
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     # Which action a human took on this entry, if any. Re-resolving is allowed

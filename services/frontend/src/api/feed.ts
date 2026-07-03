@@ -22,6 +22,9 @@ export interface FeedEventItem {
   camera_label: string | null;
   site_id: number | null;
   site_name: string | null;
+  // The site's name when the event happened, frozen. site_name is live and
+  // feeds the resolution line ("renamed this site to X").
+  original_site_name: string | null;
   from_site_id: number | null;
   from_site_name: string | null;
   distance_m: number | null;
@@ -33,6 +36,7 @@ export interface FeedEventItem {
   candidates: FeedCandidate[];
   resolved_action: string | null;
   resolved_at: string | null;
+  resolved_by_email: string | null;
   // Already seen on an earlier visit; the panel collapses these under
   // "Earlier". Stamped when the panel closes.
   seen: boolean;

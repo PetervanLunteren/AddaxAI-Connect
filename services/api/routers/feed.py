@@ -63,6 +63,9 @@ class FeedEventItem(BaseModel):
     camera_label: Optional[str] = None
     site_id: Optional[int] = None
     site_name: Optional[str] = None
+    # The site's name when the event happened, frozen at write time. The
+    # context line uses this; site_name (live) feeds the resolution line.
+    original_site_name: Optional[str] = None
     from_site_id: Optional[int] = None
     from_site_name: Optional[str] = None
     distance_m: Optional[float] = None
@@ -77,6 +80,7 @@ class FeedEventItem(BaseModel):
     candidates: List[FeedCandidate] = []
     resolved_action: Optional[str] = None
     resolved_at: Optional[str] = None
+    resolved_by_email: Optional[str] = None
     # Whether this user had already seen the entry on an earlier visit. The
     # UI shows fresh entries prominently and collapses seen ones; the seen
     # stamp is written when the panel closes, so the split is stable while
@@ -96,10 +100,11 @@ async def list_feed(
             text("""
                 SELECT e.id, e.event_type, e.created_at, e.camera_id,
                        c.device_id AS camera_label,
-                       e.site_id, s.name AS site_name,
+                       e.site_id, s.name AS site_name, e.original_site_name,
                        e.from_site_id, fs.name AS from_site_name,
                        e.distance_m, e.site_created, e.deployment_id,
                        e.resolved_action, e.resolved_at,
+                       u.email AS resolved_by_email,
                        (fsn.last_seen_at IS NOT NULL
                         AND e.created_at <= fsn.last_seen_at) AS seen,
                        ST_Y(d.location::geometry) AS dep_lat,
@@ -109,6 +114,7 @@ async def list_feed(
                 LEFT JOIN sites s ON s.id = e.site_id
                 LEFT JOIN sites fs ON fs.id = e.from_site_id
                 LEFT JOIN deployments d ON d.id = e.deployment_id
+                LEFT JOIN users u ON u.id = e.resolved_by_user_id
                 LEFT JOIN feed_seen fsn ON fsn.project_id = e.project_id
                                        AND fsn.user_id = :user_id
                 WHERE e.project_id = :project_id
@@ -147,6 +153,7 @@ async def list_feed(
             camera_label=r["camera_label"],
             site_id=r["site_id"],
             site_name=r["site_name"],
+            original_site_name=r["original_site_name"],
             from_site_id=r["from_site_id"],
             from_site_name=r["from_site_name"],
             distance_m=r["distance_m"],
@@ -155,6 +162,7 @@ async def list_feed(
             candidates=[FeedCandidate(**c) for c in candidates],
             resolved_action=r["resolved_action"],
             resolved_at=r["resolved_at"].isoformat() if r["resolved_at"] else None,
+            resolved_by_email=r["resolved_by_email"],
             seen=r["seen"],
         ))
     return items

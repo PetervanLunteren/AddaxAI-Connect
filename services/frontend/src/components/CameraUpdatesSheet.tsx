@@ -96,9 +96,11 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   );
 };
 
-// Context line under the photos: where the camera is now, worded by whether
-// the site was made for it or already existed.
+// Context line under the photos: where the camera was put, worded by whether
+// the site was made for it or already existed. Uses the name frozen at event
+// time; a later rename shows up in the resolution line, not here.
 const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
+  const nameAtEvent = e.original_site_name ?? e.site_name;
   const from = e.from_site_name ? (
     <>
       {' '}It was at <SiteName name={e.from_site_name} /> before.
@@ -108,7 +110,7 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
     return (
       <p className="text-sm text-muted-foreground break-words">
         A new site was made at its location and automatically named{' '}
-        <SiteName name={e.site_name} />.{from}
+        <SiteName name={nameAtEvent} />.{from}
       </p>
     );
   }
@@ -118,7 +120,39 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   const away = own && own.distance_m > 0 ? ` (${fmtDistance(own.distance_m)} away)` : '';
   return (
     <p className="text-sm text-muted-foreground break-words">
-      It was placed at the existing site <SiteName name={e.site_name} />{away}.{from}
+      It was placed at the existing site <SiteName name={nameAtEvent} />{away}.{from}
+    </p>
+  );
+};
+
+// What a human did with the entry, when someone did. Uses the live site name
+// (the outcome), unlike the context line above (the history).
+const ResolutionLine: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
+  if (!e.resolved_action) return null;
+  const who = e.resolved_by_email ?? 'A project admin';
+  const when = e.resolved_at
+    ? new Date(e.resolved_at).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      })
+    : '';
+  const suffix = when ? ` at ${when}` : '';
+  let did: React.ReactNode;
+  switch (e.resolved_action) {
+    case 'rename_site':
+      did = <>renamed this site to <SiteName name={e.site_name} /></>;
+      break;
+    case 'set_site':
+      did = <>moved the camera to <SiteName name={e.site_name} /></>;
+      break;
+    case 'new_site':
+      did = <>gave the camera its own site <SiteName name={e.site_name} /></>;
+      break;
+    default: // not_moved
+      did = <>marked this as GPS noise, the camera stayed at <SiteName name={e.site_name} /></>;
+  }
+  return (
+    <p className="text-sm text-muted-foreground break-words mt-1">
+      {who} {did}{suffix}.
     </p>
   );
 };
@@ -346,11 +380,6 @@ const FeedEntry: React.FC<{
           <EventHeadline event={e} />
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
             <span>{fmtTime(e.created_at)}</span>
-            {e.resolved_action && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary/10 text-primary">
-                Handled
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -370,6 +399,7 @@ const FeedEntry: React.FC<{
 
       <div className="mt-2">
         <EventContext event={e} />
+        <ResolutionLine event={e} />
       </div>
 
       {actionable && (
