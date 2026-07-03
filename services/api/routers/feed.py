@@ -27,7 +27,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from geoalchemy2.elements import WKTElement
 from pydantic import BaseModel
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -251,6 +251,27 @@ async def _site_in_project(db: AsyncSession, project_id: int, site_id: int) -> S
     return site
 
 
+async def _drop_site_if_event_orphaned_it(db: AsyncSession, event: FeedEvent) -> None:
+    """
+    Delete the site this event auto-created when the correction just emptied
+    it. Undoing a move (or picking a different site) would otherwise leave the
+    auto-created site behind with zero cameras, exactly the phantom-site
+    debris the feed exists to prevent. Only fires for the site this event
+    made (site_created) and only when no deployment points at it anymore.
+    Call after the reassign and before event.site_id is overwritten.
+    """
+    if not event.site_created or event.site_id is None:
+        return
+    remaining = (
+        await db.execute(
+            select(func.count(Deployment.id)).where(Deployment.site_id == event.site_id)
+        )
+    ).scalar_one()
+    if remaining == 0:
+        await db.execute(delete(Site).where(Site.id == event.site_id))
+        logger.info("Deleted orphaned auto-created site", site_id=event.site_id)
+
+
 async def _deployment_or_conflict(db: AsyncSession, event: FeedEvent) -> Deployment:
     """The event's deployment, or 409 when it was merged away since."""
     deployment = (
@@ -319,8 +340,8 @@ async def resolve_event(
         deployment = await _deployment_or_conflict(db, event)
         await _site_in_project(db, project_id, request.site_id)
         merged = await reassign_deployment_site(db, deployment, request.site_id)
+        await _drop_site_if_event_orphaned_it(db, event)
         event.site_id = request.site_id
-        event.site_created = False
 
     elif request.action == 'new_site':
         name = _required_name(request)
@@ -354,9 +375,6 @@ async def resolve_event(
             )
         merged = await reassign_deployment_site(db, deployment, site.id)
         event.site_id = site.id
-        # The entry now points at a site that was made for this camera, so
-        # its copy should read as such (and the new-site button goes away).
-        event.site_created = True
 
     else:  # not_moved
         if event.from_site_id is None:
@@ -369,8 +387,8 @@ async def resolve_event(
         # Putting the deployment back on its previous site makes it contiguous
         # with its predecessor, so the merge folds it (and its images) back.
         merged = await reassign_deployment_site(db, deployment, event.from_site_id)
+        await _drop_site_if_event_orphaned_it(db, event)
         event.site_id = event.from_site_id
-        event.site_created = False
 
     event.resolved_action = request.action
     event.resolved_at = func.now()
