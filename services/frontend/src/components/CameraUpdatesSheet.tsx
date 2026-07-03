@@ -295,7 +295,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
       {dialog.kind === 'rename' && (
         <NameDialog
           title="Rename site"
-          description={`Give ${dialog.event.site_name ?? 'this site'} a better name.`}
+          description={<>Give <SiteName name={dialog.event.site_name} /> a better name.</>}
           initialName={dialog.event.site_name ?? ''}
           confirmLabel="Rename"
           isPending={resolveMutation.isPending}
@@ -341,9 +341,13 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
         }}
         title="The camera did not move?"
         body={
-          dialog.kind === 'not_moved'
-            ? `The reading was GPS noise. The camera goes back to ${dialog.event.from_site_name ?? 'its previous site'}, together with its images.`
-            : ''
+          dialog.kind === 'not_moved' ? (
+            <>
+              The reading was GPS noise. The camera goes back to{' '}
+              <SiteName name={dialog.event.from_site_name} />, together with
+              its images.
+            </>
+          ) : ''
         }
         confirmLabel="It did not move"
         cancelLabel="Keep the move"
@@ -434,7 +438,7 @@ const FeedEntry: React.FC<{
 
 const NameDialog: React.FC<{
   title: string;
-  description: string;
+  description: React.ReactNode;
   initialName: string;
   confirmLabel: string;
   isPending: boolean;
