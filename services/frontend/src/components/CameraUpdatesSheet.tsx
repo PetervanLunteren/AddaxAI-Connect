@@ -417,7 +417,6 @@ const FeedEntry: React.FC<{
             variant="outline"
             onClick={() => window.open(`https://www.google.com/maps?q=${e.site_lat},${e.site_lon}`, '_blank')}
           >
-            <MapPin className="h-3.5 w-3.5 mr-1.5" />
             Show location
           </Button>
         )}
