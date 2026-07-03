@@ -12,7 +12,7 @@
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2, Route } from 'lucide-react';
+import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { Select } from './ui/Select';
@@ -41,15 +41,8 @@ function fmtDistance(m: number): string {
   return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  return isNaN(d.getTime())
-    ? ''
-    : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-}
-
-// "3 Jul, 22:20". Used where no day heading gives the date (the Earlier
-// archive and the resolution line).
+// "3 Jul, 22:20". Every entry carries its own stamp, and the resolution
+// line uses the same format.
 function fmtDateTime(iso: string): string {
   const d = new Date(iso);
   return isNaN(d.getTime())
@@ -256,13 +249,12 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     group.items.reverse();
   }
 
-  const renderEntry = (e: FeedEventItem, showDate = false) => (
+  const renderEntry = (e: FeedEventItem) => (
     <FeedEntry
       key={e.id}
       event={e}
       projectId={projectId}
       canEdit={canEdit}
-      showDate={showDate}
       onAction={(kind) => setDialog({ kind, event: e } as DialogMode)}
     />
   );
@@ -302,7 +294,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             {groups.map((group) => (
               <div key={group.heading} className="mb-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">{group.heading}</p>
-                <ul className="space-y-3">{group.items.map((e) => renderEntry(e))}</ul>
+                <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
               </div>
             ))}
 
@@ -321,7 +313,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                   Earlier ({earlier.length})
                 </button>
                 {earlierOpen && (
-                  <ul className="mt-2 space-y-3">{earlier.map((e) => renderEntry(e, true))}</ul>
+                  <ul className="mt-2 space-y-3">{earlier.map(renderEntry)}</ul>
                 )}
               </div>
             )}
@@ -397,11 +389,8 @@ const FeedEntry: React.FC<{
   event: FeedEventItem;
   projectId: number;
   canEdit: boolean;
-  // True in the Earlier archive, which has no day headings, so the entry
-  // itself must carry the date.
-  showDate?: boolean;
   onAction: (kind: 'rename' | 'different_site' | 'new_site' | 'not_moved') => void;
-}> = ({ event: e, projectId, canEdit, showDate = false, onAction }) => {
+}> = ({ event: e, projectId, canEdit, onAction }) => {
   // Entries collapse to their headline so a busy day scans as a list of
   // one-line stories; everything else (photos, context, actions) shows on
   // demand. The headline was written to stand alone, so nothing essential
@@ -423,7 +412,6 @@ const FeedEntry: React.FC<{
   });
   const thumbs = e.deployment_id != null ? thumbUuids : cameraThumbs;
 
-  const Icon = e.event_type === 'camera_moved' ? Route : CameraIcon;
   // "Different site" only helps when there is a nearby alternative besides
   // the currently assigned one.
   const hasAlternatives = e.candidates.some((c) => c.site_id !== e.site_id);
@@ -445,9 +433,9 @@ const FeedEntry: React.FC<{
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-start gap-2 text-left"
       >
-        <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
         <div className="flex-1 min-w-0">
           <EventHeadline event={e} />
+          <p className="mt-0.5 text-xs text-muted-foreground">{fmtDateTime(e.created_at)}</p>
         </div>
         {open ? (
           <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
@@ -460,7 +448,6 @@ const FeedEntry: React.FC<{
         <>
       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
         <CameraChip event={e} />
-        <span>{showDate ? fmtDateTime(e.created_at) : fmtTime(e.created_at)}</span>
       </div>
 
       {thumbs && thumbs.length > 0 && (
