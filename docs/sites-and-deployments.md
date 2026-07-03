@@ -2,7 +2,7 @@
 
 AddaxAI Connect organises your images by place. A camera is the physical device, identified by its device id. A site is a place where a camera stands, with a name you choose. Every photo carries the GPS the camera recorded. The app uses it to build sites, to place cameras on them, and to notice when a camera moves. You do not manage any of this by hand. The app decides, reports what it did in the camera updates panel, and gives you a few buttons to correct a wrong guess.
 
-Behind the scenes the app also keeps a record of every continuous placement of a camera at a site. These records drive the effort statistics (trap-days) and the Camtrap DP export. They are fully automatic and there is nothing to do with them.
+Behind the scenes the app also keeps a record of every continuous placement of a camera at a site. These records are fully automatic and there is nothing to do with them.
 
 ## How sites are made
 
