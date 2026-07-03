@@ -29,6 +29,7 @@ import {
   GanttChartSquare,
   LineChart,
   Table2,
+  Route,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
@@ -36,6 +37,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
+import { feedApi } from '../../api/feed';
+import { CameraUpdatesSheet } from '../CameraUpdatesSheet';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -48,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { projectId } = useParams<{ projectId: string }>();
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [updatesOpen, setUpdatesOpen] = useState(false);
 
   // Navigation items (all project-specific). Map and Performance now live
   // under the collapsible Insights group below.
@@ -90,6 +94,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // initiate. Anyone starting their own upload triggers an
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
+
+  // Unseen camera updates for the badge. Events are rare (a camera appearing
+  // or moving), so a slow poll is enough; opening the sheet marks the feed
+  // seen and invalidates this query, clearing the badge immediately.
+  const { data: unseenUpdates } = useQuery({
+    queryKey: ['feed-unseen', numericProjectId],
+    queryFn: () => feedApi.unseen(numericProjectId!),
+    enabled: numericProjectId !== undefined,
+    refetchInterval: 300000,
+  });
+
   const { data: bulkJobs } = useQuery({
     queryKey: ['bulk-upload-jobs', numericProjectId],
     queryFn: () => bulkUploadApi.list(numericProjectId!),
@@ -194,6 +209,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
               </NavLink>
+              {/* Camera updates opens a slideout, not a page, so it is a
+                  button between the nav links. It sits with the field section
+                  (sites, cameras) because its entries are about camera
+                  placements. The badge counts unseen entries. */}
+              {item.label === 'Cameras' && (
+                <button
+                  type="button"
+                  onClick={() => setUpdatesOpen(true)}
+                  className="flex items-center justify-between w-full px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Route className="h-5 w-5" />
+                    <span>Camera updates</span>
+                  </div>
+                  {(unseenUpdates ?? 0) > 0 && (
+                    <span
+                      className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ backgroundColor: '#71b7ba', color: 'white' }}
+                    >
+                      {unseenUpdates}
+                    </span>
+                  )}
+                </button>
+              )}
             </React.Fragment>
           ))}
 
@@ -298,6 +337,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <LastUpdate />
         </div>
       </aside>
+
+      {numericProjectId !== undefined && (
+        <CameraUpdatesSheet
+          open={updatesOpen}
+          onClose={() => setUpdatesOpen(false)}
+          projectId={numericProjectId}
+          canEdit={isProjectAdmin}
+        />
+      )}
     </>
   );
 };
