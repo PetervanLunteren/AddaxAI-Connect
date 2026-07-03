@@ -243,6 +243,13 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
       groups.push({ heading, items: [e] });
     }
   }
+  // Days newest first, but the entries inside a day oldest first, so a day
+  // reads as a story in the order it happened (a camera appears, then moves).
+  // The API delivers newest first, so each day group is reversed. The Earlier
+  // archive below stays newest first: it is a lookup pile, not a story.
+  for (const group of groups) {
+    group.items.reverse();
+  }
 
   const renderEntry = (e: FeedEventItem) => (
     <FeedEntry
