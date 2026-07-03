@@ -24,23 +24,33 @@ A camera's position is not taken from a single photo. The app keeps averaging th
 
 Open the Cameras page and click Updates. The button shows how many entries are new to you, and the Cameras item in the menu shows the same count from any page.
 
-<!-- SCREENSHOT-1: cameras page header with the Updates button and its count badge -->
+![The Updates button on the Cameras page](https://github.com/user-attachments/assets/3b0e1674-4ff6-45af-b78d-fbc827524696)
+
+*The Updates button on the Cameras page. The count shows how many entries are new to you.*
 
 Every automatic decision becomes one entry. Entries show as one-line sentences, so the list reads like a short report. The sentence tells you if something is wanted from you. A placeholder name in the title means the site waits for a real name. A real name means there is nothing to do.
 
-<!-- SCREENSHOT-2: the panel with collapsed one-line entries under a day heading -->
+![The camera updates panel with one-line entries](https://github.com/user-attachments/assets/1931eb59-b7ab-4b6e-8a40-cd5a9cf3327f)
+
+*Each entry is one sentence. Two sites here still carry placeholder names, so they wait for a real one.*
 
 Click an entry to see more: the camera id, a few photos from that spot, where the camera was placed and why, and the action buttons. Each button explains itself with one line.
 
-<!-- SCREENSHOT-3: one expanded entry with photos, context, and action buttons -->
+![An expanded entry with photos and actions](https://github.com/user-attachments/assets/4afb46b4-5890-4f0e-9c42-5cf7eb482cf8)
+
+*An expanded entry. This camera was placed on an existing site 30 metres away, so it can also be split off to its own site.*
 
 Nothing in this panel needs an answer. The app already acted, and ignoring every entry is fine. When you take an action, the entry closes and records who did what and when. The buttons then go away.
 
-<!-- SCREENSHOT-4: a closed entry showing who did what and when -->
+![A closed entry with the resolution line](https://github.com/user-attachments/assets/0b50bf64-973a-4151-b7e2-137cecb3acd3)
+
+*A closed entry. It keeps what happened and records who corrected it and when.*
 
 Entries you have seen before fold into "Already seen" at the bottom, grouped by time range. New entries always sit on top.
 
-<!-- SCREENSHOT-5: the Already seen section opened, with time range groups -->
+![The already seen section with time ranges](https://github.com/user-attachments/assets/5e4e4b2b-c02b-432b-b579-010348367849)
+
+*The already seen section, grouped by time range. These six sites were named earlier, so their entries read calm.*
 
 ## The actions
 
@@ -62,9 +72,17 @@ An entry appears: "A camera started sending images from Site at 53.2460, 5.2620.
 
 An entry appears with the old site, the new site, and the distance. Check that it makes sense, name the new site if it is new, done. Use Show location if you want to see the spot on a map first.
 
+![An expanded entry for a camera move](https://github.com/user-attachments/assets/72a6526d-d8f7-4a79-84d3-aa8be3c1e6df)
+
+*A camera moved 399 metres. The new site waits for a name, and the move can be undone if it was not real.*
+
 ### A move that was GPS noise
 
 A single bad reading never makes an entry, the app filters it silently. When bad GPS produces two readings and a false move gets through, the entry shows a move you know did not happen. Click "It did not move". The camera and its images go back, and the wrongly made site is removed by itself.
+
+![The confirmation before undoing a move](https://github.com/user-attachments/assets/eee9302c-15f0-474b-85a7-6efd8731b151)
+
+*The confirmation before a move is undone.*
 
 ### Several cameras at one place
 
