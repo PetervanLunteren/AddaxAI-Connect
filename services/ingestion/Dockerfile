@@ -22,4 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy service code
 COPY services/ingestion .
 
+# Repo scripts that run against the ingestion code (dev simulator), mirroring
+# how the api image carries /app/scripts.
+COPY scripts /app/scripts
+
 CMD ["python", "main.py"]
