@@ -17,6 +17,7 @@ from shared.geo import (
     SITE_THRESHOLD_METERS,
     RELOCATION_CONFIRMATIONS,
     RECOMPUTE_SITE_LOCATION_SQL,
+    next_mean_pin,
 )
 from utils import is_valid_gps
 
@@ -196,43 +197,23 @@ def _resolve_site(
     project_id: Optional[int],
     lat: float,
     lon: float,
-    camera_id: Optional[int] = None,
 ) -> Optional[int]:
     """
-    Return the id of the site within SITE_THRESHOLD_METERS of (lat, lon) in this
-    project, creating one if none is close enough. Returns None when the camera
-    has no project, since sites are project-scoped (the deployment then stays
-    site-less, matching the pre-site behaviour).
+    Return the id of the nearest site within SITE_THRESHOLD_METERS of (lat, lon)
+    in this project, creating one if none is close enough. Returns None when the
+    camera has no project, since sites are project-scoped (the deployment then
+    stays site-less, matching the pre-site behaviour).
 
-    Per-camera affinity: when camera_id is given, first reuse the most recent
-    site this camera has used that is within the threshold of (lat, lon), even if
-    another site is nearer. This keeps co-located cameras apart, two cameras on
-    one pole pointing different ways share a GPS point, so plain nearest-site
-    would flip between their sites; the camera's own history is the tiebreak.
-    Only the initial collapse still needs a one-time manual split; after that the
-    assignment sticks across GPS glitches and re-deployments.
+    Plain nearest-site, no per-camera history. Fieldworkers pick cameras from
+    the truck at random, so a camera's previous site does not predict its next
+    placement; the nearest existing site is the best guess, and a human can
+    correct it afterwards (co-located cameras that should stay apart are the
+    one case that needs that correction).
     """
     if project_id is None:
         return None
 
     wkt = f"POINT({lon} {lat})"
-
-    if camera_id is not None:
-        own = session.execute(
-            text("""
-                SELECT d.site_id
-                FROM deployments d
-                JOIN sites s ON s.id = d.site_id
-                WHERE d.camera_id = :camera_id
-                  AND d.site_id IS NOT NULL
-                  AND ST_Distance(s.location, ST_GeogFromText(:wkt)) <= :threshold
-                ORDER BY d.deployment_number DESC
-                LIMIT 1
-            """),
-            {"wkt": wkt, "camera_id": camera_id, "threshold": SITE_THRESHOLD_METERS},
-        ).fetchone()
-        if own:
-            return own.site_id
 
     nearest = session.execute(
         text("""
@@ -376,7 +357,7 @@ def update_or_create_site_and_deployment(
                 # work) from the current GPS. site_source is only a label of who
                 # set the site, it does not gate this.
                 if active.site_id is None:
-                    active.site_id = _resolve_site(session, project_id, new_lat, new_lon, camera_id)
+                    active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
                     session.flush()
                     _recompute_site_location(session, active.site_id)
                 if event_date < active.start_date:
@@ -388,6 +369,27 @@ def update_or_create_site_and_deployment(
                         new_start=str(event_date),
                     )
                     active.start_date = event_date
+                # Refine the pin: the deployment location is the running mean
+                # of its within-threshold photo readings, so it converges on
+                # the true spot instead of staying anchored on the first fix.
+                # Photos only (allow_relocation is True for photos): report GPS
+                # never moves a deployment, not even by averaging. Held
+                # out-of-range readings never reach this branch, so a starting
+                # relocation cannot smear the old pin.
+                if allow_relocation:
+                    mean_lat, mean_lon, n = next_mean_pin(
+                        loc.lat, loc.lon, active.gps_reading_count, new_lat, new_lon
+                    )
+                    session.execute(
+                        text("""
+                            UPDATE deployments
+                            SET location = ST_GeogFromText(:wkt),
+                                gps_reading_count = :n
+                            WHERE id = :dep_pk
+                        """),
+                        {"wkt": f"POINT({mean_lon} {mean_lat})", "n": n, "dep_pk": active.id},
+                    )
+                    _recompute_site_location(session, active.site_id)
                 session.flush()
                 logger.debug(
                     "GPS within threshold - same deployment",
@@ -467,7 +469,7 @@ def update_or_create_site_and_deployment(
             next_number = 1 if max_number is None else max_number + 1
             log_msg = "Creating new deployment for camera"
 
-        site_id = _resolve_site(session, project_id, new_lat, new_lon, camera_id)
+        site_id = _resolve_site(session, project_id, new_lat, new_lon)
         deployment_id = _insert_deployment(
             session, camera_id, next_number, site_id, new_start_date, new_lat, new_lon
         )

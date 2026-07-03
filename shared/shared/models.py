@@ -229,6 +229,11 @@ class Deployment(Base):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # NULL = currently active deployment
     location = Column(Geography(geometry_type='POINT', srid=4326), nullable=False)
+    # How many GPS readings `location` averages. The pin is the running mean of
+    # the deployment's within-threshold photo readings (see shared.geo.
+    # next_mean_pin), so it converges on the true spot instead of staying
+    # anchored on the first fix. Starts at 1 (the creation reading).
+    gps_reading_count = Column(Integer, nullable=False, server_default='1')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

@@ -1,5 +1,5 @@
 """
-Shared geographic constants for the spatial model.
+Shared geographic constants and helpers for the spatial model.
 """
 
 # The single distance threshold that drives sites and deployments.
@@ -30,10 +30,44 @@ SITE_THRESHOLD_METERS = 250.0
 # dies attaches to the old deployment. See update_or_create_site_and_deployment.
 RELOCATION_CONFIRMATIONS = 2
 
+def next_mean_pin(
+    lat: float, lon: float, count: int, new_lat: float, new_lon: float
+) -> tuple[float, float, int]:
+    """
+    Fold one GPS reading into a deployment pin that is the running mean of
+    ``count`` readings so far, returning (mean_lat, mean_lon, count + 1).
+
+    The pin starts as the first fix, which is typically the worst reading (the
+    camera has just connected to the cell network). Averaging every later
+    within-threshold reading makes the pin converge on the true position, which
+    matters beyond cosmetics: the relocation check measures new readings
+    against this pin, so a bad anchor eats into the SITE_THRESHOLD_METERS
+    margin and can raise phantom move candidates. Each new reading carries
+    1/(count+1) weight, so the pin stabilises by itself and no cutoff is
+    needed; a single outlier from the noise tail moves a mature pin by
+    centimetres.
+
+    Longitudes are unwrapped before averaging so two readings straddling the
+    antimeridian (+179.999 and -179.999) do not average to ~0.
+    """
+    n = count + 1
+    if new_lon - lon > 180:
+        new_lon -= 360
+    elif lon - new_lon > 180:
+        new_lon += 360
+    mean_lon = lon + (new_lon - lon) / n
+    if mean_lon > 180:
+        mean_lon -= 360
+    elif mean_lon < -180:
+        mean_lon += 360
+    return lat + (new_lat - lat) / n, mean_lon, n
+
+
 # A site's pin is the centroid of its deployments' locations. Run this after a
 # site's deployment membership changes (a deployment is created at, reassigned
-# to, merged into, or removed from it). It is a no-op for a site with no
-# deployments, which keeps its current location. Bind :site_id. Works from both
+# to, merged into, or removed from it), and after a deployment's own pin moved
+# (the running mean above). It is a no-op for a site with no deployments, which
+# keeps its current location. Bind :site_id. Works from both
 # the sync ingestion session and the async API session.
 RECOMPUTE_SITE_LOCATION_SQL = """
     UPDATE sites s
