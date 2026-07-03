@@ -289,6 +289,7 @@ def update_or_create_site_and_deployment(
     new_gps: Tuple[float, float],
     event_date: date,
     allow_relocation: bool = True,
+    image_uuid: Optional[str] = None,
 ) -> Tuple[Optional[int], int]:
     """
     Resolve the site and deployment for a new GPS reading and return
@@ -308,6 +309,11 @@ def update_or_create_site_and_deployment(
     or split its deployment, it would only leave behind a deployment with zero
     images. A report still creates the first deployment when none is active and
     still heals a missing site within the threshold.
+
+    image_uuid is the photo carrying this reading (None for reports). An
+    out-of-range reading's image attaches to the current deployment while the
+    debounce holds it, but its uuid rides on the candidate; a confirmed move
+    relinks the held images to the new deployment, where they were shot.
 
     Raises:
         ValueError: invalid GPS (None, (0, 0), out of range), or unknown camera.
@@ -432,6 +438,14 @@ def update_or_create_site_and_deployment(
                 count = 1
                 first_date = event_date
 
+            # The held readings' images so far. They attach to the current
+            # deployment for now (one reading is not evidence of a move), but
+            # their uuids ride along on the candidate so a confirmed move can
+            # take them to the new deployment, where they were really shot.
+            held_image_uuids = list(candidate.get('image_uuids', [])) if near_candidate else []
+            if image_uuid is not None:
+                held_image_uuids.append(image_uuid)
+
             if count < RELOCATION_CONFIRMATIONS:
                 # Not confirmed yet: hold this reading on the current deployment
                 # (do not move its point) and remember the candidate.
@@ -440,6 +454,7 @@ def update_or_create_site_and_deployment(
                     'lon': new_lon,
                     'date': first_date.isoformat(),
                     'count': count,
+                    'image_uuids': held_image_uuids,
                 }
                 camera.config = config
                 flag_modified(camera, 'config')
@@ -453,9 +468,15 @@ def update_or_create_site_and_deployment(
                 )
                 return (active.site_id, active.id)
 
-            # Confirmed relocation: clear the candidate and split, backdating the
-            # new deployment to the first out-of-range reading so it covers the
-            # held image. Clamp the close so it never predates the old start.
+            # Confirmed relocation: clear the candidate and split, backdating
+            # the new deployment to the first out-of-range reading so it covers
+            # the held images, which move along to the new deployment below
+            # (they were shot at the new spot; leaving them behind would count
+            # them at the old site). Clamp the close so it never predates the
+            # old start. The confirming image itself is not relinked, its row
+            # does not exist yet; the caller inserts it with the new id.
+            relink_image_uuids = [u for u in (candidate.get('image_uuids') or []) if u] \
+                if near_candidate else []
             config.pop('gps_relocation_candidate', None)
             camera.config = config
             flag_modified(camera, 'config')
@@ -476,12 +497,24 @@ def update_or_create_site_and_deployment(
             event_type = 'camera_first_seen'
             from_site_id = None
             distance_m = None
+            relink_image_uuids = []
             log_msg = "Creating new deployment for camera"
 
         site_id, site_created, site_name = _resolve_site(session, project_id, new_lat, new_lon)
         deployment_id = _insert_deployment(
             session, camera_id, next_number, site_id, new_start_date, new_lat, new_lon
         )
+        if relink_image_uuids:
+            session.execute(
+                text("UPDATE images SET deployment_id = :dep WHERE uuid = ANY(:uuids)"),
+                {"dep": deployment_id, "uuids": relink_image_uuids},
+            )
+            logger.info(
+                "Relinked held images to the new deployment",
+                camera_id=camera_id,
+                deployment_id=deployment_id,
+                count=len(relink_image_uuids),
+            )
         session.flush()
         _recompute_site_location(session, site_id)
         _record_feed_event(
@@ -607,6 +640,7 @@ def create_image_record(
             camera_id=camera_id,
             new_gps=gps_location,
             event_date=captured_at.date(),
+            image_uuid=image_uuid,
         )
 
     with get_db_session() as session:
