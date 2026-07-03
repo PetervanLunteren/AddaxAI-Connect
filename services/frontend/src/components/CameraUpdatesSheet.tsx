@@ -385,7 +385,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                   ) : (
                     <ChevronRight className="h-4 w-4" />
                   )}
-                  Earlier ({earlier.length})
+                  Already seen ({earlier.length})
                 </button>
                 {earlierOpen && earlierGroups.map((group) => (
                   <div key={group.heading} className="mt-2 ml-5">
