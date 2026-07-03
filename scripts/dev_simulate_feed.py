@@ -2,9 +2,17 @@
 Dev-only simulator for the camera updates feed. TEMPORARY, delete after testing.
 
 Drives the real ingestion path (create_image_record, which runs the site and
-deployment resolver) with synthetic labeled photos, so the feed, the GPS
+deployment resolver) with real camera trap photos, so the feed, the GPS
 debounce, the running-mean pin, and the merges behave exactly like production.
 Nothing is mocked and nothing is reimplemented.
+
+Photos are picked at random from PHOTO_DIR (default /tmp/ena24), a flat
+directory of JPEGs copied into the ingestion container by hand, for example:
+
+    scp -r ena24-sample dev:/tmp/ena24
+    docker cp /tmp/ena24 addaxai-ingestion:/tmp/ena24
+
+The copy does not survive a container recreate; re-copy if needed.
 
 All simulated data lives in a geographic sandbox (the Wadden Sea around the
 island Griend) with SIM-prefixed device ids, so `reset` can wipe it without
@@ -33,8 +41,8 @@ Scenarios, in the intended order:
 """
 import argparse
 import os
+import random
 import sys
-import tempfile
 import uuid as uuid_module
 from datetime import datetime
 
@@ -42,7 +50,6 @@ from datetime import datetime
 # the ingestion container.
 sys.path.insert(0, "/app")
 
-from PIL import Image as PILImage, ImageDraw, ImageFont
 from sqlalchemy import text
 
 from shared.database import get_db_session
@@ -84,11 +91,7 @@ ROTATION_SHUFFLE = [2, 0, 1, 4, 5, 3]
 SWAP_WEST = (53.2350, 5.2700)
 SWAP_EAST = (53.2350, 5.2850)          # ~1 km east
 
-# One fill color per camera so the feed thumbnails are tellable apart.
-PALETTE = [
-    (15, 96, 100), (140, 80, 30), (60, 110, 60), (110, 50, 110),
-    (50, 70, 130), (130, 60, 60), (90, 90, 40), (40, 100, 100),
-]
+PHOTO_DIR = os.environ.get("PHOTO_DIR", "/tmp/ena24")
 
 
 def now_naive() -> datetime:
@@ -96,20 +99,20 @@ def now_naive() -> datetime:
     return datetime.now(get_server_timezone()).replace(tzinfo=None)
 
 
-def make_photo(device_id: str, note: str) -> str:
-    """Write a labeled JPEG to a temp file and return its path."""
-    color = PALETTE[hash(device_id) % len(PALETTE)]
-    img = PILImage.new("RGB", (640, 480), color=color)
-    draw = ImageDraw.Draw(img)
-    try:
-        font = ImageFont.load_default(size=48)
-    except TypeError:  # older Pillow without the size argument
-        font = ImageFont.load_default()
-    draw.text((30, 180), f"{device_id}\n{note}", fill="white", font=font)
-    fd, path = tempfile.mkstemp(suffix=".jpg")
-    os.close(fd)
-    img.save(path, "JPEG")
-    return path
+def pick_photo() -> str:
+    """A random real camera trap photo from PHOTO_DIR. Crashes loudly with a
+    setup hint when the directory is missing or empty."""
+    photos = [
+        os.path.join(PHOTO_DIR, f)
+        for f in os.listdir(PHOTO_DIR)
+        if f.lower().endswith((".jpg", ".jpeg"))
+    ] if os.path.isdir(PHOTO_DIR) else []
+    if not photos:
+        sys.exit(
+            f"No photos in {PHOTO_DIR}. Copy a folder of JPEGs into the "
+            f"container first, see the module docstring."
+        )
+    return random.choice(photos)
 
 
 def ensure_camera(device_id: str, project_id: int) -> int:
@@ -128,27 +131,24 @@ def ensure_camera(device_id: str, project_id: int) -> int:
 
 
 def send_photo(device_id: str, project_id: int, lat: float, lon: float, note: str) -> None:
-    """One synthetic photo through the real ingestion path."""
+    """One real camera trap photo through the real ingestion path."""
     camera_id = ensure_camera(device_id, project_id)
     image_uuid = str(uuid_module.uuid4())
-    filename = f"{note.replace(' ', '_')}.jpg"
-    path = make_photo(device_id, note)
-    try:
-        storage_path = upload_image_to_minio(path, device_id, image_uuid, filename)
-        thumbnail_path = generate_and_upload_thumbnail(path, device_id, image_uuid, filename)
-        create_image_record(
-            image_uuid=image_uuid,
-            camera_id=camera_id,
-            filename=filename,
-            storage_path=storage_path,
-            thumbnail_path=thumbnail_path,
-            captured_at=now_naive(),
-            gps_location=(lat, lon),
-            exif_metadata={"source": "dev_simulate_feed", "note": note},
-        )
-    finally:
-        os.unlink(path)
-    print(f"  {device_id} photo at ({lat:.5f}, {lon:.5f})  [{note}]")
+    path = pick_photo()
+    filename = os.path.basename(path)
+    storage_path = upload_image_to_minio(path, device_id, image_uuid, filename)
+    thumbnail_path = generate_and_upload_thumbnail(path, device_id, image_uuid, filename)
+    create_image_record(
+        image_uuid=image_uuid,
+        camera_id=camera_id,
+        filename=filename,
+        storage_path=storage_path,
+        thumbnail_path=thumbnail_path,
+        captured_at=now_naive(),
+        gps_location=(lat, lon),
+        exif_metadata={"source": "dev_simulate_feed", "note": note},
+    )
+    print(f"  {device_id} photo at ({lat:.5f}, {lon:.5f})  [{note}] {filename}")
 
 
 def rename_current_site(device_id: str, name: str) -> None:
@@ -187,7 +187,7 @@ def solo_new(pid: int) -> None:
         "One entry: camera SIM01 started sending images, placed at an auto-named site.",
         "Badge on the Cameras nav item shows 1 (until the panel is opened).",
         "Try the Rename site button, call it for example 'Griend east'.",
-        "The entry has three thumbnails, all the same color with 'SIM01' on them.",
+        "The entry shows three real wildlife photos as thumbnails.",
     ])
 
 
