@@ -88,6 +88,21 @@ const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
 const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   if (e.event_type === 'camera_moved') {
     const dist = e.distance_m != null ? ` about ${fmtDistance(e.distance_m)}` : '';
+    // Live destination name, so a placeholder in the title is the naming
+    // nudge and a real name reads calm. Exception: after "it did not move"
+    // the live destination equals the origin (the camera went back), so the
+    // frozen historical name shows and the resolution line tells the return.
+    const dest = e.resolved_action === 'not_moved'
+      ? e.original_site_name
+      : e.site_name ?? e.original_site_name;
+    if (e.from_site_name && dest) {
+      return (
+        <p className="text-sm break-words">
+          A camera moved{dist} from <SiteName name={e.from_site_name} /> to{' '}
+          <SiteName name={dest} />.
+        </p>
+      );
+    }
     if (e.from_site_name) {
       return (
         <p className="text-sm break-words">
