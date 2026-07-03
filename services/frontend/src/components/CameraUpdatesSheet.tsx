@@ -234,6 +234,19 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   const toast = useToast();
   const [dialog, setDialog] = useState<DialogMode>({ kind: 'closed' });
   const [earlierOpen, setEarlierOpen] = useState(false);
+  // Which archive buckets are unfolded ("This week", ...). All start folded,
+  // so the opened archive reads as an index of time ranges with counts.
+  const [openBuckets, setOpenBuckets] = useState<Set<string>>(new Set());
+  const toggleBucket = (heading: string) =>
+    setOpenBuckets((prev) => {
+      const next = new Set(prev);
+      if (next.has(heading)) {
+        next.delete(heading);
+      } else {
+        next.add(heading);
+      }
+      return next;
+    });
 
   const { data: events, isLoading } = useQuery({
     queryKey: ['feed', projectId],
@@ -247,6 +260,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   const handleClose = () => {
     onClose();
     setEarlierOpen(false);
+    setOpenBuckets(new Set());
     if (projectId > 0) {
       feedApi.markSeen(projectId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['feed-unseen', projectId] });
@@ -374,9 +388,22 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                   Earlier ({earlier.length})
                 </button>
                 {earlierOpen && earlierGroups.map((group) => (
-                  <div key={group.heading} className="mt-3">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">{group.heading}</p>
-                    <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
+                  <div key={group.heading} className="mt-2 ml-5">
+                    <button
+                      type="button"
+                      onClick={() => toggleBucket(group.heading)}
+                      className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      {openBuckets.has(group.heading) ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                      {group.heading} ({group.items.length})
+                    </button>
+                    {openBuckets.has(group.heading) && (
+                      <ul className="mt-2 space-y-3">{group.items.map(renderEntry)}</ul>
+                    )}
                   </div>
                 ))}
               </div>
