@@ -4,7 +4,8 @@
  * Shows full camera details in a slide-out panel with tabs:
  * - Overview: Status, site, health metrics, activity, location (all users)
  * - History: Health history charts (all users)
- * - Deployments: Where this camera has been over time (all users)
+ * - Placements: Where this camera has been over time (all users), with an
+ *   admin-only change-site action per step as the late-correction escape hatch
  * - Details: Camera id, custom fields, remarks, tags, SIM, reference (admins)
  * An action card at the top of the body holds "Images" (everyone) and,
  * for server admins, "Delete" (the page owns the confirm dialog).
@@ -25,7 +26,6 @@ import {
   Upload,
   Images,
   Trash2,
-  CalendarClock,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody, SheetFooter } from './ui/Sheet';
 import { Button } from './ui/Button';
@@ -305,7 +305,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
-              <TabButton tab="deployments" label="Deployments" />
+              <TabButton tab="deployments" label="Placements" />
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
 
@@ -324,15 +324,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                       >
                         <Images className="h-4 w-4 mr-2" />
                         Images
-                      </Button>
-                    )}
-                    {projectId != null && camera.device_id && (
-                      <Button
-                        variant="outline"
-                        onClick={() => navigate(`/projects/${projectId}/deployments?camera=${encodeURIComponent(camera.device_id!)}`)}
-                      >
-                        <CalendarClock className="h-4 w-4 mr-2" />
-                        Deployments
                       </Button>
                     )}
                     {isServerAdmin && onDeleteRequested && (

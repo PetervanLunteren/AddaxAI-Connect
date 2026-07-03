@@ -39,7 +39,7 @@ export function SitePopup({ properties }: SitePopupProps) {
           <span className="font-medium">{trap_days}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Deployments pooled</span>
+          <span className="text-gray-600">Placements pooled</span>
           <span className="font-medium">{deployment_count}</span>
         </div>
         <div className="flex justify-between">

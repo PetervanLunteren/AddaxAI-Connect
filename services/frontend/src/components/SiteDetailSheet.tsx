@@ -4,9 +4,8 @@
  * Mirrors CameraDetailSheet so the two entity views feel the same:
  * - Overview: editable key fields (name, habitat, notes) inline for admins,
  *   then a read-only card with coordinates and aggregate counts.
- * - Deployments: a read-only journey of which cameras stood here over time.
- *   Each step links to the Deployments page (pre-filtered to this site), which
- *   is where reassignment happens.
+ * - History: a read-only journey of which cameras stood here over time.
+ *   Corrections happen from the camera updates panel or the camera slideout.
  *
  * Merge and Delete live in a kebab menu in the header (admins only). Both open
  * the parent's existing dialogs via `onMergeRequested` / `onDeleteRequested`.
@@ -201,7 +200,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
             <div className="flex border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="cameras" label="Cameras" />
-              <TabButton tab="deployments" label="Deployments" />
+              <TabButton tab="deployments" label="History" />
             </div>
 
             {isLoading || !detail ? (
@@ -378,7 +377,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     <span>{detail.camera_count}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Deployments</span>
+                    <span className="text-muted-foreground">Placements</span>
                     <span>{detail.deployment_count}</span>
                   </div>
                   <div className="flex justify-between">
@@ -441,8 +440,9 @@ export const SiteDetailSheet: React.FC<Props> = ({
                 </p>
               )
             ) : (
-              // Deployments tab: a read-only journey of which cameras stood here
-              // over time. Reassignment lives on the Deployments page.
+              // History tab: a read-only journey of which cameras stood here
+              // over time. Corrections happen from the camera updates panel,
+              // or from the camera slideout's history for old placements.
               <DeploymentJourney
                 mode="site"
                 items={(detail.deployments ?? []).map((d) => ({
@@ -452,9 +452,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                   endDate: d.end_date,
                   imageCount: d.image_count,
                 }))}
-                linkTo={`/projects/${projectId}/deployments?site=${siteId}`}
-                itemLinkTo={(id) => `/projects/${projectId}/deployments?deployment=${id}`}
-                emptyText="No deployments at this site."
+                emptyText="No camera has stood at this site yet."
               />
             )}
           </SheetBody>

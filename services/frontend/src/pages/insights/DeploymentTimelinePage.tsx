@@ -252,7 +252,7 @@ export const DeploymentTimelinePage: React.FC = () => {
         </div>
       ) : orderedData.sites.length === 0 ? (
         <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
-          No deployments match the current filters.
+          No camera activity matches the current filters.
         </div>
       ) : (
         <div className="rounded-lg border bg-card p-4 relative">

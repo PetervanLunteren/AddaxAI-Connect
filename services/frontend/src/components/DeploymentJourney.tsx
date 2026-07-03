@@ -1,20 +1,19 @@
 /**
  * Deployment journey.
  *
- * A read-only vertical timeline of a camera's or a site's deployments, oldest
+ * A read-only vertical timeline of a camera's or a site's placements, oldest
  * first, so each slideout tells a small story:
  * - camera mode answers "where has this camera lived over time?" (each step is
  *   a site it moved to)
  * - site mode answers "which cameras stood here over time?" (each step is a
  *   camera that was placed here)
  *
- * Editing deployments lives on the Deployments page, not here. Every step and
- * the footer link open that page pre-filtered to this camera or site, so there
- * is exactly one place to make corrections.
+ * Site assignment is automatic and corrections normally happen from the
+ * camera updates panel. For late corrections, camera mode can pass
+ * onChangeSite (admin only), which puts a small action on each step.
  */
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { MapPin, Camera, ChevronRight } from 'lucide-react';
+import { MapPin, Camera, Pencil } from 'lucide-react';
 
 export interface JourneyItem {
   id: number;
@@ -27,13 +26,9 @@ export interface JourneyItem {
 interface Props {
   mode: 'camera' | 'site';
   items: JourneyItem[];
-  // Deployments page URL pre-filtered to this camera or site (the footer link).
-  linkTo: string;
-  // Per-card link. When given, each card opens the deployments page focused on
-  // that one deployment, while the footer still shows all of them. Falls back
-  // to linkTo when omitted.
-  itemLinkTo?: (id: number) => string;
   emptyText: string;
+  // Escape hatch: when given, each step shows a "change site" action.
+  onChangeSite?: (item: JourneyItem) => void;
 }
 
 function fmtDate(s: string | null): string {
@@ -50,7 +45,7 @@ function startMs(s: string | null): number {
   return isNaN(t) ? Number.POSITIVE_INFINITY : t;
 }
 
-export const DeploymentJourney: React.FC<Props> = ({ mode, items, linkTo, itemLinkTo, emptyText }) => {
+export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onChangeSite }) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
   }
@@ -61,34 +56,33 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, linkTo, itemLi
   const ordered = [...items].sort((a, b) => startMs(a.startDate) - startMs(b.startDate));
 
   return (
-    <div className="space-y-3">
-      <ol className="relative ml-2 border-l border-border">
-        {ordered.map((it) => (
-          <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
-            <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
-            <Link
-              to={itemLinkTo ? itemLinkTo(it.id) : linkTo}
-              className="block rounded-md border p-3 text-sm hover:bg-muted/50 transition-colors"
-            >
-              <div className="flex items-center gap-2 font-medium min-w-0">
-                <Icon className="h-4 w-4 text-primary shrink-0" />
-                <span className="truncate">{it.title ?? fallback}</span>
-              </div>
-              <p className="text-muted-foreground mt-1">
-                {fmtDate(it.startDate)} to {it.endDate ? fmtDate(it.endDate) : 'now'}
-              </p>
-              <p className="text-muted-foreground">{it.imageCount.toLocaleString()} images</p>
-            </Link>
-          </li>
-        ))}
-      </ol>
-      <Link
-        to={linkTo}
-        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-      >
-        Open in Deployments
-        <ChevronRight className="h-4 w-4" />
-      </Link>
-    </div>
+    <ol className="relative ml-2 border-l border-border">
+      {ordered.map((it) => (
+        <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
+          <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
+          <div className="rounded-md border p-3 text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <Icon className="h-4 w-4 text-primary shrink-0" />
+              <span className="truncate font-medium flex-1">{it.title ?? fallback}</span>
+              {onChangeSite && (
+                <button
+                  type="button"
+                  onClick={() => onChangeSite(it)}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  aria-label="Change site"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Change site
+                </button>
+              )}
+            </div>
+            <p className="text-muted-foreground mt-1">
+              {fmtDate(it.startDate)} to {it.endDate ? fmtDate(it.endDate) : 'now'}
+            </p>
+            <p className="text-muted-foreground">{it.imageCount.toLocaleString()} images</p>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 };

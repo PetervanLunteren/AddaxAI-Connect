@@ -59,7 +59,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: `/projects/${projectId}/dashboard`, icon: LayoutDashboard, label: 'Dashboard' },
     { to: `/projects/${projectId}/sites`, icon: MapPin, label: 'Sites' },
     { to: `/projects/${projectId}/cameras`, icon: Camera, label: 'Cameras' },
-    { to: `/projects/${projectId}/deployments`, icon: CalendarClock, label: 'Deployments' },
     { to: `/projects/${projectId}/images`, icon: Images, label: 'Images' },
     { to: `/projects/${projectId}/live-feed`, icon: Activity, label: 'Live feed' },
     { to: `/projects/${projectId}/notifications`, icon: Bell, label: 'Notifications' },

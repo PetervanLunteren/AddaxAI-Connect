@@ -2,12 +2,11 @@
 Deployment endpoints.
 
 A deployment is one camera at one site for a time range, with no free-text
-metadata. The only human-editable field is its site assignment. Assigning a
-site (one at a time or in bulk) sets site_source='manual', which records that a
-human chose the site rather than GPS. site_source has no effect on ingestion,
-it only drives the GPS-guessed vs human-confirmed badge and filter on the
-Deployments page. This router serves the project-wide list, the bulk reassign,
-the single PATCH and the thumbnail sample.
+metadata. Deployments are created by ingestion and corrected via the camera
+updates feed; this router serves the project-wide list, the single PATCH used
+by the camera-slideout escape hatch, and the thumbnail sample. Assigning a
+site sets site_source='manual', which records that a human chose the site
+rather than GPS. site_source has no effect on ingestion.
 """
 from typing import List, Optional
 
@@ -20,11 +19,7 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
-from utils.deployment_edits import (
-    merge_camera_contiguous,
-    reassign_deployment_site,
-    recompute_site_location,
-)
+from utils.deployment_edits import reassign_deployment_site
 
 logger = get_logger("api.deployments")
 
@@ -100,90 +95,6 @@ async def list_deployments(
         )
         for r in rows
     ]
-
-
-class BulkAssignSiteRequest(BaseModel):
-    # The deployments to reassign and the site to put them on (null = unassign).
-    # Every deployment must belong to the project; the site, when given, too.
-    deployment_ids: List[int]
-    site_id: Optional[int] = None
-
-
-class BulkAssignSiteResponse(BaseModel):
-    updated: int
-    # How many deployments the reassignment merged away (a camera's adjacent
-    # same-site deployments collapse into one). 0 in the common case.
-    merged: int = 0
-
-
-@router.post("/bulk-site", response_model=BulkAssignSiteResponse)
-async def bulk_assign_site(
-    project_id: int,
-    request: BulkAssignSiteRequest,
-    db: AsyncSession = Depends(get_async_session),
-    user: User = Depends(require_project_admin_access),
-):
-    """
-    Reassign many deployments to one site at once. Like the single PATCH, this is
-    a human correction, so every touched deployment becomes site_source='manual'
-    (marking it human-confirmed for the badge and filter). All-or-nothing: if any
-    deployment is not in the project, or the site is not, nothing changes (404).
-    """
-    if not request.deployment_ids:
-        return BulkAssignSiteResponse(updated=0)
-
-    if request.site_id is not None:
-        site = (
-            await db.execute(
-                select(Site).where(
-                    Site.id == request.site_id, Site.project_id == project_id
-                )
-            )
-        ).scalar_one_or_none()
-        if site is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
-            )
-
-    deployments = (
-        await db.execute(
-            select(Deployment)
-            .join(Camera, Camera.id == Deployment.camera_id)
-            .where(
-                Deployment.id.in_(request.deployment_ids),
-                Camera.project_id == project_id,
-            )
-        )
-    ).scalars().all()
-
-    # A mismatch means some id is missing or in another project. Refuse the whole
-    # batch so a partial reassignment never silently happens.
-    if len(deployments) != len(set(request.deployment_ids)):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="One or more deployments not found in this project",
-        )
-
-    # Sites that lose or gain deployments here all need their pin recomputed.
-    # Capture the cameras before the merge can delete any of these rows.
-    affected_site_ids = {d.site_id for d in deployments}
-    affected_camera_ids = {d.camera_id for d in deployments}
-    for deployment in deployments:
-        deployment.site_id = request.site_id
-        deployment.site_source = 'manual'
-    affected_site_ids.add(request.site_id)
-
-    await db.flush()
-    for sid in affected_site_ids:
-        await recompute_site_location(db, sid)
-
-    # Reassigning may make a camera's deployments contiguous at one site; merge.
-    merged = 0
-    for camera_id in affected_camera_ids:
-        merged += await merge_camera_contiguous(db, camera_id)
-
-    await db.commit()
-    return BulkAssignSiteResponse(updated=len(deployments), merged=merged)
 
 
 class UpdateDeploymentRequest(BaseModel):

@@ -34,11 +34,6 @@ export interface UpdateDeploymentResponse {
   merged: number;
 }
 
-export interface BulkAssignSiteResponse {
-  updated: number;
-  merged: number;
-}
-
 const base = (projectId: number) => `/api/projects/${projectId}/deployments`;
 
 export const deploymentsApi = {
@@ -52,17 +47,6 @@ export const deploymentsApi = {
     body: UpdateDeploymentRequest,
   ): Promise<UpdateDeploymentResponse> => {
     const { data } = await apiClient.patch(`${base(projectId)}/${deploymentId}`, body);
-    return data;
-  },
-  bulkAssignSite: async (
-    projectId: number,
-    deploymentIds: number[],
-    siteId: number | null,
-  ): Promise<BulkAssignSiteResponse> => {
-    const { data } = await apiClient.post(`${base(projectId)}/bulk-site`, {
-      deployment_ids: deploymentIds,
-      site_id: siteId,
-    });
     return data;
   },
   thumbnails: async (
