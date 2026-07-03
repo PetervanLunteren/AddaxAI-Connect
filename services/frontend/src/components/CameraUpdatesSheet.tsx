@@ -342,18 +342,17 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             resolveMutation.mutate({ eventId: dialog.event.id, body: { action: 'not_moved' } });
           }
         }}
-        title="The camera did not move?"
+        title="Are you sure the camera did not move?"
         body={
           dialog.kind === 'not_moved' ? (
             <>
-              The reading was GPS noise. The camera goes back to{' '}
-              <SiteName name={dialog.event.from_site_name} />, together with
-              its images.
+              That means the reading was GPS noise. The camera and its images
+              go back to <SiteName name={dialog.event.from_site_name} />.
             </>
           ) : ''
         }
-        confirmLabel="It did not move"
-        cancelLabel="Keep the move"
+        confirmLabel="Yes, it is GPS noise"
+        cancelLabel="No, cancel"
         isPending={resolveMutation.isPending}
       />
     </>
