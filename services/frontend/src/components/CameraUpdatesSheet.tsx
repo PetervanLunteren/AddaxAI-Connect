@@ -402,18 +402,24 @@ const FeedEntry: React.FC<{
   showDate?: boolean;
   onAction: (kind: 'rename' | 'different_site' | 'new_site' | 'not_moved') => void;
 }> = ({ event: e, projectId, canEdit, showDate = false, onAction }) => {
+  // Entries collapse to their headline so a busy day scans as a list of
+  // one-line stories; everything else (photos, context, actions) shows on
+  // demand. The headline was written to stand alone, so nothing essential
+  // hides. Photos are only fetched once expanded.
+  const [open, setOpen] = useState(false);
+
   // A small photo strip as visual confirmation of where the camera looks.
   // When the entry's deployment was merged away (an undone move), fall back
   // to the camera's recent photos; after an undo that is the same spot.
   const { data: thumbUuids } = useQuery({
     queryKey: ['deployment-thumbnails', projectId, e.deployment_id],
     queryFn: () => deploymentsApi.thumbnails(projectId, e.deployment_id!, 3),
-    enabled: e.deployment_id != null,
+    enabled: open && e.deployment_id != null,
   });
   const { data: cameraThumbs } = useQuery({
     queryKey: ['feed-event-thumbnails', projectId, e.id],
     queryFn: () => feedApi.eventThumbnails(projectId, e.id),
-    enabled: e.deployment_id == null,
+    enabled: open && e.deployment_id == null,
   });
   const thumbs = e.deployment_id != null ? thumbUuids : cameraThumbs;
 
@@ -434,15 +440,27 @@ const FeedEntry: React.FC<{
 
   return (
     <li className="border rounded-md p-3">
-      <div className="flex items-start gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-start gap-2 text-left"
+      >
         <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
         <div className="flex-1 min-w-0">
           <EventHeadline event={e} />
-          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-            <CameraChip event={e} />
-            <span>{showDate ? fmtDateTime(e.created_at) : fmtTime(e.created_at)}</span>
-          </div>
         </div>
+        {open ? (
+          <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+        )}
+      </button>
+
+      {open && (
+        <>
+      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+        <CameraChip event={e} />
+        <span>{showDate ? fmtDateTime(e.created_at) : fmtTime(e.created_at)}</span>
       </div>
 
       {thumbs && thumbs.length > 0 && (
@@ -510,6 +528,8 @@ const FeedEntry: React.FC<{
           </>
         )}
       </div>
+        </>
+      )}
     </li>
   );
 };
