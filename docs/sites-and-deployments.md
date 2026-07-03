@@ -56,11 +56,11 @@ Entries you have seen before fold into "Already seen" at the bottom, grouped by 
 
 Which buttons an entry shows depends on the situation. Only project admins can use them; viewers see the entries without buttons.
 
-- **Show location** opens the camera's spot in Google Maps. It changes nothing.
-- **Name this site** gives a site with a placeholder name a real one. It only shows while the name is still a placeholder. Later renames happen on the Sites page.
-- **Different site** moves the camera to another existing site nearby. It only shows when there is one within 250 metres.
-- **New site** splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed.
-- **It did not move** undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened.
+- **Show location** opens the camera's spot in Google Maps. It changes nothing. Use it when you want to check the spot on a map before you decide anything.
+- **Name this site** gives a site with a placeholder name a real one. It only shows while the name is still a placeholder. Use it when a camera arrived at a spot the app did not know yet. Later renames happen on the Sites page.
+- **Different site** moves the camera to another existing site nearby. It only shows when there is one within 250 metres. Use it when several sites sit close together and the app picked the wrong one.
+- **New site** splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed. Use it when two cameras stand close together but should count as separate places, like both ends of a wildlife bridge.
+- **It did not move** undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened. Use it when the entry shows a move but you know the camera hangs where it always was.
 
 ## Common situations
 
