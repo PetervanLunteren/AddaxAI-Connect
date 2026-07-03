@@ -97,6 +97,17 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
     }
     return <p className="text-sm break-words">A camera moved{dist}.</p>;
   }
+  // The live site name, so a still-placeholder name in the title is itself
+  // the at-a-glance signal that naming is wanted, and a renamed site reads
+  // calm without expanding.
+  const siteName = e.site_name ?? e.original_site_name;
+  if (siteName) {
+    return (
+      <p className="text-sm break-words">
+        A camera started sending images from <SiteName name={siteName} />.
+      </p>
+    );
+  }
   return (
     <p className="text-sm break-words">A new camera started sending images.</p>
   );
