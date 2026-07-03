@@ -80,31 +80,31 @@ const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
   </span>
 );
 
-// First line: what happened.
+// First line: what happened, told by place. People scan site names, not
+// camera ids (a device_id is an IMEI); the id sits in the metadata line as
+// the lookup detail.
 const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   if (e.event_type === 'camera_moved') {
     const dist = e.distance_m != null ? ` about ${fmtDistance(e.distance_m)}` : '';
-    return (
-      <p className="text-sm break-words">
-        Camera <CameraChip event={e} /> moved{dist}.
-      </p>
-    );
+    if (e.from_site_name) {
+      return (
+        <p className="text-sm break-words">
+          A camera at <SiteName name={e.from_site_name} /> moved{dist}.
+        </p>
+      );
+    }
+    return <p className="text-sm break-words">A camera moved{dist}.</p>;
   }
   return (
-    <p className="text-sm break-words">
-      Camera <CameraChip event={e} /> started sending images.
-    </p>
+    <p className="text-sm break-words">A new camera started sending images.</p>
   );
 };
 
 // Context line under the photos: where the camera was put, worded by whether
 // the site was made for it or already existed.
 const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
-  const from = e.from_site_name ? (
-    <>
-      {' '}It was at <SiteName name={e.from_site_name} /> before.
-    </>
-  ) : null;
+  // The headline already names the site a moved camera came from, so the
+  // context only explains where it was put.
   if (e.site_created) {
     // "Automatically named X" is a naming act, so X stays frozen at the name
     // given then. When the site was renamed through some other path (a
@@ -125,7 +125,6 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
             {' '}It is now called <SiteName name={e.site_name} />.
           </>
         )}
-        {from}
       </p>
     );
   }
@@ -143,7 +142,7 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   return (
     <p className="text-sm text-muted-foreground break-words">
       There is already a site nearby, so it was placed at{' '}
-      <SiteName name={placedName} />{away}.{from}
+      <SiteName name={placedName} />{away}.
     </p>
   );
 };
@@ -430,6 +429,7 @@ const FeedEntry: React.FC<{
         <div className="flex-1 min-w-0">
           <EventHeadline event={e} />
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+            <CameraChip event={e} />
             <span>{fmtTime(e.created_at)}</span>
           </div>
         </div>
