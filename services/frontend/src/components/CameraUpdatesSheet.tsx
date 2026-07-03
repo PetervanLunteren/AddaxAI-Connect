@@ -22,7 +22,6 @@ import { useToast } from './ui/Toaster';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { feedApi, type FeedEventItem, type ResolveRequest } from '../api/feed';
 import { deploymentsApi } from '../api/deployments';
-import { imagesApi } from '../api/images';
 
 interface CameraUpdatesSheetProps {
   open: boolean;
@@ -396,20 +395,8 @@ const FeedEntry: React.FC<{
     enabled: e.deployment_id != null,
   });
   const { data: cameraThumbs } = useQuery({
-    queryKey: ['camera-event-thumbnails', e.camera_id, e.id],
-    queryFn: async () => {
-      // Bounded to the event's day so the strip shows what the camera saw
-      // around the time of this entry, and cannot drift to later placements.
-      // show_empty, because the strip is about the camera's view; without it
-      // the API hides images that have no detections (yet).
-      const page = await imagesApi.getAll({
-        camera_id: String(e.camera_id),
-        end_date: e.created_at.slice(0, 10),
-        show_empty: true,
-        limit: 3,
-      });
-      return page.items.map((img) => img.uuid);
-    },
+    queryKey: ['feed-event-thumbnails', projectId, e.id],
+    queryFn: () => feedApi.eventThumbnails(projectId, e.id),
     enabled: e.deployment_id == null,
   });
   const thumbs = e.deployment_id != null ? thumbUuids : cameraThumbs;

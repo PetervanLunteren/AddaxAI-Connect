@@ -23,6 +23,7 @@ project admin.
 """
 import uuid as uuid_module
 from typing import List, Literal, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from geoalchemy2.elements import WKTElement
@@ -34,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.models import Deployment, FeedEvent, FeedSeen, Site, User
+from shared.models import Deployment, FeedEvent, FeedSeen, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
 from utils.deployment_edits import reassign_deployment_site
 from utils.feed import nearby_sites
@@ -217,6 +218,58 @@ async def mark_seen(
         )
     )
     await db.commit()
+
+
+class EventThumbnails(BaseModel):
+    uuids: List[str]
+
+
+@router.get("/{event_id}/thumbnails", response_model=EventThumbnails)
+async def event_thumbnails(
+    project_id: int,
+    event_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    user: User = Depends(require_project_access),
+):
+    """
+    Photos for an entry whose deployment was merged away (an undone move):
+    the camera's newest images up to the event moment. Mirrors the deployment
+    thumbnail rules (hidden and file-less images skipped, processing status
+    irrelevant); the images list endpoint is not usable here because it only
+    returns fully processed images.
+    """
+    event = (
+        await db.execute(
+            select(FeedEvent).where(
+                FeedEvent.id == event_id, FeedEvent.project_id == project_id
+            )
+        )
+    ).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Feed entry not found",
+        )
+
+    # captured_at is camera wall-clock naive under the server timezone;
+    # localize the aware event stamp before comparing (see DEVELOPERS.md).
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+    cutoff = event.created_at.astimezone(tz).replace(tzinfo=None)
+
+    uuids = (
+        await db.execute(
+            select(Image.uuid)
+            .where(
+                Image.camera_id == event.camera_id,
+                Image.is_hidden == False,  # noqa: E712
+                Image.storage_path.isnot(None),
+                Image.captured_at <= cutoff,
+            )
+            .order_by(Image.captured_at.desc())
+            .limit(3)
+        )
+    ).scalars().all()
+    return EventThumbnails(uuids=list(uuids))
 
 
 class ResolveFeedEventRequest(BaseModel):

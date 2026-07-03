@@ -75,4 +75,9 @@ export const feedApi = {
     const { data } = await apiClient.post(`${base(projectId)}/${eventId}/resolve`, body);
     return data;
   },
+  // Photos for an entry whose deployment was merged away (undone move).
+  eventThumbnails: async (projectId: number, eventId: number): Promise<string[]> => {
+    const { data } = await apiClient.get(`${base(projectId)}/${eventId}/thumbnails`);
+    return data.uuids as string[];
+  },
 };
