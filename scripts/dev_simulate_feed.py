@@ -219,6 +219,8 @@ def bridge(pid: int) -> None:
     expect([
         "Four entries, one per camera. The first camera created a site; the",
         "other three snapped onto the same site (they are within 250 m).",
+        "The first entry (the site maker) has no New site button; the other",
+        "three do, since they landed on an existing site.",
         "Rename the shared site to 'Wildlife bridge'.",
         "Then use New site on three of them ('bridge north', 'bridge south',",
         "'bridge west') to split the bridge into per-camera sites.",

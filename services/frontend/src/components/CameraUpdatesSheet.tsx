@@ -62,18 +62,61 @@ function dayHeading(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// One sentence describing what happened. Neutral about whether the site was
-// created or reused, since the entry does not record that.
-function eventText(e: FeedEventItem): string {
-  const camera = e.camera_label ?? `camera ${e.camera_id}`;
-  const site = e.site_name ?? 'an unnamed site';
+// Camera ids are hardware identifiers (often IMEIs), shown as a code chip so
+// they read apart from prose and from site names.
+const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
+  <code className="px-1 py-0.5 rounded bg-muted text-[13px]">
+    {e.camera_label ?? `camera ${e.camera_id}`}
+  </code>
+);
+
+const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
+  <span className="font-medium">{name ?? 'an unnamed site'}</span>
+);
+
+// First line: what happened.
+const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   if (e.event_type === 'camera_moved') {
     const dist = e.distance_m != null ? ` about ${fmtDistance(e.distance_m)}` : '';
-    const from = e.from_site_name ? ` It was at ${e.from_site_name} before.` : '';
-    return `Camera ${camera} moved${dist}. It is now at ${site}.${from}`;
+    return (
+      <p className="text-sm break-words">
+        Camera <CameraChip event={e} /> moved{dist}.
+      </p>
+    );
   }
-  return `Camera ${camera} started sending images. It was placed at ${site}.`;
-}
+  return (
+    <p className="text-sm break-words">
+      Camera <CameraChip event={e} /> started sending images.
+    </p>
+  );
+};
+
+// Context line under the photos: where the camera is now, worded by whether
+// the site was made for it or already existed.
+const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
+  const from = e.from_site_name ? (
+    <>
+      {' '}It was at <SiteName name={e.from_site_name} /> before.
+    </>
+  ) : null;
+  if (e.site_created) {
+    return (
+      <p className="text-sm text-muted-foreground break-words">
+        A new site was made at its location and automatically named{' '}
+        <SiteName name={e.site_name} />.{from}
+      </p>
+    );
+  }
+  // Distance from the deployment to the assigned site, when known via the
+  // candidate list (candidates include the assigned site).
+  const own = e.candidates.find((c) => c.site_id === e.site_id);
+  const away = own && own.distance_m > 0 ? ` (${fmtDistance(own.distance_m)} away)` : '';
+  return (
+    <p className="text-sm text-muted-foreground break-words">
+      It was placed at the existing site <SiteName name={e.site_name} />{away}.{from}
+    </p>
+  );
+};
 
 export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   open, onClose, projectId, canEdit,
@@ -258,7 +301,7 @@ const FeedEntry: React.FC<{
       <div className="flex items-start gap-2">
         <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm break-words">{eventText(e)}</p>
+          <EventHeadline event={e} />
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
             <span>{fmtTime(e.created_at)}</span>
             {e.resolved_action && (
@@ -283,6 +326,10 @@ const FeedEntry: React.FC<{
         </div>
       )}
 
+      <div className="mt-2">
+        <EventContext event={e} />
+      </div>
+
       {actionable && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {e.site_id != null && (
@@ -295,9 +342,13 @@ const FeedEntry: React.FC<{
               Different site
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => onAction('new_site')}>
-            New site
-          </Button>
+          {/* On a site made for this camera, "new site" would equal renaming
+              it, so it only shows when the camera landed on an existing site. */}
+          {!e.site_created && (
+            <Button size="sm" variant="outline" onClick={() => onAction('new_site')}>
+              New site
+            </Button>
+          )}
           {e.event_type === 'camera_moved' && e.from_site_id != null && (
             <Button size="sm" variant="outline" onClick={() => onAction('not_moved')}>
               It did not move

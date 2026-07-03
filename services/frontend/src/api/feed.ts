@@ -25,6 +25,9 @@ export interface FeedEventItem {
   from_site_id: number | null;
   from_site_name: string | null;
   distance_m: number | null;
+  // Whether the site was auto-created for this event. The "new site" action
+  // only shows when it was not (on a fresh site it equals renaming it).
+  site_created: boolean;
   deployment_id: number | null;
   // Sites within the threshold of the deployment location, nearest first.
   candidates: FeedCandidate[];

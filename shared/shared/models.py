@@ -611,6 +611,10 @@ class FeedEvent(Base):
     # Where the camera stood before a move. NULL for camera_first_seen.
     from_site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
     distance_m = Column(Float, nullable=True)  # move distance; NULL for camera_first_seen
+    # Whether the site was auto-created for this deployment (vs an existing
+    # site reused). Drives the entry copy, and the "new site" action only
+    # shows when the site already existed.
+    site_created = Column(Boolean, nullable=False, server_default='false')
     # Server wall-clock (aware UTC), the feed sort key and unseen-badge cutoff.
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     # Which action a human took on this entry, if any. Re-resolving is allowed

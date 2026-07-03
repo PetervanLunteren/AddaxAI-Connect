@@ -66,6 +66,9 @@ class FeedEventItem(BaseModel):
     from_site_id: Optional[int] = None
     from_site_name: Optional[str] = None
     distance_m: Optional[float] = None
+    # Whether the site was auto-created for this event. The "new site" action
+    # only shows when it was not (on a fresh site it equals renaming it).
+    site_created: bool = False
     # For thumbnails and the deployment-bound actions; null once the
     # deployment was merged away.
     deployment_id: Optional[int] = None
@@ -90,7 +93,7 @@ async def list_feed(
                        c.device_id AS camera_label,
                        e.site_id, s.name AS site_name,
                        e.from_site_id, fs.name AS from_site_name,
-                       e.distance_m, e.deployment_id,
+                       e.distance_m, e.site_created, e.deployment_id,
                        e.resolved_action, e.resolved_at,
                        ST_Y(d.location::geometry) AS dep_lat,
                        ST_X(d.location::geometry) AS dep_lon
@@ -138,6 +141,7 @@ async def list_feed(
             from_site_id=r["from_site_id"],
             from_site_name=r["from_site_name"],
             distance_m=r["distance_m"],
+            site_created=r["site_created"],
             deployment_id=r["deployment_id"],
             candidates=[FeedCandidate(**c) for c in candidates],
             resolved_action=r["resolved_action"],
@@ -285,6 +289,7 @@ async def resolve_event(
         await _site_in_project(db, project_id, request.site_id)
         merged = await reassign_deployment_site(db, deployment, request.site_id)
         event.site_id = request.site_id
+        event.site_created = False
 
     elif request.action == 'new_site':
         name = _required_name(request)
@@ -318,6 +323,9 @@ async def resolve_event(
             )
         merged = await reassign_deployment_site(db, deployment, site.id)
         event.site_id = site.id
+        # The entry now points at a site that was made for this camera, so
+        # its copy should read as such (and the new-site button goes away).
+        event.site_created = True
 
     else:  # not_moved
         if event.from_site_id is None:
@@ -331,6 +339,7 @@ async def resolve_event(
         # with its predecessor, so the merge folds it (and its images) back.
         merged = await reassign_deployment_site(db, deployment, event.from_site_id)
         event.site_id = event.from_site_id
+        event.site_created = False
 
     event.resolved_action = request.action
     event.resolved_at = func.now()

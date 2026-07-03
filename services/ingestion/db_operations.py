@@ -162,6 +162,7 @@ def _record_feed_event(
     event_type: str,
     deployment_id: int,
     site_id: Optional[int],
+    site_created: bool,
     from_site_id: Optional[int] = None,
     distance_m: Optional[float] = None,
 ) -> None:
@@ -180,6 +181,7 @@ def _record_feed_event(
         event_type=event_type,
         deployment_id=deployment_id,
         site_id=site_id,
+        site_created=site_created,
         from_site_id=from_site_id,
         distance_m=distance_m,
     ))
@@ -190,12 +192,14 @@ def _resolve_site(
     project_id: Optional[int],
     lat: float,
     lon: float,
-) -> Optional[int]:
+) -> Tuple[Optional[int], bool]:
     """
-    Return the id of the nearest site within SITE_THRESHOLD_METERS of (lat, lon)
-    in this project, creating one if none is close enough. Returns None when the
-    camera has no project, since sites are project-scoped (the deployment then
-    stays site-less, matching the pre-site behaviour).
+    Return (site_id, created) for the nearest site within SITE_THRESHOLD_METERS
+    of (lat, lon) in this project, creating one if none is close enough.
+    site_id is None when the camera has no project, since sites are
+    project-scoped (the deployment then stays site-less, matching the pre-site
+    behaviour). `created` says whether the site was made here; the feed entry
+    words itself with it.
 
     Plain nearest-site, no per-camera history. Fieldworkers pick cameras from
     the truck at random, so a camera's previous site does not predict its next
@@ -204,7 +208,7 @@ def _resolve_site(
     one case that needs that correction).
     """
     if project_id is None:
-        return None
+        return None, False
 
     wkt = f"POINT({lon} {lat})"
 
@@ -220,7 +224,7 @@ def _resolve_site(
     ).fetchone()
 
     if nearest and nearest.dist <= SITE_THRESHOLD_METERS:
-        return nearest.id
+        return nearest.id, False
 
     site_id = session.execute(
         text("""
@@ -241,7 +245,7 @@ def _resolve_site(
         project_id=project_id,
         location=f"({lat:.6f}, {lon:.6f})",
     )
-    return site_id
+    return site_id, True
 
 
 def _recompute_site_location(session, site_id: Optional[int]) -> None:
@@ -350,7 +354,7 @@ def update_or_create_site_and_deployment(
                 # work) from the current GPS. site_source is only a label of who
                 # set the site, it does not gate this.
                 if active.site_id is None:
-                    active.site_id = _resolve_site(session, project_id, new_lat, new_lon)
+                    active.site_id, _ = _resolve_site(session, project_id, new_lat, new_lon)
                     session.flush()
                     _recompute_site_location(session, active.site_id)
                 if event_date < active.start_date:
@@ -470,7 +474,7 @@ def update_or_create_site_and_deployment(
             distance_m = None
             log_msg = "Creating new deployment for camera"
 
-        site_id = _resolve_site(session, project_id, new_lat, new_lon)
+        site_id, site_created = _resolve_site(session, project_id, new_lat, new_lon)
         deployment_id = _insert_deployment(
             session, camera_id, next_number, site_id, new_start_date, new_lat, new_lon
         )
@@ -483,6 +487,7 @@ def update_or_create_site_and_deployment(
             event_type=event_type,
             deployment_id=deployment_id,
             site_id=site_id,
+            site_created=site_created,
             from_site_id=from_site_id,
             distance_m=distance_m,
         )
