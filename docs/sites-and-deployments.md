@@ -14,7 +14,7 @@ The cutoff is 250 metres because GPS is noisy. The noise was measured on 7257 ph
 
 *Distance of each photo's GPS from the camera's true spot, for 25 cameras that never moved. Almost all readings fall within a few metres. The worst was 215 metres, and the 250 metre cutoff stays past all of it.*
 
-When a camera sends its first photo, the app looks for a site within 250 metres. If one exists, the camera is placed on it. If not, a new site is made and named after its coordinates, for example "Site at 53.2460, 5.2620". That name is a placeholder. You give it a real name in the camera updates panel.
+When a camera sends its first photo, the app looks for a site within 250 metres. If one exists, the camera is placed on it. If not, a new site is made and named after its coordinates, for example "Site at 53.2460, 5.2620". That name is a placeholder. You give it a real name manually in the app.
 
 When a later photo arrives from more than 250 metres away, the camera has probably moved. One odd reading is not enough. A move must be confirmed by a second reading near the new spot, otherwise the reading is treated as noise and nothing happens. After a confirmed move the camera is placed on the nearest site at the new spot, or a new site is made there.
 
