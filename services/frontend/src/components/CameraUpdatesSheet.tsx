@@ -98,23 +98,30 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
 };
 
 // Context line under the photos: where the camera was put, worded by whether
-// the site was made for it or already existed. Uses the name frozen at event
-// time; a later rename shows up in the resolution line, not here.
+// the site was made for it or already existed.
 const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
-  const nameAtEvent = e.original_site_name ?? e.site_name;
   const from = e.from_site_name ? (
     <>
       {' '}It was at <SiteName name={e.from_site_name} /> before.
     </>
   ) : null;
   if (e.site_created) {
+    // "Automatically named X" is a naming act, so X stays frozen at the name
+    // given then; a later rename shows in the resolution line, not here.
     return (
       <p className="text-sm text-muted-foreground break-words">
         There is no known site there, so a new one was made and automatically
-        named <SiteName name={nameAtEvent} />.{from}
+        named <SiteName name={e.original_site_name ?? e.site_name} />.{from}
       </p>
     );
   }
+  // "Placed at X" refers to the site as a place, so it follows the live name
+  // (a rename from a sibling entry propagates here). Once this entry itself
+  // was corrected, site_id points at the outcome, so the frozen name takes
+  // over as history and the resolution line explains the change.
+  const placedName = e.resolved_action
+    ? e.original_site_name ?? e.site_name
+    : e.site_name ?? e.original_site_name;
   // Distance from the deployment to the assigned site, when known via the
   // candidate list (candidates include the assigned site).
   const own = e.candidates.find((c) => c.site_id === e.site_id);
@@ -122,7 +129,7 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   return (
     <p className="text-sm text-muted-foreground break-words">
       There is already a site nearby, so it was placed at{' '}
-      <SiteName name={nameAtEvent} />{away}.{from}
+      <SiteName name={placedName} />{away}.{from}
     </p>
   );
 };
