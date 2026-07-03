@@ -468,7 +468,7 @@ const FeedEntry: React.FC<{
             {e.site_id != null && autoNamed && (
               <EntryAction
                 label="Name this site"
-                caption="The name is a placeholder. Give it a real one."
+                caption={`"${e.site_name}" is a placeholder. Give it a real name.`}
                 onClick={() => onAction('rename')}
               />
             )}
