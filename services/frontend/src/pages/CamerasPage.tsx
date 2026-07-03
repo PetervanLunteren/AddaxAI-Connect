@@ -19,6 +19,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   ChevronDown,
+  Route,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -98,6 +99,8 @@ import {
 } from '../components/cameras/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { useToast } from '../components/ui/Toaster';
+import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
+import { feedApi } from '../api/feed';
 import {
   CAMERA_COLUMNS,
   loadVisibleColumns,
@@ -145,6 +148,8 @@ export const CamerasPage: React.FC = () => {
   // Side panel state
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
+  // Camera updates slideout (the feed of automatic site decisions).
+  const [showUpdates, setShowUpdates] = useState(false);
   // Single-camera delete requested from the detail sheet (server admins).
   const [cameraToDelete, setCameraToDelete] = useState<{ id: number; name: string } | null>(null);
 
@@ -235,6 +240,14 @@ export const CamerasPage: React.FC = () => {
   const { data: cameras, isLoading } = useQuery({
     queryKey: ['cameras', currentProject?.id],
     queryFn: () => camerasApi.getAll(currentProject?.id),
+    enabled: !!currentProject,
+  });
+
+  // Unseen camera updates for the header button. Shares the query key with
+  // the sidebar badge, so both clear together when the sheet marks seen.
+  const { data: unseenUpdates } = useQuery({
+    queryKey: ['feed-unseen', currentProject?.id],
+    queryFn: () => feedApi.unseen(currentProject!.id),
     enabled: !!currentProject,
   });
 
@@ -840,8 +853,20 @@ export const CamerasPage: React.FC = () => {
             Monitor camera health, battery levels, and connectivity status
           </p>
         </div>
-        {isServerAdmin && (
-          <div className="flex gap-2 self-start">
+        <div className="flex gap-2 self-start">
+          <Button variant="outline" className="whitespace-nowrap" onClick={() => setShowUpdates(true)}>
+            <Route className="h-4 w-4 mr-2" />
+            Updates
+            {(unseenUpdates ?? 0) > 0 && (
+              <span
+                className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                style={{ backgroundColor: '#71b7ba', color: 'white' }}
+              >
+                {unseenUpdates}
+              </span>
+            )}
+          </Button>
+          {isServerAdmin && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button className="whitespace-nowrap">
@@ -861,8 +886,8 @@ export const CamerasPage: React.FC = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Needs attention. Page-wide counts of cameras that want a visit,
@@ -1087,6 +1112,16 @@ export const CamerasPage: React.FC = () => {
         <div className="flex items-center justify-center py-8">
           <p className="text-muted-foreground">No cameras registered yet.</p>
         </div>
+      )}
+
+      {/* Camera updates feed (automatic site decisions, with corrections) */}
+      {currentProject && (
+        <CameraUpdatesSheet
+          open={showUpdates}
+          onClose={() => setShowUpdates(false)}
+          projectId={currentProject.id}
+          canEdit={canAdminCurrentProject}
+        />
       )}
 
       {/* Camera Detail Side Panel */}
