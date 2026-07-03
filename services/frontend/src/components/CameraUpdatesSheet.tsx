@@ -409,7 +409,12 @@ const FeedEntry: React.FC<{
   // site has a real name, renaming belongs to the site slideout, not here.
   // Matches the auto-name format from ingestion ("Site at 53.2460, 5.2620").
   const autoNamed = /^Site at -?\d+\.\d+, -?\d+\.\d+$/.test(e.site_name ?? '');
-  const actionable = canEdit && e.deployment_id != null;
+  // Resolution is terminal in the feed: one action closes the entry and every
+  // button goes away. Late corrections live in the site slideout and the
+  // camera slideout, not here. (A generic undo was considered and rejected:
+  // two of the four actions merge deployments, which destroys the information
+  // an undo would need.)
+  const actionable = canEdit && e.deployment_id != null && !e.resolved_action;
 
   return (
     <li className="border rounded-md p-3">
