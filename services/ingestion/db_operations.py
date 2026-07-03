@@ -1,7 +1,6 @@
 """
 Database operations for ingestion service
 """
-import math
 import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -11,12 +10,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.orm.attributes import flag_modified
 from shared.database import get_db_session
-from shared.models import Camera, Deployment, CameraHealthReport, Image, Rejection, ServerSettings
+from shared.models import Camera, Deployment, CameraHealthReport, FeedEvent, Image, Rejection, ServerSettings
 from shared.logger import get_logger
 from shared.geo import (
     SITE_THRESHOLD_METERS,
     RELOCATION_CONFIRMATIONS,
     RECOMPUTE_SITE_LOCATION_SQL,
+    calculate_gps_distance,
     next_mean_pin,
 )
 from utils import is_valid_gps
@@ -155,41 +155,34 @@ def delete_old_rejections(retention_days: int = 30) -> int:
     return deleted
 
 
-def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+def _record_feed_event(
+    session,
+    project_id: Optional[int],
+    camera_id: int,
+    event_type: str,
+    deployment_id: int,
+    site_id: Optional[int],
+    from_site_id: Optional[int] = None,
+    distance_m: Optional[float] = None,
+) -> None:
     """
-    Calculate distance between two GPS points using Haversine formula.
+    Write one camera-updates feed entry for a just-created deployment.
 
-    Args:
-        lat1: Latitude of point 1 (degrees)
-        lon1: Longitude of point 1 (degrees)
-        lat2: Latitude of point 2 (degrees)
-        lon2: Longitude of point 2 (degrees)
-
-    Returns:
-        Distance in meters
-
-    Raises:
-        ValueError: If coordinates are out of valid range
+    Entries report what the system already did (a camera appeared, or a
+    confirmed relocation opened a new deployment); they never gate ingestion.
+    Skipped when the camera has no project, since the feed is project-scoped.
     """
-    # Validate coordinates
-    if not (-90 <= lat1 <= 90) or not (-90 <= lat2 <= 90):
-        raise ValueError(f"Latitude must be in [-90, 90]: {lat1}, {lat2}")
-    if not (-180 <= lon1 <= 180) or not (-180 <= lon2 <= 180):
-        raise ValueError(f"Longitude must be in [-180, 180]: {lon1}, {lon2}")
-
-    # Haversine formula
-    R = 6371000  # Earth radius in meters
-
-    lat1_rad = math.radians(lat1)
-    lat2_rad = math.radians(lat2)
-    delta_lat = math.radians(lat2 - lat1)
-    delta_lon = math.radians(lon2 - lon1)
-
-    a = math.sin(delta_lat / 2) ** 2 + \
-        math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-    return R * c
+    if project_id is None:
+        return
+    session.add(FeedEvent(
+        project_id=project_id,
+        camera_id=camera_id,
+        event_type=event_type,
+        deployment_id=deployment_id,
+        site_id=site_id,
+        from_site_id=from_site_id,
+        distance_m=distance_m,
+    ))
 
 
 def _resolve_site(
@@ -461,12 +454,20 @@ def update_or_create_site_and_deployment(
             active.end_date = max(first_date - timedelta(days=1), active.start_date)
             next_number = active.deployment_number + 1
             new_start_date = first_date
+            event_type = 'camera_moved'
+            from_site_id = active.site_id
+            distance_m = round(distance, 1)
             log_msg = "Camera relocated - creating new deployment"
         else:
             max_number = session.query(
                 func.max(Deployment.deployment_number)
             ).filter(Deployment.camera_id == camera_id).scalar()
             next_number = 1 if max_number is None else max_number + 1
+            # No active deployment means the camera was nowhere, so this is an
+            # appearance, not a move, even if closed (bulk) deployments exist.
+            event_type = 'camera_first_seen'
+            from_site_id = None
+            distance_m = None
             log_msg = "Creating new deployment for camera"
 
         site_id = _resolve_site(session, project_id, new_lat, new_lon)
@@ -475,6 +476,16 @@ def update_or_create_site_and_deployment(
         )
         session.flush()
         _recompute_site_location(session, site_id)
+        _record_feed_event(
+            session,
+            project_id=project_id,
+            camera_id=camera_id,
+            event_type=event_type,
+            deployment_id=deployment_id,
+            site_id=site_id,
+            from_site_id=from_site_id,
+            distance_m=distance_m,
+        )
         logger.info(
             log_msg,
             camera_id=camera_id,

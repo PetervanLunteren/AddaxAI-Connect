@@ -1,6 +1,7 @@
 """
 Shared geographic constants and helpers for the spatial model.
 """
+import math
 
 # The single distance threshold that drives sites and deployments.
 #
@@ -29,6 +30,32 @@ SITE_THRESHOLD_METERS = 250.0
 # case; the cost is that a real move sending only one reading before the camera
 # dies attaches to the old deployment. See update_or_create_site_and_deployment.
 RELOCATION_CONFIRMATIONS = 2
+
+def calculate_gps_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Distance in meters between two GPS points (Haversine).
+
+    Raises:
+        ValueError: If coordinates are out of valid range
+    """
+    if not (-90 <= lat1 <= 90) or not (-90 <= lat2 <= 90):
+        raise ValueError(f"Latitude must be in [-90, 90]: {lat1}, {lat2}")
+    if not (-180 <= lon1 <= 180) or not (-180 <= lon2 <= 180):
+        raise ValueError(f"Longitude must be in [-180, 180]: {lon1}, {lon2}")
+
+    R = 6371000  # Earth radius in meters
+
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+
+    a = math.sin(delta_lat / 2) ** 2 + \
+        math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return R * c
+
 
 def next_mean_pin(
     lat: float, lon: float, count: int, new_lat: float, new_lon: float

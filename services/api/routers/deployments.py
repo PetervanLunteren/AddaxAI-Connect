@@ -17,17 +17,14 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
-from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
-from shared.deployments import (
-    DEPLOYMENT_MERGE_GAP_DAYS,
-    FIND_NEXT_MERGEABLE_PAIR_SQL,
-    EXTEND_EARLIER_SQL,
-    RELINK_IMAGES_SQL,
-    DELETE_LATER_SQL,
-)
 from shared.logger import get_logger
 from shared.models import Camera, Deployment, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
+from utils.deployment_edits import (
+    merge_camera_contiguous,
+    reassign_deployment_site,
+    recompute_site_location,
+)
 
 logger = get_logger("api.deployments")
 
@@ -35,41 +32,6 @@ router = APIRouter(
     prefix="/api/projects/{project_id}/deployments",
     tags=["deployments"],
 )
-
-
-async def _recompute_site_location(db: AsyncSession, site_id: Optional[int]) -> None:
-    """Reset a site's pin to the centroid of its deployments. No-op when site_id
-    is None or the site has no deployments."""
-    if site_id is None:
-        return
-    await db.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": site_id})
-
-
-async def _merge_camera_contiguous(db: AsyncSession, camera_id: int) -> int:
-    """Async twin of shared.deployments.merge_camera_contiguous: merge a camera's
-    contiguous same-site deployments and recompute the affected sites, returning
-    how many were merged away. Same SQL as the sync helper, run on the request's
-    own session so the merge is atomic with the reassignment that triggered it."""
-    merged = 0
-    affected_sites: set[int] = set()
-    while True:
-        pair = (
-            await db.execute(
-                text(FIND_NEXT_MERGEABLE_PAIR_SQL),
-                {"camera_id": camera_id, "gap_days": DEPLOYMENT_MERGE_GAP_DAYS},
-            )
-        ).mappings().first()
-        if pair is None:
-            break
-        params = {"earlier": pair["earlier_id"], "later": pair["later_id"]}
-        await db.execute(text(EXTEND_EARLIER_SQL), params)
-        await db.execute(text(RELINK_IMAGES_SQL), params)
-        await db.execute(text(DELETE_LATER_SQL), {"later": pair["later_id"]})
-        affected_sites.add(pair["site_id"])
-        merged += 1
-    for site_id in affected_sites:
-        await _recompute_site_location(db, site_id)
-    return merged
 
 
 class DeploymentListItem(BaseModel):
@@ -215,12 +177,12 @@ async def bulk_assign_site(
 
     await db.flush()
     for sid in affected_site_ids:
-        await _recompute_site_location(db, sid)
+        await recompute_site_location(db, sid)
 
     # Reassigning may make a camera's deployments contiguous at one site; merge.
     merged = 0
     for camera_id in affected_camera_ids:
-        merged += await _merge_camera_contiguous(db, camera_id)
+        merged += await merge_camera_contiguous(db, camera_id)
 
     await db.commit()
     return BulkAssignSiteResponse(updated=len(deployments), merged=merged)
@@ -269,8 +231,6 @@ async def update_deployment(
         )
 
     deployment: Deployment = row[0]
-    old_site_id = deployment.site_id
-    camera_id = deployment.camera_id
 
     # site_id is meaningful even when null (unassign), so act on its presence in
     # the request, not on its value. Any human assignment marks the deployment
@@ -293,17 +253,9 @@ async def update_deployment(
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND, detail="Site not found",
                 )
-        deployment.site_id = request.site_id
-        deployment.site_source = 'manual'
-        # The old and new site both change membership, so recompute both pins.
-        await db.flush()
-        await _recompute_site_location(db, old_site_id)
-        await _recompute_site_location(db, request.site_id)
-        # The reassignment may make this camera's deployments contiguous at one
-        # site (e.g. the edited one now sits between two same-site neighbours).
-        # Merge them. This can delete the edited deployment itself, which is why
-        # we no longer refresh and return it.
-        merged = await _merge_camera_contiguous(db, camera_id)
+        # The merge inside can delete the edited deployment itself, which is
+        # why we no longer refresh and return it.
+        merged = await reassign_deployment_site(db, deployment, request.site_id)
     elif 'label' in request.model_fields_set:
         await db.flush()
 

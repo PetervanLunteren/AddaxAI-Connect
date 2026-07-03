@@ -16,10 +16,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.database import get_async_session
-from shared.geo import RECOMPUTE_SITE_LOCATION_SQL
 from shared.logger import get_logger
 from shared.models import Site, Deployment, User
 from auth.permissions import require_project_access, require_project_admin_access
+from utils.deployment_edits import recompute_site_location
 
 logger = get_logger("api.sites")
 
@@ -27,14 +27,6 @@ router = APIRouter(
     prefix="/api/projects/{project_id}/sites",
     tags=["sites"],
 )
-
-
-async def _recompute_site_location(db: AsyncSession, site_id: Optional[int]) -> None:
-    """Reset a site's pin to the centroid of its deployments. No-op when site_id
-    is None or the site has no deployments."""
-    if site_id is None:
-        return
-    await db.execute(text(RECOMPUTE_SITE_LOCATION_SQL), {"site_id": site_id})
 
 
 class SiteListItem(BaseModel):
@@ -356,7 +348,7 @@ async def merge_site(
     await db.delete(source)
     # The target absorbed the source's deployments, so recompute its pin.
     await db.flush()
-    await _recompute_site_location(db, target.id)
+    await recompute_site_location(db, target.id)
     await db.commit()
     logger.info(
         "Merged site",

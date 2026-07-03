@@ -591,6 +591,54 @@ class Rejection(Base):
     )
 
 
+class FeedEvent(Base):
+    """
+    One entry in a project's camera updates feed.
+
+    Written by ingestion when a deployment is created: a camera sent its first
+    image (camera_first_seen), or a confirmed relocation opened a new
+    deployment (camera_moved). Entries report what the system already did;
+    they never block ingestion and ignoring them is harmless. A project admin
+    can act on an entry (rename the site, pick another site, split off a new
+    site, or undo a move), which stamps the resolved_* columns.
+    """
+    __tablename__ = "feed_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String(30), nullable=False)  # 'camera_first_seen' | 'camera_moved'
+    # The deployment the event created and the site it was put on. SET NULL
+    # so entries survive later merges and site deletions (they then render
+    # read-only where an action needs the missing row).
+    deployment_id = Column(Integer, ForeignKey("deployments.id", ondelete="SET NULL"), nullable=True)
+    site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
+    # Where the camera stood before a move. NULL for camera_first_seen.
+    from_site_id = Column(Integer, ForeignKey("sites.id", ondelete="SET NULL"), nullable=True)
+    distance_m = Column(Float, nullable=True)  # move distance; NULL for camera_first_seen
+    # Server wall-clock (aware UTC), the feed sort key and unseen-badge cutoff.
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    # Which action a human took on this entry, if any. Re-resolving is allowed
+    # (a user can change their mind); the last action wins.
+    resolved_action = Column(String(20), nullable=True)  # 'rename_site' | 'set_site' | 'new_site' | 'not_moved'
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    resolved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
+class FeedSeen(Base):
+    """
+    When a user last opened a project's camera updates feed. Drives the unseen
+    badge: events created after this count as unseen. Its own table rather
+    than a project_memberships column because server admins access projects
+    without a membership row.
+    """
+    __tablename__ = "feed_seen"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    last_seen_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class TelegramConfig(Base):
     """System-wide Telegram bot configuration (admin only, single row)"""
     __tablename__ = "telegram_config"
