@@ -312,7 +312,9 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   }
 
   // The archive groups into coarse relative buckets. Input is newest first,
-  // so the buckets come out in Today .. Earlier order by construction.
+  // so the buckets come out in Today .. Earlier order by construction. One
+  // ordering rule for the whole panel: groups newest first, entries inside
+  // every group in the order they happened.
   const earlierGroups: { heading: string; items: FeedEventItem[] }[] = [];
   for (const e of earlier) {
     const heading = archiveBucket(e.created_at);
@@ -322,6 +324,9 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     } else {
       earlierGroups.push({ heading, items: [e] });
     }
+  }
+  for (const group of earlierGroups) {
+    group.items.reverse();
   }
 
   const renderEntry = (e: FeedEventItem) => (
