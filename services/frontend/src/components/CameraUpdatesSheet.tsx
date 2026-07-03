@@ -66,6 +66,28 @@ function dayHeading(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+// Bucket for the archive: coarse relative ranges, since "some time last
+// week" is how people remember old entries. Cascading, each bucket takes
+// what the previous ones did not; weeks start on Monday.
+function archiveBucket(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Earlier';
+  const today = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const day = startOfDay(d).getTime();
+  const todayStart = startOfDay(today).getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  if (day === todayStart) return 'Today';
+  if (day === todayStart - DAY) return 'Yesterday';
+  const monday = startOfDay(today);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  if (day >= monday.getTime()) return 'This week';
+  if (day >= monday.getTime() - 7 * DAY) return 'Last week';
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+  if (day >= monthStart) return 'This month';
+  return 'Earlier';
+}
+
 // Names are marked by weight alone, inheriting the sentence's color; the
 // sentence itself types them ("a camera at X", "placed at Y"). Icons stacked
 // up as noise here (see the metadata line for the one that stays).
@@ -275,6 +297,19 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     group.items.reverse();
   }
 
+  // The archive groups into coarse relative buckets. Input is newest first,
+  // so the buckets come out in Today .. Earlier order by construction.
+  const earlierGroups: { heading: string; items: FeedEventItem[] }[] = [];
+  for (const e of earlier) {
+    const heading = archiveBucket(e.created_at);
+    const last = earlierGroups[earlierGroups.length - 1];
+    if (last && last.heading === heading) {
+      last.items.push(e);
+    } else {
+      earlierGroups.push({ heading, items: [e] });
+    }
+  }
+
   const renderEntry = (e: FeedEventItem) => (
     <FeedEntry
       key={e.id}
@@ -338,9 +373,12 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                   )}
                   Earlier ({earlier.length})
                 </button>
-                {earlierOpen && (
-                  <ul className="mt-2 space-y-3">{earlier.map(renderEntry)}</ul>
-                )}
+                {earlierOpen && earlierGroups.map((group) => (
+                  <div key={group.heading} className="mt-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">{group.heading}</p>
+                    <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
+                  </div>
+                ))}
               </div>
             )}
           </SheetBody>
