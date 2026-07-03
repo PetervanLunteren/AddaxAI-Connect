@@ -297,10 +297,10 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
 
       {dialog.kind === 'rename' && (
         <NameDialog
-          title="Rename site"
-          description={<>Give <SiteName name={dialog.event.site_name} /> a better name.</>}
+          title="Name this site"
+          description={<>Give <SiteName name={dialog.event.site_name} /> a real name.</>}
           initialName={dialog.event.site_name ?? ''}
-          confirmLabel="Rename"
+          confirmLabel="Save name"
           isPending={resolveMutation.isPending}
           onClose={() => setDialog({ kind: 'closed' })}
           onConfirm={(name) =>
@@ -412,47 +412,71 @@ const FeedEntry: React.FC<{
         <ResolutionLine event={e} />
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 space-y-1.5">
         {/* Not a correction, so it shows for viewers too. */}
         {e.site_lat != null && e.site_lon != null && (
-          <Button
-            size="sm"
-            variant="outline"
+          <EntryAction
+            label="Show location"
+            caption="Open this spot in Google Maps."
             onClick={() => window.open(`https://www.google.com/maps?q=${e.site_lat},${e.site_lon}`, '_blank')}
-          >
-            Show location
-          </Button>
+          />
         )}
         {actionable && (
           <>
-          {e.site_id != null && autoNamed && (
-            <Button size="sm" variant="outline" onClick={() => onAction('rename')}>
-              Rename site
-            </Button>
-          )}
-          {hasAlternatives && (
-            <Button size="sm" variant="outline" onClick={() => onAction('different_site')}>
-              Different site
-            </Button>
-          )}
-          {/* On a site made for this camera, "new site" would equal renaming
-              it, so it only shows when the camera landed on an existing site. */}
-          {!e.site_created && (
-            <Button size="sm" variant="outline" onClick={() => onAction('new_site')}>
-              New site
-            </Button>
-          )}
-          {e.event_type === 'camera_moved' && e.from_site_id != null && (
-            <Button size="sm" variant="outline" onClick={() => onAction('not_moved')}>
-              It did not move
-            </Button>
-          )}
+            {e.site_id != null && autoNamed && (
+              <EntryAction
+                label="Name this site"
+                caption="The name is a placeholder. Give it a real one."
+                onClick={() => onAction('rename')}
+              />
+            )}
+            {hasAlternatives && (
+              <EntryAction
+                label="Different site"
+                caption="The camera actually stands at another site nearby."
+                onClick={() => onAction('different_site')}
+              />
+            )}
+            {/* On a site made for this camera, "new site" would equal renaming
+                it, so it only shows when the camera landed on an existing site. */}
+            {!e.site_created && (
+              <EntryAction
+                label="New site"
+                caption="This spot should be its own site, apart from the one picked."
+                onClick={() => onAction('new_site')}
+              />
+            )}
+            {e.event_type === 'camera_moved' && e.from_site_id != null && (
+              <EntryAction
+                label="It did not move"
+                caption="The move was GPS noise. Put the camera and its images back."
+                onClick={() => onAction('not_moved')}
+              />
+            )}
           </>
         )}
       </div>
     </li>
   );
 };
+
+// One full-width action row: what to do, and one line on when to do it.
+const EntryAction: React.FC<{
+  label: string;
+  caption: string;
+  onClick: () => void;
+}> = ({ label, caption, onClick }) => (
+  <Button
+    variant="outline"
+    onClick={onClick}
+    className="w-full h-auto py-2 justify-start"
+  >
+    <span className="flex flex-col items-start text-left">
+      <span className="text-sm font-medium">{label}</span>
+      <span className="text-xs text-muted-foreground font-normal">{caption}</span>
+    </span>
+  </Button>
+);
 
 const NameDialog: React.FC<{
   title: string;
