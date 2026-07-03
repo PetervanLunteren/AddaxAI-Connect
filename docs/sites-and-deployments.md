@@ -6,7 +6,7 @@ Behind the scenes the app also keeps a record of every continuous placement of a
 
 ## How sites are made
 
-One distance is the cutoff, set to 250 metres. GPS readings within it are the same place. Readings beyond it mean the camera moved.
+One distance is the cutoff, set to 250 metres. GPS readings within it are the same place. Readings beyond it mean the camera moved. Each photo is compared with the position of its own camera, so two cameras close together never get mixed up.
 
 The cutoff is 250 metres because GPS is noisy. The noise was measured on 7257 photos from 25 cameras that never moved. Almost every reading lands within a few metres of the true spot. But GPS sometimes drifts much further on its own. The worst single photo was 215 metres off, with the camera standing still. A cutoff of 250 metres stays clear of that, so normal noise is not read as a move.
 
