@@ -80,6 +80,11 @@ class FeedEventItem(BaseModel):
     # For thumbnails and the deployment-bound actions; null once the
     # deployment was merged away.
     deployment_id: Optional[int] = None
+    # The camera's placement location for this entry (the deployment's pin).
+    # Anchors "Show location": it survives renames, reassignments and site
+    # merges, unlike the site reference.
+    deployment_lat: Optional[float] = None
+    deployment_lon: Optional[float] = None
     # Sites within the threshold of the deployment location, nearest first,
     # for the "different site" picker. Includes the currently assigned site.
     candidates: List[FeedCandidate] = []
@@ -172,6 +177,8 @@ async def list_feed(
             distance_m=r["distance_m"],
             site_created=r["site_created"],
             deployment_id=r["deployment_id"],
+            deployment_lat=float(r["dep_lat"]) if r["dep_lat"] is not None else None,
+            deployment_lon=float(r["dep_lon"]) if r["dep_lon"] is not None else None,
             candidates=[FeedCandidate(**c) for c in candidates],
             resolved_action=r["resolved_action"],
             resolved_at=r["resolved_at"].isoformat() if r["resolved_at"] else None,

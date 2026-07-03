@@ -452,14 +452,24 @@ const FeedEntry: React.FC<{
       </div>
 
       <div className="mt-2 space-y-1.5">
-        {/* Not a correction, so it shows for viewers too. */}
-        {e.site_lat != null && e.site_lon != null && (
-          <EntryAction
-            label="Show location"
-            caption="Open this spot in Google Maps."
-            onClick={() => window.open(`https://www.google.com/maps?q=${e.site_lat},${e.site_lon}`, '_blank')}
-          />
-        )}
+        {/* A peek, not a decision, so it stays small and shows for viewers
+            too. Anchored to the camera's placement for this entry (falling
+            back to the site when the placement was merged away), which
+            survives renames, reassignments and site merges. */}
+        {(() => {
+          const lat = e.deployment_lat ?? e.site_lat;
+          const lon = e.deployment_lon ?? e.site_lon;
+          if (lat == null || lon == null) return null;
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank')}
+            >
+              Show location
+            </Button>
+          );
+        })()}
         {actionable && (
           <>
             {e.site_id != null && autoNamed && (

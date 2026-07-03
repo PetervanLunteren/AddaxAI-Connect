@@ -37,6 +37,9 @@ export interface FeedEventItem {
   // only shows when it was not (on a fresh site it equals renaming it).
   site_created: boolean;
   deployment_id: number | null;
+  // The camera's placement location for this entry; anchors Show location.
+  deployment_lat: number | null;
+  deployment_lon: number | null;
   // Sites within the threshold of the deployment location, nearest first.
   candidates: FeedCandidate[];
   resolved_action: string | null;
