@@ -48,6 +48,17 @@ function fmtTime(iso: string): string {
     : d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
+// "3 Jul, 22:20". Used where no day heading gives the date (the Earlier
+// archive and the resolution line).
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime())
+    ? ''
+    : d.toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+}
+
 // Day heading for the group an entry belongs to ("Today", "Yesterday", or a date).
 function dayHeading(iso: string): string {
   const d = new Date(iso);
@@ -151,11 +162,7 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
 const ResolutionLine: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   if (!e.resolved_action) return null;
   const who = e.resolved_by_email ?? 'A project admin';
-  const when = e.resolved_at
-    ? new Date(e.resolved_at).toLocaleString(undefined, {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-      })
-    : '';
+  const when = e.resolved_at ? fmtDateTime(e.resolved_at) : '';
   const suffix = when ? ` at ${when}` : '';
   const site = <SiteName name={e.site_name} />;
   let did: React.ReactNode;
@@ -249,12 +256,13 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     group.items.reverse();
   }
 
-  const renderEntry = (e: FeedEventItem) => (
+  const renderEntry = (e: FeedEventItem, showDate = false) => (
     <FeedEntry
       key={e.id}
       event={e}
       projectId={projectId}
       canEdit={canEdit}
+      showDate={showDate}
       onAction={(kind) => setDialog({ kind, event: e } as DialogMode)}
     />
   );
@@ -294,7 +302,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             {groups.map((group) => (
               <div key={group.heading} className="mb-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">{group.heading}</p>
-                <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
+                <ul className="space-y-3">{group.items.map((e) => renderEntry(e))}</ul>
               </div>
             ))}
 
@@ -313,7 +321,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                   Earlier ({earlier.length})
                 </button>
                 {earlierOpen && (
-                  <ul className="mt-2 space-y-3">{earlier.map(renderEntry)}</ul>
+                  <ul className="mt-2 space-y-3">{earlier.map((e) => renderEntry(e, true))}</ul>
                 )}
               </div>
             )}
@@ -389,8 +397,11 @@ const FeedEntry: React.FC<{
   event: FeedEventItem;
   projectId: number;
   canEdit: boolean;
+  // True in the Earlier archive, which has no day headings, so the entry
+  // itself must carry the date.
+  showDate?: boolean;
   onAction: (kind: 'rename' | 'different_site' | 'new_site' | 'not_moved') => void;
-}> = ({ event: e, projectId, canEdit, onAction }) => {
+}> = ({ event: e, projectId, canEdit, showDate = false, onAction }) => {
   // A small photo strip as visual confirmation of where the camera looks.
   // When the entry's deployment was merged away (an undone move), fall back
   // to the camera's recent photos; after an undo that is the same spot.
@@ -429,7 +440,7 @@ const FeedEntry: React.FC<{
           <EventHeadline event={e} />
           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
             <CameraChip event={e} />
-            <span>{fmtTime(e.created_at)}</span>
+            <span>{showDate ? fmtDateTime(e.created_at) : fmtTime(e.created_at)}</span>
           </div>
         </div>
       </div>
