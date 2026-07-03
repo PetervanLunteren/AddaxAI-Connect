@@ -66,8 +66,13 @@ class FeedEventItem(BaseModel):
     # The site's name when the event happened, frozen at write time. The
     # context line uses this; site_name (live) feeds the resolution line.
     original_site_name: Optional[str] = None
+    # Current site coordinates, for the open-in-maps link on the chip.
+    site_lat: Optional[float] = None
+    site_lon: Optional[float] = None
     from_site_id: Optional[int] = None
     from_site_name: Optional[str] = None
+    from_site_lat: Optional[float] = None
+    from_site_lon: Optional[float] = None
     distance_m: Optional[float] = None
     # Whether the site was auto-created for this event. The "new site" action
     # only shows when it was not (on a fresh site it equals renaming it).
@@ -101,7 +106,11 @@ async def list_feed(
                 SELECT e.id, e.event_type, e.created_at, e.camera_id,
                        c.device_id AS camera_label,
                        e.site_id, s.name AS site_name, e.original_site_name,
+                       ST_Y(s.location::geometry) AS site_lat,
+                       ST_X(s.location::geometry) AS site_lon,
                        e.from_site_id, fs.name AS from_site_name,
+                       ST_Y(fs.location::geometry) AS from_site_lat,
+                       ST_X(fs.location::geometry) AS from_site_lon,
                        e.distance_m, e.site_created, e.deployment_id,
                        e.resolved_action, e.resolved_at,
                        u.email AS resolved_by_email,
@@ -154,8 +163,12 @@ async def list_feed(
             site_id=r["site_id"],
             site_name=r["site_name"],
             original_site_name=r["original_site_name"],
+            site_lat=float(r["site_lat"]) if r["site_lat"] is not None else None,
+            site_lon=float(r["site_lon"]) if r["site_lon"] is not None else None,
             from_site_id=r["from_site_id"],
             from_site_name=r["from_site_name"],
+            from_site_lat=float(r["from_site_lat"]) if r["from_site_lat"] is not None else None,
+            from_site_lon=float(r["from_site_lon"]) if r["from_site_lon"] is not None else None,
             distance_m=r["distance_m"],
             site_created=r["site_created"],
             deployment_id=r["deployment_id"],

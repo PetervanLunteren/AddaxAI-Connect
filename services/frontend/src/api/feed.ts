@@ -25,8 +25,13 @@ export interface FeedEventItem {
   // The site's name when the event happened, frozen. site_name is live and
   // feeds the resolution line ("renamed this site to X").
   original_site_name: string | null;
+  // Current site coordinates, for the open-in-maps link on the chip.
+  site_lat: number | null;
+  site_lon: number | null;
   from_site_id: number | null;
   from_site_name: string | null;
+  from_site_lat: number | null;
+  from_site_lon: number | null;
   distance_m: number | null;
   // Whether the site was auto-created for this event. The "new site" action
   // only shows when it was not (on a fresh site it equals renaming it).

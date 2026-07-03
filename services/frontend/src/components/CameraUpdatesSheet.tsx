@@ -72,12 +72,30 @@ const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
 
 // Site names get a chip with a map pin so a place reads apart from prose,
 // mirroring the camera code chip (proportional font, since names are words).
-const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
-  <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
-    <MapPin className="h-3 w-3 shrink-0" />
-    {name ?? 'an unnamed site'}
-  </span>
-);
+// With coordinates the chip links to the pin in Google Maps, the same pattern
+// the image and site detail panels use.
+const SiteName: React.FC<{ name: string | null; lat?: number | null; lon?: number | null }> = ({
+  name, lat, lon,
+}) => {
+  const chip = (
+    <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
+      <MapPin className="h-3 w-3 shrink-0" />
+      {name ?? 'an unnamed site'}
+    </span>
+  );
+  if (lat == null || lon == null) return chip;
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${lat},${lon}`}
+      target="_blank"
+      rel="noreferrer"
+      title="Open in Google Maps"
+      className="hover:underline"
+    >
+      {chip}
+    </a>
+  );
+};
 
 // First line: what happened.
 const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
@@ -103,14 +121,15 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   const nameAtEvent = e.original_site_name ?? e.site_name;
   const from = e.from_site_name ? (
     <>
-      {' '}It was at <SiteName name={e.from_site_name} /> before.
+      {' '}It was at{' '}
+      <SiteName name={e.from_site_name} lat={e.from_site_lat} lon={e.from_site_lon} /> before.
     </>
   ) : null;
   if (e.site_created) {
     return (
       <p className="text-sm text-muted-foreground break-words">
         A new site was made at its location and automatically named{' '}
-        <SiteName name={nameAtEvent} />.{from}
+        <SiteName name={nameAtEvent} lat={e.site_lat} lon={e.site_lon} />.{from}
       </p>
     );
   }
@@ -120,7 +139,8 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   const away = own && own.distance_m > 0 ? ` (${fmtDistance(own.distance_m)} away)` : '';
   return (
     <p className="text-sm text-muted-foreground break-words">
-      It was placed at the existing site <SiteName name={nameAtEvent} />{away}.{from}
+      It was placed at the existing site{' '}
+      <SiteName name={nameAtEvent} lat={e.site_lat} lon={e.site_lon} />{away}.{from}
     </p>
   );
 };
@@ -136,19 +156,20 @@ const ResolutionLine: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
       })
     : '';
   const suffix = when ? ` at ${when}` : '';
+  const site = <SiteName name={e.site_name} lat={e.site_lat} lon={e.site_lon} />;
   let did: React.ReactNode;
   switch (e.resolved_action) {
     case 'rename_site':
-      did = <>renamed this site to <SiteName name={e.site_name} /></>;
+      did = <>renamed this site to {site}</>;
       break;
     case 'set_site':
-      did = <>moved the camera to <SiteName name={e.site_name} /></>;
+      did = <>moved the camera to {site}</>;
       break;
     case 'new_site':
-      did = <>gave the camera its own site <SiteName name={e.site_name} /></>;
+      did = <>gave the camera its own site {site}</>;
       break;
     default: // not_moved
-      did = <>marked this as GPS noise, the camera stayed at <SiteName name={e.site_name} /></>;
+      did = <>marked this as GPS noise, the camera stayed at {site}</>;
   }
   return (
     <p className="text-sm text-muted-foreground break-words mt-1">
