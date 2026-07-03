@@ -62,22 +62,21 @@ function dayHeading(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// Camera ids are hardware identifiers (often IMEIs), shown as a code chip so
-// they read apart from prose and from site names.
-const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
-  <code className="px-1 py-0.5 rounded bg-muted text-[13px]">
-    {e.camera_label ?? `camera ${e.camera_id}`}
-  </code>
+// Cameras and sites render as the same muted chip; only the icon tells the
+// kind apart (camera vs place).
+const Chip: React.FC<{ icon: React.ElementType; text: string }> = ({ icon: Icon, text }) => (
+  <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
+    <Icon className="h-3 w-3 shrink-0" />
+    {text}
+  </span>
 );
 
-// Site names get a chip with a map pin so a place reads apart from prose,
-// mirroring the camera code chip (proportional font, since names are words).
-// The map itself opens from the entry's "Show location" button.
+const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
+  <Chip icon={CameraIcon} text={e.camera_label ?? `camera ${e.camera_id}`} />
+);
+
 const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
-  <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
-    <MapPin className="h-3 w-3 shrink-0" />
-    {name ?? 'an unnamed site'}
-  </span>
+  <Chip icon={MapPin} text={name ?? 'an unnamed site'} />
 );
 
 // First line: what happened, told by place. People scan site names, not
