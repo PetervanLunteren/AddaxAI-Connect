@@ -73,11 +73,13 @@ function dayHeading(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// Cameras and sites render as the same muted chip; only the icon tells the
-// kind apart (camera vs place).
+// Cameras and sites render inline with the sentence (a boxed chip pushed the
+// words under the baseline): a small kind-icon (camera vs place), medium
+// weight, and full foreground color, which also lifts them out of the grey
+// context lines.
 const Chip: React.FC<{ icon: React.ElementType; text: string }> = ({ icon: Icon, text }) => (
-  <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
-    <Icon className="h-3 w-3 shrink-0" />
+  <span className="font-medium text-foreground">
+    <Icon className="inline h-3.5 w-3.5 align-[-2px] mr-0.5" />
     {text}
   </span>
 );
