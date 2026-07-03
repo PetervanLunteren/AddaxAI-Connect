@@ -107,11 +107,25 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   ) : null;
   if (e.site_created) {
     // "Automatically named X" is a naming act, so X stays frozen at the name
-    // given then; a later rename shows in the resolution line, not here.
+    // given then. When the site was renamed through some other path (a
+    // sibling entry, the site slideout), this entry has no resolution line of
+    // its own, so it says the current name too; a dead name with no follow-up
+    // reads as stale.
+    const renamedElsewhere =
+      !e.resolved_action &&
+      e.site_name != null &&
+      e.original_site_name != null &&
+      e.site_name !== e.original_site_name;
     return (
       <p className="text-sm text-muted-foreground break-words">
         There is no known site there, so a new one was made and automatically
-        named <SiteName name={e.original_site_name ?? e.site_name} />.{from}
+        named <SiteName name={e.original_site_name ?? e.site_name} />.
+        {renamedElsewhere && (
+          <>
+            {' '}It is now called <SiteName name={e.site_name} />.
+          </>
+        )}
+        {from}
       </p>
     );
   }
