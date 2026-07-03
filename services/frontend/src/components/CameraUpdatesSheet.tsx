@@ -12,7 +12,7 @@
  */
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2, MapPin, Route } from 'lucide-react';
+import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2, Route } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { Select } from './ui/Select';
@@ -73,23 +73,20 @@ function dayHeading(iso: string): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// Cameras and sites render inline with the sentence (a boxed chip pushed the
-// words under the baseline): a small kind-icon (camera vs place), medium
-// weight, and full foreground color, which also lifts them out of the grey
-// context lines.
-const Chip: React.FC<{ icon: React.ElementType; text: string }> = ({ icon: Icon, text }) => (
-  <span className="font-medium text-foreground">
-    <Icon className="inline h-3.5 w-3.5 align-[-2px] mr-0.5" />
-    {text}
-  </span>
-);
-
-const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
-  <Chip icon={CameraIcon} text={e.camera_label ?? `camera ${e.camera_id}`} />
-);
-
+// Names are marked by weight alone, inheriting the sentence's color; the
+// sentence itself types them ("a camera at X", "placed at Y"). Icons stacked
+// up as noise here (see the metadata line for the one that stays).
 const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
-  <Chip icon={MapPin} text={name ?? 'an unnamed site'} />
+  <span className="font-medium">{name ?? 'an unnamed site'}</span>
+);
+
+// The camera id stands context-free in the metadata line and is an IMEI on
+// real cameras, so it keeps a small camera icon as its label.
+const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
+  <span className="font-medium">
+    <CameraIcon className="inline h-3.5 w-3.5 align-[-2px] mr-0.5" />
+    {e.camera_label ?? `camera ${e.camera_id}`}
+  </span>
 );
 
 // First line: what happened, told by place. People scan site names, not
@@ -148,9 +145,10 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
     ? e.original_site_name ?? e.site_name
     : e.site_name ?? e.original_site_name;
   // Distance from the deployment to the assigned site, when known via the
-  // candidate list (candidates include the assigned site).
+  // candidate list (candidates include the assigned site). Below 10 m it
+  // says nothing and is left out.
   const own = e.candidates.find((c) => c.site_id === e.site_id);
-  const away = own && own.distance_m > 0 ? ` (${fmtDistance(own.distance_m)} away)` : '';
+  const away = own && own.distance_m >= 10 ? ` (${fmtDistance(own.distance_m)} away)` : '';
   return (
     <p className="text-sm text-muted-foreground break-words">
       There is already a site nearby, so it was placed at{' '}
