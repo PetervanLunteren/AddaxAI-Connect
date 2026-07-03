@@ -33,6 +33,9 @@ export interface FeedEventItem {
   candidates: FeedCandidate[];
   resolved_action: string | null;
   resolved_at: string | null;
+  // Already seen on an earlier visit; the panel collapses these under
+  // "Earlier". Stamped when the panel closes.
+  seen: boolean;
 }
 
 export type ResolveAction = 'rename_site' | 'set_site' | 'new_site' | 'not_moved';

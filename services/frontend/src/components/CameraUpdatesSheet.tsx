@@ -10,9 +10,9 @@
  *
  * Opening the sheet marks the feed as seen, which clears the sidebar badge.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera as CameraIcon, Loader2, Route } from 'lucide-react';
+import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2, MapPin, Route } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { Select } from './ui/Select';
@@ -70,8 +70,13 @@ const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
   </code>
 );
 
+// Site names get a chip with a map pin so a place reads apart from prose,
+// mirroring the camera code chip (proportional font, since names are words).
 const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
-  <span className="font-medium">{name ?? 'an unnamed site'}</span>
+  <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
+    <MapPin className="h-3 w-3 shrink-0" />
+    {name ?? 'an unnamed site'}
+  </span>
 );
 
 // First line: what happened.
@@ -124,6 +129,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
   const queryClient = useQueryClient();
   const toast = useToast();
   const [dialog, setDialog] = useState<DialogMode>({ kind: 'closed' });
+  const [earlierOpen, setEarlierOpen] = useState(false);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ['feed', projectId],
@@ -131,14 +137,19 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     enabled: open && projectId > 0,
   });
 
-  // Opening the sheet is "seeing" the feed; stamp it and clear the badge.
-  useEffect(() => {
-    if (open && projectId > 0) {
+  // Closing the sheet is "having seen" the feed. Stamping on close (not on
+  // open) keeps the fresh/earlier split stable while the panel is open, and
+  // clears the badge once the user is done looking.
+  const handleClose = () => {
+    onClose();
+    setEarlierOpen(false);
+    if (projectId > 0) {
       feedApi.markSeen(projectId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['feed-unseen', projectId] });
+        queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
       });
     }
-  }, [open, projectId, queryClient]);
+  };
 
   const resolveMutation = useMutation({
     mutationFn: ({ eventId, body }: { eventId: number; body: ResolveRequest }) =>
@@ -158,9 +169,14 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     },
   });
 
-  // Group entries by calendar day, newest first (the API already sorts).
+  // Fresh entries (not seen on an earlier visit) stay prominent, grouped by
+  // day; already-seen ones collapse under "Earlier" so the list stays short
+  // without any per-entry dismissing.
+  const fresh = (events ?? []).filter((e) => !e.seen);
+  const earlier = (events ?? []).filter((e) => e.seen);
+
   const groups: { heading: string; items: FeedEventItem[] }[] = [];
-  for (const e of events ?? []) {
+  for (const e of fresh) {
     const heading = dayHeading(e.created_at);
     const last = groups[groups.length - 1];
     if (last && last.heading === heading) {
@@ -170,9 +186,19 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     }
   }
 
+  const renderEntry = (e: FeedEventItem) => (
+    <FeedEntry
+      key={e.id}
+      event={e}
+      projectId={projectId}
+      canEdit={canEdit}
+      onAction={(kind) => setDialog({ kind, event: e } as DialogMode)}
+    />
+  );
+
   return (
     <>
-      <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <Sheet open={open} onOpenChange={(o) => !o && handleClose()}>
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Camera updates</SheetTitle>
@@ -196,22 +222,38 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
               </p>
             )}
 
+            {!isLoading && fresh.length === 0 && earlier.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nothing new since the last visit.
+              </p>
+            )}
+
             {groups.map((group) => (
               <div key={group.heading} className="mb-4">
                 <p className="text-xs font-medium text-muted-foreground mb-2">{group.heading}</p>
-                <ul className="space-y-3">
-                  {group.items.map((e) => (
-                    <FeedEntry
-                      key={e.id}
-                      event={e}
-                      projectId={projectId}
-                      canEdit={canEdit}
-                      onAction={(kind) => setDialog({ kind, event: e } as DialogMode)}
-                    />
-                  ))}
-                </ul>
+                <ul className="space-y-3">{group.items.map(renderEntry)}</ul>
               </div>
             ))}
+
+            {earlier.length > 0 && (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setEarlierOpen((o) => !o)}
+                  className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  {earlierOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  Earlier ({earlier.length})
+                </button>
+                {earlierOpen && (
+                  <ul className="mt-2 space-y-3">{earlier.map(renderEntry)}</ul>
+                )}
+              </div>
+            )}
           </SheetBody>
         </SheetContent>
       </Sheet>

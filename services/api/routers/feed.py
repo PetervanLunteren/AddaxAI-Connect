@@ -77,6 +77,11 @@ class FeedEventItem(BaseModel):
     candidates: List[FeedCandidate] = []
     resolved_action: Optional[str] = None
     resolved_at: Optional[str] = None
+    # Whether this user had already seen the entry on an earlier visit. The
+    # UI shows fresh entries prominently and collapses seen ones; the seen
+    # stamp is written when the panel closes, so the split is stable while
+    # the panel is open.
+    seen: bool = False
 
 
 @router.get("", response_model=List[FeedEventItem])
@@ -95,6 +100,8 @@ async def list_feed(
                        e.from_site_id, fs.name AS from_site_name,
                        e.distance_m, e.site_created, e.deployment_id,
                        e.resolved_action, e.resolved_at,
+                       (fsn.last_seen_at IS NOT NULL
+                        AND e.created_at <= fsn.last_seen_at) AS seen,
                        ST_Y(d.location::geometry) AS dep_lat,
                        ST_X(d.location::geometry) AS dep_lon
                 FROM feed_events e
@@ -102,11 +109,13 @@ async def list_feed(
                 LEFT JOIN sites s ON s.id = e.site_id
                 LEFT JOIN sites fs ON fs.id = e.from_site_id
                 LEFT JOIN deployments d ON d.id = e.deployment_id
+                LEFT JOIN feed_seen fsn ON fsn.project_id = e.project_id
+                                       AND fsn.user_id = :user_id
                 WHERE e.project_id = :project_id
                 ORDER BY e.created_at DESC, e.id DESC
                 LIMIT :limit
             """),
-            {"project_id": project_id, "limit": FEED_LIMIT},
+            {"project_id": project_id, "limit": FEED_LIMIT, "user_id": user.id},
         )
     ).mappings().all()
 
@@ -146,6 +155,7 @@ async def list_feed(
             candidates=[FeedCandidate(**c) for c in candidates],
             resolved_action=r["resolved_action"],
             resolved_at=r["resolved_at"].isoformat() if r["resolved_at"] else None,
+            seen=r["seen"],
         ))
     return items
 
