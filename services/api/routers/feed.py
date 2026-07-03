@@ -306,7 +306,16 @@ async def resolve_event(
             location=WKTElement(f"POINT({loc.lon} {loc.lat})", srid=4326),
         )
         db.add(site)
-        await db.flush()
+        # The unique (project_id, name) constraint fires at this flush, not at
+        # commit, so map it to the same 409 the commit handler gives.
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Another site in this project already has that name",
+            )
         merged = await reassign_deployment_site(db, deployment, site.id)
         event.site_id = site.id
 
