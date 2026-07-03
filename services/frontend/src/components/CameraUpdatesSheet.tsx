@@ -72,30 +72,13 @@ const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
 
 // Site names get a chip with a map pin so a place reads apart from prose,
 // mirroring the camera code chip (proportional font, since names are words).
-// With coordinates the chip links to the pin in Google Maps, the same pattern
-// the image and site detail panels use.
-const SiteName: React.FC<{ name: string | null; lat?: number | null; lon?: number | null }> = ({
-  name, lat, lon,
-}) => {
-  const chip = (
-    <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
-      <MapPin className="h-3 w-3 shrink-0" />
-      {name ?? 'an unnamed site'}
-    </span>
-  );
-  if (lat == null || lon == null) return chip;
-  return (
-    <a
-      href={`https://www.google.com/maps?q=${lat},${lon}`}
-      target="_blank"
-      rel="noreferrer"
-      title="Open in Google Maps"
-      className="hover:underline"
-    >
-      {chip}
-    </a>
-  );
-};
+// The map itself opens from the entry's "Show location" button.
+const SiteName: React.FC<{ name: string | null }> = ({ name }) => (
+  <span className="inline-flex items-center gap-1 px-1 py-0.5 rounded bg-muted text-[13px] font-medium align-middle">
+    <MapPin className="h-3 w-3 shrink-0" />
+    {name ?? 'an unnamed site'}
+  </span>
+);
 
 // First line: what happened.
 const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
@@ -121,15 +104,14 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   const nameAtEvent = e.original_site_name ?? e.site_name;
   const from = e.from_site_name ? (
     <>
-      {' '}It was at{' '}
-      <SiteName name={e.from_site_name} lat={e.from_site_lat} lon={e.from_site_lon} /> before.
+      {' '}It was at <SiteName name={e.from_site_name} /> before.
     </>
   ) : null;
   if (e.site_created) {
     return (
       <p className="text-sm text-muted-foreground break-words">
-        A new site was made at its location and automatically named{' '}
-        <SiteName name={nameAtEvent} lat={e.site_lat} lon={e.site_lon} />.{from}
+        There is no known site there, so a new one was made and automatically
+        named <SiteName name={nameAtEvent} />.{from}
       </p>
     );
   }
@@ -139,8 +121,8 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   const away = own && own.distance_m > 0 ? ` (${fmtDistance(own.distance_m)} away)` : '';
   return (
     <p className="text-sm text-muted-foreground break-words">
-      It was placed at the existing site{' '}
-      <SiteName name={nameAtEvent} lat={e.site_lat} lon={e.site_lon} />{away}.{from}
+      There is already a site nearby, so it was placed at{' '}
+      <SiteName name={nameAtEvent} />{away}.{from}
     </p>
   );
 };
@@ -156,7 +138,7 @@ const ResolutionLine: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
       })
     : '';
   const suffix = when ? ` at ${when}` : '';
-  const site = <SiteName name={e.site_name} lat={e.site_lat} lon={e.site_lon} />;
+  const site = <SiteName name={e.site_name} />;
   let did: React.ReactNode;
   switch (e.resolved_action) {
     case 'rename_site':
@@ -427,8 +409,20 @@ const FeedEntry: React.FC<{
         <ResolutionLine event={e} />
       </div>
 
-      {actionable && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {/* Not a correction, so it shows for viewers too. */}
+        {e.site_lat != null && e.site_lon != null && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.open(`https://www.google.com/maps?q=${e.site_lat},${e.site_lon}`, '_blank')}
+          >
+            <MapPin className="h-3.5 w-3.5 mr-1.5" />
+            Show location
+          </Button>
+        )}
+        {actionable && (
+          <>
           {e.site_id != null && (
             <Button size="sm" variant="outline" onClick={() => onAction('rename')}>
               Rename site
@@ -451,8 +445,9 @@ const FeedEntry: React.FC<{
               It did not move
             </Button>
           )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </li>
   );
 };
