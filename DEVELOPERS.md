@@ -142,7 +142,8 @@ addaxai-connect/
 │   │   │   ├── camera_groups.py       # Camera group management
 │   │   │   ├── camera_reference_images.py # Reference images per camera
 │   │   │   ├── sites.py               # Site CRUD
-│   │   │   ├── deployments.py         # Deployment CRUD
+│   │   │   ├── deployments.py         # Deployment list and escape-hatch reassign
+│   │   │   ├── feed.py                # Camera updates feed (list, resolve, seen)
 │   │   │   ├── images.py              # Image queries
 │   │   │   ├── image_admin.py         # Image admin operations
 │   │   │   ├── bulk_upload.py         # Bulk-upload job management
@@ -165,6 +166,8 @@ addaxai-connect/
 │   │       ├── activity_analysis.py   # Activity pattern analysis
 │   │       ├── annotated_image_generator.py # On-demand annotated image rendering
 │   │       ├── camera_status.py       # Camera online/offline status
+│   │       ├── deployment_edits.py    # Reassign/recompute/merge plumbing (deployments + feed)
+│   │       ├── feed.py                # Feed candidate-site helper
 │   │       ├── detection_filtering.py # Detection confidence and class filtering
 │   │       ├── independence_filter.py # Independent-detection (capture event) filtering
 │   │       ├── occupancy_model.py     # Naive occupancy estimation

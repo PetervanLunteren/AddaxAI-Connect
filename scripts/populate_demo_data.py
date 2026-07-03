@@ -33,6 +33,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from shared.config import get_settings
+from shared.geo import calculate_gps_distance
 from shared.storage import (
     BUCKET_PROJECT_DOCUMENTS, BUCKET_RAW_IMAGES, BUCKET_THUMBNAILS, StorageClient,
 )
@@ -2130,6 +2131,72 @@ def insert_deployments(session: Session, deployments: list, cam_index_to_id: dic
     return key_to_id
 
 
+def insert_feed_events(session: Session, deployments: list, cam_index_to_id: dict,
+                       site_key_to_id: dict, dep_key_to_id: dict, project_id: int) -> None:
+    """Seed the camera updates feed, mirroring what live ingestion writes.
+
+    One camera_first_seen per camera's first placement, resolved a day later
+    as a rename (the demo sites carry real names, so someone named them). One
+    camera_moved per relocation, left unresolved so the panel shows open
+    entries. feed_seen is stamped 30 days before the newest event for every
+    project member, so the sidebar badge shows the recent entries only.
+    """
+    first_by_camera = {
+        dep["camera_index"]: dep for dep in deployments if dep["deployment_number"] == 1
+    }
+    for dep in deployments:
+        created = datetime.combine(dep["start_date"], time(9, 12), tzinfo=timezone.utc)
+        if dep["deployment_number"] == 1:
+            event_type = "camera_first_seen"
+            from_site_id = None
+            distance_m = None
+            resolved_action = "rename_site"
+            resolved_at = created + timedelta(days=1)
+        else:
+            prev = first_by_camera[dep["camera_index"]]
+            event_type = "camera_moved"
+            from_site_id = site_key_to_id[prev["site_key"]]
+            distance_m = round(
+                calculate_gps_distance(prev["lat"], prev["lon"], dep["lat"], dep["lon"]), 1
+            )
+            resolved_action = None
+            resolved_at = None
+        session.execute(
+            text("""
+                INSERT INTO feed_events (
+                    project_id, camera_id, event_type, deployment_id, site_id,
+                    from_site_id, distance_m, created_at, resolved_action, resolved_at
+                ) VALUES (
+                    :pid, :camera_id, :event_type, :dep_id, :site_id,
+                    :from_site_id, :distance_m, :created_at, :resolved_action, :resolved_at
+                )
+            """),
+            {
+                "pid": project_id,
+                "camera_id": cam_index_to_id[dep["camera_index"]],
+                "event_type": event_type,
+                "dep_id": dep_key_to_id[dep["key"]],
+                "site_id": site_key_to_id[dep["site_key"]],
+                "from_site_id": from_site_id,
+                "distance_m": distance_m,
+                "created_at": created,
+                "resolved_action": resolved_action,
+                "resolved_at": resolved_at,
+            },
+        )
+    session.execute(
+        text("""
+            INSERT INTO feed_seen (user_id, project_id, last_seen_at)
+            SELECT pm.user_id, :pid,
+                   (SELECT MAX(created_at) - INTERVAL '30 days'
+                    FROM feed_events WHERE project_id = :pid)
+            FROM project_memberships pm WHERE pm.project_id = :pid
+        """),
+        {"pid": project_id},
+    )
+    session.flush()
+
+
 def insert_bulk_jobs(session: Session, jobs: list, project_id: int,
                      cam_index_to_id: dict) -> dict:
     """Insert bulk-upload job rows. Returns {uuid: db_id}. Must run before the
@@ -2586,6 +2653,8 @@ def main():
         site_key_to_id = insert_sites(session, sites, project_id)
         cam_index_to_id = insert_cameras(session, cameras, project_id, species_image_info)
         dep_key_to_id = insert_deployments(session, deployments, cam_index_to_id, site_key_to_id)
+        insert_feed_events(session, deployments, cam_index_to_id, site_key_to_id,
+                           dep_key_to_id, project_id)
         job_uuid_to_id = insert_bulk_jobs(session, [bulk_job], project_id, cam_index_to_id)
         device_to_cam_id = {cam["device_id"]: cam_index_to_id[cam["index"]] for cam in cameras}
         session.commit()
