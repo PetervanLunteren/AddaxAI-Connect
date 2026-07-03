@@ -376,6 +376,10 @@ const FeedEntry: React.FC<{
   // "Different site" only helps when there is a nearby alternative besides
   // the currently assigned one.
   const hasAlternatives = e.candidates.some((c) => c.site_id !== e.site_id);
+  // "Rename site" is for the naming pass on fresh auto-named sites. Once a
+  // site has a real name, renaming belongs to the site slideout, not here.
+  // Matches the auto-name format from ingestion ("Site at 53.2460, 5.2620").
+  const autoNamed = /^Site at -?\d+\.\d+, -?\d+\.\d+$/.test(e.site_name ?? '');
   const actionable = canEdit && e.deployment_id != null;
 
   return (
@@ -421,7 +425,7 @@ const FeedEntry: React.FC<{
         )}
         {actionable && (
           <>
-          {e.site_id != null && (
+          {e.site_id != null && autoNamed && (
             <Button size="sm" variant="outline" onClick={() => onAction('rename')}>
               Rename site
             </Button>

@@ -34,8 +34,10 @@ DEPLOYMENT_MERGE_GAP_DAYS = 1
 # The earliest mergeable (earlier -> later) pair for one camera, or no row. Both
 # deployments share a non-null site, so unassigned deployments and a real move to
 # a different site never match. The earlier must be closed (an open deployment can
-# only be the later half, absorbed so the survivor stays open). Bind :camera_id
-# and :gap_days.
+# only be the later half, absorbed so the survivor stays open). A pair can start
+# on the same date (a move undone the same day splits into two same-day rows);
+# the id tiebreak keeps the earlier/later roles unambiguous there. Bind
+# :camera_id and :gap_days.
 #
 # The :gap_days cast to int is required: asyncpg sends bound params untyped, so
 # `date + :gap_days` is the ambiguous `date + unknown` (date + int vs date +
@@ -53,7 +55,8 @@ FIND_NEXT_MERGEABLE_PAIR_SQL = """
     WHERE earlier.camera_id = :camera_id
       AND earlier.site_id IS NOT NULL
       AND earlier.end_date IS NOT NULL
-      AND later.start_date > earlier.start_date
+      AND (later.start_date > earlier.start_date
+           OR (later.start_date = earlier.start_date AND later.id > earlier.id))
       AND later.start_date <= earlier.end_date + (:gap_days)::int
     ORDER BY earlier.start_date, later.start_date
     LIMIT 1
