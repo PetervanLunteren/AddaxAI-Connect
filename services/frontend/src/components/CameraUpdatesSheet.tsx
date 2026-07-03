@@ -449,7 +449,7 @@ const FeedEntry: React.FC<{
         {!e.resolved_action && e.deployment_lat != null && e.deployment_lon != null && (
           <EntryAction
             label="Show location"
-            caption="Open the camera's spot in Google Maps."
+            caption="Open the spot where these photos were taken in Google Maps."
             onClick={() => window.open(`https://www.google.com/maps?q=${e.deployment_lat},${e.deployment_lon}`, '_blank')}
           />
         )}
