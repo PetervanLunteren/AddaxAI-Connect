@@ -400,9 +400,12 @@ const FeedEntry: React.FC<{
     queryFn: async () => {
       // Bounded to the event's day so the strip shows what the camera saw
       // around the time of this entry, and cannot drift to later placements.
+      // show_empty, because the strip is about the camera's view; without it
+      // the API hides images that have no detections (yet).
       const page = await imagesApi.getAll({
         camera_id: String(e.camera_id),
         end_date: e.created_at.slice(0, 10),
+        show_empty: true,
         limit: 3,
       });
       return page.items.map((img) => img.uuid);
