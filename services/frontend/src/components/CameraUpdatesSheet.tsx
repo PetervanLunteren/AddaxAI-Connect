@@ -465,7 +465,7 @@ const FeedEntry: React.FC<{
             {hasAlternatives && (
               <EntryAction
                 label="Different site"
-                caption="The camera actually stands at another site nearby."
+                caption={`The camera does not stand at "${e.site_name ?? 'the picked site'}" but at another site nearby.`}
                 onClick={() => onAction('different_site')}
               />
             )}
@@ -474,14 +474,14 @@ const FeedEntry: React.FC<{
             {!e.site_created && (
               <EntryAction
                 label="New site"
-                caption="This spot should be its own site, apart from the one picked."
+                caption={`This spot should be its own site, apart from "${e.site_name ?? 'the picked site'}".`}
                 onClick={() => onAction('new_site')}
               />
             )}
             {e.event_type === 'camera_moved' && e.from_site_id != null && (
               <EntryAction
                 label="It did not move"
-                caption="The move was GPS noise. Put the camera and its images back."
+                caption={`The move was GPS noise. Put the camera and its images back at "${e.from_site_name ?? 'the previous site'}".`}
                 onClick={() => onAction('not_moved')}
               />
             )}
