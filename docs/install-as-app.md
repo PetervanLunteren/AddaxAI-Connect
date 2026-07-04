@@ -40,9 +40,10 @@ If your Chrome version only shows `Add to Home screen` as a plain shortcut, upda
 
 Open the site in Chrome or Edge and click the small install icon :material-monitor-arrow-down-variant: at the right end of the address bar. The app gets an icon in your dock or taskbar. Safari on Mac can do it too, via `File` and then `Add to Dock`.
 
+<div class="screenshot-row">
 <img class="screenshot" alt="Install icon in the Chrome address bar" src="https://github.com/user-attachments/assets/2c09da45-ac5d-4dab-b676-0fe59f51c536" />
-
 <img class="screenshot" alt="AddaxAI Connect icon in the macOS dock" src="https://github.com/user-attachments/assets/d503a344-d1a4-4612-ac5c-b4bb3770d383" />
+</div>
 
 ## Sign in once
 

@@ -30,3 +30,17 @@
   border-color: rgba(255, 255, 255, 0.15);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
+
+/* Row of screenshots shown at one shared height. Widths follow each image's
+   own ratio, narrow screens scroll the row sideways. */
+.screenshot-row {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+}
+
+.screenshot-row img {
+  height: 86px;
+  width: auto;
+  flex: none;
+}
