@@ -7,8 +7,8 @@ This works on iPhone (Safari) and Android (Chrome). The look is close to a nativ
 The app also points this out itself. After logging in, the sidebar has an **Install app** entry, and a small one-time hint appears in the corner. On Android and desktop that entry opens the install dialog directly, on iPhone and iPad it shows the same steps as below. Both disappear once the app runs installed.
 
 <p>
-<img width="49%" alt="One-time install hint on the dashboard" src="https://github.com/user-attachments/assets/0017958d-ddf5-4155-b80f-346915d25cf2" />
-<img width="49%" alt="Install app entry in the sidebar" src="https://github.com/user-attachments/assets/c6152f5a-3d56-4cb2-bb00-331ce49887b7" />
+<img class="screenshot" width="49%" alt="One-time install hint on the dashboard" src="https://github.com/user-attachments/assets/0017958d-ddf5-4155-b80f-346915d25cf2" />
+<img class="screenshot" width="49%" alt="Install app entry in the sidebar" src="https://github.com/user-attachments/assets/c6152f5a-3d56-4cb2-bb00-331ce49887b7" />
 </p>
 
 ## iPhone
@@ -21,12 +21,12 @@ The app also points this out itself. After logging in, the sidebar has an **Inst
 The icon appears on your home screen. Tap it and the site opens fullscreen, with no Safari address bar.
 
 <p>
-<img width="49%" alt="Share option behind the kebab menu in Safari" src="https://github.com/user-attachments/assets/1354787f-35ea-4cc7-9b4f-8e4862fb2e9f" />
-<img width="49%" alt="Add to Home Screen in the share sheet" src="https://github.com/user-attachments/assets/435fdf8e-520f-4077-9453-9c8b81d3ca13" />
+<img class="screenshot" width="49%" alt="Share option behind the kebab menu in Safari" src="https://github.com/user-attachments/assets/1354787f-35ea-4cc7-9b4f-8e4862fb2e9f" />
+<img class="screenshot" width="49%" alt="Add to Home Screen in the share sheet" src="https://github.com/user-attachments/assets/435fdf8e-520f-4077-9453-9c8b81d3ca13" />
 </p>
 <p>
-<img width="49%" alt="Confirm the name and tap Add" src="https://github.com/user-attachments/assets/88c25630-6f7f-4278-89a9-f8b410169814" />
-<img width="49%" alt="AddaxAI icon on the home screen" src="https://github.com/user-attachments/assets/d7718a6d-f740-466e-831e-bbd517e06b4c" />
+<img class="screenshot" width="49%" alt="Confirm the name and tap Add" src="https://github.com/user-attachments/assets/88c25630-6f7f-4278-89a9-f8b410169814" />
+<img class="screenshot" width="49%" alt="AddaxAI icon on the home screen" src="https://github.com/user-attachments/assets/d7718a6d-f740-466e-831e-bbd517e06b4c" />
 </p>
 
 ## Android
@@ -56,8 +56,8 @@ The installed app behaves like a native app, not like a website in a browser.
 - **Stable zoom.** Tapping a form field does not zoom the page in, and buttons respond to taps without the browser double-tap delay.
 
 <p>
-<img width="49%" alt="Launch screen" src="https://github.com/user-attachments/assets/c08f0c21-7ce5-48ae-ae6e-165ad070565e" />
-<img width="49%" alt="Installed app open with teal status bar" src="https://github.com/user-attachments/assets/6591ecad-f8d0-4eab-ada3-e315c0367172" />
+<img class="screenshot" width="49%" alt="Launch screen" src="https://github.com/user-attachments/assets/c08f0c21-7ce5-48ae-ae6e-165ad070565e" />
+<img class="screenshot" width="49%" alt="Installed app open with teal status bar" src="https://github.com/user-attachments/assets/6591ecad-f8d0-4eab-ada3-e315c0367172" />
 </p>
 
 Small things are still the browser underneath. For example, images long-press to save like in Safari or Chrome, which is handy for sharing a nice capture.
