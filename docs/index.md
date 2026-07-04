@@ -4,12 +4,8 @@ An open-source platform that automatically processes camera trap images with mac
 
 **Try the demo:** [demo.addaxai.com](https://demo.addaxai.com/login)
 
-<p>
-<img width="49%" alt="Dashboard" src="https://github.com/user-attachments/assets/99f2f7fe-f861-4bc2-8956-067285fd3bea" />
-<img width="49%" alt="Map view" src="https://github.com/user-attachments/assets/732dd48a-47aa-4ac0-9d3b-1695eb371343" />
-<img width="49%" alt="Gallery" src="https://github.com/user-attachments/assets/d8b6adba-e5f0-44fb-8264-26b52003095a" />
-<img width="49%" alt="Statistics" src="https://github.com/user-attachments/assets/ba55901c-585d-4b85-a86c-762b02340391" />
-</p>
+![AddaxAI Connect on desktop, tablet, and phone](https://github.com/user-attachments/assets/0dad03d3-d103-41b7-bed7-626dffd0ff16#only-light)
+![AddaxAI Connect on desktop, tablet, and phone](https://github.com/user-attachments/assets/76e0415d-956c-4c5c-8d72-ed4bae09da6d#only-dark)
 
 ## Getting started
 
