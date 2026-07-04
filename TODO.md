@@ -19,8 +19,9 @@ Open follow-ups:
 
 ## Possible future features
 - [ ] multi language
+- [ ] can we make it feel native on iphone and android without having it like a normal app? Make a PWA of this app. You can continue an previous claude session with > claude --resume c24bfc22-4e66-4bdd-abc6-d41f92b5c0c7
 - [ ] Make it event aware. 
-- [ ] Make it use label verification, and count confirmation just like AddaxAI. This improves the overcounting.... 
+- [ ] Make it use label verification, and count confirmation just like AddaxAI WebUI. This improves the overcounting.... 
 
 
 
