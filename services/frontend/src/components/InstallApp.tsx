@@ -40,8 +40,7 @@ const IosSafariSteps: React.FC = () => (
       <SquarePlus className="mx-1 inline h-4 w-4 align-text-bottom" aria-hidden="true" />.
     </Step>
     <Step n={3}>
-      Tap <strong>Add</strong>. The icon appears on your home screen and opens
-      fullscreen, without the browser bar.
+      Tap <strong>Add</strong>.
     </Step>
   </ol>
 );
@@ -71,8 +70,7 @@ const DialogSteps: React.FC<{ mode: InstallMode }> = ({ mode }) => {
           Choose <strong>Add to Dock</strong>.
         </Step>
         <Step n={3}>
-          Confirm the name and click <strong>Add</strong>. The app opens from
-          your Dock in its own window.
+          Click <strong>Add</strong>.
         </Step>
       </ol>
     );
