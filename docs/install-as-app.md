@@ -1,8 +1,6 @@
 # Install as an app
 
-Install AddaxAI Connect on your phone or computer to use it as an app. There is no app store download, you install it straight from the browser.
-
-The app points this out itself. After logging in, the sidebar has an `Install app` entry, and after about ten visits a small one-time hint appears in the corner. On Android and desktop that entry opens the install dialog directly, on iPhone and iPad it shows the same steps as below. Both disappear once the app runs installed.
+Install AddaxAI Connect on your phone or computer to use it as an app. There is no app store download, you install it straight from the browser. The app points this out itself. After logging in, the sidebar has an `Install app` entry, and after about ten visits a small one-time hint appears in the corner.
 
 <p>
 <img class="screenshot" width="49%" alt="One-time install hint on the dashboard" src="https://github.com/user-attachments/assets/0017958d-ddf5-4155-b80f-346915d25cf2" />
