@@ -15,11 +15,10 @@ Open follow-ups:
 - INSTAR sends no daily health reports, so the camera health page will stay empty for these cameras. Worth a UI hint someday.
 
 ## TODO
-- [ ] 
+- [ ] Do the things Quentin mentioned in an email. 
 
 ## Possible future features
 - [ ] multi language
-- [ ] can we make it feel native on iphone and android without having it like a normal app? Make a PWA of this app. You can continue an previous claude session with > claude --resume c24bfc22-4e66-4bdd-abc6-d41f92b5c0c7
 - [ ] Make it event aware. 
 - [ ] Make it use label verification, and count confirmation just like AddaxAI WebUI. This improves the overcounting.... 
 
