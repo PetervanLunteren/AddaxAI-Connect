@@ -265,7 +265,7 @@ addaxai-connect/
 │   ├── operations.md
 │   ├── restore-guide.md
 │   ├── dev-server-setup.md
-│   ├── install-on-phone.md
+│   ├── install-as-app.md
 │   └── architecture.md
 │
 ├── email_previews/                    # HTML previews of all email templates

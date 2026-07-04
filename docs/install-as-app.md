@@ -1,8 +1,8 @@
-# Install on phone
+# Install as an app
 
-You can install AddaxAI Connect on your phone so it feels like a normal app. There is no app store version. Instead, your browser saves a shortcut to the home screen and opens the site in its own window without the browser address bar. Notifications, login, and everything else work the same as on the website.
+You can install AddaxAI Connect on your phone or computer so it feels like a normal app. There is no app store version. Instead, your browser saves a shortcut to the home screen or dock and opens the site in its own window without the browser address bar. Notifications, login, and everything else work the same as on the website.
 
-This works on iPhone (Safari) and Android (Chrome). The look is close to a native app on both.
+This works on iPhone (Safari), Android (Chrome), and desktop (Chrome, Edge, or Safari). The look is close to a native app everywhere.
 
 The app also points this out itself. After logging in, the sidebar has an **Install app** entry, and a small one-time hint appears in the corner. On Android and desktop that entry opens the install dialog directly, on iPhone and iPad it shows the same steps as below. Both disappear once the app runs installed.
 
