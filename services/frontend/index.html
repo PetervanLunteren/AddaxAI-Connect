@@ -15,9 +15,12 @@
     <meta name="format-detection" content="telephone=no" />
     <!-- iOS launch screens. Shown while the installed app loads, instead of a
          white flash. iOS needs one exact-size image per device, hence the
-         list. Generated from public/icon-512.png on brand teal, see
-         docs/install-as-app.md. Android needs none of this, it builds its
-         launch screen from the manifest. -->
+         list. Android needs none of this, it builds its launch screen from
+         the manifest. Regenerate with ImageMagick, icon at 30% of the short
+         side (capped at 512 px) on the icon's own teal:
+           magick -size 1179x2556 canvas:'#0b6065' \
+             \( icon-512.png -resize 354x354 \) -gravity center -composite \
+             -strip -colors 128 PNG8:splash/splash-1179x2556.png -->
     <link rel="apple-touch-startup-image" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/splash-1320x2868.png" />
     <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/splash-1290x2796.png" />
     <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="/splash/splash-1284x2778.png" />
