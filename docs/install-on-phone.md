@@ -11,7 +11,10 @@ This works on iPhone (Safari) and Android (Chrome). The look is close to a nativ
 3. Scroll down and tap **Add to Home Screen**.
 4. Confirm the name and tap **Add**.
 
-The icon appears on your home screen. Tap it and the site opens fullscreen, with no Safari address bar. The dark status bar at the top blends into the app.
+The icon appears on your home screen. Tap it and the site opens fullscreen, with no Safari address bar.
+
+<!-- screenshot: iphone-share-sheet.png (Safari share sheet with "Add to Home Screen" visible) -->
+<!-- screenshot: iphone-home-icon.png (home screen with the AddaxAI icon) -->
 
 ## Android
 
@@ -24,6 +27,27 @@ The icon appears on your home screen and in your app drawer. Tap it and the site
 
 If your Chrome version only shows **Add to Home screen** as a plain shortcut, the result is still usable but it will open inside Chrome with the address bar. Update Chrome to get the full standalone install.
 
+<!-- screenshot: android-install-menu.png (Chrome menu with "Install app" visible) -->
+
+## Desktop
+
+The same works on a computer. Open the site in Chrome or Edge and click the small **install icon** at the right end of the address bar (a screen with a down arrow). The app opens in its own window and gets an icon in your dock or taskbar. Safari on Mac can do it too, via **File** and then **Add to Dock**.
+
+## What to expect
+
+The installed app behaves like a native app, not like a website in a browser.
+
+- **Launch screen.** Opening the app shows a teal screen with the AddaxAI mark while it loads, instead of a white browser flash.
+- **Fullscreen.** No address bar and no browser buttons. On iPhone the app extends behind the notch, and the status bar with the clock and battery sits on a teal strip that matches the app.
+- **No accidental reloads.** Swiping down at the top of a page does not trigger the browser pull-to-refresh, so scrolling through images never reloads the app by accident.
+- **Stable zoom.** Tapping a form field does not zoom the page in, and buttons respond to taps without the browser double-tap delay.
+
+![Launch screen](assets/launch-screen.png)
+
+Small things are still the browser underneath. For example, images long-press to save like in Safari or Chrome, which is handy for sharing a nice capture.
+
+<!-- screenshot: iphone-app-open.png (dashboard open in the installed app, teal status bar visible) -->
+
 ## Sign in once
 
 The first time you open the app, log in as usual. The login is remembered, so the next time you tap the icon it goes straight to the dashboard.
@@ -32,7 +56,30 @@ The first time you open the app, log in as usual. The login is remembered, so th
 
 The app updates automatically. When you open it after a new release, it loads the latest version. There is nothing to update by hand.
 
+The launch screen and icon are read once at install time. If those ever change on the server, remove the app from your home screen and add it again to pick up the new ones.
+
 ## Uninstall
 
 - **iPhone:** long-press the icon and tap **Remove App** then **Delete from Home Screen**.
 - **Android:** long-press the icon and drag it to **Uninstall**, or open the app drawer and uninstall it like any other app.
+- **Desktop:** open the app, click the three-dot menu in its title bar, and choose **Uninstall**.
+
+## For developers
+
+The pieces that make this work live in the frontend service.
+
+- `public/manifest.json` is the web app manifest (name, icons, `display: standalone`, theme color). Android builds its install banner, icon, and launch screen from this.
+- `index.html` carries the iOS meta tags plus one `apple-touch-startup-image` link per device size, because iOS needs an exact-size launch image per device.
+- `public/splash/` holds those launch images. They were generated from `public/icon-512.png` on the brand teal `#0b6065` with ImageMagick, at 30% of the short screen side, capped at 512 px:
+
+```bash
+cd services/frontend/public
+magick -size 1179x2556 canvas:'#0b6065' \
+  \( icon-512.png -resize 354x354 \) \
+  -gravity center -composite -strip -colors 128 \
+  PNG8:splash/splash-1179x2556.png
+```
+
+- `src/styles/index.css` handles the rest of the native feel, in the base layer. Overscroll behavior, tap highlight, the teal status bar strip (`body::before`), the 16 px input font size on touch devices, and the safe-area padding for the notch and home indicator.
+
+There is deliberately no service worker. One existed and was removed because its precaching served stale versions after deploys. `public/sw.js` is a self-destructing worker that cleans up old installs and can be deleted after a few months.

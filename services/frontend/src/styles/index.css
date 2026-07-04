@@ -54,9 +54,17 @@
   * {
     @apply border-border;
   }
+  html {
+    /* Stop pull-to-refresh and rubber-band scroll chaining in the installed
+       app, so a swipe down at the top does not reload the page. */
+    overscroll-behavior-y: none;
+    /* No grey/blue flash on tap, buttons give visual feedback themselves. */
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
     @apply bg-background text-foreground;
     margin: 0;
+    overscroll-behavior-y: none;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
@@ -66,6 +74,36 @@
       sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  /* Paint the iOS status bar area brand teal. The status-bar style is
+     black-translucent (white text), so the strip behind it must be dark or
+     the clock is unreadable on white pages. Android already shows a teal
+     status bar via the manifest theme_color, this makes iOS match. Height is
+     0 outside the installed app, so browsers never see it. Sits above the
+     sidebar (z-50), which gets its own safe-area padding. */
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top);
+    background-color: #0f6064;
+    z-index: 60;
+    pointer-events: none;
+  }
+  /* Remove the double-tap-to-zoom delay on controls so taps respond
+     instantly. Pinch zoom on page content keeps working. */
+  a, button, input, select, textarea, label, [role="button"] {
+    touch-action: manipulation;
+  }
+  /* iOS zooms the whole page when a focused input has a font size under
+     16px. Keep inputs at 16px on touch devices so focusing a form field
+     does not zoom the installed app. */
+  @media (pointer: coarse) {
+    input, select, textarea {
+      font-size: 16px;
+    }
   }
 }
 
