@@ -45,10 +45,6 @@ Open the site in Chrome or Edge and click the small install icon :material-monit
 <img class="screenshot" style="width: 13.3%" alt="AddaxAI Connect icon in the macOS dock" src="https://github.com/user-attachments/assets/d503a344-d1a4-4612-ac5c-b4bb3770d383" />
 </div>
 
-## Sign in once
-
-The first time you open the app, log in as usual. The login is remembered, so the next time you tap the icon it goes straight to the dashboard.
-
 ## Update
 
 The app updates automatically. When you open it after a new release, it loads the latest version. There is nothing to update by hand.
