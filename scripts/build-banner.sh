@@ -7,18 +7,34 @@
 #   2. iPhone screenshot of an image detail view with a bbox and label
 #   3. iPad landscape screenshot of the fullscreen map with hexbins
 #
-# Usage: scripts/build-banner.sh <dashboard.png> <iphone.png> <ipad.png|jpg>
+# Usage: scripts/build-banner.sh [<dashboard.png> <iphone.png> <ipad.png|jpg>]
+#
+# Without arguments it downloads the current source screenshots from the
+# GitHub attachments below and rebuilds the exact published banner.
 #
 # Writes banner-light.png and banner-dark.png to the current directory.
 # Convert to JPEG (~quality 88), upload both to a GitHub issue comment, and
 # put the user-attachments URLs in README.md and docs/index.md.
 set -e
 
-if [[ $# -ne 3 ]]; then
-  echo "usage: $0 <dashboard.png> <iphone.png> <ipad.png|jpg>" >&2
+# Source screenshots, taken 2026-07-04 from the demo project on dev
+SRC_DASHBOARD="https://github.com/user-attachments/assets/0af4705d-a5bb-430c-bef9-01108e6e4343"
+SRC_IPHONE="https://github.com/user-attachments/assets/94451378-f3a1-4bab-9813-e2b902870f07"
+SRC_IPAD="https://github.com/user-attachments/assets/ab1519a4-3301-4651-91f6-f865625c6f9a"
+
+if [[ $# -eq 3 ]]; then
+  DASHBOARD=$1; IPHONE=$2; IPAD=$3
+elif [[ $# -eq 0 ]]; then
+  SRCDIR=$(mktemp -d)
+  echo "downloading source screenshots"
+  curl -sL "$SRC_DASHBOARD" -o $SRCDIR/dashboard.png
+  curl -sL "$SRC_IPHONE" -o $SRCDIR/iphone.png
+  curl -sL "$SRC_IPAD" -o $SRCDIR/ipad.jpg
+  DASHBOARD=$SRCDIR/dashboard.png; IPHONE=$SRCDIR/iphone.png; IPAD=$SRCDIR/ipad.jpg
+else
+  echo "usage: $0 [<dashboard.png> <iphone.png> <ipad.png|jpg>]" >&2
   exit 1
 fi
-DASHBOARD=$1; IPHONE=$2; IPAD=$3
 
 W=2800; H=1400
 BEZEL="#1b1f20"
