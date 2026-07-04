@@ -17,6 +17,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { useInstallPrompt, promptInstall, type InstallMode } from '../hooks/useInstallPrompt';
 
 const HINT_DISMISSED_KEY = 'install_hint_dismissed';
+const VISITS_KEY = 'install_hint_visits';
+const VISITS_BEFORE_HINT = 10;
+const SESSION_COUNTED_KEY = 'install_hint_visit_counted';
+
+/**
+ * Count one visit per browser session, so the hint only appears for people
+ * who keep coming back. Refreshes and in-app navigation reuse the session,
+ * ten visits mean the user really returned ten times.
+ */
+function countSessionVisit(): number {
+  const current = Number(localStorage.getItem(VISITS_KEY)) || 0;
+  if (sessionStorage.getItem(SESSION_COUNTED_KEY)) return current;
+  sessionStorage.setItem(SESSION_COUNTED_KEY, '1');
+  const next = current + 1;
+  localStorage.setItem(VISITS_KEY, String(next));
+  return next;
+}
 
 const Step: React.FC<{ n: number; children: React.ReactNode }> = ({ n, children }) => (
   <li className="flex items-start gap-3">
@@ -126,17 +143,19 @@ export const InstallAppButton: React.FC = () => {
 
 /**
  * One-time discovery hint, bottom-right like a toast but it stays until the
- * user reacts. Dismissing or installing hides it forever on this device, the
- * sidebar entry remains as the permanent way in.
+ * user reacts. It waits for the tenth visit, someone who returns that often
+ * is invested enough for a nudge. Dismissing or installing hides it forever
+ * on this device, the sidebar entry remains as the permanent way in.
  */
 export const InstallHint: React.FC = () => {
   const mode = useInstallPrompt();
+  const [visits] = useState<number>(countSessionVisit);
   const [dismissed, setDismissed] = useState<boolean>(
     () => localStorage.getItem(HINT_DISMISSED_KEY) === '1',
   );
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  if (mode === 'none' || dismissed) return null;
+  if (mode === 'none' || dismissed || visits < VISITS_BEFORE_HINT) return null;
 
   const dismiss = (): void => {
     localStorage.setItem(HINT_DISMISSED_KEY, '1');
