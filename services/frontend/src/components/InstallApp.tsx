@@ -13,7 +13,7 @@
  */
 import React, { useState } from 'react';
 import { MonitorSmartphone, Share, SquarePlus, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/Dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { useInstallPrompt, promptInstall, type InstallMode } from '../hooks/useInstallPrompt';
 
 const HINT_DISMISSED_KEY = 'install_hint_dismissed';
@@ -92,10 +92,6 @@ const InstallAppDialog: React.FC<{
     <DialogContent onClose={() => onOpenChange(false)}>
       <DialogHeader>
         <DialogTitle>Install as an app</DialogTitle>
-        <DialogDescription>
-          The app gets its own icon and opens fullscreen, with a launch screen
-          and without the browser bar. It stays up to date by itself.
-        </DialogDescription>
       </DialogHeader>
       <DialogSteps mode={mode} />
     </DialogContent>
