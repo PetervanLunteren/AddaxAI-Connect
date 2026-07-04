@@ -176,8 +176,10 @@ export function drawDetectionOverlay(
   const scaleX = canvasW / imageWidth;
   const scaleY = canvasH / imageHeight;
 
-  // UI scale factor for fonts, pills, paddings (reference display width = 1000)
-  const scale = canvasW / 1000;
+  // UI scale factor for fonts, pills, paddings (reference display width =
+  // 1000). Floored at 0.9 so the label pill stays readable on phone-width
+  // canvases, where a pure ratio would shrink 12 px text to ~4 px.
+  const scale = Math.max(canvasW / 1000, 0.9);
 
   // Pin the stroke scale at 0.6 so the bbox border is a consistent ~3 px
   // across all views (thumbnails and the detail modal).

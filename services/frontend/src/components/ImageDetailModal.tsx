@@ -490,9 +490,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                       </a>
                     </div>
                   )}
-                  {/* Zoom controls */}
+                  {/* Zoom controls. Hidden on touch screens, where pinch and
+                      double-tap zoom already work and the buttons only sit on
+                      top of the photo. */}
                   <div
-                    className="absolute bottom-3 right-3 flex items-center gap-0.5 px-1 py-1 rounded text-white"
+                    className="absolute bottom-3 right-3 flex items-center gap-0.5 px-1 py-1 rounded text-white [@media(pointer:coarse)]:hidden"
                     style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
                   >
                     <button
