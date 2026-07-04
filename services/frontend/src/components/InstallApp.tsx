@@ -38,11 +38,11 @@ const IosSafariSteps: React.FC = () => (
       button at the bottom right. On iPad it sits at the top right.
     </Step>
     <Step n={2}>
-      Scroll down and tap <strong>Add to Home Screen</strong>
+      Scroll down and tap Add to Home Screen
       <SquarePlus className="mx-1 inline h-4 w-4 align-text-bottom" aria-hidden="true" />.
     </Step>
     <Step n={3}>
-      Tap <strong>Add</strong>.
+      Tap Add.
     </Step>
   </ol>
 );
@@ -66,13 +66,13 @@ const DialogSteps: React.FC<{ mode: InstallMode }> = ({ mode }) => {
     return (
       <ol className="space-y-3">
         <Step n={1}>
-          Open the <strong>File</strong> menu in Safari.
+          Open the File menu in Safari.
         </Step>
         <Step n={2}>
-          Choose <strong>Add to Dock</strong>.
+          Choose Add to Dock.
         </Step>
         <Step n={3}>
-          Click <strong>Add</strong>.
+          Click Add.
         </Step>
       </ol>
     );

@@ -2,7 +2,7 @@
 
 Install AddaxAI Connect on your phone or computer to use it as an app. There is no app store download, you install it straight from the browser.
 
-The app points this out itself. After logging in, the sidebar has an **Install app** entry, and a small one-time hint appears in the corner. On Android and desktop that entry opens the install dialog directly, on iPhone and iPad it shows the same steps as below. Both disappear once the app runs installed.
+The app points this out itself. After logging in, the sidebar has an `Install app` entry, and a small one-time hint appears in the corner. On Android and desktop that entry opens the install dialog directly, on iPhone and iPad it shows the same steps as below. Both disappear once the app runs installed.
 
 <p>
 <img class="screenshot" width="49%" alt="One-time install hint on the dashboard" src="https://github.com/user-attachments/assets/0017958d-ddf5-4155-b80f-346915d25cf2" />
@@ -11,10 +11,10 @@ The app points this out itself. After logging in, the sidebar has an **Install a
 
 ## iPhone
 
-1. Open `https://your-server-domain` in **Safari**. Installing only works from Safari.
-2. Tap the **Share** button at the bottom of the screen (the square with an arrow pointing up). On newer Safari versions it sits behind the **⋯** button at the bottom right.
-3. Scroll down and tap **Add to Home Screen**.
-4. Confirm the name and tap **Add**.
+1. Open `https://your-server-domain` in Safari. Installing only works from Safari.
+2. Tap the `Share` button at the bottom of the screen (the square with an arrow pointing up). On newer Safari versions it sits behind the `⋯` button at the bottom right.
+3. Scroll down and tap `Add to Home Screen`.
+4. Confirm the name and tap `Add`.
 
 The icon appears on your home screen.
 
@@ -29,18 +29,18 @@ The icon appears on your home screen.
 
 ## Android
 
-1. Open `https://your-server-domain` in **Chrome**.
-2. Tap the **three-dot menu** in the top right.
-3. Tap **Install app** if you see it. If not, tap **Add to Home screen** and choose **Install** in the popup.
-4. Confirm and tap **Install** or **Add**.
+1. Open `https://your-server-domain` in Chrome.
+2. Tap the three-dot menu in the top right.
+3. Tap `Install app` if you see it. If not, tap `Add to Home screen` and choose `Install` in the popup.
+4. Confirm and tap `Install` or `Add`.
 
 The icon appears on your home screen and in your app drawer.
 
-If your Chrome version only shows **Add to Home screen** as a plain shortcut, update Chrome to get the full install.
+If your Chrome version only shows `Add to Home screen` as a plain shortcut, update Chrome to get the full install.
 
 ## Desktop
 
-Open the site in Chrome or Edge and click the small **install icon** at the right end of the address bar (a screen with a down arrow). The app gets an icon in your dock or taskbar. Safari on Mac can do it too, via **File** and then **Add to Dock**.
+Open the site in Chrome or Edge and click the small install icon at the right end of the address bar (a screen with a down arrow). The app gets an icon in your dock or taskbar. Safari on Mac can do it too, via `File` and then `Add to Dock`.
 
 <img alt="Install icon in the Chrome address bar" src="https://github.com/user-attachments/assets/089d5220-4a77-487c-af05-497f38aa69d4" />
 
@@ -54,6 +54,6 @@ The app updates automatically. When you open it after a new release, it loads th
 
 ## Uninstall
 
-- **iPhone:** long-press the icon and tap **Remove App** then **Delete from Home Screen**.
-- **Android:** long-press the icon and drag it to **Uninstall**, or open the app drawer and uninstall it like any other app.
-- **Desktop:** open the app, click the three-dot menu in its title bar, and choose **Uninstall**.
+- iPhone: long-press the icon and tap `Remove App` then `Delete from Home Screen`.
+- Android: long-press the icon and drag it to `Uninstall`, or open the app drawer and uninstall it like any other app.
+- Desktop: open the app, click the three-dot menu in its title bar, and choose `Uninstall`.
