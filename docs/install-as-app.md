@@ -12,8 +12,8 @@ The app points this out itself. After logging in, the sidebar has an `Install ap
 ## iPhone
 
 1. Open `https://your-server-domain` in Safari. Installing only works from Safari.
-2. Tap the `Share` button at the bottom of the screen (the square with an arrow pointing up). On newer Safari versions it sits behind the `⋯` button at the bottom right.
-3. Scroll down and tap `Add to Home Screen`.
+2. Tap the `Share` button :material-tray-arrow-up: at the bottom of the screen. On newer Safari versions it sits behind the :material-dots-horizontal: button at the bottom right.
+3. Scroll down and tap `Add to Home Screen` :material-plus-box-outline:.
 4. Confirm the name and tap `Add`.
 
 The icon appears on your home screen.
@@ -30,7 +30,7 @@ The icon appears on your home screen.
 ## Android
 
 1. Open `https://your-server-domain` in Chrome.
-2. Tap the three-dot menu in the top right.
+2. Tap the :material-dots-vertical: menu in the top right.
 3. Tap `Install app` if you see it. If not, tap `Add to Home screen` and choose `Install` in the popup.
 4. Confirm and tap `Install` or `Add`.
 
@@ -40,7 +40,7 @@ If your Chrome version only shows `Add to Home screen` as a plain shortcut, upda
 
 ## Desktop
 
-Open the site in Chrome or Edge and click the small install icon at the right end of the address bar (a screen with a down arrow). The app gets an icon in your dock or taskbar. Safari on Mac can do it too, via `File` and then `Add to Dock`.
+Open the site in Chrome or Edge and click the small install icon :material-monitor-arrow-down-variant: at the right end of the address bar. The app gets an icon in your dock or taskbar. Safari on Mac can do it too, via `File` and then `Add to Dock`.
 
 <img alt="Install icon in the Chrome address bar" src="https://github.com/user-attachments/assets/089d5220-4a77-487c-af05-497f38aa69d4" />
 
@@ -56,4 +56,4 @@ The app updates automatically. When you open it after a new release, it loads th
 
 - iPhone: long-press the icon and tap `Remove App` then `Delete from Home Screen`.
 - Android: long-press the icon and drag it to `Uninstall`, or open the app drawer and uninstall it like any other app.
-- Desktop: open the app, click the three-dot menu in its title bar, and choose `Uninstall`.
+- Desktop: open the app, click the :material-dots-vertical: menu in its title bar, and choose `Uninstall`.
