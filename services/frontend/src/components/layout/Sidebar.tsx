@@ -34,6 +34,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
+import { InstallAppButton } from '../InstallApp';
 import { bulkUploadApi, type BulkUploadJob } from '../../api/bulkUpload';
 import { feedApi } from '../../api/feed';
 
@@ -321,6 +322,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Bottom section */}
         <div className="shrink-0 bg-card">
+          <InstallAppButton />
           <LastUpdate />
         </div>
       </aside>

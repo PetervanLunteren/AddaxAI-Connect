@@ -4,6 +4,8 @@ You can install AddaxAI Connect on your phone so it feels like a normal app. The
 
 This works on iPhone (Safari) and Android (Chrome). The look is close to a native app on both.
 
+The app also points this out itself. After logging in, the sidebar has an **Install app** entry, and a small one-time hint appears in the corner. On Android and desktop that entry opens the install dialog directly, on iPhone and iPad it shows the same steps as below. Both disappear once the app runs installed.
+
 ## iPhone
 
 1. Open `https://your-server-domain` in **Safari**. Other browsers like Chrome on iPhone will not give you the standalone window.

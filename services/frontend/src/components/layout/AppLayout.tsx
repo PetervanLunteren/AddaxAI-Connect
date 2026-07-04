@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { DevServerBanner } from '../DevServerBanner';
+import { InstallHint } from '../InstallApp';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -39,6 +40,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           {children}
         </div>
       </main>
+
+      {/* One-time install discovery hint. Lives here so it only shows after
+          login, never on the shared demo login page. */}
+      <InstallHint />
     </div>
   );
 };
