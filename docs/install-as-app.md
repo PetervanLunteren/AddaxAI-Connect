@@ -46,6 +46,8 @@ If your Chrome version only shows **Add to Home screen** as a plain shortcut, up
 
 Open the site in Chrome or Edge and click the small **install icon** at the right end of the address bar (a screen with a down arrow). The app gets an icon in your dock or taskbar. Safari on Mac can do it too, via **File** and then **Add to Dock**.
 
+<img class="screenshot" alt="Install icon in the Chrome address bar" src="https://github.com/user-attachments/assets/089d5220-4a77-487c-af05-497f38aa69d4" />
+
 ## Sign in once
 
 The first time you open the app, log in as usual. The login is remembered, so the next time you tap the icon it goes straight to the dashboard.
