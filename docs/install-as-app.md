@@ -24,10 +24,6 @@ The icon appears on your home screen.
 </p>
 <p>
 <img class="screenshot" width="49%" alt="Confirm the name and tap Add" src="https://github.com/user-attachments/assets/88c25630-6f7f-4278-89a9-f8b410169814" />
-<img class="screenshot" width="49%" alt="AddaxAI icon on the home screen" src="https://github.com/user-attachments/assets/d7718a6d-f740-466e-831e-bbd517e06b4c" />
-</p>
-<p>
-<img class="screenshot" width="49%" alt="Launch screen" src="https://github.com/user-attachments/assets/c08f0c21-7ce5-48ae-ae6e-165ad070565e" />
 <img class="screenshot" width="49%" alt="The installed app open on the projects page" src="https://github.com/user-attachments/assets/6591ecad-f8d0-4eab-ada3-e315c0367172" />
 </p>
 
