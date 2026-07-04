@@ -12,7 +12,7 @@
  * browser cannot install, driven by useInstallPrompt.
  */
 import React, { useState } from 'react';
-import { MonitorSmartphone, Share, SquarePlus, X } from 'lucide-react';
+import { MonitorSmartphone, MoreHorizontal, Share, SquarePlus, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { useInstallPrompt, promptInstall, type InstallMode } from '../hooks/useInstallPrompt';
 
@@ -32,8 +32,10 @@ const IosSafariSteps: React.FC = () => (
     <Step n={1}>
       Tap the share button
       <Share className="mx-1 inline h-4 w-4 align-text-bottom" aria-hidden="true" />
-      in Safari. On iPhone it sits at the bottom of the screen, on iPad at the
-      top right.
+      in Safari. On iPhone it sits at the bottom of the screen, sometimes
+      behind the
+      <MoreHorizontal className="mx-1 inline h-4 w-4 align-text-bottom" aria-hidden="true" />
+      button at the bottom right. On iPad it sits at the top right.
     </Step>
     <Step n={2}>
       Scroll down and tap <strong>Add to Home Screen</strong>

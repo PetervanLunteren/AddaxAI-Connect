@@ -9,7 +9,7 @@ The app also points this out itself. After logging in, the sidebar has an **Inst
 ## iPhone
 
 1. Open `https://your-server-domain` in **Safari**. Other browsers like Chrome on iPhone will not give you the standalone window.
-2. Tap the **Share** button at the bottom of the screen (the square with an arrow pointing up).
+2. Tap the **Share** button at the bottom of the screen (the square with an arrow pointing up). On newer Safari versions it sits behind the **⋯** button at the bottom right.
 3. Scroll down and tap **Add to Home Screen**.
 4. Confirm the name and tap **Add**.
 
