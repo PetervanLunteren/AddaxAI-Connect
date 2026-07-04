@@ -31,16 +31,17 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-/* Row of screenshots shown at one shared height. Widths follow each image's
-   own ratio, narrow screens scroll the row sideways. */
+/* Row of screenshots at one shared height. Give each image a percentage
+   width proportional to its aspect ratio (widths summing to ~100%), then
+   the heights come out equal and the row scales with the page instead of
+   scrolling. */
 .screenshot-row {
   display: flex;
   gap: 0.6rem;
-  overflow-x: auto;
+  align-items: flex-start;
 }
 
 .screenshot-row img {
-  height: 86px;
-  width: auto;
-  flex: none;
+  height: auto;
+  min-width: 0;
 }
