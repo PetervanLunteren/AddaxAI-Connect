@@ -37,7 +37,7 @@ Official documentation: https://petervanlunteren.github.io/AddaxAI-Connect/
 
 AddaxAI Connect is an open-source platform that automatically processes camera trap images with machine learning. It picks up images from your cameras via FTPS, figures out what's in them, and shows you everything in a web interface with maps, charts, and notifications. Fully self-hosted on a single server, so your data stays yours. Deploy it, point your cameras at it, and go do something more fun than manually sorting thousands of photos of empty bushes.
 
-AddaxAI Connect is made for nature conservation. The software is free and open source, with no licensing cost, and it stays that way. We build it so that parks, reserves, and research teams can run their own camera trap pipeline without paying for software. The goal is to protect nature, not to make money from the software. If you would rather not run it yourself, we also offer to deploy it or host it for you as a paid service. That paid help is what keeps the software free for everyone.
+It's made for nature conservation. The software is free and open source, with no licensing cost, and it stays that way. We build it so that parks, reserves, and research teams can run their own camera trap pipeline without paying for software. The goal is to protect nature, not to make money from the software. If you would rather not run it yourself, we also offer to deploy it or host it for you as a paid service. That paid help is what keeps the software free for everyone.
 
 A collaboration between [Addax Data Science](https://addaxdatascience.com) and [Smart Parks](https://www.smartparks.org). Built on [AddaxAI](https://github.com/PetervanLunteren/addaxai) for the ML backbone.
 
