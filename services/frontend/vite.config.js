@@ -19,6 +19,10 @@ export default defineConfig(({ mode }) => {
         '/api': entry,
         '/auth': entry,
         '/users': entry,
+        // Served by the frontend container's nginx in deployments (static
+        // mount), so the local loop must proxy it to the remote too or
+        // project cover images look broken during local dev.
+        '/project-images': entry,
         '/ws': {
           target: target.replace(/^http/, 'ws'),
           ws: true,

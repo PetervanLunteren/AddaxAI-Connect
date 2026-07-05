@@ -2627,6 +2627,12 @@ async def get_verification_progress_all(
     )
     species_result = await db.execute(species_q)
     for row in species_result.all():
+        # person, vehicle, and empty get dedicated detection-based rows
+        # below. The species union can also produce them (as human
+        # observation or classifier labels), which duplicated the label
+        # in the response and showed two different bars for one thing.
+        if row.species in ("person", "vehicle", "empty"):
+            continue
         sp_total = row.total
         sp_verified = row.verified
         rows.append(VerificationProgressResponse(

@@ -549,7 +549,9 @@ export const NotificationsPage: React.FC = () => {
               <div className="space-y-6">
                 {/* QR code */}
                 <div className="flex justify-center bg-white p-4 rounded-lg">
-                  <QRCode value={deepLink} size={200} />
+                  {/* Guard needed even though the dialog only opens with a
+                      link, React validates props at element creation */}
+                  {deepLink && <QRCode value={deepLink} size={200} />}
                 </div>
 
                 {/* Divider */}
