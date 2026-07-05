@@ -111,7 +111,7 @@ export const AboutPage: React.FC = () => {
             <div className="space-y-2">
               <p className="text-sm">
                 <a
-                  href="https://petervanlunteren.github.io/AddaxAI-Connect/"
+                  href="https://connect.addaxai.com/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline inline-flex items-center gap-1"

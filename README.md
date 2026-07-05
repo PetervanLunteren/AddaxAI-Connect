@@ -16,11 +16,11 @@
 
 ![GitHub last commit](https://img.shields.io/github/last-commit/PetervanLunteren/AddaxAI-Connect)
 ![GitHub release](https://img.shields.io/github/v/release/PetervanLunteren/AddaxAI-Connect)
-[![docs](https://github.com/PetervanLunteren/AddaxAI-Connect/actions/workflows/deploy-docs.yml/badge.svg)](https://petervanlunteren.github.io/AddaxAI-Connect/)
+[![docs](https://github.com/PetervanLunteren/AddaxAI-Connect/actions/workflows/deploy-docs.yml/badge.svg)](https://connect.addaxai.com/)
 
 <h3>
   
-Official documentation: https://petervanlunteren.github.io/AddaxAI-Connect/
+Official documentation: https://connect.addaxai.com/
 
 </h3>
 
@@ -55,17 +55,17 @@ Your camera uploads an image via FTPS. From there, AddaxAI Connect handles the p
 4. **Notifications** via email and Telegram: instant alerts, daily/weekly/monthly reports, battery warnings, etc
 5. **Web interface** lets you browse results, view them on a map, check stats, and export data
 
-Each step runs as its own Docker service. They pass messages through Redis queues, store images in MinIO, and share a PostgreSQL database. It supports multiple projects with role-based access control, so different teams can work from the same server. For the full breakdown, see the [architecture](https://petervanlunteren.github.io/AddaxAI-Connect/architecture/).
+Each step runs as its own Docker service. They pass messages through Redis queues, store images in MinIO, and share a PostgreSQL database. It supports multiple projects with role-based access control, so different teams can work from the same server. For the full breakdown, see the [architecture](https://connect.addaxai.com/architecture/).
 
 ## Camera compatibility
 
 AddaxAI Connect works with any camera trap that can upload images via FTPS. Each camera model needs a camera profile, a small piece of code that tells the system how to extract the camera ID, GPS coordinates, and timestamp from that model's images. Profiles can pull these from EXIF, from the upload directory path, etc. As long as it is somewhere. 
 
-Adding a new camera usually takes a bit of development and testing. If your camera isn't listed, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with a few sample images and we'll work it out. See [camera requirements](https://petervanlunteren.github.io/AddaxAI-Connect/camera-requirements/) for the full details and list of supported cameras.
+Adding a new camera usually takes a bit of development and testing. If your camera isn't listed, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with a few sample images and we'll work it out. See [camera requirements](https://connect.addaxai.com/camera-requirements/) for the full details and list of supported cameras.
 
 ## Getting started
 
-You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. See the [documentation](https://petervanlunteren.github.io/AddaxAI-Connect/) for camera requirements, step-by-step deployment, and setup instructions.
+You need an Ubuntu server and a domain name. Deployment is automated with Ansible: fill in a config file, run a command, and you're up and running in about an hour. See the [documentation](https://connect.addaxai.com/) for camera requirements, step-by-step deployment, and setup instructions.
 
 For contributors: [developer docs](DEVELOPERS.md) and [conventions](CONVENTIONS.md).
 

@@ -157,7 +157,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
           <div className="border-t border-border my-1" />
           <div className="py-1">
             <a
-              href="https://petervanlunteren.github.io/AddaxAI-Connect/"
+              href="https://connect.addaxai.com/"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setIsOpen(false)}
