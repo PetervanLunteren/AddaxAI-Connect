@@ -38,7 +38,9 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
   // transform, which would otherwise become the containing block for a nested
   // dialog's position:fixed and clip it inside the parent modal.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    // Safe-area padding keeps modal content out from under the iOS
+    // status-bar strip when installed as an app. env() is 0 elsewhere.
+    <div className="fixed inset-0 z-50 flex items-center justify-center pt-[env(safe-area-inset-top)]">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/70 backdrop-blur-sm"
@@ -58,7 +60,9 @@ export const DialogContent = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'fixed left-[50%] top-[50%] z-50 grid w-[calc(100vw-1rem)] sm:w-full max-w-lg max-h-[85vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg',
+      // top is 50% shifted down by half the iOS status-bar strip, so the
+      // dialog centers in the area below the strip (env() is 0 elsewhere)
+      'fixed left-[50%] top-[calc(50%_+_env(safe-area-inset-top)/2)] z-50 grid w-[calc(100vw-1rem)] sm:w-full max-w-lg max-h-[85vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg',
       className
     )}
     {...props}

@@ -415,7 +415,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <div className="bg-background p-3 sm:p-6 rounded-lg shadow-lg w-[calc(100vw-1rem)] sm:w-full sm:max-w-7xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden relative">
+      <div className="bg-background p-3 sm:p-6 rounded-lg shadow-lg w-[calc(100vw-1rem)] sm:w-full sm:max-w-7xl max-h-full sm:max-h-[90vh] overflow-y-auto overflow-x-hidden relative">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />

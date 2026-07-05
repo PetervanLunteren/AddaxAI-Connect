@@ -101,8 +101,11 @@
      16px. Keep inputs at 16px on touch devices so focusing a form field
      does not zoom the installed app. */
   @media (pointer: coarse) {
+    /* iOS Safari zooms the page when a focused field is under 16px.
+       !important so utility classes like text-sm and inline styles from
+       third-party selects cannot reintroduce the zoom. */
     input, select, textarea {
-      font-size: 16px;
+      font-size: 16px !important;
     }
   }
 }

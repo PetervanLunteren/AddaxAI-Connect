@@ -183,19 +183,28 @@ const Matrix: React.FC<{
       <table className="text-xs border-collapse" style={{ tableLayout: 'fixed' }}>
         <thead>
           <tr>
+            {/* Corner cell, sticky on both axes so the axis labels stay
+                visible while scrolling. z-20 beats the row and column
+                headers (z-10) but stays below the mobile top bar (z-30),
+                per the overlay ladder in FRONTEND_CONVENTIONS.md. */}
             <th
-              className="sticky bg-background z-30 border-b border-r"
+              className="sticky bg-background z-20 border-b border-r"
               style={{
                 left: '0rem',
                 top: '0rem',
                 height: HEADER_HEIGHT,
                 width: `${FIRST_COL_WIDTH}rem`,
               }}
-            />
+            >
+              <div className="flex h-full flex-col items-end justify-between p-2 font-medium text-muted-foreground">
+                <span>Predicted &rarr;</span>
+                <span className="self-start">True &darr;</span>
+              </div>
+            </th>
             {folded.classes.map((cls) => (
               <th
                 key={cls}
-                className="sticky bg-background z-20 align-bottom border-b font-medium p-0"
+                className="sticky bg-background z-10 align-bottom border-b font-medium p-0"
                 style={{
                   top: '0rem',
                   height: HEADER_HEIGHT,

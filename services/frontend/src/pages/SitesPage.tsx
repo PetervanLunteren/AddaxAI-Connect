@@ -412,8 +412,10 @@ export const SitesPage: React.FC = () => {
           )}
 
           {/* Table / map switcher, with the map colour control on the same
-              row (map view only) so it stays visible without a separate bar. */}
-          <div className="flex items-center justify-between border-b">
+              row (map view only) so it stays visible without a separate bar.
+              The row wraps, so on phones the colour control drops to its
+              own line instead of pushing off screen. */}
+          <div className="flex flex-wrap items-center justify-between gap-y-2 border-b">
             <div className="flex">
               <button
                 onClick={() => setViewMode('table')}

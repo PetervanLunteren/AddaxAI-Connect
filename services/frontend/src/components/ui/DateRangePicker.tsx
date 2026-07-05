@@ -75,7 +75,7 @@ export function DateRangePicker({
               to: picked?.to ? format(picked.to, 'yyyy-MM-dd') : undefined,
             });
           }}
-          numberOfMonths={2}
+          numberOfMonths={1}
           defaultMonth={range.from ?? endMonth}
           startMonth={startMonth}
           endMonth={endMonth}

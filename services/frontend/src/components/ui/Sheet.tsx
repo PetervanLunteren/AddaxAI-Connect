@@ -55,7 +55,9 @@ export const SheetContent = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'fixed top-0 right-0 h-full w-[calc(100vw-1rem)] sm:w-full max-w-lg bg-background border-l shadow-lg overflow-y-auto pointer-events-auto',
+      // Top padding keeps the sheet header out from under the iOS
+      // status-bar strip when installed as an app (env() is 0 elsewhere)
+      'fixed top-0 right-0 h-full w-[calc(100vw-1rem)] sm:w-full max-w-lg bg-background border-l shadow-lg overflow-y-auto pointer-events-auto pt-[env(safe-area-inset-top)]',
       'animate-slide-in-from-right',
       className
     )}
