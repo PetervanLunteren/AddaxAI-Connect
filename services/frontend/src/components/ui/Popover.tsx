@@ -28,11 +28,11 @@ const PopoverContent = React.forwardRef<
         // classes are dropped — popover appears without a slide/fade.
         // `bg-card text-card-foreground` instead of the WebUI `bg-popover`
         // tokens (Connect's theme has no separate popover palette).
-        // z-[1100] keeps the popover above Leaflet's internal panes (the
-        // tile / overlay / marker / popup panes use z-indices 200-700);
-        // Radix renders this content via a portal at document.body so a
-        // parent's z-index alone cannot lift it.
-        'z-[1100] w-72 rounded-md border bg-card p-4 text-card-foreground shadow-md outline-none',
+        // z-50 per the overlay ladder in FRONTEND_CONVENTIONS.md. Every
+        // MapContainer is contained at zIndex 0, so Leaflet's internal
+        // panes (z 200-700) stay trapped below and overlays only need to
+        // beat each other.
+        'z-50 w-72 rounded-md border bg-card p-4 text-card-foreground shadow-md outline-none',
         className,
       )}
       {...props}

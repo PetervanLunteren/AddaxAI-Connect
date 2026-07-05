@@ -228,7 +228,7 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
       <MapContainer
         center={mapCenter}
         zoom={12}
-        style={{ height: '600px', width: '100%' }}
+        style={{ height: '600px', width: '100%', zIndex: 0 }}
         className="rounded-lg border border-gray-200"
       >
         <BaseLayersControl />

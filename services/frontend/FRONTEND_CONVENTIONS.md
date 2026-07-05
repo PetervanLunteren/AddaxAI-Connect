@@ -398,19 +398,27 @@ Plan to add:
 5. **Image Gallery**: Component for viewing camera trap images
 6. **Map View**: Leaflet integration for site locations
 
-## mobile friendly
+## Overlay z-index ladder
 
-What you need for it to look good on mobile:
+All stacking follows one ladder. Do not invent new z-index values, pick the matching layer. When two overlays share a layer, DOM order breaks the tie (portalled overlays append to `document.body` last, so they win).
 
-A viewport meta tag in your HTML. Without this, everything will be zoomed out.
+| z | layer | used by |
+|---|-------|---------|
+| 0 | map containers | inline `zIndex: 0` on every `MapContainer` |
+| 10-30 | in-page sticky | table and matrix headers, mobile top bar (30) |
+| 40 | sidebar backdrop | mobile drawer backdrop |
+| 50 | app overlays | sidebar drawer, Dialog, Sheet, DropdownMenu, Popover, select menus |
+| 60 | iOS status strip | `body::before` in `styles/index.css` |
+| 70 | fullscreen map | `.map-fullscreen` |
+| 90 | install hint | `InstallApp` |
+| 100 | toasts | `Toaster` |
 
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+**Map containment rule:** every `<MapContainer>` gets `zIndex: 0` in its inline style. This creates a stacking context that traps Leaflet's internal panes (z 200-700), so overlays never have to outbid them. Without it, the map paints over the sidebar and every z-50 overlay.
 
+## Responsive rules
 
-Responsive CSS using techniques like flexbox, grid, and media queries.
-
-Relative units like %, vw, vh, rem instead of hard coded px everywhere.
-
-Touch friendly UI elements. Buttons need enough size and spacing for fingers.
-
-Optional but common: a CSS framework like Tailwind, MUI, or Bootstrap that already handles responsive breakpoints.
+- Target viewports are phone 390px, tablet 768px, desktop 1440px. Verify changes with `npm run sweep` (see DEVELOPERS.md).
+- The page body must never scroll horizontally. Wide content (tables, matrices, charts) scrolls inside its own `overflow-x-auto` container instead.
+- Charts that become unreadable when squeezed get a minimum drawn width and scroll, like `DeploymentTimelineChart`.
+- Inputs stay at 16px font on coarse pointers (handled globally in `styles/index.css`), this stops iOS zooming on focus.
+- Safe-area insets for notched phones are handled globally on `body`, do not add per-component padding for that.

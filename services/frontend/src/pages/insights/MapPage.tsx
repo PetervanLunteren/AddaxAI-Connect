@@ -188,10 +188,7 @@ export const InsightsMapPage: React.FC = () => {
       title="Map"
       subtitle="Detection rate per site, corrected for trap-days"
     >
-      {/* Leaflet's panes stack up to z-index 700 within its own context.
-          Lift the FilterBar above so the MultiSelect dropdown and the
-          More/Display popovers render on top of the map below. */}
-      <div className="relative z-[1100]">
+      <div>
         <FilterBar
           fields={filterFields}
           values={filterValues}

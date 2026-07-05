@@ -82,7 +82,9 @@ function readEnvLocal() {
 }
 
 const env = { ...readEnvLocal(), ...process.env };
-const BASE = env.SWEEP_BASE_URL || 'http://localhost:5173';
+// 127.0.0.1 instead of localhost: node fetch resolves localhost to ::1 (IPv6)
+// while the vite dev server listens on IPv4 only
+const BASE = env.SWEEP_BASE_URL || 'http://127.0.0.1:5173';
 
 if (!env.SWEEP_EMAIL || !env.SWEEP_PASSWORD) {
   throw new Error('SWEEP_EMAIL and SWEEP_PASSWORD must be set, see .env.local notes in DEVELOPERS.md');

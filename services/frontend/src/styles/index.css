@@ -142,7 +142,10 @@ input[type="range"]::-moz-range-thumb {
   left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
-  z-index: 9999 !important;
+  /* Above the sidebar and dialogs (50) and the status strip (60), below
+     the install hint (90) and toasts (100). See the overlay ladder in
+     FRONTEND_CONVENTIONS.md. */
+  z-index: 70 !important;
   border-radius: 0 !important;
 }
 
