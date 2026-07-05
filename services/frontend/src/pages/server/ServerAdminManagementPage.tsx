@@ -145,7 +145,7 @@ export const ServerAdminManagementPage: React.FC = () => {
               <TableBody>
                 {serverAdmins.map((serverAdmin) => (
                   <TableRow key={serverAdmin.id}>
-                    <TableCell className="font-medium">{serverAdmin.email}</TableCell>
+                    <TableCell className="font-medium break-all">{serverAdmin.email}</TableCell>
                     <TableCell>
                       <div className="flex gap-2 flex-wrap">
                         <span

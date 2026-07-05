@@ -210,7 +210,7 @@ export const ProjectUsersPage: React.FC = () => {
               <TableBody>
                 {projectUsers.map((user, index) => (
                   <TableRow key={user.user_id || `pending-${index}`}>
-                    <TableCell className="font-medium">{user.email}</TableCell>
+                    <TableCell className="font-medium break-all">{user.email}</TableCell>
                     <TableCell>{getRoleBadge(user.role)}</TableCell>
                     <TableCell>
                       {user.is_registered ? (

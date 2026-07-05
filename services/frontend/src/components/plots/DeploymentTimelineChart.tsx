@@ -182,7 +182,10 @@ export function DeploymentTimelineChart({
   useEffect(() => {
     if (!containerRef.current) return;
     const ro = new ResizeObserver((entries) => {
-      for (const e of entries) setWidth(Math.max(360, Math.floor(e.contentRect.width)));
+      // Never draw narrower than 800, below that the year ticks overlap
+      // into unreadable text on long projects. Narrow screens scroll the
+      // chart instead.
+      for (const e of entries) setWidth(Math.max(800, Math.floor(e.contentRect.width)));
     });
     ro.observe(containerRef.current);
     return () => ro.disconnect();
@@ -386,7 +389,7 @@ export function DeploymentTimelineChart({
   );
 
   return (
-    <div ref={containerRef} className="w-full overflow-x-hidden">
+    <div ref={containerRef} className="w-full overflow-x-auto">
       <svg
         width={width}
         height={totalHeight}

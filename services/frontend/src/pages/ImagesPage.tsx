@@ -603,7 +603,7 @@ export const ImagesPage: React.FC = () => {
               {imagesData.total} images
             </div>
             {imagesData.pages > 1 && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

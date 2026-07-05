@@ -107,7 +107,9 @@ const FeedTile: React.FC<{
   );
 
   const base =
-    (hero ? 'flex h-[60vh] w-fit items-center justify-center' : 'h-24 w-32 shrink-0') +
+    // Full width below lg so the focus box is never a narrow strip on
+    // phones and tablets, hugging the image only on desktop.
+    (hero ? 'flex h-[60vh] w-full items-center justify-center lg:w-fit' : 'h-24 w-32 shrink-0') +
     ' relative overflow-hidden rounded-lg bg-muted' +
     (selected ? ' ring-2 ring-primary' : '');
 
@@ -117,7 +119,7 @@ const FeedTile: React.FC<{
         <AuthenticatedImage
           src={src}
           alt=""
-          className={hero ? 'h-[60vh] w-auto object-contain' : 'h-24 w-32 object-cover'}
+          className={hero ? 'h-full w-auto max-w-full object-contain' : 'h-24 w-32 object-cover'}
           fallback={fallback}
         />
       ) : (
