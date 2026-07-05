@@ -51,7 +51,6 @@ Images flow through the pipeline in order: ingestion, detection, classification,
 # Check how many messages are waiting in each queue
 docker compose exec redis redis-cli -a "$REDIS_PASSWORD" LLEN image-ingested
 docker compose exec redis redis-cli -a "$REDIS_PASSWORD" LLEN detection-complete
-docker compose exec redis redis-cli -a "$REDIS_PASSWORD" LLEN classification-complete
 docker compose exec redis redis-cli -a "$REDIS_PASSWORD" LLEN notification-events
 docker compose exec redis redis-cli -a "$REDIS_PASSWORD" LLEN failed-jobs
 ```
@@ -175,6 +174,6 @@ Restarting a worker is safe. It will pick up where it left off since messages st
 
 **Detection is slow or stuck:** check `docker compose logs detection --tail 20`. The detection worker processes one image at a time. If the queue is growing, the worker may have crashed. Restart it with `docker compose restart detection`.
 
-**Emails not sending:** check `docker compose logs notifications-email --tail 20`. Verify SMTP settings in `.env`. Some cloud providers block outbound SMTP ports by default (see the [deployment troubleshooting](deployment.md#troubleshooting) section).
+**Emails not sending:** check `docker compose logs notifications-email --tail 20`. Verify SMTP settings in `.env`. Some cloud providers block outbound SMTP ports by default (see the email tip at the end of the [deployment guide](deployment.md)).
 
 **Telegram not working:** check `docker compose logs notifications-telegram --tail 20`. The bot token must be configured in Server settings, and each user must link their account from the Notifications page.
