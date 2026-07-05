@@ -9,19 +9,25 @@ An open-source platform that automatically processes camera trap images with mac
 
 ## Getting started
 
-Before you start, check [camera compatibility](camera-requirements.md): any FTPS-capable camera works, but each model needs a profile. See the list of supported cameras and how to add yours.
+1. [Check camera compatibility](camera-requirements.md): any FTPS-capable camera works, but each model needs a profile. See the list of supported cameras and how to add yours
+2. [Deploy your server](deployment.md) with Ansible (about an hour)
+3. [Set up your project](setup-guide.md): register, configure settings, add cameras, invite users
+4. If you chose SpeciesNet, follow the [SpeciesNet setup](speciesnet-setup.md) for taxonomy mapping
 
-1. [Deploy your server](deployment.md) with Ansible (about an hour)
-2. [Set up your project](setup-guide.md): register, configure settings, add cameras, invite users
-3. If you chose SpeciesNet, follow the [SpeciesNet setup](speciesnet-setup.md) for taxonomy mapping
+## Using the app
+
+- [Sites and cameras](sites-and-deployments.md): how images are organised by place, and how camera moves are handled
+- [Install as an app](install-as-app.md): put AddaxAI Connect on your phone or computer
 
 ## Running your server
 
 - [Operations and monitoring](operations.md): check service health, view logs, monitor the pipeline
 - [Update guide](update-guide.md): safely update to new versions with backup and rollback
+- [Restore guide](restore-guide.md): rebuild a server from a backup when the old one is lost
 
-## Reference
+## Developer
 
 - [Architecture](architecture.md): technology stack, data flow, services, data storage, security, and user roles
+- [Dev server setup](dev-server-setup.md): create a development server from a production snapshot
 
 Questions? [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.

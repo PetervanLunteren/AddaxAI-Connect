@@ -46,17 +46,17 @@ extra_css:
 nav:
   - Home: index.md
   - Getting started:
+    - Camera requirements: camera-requirements.md
     - Deployment: deployment.md
     - Setup guide: setup-guide.md
-    - Camera requirements: camera-requirements.md
     - SpeciesNet setup: speciesnet-setup.md
+  - Using the app:
+    - Sites and cameras: sites-and-deployments.md
     - Install as an app: install-as-app.md
   - Running your server:
     - Operations and monitoring: operations.md
     - Update guide: update-guide.md
     - Restore guide: restore-guide.md
-  - Reference:
-    - Architecture: architecture.md
-    - Sites and cameras: sites-and-deployments.md
   - Developer:
+    - Architecture: architecture.md
     - Dev server setup: dev-server-setup.md
