@@ -16,7 +16,6 @@ Open follow-ups:
 
 ## TODO
 - [ ] Do the things Quentin mentioned in an email. 
-- [ ] Make the phone and tabled versions work. Now there are thngs like popvers that cover everything, maps in front of the sidebar, etc, etc. Is there a way that you can click trhough the UI yourself? That would be super handy for future UI stuff.... How can we make that happen?
 - [ ] We recently introduced the site concept and made cameras just hardware without a name. Previously the cameras were nbamed after the sites, so that was how users used to work with. Now they are supposed to work with sites, not hardware, which makes sense in day to day work. However, there might still be some camera sepcfic selections and jargon lingering about. CCan wyo do a full audit and see if there is still the old workflow where cameras were used as sites and that are supposed to be sites now that the concept is live? AN example is the settiong "Camera groups" which should be "Independence groups" or something like that. IIn ythe selectbox it is currently the way that the user needs to select form a list of IMEIs, which does not make sense. It should be a list of site names. The camera IMEIs dont matter here. You see what I mean? Please do a full audit and see what you can find in this regard. What did we miss when we introduced the site concept? 
 
 ## Possible future features
