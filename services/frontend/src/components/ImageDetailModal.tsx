@@ -198,18 +198,23 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
     if (!ctx) return;
 
-    // Set canvas size to match image display size
+    // Back the canvas with physical pixels, otherwise boxes and labels
+    // render at CSS resolution and look blurry on retina screens. The
+    // CSS size stays the image box (w-full h-full classes), drawing
+    // keeps using CSS coordinates via the transform.
     const rect = img.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, rect.width, rect.height);
 
     // If bboxes are hidden, just clear and return
     if (!showBboxes) return;
 
-    drawDetectionOverlay(ctx, imageDetail.detections, canvas.width, canvas.height, {
+    drawDetectionOverlay(ctx, imageDetail.detections, rect.width, rect.height, {
       showLabels: true,
       imageWidth: img.naturalWidth,
       imageHeight: img.naturalHeight,
@@ -415,16 +420,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <div className="bg-background p-3 sm:p-6 rounded-lg shadow-lg w-[calc(100vw-1rem)] sm:w-full sm:max-w-7xl max-h-full sm:max-h-[90vh] overflow-y-auto overflow-x-hidden relative">
+      {/* Below md the modal is a fixed column: the photo stays fully
+          visible and only the details panel scrolls. On md+ the whole
+          modal scrolls as before. */}
+      {/* The height cap is viewport-based (dvh minus the iOS status-bar
+          inset), the parent wrapper has auto height so max-h-full would
+          resolve to no cap at all. */}
+      <div className="bg-background p-3 sm:p-6 rounded-lg shadow-lg w-[calc(100vw-1rem)] sm:w-full sm:max-w-7xl max-h-[calc(100dvh_-_env(safe-area-inset-top)_-_1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden md:block md:overflow-y-auto overflow-x-hidden relative">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : imageDetail ? (
           <>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="flex min-h-0 flex-col gap-4 md:grid md:grid-cols-3 md:gap-6">
           {/* Image Display */}
-          <div className="md:col-span-2 min-w-0">
+          <div className="md:col-span-2 min-w-0 shrink-0">
             <div className="relative">
               {imageBlobUrl ? (
                 <>
@@ -531,10 +542,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Details Panel */}
-          <div className="space-y-4 min-w-0">
-            {/* Header with action buttons */}
-            <div className="flex items-center justify-between gap-1">
+          {/* Details Panel. Scrolls on its own below md, see the modal
+              container comment. */}
+          <div className="space-y-4 min-w-0 min-h-0 flex-1 overflow-y-auto md:overflow-visible">
+            {/* Header with action buttons, pinned while the panel scrolls
+                on phones */}
+            <div className="flex items-center justify-between gap-1 sticky top-0 z-10 bg-background md:static">
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"

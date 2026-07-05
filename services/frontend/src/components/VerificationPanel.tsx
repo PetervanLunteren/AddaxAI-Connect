@@ -113,6 +113,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [highlightedRowId, setHighlightedRowId] = useState<string | null>(null);
+  // Observation ids whose sex/age/behaviour dropdowns are expanded on
+  // phones. On sm+ the dropdowns are always visible and this is unused.
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
   const [isEditing, setIsEditing] = useState(!imageDetail.verification.is_verified);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
 
@@ -671,8 +674,32 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
                 </button>
               </div>
 
-              {/* Row 3: sex, age, behaviour */}
-              <div className="flex flex-wrap items-center gap-1">
+              {/* Row 3: sex, age, behaviour. On phones the dropdowns sit
+                  behind a details toggle so a card stays short, on sm+
+                  they are always visible. */}
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedDetails(prev => {
+                    const next = new Set(prev);
+                    if (next.has(obs.id)) next.delete(obs.id);
+                    else next.add(obs.id);
+                    return next;
+                  })
+                }
+                className="sm:hidden flex items-center gap-1 text-sm text-muted-foreground"
+              >
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${expandedDetails.has(obs.id) ? '' : '-rotate-90'}`}
+                />
+                {[obs.sex, obs.life_stage, obs.behavior]
+                  .filter(v => v !== 'unknown')
+                  .map(v => v.charAt(0).toUpperCase() + v.slice(1))
+                  .join(', ') || 'Details'}
+              </button>
+              <div
+                className={`${expandedDetails.has(obs.id) ? 'flex' : 'hidden'} sm:flex flex-wrap items-center gap-1`}
+              >
                 <CompactSelect
                   value={obs.sex}
                   onChange={(e) => setObservations(prev =>
