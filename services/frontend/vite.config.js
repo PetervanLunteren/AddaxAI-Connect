@@ -1,28 +1,30 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://api:8000',
-        changeOrigin: true,
-      },
-      '/auth': {
-        target: 'http://api:8000',
-        changeOrigin: true,
-      },
-      '/users': {
-        target: 'http://api:8000',
-        changeOrigin: true,
-      },
-      '/ws': {
-        target: 'ws://api:8000',
-        ws: true,
+// For local development against a remote API, set VITE_PROXY_TARGET in
+// services/frontend/.env.local (gitignored), for example:
+//   VITE_PROXY_TARGET=https://dev.addaxai.com
+// Without it, the proxy targets the docker-internal API service as before.
+// See "Frontend UI development loop" in DEVELOPERS.md.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const target = env.VITE_PROXY_TARGET || 'http://api:8000'
+  const entry = { target, changeOrigin: true }
+  return {
+    plugins: [react()],
+    server: {
+      host: '0.0.0.0',
+      port: 5173,
+      proxy: {
+        '/api': entry,
+        '/auth': entry,
+        '/users': entry,
+        '/ws': {
+          target: target.replace(/^http/, 'ws'),
+          ws: true,
+          changeOrigin: true,
+        },
       },
     },
-  },
+  }
 })

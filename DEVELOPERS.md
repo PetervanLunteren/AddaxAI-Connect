@@ -379,6 +379,59 @@ docker compose logs -f api  # Follow
 - `image_id` tracks one image through the entire pipeline
 - `user_id` tracks user actions
 
+## Frontend UI development loop
+
+How to see and verify UI changes in a real browser without deploying to a server. Code edits hot-reload in seconds while all data comes from the dev server.
+
+### Local vite against the dev API
+
+1. Create `services/frontend/.env.local` (gitignored):
+
+   ```
+   VITE_PROXY_TARGET=https://dev.addaxai.com
+   SWEEP_EMAIL=<test account email>
+   SWEEP_PASSWORD=<test account password>
+   ```
+
+2. Run the frontend locally:
+
+   ```bash
+   cd services/frontend
+   npm install
+   npm run dev
+   ```
+
+3. Open http://localhost:5173 and log in. Edits under `src/` hot-reload instantly.
+
+Without `VITE_PROXY_TARGET` the proxy falls back to the docker-internal API, so container builds behave exactly as before. Auth is a bearer token in localStorage, so nothing cookie-related needs configuring.
+
+The test account is a dedicated server-admin account on the dev server, invited via the User Assignment page. Do not put personal credentials in `.env.local`.
+
+### Screenshot sweep
+
+```bash
+cd services/frontend
+npm run sweep
+```
+
+Logs in with the `SWEEP_*` credentials, visits every page at phone (390px), tablet (768px), and desktop (1440px) widths, and writes screenshots plus `report.txt` to `services/frontend/ui-sweep-output/` (gitignored). The report flags console errors and page-level horizontal overflow per route. The vite dev server must be running. Run the sweep before and after UI changes and compare the screenshots.
+
+The route list lives at the top of `scripts/ui-sweep.mjs`. When adding a page to `src/App.tsx`, add it there too.
+
+### Interactive browser driving
+
+`.mcp.json` in the repo root registers a Playwright MCP server. Claude Code sessions pick it up automatically and can open a browser, resize it to a phone viewport, click through pages, and take screenshots. Useful for reproducing one specific UI bug interactively; the sweep is for coverage.
+
+### Verification gate for frontend changes
+
+```bash
+npm run build      # must pass
+npm run sweep      # at least the affected viewports, compare screenshots
+npx tsc --noEmit   # must not report NEW errors
+```
+
+The build does not typecheck, so run `tsc` separately. Note that `tsc --noEmit` currently reports a batch of pre-existing errors (unused imports, missing `vite/client` types, leaflet typings). Until those are cleaned up, the bar is that a change adds no new errors, compare against `git stash && npx tsc --noEmit`.
+
 ## Running tests
 
 ```bash
