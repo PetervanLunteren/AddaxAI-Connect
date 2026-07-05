@@ -39,6 +39,12 @@ interface ModalData {
   events: { before: IndependenceSummaryResponse; after: IndependenceSummaryResponse };
 }
 
+// Stable fallback for the camera-groups query. A `= []` default in the
+// destructure would be a new array every render while the query loads,
+// and the sync effect below would setState on each one, an infinite
+// re-render loop ("maximum update depth exceeded").
+const NO_GROUPS: CameraGroup[] = [];
+
 export const ProjectSettingsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const { selectedProject: currentProject, canAdminCurrentProject, refreshProjects } = useProject();
@@ -116,7 +122,7 @@ export const ProjectSettingsPage: React.FC = () => {
   });
 
   // Camera groups query
-  const { data: cameraGroups = [] } = useQuery({
+  const { data: cameraGroups = NO_GROUPS } = useQuery({
     queryKey: ['camera-groups', currentProject?.id],
     queryFn: () => cameraGroupsApi.list(currentProject!.id),
     enabled: !!currentProject,
