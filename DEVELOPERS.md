@@ -418,6 +418,8 @@ Logs in with the `SWEEP_*` credentials, visits every page at phone (390px), tabl
 
 The route list lives at the top of `scripts/ui-sweep.mjs`. When adding a page to `src/App.tsx`, add it there too.
 
+The sweep refuses to run against anything but a dev server. It asks the target API via `/api/admin/dev-mode-status`, which uses the deny-list in `services/api/utils/dev_mode.py`, so a wrong proxy target cannot point it at production.
+
 ### Interactive browser driving
 
 `.mcp.json` in the repo root registers a Playwright MCP server. Claude Code sessions pick it up automatically and can open a browser, resize it to a phone viewport, click through pages, and take screenshots. Useful for reproducing one specific UI bug interactively; the sweep is for coverage.
