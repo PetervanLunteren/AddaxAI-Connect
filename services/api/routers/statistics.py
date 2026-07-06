@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select, func, and_, desc, text, exists
 from pydantic import BaseModel
 
-from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings
+from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, ServerSettings, Deployment
 from shared.classification_threshold import (
     classification_passes_threshold,
     CLASSIFICATION_THRESHOLD_FILTER_SQL,
@@ -30,7 +30,7 @@ from utils.preferred_counts import (
     get_preferred_species_camera_matrix,
     get_naive_occupancy,
     get_detection_history,
-    build_detection_matrix,
+    build_site_detection_matrix,
     get_preferred_species_detection_times,
 )
 from utils.occupancy_model import fit_single_season_occupancy
@@ -64,6 +64,31 @@ from utils.independence_filter import (
 
 
 router = APIRouter(prefix="/api/statistics", tags=["statistics"])
+
+
+def _parse_id_list(raw: Optional[str]) -> Optional[List[int]]:
+    """Parse a comma-separated id string into a list of ints, or None."""
+    if not raw:
+        return None
+    return [int(x.strip()) for x in raw.split(',') if x.strip()]
+
+
+def _site_image_condition(site_id_list: List[int]):
+    """Restrict images to a set of sites through each image's deployment.
+
+    Time-correct: an image counts for the site its deployment stood at when
+    captured, not the camera's current site.
+    """
+    return Image.deployment_id.in_(
+        select(Deployment.id).where(Deployment.site_id.in_(site_id_list))
+    )
+
+
+def _cameras_at_sites_condition(site_id_list: List[int]):
+    """Restrict cameras to those with any deployment at the given sites."""
+    return Camera.id.in_(
+        select(Deployment.camera_id).where(Deployment.site_id.in_(site_id_list))
+    )
 
 
 async def _get_independence_interval(db: AsyncSession, project_id: Optional[int]) -> int:
@@ -136,7 +161,7 @@ class LastUpdateResponse(BaseModel):
 )
 async def get_overview(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -153,12 +178,12 @@ async def get_overview(
         Overview statistics for dashboard
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = _parse_id_list(site_ids)
 
     # Total images (filtered by project via camera, excluding hidden)
     img_conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
-    if camera_id_list:
-        img_conditions.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        img_conditions.append(_site_image_condition(site_id_list))
     total_images_result = await db.execute(
         select(func.count(Image.id))
         .join(Camera)
@@ -166,10 +191,10 @@ async def get_overview(
     )
     total_images = total_images_result.scalar_one()
 
-    # Total cameras (filtered by project)
+    # Total cameras (filtered by project, and by site when a site filter is set)
     cam_conditions = [Camera.project_id.in_(accessible_project_ids)]
-    if camera_id_list:
-        cam_conditions.append(Camera.id.in_(camera_id_list))
+    if site_id_list:
+        cam_conditions.append(_cameras_at_sites_condition(site_id_list))
     total_cameras_result = await db.execute(
         select(func.count(Camera.id))
         .where(and_(*cam_conditions))
@@ -177,7 +202,7 @@ async def get_overview(
     total_cameras = total_cameras_result.scalar_one()
 
     # Total unique species (preferring human observations for verified images)
-    total_species = await get_preferred_total_species_count(db, accessible_project_ids, camera_ids=camera_id_list)
+    total_species = await get_preferred_total_species_count(db, accessible_project_ids, site_ids=site_id_list)
 
     # Images today (filtered by project). "Today" is the server's local calendar day,
     # matching the naive captured_at convention.
@@ -187,8 +212,8 @@ async def get_overview(
         Camera.project_id.in_(accessible_project_ids),
         Image.is_hidden == False,
     ]
-    if camera_id_list:
-        today_conditions.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        today_conditions.append(_site_image_condition(site_id_list))
     images_today_result = await db.execute(
         select(func.count(Image.id))
         .join(Camera)
@@ -198,8 +223,8 @@ async def get_overview(
 
     # First and last image dates (for date picker bounds)
     date_conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
-    if camera_id_list:
-        date_conditions.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        date_conditions.append(_site_image_condition(site_id_list))
     first_image_result = await db.execute(
         select(func.min(func.date(Image.captured_at)))
         .join(Camera)
@@ -306,7 +331,7 @@ async def get_images_timeline(
 )
 async def get_species_distribution(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -325,7 +350,7 @@ async def get_species_distribution(
         List of species with counts (top 10 by count)
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = _parse_id_list(site_ids)
     interval = await _get_independence_interval(db, project_id)
 
     if interval > 0:
@@ -334,14 +359,14 @@ async def get_species_distribution(
             project_ids=accessible_project_ids,
             interval_minutes=interval,
             limit=10,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
     else:
         counts = await get_preferred_species_counts(
             db=db,
             project_ids=accessible_project_ids,
             limit=10,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
 
     return [SpeciesCount(species=c['species'], count=c['count']) for c in counts]
@@ -353,7 +378,7 @@ async def get_species_distribution(
 )
 async def get_camera_activity(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -377,12 +402,12 @@ async def get_camera_activity(
     from shared.models import CameraHealthReport
 
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
 
     # Pair each accessible camera with the timestamp of its latest health report (NULL if never reported).
     cam_conditions = [Camera.project_id.in_(accessible_project_ids)]
-    if camera_id_list:
-        cam_conditions.append(Camera.id.in_(camera_id_list))
+    if site_id_list:
+        cam_conditions.append(_cameras_at_sites_condition(site_id_list))
     result = await db.execute(
         select(Camera.id, func.max(CameraHealthReport.reported_at))
         .outerjoin(CameraHealthReport, CameraHealthReport.camera_id == Camera.id)
@@ -499,7 +524,7 @@ async def get_detection_rate_map(
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -537,7 +562,7 @@ async def get_detection_rate_map(
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     interval = await _get_independence_interval(db, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
 
     # Build SQL query with conditional filters
     # Use UNION to combine verified (human observations) and unverified (AI) counts
@@ -563,7 +588,7 @@ async def get_detection_rate_map(
                 AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN human_observations ho ON ho.image_id = i.id
             WHERE c.project_id = ANY(:project_ids)
-              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+              AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
             GROUP BY cdp.id
         ),
         unverified_counts AS (
@@ -596,7 +621,7 @@ async def get_detection_rate_map(
             LEFT JOIN detections d ON d.image_id = i.id
             LEFT JOIN classifications cl ON cl.detection_id = d.id
             WHERE c.project_id = ANY(:project_ids)
-              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+              AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
             GROUP BY cdp.id
         ),
         pv_counts AS (
@@ -621,7 +646,7 @@ async def get_detection_rate_map(
                 AND (cdp.end_date IS NULL OR i.captured_at::date <= cdp.end_date)
             LEFT JOIN detections d ON d.image_id = i.id AND d.category IN ('person', 'vehicle')
             WHERE c.project_id = ANY(:project_ids)
-              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+              AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
             GROUP BY cdp.id
         ),
         combined_counts AS (
@@ -665,7 +690,7 @@ async def get_detection_rate_map(
             INNER JOIN cameras c ON cdp.camera_id = c.id
             INNER JOIN sites s ON s.id = cdp.site_id
             WHERE c.project_id = ANY(:project_ids)
-              AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+              AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
               AND NOT (ST_X(cdp.location::geometry) = 0 AND ST_Y(cdp.location::geometry) = 0)
               AND (cdp.end_date IS NULL OR cdp.end_date >= cdp.start_date)
         )
@@ -693,7 +718,7 @@ async def get_detection_rate_map(
             "start_date": start_date,
             "end_date": end_date,
             "project_ids": accessible_project_ids,
-            "camera_ids": camera_id_list,
+            "site_ids": site_id_list,
         }
     )
     rows = result.fetchall()
@@ -874,7 +899,7 @@ async def get_activity_pattern(
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -886,7 +911,7 @@ async def get_activity_pattern(
     Used for radial/polar charts showing diel activity patterns.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
     interval = await _get_independence_interval(db, project_id)
 
     # Convert date to datetime for the helper
@@ -901,7 +926,7 @@ async def get_activity_pattern(
             species_filter=species,
             start_date=start_dt,
             end_date=end_dt,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
     else:
         hourly_data = await get_preferred_hourly_activity(
@@ -910,7 +935,7 @@ async def get_activity_pattern(
             species_filter=species,
             start_date=start_dt,
             end_date=end_dt,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
 
     # Build full 24-hour response (fill missing hours with 0)
@@ -1040,7 +1065,7 @@ async def get_detection_trend(
     species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1052,7 +1077,7 @@ async def get_detection_trend(
     No date filter means all-time, same as the other dashboard endpoints.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
     interval = await _get_independence_interval(db, project_id)
 
     # No date filter means all-time, matching the other dashboard
@@ -1069,7 +1094,7 @@ async def get_detection_trend(
             species_filter=species,
             start_date=start_dt,
             end_date=end_dt,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
     else:
         daily_data = await get_preferred_daily_trend(
@@ -1078,7 +1103,7 @@ async def get_detection_trend(
             species_filter=species,
             start_date=start_dt,
             end_date=end_dt,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
 
     return [
@@ -1103,7 +1128,7 @@ async def get_trap_effort(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1121,7 +1146,7 @@ async def get_trap_effort(
     start_date and end_date (NULL end_date means currently active).
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
 
     if not accessible_project_ids:
         return []
@@ -1130,7 +1155,7 @@ async def get_trap_effort(
         "project_ids": accessible_project_ids,
         "start_date": start_date,
         "end_date": end_date,
-        "camera_ids": camera_id_list,
+        "site_ids": site_id_list,
     }
 
     sql = text("""
@@ -1161,8 +1186,8 @@ async def get_trap_effort(
             JOIN cameras c ON cdp.camera_id = c.id
             WHERE c.project_id = ANY(CAST(:project_ids AS integer[]))
               AND (
-                  CAST(:camera_ids AS integer[]) IS NULL
-                  OR c.id = ANY(CAST(:camera_ids AS integer[]))
+                  CAST(:site_ids AS integer[]) IS NULL
+                  OR cdp.site_id = ANY(CAST(:site_ids AS integer[]))
               )
         )
         SELECT
@@ -1365,7 +1390,7 @@ class NaiveOccupancyResponse(BaseModel):
 )
 async def get_naive_occupancy_endpoint(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     top_n: int = Query(15, ge=1, le=50, description="Maximum number of species to return"),
@@ -1374,15 +1399,15 @@ async def get_naive_occupancy_endpoint(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Naive occupancy per species: proportion of active camera sites where the
-    species was detected at least once during the window.
+    Naive occupancy per species: proportion of active sites where the species
+    was detected at least once during the window.
 
     "Naive" because no correction is made for imperfect detection probability
     (MacKenzie et al. 2002). For estimated occupancy psi, export the
     detection-history CSV and run unmarked::occu() / camtrapR.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
 
     # No date filter = all available data. Wide sentinel dates so the
     # downstream SQL bound checks still run unmodified. Avoids an
@@ -1404,7 +1429,7 @@ async def get_naive_occupancy_endpoint(
         project_ids=accessible_project_ids,
         start_date=start_dt,
         end_date=end_dt,
-        camera_ids=camera_id_list,
+        site_ids=site_id_list,
         top_n=top_n,
     )
     # Build the detection matrix once for the top-N species and fit the
@@ -1434,13 +1459,13 @@ async def get_naive_occupancy_endpoint(
         eff_end_date = (end_dt.date() if end_date is not None
                         else (last_image_dt.date() if last_image_dt else None))
         if eff_start_date is not None and eff_end_date is not None and eff_start_date <= eff_end_date:
-            matrices = await build_detection_matrix(
+            matrices = await build_site_detection_matrix(
                 db=db,
                 project_ids=accessible_project_ids,
                 start_date=eff_start_date,
                 end_date=eff_end_date,
                 species_subset=species_subset,
-                camera_ids=camera_id_list,
+                site_ids=site_id_list,
                 occasion_length_days=7,
             )
 
@@ -1549,7 +1574,7 @@ _RAW_DETECTION_TIME_CAP = 5000  # bound rug payload on huge datasets
 async def _avg_camera_location_for_projects(
     db: AsyncSession,
     project_ids: List[int],
-    camera_ids: Optional[List[int]],
+    site_ids: Optional[List[int]],
 ) -> Optional[Tuple[float, float]]:
     """Mean lat/lon across cameras with a GPS reading, restricted to the
     project + (optional) camera-id filter. Reads
@@ -1559,8 +1584,8 @@ async def _avg_camera_location_for_projects(
     if not project_ids:
         return None
     stmt = select(Camera.config).where(Camera.project_id.in_(project_ids))
-    if camera_ids:
-        stmt = stmt.where(Camera.id.in_(camera_ids))
+    if site_ids:
+        stmt = stmt.where(_cameras_at_sites_condition(site_ids))
     configs = (await db.execute(stmt)).scalars().all()
     return _avg_camera_location(configs)
 
@@ -1607,7 +1632,7 @@ async def get_activity_overlap(
     project_id: int = Query(..., description="Project to analyse (single)"),
     species_a: str = Query(..., description="First species name"),
     species_b: Optional[str] = Query(None, description="Second species name (optional)"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     time_axis: str = Query("clock", description="clock | sun"),
@@ -1628,7 +1653,7 @@ async def get_activity_overlap(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
 
     # If the user picked the same species for A and B, drop B and run the
     # single-species path. Two identical curves overlap with Δ = 1 by
@@ -1648,7 +1673,7 @@ async def get_activity_overlap(
     # and the chart simply renders without twilight bands.
     tz_name = await get_server_timezone(db)
     location = await _avg_camera_location_for_projects(
-        db, accessible_project_ids, camera_id_list
+        db, accessible_project_ids, site_id_list
     )
     sun_bands: Optional[SunBands] = None
     sun_bands_reference_date: Optional[str] = None
@@ -1675,7 +1700,7 @@ async def get_activity_overlap(
         species_filter=species_a,
         start_date=start_dt,
         end_date=end_dt,
-        camera_ids=camera_id_list,
+        site_ids=site_id_list,
     )
     obs_b: List[Tuple[float, date]] = []
     if species_b:
@@ -1685,7 +1710,7 @@ async def get_activity_overlap(
             species_filter=species_b,
             start_date=start_dt,
             end_date=end_dt,
-            camera_ids=camera_id_list,
+            site_ids=site_id_list,
         )
 
     # Decide whether sun mode can actually be delivered. Falls back to clock
@@ -1947,7 +1972,7 @@ class PipelineStatusResponse(BaseModel):
 )
 async def get_pipeline_status(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1962,7 +1987,7 @@ async def get_pipeline_status(
     images that are either verified or fully classified.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
 
     if not accessible_project_ids:
         return PipelineStatusResponse(
@@ -1975,8 +2000,8 @@ async def get_pipeline_status(
         Camera.project_id.in_(accessible_project_ids),
         Image.status != "classified",
     ]
-    if camera_id_list:
-        pending_conditions.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        pending_conditions.append(_site_image_condition(site_id_list))
     pending_result = await db.execute(
         select(func.count(Image.id))
         .join(Camera)
@@ -1989,8 +2014,8 @@ async def get_pipeline_status(
         Image.status == "classified",
         Image.is_hidden == False,
     ]
-    if camera_id_list:
-        classified_conditions.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        classified_conditions.append(_site_image_condition(site_id_list))
     classified_result = await db.execute(
         select(func.count(Image.id))
         .join(Camera)
@@ -2004,7 +2029,10 @@ async def get_pipeline_status(
     # images use Detection (and Classification with the per-species threshold
     # for animals). Priority on overlap is person > vehicle > animal > empty,
     # so the four counts add up to the visible-and-decided image total.
-    camera_clause = "AND i.camera_id = ANY(:camera_ids)" if camera_id_list else ""
+    site_clause = (
+        "AND i.deployment_id IN (SELECT d.id FROM deployments d WHERE d.site_id = ANY(:site_ids))"
+        if site_id_list else ""
+    )
     category_sql = text(f"""
         WITH scope AS (
             SELECT
@@ -2018,7 +2046,7 @@ async def get_pipeline_status(
             WHERE c.project_id = ANY(:project_ids)
               AND i.is_hidden = FALSE
               AND (i.is_verified = TRUE OR i.status = 'classified')
-              {camera_clause}
+              {site_clause}
         ),
         categorized AS (
             SELECT
@@ -2078,8 +2106,8 @@ async def get_pipeline_status(
         FROM categorized
     """)
     category_params: Dict[str, Any] = {"project_ids": accessible_project_ids}
-    if camera_id_list:
-        category_params["camera_ids"] = camera_id_list
+    if site_id_list:
+        category_params["site_ids"] = site_id_list
     category_row = (await db.execute(category_sql, category_params)).one()
 
     return PipelineStatusResponse(
@@ -2322,7 +2350,7 @@ async def get_demographics(
     species: Optional[str] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    camera_ids: Optional[str] = Query(None),
+    site_ids: Optional[str] = Query(None),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -2360,9 +2388,9 @@ async def get_demographics(
         filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
         filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
-    if camera_ids:
-        camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()]
-        filters.append(Image.camera_id.in_(camera_id_list))
+    if site_ids:
+        site_id_list = [int(x.strip()) for x in site_ids.split(",") if x.strip()]
+        filters.append(_site_image_condition(site_id_list))
 
     query = (
         select(group_col, func.sum(HumanObservation.count).label("total"))
@@ -2406,7 +2434,7 @@ async def get_verification_progress(
     label: Optional[str] = Query(None, description="Filter: 'all', 'empty', 'person', 'vehicle', or a species name"),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    camera_ids: Optional[str] = Query(None),
+    site_ids: Optional[str] = Query(None),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -2415,7 +2443,7 @@ async def get_verification_progress(
     Get verification progress (verified / total images) with optional label filter.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(",") if x.strip()] if site_ids else None
 
     base_filters: list = [
         Camera.project_id.in_(accessible_project_ids),
@@ -2426,8 +2454,8 @@ async def get_verification_progress(
         base_filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
         base_filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
-    if camera_id_list:
-        base_filters.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        base_filters.append(_site_image_condition(site_id_list))
 
     effective_label = label or "all"
 
@@ -2539,7 +2567,7 @@ async def get_verification_progress_all(
     project_id: Optional[int] = Query(None),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    camera_ids: Optional[str] = Query(None),
+    site_ids: Optional[str] = Query(None),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -2551,7 +2579,7 @@ async def get_verification_progress_all(
     ascending so the least-verified labels appear first.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(",") if x.strip()] if camera_ids else None
+    site_id_list = [int(x.strip()) for x in site_ids.split(",") if x.strip()] if site_ids else None
 
     base_filters: list = [
         Camera.project_id.in_(accessible_project_ids),
@@ -2562,8 +2590,8 @@ async def get_verification_progress_all(
         base_filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
         base_filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
-    if camera_id_list:
-        base_filters.append(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        base_filters.append(_site_image_condition(site_id_list))
 
     # "All images" totals
     total_all = (await db.execute(
@@ -2740,7 +2768,7 @@ class PerformanceResponse(BaseModel):
 @router.get("/performance", response_model=PerformanceResponse)
 async def get_performance(
     project_id: int = Query(..., description="Project to compute performance for"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -2780,15 +2808,15 @@ async def get_performance(
             detail=f"Project {project_id} not found",
         )
 
-    camera_id_list = (
-        [int(x.strip()) for x in camera_ids.split(',') if x.strip()]
-        if camera_ids
+    site_id_list = (
+        [int(x.strip()) for x in site_ids.split(',') if x.strip()]
+        if site_ids
         else None
     )
 
     # Fetch verified, classified, non-hidden images for this project with
     # their detections and human observations eagerly loaded. One query.
-    # camera_ids and date window apply when set.
+    # site_ids and date window apply when set.
     query = (
         select(Image)
         .join(Camera, Image.camera_id == Camera.id)
@@ -2803,8 +2831,8 @@ async def get_performance(
             selectinload(Image.detections).selectinload(Detection.classifications),
         )
     )
-    if camera_id_list:
-        query = query.where(Image.camera_id.in_(camera_id_list))
+    if site_id_list:
+        query = query.where(_site_image_condition(site_id_list))
     if start_date is not None:
         query = query.where(
             Image.captured_at >= datetime.combine(start_date, datetime.min.time())

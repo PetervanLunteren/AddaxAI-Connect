@@ -24,8 +24,14 @@ from utils.preferred_counts import (
 class TestNaiveOccupancySql:
     """The SQL is the correctness surface — assert the shape directly."""
 
-    def test_has_active_cameras_cte(self):
-        assert "active_cameras AS" in _NAIVE_OCCUPANCY_SQL
+    def test_has_active_sites_cte(self):
+        assert "active_sites AS" in _NAIVE_OCCUPANCY_SQL
+
+    def test_active_sites_resolved_through_deployment(self):
+        # A site is active when a deployment at it overlaps the window; presence
+        # reaches its site through the image's deployment (time-correct).
+        assert "cdp.site_id IS NOT NULL" in _NAIVE_OCCUPANCY_SQL
+        assert "INNER JOIN deployments dep ON i.deployment_id = dep.id" in _NAIVE_OCCUPANCY_SQL
 
     def test_active_cameras_join_uses_deployment_overlap(self):
         # The "any overlap with the window" rule: deployment.start <= window_end
@@ -62,9 +68,10 @@ class TestNaiveOccupancySql:
         assert "'person'" not in unverified_block
         assert "'vehicle'" not in unverified_block
 
-    def test_final_aggregate_counts_distinct_cameras(self):
-        # COUNT(DISTINCT camera_id) is the per-species occupancy numerator.
-        assert "COUNT(DISTINCT camera_id)" in _NAIVE_OCCUPANCY_SQL
+    def test_final_aggregate_counts_distinct_sites(self):
+        # COUNT(DISTINCT site_id) is the per-species occupancy numerator. Cameras
+        # at one site collapse to that single site.
+        assert "COUNT(DISTINCT site_id)" in _NAIVE_OCCUPANCY_SQL
 
     def test_independence_interval_not_applied(self):
         # Naive occupancy is independence-immune at the (site, window) level —

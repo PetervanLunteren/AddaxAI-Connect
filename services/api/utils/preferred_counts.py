@@ -12,12 +12,25 @@ from sqlalchemy import select, func, and_, union_all, literal, text
 from shared.classification_threshold import classification_passes_threshold
 
 
+def _site_image_condition(site_ids: List[int]):
+    """SQLAlchemy condition restricting images to a set of sites.
+
+    Resolved through each image's deployment, so it is time-correct: an image
+    counts for the site its deployment stood at when captured, not the camera's
+    current site.
+    """
+    from shared.models import Image, Deployment
+    return Image.deployment_id.in_(
+        select(Deployment.id).where(Deployment.site_id.in_(site_ids))
+    )
+
+
 async def get_preferred_species_counts(
     db: AsyncSession,
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
     species_filter: Optional[str] = None,
     limit: Optional[int] = None,
 ) -> List[dict]:
@@ -47,9 +60,9 @@ async def get_preferred_species_counts(
     if end_date:
         verified_filters.append(Image.captured_at <= end_date)
         unverified_filters.append(Image.captured_at <= end_date)
-    if camera_ids:
-        verified_filters.append(Image.camera_id.in_(camera_ids))
-        unverified_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_filters.append(_site_image_condition(site_ids))
+        unverified_filters.append(_site_image_condition(site_ids))
     # Person/vehicle filters (unverified images with detection category)
     pv_filters = [
         Image.is_verified == False,
@@ -65,8 +78,8 @@ async def get_preferred_species_counts(
         pv_filters.append(Image.captured_at >= start_date)
     if end_date:
         pv_filters.append(Image.captured_at <= end_date)
-    if camera_ids:
-        pv_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        pv_filters.append(_site_image_condition(site_ids))
 
     # Query 1: Verified images - use HumanObservation
     verified_query = (
@@ -144,7 +157,7 @@ async def get_preferred_unique_species(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[str]:
     """
     Get list of unique species from preferred data source.
@@ -178,10 +191,10 @@ async def get_preferred_unique_species(
         verified_filters.append(Image.captured_at <= end_date)
         unverified_filters.append(Image.captured_at <= end_date)
         pv_filters.append(Image.captured_at <= end_date)
-    if camera_ids:
-        verified_filters.append(Image.camera_id.in_(camera_ids))
-        unverified_filters.append(Image.camera_id.in_(camera_ids))
-        pv_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_filters.append(_site_image_condition(site_ids))
+        unverified_filters.append(_site_image_condition(site_ids))
+        pv_filters.append(_site_image_condition(site_ids))
 
     # Species from verified images (human observations)
     verified_species = (
@@ -235,12 +248,12 @@ async def get_preferred_unique_species(
 async def get_preferred_total_species_count(
     db: AsyncSession,
     project_ids: List[int],
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> int:
     """
     Get total unique species count from preferred data source.
     """
-    species_list = await get_preferred_unique_species(db, project_ids, camera_ids=camera_ids)
+    species_list = await get_preferred_unique_species(db, project_ids, site_ids=site_ids)
     return len(species_list)
 
 
@@ -250,7 +263,7 @@ async def get_preferred_hourly_activity(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get hourly activity counts (0-23) from preferred data source.
@@ -291,10 +304,10 @@ async def get_preferred_hourly_activity(
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
         pv_filters.append(func.lower(Detection.category) == species_filter.lower())
-    if camera_ids:
-        verified_filters.append(Image.camera_id.in_(camera_ids))
-        unverified_filters.append(Image.camera_id.in_(camera_ids))
-        pv_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_filters.append(_site_image_condition(site_ids))
+        unverified_filters.append(_site_image_condition(site_ids))
+        pv_filters.append(_site_image_condition(site_ids))
 
     # Verified: group by hour, sum counts from HumanObservation
     verified_query = (
@@ -366,7 +379,7 @@ async def get_preferred_species_first_dates(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get the first observation date for each species from preferred data source.
@@ -402,10 +415,10 @@ async def get_preferred_species_first_dates(
         verified_filters.append(Image.captured_at <= end_date)
         unverified_filters.append(Image.captured_at <= end_date)
         pv_filters.append(Image.captured_at <= end_date)
-    if camera_ids:
-        verified_filters.append(Image.camera_id.in_(camera_ids))
-        unverified_filters.append(Image.camera_id.in_(camera_ids))
-        pv_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_filters.append(_site_image_condition(site_ids))
+        unverified_filters.append(_site_image_condition(site_ids))
+        pv_filters.append(_site_image_condition(site_ids))
 
     # Verified: first date from human observations
     verified_query = (
@@ -477,7 +490,7 @@ async def get_preferred_species_camera_matrix(
     project_ids: List[int],
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get species counts per camera from preferred data source.
@@ -513,10 +526,10 @@ async def get_preferred_species_camera_matrix(
         verified_filters.append(Image.captured_at <= end_date)
         unverified_filters.append(Image.captured_at <= end_date)
         pv_filters.append(Image.captured_at <= end_date)
-    if camera_ids:
-        verified_filters.append(Image.camera_id.in_(camera_ids))
-        unverified_filters.append(Image.camera_id.in_(camera_ids))
-        pv_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_filters.append(_site_image_condition(site_ids))
+        unverified_filters.append(_site_image_condition(site_ids))
+        pv_filters.append(_site_image_condition(site_ids))
 
     # Verified: group by camera and species, sum counts
     verified_query = (
@@ -595,7 +608,7 @@ async def get_preferred_daily_trend(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get daily detection counts from preferred data source.
@@ -635,10 +648,10 @@ async def get_preferred_daily_trend(
         verified_filters.append(func.lower(HumanObservation.species) == species_filter.lower())
         unverified_filters.append(func.lower(Classification.species) == species_filter.lower())
         pv_filters.append(func.lower(Detection.category) == species_filter.lower())
-    if camera_ids:
-        verified_filters.append(Image.camera_id.in_(camera_ids))
-        unverified_filters.append(Image.camera_id.in_(camera_ids))
-        pv_filters.append(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_filters.append(_site_image_condition(site_ids))
+        unverified_filters.append(_site_image_condition(site_ids))
+        pv_filters.append(_site_image_condition(site_ids))
 
     # Verified: group by date, sum counts
     verified_query = (
@@ -711,7 +724,7 @@ async def get_preferred_species_detection_times(
     species_filter: str,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[tuple]:
     """
     Detection times for a single species, preferring human observations
@@ -801,11 +814,11 @@ async def get_preferred_species_detection_times(
         unverified_query = unverified_query.where(Image.captured_at <= end_date)
         if pv_query is not None:
             pv_query = pv_query.where(Image.captured_at <= end_date)
-    if camera_ids:
-        verified_query = verified_query.where(Image.camera_id.in_(camera_ids))
-        unverified_query = unverified_query.where(Image.camera_id.in_(camera_ids))
+    if site_ids:
+        verified_query = verified_query.where(_site_image_condition(site_ids))
+        unverified_query = unverified_query.where(_site_image_condition(site_ids))
         if pv_query is not None:
-            pv_query = pv_query.where(Image.camera_id.in_(camera_ids))
+            pv_query = pv_query.where(_site_image_condition(site_ids))
 
     union_query = (
         union_all(verified_query, unverified_query, pv_query)
@@ -824,26 +837,35 @@ async def get_preferred_species_detection_times(
 
 
 # Naive occupancy = (sites where species detected at least once) / (sites active in window).
-# Site = Camera. "Active" = at least one Deployment overlaps the window.
-# Independence interval is intentionally NOT applied: presence/absence at the
-# (site, window) level is independence-immune. Person and vehicle Detections
-# are excluded; HumanObservation rows that happen to use 'person' or 'vehicle'
-# as their species string are filtered defensively.
-_NAIVE_OCCUPANCY_SQL = """
-WITH active_cameras AS (
-    SELECT DISTINCT c.id AS camera_id
-    FROM cameras c
-    INNER JOIN deployments cdp ON cdp.camera_id = c.id
+# A site is a real Site; an image reaches its site through its deployment.
+# "Active" = at least one Deployment overlaps the window. Cameras at one site
+# collapse to that single site, so co-located cameras no longer inflate the
+# denominator. Independence interval is intentionally NOT applied: presence/
+# absence at the (site, window) level is independence-immune. Person and
+# vehicle Detections are excluded; HumanObservation rows that happen to use
+# 'person' or 'vehicle' as their species string are filtered defensively.
+# Images with no resolved site (null deployment) cannot contribute a site and
+# are dropped from both numerator and denominator.
+_ACTIVE_SITES_CTE = """
+WITH active_sites AS (
+    SELECT DISTINCT cdp.site_id AS site_id
+    FROM deployments cdp
+    INNER JOIN cameras c ON cdp.camera_id = c.id
     WHERE c.project_id = ANY(:project_ids)
-      AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+      AND cdp.site_id IS NOT NULL
+      AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
       AND cdp.start_date <= CAST(:end_date AS date)
       AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
-),
+)
+"""
+
+_NAIVE_OCCUPANCY_SQL = _ACTIVE_SITES_CTE + """,
 verified_presence AS (
-    SELECT DISTINCT i.camera_id, LOWER(ho.species) AS species
+    SELECT DISTINCT dep.site_id, LOWER(ho.species) AS species
     FROM human_observations ho
     INNER JOIN images i ON ho.image_id = i.id
-    INNER JOIN active_cameras ac ON ac.camera_id = i.camera_id
+    INNER JOIN deployments dep ON i.deployment_id = dep.id
+    INNER JOIN active_sites asx ON asx.site_id = dep.site_id
     WHERE i.is_verified = TRUE
       AND i.is_hidden = FALSE
       AND i.captured_at >= CAST(:start_dt AS timestamp)
@@ -851,11 +873,12 @@ verified_presence AS (
       AND LOWER(ho.species) NOT IN ('person', 'vehicle')
 ),
 unverified_presence AS (
-    SELECT DISTINCT i.camera_id, LOWER(cl.species) AS species
+    SELECT DISTINCT dep.site_id, LOWER(cl.species) AS species
     FROM classifications cl
     INNER JOIN detections d ON cl.detection_id = d.id
     INNER JOIN images i ON d.image_id = i.id
-    INNER JOIN active_cameras ac ON ac.camera_id = i.camera_id
+    INNER JOIN deployments dep ON i.deployment_id = dep.id
+    INNER JOIN active_sites asx ON asx.site_id = dep.site_id
     INNER JOIN cameras c ON i.camera_id = c.id
     INNER JOIN projects p ON c.project_id = p.id
     WHERE i.is_verified = FALSE
@@ -870,11 +893,11 @@ unverified_presence AS (
       )
 ),
 all_presence AS (
-    SELECT camera_id, species FROM verified_presence
+    SELECT site_id, species FROM verified_presence
     UNION
-    SELECT camera_id, species FROM unverified_presence
+    SELECT site_id, species FROM unverified_presence
 )
-SELECT species, COUNT(DISTINCT camera_id) AS sites_detected
+SELECT species, COUNT(DISTINCT site_id) AS sites_detected
 FROM all_presence
 GROUP BY species
 ORDER BY sites_detected DESC, species ASC
@@ -886,7 +909,7 @@ async def get_naive_occupancy(
     project_ids: List[int],
     start_date: datetime,
     end_date: datetime,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
     top_n: Optional[int] = 15,
 ) -> Tuple[List[dict], int]:
     """
@@ -902,18 +925,12 @@ async def get_naive_occupancy(
     # Compute the active-site denominator separately so a date window with no
     # detections still surfaces a meaningful sites_total (the chart can render
     # empty bars and the caption still reads correctly).
-    sites_total_sql = text("""
-        SELECT COUNT(DISTINCT c.id) AS sites_total
-        FROM cameras c
-        INNER JOIN deployments cdp ON cdp.camera_id = c.id
-        WHERE c.project_id = ANY(:project_ids)
-          AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
-          AND cdp.start_date <= CAST(:end_date AS date)
-          AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
-    """)
+    sites_total_sql = text(
+        _ACTIVE_SITES_CTE + " SELECT COUNT(*) AS sites_total FROM active_sites"
+    )
     params = {
         "project_ids": project_ids,
-        "camera_ids": camera_ids,
+        "site_ids": site_ids,
         "start_date": start_date.date(),
         "end_date": end_date.date(),
         "start_dt": start_date,
@@ -937,65 +954,120 @@ async def get_naive_occupancy(
 # occasion), 0 (camera active that occasion with no detection of that species),
 # or None when the camera was not active that occasion (mapped to NA in the CSV
 # via an empty cell, matching unmarked / camtrapR conventions).
-async def build_detection_matrix(
+# Site x occasion detection grid for the single-season occupancy fitter.
+# One matrix row per active site (not per camera): cameras at the same site
+# collapse to one survey unit, matching the naive-occupancy denominator.
+_SITE_MATRIX_ACTIVE_SQL = """
+WITH occ AS (
+    SELECT gs AS occ_idx,
+           CAST(:start_date AS date) + (gs * :occasion_length) AS occ_start,
+           CAST(:start_date AS date) + (gs * :occasion_length) + (:occasion_length - 1) AS occ_end
+    FROM generate_series(0, :n_occ - 1) gs
+)
+SELECT DISTINCT cdp.site_id, occ.occ_idx
+FROM deployments cdp
+INNER JOIN cameras c ON cdp.camera_id = c.id
+INNER JOIN occ ON cdp.start_date <= occ.occ_end
+             AND (cdp.end_date IS NULL OR cdp.end_date >= occ.occ_start)
+WHERE c.project_id = ANY(:project_ids)
+  AND cdp.site_id IS NOT NULL
+  AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
+"""
+
+_SITE_MATRIX_DETECTED_SQL = """
+SELECT DISTINCT dep.site_id,
+       FLOOR((DATE_TRUNC('day', ts)::date - CAST(:start_date AS date)) / :occasion_length)::int AS occ_idx,
+       species
+FROM (
+    SELECT i.deployment_id, i.captured_at AS ts, LOWER(ho.species) AS species
+    FROM human_observations ho
+    INNER JOIN images i ON ho.image_id = i.id
+    WHERE i.is_verified = TRUE AND i.is_hidden = FALSE
+      AND i.captured_at >= CAST(:start_dt AS timestamp)
+      AND i.captured_at <= CAST(:end_dt AS timestamp)
+      AND LOWER(ho.species) NOT IN ('person', 'vehicle')
+    UNION ALL
+    SELECT i.deployment_id, i.captured_at AS ts, LOWER(cl.species) AS species
+    FROM classifications cl
+    INNER JOIN detections d ON cl.detection_id = d.id
+    INNER JOIN images i ON d.image_id = i.id
+    INNER JOIN cameras c ON i.camera_id = c.id
+    INNER JOIN projects p ON c.project_id = p.id
+    WHERE i.is_verified = FALSE AND i.is_hidden = FALSE
+      AND i.captured_at >= CAST(:start_dt AS timestamp)
+      AND i.captured_at <= CAST(:end_dt AS timestamp)
+      AND d.confidence >= p.detection_threshold
+      AND cl.confidence >= COALESCE(
+          (p.classification_thresholds->'overrides'->>cl.species)::float,
+          (p.classification_thresholds->>'default')::float,
+          0.0
+      )
+) obs
+INNER JOIN deployments dep ON obs.deployment_id = dep.id
+WHERE dep.site_id IS NOT NULL
+  AND species = ANY(:species_list)
+"""
+
+
+async def build_site_detection_matrix(
     db: AsyncSession,
     project_ids: List[int],
     start_date: date,
     end_date: date,
     species_subset: List[str],
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
     occasion_length_days: int = 7,
 ) -> Dict[str, List[List[Optional[int]]]]:
     """In-memory site x occasion detection matrix per species.
 
-    Same data shape `get_detection_history` streams to CSV, but
-    grouped by species and materialised so a server-side occupancy
-    fitter can iterate over it. Returns
-    `{species: [[per_occasion, ...], ...one row per active camera...]}`
-    where each cell is `1` (detected), `0` (active, no detection), or
-    `None` (camera inactive that occasion).
-
-    `species_subset` filters which species appear in the result; pass
-    the species the caller actually intends to fit. The streaming
-    generator already emits dense cells for every camera x occasion x
-    project-species combination, so the matrix is exact when the
-    caller's subset is contained in the project's observed species.
+    Returns `{species: [[per_occasion, ...], ...one row per active site...]}`
+    where each cell is `1` (detected at the site that occasion), `0` (site
+    active, no detection), or `None` (site inactive that occasion). One row per
+    site so cameras at the same site count as a single survey unit, consistent
+    with the naive-occupancy denominator.
     """
-    species_lower = {s.lower() for s in species_subset}
-    if not species_lower:
+    species_lower = sorted({s.lower() for s in species_subset})
+    if not species_lower or not project_ids:
         return {}
 
-    # (camera_id, occasion_num) -> species -> detected
-    grid: Dict[Tuple[str, int], Dict[str, Optional[int]]] = {}
-    cameras_seen: set[str] = set()
-    occasions_seen: set[int] = set()
-    async for row in get_detection_history(
-        db=db,
-        project_ids=project_ids,
-        start_date=start_date,
-        end_date=end_date,
-        camera_ids=camera_ids,
-        occasion_length_days=occasion_length_days,
-    ):
-        sp = row["species"]
-        if sp not in species_lower:
-            continue
-        key = (row["locationID"], row["occasion"])
-        cameras_seen.add(row["locationID"])
-        occasions_seen.add(row["occasion"])
-        grid.setdefault(key, {})[sp] = row["detected"]
+    n_occ = ((end_date - start_date).days // occasion_length_days) + 1
+    params = {
+        "project_ids": project_ids,
+        "site_ids": site_ids,
+        "start_date": start_date,
+        "end_dt": datetime.combine(end_date, datetime.max.time()),
+        "start_dt": datetime.combine(start_date, datetime.min.time()),
+        "occasion_length": occasion_length_days,
+        "n_occ": n_occ,
+        "species_list": species_lower,
+    }
 
-    sorted_cams = sorted(cameras_seen, key=lambda s: int(s) if s.isdigit() else s)
-    sorted_occs = sorted(occasions_seen)
+    active_rows = (await db.execute(text(_SITE_MATRIX_ACTIVE_SQL), params)).all()
+    active: set[Tuple[int, int]] = {(r.site_id, r.occ_idx) for r in active_rows}
+    if not active:
+        return {}
+
+    detected_rows = (await db.execute(text(_SITE_MATRIX_DETECTED_SQL), params)).all()
+    detected: Dict[str, set[Tuple[int, int]]] = {}
+    for r in detected_rows:
+        detected.setdefault(r.species, set()).add((r.site_id, r.occ_idx))
+
+    sorted_sites = sorted({s for s, _ in active})
 
     out: Dict[str, List[List[Optional[int]]]] = {}
     for sp_label in species_subset:
         sp = sp_label.lower()
+        det = detected.get(sp, set())
         matrix: List[List[Optional[int]]] = []
-        for cam in sorted_cams:
+        for site_id in sorted_sites:
             history: List[Optional[int]] = []
-            for occ in sorted_occs:
-                history.append(grid.get((cam, occ), {}).get(sp))
+            for occ in range(n_occ):
+                if (site_id, occ) in det:
+                    history.append(1)
+                elif (site_id, occ) in active:
+                    history.append(0)
+                else:
+                    history.append(None)
             matrix.append(history)
         out[sp_label] = matrix
     return out

@@ -47,11 +47,13 @@ class TestBuildFilters:
 
     def test_camera_ids(self):
         ids = [1, 2, 3]
-        v, u, pv, params = _build_filters(None, None, None, camera_ids=ids)
-        assert "i.camera_id = ANY(:camera_ids)" in v
-        assert "i.camera_id = ANY(:camera_ids)" in u
-        assert "i.camera_id = ANY(:camera_ids)" in pv
-        assert params["camera_ids"] == [1, 2, 3]
+        v, u, pv, params = _build_filters(None, None, None, site_ids=ids)
+        # Site filter resolves through the image's deployment (time-correct).
+        expected = "i.deployment_id IN (SELECT d.id FROM deployments d WHERE d.site_id = ANY(:site_ids))"
+        assert expected in v
+        assert expected in u
+        assert expected in pv
+        assert params["site_ids"] == [1, 2, 3]
 
     def test_all_filters(self):
         dt_start = datetime(2025, 1, 1)
@@ -60,12 +62,12 @@ class TestBuildFilters:
         assert "species_filter" in params
         assert "start_date" in params
         assert "end_date" in params
-        assert "camera_ids" in params
+        assert "site_ids" in params
         # Each clause should have all four conditions
         for clause in [v, u, pv]:
             assert ":start_date" in clause
             assert ":end_date" in clause
-            assert ":camera_ids" in clause
+            assert ":site_ids" in clause
 
 
 class TestBuildCte:
@@ -94,7 +96,7 @@ class TestBuildCte:
             species_filter="deer",
             start_date=datetime(2025, 6, 1),
             end_date=datetime(2025, 6, 30),
-            camera_ids=[1, 2],
+            site_ids=[1, 2],
         )
         assert "{" not in sql
         assert "}" not in sql
