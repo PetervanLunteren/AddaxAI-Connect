@@ -27,7 +27,6 @@ from utils.preferred_counts import (
     get_preferred_hourly_activity,
     get_preferred_daily_trend,
     get_preferred_species_first_dates,
-    get_preferred_species_camera_matrix,
     get_naive_occupancy,
     get_detection_history,
     build_site_detection_matrix,
@@ -58,7 +57,6 @@ from utils.independence_filter import (
     get_independent_event_counts,
     get_independent_hourly_activity,
     get_independent_daily_trend,
-    get_independent_species_camera_matrix,
     get_independent_detection_rate_counts,
 )
 
@@ -1269,82 +1267,6 @@ async def get_confidence_distribution(
         ))
 
     return bin_counts
-
-
-class OccupancyMatrixResponse(BaseModel):
-    """Species x Camera occupancy matrix"""
-    cameras: List[str]  # Camera names
-    species: List[str]  # Species names
-    matrix: List[List[int]]  # matrix[species_idx][camera_idx] = detection count
-
-
-@router.get(
-    "/occupancy-matrix",
-    response_model=OccupancyMatrixResponse,
-)
-async def get_occupancy_matrix(
-    project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    start_date: Optional[date] = Query(None, description="Filter from this date"),
-    end_date: Optional[date] = Query(None, description="Filter to this date"),
-    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_verified_user),
-):
-    """
-    Get species x camera detection counts as a matrix.
-
-    Prefers human observations for verified images, falls back to AI for unverified.
-    Used for heatmap visualization showing which species appear at which cameras.
-    """
-    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    interval = await _get_independence_interval(db, project_id)
-
-    # Convert dates for helper function
-    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
-    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
-
-    # Get camera × species matrix from preferred source
-    if interval > 0:
-        matrix_data = await get_independent_species_camera_matrix(
-            db=db,
-            project_ids=accessible_project_ids,
-            interval_minutes=interval,
-            start_date=start_dt,
-            end_date=end_dt,
-        )
-    else:
-        matrix_data = await get_preferred_species_camera_matrix(
-            db=db,
-            project_ids=accessible_project_ids,
-            start_date=start_dt,
-            end_date=end_dt,
-        )
-
-    # Build sets of cameras and species
-    cameras_set: set = set()
-    species_set: set = set()
-    counts: Dict[tuple, int] = {}
-
-    for row in matrix_data:
-        cameras_set.add(row['camera_name'])
-        species_set.add(row['species'])
-        counts[(row['species'], row['camera_name'])] = row['count']
-
-    # Sort for consistent ordering
-    cameras = sorted(cameras_set)
-    species_list = sorted(species_set)
-
-    # Build matrix: rows = species, columns = cameras
-    matrix = []
-    for sp in species_list:
-        row = [counts.get((sp, cam), 0) for cam in cameras]
-        matrix.append(row)
-
-    return OccupancyMatrixResponse(
-        cameras=cameras,
-        species=species_list,
-        matrix=matrix,
-    )
 
 
 class NaiveOccupancyPoint(BaseModel):

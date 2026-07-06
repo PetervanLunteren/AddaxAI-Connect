@@ -307,39 +307,6 @@ async def get_independent_daily_trend(
     return [{"date": row.date.isoformat(), "count": row.count} for row in result.all()]
 
 
-async def get_independent_species_camera_matrix(
-    db: AsyncSession,
-    project_ids: List[int],
-    interval_minutes: int,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    site_ids: Optional[List[int]] = None,
-) -> List[dict]:
-    """
-    Get species counts per camera using independence interval grouping.
-
-    Returns list of {camera_name: str, species: str, count: int}.
-    """
-    cte_sql, params = _build_cte(None, start_date, end_date, site_ids)
-    params["project_ids"] = project_ids
-    params["interval"] = interval_minutes
-
-    query = f"""
-    {cte_sql}
-    SELECT c.device_id as camera_name, events.species,
-           SUM(events.event_count)::int as count
-    FROM events
-    JOIN cameras c ON events.camera_id = c.id
-    GROUP BY c.device_id, events.species
-    """
-
-    result = await db.execute(text(query), params)
-    return [
-        {"camera_name": row.camera_name, "species": row.species, "count": row.count}
-        for row in result.all()
-    ]
-
-
 async def get_independent_detection_rate_counts(
     db: AsyncSession,
     project_ids: List[int],
