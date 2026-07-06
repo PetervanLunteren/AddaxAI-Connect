@@ -242,7 +242,7 @@ export function DeploymentTimelineChart({
   const ticks = useMemo(() => generateMonthTicks(xMinMs, xMaxMs), [xMinMs, xMaxMs]);
   const tickKeep = useMemo(() => thinTicks(ticks, plotWidth), [ticks, plotWidth]);
 
-  // Pre-index per-camera heatmap counts by epoch ms so each row render is
+  // Pre-index per-site heatmap counts by epoch ms so each row render is
   // a cheap lookup. When the visible range is long, bin the cell ms to the
   // start of each ISO week so we render seven-day blocks instead of pixel-
   // smearing 365 day cells.
@@ -250,13 +250,13 @@ export function DeploymentTimelineChart({
   const useWeeklyBins = viewMode === 'heatmap' && visibleDays > WEEKLY_BIN_DAY_THRESHOLD;
   const cellSpanMs = useWeeklyBins ? 7 * MS_PER_DAY : MS_PER_DAY;
 
-  const heatmapByCamera = useMemo(() => {
+  const heatmapBySite = useMemo(() => {
     if (viewMode !== 'heatmap') return new Map<number, CameraHeatmap>();
     return buildHeatmapIndex(data.heatmap, useWeeklyBins);
   }, [data.heatmap, viewMode, useWeeklyBins]);
 
-  const transitionsByCamera = useMemo(
-    () => groupTransitionsByCamera(data.cdp_transitions),
+  const transitionsBySite = useMemo(
+    () => groupTransitionsBySite(data.cdp_transitions),
     [data.cdp_transitions],
   );
 
@@ -433,9 +433,9 @@ export function DeploymentTimelineChart({
           const rowTop =
             TOP_PADDING + AXIS_HEIGHT + rowIdx * (cfg.rowHeight + cfg.rowGap);
           const barY = rowTop + (cfg.rowHeight - cfg.barHeight) / 2;
-          const cameraId = site.site_id !== null ? Number(site.site_id) : -1;
-          const heatmap = heatmapByCamera.get(cameraId);
-          const transitions = transitionsByCamera.get(cameraId) ?? [];
+          const siteId = site.site_id !== null ? Number(site.site_id) : -1;
+          const heatmap = heatmapBySite.get(siteId);
+          const transitions = transitionsBySite.get(siteId) ?? [];
           const dotColor = STATUS_COLORS[site.camera_status] ?? '#9ca3af';
           const labelText = site.site_name.length > 24
             ? site.site_name.slice(0, 23) + '…'
@@ -568,7 +568,7 @@ export function DeploymentTimelineChart({
                         x: tx,
                         y: rowTop,
                         title: site.site_name,
-                        subtitle: `Camera moved more than 100 m on ${formatShortDate(parseDate(t.transition_date))}`,
+                        subtitle: `New deployment started on ${formatShortDate(parseDate(t.transition_date))}`,
                       })
                     }
                     onMouseLeave={() => setHover(null)}
@@ -696,10 +696,10 @@ function buildHeatmapIndex(
   for (const row of rows) {
     const ms = parseDate(row.date);
     const bucketMs = weekly ? mondayUtc(ms) : ms;
-    let entry = out.get(row.camera_id);
+    let entry = out.get(row.site_id);
     if (!entry) {
       entry = { cellsByMs: new Map() };
-      out.set(row.camera_id, entry);
+      out.set(row.site_id, entry);
     }
     entry.cellsByMs.set(bucketMs, (entry.cellsByMs.get(bucketMs) ?? 0) + row.count);
   }
@@ -714,14 +714,14 @@ function mondayUtc(ms: number): number {
   return ms - offset * MS_PER_DAY;
 }
 
-function groupTransitionsByCamera(
+function groupTransitionsBySite(
   transitions: CdpTransition[],
 ): Map<number, CdpTransition[]> {
   const out = new Map<number, CdpTransition[]>();
   for (const t of transitions) {
-    const list = out.get(t.camera_id);
+    const list = out.get(t.site_id);
     if (list) list.push(t);
-    else out.set(t.camera_id, [t]);
+    else out.set(t.site_id, [t]);
   }
   return out;
 }

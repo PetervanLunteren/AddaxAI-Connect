@@ -13,7 +13,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Info } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
-import { camerasApi } from '../../api/cameras';
+import { sitesApi } from '../../api/sites';
 import { statisticsApi } from '../../api/statistics';
 import type { TimelineResponse, TimelineSite } from '../../api/types';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
@@ -41,7 +41,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
-  camera_ids: 'string[]',
+  site_ids: 'string[]',
   density: 'string',
   view_mode: 'string',
   sort_by: 'string',
@@ -57,7 +57,7 @@ export const DeploymentTimelinePage: React.FC = () => {
   const startDate = (parsed.date_from as string) || null;
   const endDate = (parsed.date_to as string) || null;
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
-  const cameraIdValues = Array.isArray(parsed.camera_ids) ? parsed.camera_ids : [];
+  const siteIdValues = Array.isArray(parsed.site_ids) ? parsed.site_ids : [];
   const density = ((parsed.density as string) === 'compact' ? 'compact' : 'normal') as
     | 'normal'
     | 'compact';
@@ -68,14 +68,14 @@ export const DeploymentTimelinePage: React.FC = () => {
     return 'name';
   })();
 
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId!),
     enabled: projectId !== undefined,
   });
   const { data: tagOptions } = useQuery({
-    queryKey: ['camera-tags', projectId],
-    queryFn: () => camerasApi.getTags(projectId),
+    queryKey: ['site-tags', projectId],
+    queryFn: () => sitesApi.getTags(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -84,9 +84,9 @@ export const DeploymentTimelinePage: React.FC = () => {
       date_from: startDate ?? undefined,
       date_to: endDate ?? undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
-      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+      site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     }),
-    [startDate, endDate, tagValues, cameraIdValues],
+    [startDate, endDate, tagValues, siteIdValues],
   );
 
   const writeAll = (
@@ -111,7 +111,7 @@ export const DeploymentTimelinePage: React.FC = () => {
       date_from: undefined,
       date_to: undefined,
       tags: undefined,
-      camera_ids: undefined,
+      site_ids: undefined,
     });
   };
   const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
@@ -120,16 +120,16 @@ export const DeploymentTimelinePage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
-        key: 'camera_ids',
-        label: 'Cameras',
-        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
-        placeholder: 'All cameras',
-        summary: (n) => `${n} cameras`,
+        key: 'site_ids',
+        label: 'Sites',
+        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        placeholder: 'All sites',
+        summary: (n) => `${n} sites`,
       },
       {
         kind: 'multi-select',
         key: 'tags',
-        label: 'Camera tags',
+        label: 'Site tags',
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
@@ -141,7 +141,7 @@ export const DeploymentTimelinePage: React.FC = () => {
         label: 'Date range',
       },
     ],
-    [cameras, tagOptions],
+    [sites, tagOptions],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -158,7 +158,7 @@ export const DeploymentTimelinePage: React.FC = () => {
         key: 'sort_by',
         label: 'Sort rows',
         options: [
-          { value: 'name', label: 'Camera name' },
+          { value: 'name', label: 'Site name' },
           { value: 'last_image', label: 'Last image' },
           { value: 'trap_nights', label: 'Days with images' },
         ],
@@ -181,23 +181,23 @@ export const DeploymentTimelinePage: React.FC = () => {
     density: density,
   };
 
-  const cameraIdsFromTags = useMemo(() => {
-    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
-    const ids = new Set<string>(cameraIdValues);
-    if (tagValues.length > 0 && cameras) {
+  const siteIdsFromTags = useMemo(() => {
+    if (tagValues.length === 0 && siteIdValues.length === 0) return undefined;
+    const ids = new Set<string>(siteIdValues);
+    if (tagValues.length > 0 && sites) {
       const tagSet = new Set(tagValues);
-      for (const c of cameras) {
-        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      for (const s of sites) {
+        if (s.tags?.some((tag) => tagSet.has(tag))) ids.add(String(s.id));
       }
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
-  }, [tagValues, cameraIdValues, cameras]);
+  }, [tagValues, siteIdValues, sites]);
 
   const { data, isLoading } = useQuery<TimelineResponse>({
-    queryKey: ['statistics', 'timeline', projectId, startDate, endDate, cameraIdsFromTags],
+    queryKey: ['statistics', 'timeline', projectId, startDate, endDate, siteIdsFromTags],
     queryFn: () =>
       statisticsApi.getTimeline(projectId!, {
-        camera_ids: cameraIdsFromTags,
+        site_ids: siteIdsFromTags,
         start_date: startDate ?? undefined,
         end_date: endDate ?? undefined,
       }),
@@ -232,7 +232,7 @@ export const DeploymentTimelinePage: React.FC = () => {
     return { ...data, sites: sorted };
   }, [data, sortBy]);
 
-  const subtitle = 'Per-camera activity over time, with a strip showing how many cameras delivered images each day';
+  const subtitle = 'Per-site activity over time, with a strip showing how many sites delivered images each day';
 
   return (
     <InsightsPageLayout title="Timeline" subtitle={subtitle}>
@@ -252,7 +252,7 @@ export const DeploymentTimelinePage: React.FC = () => {
         </div>
       ) : orderedData.sites.length === 0 ? (
         <div className="rounded-lg border bg-card p-12 text-center text-sm text-muted-foreground">
-          No camera activity matches the current filters.
+          No site activity matches the current filters.
         </div>
       ) : (
         <div className="rounded-lg border bg-card p-4 relative">
@@ -279,11 +279,11 @@ export const DeploymentTimelinePage: React.FC = () => {
           />
           <div className="mt-3 border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />
-            <span>{orderedData.metrics.site_count} cameras</span>
+            <span>{orderedData.metrics.site_count} sites</span>
             <span aria-hidden="true">·</span>
             <span>{orderedData.metrics.total_trap_nights.toLocaleString()} days with images</span>
             <span aria-hidden="true">·</span>
-            <span>busiest day {orderedData.metrics.max_concurrent_cameras} cameras</span>
+            <span>busiest day {orderedData.metrics.max_concurrent_cameras} sites</span>
             <span aria-hidden="true">·</span>
             <span>Drag to zoom in</span>
           </div>
@@ -294,19 +294,19 @@ export const DeploymentTimelinePage: React.FC = () => {
         plotKey="deployment-timeline"
         what={
           <p>
-            One row per camera. A day shows fill when the camera gave any sign of life that day,
+            One row per site. A day shows fill when a camera at the site gave any sign of life that day,
             either an image or a daily health report. A day with neither shows as a gap. The
-            strip below counts how many cameras gave a sign of life on each day. Heatmap mode
+            strip below counts how many sites gave a sign of life on each day. Heatmap mode
             replaces the bars with one cell per day, coloured by how many images arrived that
             day.
           </p>
         }
         how={
           <p>
-            A day is filled when the camera sent at least one image or one daily check-in that
-            day. A day with neither leaves a gap, so visible gaps mean the camera went silent.
-            The status dot follows the Cameras-page rule (green if the camera has checked in
-            within the last week). Faint ticks mark the day a camera was moved more than 100 m.
+            A day is filled when a camera at the site sent at least one image or one daily check-in
+            that day. A day with neither leaves a gap, so visible gaps mean the site went silent.
+            The status dot follows the Cameras-page rule (green if a camera at the site checked in
+            within the last week). Faint ticks mark the day a new deployment started.
             In heatmap mode, day cells switch to weekly cells once the visible range goes past
             a year.
           </p>

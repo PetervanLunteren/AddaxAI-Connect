@@ -1860,7 +1860,7 @@ class TimelineResponse(BaseModel):
 )
 async def get_timeline(
     project_id: int = Query(..., description="Project to analyse (single)"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
@@ -1868,17 +1868,17 @@ async def get_timeline(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Deployment timeline for the project. One row per camera; outer bars
-    are the configured deployment periods, solid inner segments are days
-    when the camera delivered at least one image (gap-split when the
-    camera is silent for three or more days). Also returns a per-day
-    heatmap of image counts, the boundaries between deployments, and the
-    per-camera status pill seed.
+    Deployment timeline for the project. One row per site; outer bars are
+    the configured deployment periods, solid inner segments are days when
+    a camera at the site delivered at least one image (gap-split when the
+    site is silent for three or more days). Also returns a per-day heatmap
+    of image counts, the boundaries between deployments, and the per-site
+    status pill seed.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = _parse_id_list(site_ids)
 
     # `today` is the server-local calendar date used for date-range
     # bookkeeping; matches the captured_at convention. Open CDPs no
@@ -1887,7 +1887,7 @@ async def get_timeline(
     payload = await get_deployment_timeline(
         db=db,
         project_ids=accessible_project_ids,
-        camera_ids=camera_id_list,
+        site_ids=site_id_list,
         date_from=start_date,
         date_to=end_date,
         today=server_now.date(),

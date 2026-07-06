@@ -641,12 +641,12 @@ export interface ConcurrentPoint {
 
 export interface HeatmapPoint {
   date: string;
-  camera_id: number;
+  site_id: number;
   count: number;
 }
 
 export interface CdpTransition {
-  camera_id: number;
+  site_id: number;
   transition_date: string;
 }
 
@@ -669,7 +669,7 @@ export interface TimelineResponse {
 }
 
 export interface TimelineFilters {
-  camera_ids?: string;
+  site_ids?: string;
   start_date?: string;
   end_date?: string;
 }
