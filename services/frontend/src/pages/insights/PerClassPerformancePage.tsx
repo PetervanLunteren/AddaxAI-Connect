@@ -12,7 +12,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Info, Loader2, Target } from 'lucide-react';
 
 import { performanceApi, type PerformanceData } from '../../api/performance';
-import { camerasApi } from '../../api/cameras';
+import { sitesApi } from '../../api/sites';
 import { statisticsApi } from '../../api/statistics';
 import { Card, CardContent } from '../../components/ui/Card';
 import {
@@ -46,7 +46,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
-  camera_ids: 'string[]',
+  site_ids: 'string[]',
   top_n: 'string',
 };
 
@@ -309,7 +309,7 @@ export const PerClassPerformancePage: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
-  const cameraIdValues = asStringArray(parsed.camera_ids);
+  const siteIdValues = asStringArray(parsed.site_ids);
   const tagValues = asStringArray(parsed.tags);
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
@@ -325,7 +325,7 @@ export const PerClassPerformancePage: React.FC = () => {
       : '20';
 
   const filterValues: Record<string, FilterValue> = {
-    camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+    site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     tags: tagValues.length > 0 ? tagValues : undefined,
     date_from: startDate || undefined,
     date_to: endDate || undefined,
@@ -342,21 +342,21 @@ export const PerClassPerformancePage: React.FC = () => {
   const onFilterChange = (patch: Record<string, FilterValue>) => writeAll(patch);
   const onClearAll = () =>
     writeAll({
-      camera_ids: undefined,
+      site_ids: undefined,
       tags: undefined,
       date_from: undefined,
       date_to: undefined,
     });
   const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
 
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectIdNum],
-    queryFn: () => camerasApi.getAll(projectIdNum),
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectIdNum],
+    queryFn: () => sitesApi.list(projectIdNum),
     enabled: !!projectIdNum,
   });
   const { data: tagOptions } = useQuery({
-    queryKey: ['camera-tags', projectIdNum],
-    queryFn: () => camerasApi.getTags(projectIdNum),
+    queryKey: ['site-tags', projectIdNum],
+    queryFn: () => sitesApi.getTags(projectIdNum),
     enabled: !!projectIdNum,
   });
   const { data: overview } = useQuery({
@@ -365,23 +365,23 @@ export const PerClassPerformancePage: React.FC = () => {
     enabled: !!projectIdNum,
   });
 
-  const cameraIdsParam = useMemo(() => {
-    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
-    const ids = new Set<string>(cameraIdValues);
-    if (tagValues.length > 0 && cameras) {
+  const siteIdsParam = useMemo(() => {
+    if (tagValues.length === 0 && siteIdValues.length === 0) return undefined;
+    const ids = new Set<string>(siteIdValues);
+    if (tagValues.length > 0 && sites) {
       const tagSet = new Set(tagValues);
-      for (const c of cameras) {
-        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      for (const s of sites) {
+        if (s.tags?.some((tag) => tagSet.has(tag))) ids.add(String(s.id));
       }
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
-  }, [tagValues, cameraIdValues, cameras]);
+  }, [tagValues, siteIdValues, sites]);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['performance', projectIdNum, cameraIdsParam, startDate, endDate],
+    queryKey: ['performance', projectIdNum, siteIdsParam, startDate, endDate],
     queryFn: () =>
       performanceApi.get(projectIdNum, {
-        camera_ids: cameraIdsParam,
+        site_ids: siteIdsParam,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
       }),
@@ -392,16 +392,16 @@ export const PerClassPerformancePage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
-        key: 'camera_ids',
-        label: 'Cameras',
-        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
-        placeholder: 'All cameras',
-        summary: (n) => `${n} cameras`,
+        key: 'site_ids',
+        label: 'Sites',
+        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        placeholder: 'All sites',
+        summary: (n) => `${n} sites`,
       },
       {
         kind: 'multi-select',
         key: 'tags',
-        label: 'Camera tags',
+        label: 'Site tags',
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
@@ -415,7 +415,7 @@ export const PerClassPerformancePage: React.FC = () => {
         maxDate: overview?.last_image_date,
       },
     ],
-    [cameras, tagOptions, overview],
+    [sites, tagOptions, overview],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(

@@ -57,13 +57,13 @@ const BEHAVIOR_COLORS = buildGradientPalette([
 interface DemographicChartProps {
   dateRange: DateRange;
   projectId?: number;
-  cameraIds?: string;
+  siteIds?: string;
 }
 
 export const DemographicChart: React.FC<DemographicChartProps> = ({
   dateRange,
   projectId,
-  cameraIds,
+  siteIds,
 }) => {
   const [field, setField] = useState<'sex' | 'life_stage' | 'behavior'>('sex');
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
@@ -79,14 +79,14 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'demographics', projectId, field, selectedSpecies, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'demographics', projectId, field, selectedSpecies, dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getDemographics(projectId!, {
         field,
         species: selectedSpecies === 'all' ? undefined : selectedSpecies,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
-        camera_ids: cameraIds,
+        site_ids: siteIds,
       }),
     enabled: projectId !== undefined,
   });

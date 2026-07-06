@@ -23,7 +23,7 @@ from shared.classification_threshold import CLASSIFICATION_THRESHOLD_FILTER_SQL
 _INDEPENDENCE_CTE = """
 WITH raw_obs AS (
     -- Verified: human observations
-    SELECT i.camera_id, ho.species, i.captured_at as ts, ho.count as cnt
+    SELECT i.camera_id, i.deployment_id, ho.species, i.captured_at as ts, ho.count as cnt
     FROM human_observations ho
     JOIN images i ON ho.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
@@ -31,7 +31,7 @@ WITH raw_obs AS (
       {verified_filters}
     UNION ALL
     -- Unverified: AI classifications
-    SELECT i.camera_id, cl.species, i.captured_at as ts, 1 as cnt
+    SELECT i.camera_id, i.deployment_id, cl.species, i.captured_at as ts, 1 as cnt
     FROM classifications cl
     JOIN detections d ON cl.detection_id = d.id
     JOIN images i ON d.image_id = i.id
@@ -43,7 +43,7 @@ WITH raw_obs AS (
       {unverified_filters}
     UNION ALL
     -- Unverified: person/vehicle detections (no classification)
-    SELECT i.camera_id, d.category as species, i.captured_at as ts, 1 as cnt
+    SELECT i.camera_id, i.deployment_id, d.category as species, i.captured_at as ts, 1 as cnt
     FROM detections d
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
@@ -55,15 +55,25 @@ WITH raw_obs AS (
 ),
 -- Per-image: sum all detections of same species in same image
 img_counts AS (
-    SELECT camera_id, species, ts, SUM(cnt) as img_count
-    FROM raw_obs GROUP BY camera_id, species, ts
+    SELECT camera_id, deployment_id, species, ts, SUM(cnt) as img_count
+    FROM raw_obs GROUP BY camera_id, deployment_id, species, ts
 ),
--- Pool ID: cameras in the same group share a pool; ungrouped cameras use their own ID.
--- Negate group IDs so they never collide with positive camera IDs.
+-- Pool ID: the "place" an observation belongs to, resolved through its
+-- deployment. Sites in a "Merged sites" group share a pool ('g<group_id>');
+-- otherwise each site is its own pool ('s<site_id>'); observations without a
+-- resolved site fall back to their camera ('c<camera_id>'). Text keys keep the
+-- three id spaces from colliding. Resolved per observation (not per camera) so
+-- a camera moving between sites is attributed to the site it stood at.
 with_pool AS (
-    SELECT ic.*, COALESCE(c.camera_group_id * -1, ic.camera_id) as pool_id
+    SELECT ic.*,
+           COALESCE(
+               'g' || s.site_group_id,
+               's' || dep.site_id,
+               'c' || ic.camera_id
+           ) as pool_id
     FROM img_counts ic
-    JOIN cameras c ON ic.camera_id = c.id
+    LEFT JOIN deployments dep ON ic.deployment_id = dep.id
+    LEFT JOIN sites s ON dep.site_id = s.id
 ),
 -- Compute time gap from previous same-species same-pool observation
 with_gaps AS (
@@ -85,8 +95,9 @@ with_events AS (
     ) as event_id
     FROM with_flags
 ),
--- Per event: take MAX individuals (same group seen multiple times)
--- For grouped cameras, attribute event to the camera of the earliest detection.
+-- Per event: take MAX individuals (same pool seen multiple times)
+-- When a pool spans multiple cameras, attribute the event to the camera of
+-- the earliest detection.
 events AS (
     SELECT (ARRAY_AGG(camera_id ORDER BY ts))[1] as camera_id,
            pool_id, species, event_id,
@@ -101,7 +112,7 @@ def _build_filters(
     species_filter: Optional[str],
     start_date: Optional[datetime],
     end_date: Optional[datetime],
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> tuple:
     """Build filter clauses and params for the CTE."""
     verified_parts = []
@@ -127,11 +138,18 @@ def _build_filters(
         pv_parts.append("AND i.captured_at <= :end_date")
         params["end_date"] = end_date
 
-    if camera_ids:
-        verified_parts.append("AND i.camera_id = ANY(:camera_ids)")
-        unverified_parts.append("AND i.camera_id = ANY(:camera_ids)")
-        pv_parts.append("AND i.camera_id = ANY(:camera_ids)")
-        params["camera_ids"] = camera_ids
+    if site_ids:
+        # Filter by place: an image belongs to a site through the deployment
+        # active when it was captured. Time-correct, so a camera that moved is
+        # counted under the site it stood at, not its current one.
+        site_clause = (
+            "AND i.deployment_id IN "
+            "(SELECT d.id FROM deployments d WHERE d.site_id = ANY(:site_ids))"
+        )
+        verified_parts.append(site_clause)
+        unverified_parts.append(site_clause)
+        pv_parts.append(site_clause)
+        params["site_ids"] = site_ids
 
     return (
         "\n      ".join(verified_parts),
@@ -145,11 +163,11 @@ def _build_cte(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> tuple:
     """Build the full CTE SQL and params dict."""
     verified_filters, unverified_filters, pv_filters, params = _build_filters(
-        species_filter, start_date, end_date, camera_ids,
+        species_filter, start_date, end_date, site_ids,
     )
     cte_sql = _INDEPENDENCE_CTE.format(
         verified_filters=verified_filters,
@@ -168,14 +186,14 @@ async def get_independent_species_counts(
     end_date: Optional[datetime] = None,
     species_filter: Optional[str] = None,
     limit: Optional[int] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get species counts using independence interval grouping.
 
     Returns list of {species: str, count: int} sorted by count descending.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, camera_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
@@ -203,7 +221,7 @@ async def get_independent_event_counts(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     species_filter: Optional[str] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Count distinct independent events per species.
@@ -212,7 +230,7 @@ async def get_independent_event_counts(
     Unlike get_independent_species_counts (which sums MaxN across events),
     this counts the number of distinct events.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, camera_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
@@ -235,14 +253,14 @@ async def get_independent_hourly_activity(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get hourly activity counts using independence interval grouping.
 
     Returns list of {hour: int, count: int} for hours with data.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, camera_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
@@ -266,14 +284,14 @@ async def get_independent_daily_trend(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> List[dict]:
     """
     Get daily detection counts using independence interval grouping.
 
     Returns list of {date: str, count: int} sorted by date.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, camera_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 
@@ -289,39 +307,6 @@ async def get_independent_daily_trend(
     return [{"date": row.date.isoformat(), "count": row.count} for row in result.all()]
 
 
-async def get_independent_species_camera_matrix(
-    db: AsyncSession,
-    project_ids: List[int],
-    interval_minutes: int,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
-) -> List[dict]:
-    """
-    Get species counts per camera using independence interval grouping.
-
-    Returns list of {camera_name: str, species: str, count: int}.
-    """
-    cte_sql, params = _build_cte(None, start_date, end_date, camera_ids)
-    params["project_ids"] = project_ids
-    params["interval"] = interval_minutes
-
-    query = f"""
-    {cte_sql}
-    SELECT c.device_id as camera_name, events.species,
-           SUM(events.event_count)::int as count
-    FROM events
-    JOIN cameras c ON events.camera_id = c.id
-    GROUP BY c.device_id, events.species
-    """
-
-    result = await db.execute(text(query), params)
-    return [
-        {"camera_name": row.camera_name, "species": row.species, "count": row.count}
-        for row in result.all()
-    ]
-
-
 async def get_independent_detection_rate_counts(
     db: AsyncSession,
     project_ids: List[int],
@@ -329,7 +314,7 @@ async def get_independent_detection_rate_counts(
     species_filter: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
-    camera_ids: Optional[List[int]] = None,
+    site_ids: Optional[List[int]] = None,
 ) -> dict:
     """
     Get per-deployment detection counts using independence interval grouping.
@@ -337,7 +322,7 @@ async def get_independent_detection_rate_counts(
     Returns dict mapping (camera_id, deployment_number) -> event_count
     for use by detection-rate-map endpoint.
     """
-    cte_sql, params = _build_cte(species_filter, start_date, end_date, camera_ids)
+    cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
     params["interval"] = interval_minutes
 

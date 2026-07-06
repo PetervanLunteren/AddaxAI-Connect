@@ -106,7 +106,7 @@ class TestTimelineQueryCompiles:
         payload = await get_deployment_timeline(
             db=db,  # type: ignore[arg-type]
             project_ids=[1],
-            camera_ids=[10, 11, 12],
+            site_ids=[10, 11, 12],
             date_from=date(2024, 1, 1),
             date_to=date(2024, 12, 31),
             today=date(2024, 6, 1),

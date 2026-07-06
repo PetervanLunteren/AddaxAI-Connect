@@ -128,33 +128,34 @@ class TestOriginalBugScenario:
 
 
 # ---------------------------------------------------------------------------
-# Camera-scope check. Mirrors the notify_cameras branch in
-# rule_engine._evaluate_json_preferences: absent / null = all cameras,
-# a list (including []) restricts to those camera ids.
+# Site-scope check. Mirrors the notify_sites branch in
+# rule_engine._evaluate_json_preferences: absent / null = all sites, a list
+# (including []) restricts to those site ids. The event's site is resolved from
+# its image; here the resolved site_id is passed in directly.
 # ---------------------------------------------------------------------------
 
-def check_camera_scope(event, notify_cameras):
+def check_site_scope(site_id, notify_sites):
     """Return True if the event should be BLOCKED, False if it passes."""
-    if notify_cameras is None:
+    if notify_sites is None:
         return False
-    return event.get("camera_id") not in notify_cameras
+    return site_id is None or site_id not in notify_sites
 
 
-class TestCameraScope:
-    def test_missing_notify_cameras_passes(self):
-        assert check_camera_scope({"species": "fox", "camera_id": 3}, None) is False
+class TestSiteScope:
+    def test_missing_notify_sites_passes(self):
+        assert check_site_scope(3, None) is False
 
-    def test_camera_in_scope_passes(self):
-        assert check_camera_scope({"species": "fox", "camera_id": 3}, [1, 3, 7]) is False
+    def test_site_in_scope_passes(self):
+        assert check_site_scope(3, [1, 3, 7]) is False
 
-    def test_camera_not_in_scope_blocked(self):
-        assert check_camera_scope({"species": "fox", "camera_id": 9}, [1, 3, 7]) is True
+    def test_site_not_in_scope_blocked(self):
+        assert check_site_scope(9, [1, 3, 7]) is True
 
-    def test_empty_list_blocks_every_camera(self):
-        assert check_camera_scope({"species": "fox", "camera_id": 3}, []) is True
+    def test_empty_list_blocks_every_site(self):
+        assert check_site_scope(3, []) is True
 
-    def test_missing_camera_id_blocked_when_scoped(self):
-        assert check_camera_scope({"species": "fox"}, [1, 3, 7]) is True
+    def test_missing_site_blocked_when_scoped(self):
+        assert check_site_scope(None, [1, 3, 7]) is True
 
-    def test_missing_camera_id_passes_when_unscoped(self):
-        assert check_camera_scope({"species": "fox"}, None) is False
+    def test_missing_site_passes_when_unscoped(self):
+        assert check_site_scope(None, None) is False

@@ -732,6 +732,7 @@ async def export_camtrap_dp(
 def _build_observation_rows(
     images: list,
     camera_names: Dict[int, str],
+    sites_by_deployment: Dict[int, tuple],
     taxonomy_lookup: Dict[str, dict],
     detection_threshold: float,
     classification_thresholds: Optional[Dict[str, Any]],
@@ -742,9 +743,13 @@ def _build_observation_rows(
 
     One row per species per image, grouped by species (animals) or category
     (person/vehicle). Blank images get a single row with species="blank".
+
+    `camera_id` is the device id (the physical camera). `site_id`/`site_name`
+    are the place, resolved through the image's deployment; both are blank when
+    the image has no resolved site.
     """
     headers = [
-        "image_uuid", "filename", "datetime", "camera_name",
+        "image_uuid", "filename", "datetime", "camera_id", "site_id", "site_name",
         "latitude", "longitude",
         "species", "scientific_name", "count", "sex", "life_stage", "behavior",
         "max_confidence",
@@ -756,6 +761,7 @@ def _build_observation_rows(
         ts = _parse_timestamp(image, tz)
         ts_str = _format_dt(ts)
         camera_name = camera_names.get(image.camera_id, "")
+        site_id, site_name = sites_by_deployment.get(image.deployment_id, ("", ""))
 
         # Extract GPS from image EXIF metadata
         lat, lon = "", ""
@@ -773,7 +779,7 @@ def _build_observation_rows(
                 sci_name = tax.get("scientific_name") or ho.species
 
                 rows.append([
-                    image.uuid, image.filename, ts_str, camera_name,
+                    image.uuid, image.filename, ts_str, camera_name, site_id, site_name,
                     lat, lon,
                     ho.species, sci_name, ho.count, ho.sex, ho.life_stage, ho.behavior,
                     "",
@@ -817,7 +823,7 @@ def _build_observation_rows(
                 sci_name = tax.get("scientific_name") or ""
 
                 rows.append([
-                    image.uuid, image.filename, ts_str, camera_name,
+                    image.uuid, image.filename, ts_str, camera_name, site_id, site_name,
                     lat, lon,
                     species, sci_name, data["count"], "unknown", "unknown", "unknown",
                     round(data["max_confidence"], 6),
@@ -833,7 +839,7 @@ def _build_observation_rows(
                 blank_comments = "MegaDetector v1000, not reviewed"
 
             rows.append([
-                image.uuid, image.filename, ts_str, camera_name,
+                image.uuid, image.filename, ts_str, camera_name, site_id, site_name,
                 lat, lon,
                 "blank", "", "", "", "", "",
                 "",
@@ -914,6 +920,19 @@ async def export_observations(
     )
     camera_names = {row.id: row.device_id for row in cam_result.all()}
 
+    # deployment_id -> (site_id, site_name). Each observation reaches its place
+    # through the image's deployment, so a moved camera reports the right site.
+    from shared.models import Deployment, Site
+    dep_site_result = await db.execute(
+        select(Deployment.id, Site.id, Site.name)
+        .join(Site, Deployment.site_id == Site.id)
+        .join(Camera, Deployment.camera_id == Camera.id)
+        .where(Camera.project_id == project_id)
+    )
+    sites_by_deployment = {
+        row[0]: (row[1], row[2]) for row in dep_site_result.all()
+    }
+
     images_query = (
         select(Image)
         .join(Camera)
@@ -941,8 +960,8 @@ async def export_observations(
     )
 
     headers, rows = _build_observation_rows(
-        images, camera_names, taxonomy_lookup, project.detection_threshold,
-        project.classification_thresholds, tz,
+        images, camera_names, sites_by_deployment, taxonomy_lookup,
+        project.detection_threshold, project.classification_thresholds, tz,
     )
 
     today = date.today().isoformat()
@@ -1145,6 +1164,14 @@ def _build_spatial_layers(
     """
     from collections import defaultdict
 
+    # deployment_id -> (site_id, site_name) for resolving each observation's
+    # place through its image's deployment.
+    sites_by_deployment = {
+        row.id: (row.site_id if row.site_id is not None else "",
+                 row.site_name or "")
+        for row in deployment_rows
+    }
+
     # --- Deployments layer: one feature per deployment row ---
     deployments = []
     for row in deployment_rows:
@@ -1152,7 +1179,9 @@ def _build_spatial_layers(
             "lon": float(row.lon) if row.lon is not None else 0.0,
             "lat": float(row.lat) if row.lat is not None else 0.0,
             "properties": {
-                "camera_name": row.camera_name,
+                "camera_id": row.camera_name,
+                "site_id": row.site_id if row.site_id is not None else "",
+                "site_name": row.site_name or "",
                 "deployment_id": row.deployment_number,
                 "start_date": row.start_date.isoformat() if row.start_date else "",
                 "end_date": row.end_date.isoformat() if row.end_date else "",
@@ -1164,9 +1193,10 @@ def _build_spatial_layers(
 
     # --- Observations layer ---
     headers, rows = _build_observation_rows(
-        images, camera_names, taxonomy_lookup, detection_threshold,
-        classification_thresholds, tz,
+        images, camera_names, sites_by_deployment, taxonomy_lookup,
+        detection_threshold, classification_thresholds, tz,
     )
+    col = {h: i for i, h in enumerate(headers)}
 
     # Build GPS lookup from image objects (reliable float values)
     gps_lookup: Dict[str, tuple] = {}
@@ -1182,7 +1212,7 @@ def _build_spatial_layers(
 
     observations = []
     for row in rows:
-        image_uuid = row[0]
+        image_uuid = row[col["image_uuid"]]
         coords = gps_lookup.get(image_uuid)
         if coords is None:
             continue
@@ -1194,63 +1224,69 @@ def _build_spatial_layers(
             "lon": lon_val,
             "lat": lat_val,
             "properties": {
-                "image_uuid": row[0],
-                "filename": row[1],
-                "datetime": row[2],
-                "camera_name": row[3],
-                "species": row[6],
-                "scientific_name": row[7],
-                "count": row[8],
-                "max_confidence": row[9],
-                "classification_method": row[10],
-                "observation_comments": row[11],
-                "is_verified": row[12],
+                "image_uuid": row[col["image_uuid"]],
+                "filename": row[col["filename"]],
+                "datetime": row[col["datetime"]],
+                "camera_id": row[col["camera_id"]],
+                "site_id": row[col["site_id"]],
+                "site_name": row[col["site_name"]],
+                "species": row[col["species"]],
+                "scientific_name": row[col["scientific_name"]],
+                "count": row[col["count"]],
+                "max_confidence": row[col["max_confidence"]],
+                "classification_method": row[col["classification_method"]],
+                "observation_comments": row[col["observation_comments"]],
+                "is_verified": row[col["is_verified"]],
             },
         })
 
-    # --- Species summary layer ---
-    # Aggregate observations by (camera_name, species)
-    camera_species: Dict[tuple, Dict[str, Any]] = defaultdict(lambda: {
+    # --- Species summary layer, aggregated per site ---
+    # Cameras at one site pool into a single feature at the site location, so a
+    # camera swap does not split one place into two. Observations with no site
+    # cannot be placed and are left out of this layer (they still appear in the
+    # deployments and observations layers).
+    site_species: Dict[tuple, Dict[str, Any]] = defaultdict(lambda: {
         "scientific_name": "",
+        "site_name": "",
         "total_count": 0,
     })
     for feat in observations:
         props = feat["properties"]
-        key = (props["camera_name"], props["species"])
-        camera_species[key]["scientific_name"] = props["scientific_name"]
-        count_val = props["count"]
+        site_id = props["site_id"]
+        if site_id == "":
+            continue
+        key = (site_id, props["species"])
+        site_species[key]["scientific_name"] = props["scientific_name"]
+        site_species[key]["site_name"] = props["site_name"]
         try:
-            camera_species[key]["total_count"] += int(count_val)
+            site_species[key]["total_count"] += int(props["count"])
         except (ValueError, TypeError):
             pass
 
-    # Find the most recent deployment per camera for location
-    camera_latest_deployment: Dict[str, Any] = {}
-    camera_total_trap_days: Dict[str, int] = defaultdict(int)
+    # Per-site trap days and location, pooled across the site's deployments.
+    site_total_trap_days: Dict[Any, int] = defaultdict(int)
+    site_location: Dict[Any, tuple] = {}
     for row in deployment_rows:
-        cam = row.camera_name
-        camera_total_trap_days[cam] += int(row.trap_days) if row.trap_days else 0
-        existing = camera_latest_deployment.get(cam)
-        if existing is None or (row.start_date and (existing["start_date"] is None or row.start_date > existing["start_date"])):
-            camera_latest_deployment[cam] = {
-                "start_date": row.start_date,
-                "lon": float(row.lon) if row.lon is not None else 0.0,
-                "lat": float(row.lat) if row.lat is not None else 0.0,
-            }
+        if row.site_id is None:
+            continue
+        site_total_trap_days[row.site_id] += int(row.trap_days) if row.trap_days else 0
+        if row.site_id not in site_location and row.site_lon is not None:
+            site_location[row.site_id] = (float(row.site_lon), float(row.site_lat))
 
     species_summary = []
-    for (camera_name, species), data in camera_species.items():
-        dep_info = camera_latest_deployment.get(camera_name)
-        if dep_info is None:
+    for (site_id, species), data in site_species.items():
+        loc = site_location.get(site_id)
+        if loc is None:
             continue
-        total_trap = camera_total_trap_days.get(camera_name, 0)
+        total_trap = site_total_trap_days.get(site_id, 0)
         rate = (data["total_count"] / total_trap * 100) if total_trap > 0 else 0.0
 
         species_summary.append({
-            "lon": dep_info["lon"],
-            "lat": dep_info["lat"],
+            "lon": loc[0],
+            "lat": loc[1],
             "properties": {
-                "camera_name": camera_name,
+                "site_id": site_id,
+                "site_name": data["site_name"],
                 "species": species,
                 "scientific_name": data["scientific_name"],
                 "total_count": data["total_count"],
@@ -1311,7 +1347,9 @@ def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
     # Each entry: (short_name, field_type, size, decimal)
     layer_fields = {
         "deployments": [
-            ("cam_name",  "C", 80,  0),
+            ("cam_id",    "C", 80,  0),
+            ("site_id",   "C", 20,  0),
+            ("site_name", "C", 80,  0),
             ("deploy_id", "N", 10,  0),
             ("start_date","C", 10,  0),
             ("end_date",  "C", 10,  0),
@@ -1323,7 +1361,9 @@ def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
             ("img_uuid",  "C", 36,  0),
             ("filename",  "C", 100, 0),
             ("datetime",  "C", 25,  0),
-            ("cam_name",  "C", 80,  0),
+            ("cam_id",    "C", 80,  0),
+            ("site_id",   "C", 20,  0),
+            ("site_name", "C", 80,  0),
             ("species",   "C", 80,  0),
             ("sci_name",  "C", 100, 0),
             ("count",     "C", 10,  0),
@@ -1333,7 +1373,8 @@ def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
             ("is_verif",  "C", 5,   0),
         ],
         "species_summary": [
-            ("cam_name",  "C", 80,  0),
+            ("site_id",   "C", 20,  0),
+            ("site_name", "C", 80,  0),
             ("species",   "C", 80,  0),
             ("sci_name",  "C", 100, 0),
             ("total_cnt", "N", 10,  0),
@@ -1344,16 +1385,18 @@ def _serialize_spatial_shapefile(layers: Dict[str, list]) -> bytes:
     # Map from full property names to short field names, per layer
     property_keys = {
         "deployments": [
-            "camera_name", "deployment_id", "start_date", "end_date",
+            "camera_id", "site_id", "site_name", "deployment_id",
+            "start_date", "end_date",
             "trap_days", "detection_count", "detection_rate_per_100",
         ],
         "observations": [
-            "image_uuid", "filename", "datetime", "camera_name",
+            "image_uuid", "filename", "datetime", "camera_id",
+            "site_id", "site_name",
             "species", "scientific_name", "count", "max_confidence",
             "classification_method", "observation_comments", "is_verified",
         ],
         "species_summary": [
-            "camera_name", "species", "scientific_name",
+            "site_id", "site_name", "species", "scientific_name",
             "total_count", "detection_rate_per_100",
         ],
     }
@@ -1490,7 +1533,9 @@ def _serialize_spatial_geopackage(layers: Dict[str, list]) -> bytes:
         # Column definitions per layer: (col_name, sql_type)
         layer_columns = {
             "deployments": [
-                ("camera_name", "TEXT"),
+                ("camera_id", "TEXT"),
+                ("site_id", "TEXT"),
+                ("site_name", "TEXT"),
                 ("deployment_id", "INTEGER"),
                 ("start_date", "TEXT"),
                 ("end_date", "TEXT"),
@@ -1502,7 +1547,9 @@ def _serialize_spatial_geopackage(layers: Dict[str, list]) -> bytes:
                 ("image_uuid", "TEXT"),
                 ("filename", "TEXT"),
                 ("datetime", "TEXT"),
-                ("camera_name", "TEXT"),
+                ("camera_id", "TEXT"),
+                ("site_id", "TEXT"),
+                ("site_name", "TEXT"),
                 ("species", "TEXT"),
                 ("scientific_name", "TEXT"),
                 ("count", "TEXT"),
@@ -1512,7 +1559,8 @@ def _serialize_spatial_geopackage(layers: Dict[str, list]) -> bytes:
                 ("is_verified", "TEXT"),
             ],
             "species_summary": [
-                ("camera_name", "TEXT"),
+                ("site_id", "TEXT"),
+                ("site_name", "TEXT"),
                 ("species", "TEXT"),
                 ("scientific_name", "TEXT"),
                 ("total_count", "INTEGER"),
@@ -1650,17 +1698,22 @@ async def export_spatial(
             SELECT cdp.id,
                    cdp.camera_id,
                    c.device_id AS camera_name,
+                   cdp.site_id,
+                   s.name AS site_name,
                    cdp.deployment_number AS deployment_number,
                    cdp.start_date,
                    cdp.end_date,
                    ST_X(cdp.location::geometry) AS lon,
                    ST_Y(cdp.location::geometry) AS lat,
+                   ST_X(s.location::geometry) AS site_lon,
+                   ST_Y(s.location::geometry) AS site_lat,
                    COALESCE(
                        cdp.end_date - cdp.start_date + 1,
                        CURRENT_DATE - cdp.start_date + 1
                    ) AS trap_days
             FROM deployments cdp
             JOIN cameras c ON cdp.camera_id = c.id
+            LEFT JOIN sites s ON s.id = cdp.site_id
             WHERE c.project_id = :project_id
         ),
         dep_det_counts AS (

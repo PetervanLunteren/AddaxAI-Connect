@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from pydantic import BaseModel
 
-from shared.models import User, ProjectNotificationPreference, Project, Camera
+from shared.models import User, ProjectNotificationPreference, Project, Site
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_access_project, can_admin_project
@@ -213,27 +213,27 @@ async def update_notification_preferences(
                 if existing is not None:
                     data.notification_channels[key] = existing
 
-        # Validate per-camera scope on species_detection. Cameras can only be
+        # Validate per-site scope on species_detection. Sites can only be
         # selected from this project, so a stale id or a cross-project id is
         # rejected loudly rather than silently broadening the rule engine.
         species_cfg = data.notification_channels.get("species_detection")
         if isinstance(species_cfg, dict):
-            notify_cameras = species_cfg.get("notify_cameras")
-            if isinstance(notify_cameras, list) and notify_cameras:
-                if not all(isinstance(cid, int) for cid in notify_cameras):
+            notify_sites = species_cfg.get("notify_sites")
+            if isinstance(notify_sites, list) and notify_sites:
+                if not all(isinstance(sid, int) for sid in notify_sites):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="notify_cameras must contain camera ids as integers",
+                        detail="notify_sites must contain site ids as integers",
                     )
-                project_camera_rows = await db.execute(
-                    select(Camera.id).where(Camera.project_id == project_id)
+                project_site_rows = await db.execute(
+                    select(Site.id).where(Site.project_id == project_id)
                 )
-                project_camera_ids = {row[0] for row in project_camera_rows.all()}
-                unknown = [cid for cid in notify_cameras if cid not in project_camera_ids]
+                project_site_ids = {row[0] for row in project_site_rows.all()}
+                unknown = [sid for sid in notify_sites if sid not in project_site_ids]
                 if unknown:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Cameras not in this project: {unknown}",
+                        detail=f"Sites not in this project: {unknown}",
                     )
 
     if not prefs:

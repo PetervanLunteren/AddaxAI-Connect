@@ -16,7 +16,7 @@ import { notificationsApi } from '../api/notifications';
 import { remindersApi } from '../api/reminders';
 import { RemindersSheet } from '../components/RemindersSheet';
 import { adminApi } from '../api/admin';
-import { camerasApi } from '../api/cameras';
+import { sitesApi } from '../api/sites';
 import { speciesApi } from '../api/species';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../hooks/useAuth';
@@ -34,10 +34,10 @@ export const NotificationsPage: React.FC = () => {
   // Telegram species state
   const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
 
-  // Telegram per-camera scope. Empty selection = all cameras (saved as null
-  // in notification_channels.species_detection.notify_cameras). A non-empty
-  // selection limits alerts to those camera ids.
-  const [telegramNotifyCameras, setTelegramNotifyCameras] = useState<Option[]>([]);
+  // Telegram per-site scope. Empty selection = all sites (saved as null
+  // in notification_channels.species_detection.notify_sites). A non-empty
+  // selection limits alerts to those site ids.
+  const [telegramNotifySites, setTelegramNotifySites] = useState<Option[]>([]);
 
   // Telegram linking state
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -76,19 +76,19 @@ export const NotificationsPage: React.FC = () => {
   const isTelegramConfigured = telegramStatus?.is_configured ?? false;
   const adminEmail = telegramStatus?.admin_email ?? null;
 
-  // Fetch cameras in this project for the per-camera scope picker
-  const { data: projectCameras } = useQuery({
-    queryKey: ['cameras', projectIdNum],
-    queryFn: () => camerasApi.getAll(projectIdNum),
+  // Fetch sites in this project for the per-site scope picker
+  const { data: projectSites } = useQuery({
+    queryKey: ['sites', projectIdNum],
+    queryFn: () => sitesApi.list(projectIdNum),
     enabled: !!projectIdNum && projectIdNum > 0,
   });
-  const cameraOptions: Option[] = useMemo(() => {
-    const list = projectCameras ?? [];
+  const siteOptions: Option[] = useMemo(() => {
+    const list = projectSites ?? [];
     return list
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map((cam) => ({ label: cam.name, value: cam.id }));
-  }, [projectCameras]);
+      .map((site) => ({ label: site.name, value: site.id }));
+  }, [projectSites]);
 
   // Fetch available species from the API (model-dependent)
   const { data: availableSpeciesData } = useQuery({
@@ -132,21 +132,21 @@ export const NotificationsPage: React.FC = () => {
           value: species
         })));
 
-        // Per-camera scope. Cameras now behave like notify_species: the list
+        // Per-site scope. Sites now behave like notify_species: the list
         // is required, an empty list means no alerts. Rows that pre-date this
-        // feature (notify_cameras missing or null) are read as 'every camera
+        // feature (notify_sites missing or null) are read as 'every site
         // in the project' and the picker pre-fills with all options, so the
         // user can see the current scope and save explicitly.
-        const cameraOptionById = new Map(cameraOptions.map((opt) => [opt.value as number, opt]));
-        const storedNotifyCameras = speciesConfig.notify_cameras;
-        if (Array.isArray(storedNotifyCameras)) {
-          setTelegramNotifyCameras(
-            storedNotifyCameras
-              .map((cid: number) => cameraOptionById.get(cid))
+        const siteOptionById = new Map(siteOptions.map((opt) => [opt.value as number, opt]));
+        const storedNotifySites = speciesConfig.notify_sites;
+        if (Array.isArray(storedNotifySites)) {
+          setTelegramNotifySites(
+            storedNotifySites
+              .map((cid: number) => siteOptionById.get(cid))
               .filter((opt): opt is Option => Boolean(opt))
           );
         } else {
-          setTelegramNotifyCameras(cameraOptions);
+          setTelegramNotifySites(siteOptions);
         }
 
         // Email reports configuration
@@ -176,7 +176,7 @@ export const NotificationsPage: React.FC = () => {
         setTelegramNotifySpecies(speciesOpts);
       }
     }
-  }, [preferences, availableSpecies, cameraOptions]);
+  }, [preferences, availableSpecies, siteOptions]);
 
   // Update preferences mutation
   const updateMutation = useMutation({
@@ -240,10 +240,10 @@ export const NotificationsPage: React.FC = () => {
     // Use Telegram settings for legacy fields
     const legacySpeciesValues = isTelegramLinked ? telegramNotifySpecies.map(opt => opt.value) : [];
 
-    // Camera scope mirrors species: an explicit list of ids that must
-    // contain the event's camera. An empty list means no alerts.
-    const cameraScope: number[] = isTelegramLinked
-      ? telegramNotifyCameras.map(opt => Number(opt.value))
+    // Site scope mirrors species: an explicit list of ids that must
+    // contain the event's site. An empty list means no alerts.
+    const siteScope: number[] = isTelegramLinked
+      ? telegramNotifySites.map(opt => Number(opt.value))
       : [];
 
     // Build notification_channels JSON with per-channel configuration
@@ -254,7 +254,7 @@ export const NotificationsPage: React.FC = () => {
         notify_species: isTelegramLinked
           ? telegramNotifySpecies.map(opt => opt.value)
           : [],
-        notify_cameras: cameraScope,
+        notify_sites: siteScope,
       },
       email_report: {
         enabled: reportFrequency !== 'disabled',
@@ -299,7 +299,7 @@ export const NotificationsPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
 
-              {/* Real-time detection alerts row. Species and camera scope sit in
+              {/* Real-time detection alerts row. Species and site scope sit in
                   one column on the right so they read as one notification type,
                   not two. When Telegram is not yet linked the pickers are greyed
                   via opacity-50 and the call-to-action sits under them. */}
@@ -308,12 +308,12 @@ export const NotificationsPage: React.FC = () => {
                   <label className="text-sm font-medium block">Real-time detection alerts</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked
-                      ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. Both lists must contain at least one entry, otherwise no alerts fire.'
+                      ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. Both lists must contain at least one entry, otherwise no alerts fire.'
                       : isTelegramConfigured
-                        ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. Link your Telegram account to get started.'
+                        ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. Link your Telegram account to get started.'
                         : user?.is_superuser
-                          ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. A Telegram bot has not been configured yet.'
-                          : 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected camera. A Telegram bot has not been configured for this server yet.'
+                          ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. A Telegram bot has not been configured yet.'
+                          : 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. A Telegram bot has not been configured for this server yet.'
                     }
                   </p>
                 </div>
@@ -330,11 +330,11 @@ export const NotificationsPage: React.FC = () => {
                     </div>
                     <div className="w-full sm:flex-1 min-w-0">
                       <MultiSelect
-                        options={cameraOptions}
-                        value={telegramNotifyCameras}
-                        onChange={setTelegramNotifyCameras}
-                        placeholder="Select cameras"
-                        selectedNoun="cameras"
+                        options={siteOptions}
+                        value={telegramNotifySites}
+                        onChange={setTelegramNotifySites}
+                        placeholder="Select sites"
+                        selectedNoun="sites"
                       />
                     </div>
                   </div>

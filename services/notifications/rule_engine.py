@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from shared.logger import get_logger
 from shared.models import ProjectNotificationPreference, User, Project
 from shared.database import get_sync_session
+from db_operations import get_image_site_id
 
 logger = get_logger("notifications.rules")
 
@@ -172,15 +173,18 @@ def _evaluate_json_preferences(
         if not notify_species or species not in notify_species:
             return None
 
-        # Camera scope mirrors notify_species: when present the list must
-        # contain the event's camera_id, otherwise the event is dropped.
-        # An empty list silences every camera. Missing key or null is the
-        # legacy bypass for rows saved before this filter shipped, treated
-        # as 'every camera in the project' so existing prefs do not go
-        # dark before the user reopens the notifications page.
-        notify_cameras = type_config.get('notify_cameras')
-        if notify_cameras is not None:
-            if event.get('camera_id') not in notify_cameras:
+        # Site scope mirrors notify_species: when present the list must contain
+        # the event image's site, otherwise the event is dropped. An empty list
+        # silences every site. Missing key or null is the legacy bypass for rows
+        # saved before this filter shipped, treated as 'every site in the
+        # project' so existing prefs do not go dark. The site is resolved from
+        # the image's deployment; an image with no resolved site never matches a
+        # scoped user (but still reaches users with no scope set).
+        notify_sites = type_config.get('notify_sites')
+        if notify_sites is not None:
+            image_uuid = event.get('image_uuid')
+            site_id = get_image_site_id(image_uuid) if image_uuid else None
+            if site_id is None or site_id not in notify_sites:
                 return None
 
         # Check detection confidence vs project threshold

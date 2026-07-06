@@ -47,11 +47,13 @@ class TestBuildFilters:
 
     def test_camera_ids(self):
         ids = [1, 2, 3]
-        v, u, pv, params = _build_filters(None, None, None, camera_ids=ids)
-        assert "i.camera_id = ANY(:camera_ids)" in v
-        assert "i.camera_id = ANY(:camera_ids)" in u
-        assert "i.camera_id = ANY(:camera_ids)" in pv
-        assert params["camera_ids"] == [1, 2, 3]
+        v, u, pv, params = _build_filters(None, None, None, site_ids=ids)
+        # Site filter resolves through the image's deployment (time-correct).
+        expected = "i.deployment_id IN (SELECT d.id FROM deployments d WHERE d.site_id = ANY(:site_ids))"
+        assert expected in v
+        assert expected in u
+        assert expected in pv
+        assert params["site_ids"] == [1, 2, 3]
 
     def test_all_filters(self):
         dt_start = datetime(2025, 1, 1)
@@ -60,12 +62,12 @@ class TestBuildFilters:
         assert "species_filter" in params
         assert "start_date" in params
         assert "end_date" in params
-        assert "camera_ids" in params
+        assert "site_ids" in params
         # Each clause should have all four conditions
         for clause in [v, u, pv]:
             assert ":start_date" in clause
             assert ":end_date" in clause
-            assert ":camera_ids" in clause
+            assert ":site_ids" in clause
 
 
 class TestBuildCte:
@@ -94,18 +96,20 @@ class TestBuildCte:
             species_filter="deer",
             start_date=datetime(2025, 6, 1),
             end_date=datetime(2025, 6, 30),
-            camera_ids=[1, 2],
+            site_ids=[1, 2],
         )
         assert "{" not in sql
         assert "}" not in sql
 
 
 class TestCtePoolIdStructure:
-    """Verify the CTE SQL uses pool_id for camera group merging."""
+    """Verify the CTE SQL pools observations by site, not by camera."""
 
-    def test_pool_id_computed_from_group_id(self):
-        """Pool ID should use negated camera_group_id or fall back to camera_id."""
-        assert "COALESCE(c.camera_group_id * -1, ic.camera_id) as pool_id" in _INDEPENDENCE_CTE
+    def test_pool_id_resolves_site_group_then_site_then_camera(self):
+        """Pool ID prefers the site group, then the site, then the camera."""
+        assert "'g' || s.site_group_id" in _INDEPENDENCE_CTE
+        assert "'s' || dep.site_id" in _INDEPENDENCE_CTE
+        assert "'c' || ic.camera_id" in _INDEPENDENCE_CTE
 
     def test_gaps_partitioned_by_pool_id(self):
         """Time gaps should be computed per pool, not per camera."""
@@ -116,21 +120,22 @@ class TestCtePoolIdStructure:
         assert "GROUP BY pool_id, species, event_id" in _INDEPENDENCE_CTE
 
     def test_event_camera_attributed_to_earliest(self):
-        """For grouped cameras, the event should be attributed to the earliest detection."""
+        """When a pool spans cameras, attribute the event to the earliest detection."""
         assert "(ARRAY_AGG(camera_id ORDER BY ts))[1] as camera_id" in _INDEPENDENCE_CTE
 
-    def test_pool_id_negation_prevents_collision(self):
-        """Group IDs are negated so they can't collide with positive camera IDs."""
-        assert "camera_group_id * -1" in _INDEPENDENCE_CTE
+    def test_site_less_observations_fall_back_to_camera(self):
+        """Observations without a resolved site pool by their own camera."""
+        # COALESCE(null, null, 'c' || camera_id) = 'c' || camera_id
+        assert "'c' || ic.camera_id" in _INDEPENDENCE_CTE
 
-    def test_ungrouped_cameras_use_own_id(self):
-        """Ungrouped cameras (no group) should use their own camera_id as pool_id."""
-        # COALESCE(null, camera_id) = camera_id
-        assert "COALESCE(c.camera_group_id * -1, ic.camera_id)" in _INDEPENDENCE_CTE
+    def test_with_pool_resolves_site_through_deployment(self):
+        """The with_pool CTE must join deployments and sites to reach the site group."""
+        assert "LEFT JOIN deployments dep ON ic.deployment_id = dep.id" in _INDEPENDENCE_CTE
+        assert "LEFT JOIN sites s ON dep.site_id = s.id" in _INDEPENDENCE_CTE
 
-    def test_with_pool_joins_cameras(self):
-        """The with_pool CTE must join cameras to access camera_group_id."""
-        assert "JOIN cameras c ON ic.camera_id = c.id" in _INDEPENDENCE_CTE
+    def test_deployment_id_carried_through_img_counts(self):
+        """img_counts must keep deployment_id so the site can be resolved per observation."""
+        assert "SELECT camera_id, deployment_id, species, ts, SUM(cnt) as img_count" in _INDEPENDENCE_CTE
 
     def test_event_count_uses_max(self):
         """Event count should be the maximum individuals in any single image."""

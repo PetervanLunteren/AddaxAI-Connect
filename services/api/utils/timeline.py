@@ -5,10 +5,13 @@ Builds the payload for the Insights -> Deployment timeline view. The
 WebUI version of this page derives bars from folder structure on disk;
 Connect derives them from image arrival in the database.
 
-Each row is a camera. Each bar is a `Deployment` (CDP).
-Within a CDP, solid inner segments are stretches of days with at least
-one image; the outer bar is the configured window. The concurrent strip
-counts cameras that delivered at least one image each day.
+Each row is a site. Each bar is a `Deployment` (CDP) at that site, so
+cameras at one place share a row and a camera swap continues the same
+row. Deployments with no resolved site fall back to a per-camera row
+(numeric id negated to avoid colliding with site ids). Within a CDP,
+solid inner segments are stretches of days with at least one image; the
+outer bar is the configured window. The concurrent strip counts sites
+that delivered at least one image each day.
 """
 
 from __future__ import annotations
@@ -53,11 +56,21 @@ def _effective_cdp_end(
     return start_date
 
 
+def _group_key(row) -> int:
+    """Numeric row id: the site id, or the negated camera id for site-less rows.
+
+    Site ids are positive and camera ids are positive, so negating the camera
+    fallback keeps the two id spaces from colliding in one numeric column (the
+    chart keys heatmap and transitions by this id).
+    """
+    return row.site_id if row.site_id is not None else -row.camera_id
+
+
 async def get_deployment_timeline(
     db: AsyncSession,
     project_ids: list[int],
     *,
-    camera_ids: Optional[list[int]] = None,
+    site_ids: Optional[list[int]] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     today: Optional[date] = None,
@@ -72,11 +85,11 @@ async def get_deployment_timeline(
     if not project_ids:
         return _empty_payload()
 
-    # 1. CDP rows for the project, optionally narrowed by camera ids and date filter.
+    # 1. CDP rows for the project, optionally narrowed by site ids and date filter.
     cdp_rows = await _fetch_cdp_rows(
         db,
         project_ids=project_ids,
-        camera_ids=camera_ids,
+        site_ids=site_ids,
         date_from=date_from,
         date_to=date_to,
     )
@@ -122,22 +135,35 @@ async def get_deployment_timeline(
     #    by CameraHealthReport, identical rule to the Cameras page.
     last_reported_by_camera = await _fetch_last_reported(db, camera_id_set)
 
-    # 5. Build sites and deployments.
-    sites_by_camera: dict[int, dict] = {}
+    # 5. Build one row per site (fallback: per camera for site-less deployments).
+    groups: dict[int, dict] = {}
+    group_signal_days: dict[int, set[date]] = defaultdict(set)
+    group_image_days: dict[int, set[date]] = defaultdict(set)
+    heatmap_by_group_date: dict[tuple[int, date], int] = defaultdict(int)
+    open_cameras_by_group: dict[int, set[int]] = defaultdict(set)
+    all_cameras_by_group: dict[int, set[int]] = defaultdict(set)
     cdp_transitions: list[dict] = []
-    previous_cdp_by_camera: dict[int, bool] = {}
+    seen_group: set[int] = set()
 
-    # CDP rows arrive ordered by (camera_name, start_date) so the per-camera
-    # loop naturally walks deployments in chronological order.
+    # CDP rows arrive ordered by (site name, start_date), so within a site the
+    # loop walks deployments chronologically even across a camera swap.
     for row in cdp_rows:
         camera_id = row.camera_id
+        gkey = _group_key(row)
+        gname = row.site_name if row.site_id is not None else row.camera_name
 
-        if previous_cdp_by_camera.get(camera_id):
+        # A transition marks a new deployment at the site (camera swap or the
+        # same camera returning), drawn as a tick on the row.
+        if gkey in seen_group:
             cdp_transitions.append({
-                "camera_id": camera_id,
+                "site_id": gkey,
                 "transition_date": row.start_date,
             })
-        previous_cdp_by_camera[camera_id] = True
+        seen_group.add(gkey)
+
+        all_cameras_by_group[gkey].add(camera_id)
+        if row.end_date is None:
+            open_cameras_by_group[gkey].add(camera_id)
 
         signal_days_in_cdp = _filter_days_to_cdp(
             signal_days_by_camera.get(camera_id, []),
@@ -189,42 +215,56 @@ async def get_deployment_timeline(
             "file_count": file_count,
         }
 
-        site = sites_by_camera.get(camera_id)
-        if site is None:
-            all_signal_days = signal_days_by_camera.get(camera_id, [])
-            # Camera-level intervals: split the camera's full signal-day
-            # list, ignoring CDP boundaries. This is what the chart draws
-            # as one solid ribbon per camera. CDP boundaries show as
-            # ticks on top, not as visual gaps.
-            site_segments = (
-                split_into_segments(all_signal_days) if all_signal_days else []
-            )
-            if date_from is not None or date_to is not None:
-                lo = date_from if date_from is not None else date(1, 1, 1)
-                hi = date_to if date_to is not None else date(9999, 12, 31)
-                site_segments = clip_segments_to_window(site_segments, lo, hi)
-            site_intervals = [
-                {"start": s, "end": e, "trap_nights": (e - s).days + 1}
-                for s, e in site_segments
-            ]
-            all_image_days = sorted(image_days_by_camera.get(camera_id, set()))
-            sites_by_camera[camera_id] = {
-                "site_id": str(camera_id),
-                "site_name": row.camera_name,
+        # Pool this deployment's in-window signal + image days onto the site so
+        # the row ribbon, heatmap, and concurrent strip cover every camera there.
+        group_signal_days[gkey].update(signal_days_in_cdp)
+        for d in image_days_in_cdp_window:
+            group_image_days[gkey].add(d)
+            heatmap_by_group_date[(gkey, d)] += counts_by_camera_date.get((camera_id, d), 0)
+
+        grp = groups.get(gkey)
+        if grp is None:
+            groups[gkey] = {
+                "site_id": gkey,
+                "site_name": gname,
                 "deployments": [deployment],
-                "intervals": site_intervals,
-                "last_image_day": all_image_days[-1] if all_image_days else None,
-                "camera_status": camera_status(last_reported_by_camera.get(camera_id)),
             }
         else:
-            site["deployments"].append(deployment)
+            grp["deployments"].append(deployment)
 
-    sites = sorted(sites_by_camera.values(), key=lambda s: s["site_name"].lower())
+    # Finalise each site row: ribbon from the pooled signal days, and a status
+    # pill from a currently-deployed camera (else the most recent reporter).
+    for gkey, grp in groups.items():
+        all_signal = sorted(group_signal_days.get(gkey, set()))
+        site_segments = split_into_segments(all_signal) if all_signal else []
+        if date_from is not None or date_to is not None:
+            lo = date_from if date_from is not None else date(1, 1, 1)
+            hi = date_to if date_to is not None else date(9999, 12, 31)
+            site_segments = clip_segments_to_window(site_segments, lo, hi)
+        grp["intervals"] = [
+            {"start": s, "end": e, "trap_nights": (e - s).days + 1}
+            for s, e in site_segments
+        ]
+        img_days = sorted(group_image_days.get(gkey, set()))
+        grp["last_image_day"] = img_days[-1] if img_days else None
 
-    # 6. Concurrent-cameras strip and metrics. Same signal-day source as
-    #    the bars so the strip and the bars always agree about a camera's
-    #    state on a given day.
-    concurrent = concurrent_from_signal_days(signal_days_by_camera)
+        candidate_cams = (
+            open_cameras_by_group.get(gkey)
+            or all_cameras_by_group.get(gkey, set())
+        )
+        reports = [
+            last_reported_by_camera.get(cid)
+            for cid in candidate_cams
+            if last_reported_by_camera.get(cid) is not None
+        ]
+        grp["camera_status"] = camera_status(max(reports) if reports else None)
+
+    sites = sorted(groups.values(), key=lambda s: s["site_name"].lower())
+
+    # 6. Concurrent-sites strip and metrics. Same pooled signal-day source as
+    #    the bars so the strip and the bars always agree about a site's state.
+    signal_days_by_site = {k: sorted(v) for k, v in group_signal_days.items()}
+    concurrent = concurrent_from_signal_days(signal_days_by_site)
     total_trap_nights = sum(
         iv["trap_nights"]
         for s in sites
@@ -252,10 +292,15 @@ async def get_deployment_timeline(
     if date_to is not None and date_range_to is not None:
         date_range_to = min(date_range_to, date_to)
 
+    heatmap = [
+        {"site_id": gkey, "date": d, "count": c}
+        for (gkey, d), c in heatmap_by_group_date.items()
+    ]
+
     return {
         "sites": sites,
         "concurrent_cameras": concurrent,
-        "heatmap": daily_rows,
+        "heatmap": heatmap,
         "cdp_transitions": cdp_transitions,
         "metrics": {
             "site_count": len(sites),
@@ -291,39 +336,43 @@ async def _fetch_cdp_rows(
     db: AsyncSession,
     *,
     project_ids: list[int],
-    camera_ids: Optional[list[int]],
+    site_ids: Optional[list[int]],
     date_from: Optional[date],
     date_to: Optional[date],
 ):
-    """Pull every CDP for cameras in scope, ordered for the per-camera walk.
+    """Pull every CDP for the project, ordered so the per-site walk is chronological.
 
-    Cast handling for the optional camera-id array mirrors the existing
-    pattern in this module's previous version, so the postgres planner
-    keeps a clean execution path with or without the filter.
+    Each row carries its site (nullable). When a site filter is set, only
+    deployments at those sites are returned, so the fallback per-camera rows for
+    site-less deployments are hidden. Cast handling for the optional site-id
+    array keeps a clean postgres plan with or without the filter.
     """
     sql = text(
         """
         SELECT
             c.id   AS camera_id,
             c.device_id AS camera_name,
+            cdp.site_id AS site_id,
+            s.name AS site_name,
             cdp.id AS cdp_id,
             cdp.deployment_number AS deployment_sequence,
             cdp.start_date AS start_date,
             cdp.end_date AS end_date
         FROM cameras c
         INNER JOIN deployments cdp ON cdp.camera_id = c.id
+        LEFT JOIN sites s ON s.id = cdp.site_id
         WHERE c.project_id = ANY(:project_ids)
-          AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
+          AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
           AND cdp.start_date <= CAST(:clip_end AS date)
           AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:clip_start AS date))
-        ORDER BY c.device_id, cdp.start_date, cdp.id
+        ORDER BY COALESCE(s.name, c.device_id), cdp.start_date, cdp.id
         """
     )
     clip_start = date_from if date_from is not None else date(1900, 1, 1)
     clip_end = date_to if date_to is not None else date(9999, 12, 31)
     return (await db.execute(sql, {
         "project_ids": project_ids,
-        "camera_ids": camera_ids,
+        "site_ids": site_ids,
         "clip_start": clip_start,
         "clip_end": clip_end,
     })).all()

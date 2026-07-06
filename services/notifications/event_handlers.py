@@ -13,7 +13,7 @@ from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
 from shared.config import get_settings
 
-from db_operations import create_notification_log, get_project_name, get_image_site_label
+from db_operations import create_notification_log, get_project_name, get_image_site_label, get_camera_site_label
 
 logger = get_logger("notifications.handlers")
 settings = get_settings()
@@ -204,6 +204,7 @@ def handle_low_battery(
     """
     camera_name = event.get('camera_name')
     device_id = event.get('device_id')
+    camera_id = event.get('camera_id')
     battery_percentage = event.get('battery_percentage')
     location = event.get('location')
 
@@ -212,9 +213,17 @@ def handle_low_battery(
         logger.error("Missing required fields in low_battery event", event=event)
         return
 
+    # Lead with the device id once (camera_name is the same value), and add the
+    # site so the reader knows where to walk. Falls back to just the device id
+    # when the camera has no resolved site.
+    site_label = get_camera_site_label(camera_id) if camera_id is not None else None
+    header = f"Low battery alert: {device_id}"
+    if site_label:
+        header += f" at {site_label}"
+
     # Build message text
     message_lines = [
-        f"Low battery alert: {camera_name} (Camera ID: {device_id})",
+        header,
         f"Battery: {battery_percentage}%"
     ]
 

@@ -60,6 +60,7 @@ class ImageListItemResponse(BaseModel):
     filename: str
     camera_id: int
     camera_name: str
+    site_name: Optional[str] = None  # place the image was taken, via its deployment
     captured_at: str
     status: str
     detection_count: int
@@ -328,7 +329,7 @@ async def list_images(
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
     origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
-    site_id: Optional[int] = Query(None, description="Filter to images at one site, via their deployment"),
+    site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -375,14 +376,17 @@ async def list_images(
         if camera_ids:
             filters.append(Image.camera_id.in_(camera_ids))
 
-    # All images at one site: every image whose deployment belongs to that site.
-    # Used by the "View images" link on the site slideout.
-    if site_id is not None:
-        filters.append(
-            Image.deployment_id.in_(
-                select(Deployment.id).where(Deployment.site_id == site_id)
+    # Images at one or more sites: every image whose deployment belongs to a
+    # selected site. Comma-separated so the Images page can filter by several
+    # sites; the "View images" link on the site slideout passes a single id.
+    if site_id:
+        site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
+        if site_ids:
+            filters.append(
+                Image.deployment_id.in_(
+                    select(Deployment.id).where(Deployment.site_id.in_(site_ids))
+                )
             )
-        )
 
     # Handle tags filter: an image matches when its deployment's site carries
     # any of the given tags. Tags describe the place, so they live on the Site;
@@ -873,6 +877,18 @@ async def list_images(
                 human_obs_by_image[obs.image_id] = []
             human_obs_by_image[obs.image_id].append(obs)
 
+    # Pre-fetch site names for the page's deployments in one query, so each card
+    # can lead with the place instead of the device id.
+    site_name_by_deployment: dict = {}
+    deployment_ids = {image.deployment_id for image, _c, _p in rows if image.deployment_id}
+    if deployment_ids:
+        site_rows = await db.execute(
+            select(Deployment.id, Site.name)
+            .join(Site, Deployment.site_id == Site.id)
+            .where(Deployment.id.in_(deployment_ids))
+        )
+        site_name_by_deployment = {dep_id: name for dep_id, name in site_rows.all()}
+
     for image, camera, project in rows:
         # Filter detections by project thresholds (detection + classification)
         visible_detections = []
@@ -963,6 +979,7 @@ async def list_images(
             filename=image.filename,
             camera_id=image.camera_id,
             camera_name=camera.device_id,
+            site_name=site_name_by_deployment.get(image.deployment_id),
             captured_at=image.captured_at.isoformat(),
             status=image.status,
             detection_count=detection_count,

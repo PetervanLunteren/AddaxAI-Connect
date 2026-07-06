@@ -9,14 +9,14 @@ import { statisticsApi } from '../../api/statistics';
 
 interface AlertCountersProps {
   projectId?: number;
-  cameraIds?: string;
+  siteIds?: string;
 }
 
-export const AlertCounters: React.FC<AlertCountersProps> = ({ projectId, cameraIds }) => {
+export const AlertCounters: React.FC<AlertCountersProps> = ({ projectId, siteIds }) => {
   // Fetch pipeline status which includes detection category counts
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'pipeline-status', projectId, cameraIds],
-    queryFn: () => statisticsApi.getPipelineStatus(projectId, cameraIds),
+    queryKey: ['statistics', 'pipeline-status', projectId, siteIds],
+    queryFn: () => statisticsApi.getPipelineStatus(projectId, siteIds),
     enabled: projectId !== undefined,
   });
 

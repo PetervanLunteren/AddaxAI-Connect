@@ -213,7 +213,7 @@ function formatPct(value: number): string {
 interface NaiveOccupancyChartProps {
   dateRange: DateRange;
   projectId?: number;
-  cameraIds?: string;
+  siteIds?: string;
   /** How many species to render. null = all species. */
   topN: number | null;
   /** Called when the response metadata changes so the parent can render
@@ -224,17 +224,17 @@ interface NaiveOccupancyChartProps {
 export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
   dateRange,
   projectId,
-  cameraIds,
+  siteIds,
   topN,
   onMetadataChange,
 }) => {
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'naive-occupancy', projectId, dateRange.startDate, dateRange.endDate, cameraIds, topN],
+    queryKey: ['statistics', 'naive-occupancy', projectId, dateRange.startDate, dateRange.endDate, siteIds, topN],
     queryFn: () =>
       statisticsApi.getNaiveOccupancy(projectId, {
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
-        camera_ids: cameraIds,
+        site_ids: siteIds,
         top_n: topN === null ? undefined : topN,
       }),
     enabled: projectId !== undefined,

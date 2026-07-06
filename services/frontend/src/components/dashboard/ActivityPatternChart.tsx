@@ -14,7 +14,7 @@ import type { DateRange } from './DateRangeFilter';
 interface ActivityPatternChartProps {
   dateRange: DateRange;
   projectId?: number;
-  cameraIds?: string;
+  siteIds?: string;
 }
 
 // Time-of-day color buckets (palette from FRONTEND_CONVENTIONS.md)
@@ -217,7 +217,7 @@ function ActivityClock({ hours, sunBands }: ActivityClockProps) {
   );
 }
 
-export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, cameraIds }) => {
+export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds }) => {
   const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
 
   // Full species list for the selector. Same source the Images-page
@@ -232,13 +232,13 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
 
   // Fetch activity pattern data
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'activity-pattern', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'activity-pattern', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getActivityPattern(projectId, {
         species: selectedSpecies === 'all' ? undefined : selectedSpecies,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
-        camera_ids: cameraIds,
+        site_ids: siteIds,
       }),
     enabled: projectId !== undefined,
   });

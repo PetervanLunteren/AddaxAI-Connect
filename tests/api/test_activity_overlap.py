@@ -317,7 +317,7 @@ class TestQueryCompilation:
             species_filter="fox",
             start_date=datetime(2024, 1, 1),
             end_date=datetime(2024, 12, 31),
-            camera_ids=[1, 2, 3],
+            site_ids=[1, 2, 3],
         )
         assert out == []
         assert len(db.compiled_queries) == 1
@@ -343,7 +343,7 @@ class TestQueryCompilation:
             species_filter="person",
             start_date=None,
             end_date=None,
-            camera_ids=None,
+            site_ids=None,
         )
         assert out == []
         sql = db.compiled_queries[0]

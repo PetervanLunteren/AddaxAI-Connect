@@ -1,32 +1,35 @@
 /**
- * Modal for managing camera groups (shared independence interval pools).
+ * Modal for managing merged sites (shared independence interval pools).
  *
- * Operates on local state only — changes are committed by the parent
- * component when the user clicks "Save changes" on the settings page.
+ * Sites in one group are treated as a single place for the independence
+ * interval, for merging distinct sites like both ends of a wildlife crossing.
+ * Operates on local state only, changes are committed by the parent component
+ * when the user clicks "Save changes" on the settings page.
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { MultiSelect, Option } from './ui/MultiSelect';
-import type { CameraGroup, Camera } from '../api/types';
+import type { SiteGroup } from '../api/types';
+import type { SiteListItem } from '../api/sites';
 
 interface Props {
-  groups: CameraGroup[];
-  cameras: Camera[];
+  groups: SiteGroup[];
+  sites: SiteListItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onGroupsChange: (groups: CameraGroup[]) => void;
+  onGroupsChange: (groups: SiteGroup[]) => void;
 }
 
 let nextTempId = -1;
 
-export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOpenChange, onGroupsChange }) => {
+export const SiteGroupsModal: React.FC<Props> = ({ groups, sites, open, onOpenChange, onGroupsChange }) => {
   // State
   const [newGroupName, setNewGroupName] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [editingCameraIds, setEditingCameraIds] = useState<number[]>([]);
+  const [editingSiteIds, setEditingSiteIds] = useState<number[]>([]);
   const [creating, setCreating] = useState(false);
 
   // Reset edit state when modal closes
@@ -38,21 +41,21 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
     }
   }, [open]);
 
-  // All camera IDs assigned to any group
-  const assignedCameraIds = new Set(groups.flatMap(g => g.camera_ids));
-  const ungroupedCameras = cameras.filter(c => !assignedCameraIds.has(c.id));
+  // All site IDs assigned to any group
+  const assignedSiteIds = new Set(groups.flatMap(g => g.site_ids));
+  const ungroupedSites = sites.filter(s => !assignedSiteIds.has(s.id));
 
-  // Camera IDs available when editing a specific group (ungrouped + already in this group)
-  const availableCamerasForEdit = (groupId: number) => {
+  // Site IDs available when editing a specific group (ungrouped + already in this group)
+  const availableSitesForEdit = (groupId: number) => {
     const group = groups.find(g => g.id === groupId);
-    const groupCameraIds = new Set(group?.camera_ids ?? []);
-    return cameras.filter(c => !assignedCameraIds.has(c.id) || groupCameraIds.has(c.id));
+    const groupSiteIds = new Set(group?.site_ids ?? []);
+    return sites.filter(s => !assignedSiteIds.has(s.id) || groupSiteIds.has(s.id));
   };
 
-  const startEditing = (group: CameraGroup) => {
+  const startEditing = (group: SiteGroup) => {
     setEditingGroupId(group.id);
     setEditingName(group.name);
-    setEditingCameraIds([...group.camera_ids]);
+    setEditingSiteIds([...group.site_ids]);
   };
 
   const saveEditing = () => {
@@ -60,31 +63,31 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
     onGroupsChange(
       groups.map(g =>
         g.id === editingGroupId
-          ? { ...g, name: editingName.trim(), camera_ids: editingCameraIds }
+          ? { ...g, name: editingName.trim(), site_ids: editingSiteIds }
           : g
       )
     );
     setEditingGroupId(null);
   };
 
-  // Convert available cameras to MultiSelect options for the editing group
-  const cameraOptionsForEdit = useMemo(() => {
+  // Convert available sites to MultiSelect options for the editing group
+  const siteOptionsForEdit = useMemo(() => {
     if (editingGroupId === null) return [];
-    return availableCamerasForEdit(editingGroupId).map(c => ({ label: c.name, value: c.id }));
-  }, [editingGroupId, cameras, groups]);
+    return availableSitesForEdit(editingGroupId).map(s => ({ label: s.name, value: s.id }));
+  }, [editingGroupId, sites, groups]);
 
-  const selectedCameraOptions = useMemo(() => {
-    return cameraOptionsForEdit.filter(opt => editingCameraIds.includes(opt.value as number));
-  }, [cameraOptionsForEdit, editingCameraIds]);
+  const selectedSiteOptions = useMemo(() => {
+    return siteOptionsForEdit.filter(opt => editingSiteIds.includes(opt.value as number));
+  }, [siteOptionsForEdit, editingSiteIds]);
 
   const handleCreate = () => {
     const name = newGroupName.trim();
     if (!name) return;
     const tempId = nextTempId--;
-    const newGroup: CameraGroup = {
+    const newGroup: SiteGroup = {
       id: tempId,
       name,
-      camera_ids: [],
+      site_ids: [],
       created_at: new Date().toISOString(),
     };
     onGroupsChange([...groups, newGroup]);
@@ -97,15 +100,15 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
     if (editingGroupId === groupId) setEditingGroupId(null);
   };
 
-  const cameraName = (id: number) => cameras.find(c => c.id === id)?.name ?? `Camera ${id}`;
+  const siteName = (id: number) => sites.find(s => s.id === id)?.name ?? `Site ${id}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl" onClose={() => onOpenChange(false)}>
         <DialogHeader>
-          <DialogTitle>Camera groups</DialogTitle>
+          <DialogTitle>Merged sites</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Cameras in a group are treated as one location for the independence interval.
+            Sites in a group are treated as one place for the independence interval.
           </p>
         </DialogHeader>
 
@@ -141,12 +144,12 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
                     </Button>
                   </div>
 
-                  {/* Camera multi-select */}
+                  {/* Site multi-select */}
                   <MultiSelect
-                    options={cameraOptionsForEdit}
-                    value={selectedCameraOptions}
-                    onChange={(selected: Option[]) => setEditingCameraIds(selected.map(s => s.value as number))}
-                    placeholder="Select cameras..."
+                    options={siteOptionsForEdit}
+                    value={selectedSiteOptions}
+                    onChange={(selected: Option[]) => setEditingSiteIds(selected.map(s => s.value as number))}
+                    placeholder="Select sites..."
                   />
                 </div>
               ) : (
@@ -154,16 +157,16 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{group.name}</p>
-                    {group.camera_ids.length > 0 ? (
+                    {group.site_ids.length > 0 ? (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {group.camera_ids.map(id => (
+                        {group.site_ids.map(id => (
                           <span key={id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
-                            {cameraName(id)}
+                            {siteName(id)}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground mt-1">No cameras assigned</p>
+                      <p className="text-xs text-muted-foreground mt-1">No sites assigned</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -226,16 +229,16 @@ export const CameraGroupsModal: React.FC<Props> = ({ groups, cameras, open, onOp
             </Button>
           )}
 
-          {/* Ungrouped cameras */}
-          {ungroupedCameras.length > 0 && (
+          {/* Ungrouped sites */}
+          {ungroupedSites.length > 0 && (
             <div className="pt-2 border-t">
               <p className="text-xs font-medium text-muted-foreground mb-1">
-                Ungrouped cameras ({ungroupedCameras.length})
+                Ungrouped sites ({ungroupedSites.length})
               </p>
               <div className="flex flex-wrap gap-1">
-                {ungroupedCameras.map(cam => (
-                  <span key={cam.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted/50 text-muted-foreground">
-                    {cam.name}
+                {ungroupedSites.map(site => (
+                  <span key={site.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-muted/50 text-muted-foreground">
+                    {site.name}
                   </span>
                 ))}
               </div>

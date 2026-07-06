@@ -41,9 +41,10 @@ Before adding cameras, check the [camera requirements](camera-requirements.md) t
 2. Click `Add camera`
 3. Fill in the fields:
    - **Camera ID** (required): must exactly match the camera ID embedded in the images and reports, otherwise they won't be linked. See [camera requirements](camera-requirements.md) for details on how this ID is extracted.
-   - **Friendly name** (optional): a human-readable name like "North Ridge" or "Waterhole cam". If left empty, the camera ID is used as the display name.
    - **Remarks** (optional): notes about the camera placement, angle, or anything else you want to remember.
    - **Custom fields** (optional): click `Add field` to add any extra metadata you want to track, like "Heading: South" or "Tree: Oak".
+
+A camera is just hardware, so it has no name. The place a camera stands is a site, and sites carry the names you work with day to day. A site is created automatically from the camera GPS, and you can rename it on the `Sites` tab. See [sites and cameras](sites-and-deployments.md).
 
 You can also import multiple cameras at once by clicking `Import CSV`.
 

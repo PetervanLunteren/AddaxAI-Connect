@@ -31,10 +31,10 @@ export const statisticsApi = {
   /**
    * Get dashboard overview statistics
    */
-  getOverview: async (projectId?: number, cameraIds?: string): Promise<StatisticsOverview> => {
+  getOverview: async (projectId?: number, siteIds?: string): Promise<StatisticsOverview> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
-    if (cameraIds) params.camera_ids = cameraIds;
+    if (siteIds) params.site_ids = siteIds;
     const response = await apiClient.get<StatisticsOverview>('/api/statistics/overview', { params });
     return response.data;
   },
@@ -57,10 +57,10 @@ export const statisticsApi = {
   /**
    * Get species distribution (top 10)
    */
-  getSpeciesDistribution: async (projectId?: number, cameraIds?: string): Promise<SpeciesCount[]> => {
+  getSpeciesDistribution: async (projectId?: number, siteIds?: string): Promise<SpeciesCount[]> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
-    if (cameraIds) params.camera_ids = cameraIds;
+    if (siteIds) params.site_ids = siteIds;
     const response = await apiClient.get<SpeciesCount[]>('/api/statistics/species-distribution', { params });
     return response.data;
   },
@@ -68,10 +68,10 @@ export const statisticsApi = {
   /**
    * Get camera activity summary
    */
-  getCameraActivity: async (projectId?: number, cameraIds?: string): Promise<CameraActivitySummary> => {
+  getCameraActivity: async (projectId?: number, siteIds?: string): Promise<CameraActivitySummary> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
-    if (cameraIds) params.camera_ids = cameraIds;
+    if (siteIds) params.site_ids = siteIds;
     const response = await apiClient.get<CameraActivitySummary>('/api/statistics/camera-activity', { params });
     return response.data;
   },
@@ -95,7 +95,7 @@ export const statisticsApi = {
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
-    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
 
     const queryString = params.toString();
     const url = queryString
@@ -119,7 +119,7 @@ export const statisticsApi = {
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
-    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
 
     const queryString = params.toString();
     const url = queryString
@@ -139,7 +139,7 @@ export const statisticsApi = {
     if (filters?.species) params.append('species', filters.species);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
-    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
 
     const queryString = params.toString();
     const url = queryString
@@ -157,13 +157,13 @@ export const statisticsApi = {
    */
   getTrapEffort: async (
     projectId?: number,
-    filters?: { start_date?: string; end_date?: string; camera_ids?: string },
+    filters?: { start_date?: string; end_date?: string; site_ids?: string },
   ): Promise<TrapEffortPoint[]> => {
     const params = new URLSearchParams();
     if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
-    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
 
     const queryString = params.toString();
     const url = queryString
@@ -183,7 +183,7 @@ export const statisticsApi = {
   ): Promise<TimelineResponse> => {
     const params = new URLSearchParams();
     params.append('project_id', projectId.toString());
-    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
     const response = await apiClient.get<TimelineResponse>(
@@ -203,7 +203,7 @@ export const statisticsApi = {
     params.append('project_id', projectId.toString());
     params.append('species_a', filters.species_a);
     if (filters.species_b) params.append('species_b', filters.species_b);
-    if (filters.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters.site_ids) params.append('site_ids', filters.site_ids);
     if (filters.start_date) params.append('start_date', filters.start_date);
     if (filters.end_date) params.append('end_date', filters.end_date);
     if (filters.time_axis) params.append('time_axis', filters.time_axis);
@@ -224,7 +224,7 @@ export const statisticsApi = {
     if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
-    if (filters?.camera_ids) params.append('camera_ids', filters.camera_ids);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
     if (filters?.top_n !== undefined) params.append('top_n', filters.top_n.toString());
 
     const queryString = params.toString();
@@ -246,14 +246,14 @@ export const statisticsApi = {
     projectId: number,
     startDate: string,
     endDate: string,
-    options?: { cameraIds?: string; occasionLengthDays?: number },
+    options?: { siteIds?: string; occasionLengthDays?: number },
   ): Promise<{ blob: Blob; filename: string }> => {
     const params: Record<string, string | number> = {
       project_id: projectId,
       start_date: startDate,
       end_date: endDate,
     };
-    if (options?.cameraIds) params.camera_ids = options.cameraIds;
+    if (options?.siteIds) params.site_ids = options.siteIds;
     if (options?.occasionLengthDays !== undefined) {
       params.occasion_length_days = options.occasionLengthDays;
     }
@@ -271,10 +271,10 @@ export const statisticsApi = {
   /**
    * Get pipeline status (pending/classified counts)
    */
-  getPipelineStatus: async (projectId?: number, cameraIds?: string): Promise<PipelineStatusResponse> => {
+  getPipelineStatus: async (projectId?: number, siteIds?: string): Promise<PipelineStatusResponse> => {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
-    if (cameraIds) params.camera_ids = cameraIds;
+    if (siteIds) params.site_ids = siteIds;
     const response = await apiClient.get<PipelineStatusResponse>('/api/statistics/pipeline-status', { params });
     return response.data;
   },
@@ -299,14 +299,14 @@ export const statisticsApi = {
 
   getDemographics: async (
     projectId: number,
-    filters?: { field?: string; species?: string; start_date?: string; end_date?: string; camera_ids?: string },
+    filters?: { field?: string; species?: string; start_date?: string; end_date?: string; site_ids?: string },
   ) => {
     const params: Record<string, string> = { project_id: projectId.toString() };
     if (filters?.field) params.field = filters.field;
     if (filters?.species) params.species = filters.species;
     if (filters?.start_date) params.start_date = filters.start_date;
     if (filters?.end_date) params.end_date = filters.end_date;
-    if (filters?.camera_ids) params.camera_ids = filters.camera_ids;
+    if (filters?.site_ids) params.site_ids = filters.site_ids;
     const response = await apiClient.get<{
       field: string;
       species: string | null;
@@ -318,12 +318,12 @@ export const statisticsApi = {
 
   getVerificationProgressAll: async (
     projectId: number,
-    filters?: { start_date?: string; end_date?: string; camera_ids?: string },
+    filters?: { start_date?: string; end_date?: string; site_ids?: string },
   ) => {
     const params: Record<string, string> = { project_id: projectId.toString() };
     if (filters?.start_date) params.start_date = filters.start_date;
     if (filters?.end_date) params.end_date = filters.end_date;
-    if (filters?.camera_ids) params.camera_ids = filters.camera_ids;
+    if (filters?.site_ids) params.site_ids = filters.site_ids;
     const response = await apiClient.get<{
       rows: { total: number; verified: number; percentage: number; label: string }[];
     }>('/api/statistics/verification-progress-all', { params });
@@ -332,13 +332,13 @@ export const statisticsApi = {
 
   getVerificationProgress: async (
     projectId: number,
-    filters?: { label?: string; start_date?: string; end_date?: string; camera_ids?: string },
+    filters?: { label?: string; start_date?: string; end_date?: string; site_ids?: string },
   ) => {
     const params: Record<string, string> = { project_id: projectId.toString() };
     if (filters?.label) params.label = filters.label;
     if (filters?.start_date) params.start_date = filters.start_date;
     if (filters?.end_date) params.end_date = filters.end_date;
-    if (filters?.camera_ids) params.camera_ids = filters.camera_ids;
+    if (filters?.site_ids) params.site_ids = filters.site_ids;
     const response = await apiClient.get<{
       total: number;
       verified: number;

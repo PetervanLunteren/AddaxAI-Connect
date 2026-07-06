@@ -30,7 +30,7 @@ import { Camera, Images, TrendingUp } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { statisticsApi } from '../api/statistics';
 import { imagesApi } from '../api/images';
-import { camerasApi } from '../api/cameras';
+import { sitesApi } from '../api/sites';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
@@ -59,7 +59,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
-  camera_ids: 'string[]',
+  site_ids: 'string[]',
 };
 
 export const Dashboard: React.FC = () => {
@@ -83,23 +83,23 @@ export const Dashboard: React.FC = () => {
     () => (Array.isArray(parsed.tags) ? parsed.tags : []),
     [parsed.tags],
   );
-  const cameraIdValues: string[] = useMemo(
-    () => (Array.isArray(parsed.camera_ids) ? parsed.camera_ids : []),
-    [parsed.camera_ids],
+  const siteIdValues: string[] = useMemo(
+    () => (Array.isArray(parsed.site_ids) ? parsed.site_ids : []),
+    [parsed.site_ids],
   );
 
-  // Fetch cameras (for tag → camera-id reverse mapping AND as the source of
-  // labels for the explicit Cameras MultiSelect).
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
+  // Fetch sites (for tag → site-id reverse mapping AND as the source of
+  // labels for the explicit Sites MultiSelect).
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId!),
     enabled: projectId !== undefined,
   });
 
   // Fetch tag options
   const { data: tagOptions } = useQuery({
-    queryKey: ['camera-tags', projectId],
-    queryFn: () => camerasApi.getTags(projectId),
+    queryKey: ['site-tags', projectId],
+    queryFn: () => sitesApi.getTags(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -108,9 +108,9 @@ export const Dashboard: React.FC = () => {
       date_from: dateRange.startDate ?? undefined,
       date_to: dateRange.endDate ?? undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
-      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+      site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     }),
-    [dateRange, tagValues, cameraIdValues],
+    [dateRange, tagValues, siteIdValues],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -122,25 +122,25 @@ export const Dashboard: React.FC = () => {
   const onClearAll = () =>
     setSearchParams(new URLSearchParams(), { replace: true });
 
-  // Effective camera_ids passed to the API: union of cameras directly
-  // selected and cameras whose tags match. Empty set when no filter active;
+  // Effective site_ids passed to the API: union of sites directly selected
+  // and sites whose tags match. Empty set when no filter active;
   // '0' sentinel when both filters are active but produce no matches.
-  const cameraIdsFromTags = useMemo(() => {
-    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
-    const ids = new Set<string>(cameraIdValues);
-    if (tagValues.length > 0 && cameras) {
+  const siteIdsFromTags = useMemo(() => {
+    if (tagValues.length === 0 && siteIdValues.length === 0) return undefined;
+    const ids = new Set<string>(siteIdValues);
+    if (tagValues.length > 0 && sites) {
       const tagSet = new Set(tagValues);
-      for (const c of cameras) {
-        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      for (const s of sites) {
+        if (s.tags?.some((tag) => tagSet.has(tag))) ids.add(String(s.id));
       }
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
-  }, [tagValues, cameraIdValues, cameras]);
+  }, [tagValues, siteIdValues, sites]);
 
   // Fetch all statistics
   const { data: overview, isLoading: overviewLoading } = useQuery({
-    queryKey: ['statistics', 'overview', projectId, cameraIdsFromTags],
-    queryFn: () => statisticsApi.getOverview(projectId, cameraIdsFromTags),
+    queryKey: ['statistics', 'overview', projectId, siteIdsFromTags],
+    queryFn: () => statisticsApi.getOverview(projectId, siteIdsFromTags),
     enabled: projectId !== undefined,
   });
 
@@ -148,16 +148,16 @@ export const Dashboard: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
-        key: 'camera_ids',
-        label: 'Cameras',
-        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
-        placeholder: 'All cameras',
-        summary: (n) => `${n} cameras`,
+        key: 'site_ids',
+        label: 'Sites',
+        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        placeholder: 'All sites',
+        summary: (n) => `${n} sites`,
       },
       {
         kind: 'multi-select',
         key: 'tags',
-        label: 'Camera tags',
+        label: 'Site tags',
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
@@ -171,18 +171,18 @@ export const Dashboard: React.FC = () => {
         maxDate: overview?.last_image_date,
       },
     ],
-    [cameras, tagOptions, overview],
+    [sites, tagOptions, overview],
   );
 
   const { data: species, isLoading: speciesLoading } = useQuery({
-    queryKey: ['statistics', 'species', projectId, cameraIdsFromTags],
-    queryFn: () => statisticsApi.getSpeciesDistribution(projectId, cameraIdsFromTags),
+    queryKey: ['statistics', 'species', projectId, siteIdsFromTags],
+    queryFn: () => statisticsApi.getSpeciesDistribution(projectId, siteIdsFromTags),
     enabled: projectId !== undefined,
   });
 
   const { data: cameraActivity, isLoading: activityLoading } = useQuery({
-    queryKey: ['statistics', 'activity', projectId, cameraIdsFromTags],
-    queryFn: () => statisticsApi.getCameraActivity(projectId, cameraIdsFromTags),
+    queryKey: ['statistics', 'activity', projectId, siteIdsFromTags],
+    queryFn: () => statisticsApi.getCameraActivity(projectId, siteIdsFromTags),
     enabled: projectId !== undefined,
   });
 
@@ -369,7 +369,7 @@ export const Dashboard: React.FC = () => {
         <DetectionTrendChart
           dateRange={dateRange}
           projectId={projectId}
-          cameraIds={cameraIdsFromTags}
+          siteIds={siteIdsFromTags}
           projectFirstDate={overview?.first_image_date ?? null}
           projectLastDate={overview?.last_image_date ?? null}
         />
@@ -377,8 +377,8 @@ export const Dashboard: React.FC = () => {
 
       {/* Row 2: Activity pattern + Detection categories + Camera activity (3 cols) */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <ActivityPatternChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
-        <AlertCounters projectId={projectId} cameraIds={cameraIdsFromTags} />
+        <ActivityPatternChart dateRange={dateRange} projectId={projectId} siteIds={siteIdsFromTags} />
+        <AlertCounters projectId={projectId} siteIds={siteIdsFromTags} />
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Camera activity status</CardTitle>
@@ -404,8 +404,8 @@ export const Dashboard: React.FC = () => {
 
       {/* Row 3: Demographics + Verification progress */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        <DemographicChart dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
-        <VerificationProgressCard dateRange={dateRange} projectId={projectId} cameraIds={cameraIdsFromTags} />
+        <DemographicChart dateRange={dateRange} projectId={projectId} siteIds={siteIdsFromTags} />
+        <VerificationProgressCard dateRange={dateRange} projectId={projectId} siteIds={siteIdsFromTags} />
       </div>
     </div>
   );

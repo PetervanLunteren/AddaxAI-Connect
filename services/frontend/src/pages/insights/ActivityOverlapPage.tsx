@@ -15,7 +15,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Info, Loader2 } from 'lucide-react';
 
 import { useProject } from '../../contexts/ProjectContext';
-import { camerasApi } from '../../api/cameras';
+import { sitesApi } from '../../api/sites';
 import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
 import type {
@@ -49,7 +49,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_from: 'date',
   date_to: 'date',
   tags: 'string[]',
-  camera_ids: 'string[]',
+  site_ids: 'string[]',
   time_axis: 'string',
 };
 
@@ -94,7 +94,7 @@ export const ActivityOverlapPage: React.FC = () => {
   const startDate = (parsed.date_from as string) || null;
   const endDate = (parsed.date_to as string) || null;
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
-  const cameraIdValues = Array.isArray(parsed.camera_ids) ? parsed.camera_ids : [];
+  const siteIdValues = Array.isArray(parsed.site_ids) ? parsed.site_ids : [];
   const timeAxis = ((parsed.time_axis as string) || 'clock') as TimeAxis;
 
   // Full species list for the A / B dropdowns. Same source the Images
@@ -116,14 +116,14 @@ export const ActivityOverlapPage: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const { data: cameras } = useQuery({
-    queryKey: ['cameras', projectId],
-    queryFn: () => camerasApi.getAll(projectId),
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId!),
     enabled: projectId !== undefined,
   });
   const { data: tagOptions } = useQuery({
-    queryKey: ['camera-tags', projectId],
-    queryFn: () => camerasApi.getTags(projectId),
+    queryKey: ['site-tags', projectId],
+    queryFn: () => sitesApi.getTags(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -134,9 +134,9 @@ export const ActivityOverlapPage: React.FC = () => {
       date_from: startDate ?? undefined,
       date_to: endDate ?? undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
-      camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
+      site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     }),
-    [speciesA, speciesB, startDate, endDate, tagValues, cameraIdValues],
+    [speciesA, speciesB, startDate, endDate, tagValues, siteIdValues],
   );
 
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
@@ -157,7 +157,7 @@ export const ActivityOverlapPage: React.FC = () => {
       date_from: undefined,
       date_to: undefined,
       tags: undefined,
-      camera_ids: undefined,
+      site_ids: undefined,
     });
   const onDisplayChange = (key: string, value: string) => writeAll({ [key]: value });
 
@@ -170,17 +170,17 @@ export const ActivityOverlapPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topSpeciesList, speciesA]);
 
-  const cameraIdsFromTags = useMemo(() => {
-    if (tagValues.length === 0 && cameraIdValues.length === 0) return undefined;
-    const ids = new Set<string>(cameraIdValues);
-    if (tagValues.length > 0 && cameras) {
+  const siteIdsFromTags = useMemo(() => {
+    if (tagValues.length === 0 && siteIdValues.length === 0) return undefined;
+    const ids = new Set<string>(siteIdValues);
+    if (tagValues.length > 0 && sites) {
       const tagSet = new Set(tagValues);
-      for (const c of cameras) {
-        if (c.tags?.some((tag) => tagSet.has(tag))) ids.add(String(c.id));
+      for (const s of sites) {
+        if (s.tags?.some((tag) => tagSet.has(tag))) ids.add(String(s.id));
       }
     }
     return ids.size === 0 ? '0' : Array.from(ids).join(',');
-  }, [tagValues, cameraIdValues, cameras]);
+  }, [tagValues, siteIdValues, sites]);
 
   const speciesOptions = useMemo(
     () =>
@@ -209,16 +209,16 @@ export const ActivityOverlapPage: React.FC = () => {
       },
       {
         kind: 'multi-select',
-        key: 'camera_ids',
-        label: 'Cameras',
-        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
-        placeholder: 'All cameras',
-        summary: (n) => `${n} cameras`,
+        key: 'site_ids',
+        label: 'Sites',
+        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        placeholder: 'All sites',
+        summary: (n) => `${n} sites`,
       },
       {
         kind: 'multi-select',
         key: 'tags',
-        label: 'Camera tags',
+        label: 'Site tags',
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
@@ -230,7 +230,7 @@ export const ActivityOverlapPage: React.FC = () => {
         label: 'Date range',
       },
     ],
-    [speciesOptions, speciesA, cameras, tagOptions],
+    [speciesOptions, speciesA, sites, tagOptions],
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
@@ -258,14 +258,14 @@ export const ActivityOverlapPage: React.FC = () => {
       speciesB,
       startDate,
       endDate,
-      cameraIdsFromTags,
+      siteIdsFromTags,
       timeAxis,
     ],
     queryFn: () =>
       statisticsApi.getActivityOverlap(projectId!, {
         species_a: speciesA!,
         species_b: speciesB ?? undefined,
-        camera_ids: cameraIdsFromTags,
+        site_ids: siteIdsFromTags,
         start_date: startDate ?? undefined,
         end_date: endDate ?? undefined,
         time_axis: timeAxis,

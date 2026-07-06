@@ -3,7 +3,7 @@
  *
  * All users can view camera health metrics.
  * Server admins can add, delete cameras and import from CSV.
- * Project admins can edit camera notes (friendly name, remarks).
+ * Project admins can edit camera notes (remarks, custom fields).
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';

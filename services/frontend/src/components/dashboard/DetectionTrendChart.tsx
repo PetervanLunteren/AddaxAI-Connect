@@ -31,7 +31,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 interface DetectionTrendChartProps {
   dateRange: DateRange;
   projectId?: number;
-  cameraIds?: string;
+  siteIds?: string;
   // Project's full image-date extent. Used as the fallback x-axis span
   // and granularity hint when the user has not set an explicit date
   // range, so a sparse species shows its spike in the context of the
@@ -124,7 +124,7 @@ function denseRangeKeys(
 export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   dateRange,
   projectId,
-  cameraIds,
+  siteIds,
   projectFirstDate,
   projectLastDate,
 }) => {
@@ -173,13 +173,13 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   // Detection counts per day (sparse: only days with at least one
   // detection are returned).
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ['statistics', 'detection-trend', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'detection-trend', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getDetectionTrend(projectId, {
         species: selectedSpecies === 'all' || !selectedSpecies ? undefined : selectedSpecies,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
-        camera_ids: cameraIds,
+        site_ids: siteIds,
       }),
     enabled: projectId !== undefined && selectedSpecies !== null,
   });
@@ -188,12 +188,12 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   // to per-100-trap-nights without a wait, and so the bucketed series
   // stays aligned with the detection series.
   const { data: trapEffort } = useQuery({
-    queryKey: ['statistics', 'trap-effort', projectId, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'trap-effort', projectId, dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getTrapEffort(projectId, {
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
-        camera_ids: cameraIds,
+        site_ids: siteIds,
       }),
     enabled: projectId !== undefined,
   });
