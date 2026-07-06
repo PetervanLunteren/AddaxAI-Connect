@@ -23,7 +23,7 @@ from shared.classification_threshold import CLASSIFICATION_THRESHOLD_FILTER_SQL
 _INDEPENDENCE_CTE = """
 WITH raw_obs AS (
     -- Verified: human observations
-    SELECT i.camera_id, ho.species, i.captured_at as ts, ho.count as cnt
+    SELECT i.camera_id, i.deployment_id, ho.species, i.captured_at as ts, ho.count as cnt
     FROM human_observations ho
     JOIN images i ON ho.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
@@ -31,7 +31,7 @@ WITH raw_obs AS (
       {verified_filters}
     UNION ALL
     -- Unverified: AI classifications
-    SELECT i.camera_id, cl.species, i.captured_at as ts, 1 as cnt
+    SELECT i.camera_id, i.deployment_id, cl.species, i.captured_at as ts, 1 as cnt
     FROM classifications cl
     JOIN detections d ON cl.detection_id = d.id
     JOIN images i ON d.image_id = i.id
@@ -43,7 +43,7 @@ WITH raw_obs AS (
       {unverified_filters}
     UNION ALL
     -- Unverified: person/vehicle detections (no classification)
-    SELECT i.camera_id, d.category as species, i.captured_at as ts, 1 as cnt
+    SELECT i.camera_id, i.deployment_id, d.category as species, i.captured_at as ts, 1 as cnt
     FROM detections d
     JOIN images i ON d.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
@@ -55,15 +55,25 @@ WITH raw_obs AS (
 ),
 -- Per-image: sum all detections of same species in same image
 img_counts AS (
-    SELECT camera_id, species, ts, SUM(cnt) as img_count
-    FROM raw_obs GROUP BY camera_id, species, ts
+    SELECT camera_id, deployment_id, species, ts, SUM(cnt) as img_count
+    FROM raw_obs GROUP BY camera_id, deployment_id, species, ts
 ),
--- Pool ID: cameras in the same group share a pool; ungrouped cameras use their own ID.
--- Negate group IDs so they never collide with positive camera IDs.
+-- Pool ID: the "place" an observation belongs to, resolved through its
+-- deployment. Sites in a "Merged sites" group share a pool ('g<group_id>');
+-- otherwise each site is its own pool ('s<site_id>'); observations without a
+-- resolved site fall back to their camera ('c<camera_id>'). Text keys keep the
+-- three id spaces from colliding. Resolved per observation (not per camera) so
+-- a camera moving between sites is attributed to the site it stood at.
 with_pool AS (
-    SELECT ic.*, COALESCE(c.camera_group_id * -1, ic.camera_id) as pool_id
+    SELECT ic.*,
+           COALESCE(
+               'g' || s.site_group_id,
+               's' || dep.site_id,
+               'c' || ic.camera_id
+           ) as pool_id
     FROM img_counts ic
-    JOIN cameras c ON ic.camera_id = c.id
+    LEFT JOIN deployments dep ON ic.deployment_id = dep.id
+    LEFT JOIN sites s ON dep.site_id = s.id
 ),
 -- Compute time gap from previous same-species same-pool observation
 with_gaps AS (
@@ -85,8 +95,9 @@ with_events AS (
     ) as event_id
     FROM with_flags
 ),
--- Per event: take MAX individuals (same group seen multiple times)
--- For grouped cameras, attribute event to the camera of the earliest detection.
+-- Per event: take MAX individuals (same pool seen multiple times)
+-- When a pool spans multiple cameras, attribute the event to the camera of
+-- the earliest detection.
 events AS (
     SELECT (ARRAY_AGG(camera_id ORDER BY ts))[1] as camera_id,
            pool_id, species, event_id,

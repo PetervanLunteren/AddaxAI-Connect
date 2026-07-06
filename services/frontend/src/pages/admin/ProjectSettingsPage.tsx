@@ -12,17 +12,17 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
-import { CameraGroupsModal } from '../../components/CameraGroupsModal';
+import { SiteGroupsModal } from '../../components/SiteGroupsModal';
 import { ClassificationThresholdsModal } from '../../components/ClassificationThresholdsModal';
 import { useProject } from '../../contexts/ProjectContext';
 import { adminApi } from '../../api/admin';
 import { projectsApi } from '../../api/projects';
 import { statisticsApi } from '../../api/statistics';
-import { cameraGroupsApi } from '../../api/cameraGroups';
-import { camerasApi } from '../../api/cameras';
+import { siteGroupsApi } from '../../api/siteGroups';
+import { sitesApi } from '../../api/sites';
 import { normalizeLabel } from '../../utils/labels';
 import { speciesApi } from '../../api/species';
-import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, CameraGroup } from '../../api/types';
+import type { ProjectUpdate, IndependenceSummaryResponse, DetectionCountResponse, SiteGroup } from '../../api/types';
 
 const INDEPENDENCE_INTERVAL_OPTIONS = [
   { value: 0, label: 'Disabled' },
@@ -39,11 +39,11 @@ interface ModalData {
   events: { before: IndependenceSummaryResponse; after: IndependenceSummaryResponse };
 }
 
-// Stable fallback for the camera-groups query. A `= []` default in the
+// Stable fallback for the site-groups query. A `= []` default in the
 // destructure would be a new array every render while the query loads,
 // and the sync effect below would setState on each one, an infinite
 // re-render loop ("maximum update depth exceeded").
-const NO_GROUPS: CameraGroup[] = [];
+const NO_GROUPS: SiteGroup[] = [];
 
 export const ProjectSettingsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -65,9 +65,9 @@ export const ProjectSettingsPage: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  // Camera groups state
-  const [showCameraGroups, setShowCameraGroups] = useState(false);
-  const [pendingGroups, setPendingGroups] = useState<CameraGroup[]>([]);
+  // Merged sites (site groups) state
+  const [showSiteGroups, setShowSiteGroups] = useState(false);
+  const [pendingGroups, setPendingGroups] = useState<SiteGroup[]>([]);
 
   // Toast + modal state
   const [showToast, setShowToast] = useState(false);
@@ -121,17 +121,17 @@ export const ProjectSettingsPage: React.FC = () => {
     },
   });
 
-  // Camera groups query
-  const { data: cameraGroups = NO_GROUPS } = useQuery({
-    queryKey: ['camera-groups', currentProject?.id],
-    queryFn: () => cameraGroupsApi.list(currentProject!.id),
+  // Site groups query
+  const { data: siteGroups = NO_GROUPS } = useQuery({
+    queryKey: ['site-groups', currentProject?.id],
+    queryFn: () => siteGroupsApi.list(currentProject!.id),
     enabled: !!currentProject,
   });
 
-  // Cameras query (for the groups modal)
-  const { data: cameras = [] } = useQuery({
-    queryKey: ['cameras', currentProject?.id],
-    queryFn: () => camerasApi.getAll(currentProject!.id),
+  // Sites query (for the merged-sites modal)
+  const { data: sites = [] } = useQuery({
+    queryKey: ['sites', currentProject?.id],
+    queryFn: () => sitesApi.list(currentProject!.id),
     enabled: !!currentProject,
   });
 
@@ -167,8 +167,8 @@ export const ProjectSettingsPage: React.FC = () => {
 
   // Sync fetched groups into pending state
   useEffect(() => {
-    setPendingGroups(cameraGroups);
-  }, [cameraGroups]);
+    setPendingGroups(siteGroups);
+  }, [siteGroups]);
 
   // Redirect if user doesn't have admin access (after all hooks)
   if (!canAdminCurrentProject) {
@@ -220,17 +220,17 @@ export const ProjectSettingsPage: React.FC = () => {
 
   // Compare pending groups against saved groups
   const hasGroupChanges = (() => {
-    if (pendingGroups.length !== cameraGroups.length) return true;
-    const savedMap = new Map(cameraGroups.map(g => [g.id, g]));
+    if (pendingGroups.length !== siteGroups.length) return true;
+    const savedMap = new Map(siteGroups.map(g => [g.id, g]));
     return pendingGroups.some(pg => {
       if (pg.id < 0) return true; // new group (temp ID)
       const saved = savedMap.get(pg.id);
       if (!saved) return true; // deleted and re-added? shouldn't happen
       if (pg.name !== saved.name) return true;
-      const oldIds = [...saved.camera_ids].sort().join(',');
-      const newIds = [...pg.camera_ids].sort().join(',');
+      const oldIds = [...saved.site_ids].sort().join(',');
+      const newIds = [...pg.site_ids].sort().join(',');
       return oldIds !== newIds;
-    }) || cameraGroups.some(sg => !pendingGroups.find(pg => pg.id === sg.id)); // deleted group
+    }) || siteGroups.some(sg => !pendingGroups.find(pg => pg.id === sg.id)); // deleted group
   })();
 
   const hasUnsavedChanges =
@@ -298,14 +298,14 @@ export const ProjectSettingsPage: React.FC = () => {
 
       await Promise.all(promises);
 
-      // Save camera group changes
+      // Save site group changes
       if (hasGroupChanges) {
-        const savedMap = new Map(cameraGroups.map(g => [g.id, g]));
+        const savedMap = new Map(siteGroups.map(g => [g.id, g]));
 
         // Delete removed groups
-        for (const saved of cameraGroups) {
+        for (const saved of siteGroups) {
           if (!pendingGroups.find(pg => pg.id === saved.id)) {
-            await cameraGroupsApi.delete(currentProject.id, saved.id);
+            await siteGroupsApi.delete(currentProject.id, saved.id);
           }
         }
 
@@ -313,25 +313,25 @@ export const ProjectSettingsPage: React.FC = () => {
         for (const pg of pendingGroups) {
           if (pg.id < 0) {
             // New group
-            const created = await cameraGroupsApi.create(currentProject.id, pg.name, pg.camera_ids.length > 0 ? pg.camera_ids : undefined);
-            if (pg.camera_ids.length > 0) {
-              await cameraGroupsApi.setCameras(currentProject.id, created.id, pg.camera_ids);
+            const created = await siteGroupsApi.create(currentProject.id, pg.name, pg.site_ids.length > 0 ? pg.site_ids : undefined);
+            if (pg.site_ids.length > 0) {
+              await siteGroupsApi.setSites(currentProject.id, created.id, pg.site_ids);
             }
           } else {
             const saved = savedMap.get(pg.id);
             if (!saved) continue;
             if (pg.name !== saved.name) {
-              await cameraGroupsApi.rename(currentProject.id, pg.id, pg.name);
+              await siteGroupsApi.rename(currentProject.id, pg.id, pg.name);
             }
-            const oldIds = [...saved.camera_ids].sort().join(',');
-            const newIds = [...pg.camera_ids].sort().join(',');
+            const oldIds = [...saved.site_ids].sort().join(',');
+            const newIds = [...pg.site_ids].sort().join(',');
             if (oldIds !== newIds) {
-              await cameraGroupsApi.setCameras(currentProject.id, pg.id, pg.camera_ids);
+              await siteGroupsApi.setSites(currentProject.id, pg.id, pg.site_ids);
             }
           }
         }
 
-        queryClient.invalidateQueries({ queryKey: ['camera-groups', currentProject.id] });
+        queryClient.invalidateQueries({ queryKey: ['site-groups', currentProject.id] });
       }
       setSaveStatus('success');
 
@@ -382,7 +382,7 @@ export const ProjectSettingsPage: React.FC = () => {
     setIncludedSpecies(
       included.map(species => ({ label: normalizeLabel(species), value: species }))
     );
-    setPendingGroups(cameraGroups);
+    setPendingGroups(siteGroups);
   };
 
   // Restore defaults (fill form only, user must save)
@@ -579,24 +579,24 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Camera groups (only when independence interval is enabled) */}
+          {/* Merged sites (only when independence interval is enabled) */}
           {independenceInterval > 0 && (
             <>
               <div className="border-t my-6" />
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
                 <div className="w-full sm:w-1/2 sm:shrink-0">
                   <label className="text-sm font-medium block">
-                    Camera groups
+                    Merged sites
                   </label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Cameras in a group are treated as one location for the independence interval, preventing double counts from overlapping views or both ends of a wildlife crossing.
+                    Sites in a group are treated as one place for the independence interval. Cameras at the same site already count as one place, so use this only to merge distinct sites, like both ends of a wildlife crossing.
                   </p>
                 </div>
                 <div className="flex-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                   <div className="w-full sm:flex-[2]">
                     <span className="text-sm text-muted-foreground">
                       {pendingGroups.length > 0
-                        ? `${pendingGroups.length} group${pendingGroups.length !== 1 ? 's' : ''}, ${pendingGroups.reduce((sum, g) => sum + g.camera_ids.length, 0)} cameras grouped`
+                        ? `${pendingGroups.length} group${pendingGroups.length !== 1 ? 's' : ''}, ${pendingGroups.reduce((sum, g) => sum + g.site_ids.length, 0)} sites grouped`
                         : 'No groups configured'}
                     </span>
                   </div>
@@ -604,7 +604,7 @@ export const ProjectSettingsPage: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setShowCameraGroups(true)}
+                      onClick={() => setShowSiteGroups(true)}
                       disabled={isSaving}
                       className="w-full whitespace-nowrap"
                     >
@@ -692,12 +692,12 @@ export const ProjectSettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Camera groups modal */}
-      <CameraGroupsModal
+      {/* Merged sites modal */}
+      <SiteGroupsModal
         groups={pendingGroups}
-        cameras={cameras}
-        open={showCameraGroups}
-        onOpenChange={setShowCameraGroups}
+        sites={sites}
+        open={showSiteGroups}
+        onOpenChange={setShowSiteGroups}
         onGroupsChange={setPendingGroups}
       />
 

@@ -541,10 +541,10 @@ export interface ProjectDocument {
 }
 
 // Camera groups
-export interface CameraGroup {
+export interface SiteGroup {
   id: number;
   name: string;
-  camera_ids: number[];
+  site_ids: number[];
   created_at: string;
 }
 

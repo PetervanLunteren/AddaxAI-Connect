@@ -117,7 +117,6 @@ class Camera(Base):
 
     # Project assignment
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True, index=True)
-    camera_group_id = Column(Integer, ForeignKey("camera_groups.id", ondelete="SET NULL"), nullable=True, index=True)
     status = Column(String(50), nullable=False, server_default='inventory', index=True)
 
     # Health metrics (from daily reports)
@@ -144,12 +143,16 @@ class Camera(Base):
 
     # Relationships
     images = relationship("Image", back_populates="camera")
-    camera_group = relationship("CameraGroup", back_populates="cameras")
 
 
-class CameraGroup(Base):
-    """Group of cameras that share a field of view for independence interval merging"""
-    __tablename__ = "camera_groups"
+class SiteGroup(Base):
+    """Group of sites treated as one place for the independence interval.
+
+    Cameras at one site already pool automatically (the independence pool key
+    is the site). A site group is only for merging distinct sites, e.g. both
+    ends of a wildlife crossing. Shown in the UI as "Merged sites".
+    """
+    __tablename__ = "site_groups"
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -157,10 +160,10 @@ class CameraGroup(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
-    cameras = relationship("Camera", back_populates="camera_group")
+    sites = relationship("Site", back_populates="site_group")
 
     __table_args__ = (
-        UniqueConstraint('project_id', 'name', name='uq_camera_group_project_name'),
+        UniqueConstraint('project_id', 'name', name='uq_site_group_project_name'),
     )
 
 
@@ -182,11 +185,15 @@ class Site(Base):
     habitat_type = Column(String(100), nullable=True)  # Camtrap-DP "habitat" field
     notes = Column(Text, nullable=True)
     tags = Column(JSON, nullable=True)
+    # Optional "Merged sites" group. Sites in one group share an independence
+    # pool, for merging distinct places like both ends of a wildlife crossing.
+    site_group_id = Column(Integer, ForeignKey("site_groups.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
     # Relationships
     deployments = relationship("Deployment", back_populates="site")
+    site_group = relationship("SiteGroup", back_populates="sites")
 
     __table_args__ = (
         UniqueConstraint('project_id', 'name', name='uq_site_project_name'),
