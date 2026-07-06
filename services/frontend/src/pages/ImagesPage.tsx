@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Camera, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
+import { Calendar, MapPin, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -582,10 +582,10 @@ export const ImagesPage: React.FC = () => {
                 </div>
                 <CardContent className="p-4">
                   <div className="space-y-2">
-                    {/* Camera Name */}
+                    {/* Site (falls back to the device id when unresolved) */}
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Camera className="h-3 w-3" />
-                      <span className="truncate">{image.camera_name}</span>
+                      <MapPin className="h-3 w-3" />
+                      <span className="truncate">{image.site_name ?? image.camera_name}</span>
                     </div>
 
                     {/* Timestamp */}

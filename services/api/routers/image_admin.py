@@ -88,6 +88,7 @@ class AdminImageListItemResponse(BaseModel):
     filename: str
     camera_id: int
     camera_name: str
+    site_name: Optional[str] = None  # place the image was taken, via its deployment
     captured_at: str
     status: str
     detection_count: int
@@ -120,6 +121,7 @@ class AdminImageFilterParams(BaseModel):
     not just a hand-picked uuid list.
     """
     camera_id: Optional[int] = None
+    site_id: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     species: Optional[str] = None
@@ -161,6 +163,7 @@ async def _build_filter_clauses(
     project_id: int,
     *,
     camera_id: Optional[int] = None,
+    site_id: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
@@ -200,6 +203,15 @@ async def _build_filter_clauses(
 
     if camera_id is not None:
         filters.append(Image.camera_id == camera_id)
+
+    if site_id:
+        site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
+        if site_ids:
+            filters.append(
+                Image.deployment_id.in_(
+                    select(Deployment.id).where(Deployment.site_id.in_(site_ids))
+                )
+            )
 
     if hidden is not None:
         if hidden.lower() == "true":
@@ -422,6 +434,7 @@ async def list_all_images(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     camera_id: Optional[int] = None,
+    site_id: Optional[str] = Query(None, description="Comma-separated site IDs"),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     species: Optional[str] = None,
@@ -453,6 +466,7 @@ async def list_all_images(
         db,
         project_id,
         camera_id=camera_id,
+        site_id=site_id,
         start_date=start_date,
         end_date=end_date,
         species=species,
@@ -503,6 +517,17 @@ async def list_all_images(
 
     # Get image IDs for batch detection queries
     image_ids = [row.Image.id for row in rows]
+
+    # Batch site names for the page's deployments, so the table can show place.
+    site_name_by_deployment: dict = {}
+    deployment_ids = {row.Image.deployment_id for row in rows if row.Image.deployment_id}
+    if deployment_ids:
+        site_rows = await db.execute(
+            select(Deployment.id, Site.name)
+            .join(Site, Deployment.site_id == Site.id)
+            .where(Deployment.id.in_(deployment_ids))
+        )
+        site_name_by_deployment = {dep_id: name for dep_id, name in site_rows.all()}
 
     # Batch query: detection counts and top species per image
     detection_info = {}
@@ -556,6 +581,7 @@ async def list_all_images(
             filename=image.filename,
             camera_id=image.camera_id,
             camera_name=camera_name,
+            site_name=site_name_by_deployment.get(image.deployment_id),
             captured_at=image.captured_at.isoformat() if image.captured_at else "",
             status=image.status,
             detection_count=detection_info.get(image.id, 0),

@@ -151,6 +151,29 @@ def get_image_site_label(image_uuid: str) -> Optional[str]:
     return row.site_name
 
 
+def get_camera_site_label(camera_id: int) -> Optional[str]:
+    """
+    The site a camera currently stands at, via its active (or latest)
+    deployment. Returns the site name, or None when the camera has no
+    site-resolved deployment. Used so hardware alerts can say where to walk.
+    """
+    with get_sync_session() as session:
+        row = session.execute(
+            text("""
+                SELECT s.name AS site_name
+                FROM deployments d
+                JOIN sites s ON s.id = d.site_id
+                WHERE d.camera_id = :camera_id
+                ORDER BY (d.end_date IS NULL) DESC, d.start_date DESC
+                LIMIT 1
+            """),
+            {"camera_id": camera_id},
+        ).first()
+    if not row:
+        return None
+    return row.site_name
+
+
 def get_image_site_id(image_uuid: str) -> Optional[int]:
     """
     The id of the site an image was taken at, via its deployment. Returns None

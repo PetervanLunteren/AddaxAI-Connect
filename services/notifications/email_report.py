@@ -463,7 +463,7 @@ def _generate_text_report(data: Dict[str, Any]) -> str:
             "-" * 20
         ])
         for det in data['notable']:
-            lines.append(f"  {det['species']} ({det['confidence']}%) at {det['camera']}")
+            lines.append(f"  {det['species']} ({det['confidence']}%) at {det.get('site', det['camera'])}")
         lines.append("")
 
     # Footer

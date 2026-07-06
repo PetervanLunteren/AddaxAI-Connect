@@ -56,6 +56,7 @@ export interface ImageListItem {
   filename: string;
   camera_id: number;
   camera_name: string;
+  site_name: string | null;
   captured_at: string;
   status: string;
   detection_count: number;

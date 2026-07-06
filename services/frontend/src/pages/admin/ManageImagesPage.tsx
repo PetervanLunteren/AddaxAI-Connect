@@ -51,6 +51,7 @@ type SortColumn = 'filename' | 'camera_name' | 'captured_at';
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
   camera_id: 'string',
+  site_id: 'string[]',
   hidden: 'string',
   verified: 'string',
   species: 'string',
@@ -110,6 +111,7 @@ export const ManageImagesPage: React.FC = () => {
   const parsedFilters = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const search = asString(parsedFilters.search);
   const cameraFilter = asString(parsedFilters.camera_id);
+  const siteFilter = asStringArray(parsedFilters.site_id);
   const hiddenFilter = asString(parsedFilters.hidden);
   const verifiedFilter = asString(parsedFilters.verified);
   const speciesFilter = asString(parsedFilters.species);
@@ -129,6 +131,7 @@ export const ManageImagesPage: React.FC = () => {
   const filterValues: Record<string, FilterValue> = {
     search: search || undefined,
     camera_id: cameraFilter || undefined,
+    site_id: siteFilter.length > 0 ? siteFilter : undefined,
     hidden: hiddenFilter || undefined,
     verified: verifiedFilter || undefined,
     species: speciesFilter || undefined,
@@ -149,6 +152,7 @@ export const ManageImagesPage: React.FC = () => {
   // to either the list endpoint or the filter-based bulk actions.
   const filterParams: AdminImageFilterParams = useMemo(() => ({
     camera_id: cameraFilter ? parseInt(cameraFilter) : undefined,
+    site_id: siteFilter.length > 0 ? siteFilter.join(',') : undefined,
     start_date: dateFrom || undefined,
     end_date: dateTo || undefined,
     species: speciesFilter || undefined,
@@ -164,7 +168,7 @@ export const ManageImagesPage: React.FC = () => {
     max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
     min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
     max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
-  }), [cameraFilter, dateFrom, dateTo, speciesFilter, verifiedFilter, hiddenFilter, debouncedSearch, tagValues, likedFilter, needsReviewFilter, originFilter, bulkUploadJob, minDetConf, maxDetConf, minClsConf, maxClsConf]);
+  }), [cameraFilter, siteFilter, dateFrom, dateTo, speciesFilter, verifiedFilter, hiddenFilter, debouncedSearch, tagValues, likedFilter, needsReviewFilter, originFilter, bulkUploadJob, minDetConf, maxDetConf, minClsConf, maxClsConf]);
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
     const next = { ...filterValues, ...patch };
@@ -255,6 +259,13 @@ export const ManageImagesPage: React.FC = () => {
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Fetch sites for the Site filter
+  const { data: sites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -431,6 +442,14 @@ export const ManageImagesPage: React.FC = () => {
       key: 'search',
       label: 'Search',
       placeholder: 'Search filename',
+    },
+    {
+      kind: 'multi-select',
+      key: 'site_id',
+      label: 'Sites',
+      options: (sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
+      placeholder: 'All sites',
+      summary: (n) => `${n} sites`,
     },
     {
       kind: 'select',
@@ -709,6 +728,7 @@ export const ManageImagesPage: React.FC = () => {
               <TableHead>
                 <SortableHeader label="Filename" column="filename" sort={sort} onSort={handleSort} />
               </TableHead>
+              <TableHead>Site</TableHead>
               <TableHead>
                 <SortableHeader label="Camera" column="camera_name" sort={sort} onSort={handleSort} />
               </TableHead>
@@ -753,6 +773,7 @@ export const ManageImagesPage: React.FC = () => {
                 <TableCell className="font-mono text-xs max-w-[200px] truncate">
                   {image.filename}
                 </TableCell>
+                <TableCell className="text-sm">{image.site_name ?? '—'}</TableCell>
                 <TableCell className="text-sm">{image.camera_name}</TableCell>
                 <TableCell className="text-sm whitespace-nowrap">
                   {formatDateTime(image.captured_at)}

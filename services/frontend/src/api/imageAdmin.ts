@@ -6,6 +6,7 @@ import type { ImageListItem, PaginatedResponse } from './types';
 
 export interface AdminImageFilterParams {
   camera_id?: number;
+  site_id?: string;  // comma-separated site IDs
   start_date?: string;
   end_date?: string;
   species?: string;

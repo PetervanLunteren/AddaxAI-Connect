@@ -60,6 +60,7 @@ class ImageListItemResponse(BaseModel):
     filename: str
     camera_id: int
     camera_name: str
+    site_name: Optional[str] = None  # place the image was taken, via its deployment
     captured_at: str
     status: str
     detection_count: int
@@ -876,6 +877,18 @@ async def list_images(
                 human_obs_by_image[obs.image_id] = []
             human_obs_by_image[obs.image_id].append(obs)
 
+    # Pre-fetch site names for the page's deployments in one query, so each card
+    # can lead with the place instead of the device id.
+    site_name_by_deployment: dict = {}
+    deployment_ids = {image.deployment_id for image, _c, _p in rows if image.deployment_id}
+    if deployment_ids:
+        site_rows = await db.execute(
+            select(Deployment.id, Site.name)
+            .join(Site, Deployment.site_id == Site.id)
+            .where(Deployment.id.in_(deployment_ids))
+        )
+        site_name_by_deployment = {dep_id: name for dep_id, name in site_rows.all()}
+
     for image, camera, project in rows:
         # Filter detections by project thresholds (detection + classification)
         visible_detections = []
@@ -966,6 +979,7 @@ async def list_images(
             filename=image.filename,
             camera_id=image.camera_id,
             camera_name=camera.device_id,
+            site_name=site_name_by_deployment.get(image.deployment_id),
             captured_at=image.captured_at.isoformat(),
             status=image.status,
             detection_count=detection_count,

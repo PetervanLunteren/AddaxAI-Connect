@@ -10,7 +10,8 @@ from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import Session
 
 from shared.models import (
-    Image, Camera, CameraHealthReport, Detection, Classification, Project, HumanObservation
+    Image, Camera, CameraHealthReport, Detection, Classification, Project, HumanObservation,
+    Deployment, Site
 )
 from shared.classification_threshold import classification_passes_threshold
 from sqlalchemy import union_all
@@ -475,6 +476,7 @@ def get_notable_detections(
             Classification.confidence.label('classification_confidence'),
             Detection.confidence.label('detection_confidence'),
             Camera.device_id.label('camera_name'),
+            Site.name.label('site_name'),
             Image.captured_at,
             Image.uuid.label('image_uuid')
         )
@@ -482,6 +484,8 @@ def get_notable_detections(
         .join(Image, Detection.image_id == Image.id)
         .join(Camera, Image.camera_id == Camera.id)
         .join(Project, Camera.project_id == Project.id)
+        .outerjoin(Deployment, Image.deployment_id == Deployment.id)
+        .outerjoin(Site, Deployment.site_id == Site.id)
         .where(
             and_(
                 Camera.project_id == project_id,
@@ -497,10 +501,13 @@ def get_notable_detections(
 
     rows = db.execute(query).all()
 
+    # Lead with the site (the place); fall back to the device id when the image
+    # has no resolved site.
     return [
         {
             'species': row.species,
             'camera': row.camera_name,
+            'site': row.site_name or row.camera_name,
             'timestamp': row.captured_at.isoformat() if row.captured_at else None,
             'confidence': round(row.classification_confidence * 100, 1),
             'image_uuid': row.image_uuid
