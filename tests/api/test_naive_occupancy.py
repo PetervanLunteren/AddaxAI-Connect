@@ -17,7 +17,7 @@ if _api not in sys.path:
 from utils.preferred_counts import (
     _NAIVE_OCCUPANCY_SQL,
     get_naive_occupancy,
-    get_detection_history,
+    _occasions,
 )
 
 
@@ -100,99 +100,36 @@ class TestGetNaiveOccupancyEarlyReturn:
         assert sites_total == 0
 
 
-class TestDetectionHistoryValidation:
-    """Input-validation guards on the detection-history streamer."""
-
-    @pytest.mark.asyncio
-    async def test_rejects_zero_occasion_length(self):
-        gen = get_detection_history(
-            db=None,  # type: ignore[arg-type]
-            project_ids=[1],
-            start_date=date(2025, 1, 1),
-            end_date=date(2025, 1, 31),
-            occasion_length_days=0,
-        )
-        with pytest.raises(ValueError, match="occasion_length_days"):
-            await gen.__anext__()
-
-    @pytest.mark.asyncio
-    async def test_rejects_oversize_occasion_length(self):
-        gen = get_detection_history(
-            db=None,  # type: ignore[arg-type]
-            project_ids=[1],
-            start_date=date(2025, 1, 1),
-            end_date=date(2025, 1, 31),
-            occasion_length_days=31,
-        )
-        with pytest.raises(ValueError, match="occasion_length_days"):
-            await gen.__anext__()
-
-    @pytest.mark.asyncio
-    async def test_rejects_inverted_window(self):
-        gen = get_detection_history(
-            db=None,  # type: ignore[arg-type]
-            project_ids=[1],
-            start_date=date(2025, 1, 31),
-            end_date=date(2025, 1, 1),
-        )
-        with pytest.raises(ValueError, match="start_date"):
-            await gen.__anext__()
-
-    @pytest.mark.asyncio
-    async def test_empty_project_ids_yields_nothing(self):
-        gen = get_detection_history(
-            db=None,  # type: ignore[arg-type]
-            project_ids=[],
-            start_date=date(2025, 1, 1),
-            end_date=date(2025, 1, 31),
-        )
-        # No DB access expected; the generator should exhaust immediately.
-        with pytest.raises(StopAsyncIteration):
-            await gen.__anext__()
-
-
 class TestOccasionGridLogic:
-    """The occasion walk inside the detection-history generator must produce
-    contiguous, non-overlapping date ranges that cover the window inclusively.
-    Re-implements the same loop here to assert its math without needing a DB.
+    """The occasion walk in _occasions (used by the site detection history)
+    must produce contiguous, non-overlapping ranges covering the window. Uses
+    the real function; occasions are 0-indexed.
     """
 
-    @staticmethod
-    def occasions(start: date, end: date, length: int):
-        out = []
-        idx = 1
-        cursor = start
-        while cursor <= end:
-            occ_end = min(cursor + timedelta(days=length - 1), end)
-            out.append((idx, cursor, occ_end))
-            cursor = occ_end + timedelta(days=1)
-            idx += 1
-        return out
-
     def test_daily_occasions_cover_window_one_to_one(self):
-        occ = self.occasions(date(2025, 1, 1), date(2025, 1, 5), 1)
+        occ = _occasions(date(2025, 1, 1), date(2025, 1, 5), 1)
         assert occ == [
-            (1, date(2025, 1, 1), date(2025, 1, 1)),
-            (2, date(2025, 1, 2), date(2025, 1, 2)),
-            (3, date(2025, 1, 3), date(2025, 1, 3)),
-            (4, date(2025, 1, 4), date(2025, 1, 4)),
-            (5, date(2025, 1, 5), date(2025, 1, 5)),
+            (0, date(2025, 1, 1), date(2025, 1, 1)),
+            (1, date(2025, 1, 2), date(2025, 1, 2)),
+            (2, date(2025, 1, 3), date(2025, 1, 3)),
+            (3, date(2025, 1, 4), date(2025, 1, 4)),
+            (4, date(2025, 1, 5), date(2025, 1, 5)),
         ]
 
     def test_weekly_occasions_clamp_last_to_window_end(self):
-        # 10-day window, 7-day occasions: occasion 1 = days 1-7, occasion 2 = days 8-10.
-        occ = self.occasions(date(2025, 1, 1), date(2025, 1, 10), 7)
+        # 10-day window, 7-day occasions: occasion 0 = days 1-7, occasion 1 = days 8-10.
+        occ = _occasions(date(2025, 1, 1), date(2025, 1, 10), 7)
         assert occ == [
-            (1, date(2025, 1, 1), date(2025, 1, 7)),
-            (2, date(2025, 1, 8), date(2025, 1, 10)),
+            (0, date(2025, 1, 1), date(2025, 1, 7)),
+            (1, date(2025, 1, 8), date(2025, 1, 10)),
         ]
 
     def test_single_day_window(self):
-        occ = self.occasions(date(2025, 1, 1), date(2025, 1, 1), 7)
-        assert occ == [(1, date(2025, 1, 1), date(2025, 1, 1))]
+        occ = _occasions(date(2025, 1, 1), date(2025, 1, 1), 7)
+        assert occ == [(0, date(2025, 1, 1), date(2025, 1, 1))]
 
     def test_occasions_are_contiguous_and_non_overlapping(self):
-        occ = self.occasions(date(2025, 1, 1), date(2025, 6, 30), 14)
+        occ = _occasions(date(2025, 1, 1), date(2025, 6, 30), 14)
         for prev, nxt in zip(occ, occ[1:]):
             assert prev[2] + timedelta(days=1) == nxt[1]
         # First starts at window start, last ends at window end.

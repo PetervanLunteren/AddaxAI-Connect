@@ -4,7 +4,7 @@ Utility functions for querying species counts with human verification preference
 When an image is verified, uses HumanObservation data.
 When not verified, falls back to AI Detection/Classification data.
 """
-from typing import AsyncGenerator, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from datetime import date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, union_all, literal, text
@@ -888,32 +888,53 @@ FROM (
 ) obs
 INNER JOIN deployments dep ON obs.deployment_id = dep.id
 WHERE dep.site_id IS NOT NULL
-  AND species = ANY(:species_list)
+  AND (CAST(:species_list AS text[]) IS NULL OR species = ANY(:species_list))
 """
 
 
-async def build_site_detection_matrix(
+def _occasions(start_date: date, end_date: date, occasion_length_days: int) -> List[Tuple[int, date, date]]:
+    """Occasion windows as (index, occ_start, occ_end), clamped to end_date."""
+    out: List[Tuple[int, date, date]] = []
+    n_occ = ((end_date - start_date).days // occasion_length_days) + 1
+    for idx in range(n_occ):
+        occ_start = start_date + timedelta(days=idx * occasion_length_days)
+        occ_end = min(occ_start + timedelta(days=occasion_length_days - 1), end_date)
+        out.append((idx, occ_start, occ_end))
+    return out
+
+
+async def build_site_detection_history(
     db: AsyncSession,
     project_ids: List[int],
     start_date: date,
     end_date: date,
-    species_subset: List[str],
     site_ids: Optional[List[int]] = None,
+    species_subset: Optional[List[str]] = None,
     occasion_length_days: int = 7,
-) -> Dict[str, List[List[Optional[int]]]]:
-    """In-memory site x occasion detection matrix per species.
+) -> dict:
+    """Site x occasion detection history, the shape occupancy models in R expect.
 
-    Returns `{species: [[per_occasion, ...], ...one row per active site...]}`
-    where each cell is `1` (detected at the site that occasion), `0` (site
-    active, no detection), or `None` (site inactive that occasion). One row per
-    site so cameras at the same site count as a single survey unit, consistent
-    with the naive-occupancy denominator.
+    A "site" is the survey station (a real Site, not the physical camera), so
+    cameras at one place pool into one row and a camera swap stays the same row,
+    matching camtrapR's station concept. Returns:
+
+        {
+            "site_ids":  [ordered active site ids],
+            "site_names": {site_id: name},
+            "occasions": [(idx, occ_start, occ_end), ...],
+            "matrices":  {species: [[cell, ...one per occasion...], ...one row per site...]},
+        }
+
+    Each cell is 1 (detected that occasion), 0 (site active, no detection), or
+    None (site inactive, mapped to NA / empty). `species_subset` None means every
+    observed species in the window.
     """
-    species_lower = sorted({s.lower() for s in species_subset})
-    if not species_lower or not project_ids:
-        return {}
+    if not project_ids:
+        return {"site_ids": [], "site_names": {}, "occasions": [], "matrices": {}}
 
-    n_occ = ((end_date - start_date).days // occasion_length_days) + 1
+    occasions = _occasions(start_date, end_date, occasion_length_days)
+    n_occ = len(occasions)
+    species_lower = sorted({s.lower() for s in species_subset}) if species_subset is not None else None
     params = {
         "project_ids": project_ids,
         "site_ids": site_ids,
@@ -928,7 +949,7 @@ async def build_site_detection_matrix(
     active_rows = (await db.execute(text(_SITE_MATRIX_ACTIVE_SQL), params)).all()
     active: set[Tuple[int, int]] = {(r.site_id, r.occ_idx) for r in active_rows}
     if not active:
-        return {}
+        return {"site_ids": [], "site_names": {}, "occasions": occasions, "matrices": {}}
 
     detected_rows = (await db.execute(text(_SITE_MATRIX_DETECTED_SQL), params)).all()
     detected: Dict[str, set[Tuple[int, int]]] = {}
@@ -936,11 +957,18 @@ async def build_site_detection_matrix(
         detected.setdefault(r.species, set()).add((r.site_id, r.occ_idx))
 
     sorted_sites = sorted({s for s, _ in active})
+    name_rows = (await db.execute(
+        text("SELECT id, name FROM sites WHERE id = ANY(:ids)"),
+        {"ids": sorted_sites},
+    )).all()
+    site_names = {row.id: row.name for row in name_rows}
 
-    out: Dict[str, List[List[Optional[int]]]] = {}
-    for sp_label in species_subset:
-        sp = sp_label.lower()
-        det = detected.get(sp, set())
+    # When no species filter was given, report every observed species.
+    species_out = species_subset if species_subset is not None else sorted(detected.keys())
+
+    matrices: Dict[str, List[List[Optional[int]]]] = {}
+    for sp_label in species_out:
+        det = detected.get(sp_label.lower(), set())
         matrix: List[List[Optional[int]]] = []
         for site_id in sorted_sites:
             history: List[Optional[int]] = []
@@ -952,233 +980,35 @@ async def build_site_detection_matrix(
                 else:
                     history.append(None)
             matrix.append(history)
-        out[sp_label] = matrix
-    return out
+        matrices[sp_label] = matrix
+
+    return {
+        "site_ids": sorted_sites,
+        "site_names": site_names,
+        "occasions": occasions,
+        "matrices": matrices,
+    }
 
 
-async def get_detection_history(
+async def build_site_detection_matrix(
     db: AsyncSession,
     project_ids: List[int],
     start_date: date,
     end_date: date,
-    camera_ids: Optional[List[int]] = None,
-    occasion_length_days: int = 1,
-) -> AsyncGenerator[dict, None]:
+    species_subset: List[str],
+    site_ids: Optional[List[int]] = None,
+    occasion_length_days: int = 7,
+) -> Dict[str, List[List[Optional[int]]]]:
+    """Site x occasion detection matrix per species (rows in site-id order).
+
+    Thin wrapper over build_site_detection_history for the occupancy fitter,
+    which only needs the per-species matrices.
     """
-    Yield detection-history rows for the CSV export.
-
-    Order: (camera_id, occasion, species). Uses one round-trip per slice of
-    species-set so memory stays bounded even on large projects.
-    """
-    if occasion_length_days < 1 or occasion_length_days > 30:
-        raise ValueError("occasion_length_days must be 1..30")
-    if start_date > end_date:
-        raise ValueError("start_date must be <= end_date")
-    if not project_ids:
-        return
-
-    # Active cameras + bounding deployment dates per camera. Per-occasion GPS
-    # is read from the matching Deployment below so a moved camera reports the
-    # correct coordinates for each occasion.
-    cameras_sql = text("""
-        SELECT
-            c.id AS camera_id,
-            c.device_id AS camera_name,
-            MIN(cdp.start_date) AS first_start,
-            MAX(COALESCE(cdp.end_date, CURRENT_DATE)) AS last_end
-        FROM cameras c
-        INNER JOIN deployments cdp ON cdp.camera_id = c.id
-        WHERE c.project_id = ANY(:project_ids)
-          AND (CAST(:camera_ids AS integer[]) IS NULL OR c.id = ANY(CAST(:camera_ids AS integer[])))
-          AND cdp.start_date <= CAST(:end_date AS date)
-          AND (cdp.end_date IS NULL OR cdp.end_date >= CAST(:start_date AS date))
-        GROUP BY c.id, c.device_id
-        ORDER BY c.id
-    """)
-    cameras = (await db.execute(cameras_sql, {
-        "project_ids": project_ids,
-        "camera_ids": camera_ids,
-        "start_date": start_date,
-        "end_date": end_date,
-    })).all()
-    if not cameras:
-        return
-    active_camera_ids = [c.camera_id for c in cameras]
-
-    # Deployment intervals per camera with their per-deployment GPS so we
-    # can stamp each (camera, occasion) row with the location the camera
-    # was actually at during that occasion. A camera can have several rows
-    # here when it was moved more than 100 m mid-window.
-    deployments_sql = text("""
-        SELECT camera_id, start_date AS dep_start,
-               COALESCE(end_date, CURRENT_DATE) AS dep_end,
-               ST_Y(location::geometry) AS lat,
-               ST_X(location::geometry) AS lon
-        FROM deployments
-        WHERE camera_id = ANY(:camera_ids)
-          AND start_date <= CAST(:end_date AS date)
-          AND (end_date IS NULL OR end_date >= CAST(:start_date AS date))
-        ORDER BY camera_id, start_date
-    """)
-    dep_rows = (await db.execute(deployments_sql, {
-        "camera_ids": active_camera_ids,
-        "start_date": start_date,
-        "end_date": end_date,
-    })).all()
-    deployments_by_camera: dict = {}
-    for r in dep_rows:
-        # Treat POINT(0 0) as missing — the backfill script writes that as a
-        # placeholder when a deployment has no usable GPS.
-        lat = r.lat if r.lat is not None and (r.lat != 0 or r.lon != 0) else None
-        lon = r.lon if lat is not None else None
-        deployments_by_camera.setdefault(r.camera_id, []).append(
-            (r.dep_start, r.dep_end, lat, lon)
-        )
-
-    # All species observed at any active camera during the window.
-    species_sql = text("""
-        SELECT DISTINCT species FROM (
-            SELECT LOWER(ho.species) AS species
-            FROM human_observations ho
-            INNER JOIN images i ON ho.image_id = i.id
-            WHERE i.camera_id = ANY(:camera_ids)
-              AND i.is_verified = TRUE AND i.is_hidden = FALSE
-              AND i.captured_at >= CAST(:start_dt AS timestamp)
-              AND i.captured_at <= CAST(:end_dt AS timestamp)
-              AND LOWER(ho.species) NOT IN ('person', 'vehicle')
-            UNION
-            SELECT LOWER(cl.species) AS species
-            FROM classifications cl
-            INNER JOIN detections d ON cl.detection_id = d.id
-            INNER JOIN images i ON d.image_id = i.id
-            INNER JOIN cameras c ON i.camera_id = c.id
-            INNER JOIN projects p ON c.project_id = p.id
-            WHERE i.camera_id = ANY(:camera_ids)
-              AND i.is_verified = FALSE AND i.is_hidden = FALSE
-              AND i.captured_at >= CAST(:start_dt AS timestamp)
-              AND i.captured_at <= CAST(:end_dt AS timestamp)
-              AND d.confidence >= p.detection_threshold
-              AND cl.confidence >= COALESCE(
-                  (p.classification_thresholds->'overrides'->>cl.species)::float,
-                  (p.classification_thresholds->>'default')::float,
-                  0.0
-              )
-        ) s
-        WHERE species IS NOT NULL AND species <> ''
-        ORDER BY species
-    """)
-    start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt = datetime.combine(end_date, datetime.max.time())
-    species_rows = (await db.execute(species_sql, {
-        "camera_ids": active_camera_ids,
-        "start_dt": start_dt,
-        "end_dt": end_dt,
-    })).all()
-    species_list = [r.species for r in species_rows]
-    if not species_list:
-        # No species observed; still emit zero-rows per (camera, occasion) so
-        # downstream code can verify the active-camera × occasion grid.
-        species_list = []
-
-    # All presence pairs (camera, occasion_start, species) in one fetch — the
-    # observed cells. Anything not present is either 0 (camera active) or NA
-    # (camera not active), determined by the deployment-overlap test below.
-    presence_sql = text("""
-        SELECT camera_id, occasion_start, species FROM (
-            SELECT
-                i.camera_id AS camera_id,
-                (DATE_TRUNC('day', i.captured_at)::date
-                 - ((EXTRACT(EPOCH FROM (DATE_TRUNC('day', i.captured_at) - CAST(:start_date AS timestamp)))::bigint
-                     / 86400) % :occasion_length) * INTERVAL '1 day'
-                )::date AS occasion_start,
-                LOWER(ho.species) AS species
-            FROM human_observations ho
-            INNER JOIN images i ON ho.image_id = i.id
-            WHERE i.camera_id = ANY(:camera_ids)
-              AND i.is_verified = TRUE AND i.is_hidden = FALSE
-              AND i.captured_at >= CAST(:start_dt AS timestamp)
-              AND i.captured_at <= CAST(:end_dt AS timestamp)
-              AND LOWER(ho.species) NOT IN ('person', 'vehicle')
-            UNION
-            SELECT
-                i.camera_id AS camera_id,
-                (DATE_TRUNC('day', i.captured_at)::date
-                 - ((EXTRACT(EPOCH FROM (DATE_TRUNC('day', i.captured_at) - CAST(:start_date AS timestamp)))::bigint
-                     / 86400) % :occasion_length) * INTERVAL '1 day'
-                )::date AS occasion_start,
-                LOWER(cl.species) AS species
-            FROM classifications cl
-            INNER JOIN detections d ON cl.detection_id = d.id
-            INNER JOIN images i ON d.image_id = i.id
-            INNER JOIN cameras c ON i.camera_id = c.id
-            INNER JOIN projects p ON c.project_id = p.id
-            WHERE i.camera_id = ANY(:camera_ids)
-              AND i.is_verified = FALSE AND i.is_hidden = FALSE
-              AND i.captured_at >= CAST(:start_dt AS timestamp)
-              AND i.captured_at <= CAST(:end_dt AS timestamp)
-              AND d.confidence >= p.detection_threshold
-              AND cl.confidence >= COALESCE(
-                  (p.classification_thresholds->'overrides'->>cl.species)::float,
-                  (p.classification_thresholds->>'default')::float,
-                  0.0
-              )
-        ) p
-        GROUP BY camera_id, occasion_start, species
-    """)
-    presence_rows = (await db.execute(presence_sql, {
-        "camera_ids": active_camera_ids,
-        "start_date": start_date,
-        "occasion_length": occasion_length_days,
-        "start_dt": start_dt,
-        "end_dt": end_dt,
-    })).all()
-    presence_set = {(r.camera_id, r.occasion_start, r.species) for r in presence_rows}
-
-    # Walk the full grid in deterministic order: camera, occasion, species.
-    occasions: List[Tuple[int, date, date]] = []
-    occ_idx = 1
-    cursor = start_date
-    while cursor <= end_date:
-        occ_end = min(cursor + timedelta(days=occasion_length_days - 1), end_date)
-        occasions.append((occ_idx, cursor, occ_end))
-        cursor = occ_end + timedelta(days=1)
-        occ_idx += 1
-
-    for cam in cameras:
-        deps = deployments_by_camera.get(cam.camera_id, [])
-        for occ_num, occ_start, occ_end in occasions:
-            # Find the deployment that covers this occasion. Pick the first
-            # overlapping deployment with valid GPS so a moved camera reports
-            # the correct location per occasion. Fall back to any overlapping
-            # deployment when none has GPS — the camera is still "active".
-            matching: Optional[Tuple[date, date, Optional[float], Optional[float]]] = None
-            fallback_active: Optional[Tuple[date, date, Optional[float], Optional[float]]] = None
-            for d in deps:
-                d_start, d_end, _, _ = d
-                if d_start <= occ_end and d_end >= occ_start:
-                    fallback_active = fallback_active or d
-                    if d[2] is not None:
-                        matching = d
-                        break
-            chosen = matching or fallback_active
-            active = chosen is not None
-            lat = chosen[2] if chosen else None
-            lon = chosen[3] if chosen else None
-            for sp in species_list:
-                if not active:
-                    detected: Optional[int] = None
-                elif (cam.camera_id, occ_start, sp) in presence_set:
-                    detected = 1
-                else:
-                    detected = 0
-                yield {
-                    "locationID": str(cam.camera_id),
-                    "locationName": cam.camera_name,
-                    "latitude": round(lat, 6) if lat is not None else None,
-                    "longitude": round(lon, 6) if lon is not None else None,
-                    "occasion": occ_num,
-                    "occasion_start": occ_start.isoformat(),
-                    "occasion_end": occ_end.isoformat(),
-                    "species": sp,
-                    "detected": detected,
-                }
+    if not species_subset:
+        return {}
+    history = await build_site_detection_history(
+        db, project_ids, start_date, end_date,
+        site_ids=site_ids, species_subset=species_subset,
+        occasion_length_days=occasion_length_days,
+    )
+    return history["matrices"]

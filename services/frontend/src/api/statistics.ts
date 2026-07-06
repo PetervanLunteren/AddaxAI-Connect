@@ -246,14 +246,14 @@ export const statisticsApi = {
     projectId: number,
     startDate: string,
     endDate: string,
-    options?: { cameraIds?: string; occasionLengthDays?: number },
+    options?: { siteIds?: string; occasionLengthDays?: number },
   ): Promise<{ blob: Blob; filename: string }> => {
     const params: Record<string, string | number> = {
       project_id: projectId,
       start_date: startDate,
       end_date: endDate,
     };
-    if (options?.cameraIds) params.camera_ids = options.cameraIds;
+    if (options?.siteIds) params.site_ids = options.siteIds;
     if (options?.occasionLengthDays !== undefined) {
       params.occasion_length_days = options.occasionLengthDays;
     }

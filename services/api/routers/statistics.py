@@ -28,8 +28,8 @@ from utils.preferred_counts import (
     get_preferred_daily_trend,
     get_preferred_species_first_dates,
     get_naive_occupancy,
-    get_detection_history,
     build_site_detection_matrix,
+    build_site_detection_history,
     get_preferred_species_detection_times,
 )
 from utils.occupancy_model import fit_single_season_occupancy
@@ -1817,57 +1817,67 @@ async def get_timeline(
     return TimelineResponse(**payload)
 
 
+def _csv_escape(value: str) -> str:
+    """Quote a CSV field when it contains a delimiter, quote, or newline."""
+    if any(ch in value for ch in (',', '"', '\n', '\r')):
+        return '"' + value.replace('"', '""') + '"'
+    return value
+
+
 @router.get("/detection-history.csv")
 async def get_detection_history_csv(
     project_id: int = Query(..., description="Project to export from (single project required)"),
     start_date: date = Query(..., description="Window start (YYYY-MM-DD)"),
     end_date: date = Query(..., description="Window end (YYYY-MM-DD)"),
-    camera_ids: Optional[str] = Query(None, description="Comma-separated camera IDs"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     occasion_length_days: int = Query(1, ge=1, le=30, description="Length of one occasion in days"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Stream a Camtrap-DP-flavoured detection-history CSV for the given project
-    and window. One row per (active camera site, occasion, observed species).
+    Stream a site x occasion detection-history CSV, the shape occupancy models
+    in R expect (camtrapR / unmarked). One row per (species, site); the o1..oK
+    columns hold the detection history for that site:
+    - `1` — the species was detected at the site in that occasion
+    - `0` — the site was active that occasion with no detection
+    - empty — the site was inactive that occasion (NA in unmarked / camtrapR)
 
-    Cell encoding for the `detected` column:
-    - `1` — at least one detection of that species at that camera in that occasion
-    - `0` — camera was active that occasion, no detection of that species
-    - empty — camera was not active that occasion (NA in unmarked / camtrapR)
+    A "site" is the survey station, not a physical camera: cameras at one place
+    pool into a single row, and a camera swap stays the same row. Drop straight
+    into unmarked:
 
-    Designed to drop into R via `read.csv() |> tidyr::pivot_wider(names_from = occasion, values_from = detected)`.
+        df  <- read.csv("detection-history.csv")
+        y   <- as.matrix(df[df$species == "fox", grep("^o", names(df))])
+        umf <- unmarkedFrameOccu(y = y)
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
-    camera_id_list = [int(x.strip()) for x in camera_ids.split(',') if x.strip()] if camera_ids else None
+    site_id_list = _parse_id_list(site_ids)
 
-    # Build the streaming generator. Each yielded chunk is one CSV line.
-    async def stream():
-        header = "locationID,locationName,latitude,longitude,occasion,occasion_start,occasion_end,species,detected\n"
-        yield header
-        async for row in get_detection_history(
-            db=db,
-            project_ids=accessible_project_ids,
-            start_date=start_date,
-            end_date=end_date,
-            camera_ids=camera_id_list,
-            occasion_length_days=occasion_length_days,
-        ):
-            # CSV escape camera name in case it contains a comma or quote.
-            name = row["locationName"] or ""
-            if any(ch in name for ch in (',', '"', '\n', '\r')):
-                name = '"' + name.replace('"', '""') + '"'
-            lat = "" if row["latitude"] is None else f"{row['latitude']:.6f}"
-            lon = "" if row["longitude"] is None else f"{row['longitude']:.6f}"
-            detected_cell = "" if row["detected"] is None else str(row["detected"])
-            yield (
-                f"{row['locationID']},{name},{lat},{lon},"
-                f"{row['occasion']},{row['occasion_start']},{row['occasion_end']},"
-                f"{row['species']},{detected_cell}\n"
-            )
+    history = await build_site_detection_history(
+        db=db,
+        project_ids=accessible_project_ids,
+        start_date=start_date,
+        end_date=end_date,
+        site_ids=site_id_list,
+        species_subset=None,
+        occasion_length_days=occasion_length_days,
+    )
+
+    site_ids_order = history["site_ids"]
+    site_names = history["site_names"]
+    occ_cols = [f"o{idx + 1}" for idx, _s, _e in history["occasions"]]
+
+    def stream():
+        yield "species,site_id,site_name," + ",".join(occ_cols) + "\n"
+        for species in sorted(history["matrices"].keys()):
+            matrix = history["matrices"][species]
+            for row_idx, site_id in enumerate(site_ids_order):
+                name = _csv_escape(site_names.get(site_id, ""))
+                cells = ",".join("" if c is None else str(c) for c in matrix[row_idx])
+                yield f"{_csv_escape(species)},{site_id},{name},{cells}\n"
 
     filename = f"detection-history-project-{project_id}-{start_date}-to-{end_date}.csv"
     return StreamingResponse(
