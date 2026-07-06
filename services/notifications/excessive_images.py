@@ -228,7 +228,11 @@ def _get_cameras_over_threshold(
         text("""
             SELECT c.id, c.device_id, c.notes, COUNT(*) as image_count,
                    (c.config->'gps_from_report'->>'lat')::float as lat,
-                   (c.config->'gps_from_report'->>'lon')::float as lon
+                   (c.config->'gps_from_report'->>'lon')::float as lon,
+                   (SELECT s.name FROM deployments d JOIN sites s ON s.id = d.site_id
+                    WHERE d.camera_id = c.id
+                    ORDER BY (d.end_date IS NULL) DESC, d.start_date DESC
+                    LIMIT 1) as site_name
             FROM images i
             JOIN cameras c ON i.camera_id = c.id
             WHERE c.project_id = :project_id
@@ -250,7 +254,7 @@ def _get_cameras_over_threshold(
     for row in result:
         cameras.append({
             'id': row.id,
-            'name': row.device_id,
+            'site_name': row.site_name,
             'device_id': row.device_id,
             'notes': row.notes,
             'image_count': row.image_count,
@@ -280,13 +284,14 @@ def _generate_text_content(
     ]
 
     for cam in cameras:
-        lines.append(f"  {cam['name']}")
-        if cam['device_id']:
+        # Lead with the site (the place); the device id is shown once below it.
+        header = cam['site_name'] or cam['device_id']
+        lines.append(f"  {header}")
+        if cam['site_name'] and cam['device_id']:
             lines.append(f"    Camera ID: {cam['device_id']}")
         lines.append(f"    Images: {cam['image_count']}")
         lines.append(f"    View: {images_url}?camera_id={cam['id']}&show_empty=true")
         if cam['lat'] is not None and cam['lon'] is not None:
-            lines.append(f"    Location: {cam['lat']:.6f}, {cam['lon']:.6f}")
             lines.append(f"    Map: https://www.google.com/maps?q={cam['lat']},{cam['lon']}")
         if cam['notes']:
             lines.append(f"    Notes: {cam['notes']}")

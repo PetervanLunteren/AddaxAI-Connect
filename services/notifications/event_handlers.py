@@ -198,9 +198,13 @@ def handle_low_battery(
     }
 
     Message format:
-    "Low battery alert: Camera-GK123 (Camera ID: 123456789)
+    "Low battery alert: 123456789 at Waterhole North
     Battery: 25%
     Location: 51.5074, -0.1278"
+
+    The device id is shown once, followed by the camera's current site so the
+    reader knows where to walk. Falls back to just the device id when the camera
+    has no resolved site.
     """
     camera_name = event.get('camera_name')
     device_id = event.get('device_id')

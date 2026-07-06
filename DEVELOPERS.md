@@ -139,7 +139,7 @@ addaxai-connect/
 │   │   ├── routers/                   # API route handlers
 │   │   │   ├── admin.py               # Server admin endpoints
 │   │   │   ├── cameras.py             # Camera CRUD
-│   │   │   ├── camera_groups.py       # Camera group management
+│   │   │   ├── site_groups.py         # Merged sites (site groups) for the independence interval
 │   │   │   ├── camera_reference_images.py # Reference images per camera
 │   │   │   ├── sites.py               # Site CRUD
 │   │   │   ├── deployments.py         # Deployment list and escape-hatch reassign

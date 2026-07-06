@@ -29,10 +29,10 @@
             {% for cam in cameras %}
             <tr>
                 <td style="padding: 12px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
-                    <!-- Camera name + ID -->
+                    <!-- Site name, with the device id once as a muted subline -->
                     <p style="font-size: 15px; font-weight: 600; color: #1f2937; margin: 0;">
-                        {{ cam.name }}
-                        {% if cam.device_id %}
+                        {{ cam.site_name or cam.device_id }}
+                        {% if cam.site_name and cam.device_id %}
                         <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.device_id }}</span>
                         {% endif %}
                     </p>
@@ -41,11 +41,10 @@
                         <span style="font-weight: 600; color: #882000;">{{ cam.image_count }} images</span>
                         <span style="color: #6b7280;"> received yesterday</span>
                     </p>
-                    <!-- Location -->
+                    <!-- Map link (secondary) -->
                     {% if cam.lat is not none and cam.lon is not none %}
                     <p style="font-size: 13px; color: #6b7280; margin: 4px 0 0 0;">
-                        {{ '%.4f'|format(cam.lat) }}, {{ '%.4f'|format(cam.lon) }}
-                        &middot; <a href="https://www.google.com/maps?q={{ cam.lat }},{{ cam.lon }}" style="color: #0f6064; text-decoration: none;">View on map</a>
+                        <a href="https://www.google.com/maps?q={{ cam.lat }},{{ cam.lon }}" style="color: #0f6064; text-decoration: none;">View on map</a>
                     </p>
                     {% endif %}
                     <!-- Notes -->
