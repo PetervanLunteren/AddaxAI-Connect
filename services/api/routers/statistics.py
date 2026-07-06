@@ -1730,12 +1730,12 @@ class TimelineDeployment(BaseModel):
 
 
 class TimelineSite(BaseModel):
-    site_id: Optional[str] = None
+    site_id: Optional[int] = None
     site_name: str
     deployments: List[TimelineDeployment]
-    # Per-camera image-observed segments. One source of truth for the
-    # solid bars the chart draws and for the trap-nights metric. Computed
-    # globally per camera so CDP boundaries do not look like silence.
+    # Per-site image-observed segments (pooled across the site's cameras). One
+    # source of truth for the solid bars the chart draws and for the trap-nights
+    # metric. Computed across deployments so CDP boundaries do not look silent.
     intervals: List[TrapNightInterval] = []
     last_image_day: Optional[date] = None
     # Mirrors the Cameras-page rule (CameraHealthReport, 7-day cutoff).
@@ -1749,12 +1749,12 @@ class ConcurrentPoint(BaseModel):
 
 class HeatmapPoint(BaseModel):
     date: date
-    camera_id: int
+    site_id: int
     count: int
 
 
 class CdpTransition(BaseModel):
-    camera_id: int
+    site_id: int
     transition_date: date
 
 
