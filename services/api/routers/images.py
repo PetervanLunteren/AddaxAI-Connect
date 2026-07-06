@@ -328,7 +328,7 @@ async def list_images(
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
     origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
-    site_id: Optional[int] = Query(None, description="Filter to images at one site, via their deployment"),
+    site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -375,14 +375,17 @@ async def list_images(
         if camera_ids:
             filters.append(Image.camera_id.in_(camera_ids))
 
-    # All images at one site: every image whose deployment belongs to that site.
-    # Used by the "View images" link on the site slideout.
-    if site_id is not None:
-        filters.append(
-            Image.deployment_id.in_(
-                select(Deployment.id).where(Deployment.site_id == site_id)
+    # Images at one or more sites: every image whose deployment belongs to a
+    # selected site. Comma-separated so the Images page can filter by several
+    # sites; the "View images" link on the site slideout passes a single id.
+    if site_id:
+        site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
+        if site_ids:
+            filters.append(
+                Image.deployment_id.in_(
+                    select(Deployment.id).where(Deployment.site_id.in_(site_ids))
+                )
             )
-        )
 
     # Handle tags filter: an image matches when its deployment's site carries
     # any of the given tags. Tags describe the place, so they live on the Site;

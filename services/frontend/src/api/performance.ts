@@ -25,8 +25,8 @@ export interface PerformanceData {
 }
 
 export interface PerformanceFilters {
-  /** Comma-separated camera IDs */
-  camera_ids?: string;
+  /** Comma-separated site IDs */
+  site_ids?: string;
   /** YYYY-MM-DD */
   start_date?: string;
   /** YYYY-MM-DD */
@@ -43,7 +43,7 @@ export const performanceApi = {
       {
         params: {
           project_id: projectId,
-          camera_ids: filters?.camera_ids,
+          site_ids: filters?.site_ids,
           start_date: filters?.start_date,
           end_date: filters?.end_date,
         },

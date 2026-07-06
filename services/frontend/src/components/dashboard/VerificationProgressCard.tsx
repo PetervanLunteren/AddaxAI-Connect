@@ -15,21 +15,21 @@ import type { DateRange } from './DateRangeFilter';
 interface VerificationProgressCardProps {
   dateRange: DateRange;
   projectId?: number;
-  cameraIds?: string;
+  siteIds?: string;
 }
 
 export const VerificationProgressCard: React.FC<VerificationProgressCardProps> = ({
   dateRange,
   projectId,
-  cameraIds,
+  siteIds,
 }) => {
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'verification-progress-all', projectId, dateRange.startDate, dateRange.endDate, cameraIds],
+    queryKey: ['statistics', 'verification-progress-all', projectId, dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getVerificationProgressAll(projectId!, {
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
-        camera_ids: cameraIds,
+        site_ids: siteIds,
       }),
     enabled: projectId !== undefined,
   });

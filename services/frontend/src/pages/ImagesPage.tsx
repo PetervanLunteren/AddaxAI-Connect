@@ -31,10 +31,10 @@ import type { ImageListItem } from '../api/types';
 
 const FILTER_SCHEMA: FilterSchema = {
   camera_ids: 'string[]',
-  // The site slideout's "View images" deep-links here; rendered as a Site
-  // dropdown so it shows a clearable chip like every other filter. The
-  // deployment slideout instead deep-links camera + date range (existing fields).
-  site_id: 'string',
+  // The site slideout's "View images" deep-links here with a single id;
+  // rendered as a Sites multiselect so several places can be filtered at once.
+  // The deployment slideout instead deep-links camera + date range.
+  site_id: 'string[]',
   tags: 'string[]',
   species: 'string[]',
   date_from: 'date',
@@ -76,7 +76,7 @@ export const ImagesPage: React.FC = () => {
   // useSearchParams on every render; writes go through filtersToSearchParams.
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const cameraIdValues = asStringArray(parsed.camera_ids);
-  const siteId = asString(parsed.site_id);
+  const siteIdValues = asStringArray(parsed.site_id);
   const tagValues = asStringArray(parsed.tags);
   const speciesValues = asStringArray(parsed.species);
   const startDate = asString(parsed.date_from);
@@ -95,7 +95,7 @@ export const ImagesPage: React.FC = () => {
   const filterValues = useMemo<Record<string, FilterValue>>(
     () => ({
       camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
-      site_id: siteId || undefined,
+      site_id: siteIdValues.length > 0 ? siteIdValues : undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
       species: speciesValues.length > 0 ? speciesValues : undefined,
       date_from: startDate || undefined,
@@ -111,7 +111,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, siteId, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -140,7 +140,7 @@ export const ImagesPage: React.FC = () => {
         limit,
         project_id: projectId,
         camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
-        site_id: siteId ? Number(siteId) : undefined,
+        site_id: siteIdValues.length > 0 ? siteIdValues.join(',') : undefined,
         tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
@@ -243,17 +243,11 @@ export const ImagesPage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
-        key: 'camera_ids',
-        label: 'Cameras',
-        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
-        placeholder: 'All cameras',
-        summary: (n) => `${n} cameras`,
-      },
-      {
-        kind: 'select',
         key: 'site_id',
-        label: 'Site',
-        options: (sites ?? []).map((s) => ({ value: String(s.id), label: s.name })),
+        label: 'Sites',
+        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        placeholder: 'All sites',
+        summary: (n) => `${n} sites`,
       },
       {
         kind: 'multi-select',
@@ -262,6 +256,15 @@ export const ImagesPage: React.FC = () => {
         options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'camera_ids',
+        label: 'Cameras',
+        primary: false,
+        options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
+        placeholder: 'All cameras',
+        summary: (n) => `${n} cameras`,
       },
       {
         kind: 'multi-select',

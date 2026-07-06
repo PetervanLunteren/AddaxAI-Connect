@@ -250,7 +250,7 @@ export interface DetectionRateMapFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
-  camera_ids?: string;  // Comma-separated camera IDs
+  site_ids?: string;  // Comma-separated site IDs
 }
 
 export interface Project {
@@ -479,13 +479,13 @@ export interface ActivityPatternFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
-  camera_ids?: string;  // Comma-separated camera IDs
+  site_ids?: string;  // Comma-separated site IDs
 }
 
 export interface DateRangeFilters {
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
-  camera_ids?: string;  // Comma-separated camera IDs
+  site_ids?: string;  // Comma-separated site IDs
 }
 
 // Detection trend (daily counts)
@@ -498,7 +498,7 @@ export interface DetectionTrendFilters {
   species?: string;
   start_date?: string;  // YYYY-MM-DD
   end_date?: string;  // YYYY-MM-DD
-  camera_ids?: string;  // Comma-separated camera IDs
+  site_ids?: string;  // Comma-separated site IDs
 }
 
 // Trap effort (daily count of cameras deployed)
@@ -596,7 +596,7 @@ export interface NaiveOccupancyResponse {
 export interface NaiveOccupancyFilters {
   start_date?: string;
   end_date?: string;
-  camera_ids?: string;
+  site_ids?: string;  // Comma-separated site IDs
   top_n?: number;
 }
 
@@ -722,7 +722,7 @@ export interface ActivityOverlapResponse {
 export interface ActivityOverlapFilters {
   species_a: string;
   species_b?: string;
-  camera_ids?: string;
+  site_ids?: string;  // Comma-separated site IDs
   start_date?: string;
   end_date?: string;
   time_axis?: TimeAxis;
