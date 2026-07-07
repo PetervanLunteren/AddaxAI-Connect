@@ -377,10 +377,6 @@ export const SiteDetailSheet: React.FC<Props> = ({
                     <span>{detail.camera_count}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Placements</span>
-                    <span>{detail.deployment_count}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Images</span>
                     <span>{detail.image_count.toLocaleString()}</span>
                   </div>
