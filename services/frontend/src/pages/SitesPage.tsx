@@ -59,7 +59,7 @@ import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
 
-type SortColumn = 'name' | 'cameras' | 'deployments' | 'images' | 'last_activity';
+type SortColumn = 'name' | 'cameras' | 'images' | 'last_activity';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -105,8 +105,6 @@ function siteSortValue(site: SiteListItem, column: SortColumn): string | number 
       return site.name.toLowerCase();
     case 'cameras':
       return site.camera_count;
-    case 'deployments':
-      return site.deployment_count;
     case 'images':
       return site.image_count;
     case 'last_activity':
@@ -529,15 +527,6 @@ export const SitesPage: React.FC = () => {
                   </TableHead>
                   <TableHead className="text-right">
                     <SortableHeader
-                      label="Deployments"
-                      column="deployments"
-                      align="right"
-                      sort={sort}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <SortableHeader
                       label="Images"
                       column="images"
                       align="right"
@@ -565,7 +554,6 @@ export const SitesPage: React.FC = () => {
                   >
                     <TableCell className="font-medium">{site.name}</TableCell>
                     <TableCell className="text-right">{site.camera_count}</TableCell>
-                    <TableCell className="text-right">{site.deployment_count}</TableCell>
                     <TableCell className="text-right">
                       {site.image_count.toLocaleString()}
                     </TableCell>
