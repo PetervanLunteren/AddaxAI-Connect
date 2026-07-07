@@ -16,9 +16,10 @@ Open follow-ups:
 
 ## TODO
 - [ ] Do the things Quentin mentioned in an email. 
-- [ ] We recently introduced the site concept and made cameras just hardware without a name. Previously the cameras were nbamed after the sites, so that was how users used to work with. Now they are supposed to work with sites, not hardware, which makes sense in day to day work. However, there might still be some camera sepcfic selections and jargon lingering about. CCan wyo do a full audit and see if there is still the old workflow where cameras were used as sites and that are supposed to be sites now that the concept is live? AN example is the settiong "Camera groups" which should be "Independence groups" or something like that. IIn ythe selectbox it is currently the way that the user needs to select form a list of IMEIs, which does not make sense. It should be a list of site names. The camera IMEIs dont matter here. You see what I mean? Please do a full audit and see what you can find in this regard. What did we miss when we introduced the site concept? 
+- [ ] Make the about page not only show the tag, but also the commit hash for a fiull picture of which code it is running. 
 
 ## Possible future features
+- [ ] Make a script that tests updates on prod data on a dev server. Basically, I want a scipt (or edit restore.sh) that takes these args: original_code_commit hash (to see from where we need to update test it), the data to restore from backup disk (to ghet prod data to test it on, so you'll need to do more or less the same as restore.sh), which means youl need the source domain, the date is always the latetst, and --force always (this is for testing updates, so always on dev dummy data, perhaps with a confirmation prompt?). You see what I need? I just want a way to test updates more automaticaly. What do you think? What is best here?  
 - [ ] multi language
 - [ ] Make it event aware. 
 - [ ] Make it use label verification, and count confirmation just like AddaxAI WebUI. This improves the overcounting.... 
