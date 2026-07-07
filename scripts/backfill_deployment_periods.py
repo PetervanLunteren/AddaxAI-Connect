@@ -2,7 +2,7 @@
 Backfill camera deployment periods from historical image data.
 
 This script analyzes existing images with GPS data and creates deployment period
-records, detecting camera relocations (>100m GPS change).
+records, detecting camera relocations (GPS change beyond SITE_THRESHOLD_METERS).
 
 Run once after adding deployments table.
 
@@ -159,7 +159,7 @@ def detect_deployment_periods(
     """
     Detect deployment periods by clustering images by GPS location.
 
-    GPS change >100m triggers new deployment period.
+    A GPS change beyond SITE_THRESHOLD_METERS triggers a new deployment period.
 
     Args:
         camera_id: Camera ID

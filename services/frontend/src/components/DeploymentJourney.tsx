@@ -45,6 +45,33 @@ function startMs(s: string | null): number {
   return isNaN(t) ? Number.POSITIVE_INFINITY : t;
 }
 
+/**
+ * Collapse consecutive steps with the same title into one tenure.
+ *
+ * The same camera at one site (or one camera staying at the same site) can span
+ * several deployment records, split by a GPS re-pin or a gap crossing the split
+ * threshold. That split is a system detail. Reading it as the camera leaving and
+ * coming back is wrong, and gaps already live on the timeline, not here. So a
+ * new row appears only when the title actually changes. Only consecutive runs
+ * merge, so a camera that leaves and later returns still reads as two tenures.
+ * Items must be sorted oldest first.
+ */
+function mergeConsecutive(items: JourneyItem[]): JourneyItem[] {
+  const merged: JourneyItem[] = [];
+  for (const it of items) {
+    const last = merged[merged.length - 1];
+    if (last && last.title === it.title) {
+      // Extend the tenure to the later placement (null end means ongoing) and
+      // pool the images. startDate stays the earliest, since items are ordered.
+      last.endDate = it.endDate;
+      last.imageCount += it.imageCount;
+    } else {
+      merged.push({ ...it });
+    }
+  }
+  return merged;
+}
+
 export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onChangeSite }) => {
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground py-6 text-center">{emptyText}</p>;
@@ -54,10 +81,14 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
   const fallback = mode === 'camera' ? 'Unassigned site' : 'Unknown camera';
   // Oldest first so the list reads top-to-bottom as the story unfolds.
   const ordered = [...items].sort((a, b) => startMs(a.startDate) - startMs(b.startDate));
+  // Site mode reads as "which cameras stood here", so collapse a camera's
+  // consecutive placements into one row. Camera mode keeps each placement,
+  // because its change-site escape hatch acts on a single one.
+  const steps = mode === 'site' ? mergeConsecutive(ordered) : ordered;
 
   return (
     <ol className="relative ml-2 border-l border-border">
-      {ordered.map((it) => (
+      {steps.map((it) => (
         <li key={it.id} className="relative ml-5 pb-4 last:pb-0">
           <span className="absolute -left-[27px] top-3 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card" />
           <div className="rounded-md border p-3 text-sm">

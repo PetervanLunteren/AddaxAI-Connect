@@ -99,7 +99,7 @@ Go to the `Notifications` page in any project, click the Telegram link button, a
 
 ![Screenshot 2026-03-25 at 17 00 57](https://github.com/user-attachments/assets/923531a8-c819-42d1-baa3-31b9d392449e)
 
-Once linked, users can select which species they want to receive instant Telegram notifications about in their project notification settings.
+Once linked, users pick which species they want instant Telegram alerts for in their project notification settings. They can also limit the alerts to certain sites, so you only hear about the places you care about.
 
 ## You're all set
 
