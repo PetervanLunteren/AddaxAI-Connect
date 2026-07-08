@@ -38,7 +38,9 @@ import {
   getStatusColor,
   getBatteryColor,
   getSignalColor,
+  getSignalLabel,
   STATUS_LABELS,
+  UNKNOWN_COLOR,
 } from '../utils/camera-colors';
 import { TagInput } from './TagInput';
 import { DeploymentJourney } from './DeploymentJourney';
@@ -73,6 +75,14 @@ function fmtCoords(lat: number | null, lon: number | null): string {
 
 function errMsg(err: any): string {
   return err?.response?.data?.detail || err?.message || 'unknown error';
+}
+
+function fmtDate(s: string | null): string {
+  if (!s) return '-';
+  const d = new Date(s);
+  return isNaN(d.getTime())
+    ? s
+    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 // A camera health line on the cameras tab: a coloured dot then the words.
@@ -409,13 +419,25 @@ export const SiteDetailSheet: React.FC<Props> = ({
                               color={getStatusColor(c.status)}
                               text={`Status ${STATUS_LABELS[c.status] ?? c.status}`}
                             />
+                            {/* Battery and signal are point-in-time readings. A
+                                camera that has gone silent still shows its last
+                                values before it stopped, so grey the dots when it is
+                                not active, otherwise a stolen camera reads healthy. */}
                             <MetricRow
-                              color={getBatteryColor(c.battery_percentage)}
+                              color={c.status === 'active' ? getBatteryColor(c.battery_percentage) : UNKNOWN_COLOR}
                               text={`Battery ${c.battery_percentage != null ? `${c.battery_percentage}%` : 'unknown'}`}
                             />
                             <MetricRow
-                              color={getSignalColor(c.signal_quality)}
-                              text={`Signal ${c.signal_quality != null ? c.signal_quality : 'unknown'}`}
+                              color={c.status === 'active' ? getSignalColor(c.signal_quality) : UNKNOWN_COLOR}
+                              text={`Signal ${getSignalLabel(c.signal_quality)}`}
+                            />
+                            <MetricRow
+                              color={getStatusColor(c.status)}
+                              text={
+                                c.last_image_timestamp
+                                  ? `Last image ${fmtDate(c.last_image_timestamp)}`
+                                  : 'No images yet'
+                              }
                             />
                           </div>
                         </Link>
@@ -441,13 +463,24 @@ export const SiteDetailSheet: React.FC<Props> = ({
               // or from the camera slideout's history for old placements.
               <DeploymentJourney
                 mode="site"
-                items={(detail.deployments ?? []).map((d) => ({
-                  id: d.id,
-                  title: d.camera_name,
-                  startDate: d.start_date,
-                  endDate: d.end_date,
-                  imageCount: d.image_count,
-                }))}
+                items={(detail.deployments ?? []).map((d) => {
+                  // An open placement (no end date) keeps reading "to now" even
+                  // after its camera goes silent. Detect that and end the row at
+                  // the last image instead, so a stolen camera does not look
+                  // like it is still standing here.
+                  const cam = (cameras ?? []).find(
+                    (c) => (c.device_id ?? c.name) === d.camera_name
+                  );
+                  const inactive = d.end_date == null && cam != null && cam.status !== 'active';
+                  return {
+                    id: d.id,
+                    title: d.camera_name,
+                    startDate: d.start_date,
+                    endDate: inactive ? cam!.last_image_timestamp : d.end_date,
+                    imageCount: d.image_count,
+                    inactive,
+                  };
+                })}
                 emptyText="No camera has stood at this site yet."
               />
             )}

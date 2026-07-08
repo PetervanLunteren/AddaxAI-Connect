@@ -52,6 +52,19 @@ export function getSignalColor(csq: number | null): string {
 }
 
 /**
+ * Human label for a raw cellular signal quality value (CSQ, 0-31).
+ * The number alone means nothing to a user, so map it to words.
+ */
+export function getSignalLabel(csq: number | null): string {
+  if (csq === null) return 'N/A';
+  if (csq >= 20) return 'Excellent';
+  if (csq >= 15) return 'Good';
+  if (csq >= 10) return 'Fair';
+  if (csq >= 2) return 'Poor';
+  return 'No signal';
+}
+
+/**
  * Legend items for each color-by metric
  */
 export interface LegendItem {

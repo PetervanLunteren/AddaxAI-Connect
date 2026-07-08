@@ -21,6 +21,9 @@ export interface JourneyItem {
   startDate: string | null;
   endDate: string | null;
   imageCount: number;
+  // Open placement whose camera has gone silent. endDate then holds the last
+  // image date, and the row is marked inactive instead of reading "to now".
+  inactive?: boolean;
 }
 
 interface Props {
@@ -63,8 +66,10 @@ function mergeConsecutive(items: JourneyItem[]): JourneyItem[] {
     if (last && last.title === it.title) {
       // Extend the tenure to the later placement (null end means ongoing) and
       // pool the images. startDate stays the earliest, since items are ordered.
+      // The latest placement's live/inactive state wins.
       last.endDate = it.endDate;
       last.imageCount += it.imageCount;
+      last.inactive = it.inactive;
     } else {
       merged.push({ ...it });
     }
@@ -109,6 +114,7 @@ export const DeploymentJourney: React.FC<Props> = ({ mode, items, emptyText, onC
             </div>
             <p className="text-muted-foreground mt-1">
               {fmtDate(it.startDate)} to {it.endDate ? fmtDate(it.endDate) : 'now'}
+              {it.inactive && ', now inactive'}
             </p>
             <p className="text-muted-foreground">{it.imageCount.toLocaleString()} images</p>
           </div>
