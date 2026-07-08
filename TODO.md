@@ -16,10 +16,13 @@ Open follow-ups:
 
 ## TODO
 - [ ] Do the things Quentin mentioned in an email. 
-- [ ] Make the about page not only show the tag, but also the commit hash for a fiull picture of which code it is running. 
+- [ ] Make the about page not only show the tag, but also the commit hash for a fiull picture of which code it is running.
+
 
 ## Possible future features
 - [ ] Make a script that tests updates on prod data on a dev server. Basically, I want a scipt (or edit restore.sh) that takes these args: original_code_commit hash (to see from where we need to update test it), the data to restore from backup disk (to ghet prod data to test it on, so you'll need to do more or less the same as restore.sh), which means youl need the source domain, the date is always the latetst, and --force always (this is for testing updates, so always on dev dummy data, perhaps with a confirmation prompt?). You see what I need? I just want a way to test updates more automaticaly. What do you think? What is best here?  
+- [ ] Update the documentation regarding updates, restoring, and testing. Basically we need these pages (then we cover it all, right) 1) restore prod server to a backup state, 2) test update on dev server with prod data, 3) update prod server with prod data, 4) restore prod server from prod backup. Am i missing something? Perhaps deployment is one of them too. That is also a sever management thing. What do you think? Are there more server management things I as a server manager must do frequently? These pages should be written if they are not there already. So basically my first task is, do you agree with me above? And what do we have in terms of docs already (and are they up to date), and do they need updating? Investigate. Audit. I want the regular tasks like testing, updating, restoring, etc to be automated with scripts to make my like easier. If we have the scripts ready, lets make documentation pages about each, with the neccisary steps. (Or update the exisitng ones - some of them still talk about Digital Ocean snapshots, but nowadays we have our own backups in S3 buckets). 
+- [ ] Make per-host group_vars so we can store secrets per host and run it cleanly like ansible-playbook --limit pwn . perhaps als work with the prod and dev things. Explain how ansible yamls are typically used, and how power user work with it when manageing multiple servers. Now its becoming a hassle since i need to change the vaklues every time i do server management. 
 - [ ] multi language
 - [ ] Make it event aware. 
 - [ ] Make it use label verification, and count confirmation just like AddaxAI WebUI. This improves the overcounting.... 
