@@ -3,14 +3,14 @@
  *
  * One `<svg>` hosts:
  *   - Top axis with month / year ticks.
- *   - Middle, one row per camera, prefixed with a status dot.
+ *   - Middle, one row per site, prefixed with a status dot.
  *     - Deployment mode: light outer bar per CDP, solid inner segments for
  *       image-observed activity, vertical ticks at CDP boundaries.
  *     - Heatmap mode: a per-day rect grid coloured by image count, with
  *       a faint CDP-window guideline behind it. Switches to weekly bins
  *       when the visible window spans more than a year, so day cells stay
  *       legible on long ranges.
- *   - Bottom, step-function area chart of how many cameras delivered at
+ *   - Bottom, step-function area chart of how many sites delivered at
  *     least one image each day.
  *
  * Drag-to-zoom on the chart writes back to the parent's date filter.
@@ -376,7 +376,7 @@ export function DeploymentTimelineChart({
     setHover({
       x,
       y: concurrentTop,
-      title: 'Cameras active',
+      title: 'Sites active',
       subtitle: `${formatShortDate(cursorDayMs)} · ${count} of ${data.sites.length}`,
     });
   };
@@ -615,7 +615,7 @@ export function DeploymentTimelineChart({
           fill={AXIS_TEXT}
           transform={`rotate(-90 ${plotLeft - CONCURRENT_Y_LABEL_WIDTH - 6} ${(concurrentTop + concurrentBottom) / 2})`}
         >
-          Cameras active
+          Sites active
         </text>
 
         {/* Concurrent-strip hover capture. Transparent so it does not
