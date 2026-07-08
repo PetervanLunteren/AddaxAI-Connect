@@ -101,7 +101,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, canManage }) 
             </div>
           )}
 
-          {/* Three-dot menu (superuser only) */}
+          {/* Three-dot menu (project admins and server admins) */}
           {canManage && (
             <div className="absolute top-2 right-2" onClick={handleMenuClick}>
               <DropdownMenu>
