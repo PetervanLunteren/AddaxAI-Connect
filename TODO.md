@@ -15,6 +15,9 @@ Open follow-ups:
 - INSTAR sends no daily health reports, so the camera health page will stay empty for these cameras. Worth a UI hint someday.
 
 ## TODO
+- [ ] The cameras page is pretty sophiticated since that was the main management page before we introduced the site concept. It allows the user to do bulk tags, notes, etc. SHould we do the same for site? SO bulk: add tag, rrmove tag, set notes. Use shared helpers here. No snese to make this again. So same way of selecting,  bulk options,  modals, confirmations, etc. As much as possible shared code. SIngle source of truth. 
+- [ ] Lets also add the "display" option to the sites table to select which columns to see in the table. Use shared helpers here. No snese to make this again. As much as possible shared code. SIngle source of truth. ANything else we want to copy form the cameras page to the sites page? 
+- [ ] We should probabaly look at the total columns of both cameras and sites, and determine which cols are shown by default. ALso, is the display selection saved to local storage for later preferences? 
 - [ ] Do the things Quentin mentioned in an email. 
 - [ ] Make the about page not only show the tag, but also the commit hash for a fiull picture of which code it is running.
 
