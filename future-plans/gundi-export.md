@@ -9,13 +9,13 @@ data-ingestion gateway, as Events with image Attachments.
 Several conservation deployments run EarthRanger as their operational
 platform: rangers watch a live map of events, get alerts, and dispatch
 from it. Gundi is the gateway EarthRanger provides for third-party
-sensors — you push Events (a detection, with coordinates, a timestamp
+sensors: you push Events (a detection, with coordinates, a timestamp
 and free-form details) and Event Attachments (images) to a simple REST
 API, and Gundi routes them to the connected EarthRanger site (or SMART,
 wpsWatch, etc.).
 
-Connect already produces exactly the data such sites want — classified,
-geo-located camera-trap detections — but today the only way out is a
+Connect already produces exactly the data such sites want: classified,
+geo-located camera-trap detections. But today the only way out is a
 file download (CamTrap DP, CSV, spatial formats). Getting detections in
 front of a ranger team means manual re-import, which defeats the
 real-time value Connect was built around.
@@ -36,9 +36,9 @@ Verified against the [Gundi v2 API docs](https://support.earthranger.com/develop
   `apikey` header. Payload: `source` (device identifier), `title`,
   `event_type`, `recorded_at`, `location` (`lat`/`lon`), and a
   free-form `event_details` object. Returns an `object_id`.
-- `POST .../v2/events/{object_id}/attachments/` — multipart file
+- `POST .../v2/events/{object_id}/attachments/`: multipart file
   upload, one or more images per call.
-- `PATCH .../events/{object_id}/` — update an existing event's
+- `PATCH .../events/{object_id}/`: update an existing event's
   properties.
 
 The API key comes from a Connection created in the Gundi Portal, so
@@ -52,7 +52,7 @@ groups consecutive images of the same species at the same deployment
 within `independence_interval_minutes` into an "event" for exports
 (`utils/independence_filter.compute_event_assignments`). That grouping
 is the right granularity for EarthRanger: one animal visit, one event
-on the ranger's map, with all its images attached — rather than one
+on the ranger's map, with all its images attached, rather than one
 event per image flooding the feed.
 
 Per event:
@@ -60,7 +60,7 @@ Per event:
 - `source`: the camera's `device_id`, so each camera shows up as its
   own subject downstream.
 - `event_type`: one type per detection category (see open questions;
-  the types must exist on the EarthRanger side — documented setup
+  the types must exist on the EarthRanger side, a documented setup
   step).
 - `title`: e.g. `Leopard at Site 4 (CAM-012)`.
 - `recorded_at`: the first image's capture time, converted to UTC
@@ -74,9 +74,9 @@ Per event:
 **Attachments are blurred thumbnails**, not full-resolution originals.
 The thumbnail pipeline already applies the person/vehicle privacy blur,
 uploads stay small, and an EarthRanger event view does not need 12 MP.
-Person and vehicle detections are exported as their own event types —
-that is the security use case several EarthRanger sites care about
-most — and the blur guarantee is what makes exporting them defensible.
+Person and vehicle detections are exported as their own event types.
+That is the security use case several EarthRanger sites care about
+most, and the blur guarantee is what makes exporting them defensible.
 
 ## User experience
 
@@ -86,7 +86,7 @@ Two modes, both per project:
 project settings, pastes the Gundi endpoint and API key, hits *Test
 connection*, and flips *Enable sync*. From then on every image that
 finishes classification flows out automatically. The card shows last
-sync time, events sent, and the last error if something is wrong —
+sync time, events sent, and the last error if something is wrong,
 same shape as the Telegram integration card, but project-scoped.
 
 **Batch backfill.** A "Send to Gundi" row on the existing Exports page
@@ -102,28 +102,28 @@ bulk-upload job pattern for long-running work with progress, and the
 Telegram config pattern for third-party credentials.
 
 **A new `services/gundi-sync/` worker container.** Pushing to an
-external API over the network — with retries, backoff and per-event
-state — is exactly the kind of concern this codebase isolates into its
+external API over the network, with retries, backoff and per-event
+state, is exactly the kind of concern this codebase isolates into its
 own service. It consumes two Redis queues with live-over-backfill
 priority (`consume_forever_priority`, same as detection does for
 live vs. bulk):
 
-- `gundi-sync-live` — a small hook at the end of classification
+- `gundi-sync-live`: a small hook at the end of classification
   publishes the image id when its project has sync enabled.
-- `gundi-sync-backfill` — jobs enqueued by the API.
+- `gundi-sync-backfill`: jobs enqueued by the API.
 
 **New tables (one Alembic migration):**
 
-- `gundi_integration` — one row per project: endpoint URL, API key,
+- `gundi_integration`: one row per project: endpoint URL, API key,
   `sync_enabled`, `is_configured`, `health_status`,
   `last_health_check`, `events_sent`, `last_synced_at`, `last_error`.
-- `gundi_event` — the sync ledger: project, group key
+- `gundi_event`: the sync ledger: project, group key
   (species + deployment + interval window), the `object_id` Gundi
   returned, status (`pending` / `sent` / `failed`), retry count,
   timestamps.
-- `gundi_attachment` — one row per image attached: `gundi_event` FK,
+- `gundi_attachment`: one row per image attached: `gundi_event` FK,
   `image_id`, status.
-- `gundi_backfill_job` — mirrors `BulkUploadJob`: date range, status,
+- `gundi_backfill_job`: mirrors `BulkUploadJob`: date range, status,
   `total_events` / `sent_events` / `failed_events`, `error_message`.
 
 **API additions** (`services/api/routers/gundi.py`, project-admin
@@ -140,7 +140,7 @@ pages.
 **Continuous sync groups incrementally.** When a classified image
 arrives, the worker looks for an open `gundi_event` with the same
 species + deployment whose window still covers the image. If none
-exists it creates the Gundi event immediately (fast alerting — the
+exists it creates the Gundi event immediately (fast alerting: the
 first leopard image reaches the ranger map within seconds) and records
 the returned `object_id`. Subsequent images in the same group append
 via the attachments endpoint and bump the image count / confidence in
@@ -206,10 +206,10 @@ backfill never delays a real-time alert.
 
 ## Phasing
 
-1. **Batch backfill** — integration config card, test connection,
+1. **Batch backfill**: integration config card, test connection,
    backfill job + progress UI. Delivers value on its own and
    exercises the full mapping end to end.
-2. **Continuous sync** — the classification hook, live queue,
+2. **Continuous sync**: the classification hook, live queue,
    incremental grouping.
-3. **Refinements** — verification updates via PATCH, per-integration
+3. **Refinements**: verification updates via PATCH, per-integration
    filters (species/category selection, full-res toggle).
