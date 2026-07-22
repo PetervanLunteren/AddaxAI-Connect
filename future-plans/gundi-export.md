@@ -72,8 +72,9 @@ Per event:
   images, and whether the identification is AI or human-verified.
 
 **Attachments are blurred thumbnails**, not full-resolution originals.
-The thumbnail pipeline already applies the person/vehicle privacy blur,
-uploads stay small, and an EarthRanger event view does not need 12 MP.
+The export path already has a person/vehicle privacy blur helper that
+is applied to thumbnails at export time, uploads stay small, and an
+EarthRanger event view does not need 12 MP.
 Person and vehicle detections are exported as their own event types.
 That is the security use case several EarthRanger sites care about
 most, and the blur guarantee is what makes exporting them defensible.
