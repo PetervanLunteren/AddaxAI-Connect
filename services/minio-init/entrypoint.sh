@@ -35,9 +35,15 @@ REGION="${COLD_TIER_REGION:-eu-central-1}"
 # before re-adding so the new config takes effect. `mc ilm tier rm` refuses
 # while objects still reference the tier; that failure is the right behavior
 # (forces the operator to rehydrate cold objects before changing buckets).
-if mc ilm tier info minio "$NAME" --json > /tmp/tier.json 2>/dev/null; then
-  cur_bucket=$(grep -o '"Bucket":"[^"]*"' /tmp/tier.json | head -1 | cut -d: -f2- | tr -d '"')
-  cur_endpoint=$(grep -o '"Endpoint":"[^"]*"' /tmp/tier.json | head -1 | cut -d: -f2- | tr -d '"')
+#
+# Detection uses `mc ilm tier ls` because `mc ilm tier info NAME --json` is
+# broken in current mc releases (fails with "Incorrect number of arguments").
+# This stack registers at most one remote tier, so the first Bucket/Endpoint
+# in the listing belongs to $NAME.
+mc ilm tier ls minio --json > /tmp/tiers.json
+if grep -q "\"Name\":\"$NAME\"" /tmp/tiers.json; then
+  cur_bucket=$(grep -o '"Bucket":"[^"]*"' /tmp/tiers.json | head -1 | cut -d: -f2- | tr -d '"')
+  cur_endpoint=$(grep -o '"Endpoint":"[^"]*"' /tmp/tiers.json | head -1 | cut -d: -f2- | tr -d '"')
   if [ "$cur_bucket" = "$COLD_TIER_BUCKET" ] && [ "$cur_endpoint" = "$COLD_TIER_ENDPOINT" ]; then
     echo "Cold tier $NAME already points at $cur_bucket; updating credentials only"
     mc ilm tier update minio "$NAME" --access-key "$COLD_TIER_ACCESS_KEY" --secret-key "$COLD_TIER_SECRET_KEY"
@@ -63,7 +69,11 @@ else
     --region "$REGION"
 fi
 
-mc ilm rule remove --all --force minio/raw-images
+# `mc ilm rule remove --all` errors when the bucket has no lifecycle
+# configuration yet (fresh bucket), so only remove when one exists.
+if mc ilm rule export minio/raw-images > /dev/null 2>&1; then
+  mc ilm rule remove --all --force minio/raw-images
+fi
 mc ilm rule add --transition-days 0 --transition-tier "$NAME" --tags "tier=cold" minio/raw-images
 mc ilm rule add --noncurrentversion-expiration-days 1 --expired-object-delete-marker minio/raw-images
 

@@ -69,7 +69,10 @@ services:
   # tag-based ILM rules so objects carrying tag `tier=cold` transition there.
   # Recreates the tier registration on bucket/endpoint change.
   minio-init:
-    image: minio/mc:latest
+    # Pinned because a `latest` pull once broke the tier detection in
+    # entrypoint.sh (`mc ilm tier info --json` regression). Verify the
+    # entrypoint against the new release before bumping.
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: addaxai-minio-init
     profiles: [deepfaune, speciesnet, demo]
     depends_on:
