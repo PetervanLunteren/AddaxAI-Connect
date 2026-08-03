@@ -7,7 +7,7 @@
  * with its deployments. Filter, sort and view-mode are URL-synced so links
  * and refreshes preserve state, same as CamerasPage.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -15,9 +15,6 @@ import {
   Loader2,
   Map as MapIcon,
   Table as TableIcon,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
 } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import {
@@ -58,8 +55,17 @@ import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
-
-type SortColumn = 'name' | 'cameras' | 'images' | 'last_activity';
+import { ColumnPicker } from '../components/ui/ColumnPicker';
+import { SortableHeader } from '../components/ui/SortableHeader';
+import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
+import { useBulkSelection } from '../hooks/useBulkSelection';
+import {
+  BulkAddTagsDialog,
+  BulkRemoveTagsDialog,
+  BulkSetNotesDialog,
+  BulkSetHabitatDialog,
+} from '../components/BulkEditDialogs';
+import { siteColumnPrefs, type SiteColumnId } from '../components/sites/columnDefs';
 
 const FILTER_SCHEMA: FilterSchema = {
   search: 'string',
@@ -99,49 +105,30 @@ function fmtCoords(lat: number | null, lon: number | null): string {
 const asString = (v: string | string[] | undefined): string =>
   typeof v === 'string' ? v : '';
 
-function siteSortValue(site: SiteListItem, column: SortColumn): string | number | null {
+// Columns whose numbers read better right-aligned.
+const RIGHT_ALIGNED = new Set<SiteColumnId>(['cameras', 'deployments', 'images']);
+
+function siteSortValue(site: SiteListItem, column: SiteColumnId): string | number | null {
   switch (column) {
     case 'name':
       return site.name.toLowerCase();
+    case 'tags':
+      return (site.tags ?? []).join(', ').toLowerCase() || null;
+    case 'habitat':
+      return site.habitat_type?.toLowerCase() ?? null;
     case 'cameras':
       return site.camera_count;
+    case 'deployments':
+      return site.deployment_count;
     case 'images':
       return site.image_count;
     case 'last_activity':
       return site.last_activity ?? null;
+    default:
+      // Non-sortable columns (coordinates, notes) fall through to unsorted.
+      return null;
   }
 }
-
-const SortableHeader: React.FC<{
-  label: string;
-  column: SortColumn;
-  align?: 'left' | 'right';
-  sort: { column: SortColumn | null; direction: 'asc' | 'desc' };
-  onSort: (column: SortColumn) => void;
-}> = ({ label, column, align, sort, onSort }) => {
-  const isActive = sort.column === column;
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex items-center gap-1 hover:text-foreground transition-colors -my-1',
-        align === 'right' ? 'ml-auto' : '',
-      )}
-      onClick={() => onSort(column)}
-    >
-      {label}
-      {isActive ? (
-        sort.direction === 'asc' ? (
-          <ArrowUp className="h-3.5 w-3.5" />
-        ) : (
-          <ArrowDown className="h-3.5 w-3.5" />
-        )
-      ) : (
-        <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
-      )}
-    </button>
-  );
-};
 
 export const SitesPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -174,9 +161,32 @@ export const SitesPage: React.FC = () => {
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [deleteSite, setDeleteSite] = useState<{ id: number; name: string } | null>(null);
 
+  // Bulk-edit selection, shared hook with the cameras page.
+  const {
+    selected: selectedSiteIds,
+    toggle: toggleSiteSelection,
+    clear: clearSiteSelection,
+    setMany: setSiteSelection,
+  } = useBulkSelection();
+  const [showBulkAddTags, setShowBulkAddTags] = useState(false);
+  const [showBulkRemoveTags, setShowBulkRemoveTags] = useState(false);
+  const [showBulkSetHabitat, setShowBulkSetHabitat] = useState(false);
+  const [showBulkSetNotes, setShowBulkSetNotes] = useState(false);
+
+  // Visible columns persist per-browser, same pattern as the cameras table.
+  const [visibleColumns, setVisibleColumns] = useState<SiteColumnId[]>(() => siteColumnPrefs.load());
+  useEffect(() => {
+    siteColumnPrefs.save(visibleColumns);
+  }, [visibleColumns]);
+  const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
+  const visibleColumnDefs = useMemo(
+    () => siteColumnPrefs.columns.filter((c) => visibleColumnSet.has(c.id)),
+    [visibleColumnSet],
+  );
+
   // Sort state stays local, like cameras. Default Name asc.
   const [sort, setSort] = useState<{
-    column: SortColumn | null;
+    column: SiteColumnId | null;
     direction: 'asc' | 'desc';
   }>({ column: 'name', direction: 'asc' });
 
@@ -263,7 +273,7 @@ export const SitesPage: React.FC = () => {
         kind: 'search',
         key: 'search',
         label: 'Search',
-        placeholder: 'Name, habitat, tag...',
+        placeholder: 'Name, habitat, tag, notes...',
       },
       {
         kind: 'select',
@@ -304,6 +314,7 @@ export const SitesPage: React.FC = () => {
         (s) =>
           s.name.toLowerCase().includes(q) ||
           (s.habitat_type ?? '').toLowerCase().includes(q) ||
+          (s.notes ?? '').toLowerCase().includes(q) ||
           (s.tags ?? []).some((t) => t.toLowerCase().includes(q)),
       );
     }
@@ -335,7 +346,7 @@ export const SitesPage: React.FC = () => {
     });
   }, [filteredSites, sort]);
 
-  const handleSort = (column: SortColumn) =>
+  const handleSort = (column: SiteColumnId) =>
     setSort((prev) =>
       prev.column === column
         ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
@@ -347,6 +358,47 @@ export const SitesPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['site', pid] });
     queryClient.invalidateQueries({ queryKey: ['site-tags', pid] });
   };
+
+  // Shared success/error handlers for the bulk-edit mutations. On success:
+  // refresh the sites queries, drop the selection (so the bar disappears),
+  // and show a count toast. On error: show the API detail.
+  const onBulkSuccess = (res: { updated_count: number }) => {
+    invalidate();
+    clearSiteSelection();
+    setShowBulkAddTags(false);
+    setShowBulkRemoveTags(false);
+    setShowBulkSetHabitat(false);
+    setShowBulkSetNotes(false);
+    toast.success(`Updated ${res.updated_count} site${res.updated_count === 1 ? '' : 's'}`);
+  };
+  const onBulkError = (err: unknown) => {
+    toast.error(`Bulk update failed, ${errMsg(err)}`);
+  };
+
+  const bulkAddTagsMutation = useMutation({
+    mutationFn: (tags: string[]) =>
+      sitesApi.bulkAddTags(pid, Array.from(selectedSiteIds), tags),
+    onSuccess: onBulkSuccess,
+    onError: onBulkError,
+  });
+  const bulkRemoveTagsMutation = useMutation({
+    mutationFn: (tags: string[]) =>
+      sitesApi.bulkRemoveTags(pid, Array.from(selectedSiteIds), tags),
+    onSuccess: onBulkSuccess,
+    onError: onBulkError,
+  });
+  const bulkSetHabitatMutation = useMutation({
+    mutationFn: (habitat: string) =>
+      sitesApi.bulkSetHabitat(pid, Array.from(selectedSiteIds), habitat),
+    onSuccess: onBulkSuccess,
+    onError: onBulkError,
+  });
+  const bulkSetNotesMutation = useMutation({
+    mutationFn: (notes: string) =>
+      sitesApi.bulkSetNotes(pid, Array.from(selectedSiteIds), notes),
+    onSuccess: onBulkSuccess,
+    onError: onBulkError,
+  });
 
   const mergeMutation = useMutation({
     mutationFn: () => sitesApi.merge(pid, mergeSite!.id, Number(mergeTargetId)),
@@ -370,6 +422,66 @@ export const SitesPage: React.FC = () => {
     },
     onError: (err) => toast.error(`Could not delete site, ${errMsg(err)}`),
   });
+
+  // Per-column cell renderer. Each SiteColumnId returns the cell body, not
+  // the wrapping <TableCell>. Same pattern as the cameras table.
+  const renderSiteCell = (id: SiteColumnId, site: SiteListItem): React.ReactNode => {
+    switch (id) {
+      case 'name':
+        return site.name;
+      case 'tags':
+        return site.tags && site.tags.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {site.tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                className="px-2 py-0.5 text-xs font-medium rounded-full bg-accent text-accent-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+            {site.tags.length > 2 && (
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
+                +{site.tags.length - 2}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'habitat':
+        return site.habitat_type ? (
+          <span className="text-sm">{site.habitat_type}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+      case 'cameras':
+        return site.camera_count;
+      case 'deployments':
+        return site.deployment_count;
+      case 'images':
+        return site.image_count.toLocaleString();
+      case 'last_activity':
+        return fmtDate(site.last_activity);
+      case 'coordinates':
+        return (
+          <span className="text-muted-foreground text-sm">
+            {fmtCoords(site.latitude, site.longitude)}
+          </span>
+        );
+      case 'notes':
+        return site.notes ? (
+          <span
+            className="text-sm text-muted-foreground block max-w-[16rem] truncate"
+            title={site.notes}
+          >
+            {site.notes}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        );
+    }
+  };
 
   if (!selectedProject) {
     return (
@@ -402,6 +514,27 @@ export const SitesPage: React.FC = () => {
             values={filterValues}
             onChange={onFilterChange}
             onClearAll={onClearAll}
+            // Column visibility only applies to the table, so the Display
+            // popover is hidden in map view.
+            displayControls={
+              viewMode === 'table'
+                ? [
+                    {
+                      key: 'columns',
+                      label: 'Visible columns',
+                      render: () => (
+                        <ColumnPicker
+                          prefs={siteColumnPrefs}
+                          visible={visibleColumns}
+                          onChange={setVisibleColumns}
+                        />
+                      ),
+                    },
+                  ]
+                : []
+            }
+            displayValues={{}}
+            onDisplayChange={() => {}}
           />
           {isFiltered && (
             <p className="text-sm text-muted-foreground">
@@ -465,6 +598,34 @@ export const SitesPage: React.FC = () => {
         </div>
       )}
 
+      {/* Bulk-action bar. Only renders for admins with at least one site
+          selected. Sits between the toolbar and the table, same shape as
+          the cameras page's bulk bar. */}
+      {canEdit && selectedSiteIds.size > 0 && sites && sites.length > 0 && (
+        <div className="flex items-center gap-3 p-3 mb-3 bg-muted rounded-md flex-wrap">
+          <span className="text-sm font-medium">
+            {selectedSiteIds.size} of {sites.length} sites selected
+          </span>
+          <div className="flex gap-2 flex-wrap ml-auto">
+            <Button variant="outline" size="sm" onClick={() => setShowBulkAddTags(true)}>
+              Add tags
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowBulkRemoveTags(true)}>
+              Remove tags
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowBulkSetHabitat(true)}>
+              Set habitat
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowBulkSetNotes(true)}>
+              Set notes
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSiteSelection}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* List / empty / loading */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -505,66 +666,84 @@ export const SitesPage: React.FC = () => {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <SortableHeader
-                      label="Name"
-                      column="name"
-                      sort={sort}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <SortableHeader
-                      label="Cameras"
-                      column="cameras"
-                      align="right"
-                      sort={sort}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <SortableHeader
-                      label="Images"
-                      column="images"
-                      align="right"
-                      sort={sort}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead>
-                    <SortableHeader
-                      label="Last activity"
-                      column="last_activity"
-                      sort={sort}
-                      onSort={handleSort}
-                    />
-                  </TableHead>
-                  <TableHead>Coordinates</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedSites.map((site) => (
-                  <TableRow
-                    key={site.id}
-                    className="cursor-pointer"
-                    onClick={() => setDetailSiteId(site.id)}
-                  >
-                    <TableCell className="font-medium">{site.name}</TableCell>
-                    <TableCell className="text-right">{site.camera_count}</TableCell>
-                    <TableCell className="text-right">
-                      {site.image_count.toLocaleString()}
-                    </TableCell>
-                    <TableCell>{fmtDate(site.last_activity)}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {fmtCoords(site.latitude, site.longitude)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {canEdit && (
+                      <TableHead className="w-10">
+                        <SelectAllCheckbox
+                          visibleIds={sortedSites.map((s) => s.id)}
+                          selected={selectedSiteIds}
+                          onToggle={setSiteSelection}
+                          ariaLabel="Select all visible sites"
+                        />
+                      </TableHead>
+                    )}
+                    {visibleColumnDefs.map((col) => (
+                      <TableHead
+                        key={col.id}
+                        className={RIGHT_ALIGNED.has(col.id) ? 'text-right' : undefined}
+                      >
+                        {col.sortable ? (
+                          <SortableHeader
+                            label={col.label}
+                            column={col.id}
+                            align={RIGHT_ALIGNED.has(col.id) ? 'right' : undefined}
+                            sort={sort}
+                            onSort={handleSort}
+                          />
+                        ) : (
+                          col.label
+                        )}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {sortedSites.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={visibleColumnDefs.length + (canEdit ? 1 : 0)}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        No sites match your filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {sortedSites.map((site) => (
+                    <TableRow
+                      key={site.id}
+                      className="cursor-pointer"
+                      onClick={() => setDetailSiteId(site.id)}
+                    >
+                      {canEdit && (
+                        <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select site ${site.name}`}
+                            checked={selectedSiteIds.has(site.id)}
+                            onChange={() => toggleSiteSelection(site.id)}
+                            className="w-4 h-4 cursor-pointer accent-primary"
+                          />
+                        </TableCell>
+                      )}
+                      {visibleColumnDefs.map((col) => (
+                        <TableCell
+                          key={col.id}
+                          className={cn(
+                            col.id === 'name' ? 'font-medium' : undefined,
+                            RIGHT_ALIGNED.has(col.id) ? 'text-right' : undefined,
+                          )}
+                        >
+                          {renderSiteCell(col.id, site)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -584,6 +763,51 @@ export const SitesPage: React.FC = () => {
           setMergeTargetId('');
         }}
         onDeleteRequested={setDeleteSite}
+      />
+
+      {/* Bulk-edit dialogs. Suggestions for the remove dialog come from
+          tags currently on the selected sites only, so the user cannot
+          accidentally type a tag that no selected site carries. */}
+      <BulkAddTagsDialog
+        open={showBulkAddTags}
+        onClose={() => setShowBulkAddTags(false)}
+        count={selectedSiteIds.size}
+        noun="site"
+        isPending={bulkAddTagsMutation.isPending}
+        suggestions={tagSuggestions ?? []}
+        onConfirm={(tags) => bulkAddTagsMutation.mutate(tags)}
+      />
+      <BulkRemoveTagsDialog
+        open={showBulkRemoveTags}
+        onClose={() => setShowBulkRemoveTags(false)}
+        count={selectedSiteIds.size}
+        noun="site"
+        isPending={bulkRemoveTagsMutation.isPending}
+        suggestions={Array.from(
+          new Set(
+            (sites ?? [])
+              .filter((s) => selectedSiteIds.has(s.id))
+              .flatMap((s) => s.tags ?? []),
+          ),
+        ).sort()}
+        onConfirm={(tags) => bulkRemoveTagsMutation.mutate(tags)}
+      />
+      <BulkSetHabitatDialog
+        open={showBulkSetHabitat}
+        onClose={() => setShowBulkSetHabitat(false)}
+        count={selectedSiteIds.size}
+        noun="site"
+        isPending={bulkSetHabitatMutation.isPending}
+        onConfirm={(habitat) => bulkSetHabitatMutation.mutate(habitat)}
+      />
+      <BulkSetNotesDialog
+        open={showBulkSetNotes}
+        onClose={() => setShowBulkSetNotes(false)}
+        count={selectedSiteIds.size}
+        noun="site"
+        isPending={bulkSetNotesMutation.isPending}
+        placeholder="e.g. Clearing next to the river"
+        onConfirm={(notes) => bulkSetNotesMutation.mutate(notes)}
       />
 
       {/* Merge dialog */}

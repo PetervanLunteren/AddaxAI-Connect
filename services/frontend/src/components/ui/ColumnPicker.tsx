@@ -1,28 +1,28 @@
 /**
- * Inline column visibility list for the cameras table.
+ * Inline column visibility list, shared by the cameras and sites tables.
  *
  * One row per column. Toggling a row updates visibility immediately so
  * the user can keep picking. "Reset to defaults" at the bottom returns
  * the canonical set. Designed to live inside the FilterBar's Display
  * popover, hence inline (no dropdown wrapper of its own).
  */
-import React from 'react';
 import { Check } from 'lucide-react';
-import {
-  CAMERA_COLUMNS,
-  DEFAULT_VISIBLE,
-  type ColumnId,
-} from './columnDefs';
+import type { ColumnPrefs } from '../../lib/columnPrefs';
 
-interface ColumnPickerProps {
-  visible: ColumnId[];
-  onChange: (ids: ColumnId[]) => void;
+interface ColumnPickerProps<C extends string> {
+  prefs: ColumnPrefs<C>;
+  visible: C[];
+  onChange: (ids: C[]) => void;
 }
 
-export const ColumnPicker: React.FC<ColumnPickerProps> = ({ visible, onChange }) => {
+export function ColumnPicker<C extends string>({
+  prefs,
+  visible,
+  onChange,
+}: ColumnPickerProps<C>) {
   const visibleSet = new Set(visible);
 
-  const toggle = (id: ColumnId) => {
+  const toggle = (id: C) => {
     const next = visibleSet.has(id)
       ? visible.filter((v) => v !== id)
       : [...visible, id];
@@ -32,7 +32,7 @@ export const ColumnPicker: React.FC<ColumnPickerProps> = ({ visible, onChange })
   return (
     <div className="space-y-1">
       <div className="max-h-72 overflow-y-auto rounded-md border border-input">
-        {CAMERA_COLUMNS.map((column) => {
+        {prefs.columns.map((column) => {
           const checked = visibleSet.has(column.id);
           const locked = column.alwaysVisible === true;
           return (
@@ -61,11 +61,11 @@ export const ColumnPicker: React.FC<ColumnPickerProps> = ({ visible, onChange })
       </div>
       <button
         type="button"
-        onClick={() => onChange(DEFAULT_VISIBLE)}
+        onClick={() => onChange(prefs.defaults)}
         className="text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         Reset to defaults
       </button>
     </div>
   );
-};
+}

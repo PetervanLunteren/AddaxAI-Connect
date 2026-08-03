@@ -20,6 +20,7 @@ from shared.logger import get_logger
 from shared.models import Site, Deployment, User
 from auth.permissions import require_project_access, require_project_admin_access
 from utils.deployment_edits import recompute_site_location
+from utils.tags import normalize_tags
 
 logger = get_logger("api.sites")
 
@@ -42,6 +43,7 @@ class SiteListItem(BaseModel):
     # Naive camera-clock timestamp of the most recent image at this site.
     last_activity: Optional[str] = None
     tags: Optional[List[str]] = None
+    notes: Optional[str] = None
 
 
 class DeploymentSummary(BaseModel):
@@ -86,21 +88,6 @@ class UpdateSiteRequest(BaseModel):
     habitat_type: Optional[str] = Field(default=None, max_length=100)
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
-
-
-def _normalize_tags(tags: Optional[List[str]]) -> List[str]:
-    """Normalize tags: lowercase, strip, deduplicate, remove empties and commas.
-    Same shape used for camera tags."""
-    if not tags:
-        return []
-    seen: set = set()
-    result: List[str] = []
-    for raw in tags:
-        tag = raw.strip().lower().replace(',', '')
-        if tag and tag not in seen:
-            seen.add(tag)
-            result.append(tag)
-    return result
 
 
 class MergeSiteRequest(BaseModel):
@@ -197,7 +184,7 @@ async def list_sites(
     rows = (
         await db.execute(
             text("""
-                SELECT s.id, s.uuid, s.name, s.habitat_type, s.tags,
+                SELECT s.id, s.uuid, s.name, s.habitat_type, s.tags, s.notes,
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon,
                        count(DISTINCT d.id) AS deployment_count,
@@ -228,6 +215,7 @@ async def list_sites(
             image_count=r["image_count"],
             last_activity=r["last_activity"].isoformat() if r["last_activity"] else None,
             tags=r["tags"],
+            notes=r["notes"],
         )
         for r in rows
     ]
@@ -285,6 +273,144 @@ async def create_site(
     return await _build_detail(db, project_id, site.id)
 
 
+# Bulk-edit endpoints. Declared before /{site_id} so FastAPI matches the
+# literal segment first (otherwise "bulk-add-tags" gets coerced to site_id:
+# int and 422s, same gotcha as the camera bulk routes).
+
+class BulkSiteIdsRequest(BaseModel):
+    """Common payload prefix: every bulk action operates on a list of sites."""
+    site_ids: List[int]
+
+
+class BulkTagsRequest(BulkSiteIdsRequest):
+    tags: List[str]
+
+
+class BulkSetNotesRequest(BulkSiteIdsRequest):
+    # Empty string is a valid clear; the frontend confirms the destructive
+    # nature in the dialog before firing.
+    notes: str
+
+
+class BulkSetHabitatRequest(BulkSiteIdsRequest):
+    # Empty string clears the habitat type on every selected site.
+    habitat_type: str = Field(max_length=100)
+
+
+class BulkUpdateResponse(BaseModel):
+    updated_count: int
+
+
+async def _load_bulk_sites(
+    db: AsyncSession, project_id: int, site_ids: List[int],
+) -> List[Site]:
+    """Fetch the sites for a bulk request and reject empty lists, stale IDs,
+    or sites outside the project. The route dependency already verified
+    project-admin access, so membership in the project is the only check left."""
+    if not site_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="site_ids must not be empty",
+        )
+
+    requested = set(site_ids)
+    result = await db.execute(
+        select(Site).where(Site.id.in_(requested), Site.project_id == project_id)
+    )
+    sites = list(result.scalars().all())
+
+    found = {s.id for s in sites}
+    missing = sorted(requested - found)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown site IDs in this project: {missing}",
+        )
+
+    return sites
+
+
+@router.post("/bulk-add-tags", response_model=BulkUpdateResponse)
+async def bulk_add_tags(
+    project_id: int,
+    request: BulkTagsRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Append the given tags to every selected site. Existing tags are kept,
+    duplicates collapse via normalize_tags."""
+    if not request.tags:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tags must not be empty",
+        )
+
+    sites = await _load_bulk_sites(db, project_id, request.site_ids)
+    incoming = normalize_tags(request.tags)
+    for site in sites:
+        site.tags = normalize_tags(list(site.tags or []) + incoming)
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(sites))
+
+
+@router.post("/bulk-remove-tags", response_model=BulkUpdateResponse)
+async def bulk_remove_tags(
+    project_id: int,
+    request: BulkTagsRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Remove the given tags from every selected site. Tags not present are
+    a no-op for that row; the request never errors on a missing tag."""
+    if not request.tags:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tags must not be empty",
+        )
+
+    sites = await _load_bulk_sites(db, project_id, request.site_ids)
+    to_remove = set(normalize_tags(request.tags))
+    for site in sites:
+        site.tags = [t for t in (site.tags or []) if t not in to_remove]
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(sites))
+
+
+@router.post("/bulk-set-notes", response_model=BulkUpdateResponse)
+async def bulk_set_notes(
+    project_id: int,
+    request: BulkSetNotesRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Replace notes on every selected site with the given string. Empty
+    string clears the field."""
+    sites = await _load_bulk_sites(db, project_id, request.site_ids)
+    for site in sites:
+        site.notes = request.notes or None
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(sites))
+
+
+@router.post("/bulk-set-habitat", response_model=BulkUpdateResponse)
+async def bulk_set_habitat(
+    project_id: int,
+    request: BulkSetHabitatRequest,
+    user: User = Depends(require_project_admin_access),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Set habitat_type on every selected site. Empty string clears it."""
+    sites = await _load_bulk_sites(db, project_id, request.site_ids)
+    for site in sites:
+        site.habitat_type = request.habitat_type.strip() or None
+
+    await db.commit()
+    return BulkUpdateResponse(updated_count=len(sites))
+
+
 @router.get("/{site_id}", response_model=SiteDetail)
 async def get_site(
     project_id: int,
@@ -313,7 +439,7 @@ async def update_site(
     if body.notes is not None:
         site.notes = body.notes or None
     if body.tags is not None:
-        site.tags = _normalize_tags(body.tags)
+        site.tags = normalize_tags(body.tags)
     try:
         await db.commit()
     except IntegrityError:

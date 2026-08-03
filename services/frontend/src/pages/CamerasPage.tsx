@@ -15,9 +15,6 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
   ChevronDown,
   Route,
 } from 'lucide-react';
@@ -90,51 +87,24 @@ const FILTER_SCHEMA: FilterSchema = {
 
 const asString = (v: string | string[] | undefined): string =>
   typeof v === 'string' ? v : '';
-import { ColumnPicker } from '../components/cameras/ColumnPicker';
+import { ColumnPicker } from '../components/ui/ColumnPicker';
+import { SortableHeader } from '../components/ui/SortableHeader';
+import { SelectAllCheckbox } from '../components/ui/SelectAllCheckbox';
+import { useBulkSelection } from '../hooks/useBulkSelection';
 import {
   BulkAddTagsDialog,
   BulkRemoveTagsDialog,
   BulkSetSimExpiryDialog,
   BulkSetNotesDialog,
-} from '../components/cameras/BulkEditDialogs';
+} from '../components/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
 import { useToast } from '../components/ui/Toaster';
 import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
 import { feedApi } from '../api/feed';
-import {
-  CAMERA_COLUMNS,
-  loadVisibleColumns,
-  saveVisibleColumns,
-  type ColumnId,
-} from '../components/cameras/columnDefs';
+import { cameraColumnPrefs, type ColumnId } from '../components/cameras/columnDefs';
 import { formatRelative } from '../utils/datetime';
 import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
 import { useDropzone } from 'react-dropzone';
-
-const SortableHeader: React.FC<{
-  label: string;
-  column: ColumnId;
-  sort: { column: ColumnId | null; direction: 'asc' | 'desc' };
-  onSort: (column: ColumnId) => void;
-}> = ({ label, column, sort, onSort }) => {
-  const isActive = sort.column === column;
-  return (
-    <button
-      type="button"
-      className="flex items-center gap-1 hover:text-foreground transition-colors -my-1"
-      onClick={() => onSort(column)}
-    >
-      {label}
-      {isActive ? (
-        sort.direction === 'asc'
-          ? <ArrowUp className="h-3.5 w-3.5" />
-          : <ArrowDown className="h-3.5 w-3.5" />
-      ) : (
-        <ArrowUpDown className="h-3.5 w-3.5 opacity-30" />
-      )}
-    </button>
-  );
-};
 
 export const CamerasPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -153,9 +123,13 @@ export const CamerasPage: React.FC = () => {
   // Single-camera delete requested from the detail sheet (server admins).
   const [cameraToDelete, setCameraToDelete] = useState<{ id: number; name: string } | null>(null);
 
-  // Bulk-edit selection. The Set persists across filter / sort / search
-  // changes; the header checkbox only flips what is currently visible.
-  const [selectedCameraIds, setSelectedCameraIds] = useState<Set<number>>(new Set());
+  // Bulk-edit selection, shared hook with the sites page.
+  const {
+    selected: selectedCameraIds,
+    toggle: toggleCameraSelection,
+    clear: clearCameraSelection,
+    setMany: setCameraSelection,
+  } = useBulkSelection();
   const [showBulkAddTags, setShowBulkAddTags] = useState(false);
   const [showBulkRemoveTags, setShowBulkRemoveTags] = useState(false);
   const [showBulkSetSimExpiry, setShowBulkSetSimExpiry] = useState(false);
@@ -226,13 +200,13 @@ export const CamerasPage: React.FC = () => {
     });
 
   // Visible columns persist per-browser, same pattern as cameras-view-mode.
-  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => loadVisibleColumns());
+  const [visibleColumns, setVisibleColumns] = useState<ColumnId[]>(() => cameraColumnPrefs.load());
   useEffect(() => {
-    saveVisibleColumns(visibleColumns);
+    cameraColumnPrefs.save(visibleColumns);
   }, [visibleColumns]);
   const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
   const visibleColumnDefs = useMemo(
-    () => CAMERA_COLUMNS.filter((c) => visibleColumnSet.has(c.id)),
+    () => cameraColumnPrefs.columns.filter((c) => visibleColumnSet.has(c.id)),
     [visibleColumnSet],
   );
 
@@ -284,7 +258,7 @@ export const CamerasPage: React.FC = () => {
   const onBulkSuccess = (res: { updated_count: number }) => {
     queryClient.invalidateQueries({ queryKey: ['cameras'] });
     queryClient.invalidateQueries({ queryKey: ['camera-tags'] });
-    setSelectedCameraIds(new Set());
+    clearCameraSelection();
     setShowBulkAddTags(false);
     setShowBulkRemoveTags(false);
     setShowBulkSetSimExpiry(false);
@@ -500,16 +474,6 @@ export const CamerasPage: React.FC = () => {
         : { column, direction: 'asc' }
     );
   };
-
-  const toggleCameraSelection = (id: number) => {
-    setSelectedCameraIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  const clearCameraSelection = () => setSelectedCameraIds(new Set());
 
   // Helper functions for formatting
   const getBatteryColor = (percentage: number | null) => {
@@ -954,6 +918,7 @@ export const CamerasPage: React.FC = () => {
                 label: 'Visible columns',
                 render: () => (
                   <ColumnPicker
+                    prefs={cameraColumnPrefs}
                     visible={visibleColumns}
                     onChange={setVisibleColumns}
                   />
@@ -1016,36 +981,11 @@ export const CamerasPage: React.FC = () => {
                   <TableRow>
                     {canAdminCurrentProject && (
                       <TableHead className="w-10">
-                        <input
-                          type="checkbox"
-                          aria-label="Select all visible cameras"
-                          checked={
-                            filteredCameras.length > 0 &&
-                            filteredCameras.every((c) => selectedCameraIds.has(c.id))
-                          }
-                          ref={(el) => {
-                            if (!el) return;
-                            const someSelected = filteredCameras.some((c) =>
-                              selectedCameraIds.has(c.id)
-                            );
-                            const allSelected =
-                              filteredCameras.length > 0 &&
-                              filteredCameras.every((c) => selectedCameraIds.has(c.id));
-                            el.indeterminate = someSelected && !allSelected;
-                          }}
-                          onChange={(e) => {
-                            const visibleIds = filteredCameras.map((c) => c.id);
-                            setSelectedCameraIds((prev) => {
-                              const next = new Set(prev);
-                              if (e.target.checked) {
-                                for (const id of visibleIds) next.add(id);
-                              } else {
-                                for (const id of visibleIds) next.delete(id);
-                              }
-                              return next;
-                            });
-                          }}
-                          className="w-4 h-4 cursor-pointer accent-primary"
+                        <SelectAllCheckbox
+                          visibleIds={filteredCameras.map((c) => c.id)}
+                          selected={selectedCameraIds}
+                          onToggle={setCameraSelection}
+                          ariaLabel="Select all visible cameras"
                         />
                       </TableHead>
                     )}
@@ -1157,7 +1097,8 @@ export const CamerasPage: React.FC = () => {
       <BulkAddTagsDialog
         open={showBulkAddTags}
         onClose={() => setShowBulkAddTags(false)}
-        cameraCount={selectedCameraIds.size}
+        count={selectedCameraIds.size}
+        noun="camera"
         isPending={bulkAddTagsMutation.isPending}
         suggestions={tagOptions}
         onConfirm={(tags) =>
@@ -1167,7 +1108,8 @@ export const CamerasPage: React.FC = () => {
       <BulkRemoveTagsDialog
         open={showBulkRemoveTags}
         onClose={() => setShowBulkRemoveTags(false)}
-        cameraCount={selectedCameraIds.size}
+        count={selectedCameraIds.size}
+        noun="camera"
         isPending={bulkRemoveTagsMutation.isPending}
         suggestions={Array.from(
           new Set(
@@ -1183,7 +1125,8 @@ export const CamerasPage: React.FC = () => {
       <BulkSetSimExpiryDialog
         open={showBulkSetSimExpiry}
         onClose={() => setShowBulkSetSimExpiry(false)}
-        cameraCount={selectedCameraIds.size}
+        count={selectedCameraIds.size}
+        noun="camera"
         isPending={bulkSetSimExpiryMutation.isPending}
         onConfirm={(date) =>
           bulkSetSimExpiryMutation.mutate({ ids: Array.from(selectedCameraIds), date })
@@ -1192,7 +1135,8 @@ export const CamerasPage: React.FC = () => {
       <BulkSetNotesDialog
         open={showBulkSetNotes}
         onClose={() => setShowBulkSetNotes(false)}
-        cameraCount={selectedCameraIds.size}
+        count={selectedCameraIds.size}
+        noun="camera"
         isPending={bulkSetNotesMutation.isPending}
         onConfirm={(notes) =>
           bulkSetNotesMutation.mutate({ ids: Array.from(selectedCameraIds), notes })
@@ -1203,7 +1147,7 @@ export const CamerasPage: React.FC = () => {
         open={showBulkDelete}
         onClose={() => setShowBulkDelete(false)}
         cameraIds={Array.from(selectedCameraIds)}
-        onDeleted={() => setSelectedCameraIds(new Set())}
+        onDeleted={clearCameraSelection}
       />
 
       {/* Add Camera Dialog (server admins only) */}

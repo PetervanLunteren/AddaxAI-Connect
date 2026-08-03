@@ -18,6 +18,11 @@ export interface SiteListItem {
   image_count: number;
   last_activity: string | null;
   tags: string[] | null;
+  notes: string | null;
+}
+
+export interface BulkUpdateResponse {
+  updated_count: number;
 }
 
 export interface DeploymentSummary {
@@ -100,6 +105,50 @@ export const sitesApi = {
   },
   getTags: async (projectId: number): Promise<string[]> => {
     const { data } = await apiClient.get(`${base(projectId)}/tags`);
+    return data;
+  },
+  bulkAddTags: async (
+    projectId: number,
+    siteIds: number[],
+    tags: string[],
+  ): Promise<BulkUpdateResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/bulk-add-tags`, {
+      site_ids: siteIds,
+      tags,
+    });
+    return data;
+  },
+  bulkRemoveTags: async (
+    projectId: number,
+    siteIds: number[],
+    tags: string[],
+  ): Promise<BulkUpdateResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/bulk-remove-tags`, {
+      site_ids: siteIds,
+      tags,
+    });
+    return data;
+  },
+  bulkSetNotes: async (
+    projectId: number,
+    siteIds: number[],
+    notes: string,
+  ): Promise<BulkUpdateResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/bulk-set-notes`, {
+      site_ids: siteIds,
+      notes,
+    });
+    return data;
+  },
+  bulkSetHabitat: async (
+    projectId: number,
+    siteIds: number[],
+    habitatType: string,
+  ): Promise<BulkUpdateResponse> => {
+    const { data } = await apiClient.post(`${base(projectId)}/bulk-set-habitat`, {
+      site_ids: siteIds,
+      habitat_type: habitatType,
+    });
     return data;
   },
 };

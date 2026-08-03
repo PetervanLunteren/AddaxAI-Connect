@@ -1,10 +1,12 @@
 /**
- * Bulk-edit dialogs for the cameras page.
+ * Bulk-edit dialogs, shared by the cameras and sites pages.
  *
- * Four small dialogs that share the same Dialog shell. Each takes the
- * selection count for its title, the action-specific value state, and a
- * confirm/close pair. Co-located in one file because they share the
- * visual language; splitting into four files would just add imports.
+ * Small dialogs that share the same Dialog shell. Each takes the selection
+ * count and entity noun for its title, the action-specific value state, and
+ * a confirm/close pair. Co-located in one file because they share the
+ * visual language; splitting into files would just add imports. The SIM
+ * expiry and habitat dialogs are single-entity today (cameras and sites
+ * respectively) but keep the same props shape as the rest.
  */
 import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -15,16 +17,21 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '../ui/Dialog';
-import { Button } from '../ui/Button';
-import { TagInput } from '../TagInput';
+} from './ui/Dialog';
+import { Button } from './ui/Button';
+import { TagInput } from './TagInput';
 
 interface CommonProps {
   open: boolean;
   onClose: () => void;
-  cameraCount: number;
+  count: number;
+  // Singular entity noun for dialog titles, e.g. "camera" or "site".
+  noun: string;
   isPending: boolean;
 }
+
+const plural = (count: number, noun: string) =>
+  `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 interface TagsDialogProps extends CommonProps {
   suggestions: string[];
@@ -32,7 +39,7 @@ interface TagsDialogProps extends CommonProps {
 }
 
 export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
-  open, onClose, cameraCount, isPending, suggestions, onConfirm,
+  open, onClose, count, noun, isPending, suggestions, onConfirm,
 }) => {
   const [tags, setTags] = useState<string[]>([]);
   // Reset on open so a previously-typed list does not leak across uses.
@@ -42,9 +49,9 @@ export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
         <DialogHeader>
-          <DialogTitle>Add tags to {cameraCount} camera{cameraCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>Add tags to {plural(count, noun)}</DialogTitle>
           <DialogDescription>
-            Tags are appended to each selected camera. Existing tags are kept and duplicates collapse.
+            Tags are appended to each selected {noun}. Existing tags are kept and duplicates collapse.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -71,7 +78,7 @@ export const BulkAddTagsDialog: React.FC<TagsDialogProps> = ({
 };
 
 export const BulkRemoveTagsDialog: React.FC<TagsDialogProps> = ({
-  open, onClose, cameraCount, isPending, suggestions, onConfirm,
+  open, onClose, count, noun, isPending, suggestions, onConfirm,
 }) => {
   const [tags, setTags] = useState<string[]>([]);
   useEffect(() => { if (open) setTags([]); }, [open]);
@@ -80,9 +87,9 @@ export const BulkRemoveTagsDialog: React.FC<TagsDialogProps> = ({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
         <DialogHeader>
-          <DialogTitle>Remove tags from {cameraCount} camera{cameraCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>Remove tags from {plural(count, noun)}</DialogTitle>
           <DialogDescription>
-            Each tag listed here is taken off every selected camera. Tags that are not present on a camera are skipped.
+            Each tag listed here is taken off every selected {noun}. Tags that are not present on a {noun} are skipped.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -114,7 +121,7 @@ interface SimExpiryDialogProps extends CommonProps {
 }
 
 export const BulkSetSimExpiryDialog: React.FC<SimExpiryDialogProps> = ({
-  open, onClose, cameraCount, isPending, onConfirm,
+  open, onClose, count, noun, isPending, onConfirm,
 }) => {
   const [date, setDate] = useState('');
   const [clear, setClear] = useState(false);
@@ -126,9 +133,9 @@ export const BulkSetSimExpiryDialog: React.FC<SimExpiryDialogProps> = ({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
         <DialogHeader>
-          <DialogTitle>Set SIM expiry on {cameraCount} camera{cameraCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>Set SIM expiry on {plural(count, noun)}</DialogTitle>
           <DialogDescription>
-            This overwrites any existing SIM expiry date on every selected camera.
+            This overwrites any existing SIM expiry date on every selected {noun}.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-3">
@@ -165,11 +172,12 @@ export const BulkSetSimExpiryDialog: React.FC<SimExpiryDialogProps> = ({
 };
 
 interface NotesDialogProps extends CommonProps {
+  placeholder?: string;
   onConfirm: (notes: string) => void;
 }
 
 export const BulkSetNotesDialog: React.FC<NotesDialogProps> = ({
-  open, onClose, cameraCount, isPending, onConfirm,
+  open, onClose, count, noun, isPending, placeholder, onConfirm,
 }) => {
   const [notes, setNotes] = useState('');
   useEffect(() => { if (open) setNotes(''); }, [open]);
@@ -178,9 +186,9 @@ export const BulkSetNotesDialog: React.FC<NotesDialogProps> = ({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
         <DialogHeader>
-          <DialogTitle>Set notes on {cameraCount} camera{cameraCount === 1 ? '' : 's'}</DialogTitle>
+          <DialogTitle>Set notes on {plural(count, noun)}</DialogTitle>
           <DialogDescription>
-            This replaces the notes field on every selected camera with the text below. Leave it empty to clear notes.
+            This replaces the notes field on every selected {noun} with the text below. Leave it empty to clear notes.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -188,7 +196,7 @@ export const BulkSetNotesDialog: React.FC<NotesDialogProps> = ({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={5}
-            placeholder="e.g. Mounted on oak tree, facing north"
+            placeholder={placeholder}
             className="w-full px-3 py-2 border rounded-md text-sm"
           />
         </div>
@@ -200,6 +208,50 @@ export const BulkSetNotesDialog: React.FC<NotesDialogProps> = ({
           >
             {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
             {notes.length === 0 ? 'Clear notes' : 'Replace notes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+interface HabitatDialogProps extends CommonProps {
+  onConfirm: (habitat: string) => void;
+}
+
+export const BulkSetHabitatDialog: React.FC<HabitatDialogProps> = ({
+  open, onClose, count, noun, isPending, onConfirm,
+}) => {
+  const [habitat, setHabitat] = useState('');
+  useEffect(() => { if (open) setHabitat(''); }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>Set habitat on {plural(count, noun)}</DialogTitle>
+          <DialogDescription>
+            This replaces the habitat type on every selected {noun}. Leave it empty to clear it.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <input
+            type="text"
+            value={habitat}
+            onChange={(e) => setHabitat(e.target.value)}
+            maxLength={100}
+            placeholder="e.g. Deciduous forest"
+            className="w-full px-3 py-2 border rounded-md text-sm"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button
+            onClick={() => onConfirm(habitat)}
+            disabled={isPending}
+          >
+            {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            {habitat.trim() === '' ? 'Clear habitat' : 'Set habitat'}
           </Button>
         </DialogFooter>
       </DialogContent>

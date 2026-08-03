@@ -19,6 +19,7 @@ from auth.project_access import get_accessible_project_ids, narrow_to_project
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 from utils.camera_status import camera_status as _camera_status
+from utils.tags import normalize_tags
 
 logger = get_logger(__name__)
 
@@ -105,20 +106,6 @@ class HealthHistoryResponse(BaseModel):
     camera_id: int
     camera_name: str
     reports: List[HealthReportPoint]
-
-
-def normalize_tags(tags: Optional[List[str]]) -> List[str]:
-    """Normalize tags: lowercase, strip, deduplicate, remove empties and commas."""
-    if not tags:
-        return []
-    seen = set()
-    result = []
-    for tag in tags:
-        tag = tag.strip().lower().replace(',', '')
-        if tag and tag not in seen:
-            seen.add(tag)
-            result.append(tag)
-    return result
 
 
 def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:

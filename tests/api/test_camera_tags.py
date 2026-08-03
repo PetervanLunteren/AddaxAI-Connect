@@ -1,22 +1,12 @@
-"""Tests for camera tag normalization logic."""
-from typing import List, Optional
+"""Tests for tag normalization, shared by the camera and site routers."""
+import os
+import sys
 
+_api = os.path.join(os.path.dirname(__file__), "..", "..", "services", "api")
+if _api not in sys.path:
+    sys.path.insert(0, _api)
 
-def normalize_tags(tags: Optional[List[str]]) -> List[str]:
-    """
-    Copy of the normalize_tags function from services/api/routers/cameras.py.
-    Kept in sync for unit testing without FastAPI dependency.
-    """
-    if not tags:
-        return []
-    seen = set()
-    result = []
-    for tag in tags:
-        tag = tag.strip().lower().replace(',', '')
-        if tag and tag not in seen:
-            seen.add(tag)
-            result.append(tag)
-    return result
+from utils.tags import normalize_tags  # noqa: E402
 
 
 class TestNormalizeTags:
