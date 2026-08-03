@@ -229,6 +229,19 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
     }
   }, [highlightedSpecies, observations]);
 
+  // Round-trip the saved observations unchanged. Every save replaces all
+  // observations of the image, so a payload that drops sex / life_stage /
+  // behavior erases them. Both the unverify and the notes mutation resend
+  // the stored rows as-is, so they must map every field.
+  const savedObservationsAsInput = (): HumanObservationInput[] =>
+    imageDetail.human_observations.map(obs => ({
+      species: obs.species,
+      count: obs.count,
+      sex: obs.sex || 'unknown',
+      life_stage: obs.life_stage || 'unknown',
+      behavior: obs.behavior || 'unknown',
+    }));
+
   // Save mutation - always marks as verified
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -282,18 +295,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
 
   // "Unverify" mutation - called when clicking Edit on verified image
   const unverifyMutation = useMutation({
-    mutationFn: () => {
-      const currentObservations: HumanObservationInput[] = imageDetail.human_observations.map(obs => ({
-        species: obs.species,
-        count: obs.count,
-      }));
-
-      return imagesApi.saveVerification(imageUuid, {
+    mutationFn: () =>
+      imagesApi.saveVerification(imageUuid, {
         is_verified: false,
         notes: imageDetail.verification.notes || null,
-        observations: currentObservations,
-      });
-    },
+        observations: savedObservationsAsInput(),
+      }),
     onSuccess: () => {
       invalidateAfterVerification();
     },
@@ -301,18 +308,12 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
 
   // Save notes mutation - preserves current verification state
   const saveNotesMutation = useMutation({
-    mutationFn: () => {
-      const currentObservations: HumanObservationInput[] = imageDetail.human_observations.map(obs => ({
-        species: obs.species,
-        count: obs.count,
-      }));
-
-      return imagesApi.saveVerification(imageUuid, {
+    mutationFn: () =>
+      imagesApi.saveVerification(imageUuid, {
         is_verified: imageDetail.verification.is_verified,
         notes: notes || null,
-        observations: currentObservations,
-      });
-    },
+        observations: savedObservationsAsInput(),
+      }),
     onSuccess: () => {
       invalidateAfterVerification();
     },

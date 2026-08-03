@@ -147,12 +147,18 @@ class SpeciesOption(BaseModel):
 
 
 class HumanObservationInput(BaseModel):
-    """Input for creating/updating a human observation"""
+    """Input for creating/updating a human observation.
+
+    Every field is required. Saving replaces all observations of the image,
+    so a payload that omits sex / life_stage / behavior would erase them.
+    Without defaults such a payload is rejected instead of silently storing
+    'unknown' (CONVENTIONS.md #1).
+    """
     species: str
-    count: int = 1
-    sex: str = 'unknown'
-    life_stage: str = 'unknown'
-    behavior: str = 'unknown'
+    count: int
+    sex: str
+    life_stage: str
+    behavior: str
 
 
 class SaveVerificationRequest(BaseModel):
