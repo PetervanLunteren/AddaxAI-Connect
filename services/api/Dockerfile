@@ -58,4 +58,10 @@ COPY scripts /app/scripts
 # Copy version file (maintained by GitHub Actions)
 COPY VERSION /app/VERSION
 
+# Bake in the commit hash the image was built from, shown on the About page
+# next to the version tag. BuildKit bind-mounts .git from the build context
+# during this step only, so the 22 MB .git directory never lands in a layer.
+RUN --mount=type=bind,source=.git,target=/app/.git \
+    git -C /app rev-parse --short HEAD > /app/COMMIT
+
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -4,6 +4,7 @@ AddaxAI Connect API
 FastAPI backend providing REST API and WebSocket endpoints.
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,6 +23,18 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 settings = get_settings()
 logger = get_logger("api")
+
+
+def _get_commit() -> str:
+    """Commit hash baked into the image at build time (see the Dockerfile).
+    Absent outside the container, e.g. in local test runs."""
+    try:
+        return Path("/app/COMMIT").read_text().strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+__commit__ = _get_commit()
 
 
 @asynccontextmanager
@@ -88,9 +101,10 @@ def root():
 
 @app.get("/api/version")
 def version():
-    """Get API version"""
+    """Get API version and the commit the image was built from"""
     return {
-        "version": __version__
+        "version": __version__,
+        "commit": __commit__,
     }
 
 

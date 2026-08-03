@@ -7,6 +7,9 @@ import apiClient from './client';
 
 export interface VersionResponse {
   version: string;
+  // Short commit hash the api image was built from, "unknown" outside a
+  // container build.
+  commit: string;
 }
 
 export interface ClassificationModelResponse {
@@ -17,11 +20,11 @@ export interface ClassificationModelResponse {
 
 export const versionApi = {
   /**
-   * Get application version from API
+   * Get application version and build commit from API
    */
-  getVersion: async (): Promise<string> => {
+  getVersion: async (): Promise<VersionResponse> => {
     const response = await apiClient.get<VersionResponse>('/api/version');
-    return response.data.version;
+    return response.data;
   },
 
   /**

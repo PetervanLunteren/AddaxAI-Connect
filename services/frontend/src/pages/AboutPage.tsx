@@ -39,7 +39,11 @@ export const AboutPage: React.FC = () => {
             <h3 className="font-semibold mb-2">Version</h3>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-sm font-mono bg-gray-100 text-gray-700 border border-gray-200">
               <Tag className="h-3.5 w-3.5" />
-              {isLoading ? '...' : version || 'v0.1.0'}
+              {isLoading || !version
+                ? '...'
+                : version.commit === 'unknown'
+                  ? version.version
+                  : `${version.version} (${version.commit})`}
             </div>
           </div>
 
