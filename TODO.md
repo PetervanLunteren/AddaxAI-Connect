@@ -15,12 +15,7 @@ Open follow-ups:
 - INSTAR sends no daily health reports, so the camera health page will stay empty for these cameras. Worth a UI hint someday.
 
 ## TODO
-- [ ] The cameras page is pretty sophiticated since that was the main management page before we introduced the site concept. It allows the user to do bulk tags, notes, etc. SHould we do the same for site? SO bulk: add tag, rrmove tag, set notes. Use shared helpers here. No snese to make this again. So same way of selecting,  bulk options,  modals, confirmations, etc. As much as possible shared code. SIngle source of truth. 
-- [ ] Lets also add the "display" option to the sites table to select which columns to see in the table. Use shared helpers here. No snese to make this again. As much as possible shared code. SIngle source of truth. ANything else we want to copy form the cameras page to the sites page? 
-- [ ] We should probabaly look at the total columns of both cameras and sites, and determine which cols are shown by default. ALso, is the display selection saved to local storage for later preferences? 
 - [ ] Do the things Quentin mentioned in an email. 
-- [ ] Make the about page not only show the tag, but also the commit hash for a fiull picture of which code it is running.
-
 
 ## Possible future features
 - [ ] Make a script that tests updates on prod data on a dev server. Basically, I want a scipt (or edit restore.sh) that takes these args: original_code_commit hash (to see from where we need to update test it), the data to restore from backup disk (to ghet prod data to test it on, so you'll need to do more or less the same as restore.sh), which means youl need the source domain, the date is always the latetst, and --force always (this is for testing updates, so always on dev dummy data, perhaps with a confirmation prompt?). You see what I need? I just want a way to test updates more automaticaly. What do you think? What is best here?  
