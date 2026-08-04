@@ -35,10 +35,12 @@ import { normalizeLabel } from '../../utils/labels';
 /** Below this many events a distribution is too thin to read much into. */
 export const LOW_EVENT_COUNT = 20;
 
-// One series, so a light fill with a thin brand-teal outline. Solid brand teal
+// Same treatment as the "Sites active" area on the deployment timeline: a pale
+// wash of the brand teal with a crisp outline of the same colour. Solid teal
 // made a wall of dark blocks, since one bar usually holds almost every event.
-const BAR_FILL = '#71b7ba';
+const BAR_FILL = 'rgba(15, 96, 100, 0.18)';
 const BAR_BORDER = '#0f6064';
+const BAR_BORDER_WIDTH = 1.25;
 // Fixed order, from the four-value palette in FRONTEND_CONVENTIONS.md. Assigned
 // by position in the selection, never generated, so colours stay stable. Left
 // solid: four hues have to stay apart from each other, lightening them would
@@ -82,7 +84,7 @@ export const GroupSizeChart: React.FC<SingleProps> = ({ species }) => {
         data: species.histogram.map((b) => b.events),
         backgroundColor: BAR_FILL,
         borderColor: BAR_BORDER,
-        borderWidth: 1,
+        borderWidth: BAR_BORDER_WIDTH,
         borderRadius: 4,
       },
     ],
