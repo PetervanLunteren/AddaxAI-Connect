@@ -11,6 +11,13 @@ import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { SpeciesFilterHintBanner } from '../../components/dashboard';
 
+// One line per tab, because the two tabs answer different questions. How the
+// numbers are counted is explained on the card it applies to, not here.
+const CAPTIONS = {
+  overview: 'The state of the project, across all species.',
+  explore: 'One species at a time, over a date range you choose.',
+} as const;
+
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   cn(
     'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
@@ -21,15 +28,16 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
 
 export const DashboardLayout: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { search } = useLocation();
+  const { pathname, search } = useLocation();
   const base = `/projects/${projectId}/dashboard`;
+  const onExplore = pathname.endsWith('/explore');
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold mb-0">Dashboard</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Project overview with statistics and trends. Observation counts are based on MaxN, the peak number of individuals per species visible in a single image within each event, summed across all events.
+          {onExplore ? CAPTIONS.explore : CAPTIONS.overview}
         </p>
       </div>
 

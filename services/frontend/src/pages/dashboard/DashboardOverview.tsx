@@ -204,7 +204,12 @@ export const DashboardOverview: React.FC = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Species detected</CardTitle>
-            <p className="text-sm text-muted-foreground">Top 10 most frequently observed</p>
+            {/* This is the card the MaxN note belongs to. With no independence
+                interval set every image is its own event, so the sentence holds
+                either way. */}
+            <p className="text-sm text-muted-foreground">
+              Top 10 most observed. Each event counts the highest number of individuals seen in one image.
+            </p>
           </CardHeader>
           <CardContent>
             <div className="h-72">
