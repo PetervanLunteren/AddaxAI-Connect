@@ -173,7 +173,9 @@ export const DashboardOverview: React.FC = () => {
           progress={(allVerified?.percentage ?? 0) / 100}
         />
 
-        <div className="md:col-span-2">
+        {/* self-start so a short attention list stays short instead of
+            stretching to match the species card beside it. */}
+        <div className="md:col-span-2 md:self-start">
           <AttentionList projectId={projectId} siteIds={siteIdsFromTags} />
         </div>
         <div className="md:col-span-2">
