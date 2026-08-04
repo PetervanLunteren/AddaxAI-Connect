@@ -222,11 +222,13 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
                     alt="Current project image"
                     className="w-full h-48 object-cover rounded-md border"
                   />
+                  {/* z-10 keeps this above the click-to-replace overlay below,
+                      which covers the whole image and would swallow the click. */}
                   <Button
                     type="button"
                     variant="destructive"
                     size="sm"
-                    className="absolute top-2 right-2"
+                    className="absolute top-2 right-2 z-10"
                     onClick={handleRemoveCurrentImage}
                   >
                     <Trash2 className="h-4 w-4" />
