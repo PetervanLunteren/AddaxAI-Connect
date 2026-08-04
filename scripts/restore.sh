@@ -153,26 +153,57 @@ log "Applying any pending Alembic migrations"
 bash scripts/update-database.sh > /dev/null
 log "Schema is at HEAD"
 
+# Whole-mirror retries, on top of mc's own per-object --retry. Pulling tens of
+# thousands of objects over the public internet will hit the occasional dropped
+# connection, and one dropped object used to abort the entire restore and leave
+# a half-populated server behind. Mirror is idempotent, it skips objects that
+# already match, so a second attempt is cheap and only moves what is missing.
+MIRROR_ATTEMPTS=4
+MIRROR_BACKOFF_S=10
+
 # Mirror a bucket or host dir from the backup. An empty source prefix holds no
 # object, so mc mirror fails with "does not exist"; that is the dev/demo case
 # (crops, models, project-* stay empty until real activity) and is a safe skip.
-# Any other mirror failure means real data did not land, so it stops the restore
-# loudly instead of being swallowed. The earlier `mc ls | grep` pre-check could
-# not tell a transient list error from "empty" and once silently dropped the
-# whole thumbnails bucket, so it is gone.
+# The earlier `mc ls | grep` pre-check could not tell a transient list error
+# from "empty" and once silently dropped the whole thumbnails bucket, so it is
+# gone.
+#
+# Deliberately no --skip-errors here, unlike backup.sh. A backup that is missing
+# one object is still worth keeping; a restore that is missing one image is a
+# server with a hole in it, and we want to hear about that rather than discover
+# it months later. So: retry hard, then fail loudly.
 mirror_if_present() {
   local label="$1"
   local src="$2"
   local dst="$3"
+  local attempt=1
   local out
-  if out="$(docker compose exec -T minio mc mirror --overwrite --remove "$src" "$dst" 2>&1)"; then
-    log "Mirrored $label"
-    return 0
-  fi
-  if echo "$out" | grep -qi 'does not exist'; then
-    return 0  # empty source prefix in the backup, nothing to mirror
-  fi
-  die "mirror of $label failed: $out"
+
+  while :; do
+    if out="$(docker compose exec -T minio mc mirror --overwrite --remove --retry "$src" "$dst" 2>&1)"; then
+      log "Mirrored $label"
+      return 0
+    fi
+
+    if echo "$out" | grep -qi 'does not exist'; then
+      log "Skipped $label, the backup holds nothing under this prefix"
+      return 0
+    fi
+
+    # mc prints one line per object, so only the error lines are worth showing.
+    local errors
+    errors="$(echo "$out" | grep -i '<ERROR>' | tail -3)"
+    [ -n "$errors" ] || errors="$(echo "$out" | tail -3)"
+
+    if [ "$attempt" -ge "$MIRROR_ATTEMPTS" ]; then
+      die "mirror of $label failed after $MIRROR_ATTEMPTS attempts: $errors"
+    fi
+
+    log "Mirror of $label failed on attempt $attempt of $MIRROR_ATTEMPTS, retrying in ${MIRROR_BACKOFF_S}s"
+    log "  last error: $(echo "$errors" | tail -1)"
+    attempt=$((attempt + 1))
+    sleep "$MIRROR_BACKOFF_S"
+  done
 }
 
 # ---- MinIO buckets ----
