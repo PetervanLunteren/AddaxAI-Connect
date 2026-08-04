@@ -13,10 +13,12 @@ interface AuthenticatedImageProps {
   className?: string;
   fallback?: React.ReactNode;
   onLoad?: () => void;
+  /** Inline style on the <img>. Used by DetectionCrop to position the frame. */
+  style?: React.CSSProperties;
 }
 
 export const AuthenticatedImage = forwardRef<HTMLImageElement, AuthenticatedImageProps>(
-  ({ src, alt, className, fallback, onLoad }, ref) => {
+  ({ src, alt, className, fallback, onLoad, style }, ref) => {
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -75,7 +77,7 @@ export const AuthenticatedImage = forwardRef<HTMLImageElement, AuthenticatedImag
       );
     }
 
-    return <img ref={ref} src={blobUrl} alt={alt} className={className} onLoad={onLoad} />;
+    return <img ref={ref} src={blobUrl} alt={alt} className={className} style={style} onLoad={onLoad} />;
   }
 );
 

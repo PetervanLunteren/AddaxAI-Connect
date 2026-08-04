@@ -1,31 +1,39 @@
 /**
  * Dashboard Overview tab: the state of the whole project.
  *
- * Holds every card whose endpoint does not accept a species, so nothing here
- * is affected by the species filter on the Explore tab.
+ * Laid out as tiles of different sizes, where size is decided by how much the
+ * content matters. The old page gave every card the same weight, so the eye
+ * had no entry point and settled on whatever had the most ink, which happened
+ * to be a red doughnut.
+ *
+ * What changed and why:
+ *
+ * The camera activity doughnut is gone. Camera health is a status question,
+ * not a proportion question, and it now sits in the attention list with the
+ * other things a person can act on.
+ *
+ * The species bar chart is gone, replaced by rows with a photograph each. The
+ * bars were coloured from a continuous scale even though the name was already
+ * on the axis, so the colour said nothing while implying an order.
+ *
+ * The three plain counters gained a comparison, because a total with nothing
+ * to compare it against cannot be judged.
+ *
+ * Holds only cards whose endpoint ignores species, so nothing here is affected
+ * by the species filter on the Explore tab.
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Bar, Doughnut } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend,
-  ChartOptions,
-} from 'chart.js';
-import { Camera, Images, TrendingUp } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { statisticsApi } from '../../api/statistics';
-import { normalizeLabel } from '../../utils/labels';
-import { getSpeciesColor } from '../../utils/species-colors';
-import { AlertCounters, type DateRange } from '../../components/dashboard';
+import { imagesApi } from '../../api/images';
+import { isWildlifeLabel } from '../../utils/labels';
+import type { DateRange } from '../../components/dashboard';
 import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
+import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
+import { SpeciesPortraitList } from '../../components/dashboard/SpeciesPortraitList';
+import { AttentionList } from '../../components/dashboard/AttentionList';
+import { StatTile } from '../../components/dashboard/StatTile';
 import { useDashboardFilters } from './useDashboardFilters';
 
 // Overview has no date filter. The URL can still carry a date range because
@@ -33,16 +41,21 @@ import { useDashboardFilters } from './useDashboardFilters';
 // here rather than being filtered by a control the user cannot see.
 const ALL_TIME: DateRange = { startDate: null, endDate: null };
 
-// This tab owns the only Bar and Doughnut on the dashboard.
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+/** Days of daily counts behind the sparkline. */
+const TREND_DAYS = 30;
+
+/**
+ * Percent change of the last seven days against the seven before them.
+ * Returns null when the earlier week is empty, because "up from nothing" is
+ * not a percentage anyone can act on.
+ */
+function weekOverWeek(counts: number[]): number | null {
+  if (counts.length < 14) return null;
+  const recent = counts.slice(-7).reduce((a, b) => a + b, 0);
+  const previous = counts.slice(-14, -7).reduce((a, b) => a + b, 0);
+  if (previous === 0) return null;
+  return ((recent - previous) / previous) * 100;
+}
 
 export const DashboardOverview: React.FC = () => {
   const {
@@ -56,115 +69,50 @@ export const DashboardOverview: React.FC = () => {
     onClearAll,
   } = useDashboardFilters('overview');
 
-  const { data: species, isLoading: speciesLoading } = useQuery({
-    queryKey: ['statistics', 'species', projectId, siteIdsFromTags],
-    queryFn: () => statisticsApi.getSpeciesDistribution(projectId, siteIdsFromTags),
+  // Same query key as the filter hook, so this is served from cache.
+  const { data: allSpeciesList } = useQuery({
+    queryKey: ['species', projectId],
+    queryFn: () => imagesApi.getSpecies(projectId),
     enabled: projectId !== undefined,
   });
 
-  const { data: cameraActivity, isLoading: activityLoading } = useQuery({
-    queryKey: ['statistics', 'activity', projectId, siteIdsFromTags],
-    queryFn: () => statisticsApi.getCameraActivity(projectId, siteIdsFromTags),
+  const { data: pipeline } = useQuery({
+    queryKey: ['statistics', 'pipeline-status', projectId, siteIdsFromTags],
+    queryFn: () => statisticsApi.getPipelineStatus(projectId, siteIdsFromTags),
     enabled: projectId !== undefined,
   });
 
-  // Summary cards data (colors from FRONTEND_CONVENTIONS.md palette)
-  const summaryCards = [
-    {
-      title: 'Images today',
-      value: overview?.images_today ?? 0,
-      icon: TrendingUp,
-      color: '#0f6064',
-    },
-    {
-      title: 'Total images',
-      value: overview?.total_images ?? 0,
-      icon: Images,
-      color: '#0f6064',
-    },
-    {
-      title: 'Total cameras',
-      value: overview?.total_cameras ?? 0,
-      icon: Camera,
-      color: '#0f6064',
-    },
-  ];
+  const { data: timeline } = useQuery({
+    queryKey: ['statistics', 'images-timeline', projectId, TREND_DAYS, siteIdsFromTags],
+    queryFn: () => statisticsApi.getImagesTimeline(projectId, TREND_DAYS, siteIdsFromTags),
+    enabled: projectId !== undefined,
+  });
 
-  // Species distribution chart data - using consistent colors from global context
-  const speciesData = {
-    labels: species?.map((s) => normalizeLabel(s.species)) ?? [],
-    datasets: [
-      {
-        label: 'Count',
-        data: species?.map((s) => s.count) ?? [],
-        backgroundColor: species?.map((s) => {
-          const color = getSpeciesColor(s.species);
-          // Convert hex to rgba with 0.8 opacity
-          const r = parseInt(color.slice(1, 3), 16);
-          const g = parseInt(color.slice(3, 5), 16);
-          const b = parseInt(color.slice(5, 7), 16);
-          return `rgba(${r}, ${g}, ${b}, 0.8)`;
-        }) ?? [],
-        borderColor: species?.map((s) => getSpeciesColor(s.species)) ?? [],
-        borderWidth: 1,
-      },
-    ],
-  };
+  const { data: verification } = useQuery({
+    queryKey: ['statistics', 'verification-progress-all', projectId, undefined, undefined, siteIdsFromTags],
+    queryFn: () =>
+      statisticsApi.getVerificationProgressAll(projectId!, { site_ids: siteIdsFromTags }),
+    enabled: projectId !== undefined,
+  });
 
-  const speciesOptions: ChartOptions<'bar'> = {
-    indexAxis: 'y',
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      title: {
-        display: false,
-      },
-    },
-    scales: {
-      x: {
-        beginAtZero: true,
-        ticks: {
-          precision: 0,
-        },
-      },
-    },
-  };
+  // The hero shows wildlife only. Projects can blur people and vehicles, and
+  // most do, so "newest image of anything" would often open on a blurred
+  // person. Passing the list explicitly beats filtering after the fact,
+  // because the API can then still return exactly one row.
+  const wildlifeSpecies = (allSpeciesList ?? [])
+    .map((s) => String(s.value))
+    .filter((value) => isWildlifeLabel(value))
+    .join(',');
 
-  // Camera activity chart data
-  const activityData = {
-    labels: ['Active', 'Inactive', 'No live signal yet'],
-    datasets: [
-      {
-        data: [
-          cameraActivity?.active ?? 0,
-          cameraActivity?.inactive ?? 0,
-          cameraActivity?.never_reported ?? 0,
-        ],
-        backgroundColor: [
-          '#0f6064',  // Active - teal
-          '#882000',  // Inactive - dark red
-          '#71b7ba',  // No live signal yet - light teal
-        ],
-        borderWidth: 0,
-      },
-    ],
-  };
+  const dailyCounts = (timeline ?? []).map((p) => p.count);
+  const delta = weekOverWeek(dailyCounts);
 
-  const activityOptions: ChartOptions<'doughnut'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-      },
-      title: {
-        display: false,
-      },
-    },
-  };
+  const withContent =
+    (pipeline?.animal_count ?? 0) + (pipeline?.person_count ?? 0) + (pipeline?.vehicle_count ?? 0);
+  const totalClassified = withContent + (pipeline?.empty_count ?? 0);
+  const emptyShare = totalClassified > 0 ? (pipeline?.empty_count ?? 0) / totalClassified : 0;
+
+  const allVerified = verification?.rows.find((r) => r.label === 'all');
 
   return (
     <div className="space-y-6">
@@ -175,89 +123,70 @@ export const DashboardOverview: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      {/* Summary Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
-        {summaryCards.map((card) => (
-          <Card key={card.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                  <p className="text-2xl font-bold mt-1">
-                    {overviewLoading ? '...' : card.value.toLocaleString()}
-                  </p>
-                </div>
-                <div
-                  className="p-3 rounded-lg"
-                  style={{ backgroundColor: `${card.color}20` }}
-                >
-                  <card.icon className="h-6 w-6" style={{ color: card.color }} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Species detected + Camera activity */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Species detected</CardTitle>
-            {/* This is the card the MaxN note belongs to. With no independence
-                interval set every image is its own event, so the sentence holds
-                either way. */}
-            <p className="text-sm text-muted-foreground">
-              Top 10 most observed. Each event counts the highest number of individuals seen in one image.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              {speciesLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">Loading...</p>
-                </div>
-              ) : species && species.length > 0 ? (
-                <Bar data={speciesData} options={speciesOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No species data available</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Camera activity status</CardTitle>
-            <p className="text-sm text-muted-foreground">Based on last 7 days</p>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              {activityLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">Loading...</p>
-                </div>
-              ) : cameraActivity ? (
-                <Doughnut data={activityData} options={activityOptions} />
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No data available</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Detection categories + Verification progress */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        <AlertCounters projectId={projectId} siteIds={siteIdsFromTags} />
-        <VerificationProgressCard
-          dateRange={ALL_TIME}
+      {/* Tile sizes carry priority. The photograph and the species list get the
+          most room; single numbers get the least. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <LastDetectionCard
           projectId={projectId}
           siteIds={siteIdsFromTags}
+          wildlifeSpecies={wildlifeSpecies}
+          className="md:col-span-2 lg:row-span-2"
         />
+
+        <StatTile
+          label="Total images"
+          value={(overview?.total_images ?? 0).toLocaleString()}
+          delta={delta}
+          note={
+            delta === null
+              ? overview?.last_image_date
+                ? `Last image ${overview.last_image_date}`
+                : 'No images yet'
+              : undefined
+          }
+          series={dailyCounts}
+          loading={overviewLoading}
+        />
+        <StatTile
+          label="Images with animals"
+          value={(pipeline?.animal_count ?? 0).toLocaleString()}
+          note={
+            totalClassified > 0
+              ? `${Math.round(((pipeline?.animal_count ?? 0) / totalClassified) * 100)}% of all images`
+              : undefined
+          }
+        />
+        <StatTile
+          label="Empty images"
+          value={`${Math.round(emptyShare * 100)}%`}
+          note={`${(pipeline?.empty_count ?? 0).toLocaleString()} images with nothing in them`}
+          progress={emptyShare}
+        />
+        <StatTile
+          label="Verified"
+          value={`${allVerified?.percentage ?? 0}%`}
+          note={
+            allVerified
+              ? `${allVerified.verified.toLocaleString()} of ${allVerified.total.toLocaleString()} images`
+              : undefined
+          }
+          progress={(allVerified?.percentage ?? 0) / 100}
+        />
+
+        <div className="md:col-span-2">
+          <AttentionList projectId={projectId} siteIds={siteIdsFromTags} />
+        </div>
+        <div className="md:col-span-2">
+          <SpeciesPortraitList projectId={projectId} siteIds={siteIdsFromTags} />
+        </div>
+
+        <div className="md:col-span-2 lg:col-span-4">
+          <VerificationProgressCard
+            dateRange={ALL_TIME}
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+          />
+        </div>
       </div>
     </div>
   );

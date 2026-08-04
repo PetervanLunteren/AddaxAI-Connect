@@ -1,7 +1,7 @@
 """
 Image endpoints for viewing camera trap images with detections and classifications.
 """
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
@@ -341,6 +341,15 @@ async def list_images(
     min_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_classification_confidence: Optional[float] = Query(None, ge=0, le=1),
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    sort: Literal["newest", "confidence"] = Query(
+        "newest",
+        description=(
+            "Result order. 'newest' is capture time descending and is what every "
+            "existing caller gets. 'confidence' puts the strongest classification "
+            "first, so the dashboard can lead with a photo that actually shows the "
+            "animal instead of merely a recent one."
+        ),
+    ),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -356,6 +365,7 @@ async def list_images(
         end_date: Filter by end date (ISO format)
         species: Filter by species name(s) - comma-separated for multiple
         show_empty: If False (default), hide images without detections
+        sort: "newest" (default) or "confidence"
         accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
@@ -845,13 +855,35 @@ async def list_images(
     pages = (total + limit - 1) // limit  # Ceiling division
     offset = (page - 1) * limit
 
+    # Ordering. "confidence" ranks by the strongest classification on the image,
+    # narrowed to the filtered species when there is one, so "best fallow deer
+    # photo" means the clearest fallow deer and not the clearest anything else in
+    # the same frame. Images with no classification sort to the bottom via the
+    # coalesce rather than relying on database null ordering. Capture time stays
+    # as the tie-breaker so the order is stable across pages.
+    if sort == "confidence":
+        best_confidence_filters = [Detection.image_id == Image.id]
+        if species_filter:
+            best_confidence_filters.append(Classification.species.in_(species_filter))
+        best_confidence = (
+            select(func.max(Classification.confidence))
+            .select_from(Classification)
+            .join(Detection, Classification.detection_id == Detection.id)
+            .where(and_(*best_confidence_filters))
+            .correlate(Image)
+            .scalar_subquery()
+        )
+        order_by = [desc(func.coalesce(best_confidence, 0.0)), desc(Image.captured_at)]
+    else:
+        order_by = [desc(Image.captured_at)]
+
     # Fetch images with joins (include Project for detection threshold)
     query = (
         select(Image, Camera, Project)
         .join(Camera, Image.camera_id == Camera.id)
         .join(Project, Camera.project_id == Project.id)
         .options(selectinload(Image.detections).selectinload(Detection.classifications))
-        .order_by(desc(Image.captured_at))
+        .order_by(*order_by)
         .offset(offset)
         .limit(limit)
     )

@@ -43,10 +43,15 @@ export const statisticsApi = {
   /**
    * Get images timeline
    */
-  getImagesTimeline: async (projectId?: number, days?: number): Promise<TimelineDataPoint[]> => {
+  getImagesTimeline: async (
+    projectId?: number,
+    days?: number,
+    siteIds?: string,
+  ): Promise<TimelineDataPoint[]> => {
     const params = new URLSearchParams();
     if (projectId !== undefined) params.append('project_id', projectId.toString());
     if (days !== undefined) params.append('days', days.toString());
+    if (siteIds) params.append('site_ids', siteIds);
     const queryString = params.toString();
     const url = queryString
       ? `/api/statistics/images-timeline?${queryString}`

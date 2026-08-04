@@ -273,6 +273,7 @@ async def get_overview(
 async def get_images_timeline(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     days: Optional[int] = Query(None, description="Number of days to look back (default: 30, use 0 for all time)"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -282,6 +283,7 @@ async def get_images_timeline(
 
     Args:
         days: Number of days to look back (None/30 = last 30 days, 0 = all time)
+        site_ids: Restrict to images taken at these sites, via their deployment
         accessible_project_ids: Project IDs accessible to user
         db: Database session
         current_user: Current authenticated user
@@ -299,6 +301,15 @@ async def get_images_timeline(
     conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
     if start_date is not None:
         conditions.append(Image.captured_at >= start_date)
+    # Resolved through the deployment so an image counts for the site its camera
+    # stood at when it was taken, matching every other site filter in this file.
+    site_id_list = _parse_id_list(site_ids)
+    if site_id_list:
+        conditions.append(
+            Image.deployment_id.in_(
+                select(Deployment.id).where(Deployment.site_id.in_(site_id_list))
+            )
+        )
 
     query = (
         select(

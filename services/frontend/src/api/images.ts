@@ -25,6 +25,12 @@ export interface ImageFilters {
   max_classification_confidence?: number;
   project_id?: number;
   site_id?: string;        // images at one or more sites (comma-separated), via their deployment
+  /**
+   * 'newest' (default) or 'confidence'. Confidence ranks by the strongest
+   * classification, narrowed to the species filter when one is set, so the
+   * dashboard can lead with a photo that shows the animal clearly.
+   */
+  sort?: 'newest' | 'confidence';
 }
 
 export interface SpeciesOption {
