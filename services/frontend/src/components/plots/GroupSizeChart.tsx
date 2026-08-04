@@ -14,9 +14,10 @@
  * percentages they compare properly, at the cost of making a thin sample look
  * as solid as a thick one, so the event count stays next to every species.
  *
- * No smoothing curve. Group size is a whole number, so a line between the bars
- * would imply values like 2.4 individuals that cannot exist. The mean is drawn
- * as a vertical marker instead, which encodes something real.
+ * No smoothing curve and no in-chart mean marker. Group size is a whole number,
+ * so a line between the bars would imply values like 2.4 individuals that cannot
+ * exist. The mean is printed in the stat row above each chart instead, where it
+ * does not compete with the bars.
  */
 import React from 'react';
 import { Bar } from 'react-chartjs-2';
@@ -27,7 +28,6 @@ import {
   BarElement,
   Legend,
   Tooltip,
-  type Plugin,
 } from 'chart.js';
 import type { GroupSizeSpecies } from '../../api/types';
 import { normalizeLabel } from '../../utils/labels';
@@ -40,54 +40,7 @@ const BAR_COLOR = '#0f6064';
 // by position in the selection, never generated, so colours stay stable.
 const SERIES_COLORS = ['#0f6064', '#ff8945', '#71b7ba', '#882000'];
 
-/**
- * Vertical line at the mean group size. Sits between the category ticks,
- * since the mean falls between whole numbers.
- */
-const meanMarkerPlugin: Plugin<'bar'> = {
-  id: 'groupSizeMeanMarker',
-  afterDatasetsDraw(chart, _args, options) {
-    const opts = options as { mean?: number; labels?: string[] };
-    const { mean, labels } = opts;
-    if (mean == null || !labels || labels.length === 0) return;
-
-    const { ctx, chartArea, scales } = chart;
-    const xScale = scales.x;
-    if (!xScale) return;
-
-    // Interpolate the mean between the two category ticks it falls between.
-    const sizes = labels.map(Number);
-    let lowIndex = -1;
-    for (let i = 0; i < sizes.length; i++) {
-      if (sizes[i] <= mean) lowIndex = i;
-    }
-    if (lowIndex < 0) return;
-    const lowPx = xScale.getPixelForTick(lowIndex);
-    const highIndex = Math.min(lowIndex + 1, sizes.length - 1);
-    const highPx = xScale.getPixelForTick(highIndex);
-    const span = sizes[highIndex] - sizes[lowIndex];
-    const frac = span > 0 ? (mean - sizes[lowIndex]) / span : 0;
-    const x = lowPx + (highPx - lowPx) * frac;
-
-    ctx.save();
-    ctx.strokeStyle = BAR_COLOR;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    ctx.moveTo(x, chartArea.top);
-    ctx.lineTo(x, chartArea.bottom);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.fillStyle = BAR_COLOR;
-    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif';
-    ctx.textAlign = x > chartArea.right - 60 ? 'right' : 'left';
-    ctx.fillText(`mean ${mean.toFixed(2)}`, x + (ctx.textAlign === 'right' ? -6 : 6), chartArea.top + 12);
-    ctx.restore();
-  },
-};
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Legend, Tooltip, meanMarkerPlugin);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Legend, Tooltip);
 
 const StatRow: React.FC<{ species: GroupSizeSpecies }> = ({ species }) => (
   <div className="flex flex-wrap gap-x-4 text-sm text-muted-foreground tabular-nums">
@@ -114,7 +67,7 @@ interface SingleProps {
   sourceLabel: string;
 }
 
-/** One species, raw event counts, with the mean marked. */
+/** One species, raw event counts per group size. */
 export const GroupSizeChart: React.FC<SingleProps> = ({ species, sourceLabel }) => {
   const labels = species.histogram.map((b) => String(b.group_size));
 
@@ -135,7 +88,6 @@ export const GroupSizeChart: React.FC<SingleProps> = ({ species, sourceLabel }) 
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      groupSizeMeanMarker: { mean: species.mean, labels },
       tooltip: {
         callbacks: {
           title: (items: any[]) => `Group size ${items[0].label}`,
