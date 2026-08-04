@@ -862,7 +862,15 @@ async def list_images(
     # coalesce rather than relying on database null ordering. Capture time stays
     # as the tie-breaker so the order is stable across pages.
     if sort == "confidence":
-        best_confidence_filters = [Detection.image_id == Image.id]
+        # Only classifications the viewer would actually see may decide the
+        # order. Without the two threshold checks an image could lead on a
+        # detection the project filters out, and it would then render with no
+        # box at all, which is exactly the wrong photo to put first.
+        best_confidence_filters = [
+            Detection.image_id == Image.id,
+            Detection.confidence >= Project.detection_threshold,
+            classification_passes_threshold(),
+        ]
         if species_filter:
             best_confidence_filters.append(Classification.species.in_(species_filter))
         best_confidence = (
@@ -870,7 +878,7 @@ async def list_images(
             .select_from(Classification)
             .join(Detection, Classification.detection_id == Detection.id)
             .where(and_(*best_confidence_filters))
-            .correlate(Image)
+            .correlate(Image, Project)
             .scalar_subquery()
         )
         order_by = [desc(func.coalesce(best_confidence, 0.0)), desc(Image.captured_at)]
