@@ -22,7 +22,7 @@ export const DashboardExplore: React.FC = () => {
     filterFields,
     onFilterChange,
     onClearAll,
-  } = useDashboardFilters({ withSpecies: true });
+  } = useDashboardFilters('explore');
 
   const speciesParam = species || undefined;
 

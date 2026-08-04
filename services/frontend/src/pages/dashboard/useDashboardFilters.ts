@@ -33,12 +33,19 @@ export const DASHBOARD_FILTER_SCHEMA: FilterSchema = {
   species: 'string',
 };
 
-interface UseDashboardFiltersOptions {
-  /** Adds the Species field to the filter bar. Only the Explore tab wants it. */
-  withSpecies?: boolean;
-}
+/**
+ * Which tab is asking. This decides the filter bar only, never the values.
+ *
+ * Overview shows sites and tags, because every card there is filtered by
+ * site. It does not show species or a date range: of its five cards only
+ * verification progress accepts dates and none accept a species, so a
+ * control at the top of the page would look like it moved everything while
+ * moving one card or nothing. Overview therefore ignores both, see
+ * ALL_TIME in DashboardOverview.
+ */
+type DashboardTab = 'overview' | 'explore';
 
-export function useDashboardFilters({ withSpecies = false }: UseDashboardFiltersOptions = {}) {
+export function useDashboardFilters(tab: DashboardTab = 'overview') {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
@@ -141,8 +148,9 @@ export function useDashboardFilters({ withSpecies = false }: UseDashboardFilters
     }
   }, [allSpeciesOptions]);
 
-  const filterFields = useMemo<FilterFieldDef[]>(
-    () => [
+  const filterFields = useMemo<FilterFieldDef[]>(() => {
+    // Sites and tags filter every card on both tabs.
+    const fields: FilterFieldDef[] = [
       {
         kind: 'multi-select',
         key: 'site_ids',
@@ -159,30 +167,32 @@ export function useDashboardFilters({ withSpecies = false }: UseDashboardFilters
         placeholder: 'Any tags',
         summary: (n) => `${n} tags`,
       },
-      ...(withSpecies
-        ? [
-            {
-              kind: 'select' as const,
-              key: 'species',
-              label: 'Species',
-              options: (allSpeciesOptions ?? []).map((s) => ({
-                value: String(s.value),
-                label: String(s.label),
-              })),
-            },
-          ]
-        : []),
-      {
-        kind: 'date-range',
-        fromKey: 'date_from',
-        toKey: 'date_to',
-        label: 'Date range',
-        minDate: overview?.first_image_date,
-        maxDate: overview?.last_image_date,
-      },
-    ],
-    [sites, tagOptions, allSpeciesOptions, overview, withSpecies],
-  );
+    ];
+    // Species and date range drive all three Explore cards, and nothing on
+    // Overview, so they only appear on Explore.
+    if (tab === 'explore') {
+      fields.push(
+        {
+          kind: 'select',
+          key: 'species',
+          label: 'Species',
+          options: (allSpeciesOptions ?? []).map((s) => ({
+            value: String(s.value),
+            label: String(s.label),
+          })),
+        },
+        {
+          kind: 'date-range',
+          fromKey: 'date_from',
+          toKey: 'date_to',
+          label: 'Date range',
+          minDate: overview?.first_image_date,
+          maxDate: overview?.last_image_date,
+        },
+      );
+    }
+    return fields;
+  }, [sites, tagOptions, allSpeciesOptions, overview, tab]);
 
   return {
     projectId,

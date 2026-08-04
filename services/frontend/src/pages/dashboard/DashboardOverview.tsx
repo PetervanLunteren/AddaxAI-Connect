@@ -24,9 +24,14 @@ import { FilterBar } from '../../components/ui/FilterBar';
 import { statisticsApi } from '../../api/statistics';
 import { normalizeLabel } from '../../utils/labels';
 import { getSpeciesColor } from '../../utils/species-colors';
-import { AlertCounters } from '../../components/dashboard';
+import { AlertCounters, type DateRange } from '../../components/dashboard';
 import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
 import { useDashboardFilters } from './useDashboardFilters';
+
+// Overview has no date filter. The URL can still carry a date range because
+// the Explore tab uses one, so verification progress is pinned to all time
+// here rather than being filtered by a control the user cannot see.
+const ALL_TIME: DateRange = { startDate: null, endDate: null };
 
 // This tab owns the only Bar and Doughnut on the dashboard.
 ChartJS.register(
@@ -42,7 +47,6 @@ ChartJS.register(
 export const DashboardOverview: React.FC = () => {
   const {
     projectId,
-    dateRange,
     siteIdsFromTags,
     overview,
     overviewLoading,
@@ -50,7 +54,7 @@ export const DashboardOverview: React.FC = () => {
     filterFields,
     onFilterChange,
     onClearAll,
-  } = useDashboardFilters();
+  } = useDashboardFilters('overview');
 
   const { data: species, isLoading: speciesLoading } = useQuery({
     queryKey: ['statistics', 'species', projectId, siteIdsFromTags],
@@ -245,7 +249,7 @@ export const DashboardOverview: React.FC = () => {
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <AlertCounters projectId={projectId} siteIds={siteIdsFromTags} />
         <VerificationProgressCard
-          dateRange={dateRange}
+          dateRange={ALL_TIME}
           projectId={projectId}
           siteIds={siteIdsFromTags}
         />
