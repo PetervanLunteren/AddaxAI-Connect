@@ -35,9 +35,14 @@ import { normalizeLabel } from '../../utils/labels';
 /** Below this many events a distribution is too thin to read much into. */
 export const LOW_EVENT_COUNT = 20;
 
-const BAR_COLOR = '#0f6064';
+// One series, so a light fill with a thin brand-teal outline. Solid brand teal
+// made a wall of dark blocks, since one bar usually holds almost every event.
+const BAR_FILL = '#71b7ba';
+const BAR_BORDER = '#0f6064';
 // Fixed order, from the four-value palette in FRONTEND_CONVENTIONS.md. Assigned
-// by position in the selection, never generated, so colours stay stable.
+// by position in the selection, never generated, so colours stay stable. Left
+// solid: four hues have to stay apart from each other, lightening them would
+// push them together.
 const SERIES_COLORS = ['#0f6064', '#ff8945', '#71b7ba', '#882000'];
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Legend, Tooltip);
@@ -75,8 +80,9 @@ export const GroupSizeChart: React.FC<SingleProps> = ({ species }) => {
     datasets: [
       {
         data: species.histogram.map((b) => b.events),
-        backgroundColor: BAR_COLOR,
-        borderWidth: 0,
+        backgroundColor: BAR_FILL,
+        borderColor: BAR_BORDER,
+        borderWidth: 1,
         borderRadius: 4,
       },
     ],

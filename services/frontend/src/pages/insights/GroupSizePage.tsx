@@ -5,12 +5,13 @@
  * a single image within that event. The independence filter already computes
  * it; the maths runs server-side and this page is purely presentational.
  *
- * Counts come from two places and they disagree. A verified image carries a
- * number a person typed. An unverified image contributes one per detection box,
- * which reads low because the detector misses animals in a group. Blending them
- * biases group size downward by an amount that shrinks as verification grows,
- * so the page defaults to human counts and names the active source under every
- * chart.
+ * Counts come from two places. A verified image carries a number a person
+ * typed. An unverified image contributes one per detection box, which reads low
+ * because the detector misses animals standing behind each other. The page
+ * counts both by default, like every other statistic in the app: the AI gives
+ * an answer and verifying improves it, it is not a precondition. Verified-only
+ * is one click away in the Display menu, and the active mode is named under the
+ * charts so a screenshot cannot hide which numbers these are.
  */
 import React, { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -27,7 +28,6 @@ import { PlotExplainer, type PlotReference } from '../../components/plots/PlotEx
 import {
   GroupSizeChart,
   GroupSizeComparisonChart,
-  LOW_EVENT_COUNT,
 } from '../../components/plots/GroupSizeChart';
 import {
   FilterBar,
@@ -52,11 +52,11 @@ const FILTER_SCHEMA: FilterSchema = {
   charts: 'string',
 };
 
-// Defaults are the values left out of the URL, so a clean link means the safe
-// mode: only what a person counted, one chart per species.
+// Defaults are the values left out of the URL, so a clean link means all counts,
+// one chart per species. First option is the default.
 const SOURCE_OPTIONS = [
-  { value: 'people', label: 'Only verified counts' },
   { value: 'people_ai', label: 'All counts, verified and AI estimates' },
+  { value: 'people', label: 'Only verified counts' },
 ];
 
 const CHARTS_OPTIONS = [
@@ -86,7 +86,7 @@ export const GroupSizePage: React.FC = () => {
   const endDate = (parsed.date_to as string) || null;
   const tagValues = Array.isArray(parsed.tags) ? parsed.tags : [];
   const siteIdValues = Array.isArray(parsed.site_ids) ? parsed.site_ids : [];
-  const source = (parsed.source as string) === 'people_ai' ? 'people_ai' : 'people';
+  const source = (parsed.source as string) === 'people' ? 'people' : 'people_ai';
   const verifiedOnly = source === 'people';
   const charts = (parsed.charts as string) === 'combined' ? 'combined' : 'separate';
 
@@ -142,7 +142,7 @@ export const GroupSizePage: React.FC = () => {
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
-      source: source === 'people' ? undefined : source,
+      source: source === 'people_ai' ? undefined : source,
       charts: charts === 'separate' ? undefined : charts,
       ...next,
     };
@@ -319,8 +319,7 @@ export const GroupSizePage: React.FC = () => {
             For each species, how many individuals were seen together. The bars show how
             often each group size occurred, and the row above each chart gives the mean,
             the smallest and largest group, and how many independent events the numbers
-            rest on. Most species are mostly solitary, so a tall bar at 1 with a short
-            tail is the normal shape.
+            rest on.
           </p>
         }
         how={
@@ -329,49 +328,18 @@ export const GroupSizePage: React.FC = () => {
               Repeat photos of the same species at the same place within the project's
               independence interval are grouped into one event. The group size of an
               event is its MaxN, the most individuals visible in any single image of that
-              event. This is the standard camera trap approach and the same event
-              grouping the other statistics use.
+              event (O'Brien et al. 2003). This is the standard camera trap approach and
+              the same event grouping the other statistics use.
             </p>
             <p>
-              By default only verified images count, using the number a person entered.
-              Switching to <em>All counts, verified and AI estimates</em> in the Display menu also
-              counts unverified images, where each detection box counts as one individual.
+              By default every image counts. A verified image uses the number a person
+              entered, an unverified image counts one per detection box. Switching to{' '}
+              <em>Only verified counts</em> in the Display menu drops the unverified
+              images. The detector misses animals standing behind each other, so verified
+              counts usually come out higher.
             </p>
           </>
         }
-        caveats={
-          <>
-            <p>
-              Group size is a lower bound. Animals that are never visible in the same
-              image are not counted, so a herd spread across several frames reads smaller
-              than it was.
-            </p>
-            <p>
-              The two count sources do not agree. The detector misses animals in a group,
-              so <em>All counts, verified and AI estimates</em> reads lower than the verified counts, and
-              the gap narrows as more images are verified. Do not compare the two modes as
-              if the difference were biological.
-            </p>
-            <p>
-              Fewer than {LOW_EVENT_COUNT} events is flagged under the chart. Treat those
-              distributions as an indication, not a result.
-            </p>
-          </>
-        }
-        settings={[
-          {
-            label: 'Independence interval',
-            detail:
-              'Sets how far apart two sightings must be to count as separate events. ' +
-              'At 0 every image is its own event, so group size becomes individuals per image.',
-          },
-          {
-            label: 'Detection and classification thresholds',
-            detail:
-              'Only apply in the people and AI mode, where they decide which boxes count ' +
-              'as an individual.',
-          },
-        ]}
         references={REFERENCES}
       />
     </InsightsPageLayout>

@@ -1321,11 +1321,13 @@ async def get_group_size(
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     verified_only: bool = Query(
-        True,
+        False,
         description=(
-            "Count only human-entered observations. The AI contributes one per "
-            "detection box and reads low, so blending the two biases group size "
-            "downward by an amount that shrinks as verification grows."
+            "Count only human-entered observations. Off by default, matching the "
+            "rest of the app: a verified image uses the number a person entered, "
+            "an unverified image contributes one per detection box. The AI reads "
+            "low because it misses animals standing behind each other, so turning "
+            "this on usually raises the mean."
         ),
     ),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
