@@ -334,7 +334,7 @@ export const GroupSizePage: React.FC = () => {
             </p>
             <p>
               By default only verified images count, using the number a person entered.
-              Switching to <em>Counted by people and AI</em> in the Display menu also
+              Switching to <em>All counts, verified and AI estimates</em> in the Display menu also
               counts unverified images, where each detection box counts as one individual.
             </p>
           </>
@@ -348,7 +348,7 @@ export const GroupSizePage: React.FC = () => {
             </p>
             <p>
               The two count sources do not agree. The detector misses animals in a group,
-              so <em>Counted by people and AI</em> reads lower than the human counts, and
+              so <em>All counts, verified and AI estimates</em> reads lower than the verified counts, and
               the gap narrows as more images are verified. Do not compare the two modes as
               if the difference were biological.
             </p>
