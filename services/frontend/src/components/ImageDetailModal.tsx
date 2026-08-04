@@ -66,7 +66,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
 
   const queryClient = useQueryClient();
 
-  const { data: imageDetail, isLoading, error } = useQuery({
+  const { data: imageDetail, isLoading } = useQuery({
     queryKey: ['image', imageUuid],
     queryFn: () => imagesApi.getByUuid(imageUuid),
     enabled: isOpen && !!imageUuid,

@@ -2,7 +2,6 @@
  * Hexbin grid utilities for aggregating sites on the detection-rate map.
  */
 import { hexGrid } from '@turf/hex-grid';
-import { squareGrid } from '@turf/square-grid';
 import { pointsWithinPolygon } from '@turf/points-within-polygon';
 import { bbox as turfBbox } from '@turf/bbox';
 import { point, featureCollection } from '@turf/helpers';

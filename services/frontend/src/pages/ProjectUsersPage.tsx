@@ -31,12 +31,12 @@ import {
 import { useToast } from '../components/ui/Toaster';
 import { Select, SelectItem } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
-import type { ProjectUserInfo, UserWithMemberships } from '../api/types';
+import type { ProjectUserInfo } from '../api/types';
 import { formatDate } from '../utils/datetime';
 
 export const ProjectUsersPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
-  const { canAdminCurrentProject, selectedProject } = useProject();
+  const { canAdminCurrentProject } = useProject();
   const queryClient = useQueryClient();
   const toast = useToast();
 

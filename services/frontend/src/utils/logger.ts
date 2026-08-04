@@ -19,7 +19,9 @@ class Logger {
   private apiUrl = '/api/logs';
   private isDevelopment = import.meta.env.DEV;
   private pendingLogs: LogEntry[] = [];
-  private batchTimer: NodeJS.Timeout | null = null;
+  // Browser setTimeout returns a number, not a NodeJS.Timeout. Deriving the
+  // type from setTimeout keeps it correct without pulling in @types/node.
+  private batchTimer: ReturnType<typeof setTimeout> | null = null;
   private maxBatchSize = 10;
   private batchIntervalMs = 1000;
 

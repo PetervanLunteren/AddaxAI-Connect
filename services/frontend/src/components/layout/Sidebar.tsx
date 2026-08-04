@@ -30,7 +30,6 @@ import {
   Table2,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../../hooks/useAuth';
 import { useProject } from '../../contexts/ProjectContext';
 import { cn } from '../../lib/utils';
 import { LastUpdate } from '../LastUpdate';
@@ -44,8 +43,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
-  const { selectedProject, isServerAdmin, isProjectAdmin } = useProject();
+  const { selectedProject, isProjectAdmin } = useProject();
   const { projectId } = useParams<{ projectId: string }>();
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);

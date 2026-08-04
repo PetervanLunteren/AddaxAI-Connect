@@ -57,7 +57,6 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       icon: Info,
       label: 'About',
       onClick: () => handleNavigate('/about'),
-      variant: 'default' as const,
     },
   ];
 
@@ -67,25 +66,21 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
       icon: Activity,
       label: 'System health',
       onClick: () => handleNavigate('/server/health'),
-      variant: 'default' as const,
     },
     {
       icon: Users,
       label: 'Server admins',
       onClick: () => handleNavigate('/server/server-admin-management'),
-      variant: 'default' as const,
     },
     {
       icon: Settings,
       label: 'Server settings',
       onClick: () => handleNavigate('/server/settings'),
-      variant: 'default' as const,
     },
     {
       icon: Upload,
       label: 'File management',
       onClick: () => handleNavigate('/server/file-management'),
-      variant: 'default' as const,
     },
   ];
 
@@ -138,12 +133,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ user, isServerAdmin, onLogou
                   <button
                     key={index}
                     onClick={item.onClick}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left',
-                      item.variant === 'destructive'
-                        ? 'text-destructive hover:bg-destructive/10'
-                        : 'hover:bg-accent'
-                    )}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left hover:bg-accent"
                   >
                     <item.icon className="h-4 w-4" />
                     <span>{item.label}</span>

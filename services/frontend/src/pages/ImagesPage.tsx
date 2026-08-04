@@ -377,12 +377,13 @@ export const ImagesPage: React.FC = () => {
 
   // Handle cross-page navigation: select first/last image after page loads
   useEffect(() => {
-    if (imagesData?.items.length > 0) {
+    const items = imagesData?.items ?? [];
+    if (items.length > 0) {
       if (pendingFirstImage) {
-        setSelectedImageUuid(imagesData.items[0].uuid);
+        setSelectedImageUuid(items[0].uuid);
         setPendingFirstImage(false);
       } else if (pendingLastImage) {
-        setSelectedImageUuid(imagesData.items[imagesData.items.length - 1].uuid);
+        setSelectedImageUuid(items[items.length - 1].uuid);
         setPendingLastImage(false);
       }
     }

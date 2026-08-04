@@ -12,7 +12,6 @@ import type {
   DetectionRateMapFilters,
   ActivityPatternResponse,
   ActivityPatternFilters,
-  DateRangeFilters,
   DetectionTrendPoint,
   DetectionTrendFilters,
   TrapEffortPoint,

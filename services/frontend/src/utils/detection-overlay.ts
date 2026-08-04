@@ -236,7 +236,6 @@ export function drawDetectionOverlay(
   const padX = PILL_PAD_X * scale;
   const padY = PILL_PAD_Y * scale;
   const dotR = DOT_R * scale;
-  const dotGap = DOT_GAP * scale;
   const lineGap = LINE_GAP * scale;
   const textStartX = TEXT_START_X * scale;
   const pillCornerR = (BBOX_CORNER_RADIUS + 1) * scale;

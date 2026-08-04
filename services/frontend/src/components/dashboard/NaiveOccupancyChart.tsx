@@ -206,10 +206,6 @@ const correctedPsiMarkerPlugin: Plugin<'bar'> = {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, correctedPsiMarkerPlugin);
 
-function formatPct(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
 interface NaiveOccupancyChartProps {
   dateRange: DateRange;
   projectId?: number;
@@ -279,7 +275,6 @@ export const NaiveOccupancyChart: React.FC<NaiveOccupancyChartProps> = ({
         enabled: false,
         external: (ctx) => renderOccupancyTooltip(ctx, points),
       },
-      // @ts-expect-error custom plugin options aren't in Chart.js's typings
       correctedPsiMarker: { points },
     },
     scales: {

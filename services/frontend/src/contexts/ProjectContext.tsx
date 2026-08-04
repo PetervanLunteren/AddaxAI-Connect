@@ -7,7 +7,7 @@
  * - Regular users see only their assigned projects with their specific roles
  * - Auto-selects project from URL when on project-specific pages
  */
-import React, { createContext, useState, useEffect, useContext, ReactNode, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { getUserProjects } from '../api/auth';

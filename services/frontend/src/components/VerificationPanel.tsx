@@ -8,7 +8,7 @@
  * - Tab/Shift+Tab to cycle focus between observations
  * - Up/Down arrows to adjust count of focused observation
  */
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Minus, X, Loader2, Check, Copy, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';

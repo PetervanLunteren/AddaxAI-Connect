@@ -8,8 +8,6 @@ import type {
   ProjectUpdate,
   ProjectDeleteResponse,
   ProjectUserInfo,
-  AddUserToProjectRequest,
-  UpdateProjectUserRoleRequest,
   InvitationResponse,
   AddProjectUserByEmailRequest,
   AddProjectUserByEmailResponse

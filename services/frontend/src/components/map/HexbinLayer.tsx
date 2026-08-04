@@ -5,7 +5,7 @@
 import { useMemo, useCallback } from 'react';
 import { GeoJSON } from 'react-leaflet';
 import type { FeatureCollection, Polygon, Feature } from 'geojson';
-import type { Layer, PathOptions } from 'leaflet';
+import type { Layer } from 'leaflet';
 import { featureCollection } from '@turf/helpers';
 import type { SiteFeature } from '../../api/types';
 import {
@@ -73,7 +73,9 @@ export function HexbinLayer({ sites, zoomLevel, mapBounds, maxDetectionRate }: H
   }, [hexCells, maxRate]);
 
   // Stable style function using useCallback
-  const styleFunction = useCallback((feature: Feature<Polygon, HexFeatureProperties> | undefined) => {
+  // Leaflet types the style callback as receiving any Feature, so the
+  // parameter stays generic and the properties are narrowed below.
+  const styleFunction = useCallback((feature?: Feature) => {
     const props = feature?.properties as HexFeatureProperties | undefined;
     if (!props) return {};
 

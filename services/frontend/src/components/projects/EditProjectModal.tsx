@@ -54,7 +54,7 @@ export const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, ope
       });
 
       // Handle image changes
-      if (removeCurrentImage && project.image_path) {
+      if (removeCurrentImage && project.image_url) {
         await projectsApi.deleteImage(project.id);
       }
 

@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDropzone } from 'react-dropzone';
-import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Trash2, Download, Save, FileSpreadsheet } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertCircle, ExternalLink, X, Copy, Check, Download, Save, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Switch } from '../../components/ui/Switch';
 import { ServerPageLayout } from '../../components/layout/ServerPageLayout';
@@ -32,7 +32,7 @@ const generateBotUsername = (): string => {
 };
 
 // Copy button component for inline code examples
-const CopyButton: React.FC<{ text: string; id: string }> = ({ text, id }) => {
+const CopyButton: React.FC<{ text: string }> = ({ text }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -225,7 +225,7 @@ export const ServerSettingsPage: React.FC = () => {
   };
 
   // --- Taxonomy logic ---
-  const { data: taxonomyData, isLoading: taxonomyLoading } = useQuery({
+  const { data: taxonomyData } = useQuery({
     queryKey: ['taxonomy-mapping'],
     queryFn: adminApi.getTaxonomyMapping,
     enabled: isSpeciesNet,
@@ -820,28 +820,28 @@ export const ServerSettingsPage: React.FC = () => {
                           Search for{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             @BotFather
-                            <CopyButton text="@BotFather" id="copy-botfather" />
+                            <CopyButton text="@BotFather" />
                           </code>
                         </li>
                         <li>
                           Send the command{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             /newbot
-                            <CopyButton text="/newbot" id="copy-newbot" />
+                            <CopyButton text="/newbot" />
                           </code>
                         </li>
                         <li>
                           Name your bot{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             AddaxAI Connect
-                            <CopyButton text="AddaxAI Connect" id="copy-botname" />
+                            <CopyButton text="AddaxAI Connect" />
                           </code>
                                                   </li>
                         <li>
                           Choose username{' '}
                           <code className="px-1.5 py-0.5 bg-background rounded inline-flex items-center">
                             {botUsername}
-                            <CopyButton text={botUsername} id="copy-username" />
+                            <CopyButton text={botUsername} />
                           </code>
                                                   </li>
                         <li>Copy the bot token (looks like: <em>123456789:ABCdefGHIjklMNOpqrs-TUVwxyz_A1</em>)</li>
@@ -972,7 +972,7 @@ export const ServerSettingsPage: React.FC = () => {
                   Open{' '}
                   <code className="px-1.5 py-0.5 bg-muted rounded inline-flex items-center">
                     @BotFather
-                    <CopyButton text="@BotFather" id="copy-botfather-pic" />
+                    <CopyButton text="@BotFather" />
                   </code>
                   {' '}in Telegram
                 </li>

@@ -272,13 +272,14 @@ export interface Project {
 export interface ProjectCreate {
   name: string;
   description?: string;
-  included_species?: string[];
+  // null means all species are allowed, same as omitting it.
+  included_species?: string[] | null;
 }
 
 export interface ProjectUpdate {
   name?: string;
   description?: string;
-  included_species?: string[];
+  included_species?: string[] | null;
   blur_people_vehicles?: boolean;
   independence_interval_minutes?: number;
   classification_thresholds?: { default: number; overrides: Record<string, number> };

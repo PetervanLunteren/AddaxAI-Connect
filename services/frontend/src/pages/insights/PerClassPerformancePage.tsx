@@ -429,7 +429,7 @@ export const PerClassPerformancePage: React.FC = () => {
     return buildRows(data, topN);
   }, [data, topN]);
 
-  const totalClasses = data?.matrix_classes.filter((cls, i) => {
+  const totalClasses = data?.matrix_classes.filter((_, i) => {
     if (!data) return false;
     return data.matrix_row_totals[i] > 0 || data.matrix_col_totals[i] > 0;
   }).length ?? 0;

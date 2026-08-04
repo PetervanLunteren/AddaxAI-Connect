@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Loader2, Save, MessageCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -41,7 +41,6 @@ export const NotificationsPage: React.FC = () => {
 
   // Telegram linking state
   const [showLinkModal, setShowLinkModal] = useState(false);
-  const [linkToken, setLinkToken] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
 
   // Email reports state
@@ -205,7 +204,6 @@ export const NotificationsPage: React.FC = () => {
   const generateTokenMutation = useMutation({
     mutationFn: () => notificationsApi.generateTelegramLinkToken(projectIdNum),
     onSuccess: (data) => {
-      setLinkToken(data.token);
       setDeepLink(data.deep_link);
       setShowLinkModal(true);
     },
@@ -564,7 +562,7 @@ export const NotificationsPage: React.FC = () => {
                 {/* Open Telegram button */}
                 <div className="flex justify-center">
                   <a
-                    href={deepLink}
+                    href={deepLink ?? undefined}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-6 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-center font-medium flex items-center justify-center gap-2"

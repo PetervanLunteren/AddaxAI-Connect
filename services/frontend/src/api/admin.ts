@@ -5,8 +5,6 @@ import apiClient from './client';
 import type {
   UserWithMemberships,
   ProjectMembershipInfo,
-  AddUserToProjectRequest,
-  UpdateProjectUserRoleRequest,
   InviteUserRequest,
   InvitationResponse,
   AddServerAdminRequest,

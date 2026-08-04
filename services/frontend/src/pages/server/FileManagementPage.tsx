@@ -7,7 +7,6 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Upload,
   CheckCircle2,
   XCircle,
   Loader2,

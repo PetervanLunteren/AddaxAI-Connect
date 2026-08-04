@@ -43,7 +43,6 @@ import { camerasApi } from '../../api/cameras';
 import { sitesApi } from '../../api/sites';
 import { imagesApi } from '../../api/images';
 import { bulkUploadApi } from '../../api/bulkUpload';
-import type { ImageListItem } from '../../api/types';
 import { formatDateTime } from '../../utils/datetime';
 
 type SortColumn = 'filename' | 'camera_name' | 'captured_at';

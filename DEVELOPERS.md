@@ -427,12 +427,19 @@ The sweep refuses to run against anything but a dev server. It asks the target A
 ### Verification gate for frontend changes
 
 ```bash
-npm run build      # must pass
+npm run build      # typechecks first, then bundles; must pass
 npm run sweep      # at least the affected viewports, compare screenshots
-npx tsc --noEmit   # must not report NEW errors
 ```
 
-The build does not typecheck, so run `tsc` separately. Note that `tsc --noEmit` currently reports a batch of pre-existing errors (unused imports, missing `vite/client` types, leaflet typings). Until those are cleaned up, the bar is that a change adds no new errors, compare against `git stash && npx tsc --noEmit`.
+`npm run build` runs `tsc --noEmit && vite build`, so a type error fails the
+build and the container image never gets created. The bar is zero type errors,
+not "no new errors". Use `npm run typecheck` while working to check types
+without bundling.
+
+Keep it at zero. Vite strips types without checking them, so the typecheck is
+the only thing standing between a type error and production. A tolerated pile
+of errors hides real bugs: the verification panel silently erased sex and
+age-class data for months while `tsc` reported it on every run.
 
 ## Running tests
 

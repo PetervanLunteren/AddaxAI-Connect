@@ -4,7 +4,7 @@
  * Catches React rendering errors and logs them to backend.
  * Displays fallback UI when errors occur.
  */
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { logger } from '../utils/logger';
 
 interface Props {
