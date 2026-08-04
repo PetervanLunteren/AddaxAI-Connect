@@ -281,7 +281,7 @@ export const GroupSizePage: React.FC = () => {
       ) : (
         <>
           {charts === 'combined' && data.species.length > 1 ? (
-            <GroupSizeComparisonChart species={data.species} sourceLabel={sourceLabel} />
+            <GroupSizeComparisonChart species={data.species} />
           ) : (
             // A single chart fills the width; two or more tile two-up.
             <div
@@ -292,7 +292,7 @@ export const GroupSizePage: React.FC = () => {
               }
             >
               {data.species.map((s) => (
-                <GroupSizeChart key={s.species} species={s} sourceLabel={sourceLabel} />
+                <GroupSizeChart key={s.species} species={s} />
               ))}
             </div>
           )}

@@ -52,7 +52,7 @@ const StatRow: React.FC<{ species: GroupSizeSpecies }> = ({ species }) => (
 );
 
 const LowSampleNote: React.FC<{ events: number }> = ({ events }) => (
-  <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+  <p className="mt-3 border-t pt-3 text-xs text-amber-700 dark:text-amber-400">
     Only {events} events, interpret with caution
   </p>
 );
@@ -64,11 +64,10 @@ const axisTitles = (yText: string) => ({
 
 interface SingleProps {
   species: GroupSizeSpecies;
-  sourceLabel: string;
 }
 
 /** One species, raw event counts per group size. */
-export const GroupSizeChart: React.FC<SingleProps> = ({ species, sourceLabel }) => {
+export const GroupSizeChart: React.FC<SingleProps> = ({ species }) => {
   const labels = species.histogram.map((b) => String(b.group_size));
 
   const data = {
@@ -111,7 +110,6 @@ export const GroupSizeChart: React.FC<SingleProps> = ({ species, sourceLabel }) 
       <div className="h-52 mt-3">
         <Bar data={data} options={options} />
       </div>
-      <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">{sourceLabel}</p>
       {species.events < LOW_EVENT_COUNT && <LowSampleNote events={species.events} />}
     </div>
   );
@@ -119,11 +117,10 @@ export const GroupSizeChart: React.FC<SingleProps> = ({ species, sourceLabel }) 
 
 interface CombinedProps {
   species: GroupSizeSpecies[];
-  sourceLabel: string;
 }
 
 /** Every species on one axis, as share of that species' own events. */
-export const GroupSizeComparisonChart: React.FC<CombinedProps> = ({ species, sourceLabel }) => {
+export const GroupSizeComparisonChart: React.FC<CombinedProps> = ({ species }) => {
   const maxSize = Math.max(...species.map((s) => s.max), 1);
   const labels = Array.from({ length: maxSize }, (_, i) => String(i + 1));
 
@@ -188,8 +185,8 @@ export const GroupSizeComparisonChart: React.FC<CombinedProps> = ({ species, sou
         <Bar data={{ labels, datasets }} options={options} />
       </div>
       <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
-        {sourceLabel}. Bars show each species as a share of its own events, so species with
-        very different totals can be compared.
+        Bars show each species as a share of its own events, so species with very
+        different totals can be compared.
       </p>
       {thin.length > 0 && (
         <LowSampleNote events={Math.min(...thin.map((s) => s.events))} />
