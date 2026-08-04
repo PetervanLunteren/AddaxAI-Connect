@@ -118,9 +118,9 @@ export const DevPurgeConfirmModal: React.FC<DevPurgeConfirmModalProps> = ({
                   </li>
                 </ul>
                 <p className="text-muted-foreground pt-1">
-                  Historical attributions on projects, documents, reminders, and
-                  human observations created by removed users will be reassigned
-                  to you.
+                  Historical attributions on projects, documents, reminders, bulk
+                  uploads, and human observations created by removed users will be
+                  reassigned to you.
                 </p>
               </div>
             </div>

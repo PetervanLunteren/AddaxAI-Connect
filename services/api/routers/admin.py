@@ -29,6 +29,7 @@ from shared.models import (
     ProjectReminder,
     ProjectDocument,
     ProjectNotificationPreference,
+    BulkUploadJob,
 )
 from shared.database import get_async_session
 from shared.config import get_settings
@@ -1969,10 +1970,21 @@ async def purge_non_admin_users(
             .where(UserInvitation.invited_by_user_id.in_(non_admin_ids))
             .values(invited_by_user_id=current_user.id)
         )
+        await db.execute(
+            update(BulkUploadJob)
+            .where(BulkUploadJob.created_by_user_id.in_(non_admin_ids))
+            .values(created_by_user_id=current_user.id)
+        )
 
-        # Cascades handle project_memberships, notification_logs,
-        # telegram_linking_tokens (all FK CASCADE on users.id). Preferences
-        # were already cleared above.
+        # Everything else is handled by the schema itself: project_memberships,
+        # notification_logs, feed_seen and telegram_linking_tokens cascade on
+        # users.id, and feed_events.resolved_by_user_id is ON DELETE SET NULL.
+        # Preferences were already cleared above.
+        #
+        # Any new NOT NULL column pointing at users.id has to be added to the
+        # reassignment block above or this delete fails with a foreign key
+        # violation, which is exactly how bulk_upload_jobs was missed.
+        # tests/api/test_purge_user_references.py fails when that happens.
         delete_result = await db.execute(
             delete(User)
             .where(User.is_superuser.is_(False))
