@@ -24,7 +24,11 @@ import { statisticsApi } from '../../api/statistics';
 import type { GroupSizeResponse } from '../../api/types';
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PlotExplainer, type PlotReference } from '../../components/plots/PlotExplainer';
-import { GroupSizeChart, LOW_EVENT_COUNT } from '../../components/plots/GroupSizeChart';
+import {
+  GroupSizeChart,
+  GroupSizeComparisonChart,
+  LOW_EVENT_COUNT,
+} from '../../components/plots/GroupSizeChart';
 import {
   FilterBar,
   type DisplayControlDef,
@@ -45,12 +49,19 @@ const FILTER_SCHEMA: FilterSchema = {
   tags: 'string[]',
   site_ids: 'string[]',
   source: 'string',
+  charts: 'string',
 };
 
-/** 'people' is the default, so it is the value left out of the URL. */
+// Defaults are the values left out of the URL, so a clean link means the safe
+// mode: only what a person counted, one chart per species.
 const SOURCE_OPTIONS = [
-  { value: 'people', label: 'Counted by people' },
-  { value: 'people_ai', label: 'Counted by people and AI' },
+  { value: 'people', label: 'Only verified counts' },
+  { value: 'people_ai', label: 'All counts, verified and AI estimates' },
+];
+
+const CHARTS_OPTIONS = [
+  { value: 'separate', label: 'One per species' },
+  { value: 'combined', label: 'All in one chart' },
 ];
 
 const REFERENCES: PlotReference[] = [
@@ -77,6 +88,7 @@ export const GroupSizePage: React.FC = () => {
   const siteIdValues = Array.isArray(parsed.site_ids) ? parsed.site_ids : [];
   const source = (parsed.source as string) === 'people_ai' ? 'people_ai' : 'people';
   const verifiedOnly = source === 'people';
+  const charts = (parsed.charts as string) === 'combined' ? 'combined' : 'separate';
 
   // Species picker options. Same source the Images page filter uses, minus the
   // detector categories, which have no meaningful group size.
@@ -131,6 +143,7 @@ export const GroupSizePage: React.FC = () => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
       source: source === 'people' ? undefined : source,
+      charts: charts === 'separate' ? undefined : charts,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
@@ -204,10 +217,13 @@ export const GroupSizePage: React.FC = () => {
   );
 
   const displayControls = useMemo<DisplayControlDef[]>(
-    () => [{ key: 'source', label: 'Counts', options: SOURCE_OPTIONS }],
+    () => [
+      { key: 'source', label: 'Counts', options: SOURCE_OPTIONS },
+      { key: 'charts', label: 'Charts', options: CHARTS_OPTIONS },
+    ],
     [],
   );
-  const displayValues = { source };
+  const displayValues = { source, charts };
 
   const { data, isLoading } = useQuery<GroupSizeResponse>({
     queryKey: [
@@ -264,11 +280,22 @@ export const GroupSizePage: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data.species.map((s) => (
-              <GroupSizeChart key={s.species} species={s} sourceLabel={sourceLabel} />
-            ))}
-          </div>
+          {charts === 'combined' && data.species.length > 1 ? (
+            <GroupSizeComparisonChart species={data.species} sourceLabel={sourceLabel} />
+          ) : (
+            // A single chart fills the width; two or more tile two-up.
+            <div
+              className={
+                data.species.length === 1
+                  ? 'grid grid-cols-1 gap-4'
+                  : 'grid grid-cols-1 lg:grid-cols-2 gap-4'
+              }
+            >
+              {data.species.map((s) => (
+                <GroupSizeChart key={s.species} species={s} sourceLabel={sourceLabel} />
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 shrink-0" />
