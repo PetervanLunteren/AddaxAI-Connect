@@ -58,6 +58,8 @@ from utils.independence_filter import (
     get_independent_hourly_activity,
     get_independent_daily_trend,
     get_independent_detection_rate_counts,
+    get_group_size_distribution,
+    summarize_group_sizes,
 )
 
 
@@ -1267,6 +1269,104 @@ async def get_confidence_distribution(
         ))
 
     return bin_counts
+
+
+class GroupSizeBin(BaseModel):
+    """One bar of a group-size histogram."""
+    group_size: int
+    events: int
+
+
+class GroupSizeSpecies(BaseModel):
+    """Group size summary and distribution for a single species."""
+    species: str
+    events: int          # independent events the summary is based on
+    mean: float
+    min: int
+    max: int
+    histogram: List[GroupSizeBin]
+
+
+class GroupSizeMetadata(BaseModel):
+    """
+    Parameters that produced a group-size response, so a number on the chart
+    can be traced back to the data it came from.
+    """
+    verified_only: bool
+    # 0 means the project groups nothing, so every image is its own event and
+    # group size is really "individuals per image". Different meaning, same number.
+    independence_interval_minutes: int
+    window_start: Optional[str] = None  # ISO date; null when no date filter is set
+    window_end: Optional[str] = None
+    note: str = (
+        "Group size is MaxN, the most individuals seen in a single image within "
+        "an independent event. Animals never visible in the same image are not "
+        "counted, so these are lower bounds."
+    )
+
+
+class GroupSizeResponse(BaseModel):
+    species: List[GroupSizeSpecies]
+    metadata: GroupSizeMetadata
+
+
+@router.get(
+    "/group-size",
+    response_model=GroupSizeResponse,
+)
+async def get_group_size(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    species: Optional[str] = Query(None, description="Comma-separated species names"),
+    start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
+    verified_only: bool = Query(
+        True,
+        description=(
+            "Count only human-entered observations. The AI contributes one per "
+            "detection box and reads low, so blending the two biases group size "
+            "downward by an amount that shrinks as verification grows."
+        ),
+    ),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Group size statistics per species: mean, min, max and a histogram.
+
+    Group size is the MaxN of an independent event, which the independence
+    filter already computes. Person, vehicle and empty are excluded because
+    group size is meaningless for them.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = _parse_id_list(site_ids)
+    species_list = [s.strip() for s in species.split(',') if s.strip()] if species else None
+    interval = await _get_independence_interval(db, project_id)
+
+    start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
+    end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
+
+    rows = await get_group_size_distribution(
+        db=db,
+        project_ids=accessible_project_ids,
+        interval_minutes=interval,
+        species_list=species_list,
+        start_date=start_dt,
+        end_date=end_dt,
+        site_ids=site_id_list,
+        verified_only=verified_only,
+    )
+
+    return GroupSizeResponse(
+        species=[GroupSizeSpecies(**s) for s in summarize_group_sizes(rows)],
+        metadata=GroupSizeMetadata(
+            verified_only=verified_only,
+            independence_interval_minutes=interval,
+            window_start=start_date.isoformat() if start_date else None,
+            window_end=end_date.isoformat() if end_date else None,
+        ),
+    )
 
 
 class NaiveOccupancyPoint(BaseModel):

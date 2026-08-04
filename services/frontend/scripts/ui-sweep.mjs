@@ -58,6 +58,7 @@ const PROJECT_ROUTES = [
   'live-feed',
   'insights/naive-occupancy',
   'insights/activity-overlap',
+  'insights/group-size',
   'insights/deployment-timeline',
   'insights/map',
   'insights/confusion-matrix',

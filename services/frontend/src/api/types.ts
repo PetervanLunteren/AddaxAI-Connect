@@ -566,6 +566,44 @@ export interface IndependenceSummaryResponse {
 }
 
 // Naive occupancy (per-species presence/absence proportion at active sites)
+// Group size = MaxN of an independent event: the most individuals seen in a
+// single image within that event. Mirrors GroupSize* in routers/statistics.py.
+export interface GroupSizeBin {
+  group_size: number;
+  events: number;
+}
+
+export interface GroupSizeSpecies {
+  species: string;
+  events: number;
+  mean: number;
+  min: number;
+  max: number;
+  histogram: GroupSizeBin[];
+}
+
+export interface GroupSizeMetadata {
+  verified_only: boolean;
+  // 0 means the project groups nothing, so group size is individuals per image.
+  independence_interval_minutes: number;
+  window_start: string | null;
+  window_end: string | null;
+  note: string;
+}
+
+export interface GroupSizeResponse {
+  species: GroupSizeSpecies[];
+  metadata: GroupSizeMetadata;
+}
+
+export interface GroupSizeFilters {
+  species?: string;   // comma-separated
+  start_date?: string;  // YYYY-MM-DD
+  end_date?: string;    // YYYY-MM-DD
+  site_ids?: string;    // comma-separated site IDs
+  verified_only?: boolean;
+}
+
 export interface NaiveOccupancyPoint {
   species: string;
   sites_detected: number;

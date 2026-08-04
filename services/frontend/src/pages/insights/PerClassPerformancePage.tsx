@@ -24,7 +24,7 @@ import {
 import { InsightsPageLayout } from '../../components/layout/InsightsPageLayout';
 import { PerformanceSummaryCards } from '../../components/performance/PerformanceSummaryCards';
 import { PlotExplainer } from '../../components/plots/PlotExplainer';
-import { normalizeLabel } from '../../utils/labels';
+import { normalizeLabel, DETECTOR_CATEGORIES } from '../../utils/labels';
 import { f1DivergingColor, formatPercent } from '../../utils/performance-metrics';
 import {
   filtersFromSearchParams,
@@ -33,7 +33,6 @@ import {
 } from '../../lib/filter-url';
 
 const OTHER_LABEL = 'other';
-const DETECTOR_CATEGORIES = new Set(['empty', 'person', 'vehicle']);
 
 const TOP_N_VALUES: { value: string; label: string }[] = [
   { value: '10', label: '10 classes' },

@@ -3,6 +3,8 @@
  */
 import apiClient from './client';
 import type {
+  GroupSizeFilters,
+  GroupSizeResponse,
   StatisticsOverview,
   TimelineDataPoint,
   SpeciesCount,
@@ -215,6 +217,32 @@ export const statisticsApi = {
   /**
    * Naive occupancy per species: sites_detected / sites_total over a window.
    */
+  /**
+   * Group size statistics per species (mean, min, max, histogram).
+   */
+  getGroupSize: async (
+    projectId?: number,
+    filters?: GroupSizeFilters,
+  ): Promise<GroupSizeResponse> => {
+    const params = new URLSearchParams();
+    if (projectId !== undefined) params.append('project_id', projectId.toString());
+    if (filters?.species) params.append('species', filters.species);
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.site_ids) params.append('site_ids', filters.site_ids);
+    if (filters?.verified_only !== undefined) {
+      params.append('verified_only', String(filters.verified_only));
+    }
+
+    const queryString = params.toString();
+    const url = queryString
+      ? `/api/statistics/group-size?${queryString}`
+      : '/api/statistics/group-size';
+
+    const response = await apiClient.get<GroupSizeResponse>(url);
+    return response.data;
+  },
+
   getNaiveOccupancy: async (
     projectId?: number,
     filters?: NaiveOccupancyFilters,

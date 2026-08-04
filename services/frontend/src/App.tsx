@@ -41,6 +41,7 @@ import { InsightsMapPage } from './pages/insights/MapPage';
 import { ConfusionMatrixPage } from './pages/insights/ConfusionMatrixPage';
 import { PerClassPerformancePage } from './pages/insights/PerClassPerformancePage';
 import { ActivityOverlapPage } from './pages/insights/ActivityOverlapPage';
+import { GroupSizePage } from './pages/insights/GroupSizePage';
 import { DeploymentTimelinePage } from './pages/insights/DeploymentTimelinePage';
 
 function App() {
@@ -157,6 +158,7 @@ function App() {
                 <Route path="insights" element={<Navigate to="insights/naive-occupancy" replace />} />
                 <Route path="insights/naive-occupancy" element={<NaiveOccupancyPage />} />
                 <Route path="insights/activity-overlap" element={<ActivityOverlapPage />} />
+                <Route path="insights/group-size" element={<GroupSizePage />} />
                 <Route path="insights/deployment-timeline" element={<DeploymentTimelinePage />} />
                 <Route path="insights/map" element={<InsightsMapPage />} />
                 <Route path="insights/confusion-matrix" element={<ConfusionMatrixPage />} />

@@ -18,8 +18,12 @@ from shared.classification_threshold import CLASSIFICATION_THRESHOLD_FILTER_SQL
 
 # Base CTE that computes independent events from raw observations.
 # Parameters: :project_ids, :interval (minutes), plus optional filter params.
-# {classification_filter} is substituted at build time with the per-species
-# classification confidence filter (uses cl.confidence and p.classification_thresholds).
+#
+# The two unverified branches live in _UNVERIFIED_BRANCHES below and are
+# substituted into {unverified_branches}. Dropping them gives group sizes that
+# come only from counts a person typed, which is what the group-size page wants:
+# the AI branches contribute 1 per detection box and read low. Everything after
+# raw_obs, the event grouping that actually matters, exists once either way.
 _INDEPENDENCE_CTE = """
 WITH raw_obs AS (
     -- Verified: human observations
@@ -28,30 +32,7 @@ WITH raw_obs AS (
     JOIN images i ON ho.image_id = i.id
     JOIN cameras c ON i.camera_id = c.id
     WHERE i.is_verified = true AND c.project_id = ANY(:project_ids)
-      {verified_filters}
-    UNION ALL
-    -- Unverified: AI classifications
-    SELECT i.camera_id, i.deployment_id, cl.species, i.captured_at as ts, 1 as cnt
-    FROM classifications cl
-    JOIN detections d ON cl.detection_id = d.id
-    JOIN images i ON d.image_id = i.id
-    JOIN cameras c ON i.camera_id = c.id
-    JOIN projects p ON c.project_id = p.id
-    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
-      AND d.confidence >= p.detection_threshold
-      AND {classification_filter}
-      {unverified_filters}
-    UNION ALL
-    -- Unverified: person/vehicle detections (no classification)
-    SELECT i.camera_id, i.deployment_id, d.category as species, i.captured_at as ts, 1 as cnt
-    FROM detections d
-    JOIN images i ON d.image_id = i.id
-    JOIN cameras c ON i.camera_id = c.id
-    JOIN projects p ON c.project_id = p.id
-    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
-      AND d.category IN ('person', 'vehicle')
-      AND d.confidence >= p.detection_threshold
-      {pv_filters}
+      {verified_filters}{unverified_branches}
 ),
 -- Per-image: sum all detections of same species in same image
 img_counts AS (
@@ -106,6 +87,49 @@ events AS (
     GROUP BY pool_id, species, event_id
 )
 """
+
+
+# The unverified half of raw_obs. Kept separate so it can be left out entirely
+# for verified-only statistics. Note both branches count 1 per detection box,
+# not a human-asserted number of individuals.
+# {classification_filter} is substituted at build time with the per-species
+# classification confidence filter (uses cl.confidence and p.classification_thresholds).
+_UNVERIFIED_BRANCHES = """
+    UNION ALL
+    -- Unverified: AI classifications
+    SELECT i.camera_id, i.deployment_id, cl.species, i.captured_at as ts, 1 as cnt
+    FROM classifications cl
+    JOIN detections d ON cl.detection_id = d.id
+    JOIN images i ON d.image_id = i.id
+    JOIN cameras c ON i.camera_id = c.id
+    JOIN projects p ON c.project_id = p.id
+    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
+      AND d.confidence >= p.detection_threshold
+      AND {classification_filter}
+      {unverified_filters}
+    UNION ALL
+    -- Unverified: person/vehicle detections (no classification)
+    SELECT i.camera_id, i.deployment_id, d.category as species, i.captured_at as ts, 1 as cnt
+    FROM detections d
+    JOIN images i ON d.image_id = i.id
+    JOIN cameras c ON i.camera_id = c.id
+    JOIN projects p ON c.project_id = p.id
+    WHERE i.is_verified = false AND c.project_id = ANY(:project_ids)
+      AND d.category IN ('person', 'vehicle')
+      AND d.confidence >= p.detection_threshold
+      {pv_filters}"""
+
+
+def _build_unverified_branches(
+    unverified_filters: str,
+    pv_filters: str,
+) -> str:
+    """Render the two unverified UNION branches."""
+    return _UNVERIFIED_BRANCHES.format(
+        unverified_filters=unverified_filters,
+        pv_filters=pv_filters,
+        classification_filter=CLASSIFICATION_THRESHOLD_FILTER_SQL.strip(),
+    )
 
 
 def _build_filters(
@@ -164,16 +188,24 @@ def _build_cte(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
+    verified_only: bool = False,
 ) -> tuple:
-    """Build the full CTE SQL and params dict."""
+    """Build the full CTE SQL and params dict.
+
+    verified_only drops the two unverified branches, so counts come only from
+    human observations. Defaults to False, which reproduces the mixed CTE every
+    existing caller relies on.
+    """
     verified_filters, unverified_filters, pv_filters, params = _build_filters(
         species_filter, start_date, end_date, site_ids,
     )
+    unverified_branches = (
+        "" if verified_only
+        else _build_unverified_branches(unverified_filters, pv_filters)
+    )
     cte_sql = _INDEPENDENCE_CTE.format(
         verified_filters=verified_filters,
-        unverified_filters=unverified_filters,
-        pv_filters=pv_filters,
-        classification_filter=CLASSIFICATION_THRESHOLD_FILTER_SQL.strip(),
+        unverified_branches=unverified_branches,
     )
     return cte_sql, params
 
@@ -277,6 +309,96 @@ async def get_independent_hourly_activity(
     return [{"hour": row.hour, "count": row.count} for row in result.all()]
 
 
+# Labels that are not wildlife. Group size is meaningless for them, and the
+# page that uses this is framed as behavioural research. Same set the export
+# and naive-occupancy paths treat as non-species.
+NON_WILDLIFE_LABELS = ["person", "vehicle", "empty"]
+
+
+async def get_group_size_distribution(
+    db: AsyncSession,
+    project_ids: List[int],
+    interval_minutes: int,
+    species_list: Optional[List[str]] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    site_ids: Optional[List[int]] = None,
+    verified_only: bool = True,
+) -> List[dict]:
+    """
+    Get the distribution of group sizes per species.
+
+    Group size is the event_count already produced by the CTE: the most
+    individuals seen in any single image within one independent event (MaxN).
+
+    Returns one row per (species, group_size): {species, group_size, events}.
+    Callers derive mean / min / max from these bins.
+
+    species_list filters in this tail rather than in the CTE because
+    _build_filters only handles a single species and every other caller wants
+    it that way.
+    """
+    cte_sql, params = _build_cte(
+        None, start_date, end_date, site_ids, verified_only=verified_only,
+    )
+    params["project_ids"] = project_ids
+    params["interval"] = interval_minutes
+    params["excluded_species"] = NON_WILDLIFE_LABELS
+
+    species_clause = ""
+    if species_list:
+        species_clause = "AND LOWER(species) = ANY(:species_list)"
+        params["species_list"] = [s.lower() for s in species_list]
+
+    query = f"""
+    {cte_sql}
+    SELECT species, event_count as group_size, COUNT(*)::int as events
+    FROM events
+    WHERE LOWER(species) <> ALL(:excluded_species)
+      {species_clause}
+    GROUP BY species, event_count
+    ORDER BY species, group_size
+    """
+
+    result = await db.execute(text(query), params)
+    return [
+        {"species": row.species, "group_size": row.group_size, "events": row.events}
+        for row in result.all()
+    ]
+
+
+def summarize_group_sizes(rows: List[dict]) -> List[dict]:
+    """
+    Turn (species, group_size, events) bins into one summary per species.
+
+    Mean is computed from the bins, so it is exact and needs no second query.
+    Rows are expected sorted by species then group_size, which the SQL above
+    guarantees, but the summary does not rely on it.
+    """
+    by_species: dict = {}
+    for row in rows:
+        by_species.setdefault(row["species"], []).append(row)
+
+    summaries = []
+    for species, bins in by_species.items():
+        bins = sorted(bins, key=lambda b: b["group_size"])
+        events = sum(b["events"] for b in bins)
+        total_individuals = sum(b["group_size"] * b["events"] for b in bins)
+        summaries.append({
+            "species": species,
+            "events": events,
+            "mean": total_individuals / events if events else 0.0,
+            "min": bins[0]["group_size"],
+            "max": bins[-1]["group_size"],
+            "histogram": [
+                {"group_size": b["group_size"], "events": b["events"]} for b in bins
+            ],
+        })
+
+    summaries.sort(key=lambda s: s["events"], reverse=True)
+    return summaries
+
+
 async def get_independent_daily_trend(
     db: AsyncSession,
     project_ids: List[int],
@@ -370,9 +492,7 @@ async def compute_event_assignments(
     query = f"""
     {_INDEPENDENCE_CTE.format(
         verified_filters="",
-        unverified_filters="",
-        pv_filters="",
-        classification_filter=CLASSIFICATION_THRESHOLD_FILTER_SQL.strip(),
+        unverified_branches=_build_unverified_branches("", ""),
     )}
     , event_boundaries AS (
         SELECT pool_id, species, event_id,
