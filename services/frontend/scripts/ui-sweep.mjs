@@ -51,6 +51,7 @@ const GLOBAL_ROUTES = [
 ];
 const PROJECT_ROUTES = [
   'dashboard',
+  'dashboard/explore',
   'cameras',
   'sites',
   'images',

@@ -18,11 +18,9 @@ import {
 import type { ChartData } from 'chart.js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
-import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
 import { formatDateShort, formatMonth } from '../../utils/datetime';
 import { getSpeciesColor } from '../../utils/species-colors';
-import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
 
 // Register Chart.js components
@@ -32,6 +30,8 @@ interface DetectionTrendChartProps {
   dateRange: DateRange;
   projectId?: number;
   siteIds?: string;
+  /** Selected species. undefined means all species. */
+  species?: string;
   // Project's full image-date extent. Used as the fallback x-axis span
   // and granularity hint when the user has not set an explicit date
   // range, so a sparse species shows its spike in the context of the
@@ -125,11 +125,10 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   dateRange,
   projectId,
   siteIds,
+  species,
   projectFirstDate,
   projectLastDate,
 }) => {
-  const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
-
   // Effective span = user filter when set, else the project's full
   // image-date extent. Drives granularity and the chart's x-axis range
   // so picking a sparse species shows its spike against the full
@@ -145,43 +144,18 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
     setGranularity(getOptimalGranularity(effectiveStart, effectiveEnd));
   }, [effectiveStart, effectiveEnd]);
 
-  // Full species list for the selector. Same source the Images-page
-  // filter uses, so the dropdown matches what users see there. The
-  // dashboard's species-distribution endpoint is top-10 and was hiding
-  // anything past the 10th most-detected species from this picker.
-  const { data: allSpeciesList } = useQuery({
-    queryKey: ['species', projectId],
-    queryFn: () => imagesApi.getSpecies(projectId),
-    enabled: projectId !== undefined,
-  });
-
-  // Top-N by count, used only to pick the most-detected species as the
-  // default selection on first load. Not used to populate the dropdown.
-  const { data: topSpeciesList } = useQuery({
-    queryKey: ['statistics', 'species', projectId],
-    queryFn: () => statisticsApi.getSpeciesDistribution(projectId),
-    enabled: projectId !== undefined,
-  });
-
-  // Default to most observed species when data loads
-  useEffect(() => {
-    if (topSpeciesList && topSpeciesList.length > 0 && selectedSpecies === null) {
-      setSelectedSpecies(topSpeciesList[0].species);
-    }
-  }, [topSpeciesList, selectedSpecies]);
-
   // Detection counts per day (sparse: only days with at least one
   // detection are returned).
   const { data: rawData, isLoading } = useQuery({
-    queryKey: ['statistics', 'detection-trend', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, siteIds],
+    queryKey: ['statistics', 'detection-trend', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getDetectionTrend(projectId, {
-        species: selectedSpecies === 'all' || !selectedSpecies ? undefined : selectedSpecies,
+        species: species || undefined,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         site_ids: siteIds,
       }),
-    enabled: projectId !== undefined && selectedSpecies !== null,
+    enabled: projectId !== undefined,
   });
 
   // Daily active-camera counts. Always fetched so the user can toggle
@@ -235,11 +209,8 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
     }));
   }, [rawData, trapEffort, granularity, effectiveStart, effectiveEnd]);
 
-  // Use species color if selected, otherwise teal
-  const lineColor =
-    selectedSpecies && selectedSpecies !== 'all'
-      ? getSpeciesColor(selectedSpecies)
-      : '#0f6064';
+  // Use species color if one is selected, otherwise teal
+  const lineColor = species ? getSpeciesColor(species) : '#0f6064';
 
   // Create gradient for fill
   const createGradient = (ctx: CanvasRenderingContext2D, chartArea: { top: number; bottom: number }, color: string) => {
@@ -399,18 +370,6 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
               <SelectItem value="day">By day</SelectItem>
               <SelectItem value="week">By week</SelectItem>
               <SelectItem value="month">By month</SelectItem>
-            </Select>
-            <Select
-              value={selectedSpecies ?? ''}
-              onValueChange={setSelectedSpecies}
-              className="w-40 h-9 text-sm"
-            >
-              <SelectItem value="all">All species</SelectItem>
-              {allSpeciesList?.map((s) => (
-                <SelectItem key={String(s.value)} value={String(s.value)}>
-                  {normalizeLabel(String(s.value))}
-                </SelectItem>
-              ))}
             </Select>
           </div>
         </div>

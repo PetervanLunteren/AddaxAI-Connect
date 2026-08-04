@@ -16,7 +16,9 @@ import { Register } from './pages/Register';
 import { VerifyEmail } from './pages/VerifyEmail';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
-import { Dashboard } from './pages/Dashboard';
+import { DashboardLayout } from './pages/dashboard/DashboardLayout';
+import { DashboardOverview } from './pages/dashboard/DashboardOverview';
+import { DashboardExplore } from './pages/dashboard/DashboardExplore';
 import { CamerasPage } from './pages/CamerasPage';
 import { SitesPage } from './pages/SitesPage';
 import { ImagesPage } from './pages/ImagesPage';
@@ -135,7 +137,13 @@ function App() {
               >
                 {/* Default redirect to dashboard */}
                 <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
+                {/* Dashboard is two tabs sharing one header, so it is the one
+                    nested route here. Overview keeps the plain /dashboard path
+                    so existing links and bookmarks stay valid. */}
+                <Route path="dashboard" element={<DashboardLayout />}>
+                  <Route index element={<DashboardOverview />} />
+                  <Route path="explore" element={<DashboardExplore />} />
+                </Route>
                 <Route path="cameras" element={<CamerasPage />} />
                 <Route path="sites" element={<SitesPage />} />
                 <Route path="images" element={<ImagesPage />} />

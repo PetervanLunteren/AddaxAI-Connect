@@ -13,9 +13,7 @@ import {
 import chroma from 'chroma-js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
-import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
-import { normalizeLabel } from '../../utils/labels';
 import type { DateRange } from './DateRangeFilter';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
@@ -58,32 +56,26 @@ interface DemographicChartProps {
   dateRange: DateRange;
   projectId?: number;
   siteIds?: string;
+  /** Selected species. undefined means all species. */
+  species?: string;
 }
 
 export const DemographicChart: React.FC<DemographicChartProps> = ({
   dateRange,
   projectId,
   siteIds,
+  species,
 }) => {
+  // Which attribute to show. This is a display control, not a filter, so it
+  // stays local to the card.
   const [field, setField] = useState<'sex' | 'life_stage' | 'behavior'>('sex');
-  const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
-
-  // Full species list for the selector. Same source the Images-page
-  // filter uses, so the dropdown matches what users see there. The
-  // dashboard's species-distribution endpoint is top-10 and was hiding
-  // anything past the 10th most-detected species from this picker.
-  const { data: speciesList } = useQuery({
-    queryKey: ['species', projectId],
-    queryFn: () => imagesApi.getSpecies(projectId),
-    enabled: projectId !== undefined,
-  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'demographics', projectId, field, selectedSpecies, dateRange.startDate, dateRange.endDate, siteIds],
+    queryKey: ['statistics', 'demographics', projectId, field, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getDemographics(projectId!, {
         field,
-        species: selectedSpecies === 'all' ? undefined : selectedSpecies,
+        species: species || undefined,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         site_ids: siteIds,
@@ -138,18 +130,6 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
               <SelectItem value="sex">Sex</SelectItem>
               <SelectItem value="life_stage">Life stage</SelectItem>
               <SelectItem value="behavior">Behaviour</SelectItem>
-            </Select>
-            <Select
-              value={selectedSpecies}
-              onValueChange={setSelectedSpecies}
-              className="w-36 h-9 text-sm"
-            >
-              <SelectItem value="all">All species</SelectItem>
-              {speciesList?.map((s) => (
-                <SelectItem key={String(s.value)} value={String(s.value)}>
-                  {normalizeLabel(String(s.value))}
-                </SelectItem>
-              ))}
             </Select>
           </div>
         </div>

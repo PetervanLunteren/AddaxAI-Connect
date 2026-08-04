@@ -4,10 +4,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import { Select, SelectItem } from '../ui/Select';
-import { imagesApi } from '../../api/images';
 import { statisticsApi } from '../../api/statistics';
-import { normalizeLabel } from '../../utils/labels';
 import type { HourlyActivityPoint, SunBands } from '../../api/types';
 import type { DateRange } from './DateRangeFilter';
 
@@ -15,6 +12,8 @@ interface ActivityPatternChartProps {
   dateRange: DateRange;
   projectId?: number;
   siteIds?: string;
+  /** Selected species. undefined means all species. */
+  species?: string;
 }
 
 // Time-of-day color buckets (palette from FRONTEND_CONVENTIONS.md)
@@ -217,25 +216,13 @@ function ActivityClock({ hours, sunBands }: ActivityClockProps) {
   );
 }
 
-export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds }) => {
-  const [selectedSpecies, setSelectedSpecies] = useState<string>('all');
-
-  // Full species list for the selector. Same source the Images-page
-  // filter uses, so the dropdown matches what users see there. The
-  // dashboard's species-distribution endpoint is top-10 and was hiding
-  // anything past the 10th most-detected species from this picker.
-  const { data: speciesList } = useQuery({
-    queryKey: ['species', projectId],
-    queryFn: () => imagesApi.getSpecies(projectId),
-    enabled: projectId !== undefined,
-  });
-
+export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds, species }) => {
   // Fetch activity pattern data
   const { data, isLoading } = useQuery({
-    queryKey: ['statistics', 'activity-pattern', projectId, selectedSpecies, dateRange.startDate, dateRange.endDate, siteIds],
+    queryKey: ['statistics', 'activity-pattern', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
     queryFn: () =>
       statisticsApi.getActivityPattern(projectId, {
-        species: selectedSpecies === 'all' ? undefined : selectedSpecies,
+        species: species || undefined,
         start_date: dateRange.startDate || undefined,
         end_date: dateRange.endDate || undefined,
         site_ids: siteIds,
@@ -246,21 +233,7 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-lg">Activity pattern</CardTitle>
-          <Select
-            value={selectedSpecies}
-            onValueChange={setSelectedSpecies}
-            className="w-36 h-9 text-sm"
-          >
-            <SelectItem value="all">All species</SelectItem>
-            {speciesList?.map((s) => (
-              <SelectItem key={String(s.value)} value={String(s.value)}>
-                {normalizeLabel(String(s.value))}
-              </SelectItem>
-            ))}
-          </Select>
-        </div>
+        <CardTitle className="text-lg">Activity pattern</CardTitle>
         <p className="text-sm text-muted-foreground">
           24-hour pattern{data ? `, ${data.total_detections.toLocaleString()} total detections` : ''}
         </p>
