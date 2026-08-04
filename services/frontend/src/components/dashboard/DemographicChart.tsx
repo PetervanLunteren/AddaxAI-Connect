@@ -1,22 +1,29 @@
 /**
- * Demographic doughnut chart — sex or life stage distribution from verified observations.
+ * One demographic attribute from verified observations.
+ *
+ * Rendered once per attribute so sex and age class are visible at the same
+ * time instead of hiding behind a dropdown. Behaviour has eleven values,
+ * which is far too many for a doughnut, so it renders as sorted bars. Sex
+ * (three values) and life stage (four) stay doughnuts.
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Doughnut } from 'react-chartjs-2';
+import { Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   ArcElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
   Tooltip,
   Legend,
 } from 'chart.js';
 import chroma from 'chroma-js';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
-import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
 import type { DateRange } from './DateRangeFilter';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 // Map each value to a point on the app's teal→yellow gradient. The
 // 'unknown' bucket is always pinned to #0f6064 (dark teal) since it is
@@ -52,12 +59,22 @@ const BEHAVIOR_COLORS = buildGradientPalette([
   'vigilance',
 ]);
 
+export type DemographicField = 'sex' | 'life_stage' | 'behavior';
+
+const FIELD_TITLES: Record<DemographicField, string> = {
+  sex: 'Sex',
+  life_stage: 'Age class',
+  behavior: 'Behaviour',
+};
+
 interface DemographicChartProps {
   dateRange: DateRange;
   projectId?: number;
   siteIds?: string;
   /** Selected species. undefined means all species. */
   species?: string;
+  /** Which attribute this card shows. */
+  field: DemographicField;
 }
 
 export const DemographicChart: React.FC<DemographicChartProps> = ({
@@ -65,10 +82,8 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
   projectId,
   siteIds,
   species,
+  field,
 }) => {
-  // Which attribute to show. This is a display control, not a filter, so it
-  // stays local to the card.
-  const [field, setField] = useState<'sex' | 'life_stage' | 'behavior'>('sex');
 
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'demographics', projectId, field, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
@@ -96,7 +111,16 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
     ],
   };
 
-  const chartOptions = {
+  // Eleven behaviour values do not fit a doughnut, so that one gets bars.
+  const asBar = field === 'behavior';
+
+  const tooltipLabel = (context: any) => {
+    const count = (asBar ? context.parsed.x : context.raw) as number;
+    const pct = data && data.total > 0 ? ((count / data.total) * 100).toFixed(1) : '0';
+    return ` ${context.label}: ${count} (${pct}%)`;
+  };
+
+  const doughnutOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -104,37 +128,30 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
         position: 'bottom' as const,
         labels: { padding: 16, usePointStyle: true, pointStyle: 'circle' },
       },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => {
-            const count = context.raw as number;
-            const pct = data && data.total > 0 ? ((count / data.total) * 100).toFixed(1) : '0';
-            return ` ${context.label}: ${count} (${pct}%)`;
-          },
-        },
-      },
+      tooltip: { callbacks: { label: tooltipLabel } },
+    },
+  };
+
+  // Horizontal bars, category names on the axis, so no legend is needed.
+  const barOptions = {
+    indexAxis: 'y' as const,
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: tooltipLabel } },
+    },
+    scales: {
+      x: { beginAtZero: true, ticks: { precision: 0 } },
     },
   };
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-lg">Demographics</CardTitle>
-          <div className="flex items-center gap-2">
-            <Select
-              value={field}
-              onValueChange={(v) => setField(v as 'sex' | 'life_stage' | 'behavior')}
-              className="w-28 h-9 text-sm"
-            >
-              <SelectItem value="sex">Sex</SelectItem>
-              <SelectItem value="life_stage">Life stage</SelectItem>
-              <SelectItem value="behavior">Behaviour</SelectItem>
-            </Select>
-          </div>
-        </div>
+        <CardTitle className="text-lg">{FIELD_TITLES[field]}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {field === 'sex' ? 'Sex' : field === 'life_stage' ? 'Life stage' : 'Behaviour'} distribution from verified observations
+          From verified observations
           {data ? `, ${data.total.toLocaleString()} total` : ''}
         </p>
       </CardHeader>
@@ -145,7 +162,11 @@ export const DemographicChart: React.FC<DemographicChartProps> = ({
               <p className="text-muted-foreground">Loading...</p>
             </div>
           ) : data && data.total > 0 ? (
-            <Doughnut data={chartData} options={chartOptions} />
+            asBar ? (
+              <Bar data={chartData} options={barOptions} />
+            ) : (
+              <Doughnut data={chartData} options={doughnutOptions} />
+            )
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">No verified observations yet</p>

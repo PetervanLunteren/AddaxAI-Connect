@@ -45,6 +45,9 @@ export const DashboardExplore: React.FC = () => {
         projectLastDate={overview?.last_image_date ?? null}
       />
 
+      {/* Sex and age class are separate cards on purpose. They answer
+          different questions, so a dropdown that shows one at a time would
+          keep half of what people came here for out of sight. */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <ActivityPatternChart
           dateRange={dateRange}
@@ -53,6 +56,24 @@ export const DashboardExplore: React.FC = () => {
           species={speciesParam}
         />
         <DemographicChart
+          field="sex"
+          dateRange={dateRange}
+          projectId={projectId}
+          siteIds={siteIdsFromTags}
+          species={speciesParam}
+        />
+      </div>
+
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+        <DemographicChart
+          field="life_stage"
+          dateRange={dateRange}
+          projectId={projectId}
+          siteIds={siteIdsFromTags}
+          species={speciesParam}
+        />
+        <DemographicChart
+          field="behavior"
           dateRange={dateRange}
           projectId={projectId}
           siteIds={siteIdsFromTags}
