@@ -89,13 +89,18 @@ export const LastDetectionCard: React.FC<LastDetectionCardProps> = ({
         onClick={() => setOpen(true)}
         className={`group relative block w-full overflow-hidden rounded-lg border text-left aspect-[16/10] ${className}`}
       >
+        {/* Full size, not the thumbnail. This tile is around 540px wide and a
+            distant animal is only a dozen pixels across in a 300px thumbnail,
+            which magnifies into mush. One large image on the dashboard is a
+            fair price for a photograph people actually want to look at. */}
         <DetectionCrop
-          thumbnailUrl={image.thumbnail_url ?? ''}
+          imageUrl={`/api/images/${image.uuid}/full`}
           alt={species}
           detections={image.detections}
           imageWidth={image.image_width}
           imageHeight={image.image_height}
           aspect={16 / 10}
+          maxZoom={5}
           className="h-full w-full"
         />
         {/* Dark wash only behind the text, so the picture stays bright. */}

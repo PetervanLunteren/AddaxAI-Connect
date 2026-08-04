@@ -66,11 +66,14 @@ const SpeciesRow: React.FC<RowProps> = ({
 
   const image = data?.items?.[0];
 
+  // The portrait is 44 pixels square, so even a heavy crop of a 300px
+  // thumbnail is still being scaled down. Thumbnail is the right source here,
+  // unlike the hero tile which needs the full-size image.
   const body = (
     <>
       {image ? (
         <DetectionCrop
-          thumbnailUrl={image.thumbnail_url ?? ''}
+          imageUrl={image.thumbnail_url ?? ''}
           alt={normalizeLabel(species)}
           detections={image.detections}
           imageWidth={image.image_width}

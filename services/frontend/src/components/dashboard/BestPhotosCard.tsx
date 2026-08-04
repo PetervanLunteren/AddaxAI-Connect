@@ -18,7 +18,16 @@ import { normalizeLabel } from '../../utils/labels';
 import { DetectionCrop } from './DetectionCrop';
 import { ImageDetailModal } from '../ImageDetailModal';
 
-const COUNT = 6;
+/**
+ * Four rather than six, because each tile loads the full-size image.
+ *
+ * Thumbnails are 300 pixels wide, and a distant animal is only a dozen pixels
+ * across in one, so a wall built from thumbnails is a wall of mush and answers
+ * nothing. Full images cost around 600 KB each. Four is the point where the
+ * pictures are worth looking at without the page becoming heavy, and the
+ * browser reuses them when the modal opens the same image.
+ */
+const COUNT = 4;
 
 interface BestPhotosCardProps {
   projectId?: number;
@@ -71,7 +80,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {Array.from({ length: COUNT }, (_, i) => (
               <div key={i} className="aspect-[4/3] animate-pulse rounded-md bg-muted" />
             ))}
@@ -81,7 +90,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
             No photos match this selection yet
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {items.map((image) => (
               <button
                 key={image.uuid}
@@ -90,12 +99,13 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
                 className="group relative block aspect-[4/3] overflow-hidden rounded-md border text-left"
               >
                 <DetectionCrop
-                  thumbnailUrl={image.thumbnail_url ?? ''}
+                  imageUrl={`/api/images/${image.uuid}/full`}
                   alt={image.top_species ? normalizeLabel(image.top_species) : 'Detection'}
                   detections={image.detections}
                   imageWidth={image.image_width}
                   imageHeight={image.image_height}
                   aspect={4 / 3}
+                  maxZoom={5}
                   className="h-full w-full"
                 />
                 <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-1 pt-4 text-[11px] font-medium tabular-nums text-white">

@@ -19,18 +19,28 @@ import { AuthenticatedImage } from '../AuthenticatedImage';
 import type { Detection } from '../../api/types';
 
 /** Share of the frame the detection should fill. Leaves room for context. */
-const FILL = 0.55;
-/** Never zoom past this, a tiny far-away box would turn into mush. */
-const MAX_ZOOM = 6;
+const FILL = 0.5;
 
 interface DetectionCropProps {
-  thumbnailUrl: string;
+  /**
+   * Which rendering of the image to frame. Thumbnails are 300px wide, so
+   * magnifying a small box out of one turns to mush: a 91-pixel animal in a
+   * 1984-pixel original is only 14 pixels there. Large tiles should pass the
+   * full-size URL and small ones the thumbnail.
+   */
+  imageUrl: string;
   alt: string;
   detections: Detection[];
   imageWidth: number | null;
   imageHeight: number | null;
   /** Container aspect ratio as width / height. Must match the CSS box. */
   aspect: number;
+  /**
+   * Upper bound on magnification. Pick it from the source: roughly the
+   * container width divided by the source width, so the picture is never
+   * stretched much past its real resolution.
+   */
+  maxZoom?: number;
   className?: string;
 }
 
@@ -43,12 +53,13 @@ function pickDetection(detections: Detection[]): Detection | null {
 }
 
 export const DetectionCrop: React.FC<DetectionCropProps> = ({
-  thumbnailUrl,
+  imageUrl,
   alt,
   detections,
   imageWidth,
   imageHeight,
   aspect,
+  maxZoom = 6,
   className = '',
 }) => {
   const detection = pickDetection(detections);
@@ -57,7 +68,7 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
     return (
       <div className={`overflow-hidden bg-muted ${className}`}>
         <AuthenticatedImage
-          src={thumbnailUrl}
+          src={imageUrl}
           alt={alt}
           className="h-full w-full object-cover"
         />
@@ -77,7 +88,7 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
 
   // Zoom so the box fills FILL of the frame in whichever direction is tighter.
   const zoom = Math.min(
-    MAX_ZOOM,
+    maxZoom,
     Math.max(1, Math.min(FILL / Math.max(fw, 0.001), FILL / Math.max(fh * heightRatio, 0.001))),
   );
 
@@ -87,7 +98,7 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
   return (
     <div className={`relative overflow-hidden bg-muted ${className}`}>
       <AuthenticatedImage
-        src={thumbnailUrl}
+        src={imageUrl}
         alt={alt}
         className="absolute max-w-none"
         style={{
