@@ -22,6 +22,19 @@ mc mb --ignore-existing minio/project-documents
 mc mb --ignore-existing minio/bulk-upload-staging
 mc version enable minio/raw-images
 
+# Annotated images are written to thumbnails/annotated/ for notification
+# attachments and are only needed until the messages go out. They used to be
+# deleted by the telegram worker after its own send, which stole the
+# attachment from every other recipient of the same photo. MinIO expires them
+# instead. The prefix keeps real thumbnails, which live under
+# <camera_id>/<year>/<month>/, untouched.
+# Runs before the cold-tier block below, which exits early when the cold tier
+# is off, so this applies on every server.
+if mc ilm rule export minio/thumbnails > /dev/null 2>&1; then
+  mc ilm rule remove --all --force minio/thumbnails
+fi
+mc ilm rule add --expire-days 1 --prefix "annotated/" minio/thumbnails
+
 if [ "${COLD_TIER_ENABLED:-false}" != "true" ]; then
   echo "Cold tier disabled (COLD_TIER_ENABLED=false)"
   echo "MinIO buckets created successfully"

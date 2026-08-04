@@ -137,28 +137,6 @@ def download_image_from_minio(minio_path: str) -> bytes:
         raise
 
 
-def delete_image_from_minio(minio_path: str) -> None:
-    """
-    Delete annotated image from MinIO after sending notification.
-
-    This ensures images are only temporarily accessible, improving security.
-
-    Args:
-        minio_path: Path in MinIO (e.g., "annotated/{uuid}.jpg")
-    """
-    try:
-        storage = StorageClient()
-        storage.delete_object(bucket='thumbnails', object_name=minio_path)
-        logger.debug("Deleted annotated image from MinIO", path=minio_path)
-    except Exception as e:
-        # Log but don't fail - image delivery was successful
-        logger.warning(
-            "Failed to delete annotated image from MinIO",
-            path=minio_path,
-            error=str(e)
-        )
-
-
 def process_telegram_message(message: Dict[str, Any]) -> None:
     """
     Process Telegram notification message
@@ -223,10 +201,12 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         # Update notification log status to 'sent'
         update_notification_status(log_id, status='sent')
 
-        # Delete annotated image from MinIO after successful send (security: no persistent public access)
-        if annotated_minio_path:
-            delete_image_from_minio(annotated_minio_path)
-
+        # Do NOT delete the attachment here. One source photo produces one
+        # annotated image, but the coordinator fans a detection out to one
+        # message per species and per subscribed user, and every one of them
+        # carries this same path. Deleting after the first send left every
+        # later recipient with a text-only message. MinIO expires the
+        # annotated/ prefix on a lifecycle rule instead (minio-init).
         logger.info("Telegram notification sent", log_id=log_id)
 
     except TelegramNotConfiguredError:
