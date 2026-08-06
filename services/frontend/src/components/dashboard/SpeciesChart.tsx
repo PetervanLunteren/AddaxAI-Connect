@@ -7,11 +7,16 @@
  * common baseline with an axis is the form people read most accurately, and
  * it is what a reader expects on a scientific page.
  *
- * Bars are scaled by the axis so the chart uses its width; the axis carries
- * the absolute numbers and the footer carries each species' share of all
- * detections. One colour, because the species name is already on the axis and
- * a second encoding of the same thing would say nothing. Same fill and outline
- * as the group size charts, so the two look like one system.
+ * One colour, because the species name is already on the axis and a second
+ * encoding of the same thing would say nothing. Same fill and outline as the
+ * group size charts, so the two look like one system.
+ *
+ * The value is individuals, not events. /api/statistics/species-distribution
+ * runs SUM(event_count) over the independence CTE, and event_count is the
+ * MaxN of an event, so the number is "most seen at once, added up across
+ * events". Two roe deer photographed together once and a single roe deer an
+ * hour later gives three, not two events. That is the relative-abundance
+ * figure an ecologist wants, so the axis has to say individuals.
  *
  * Person, vehicle and empty are left out. They are detector categories, not
  * species, and the other pages already exclude them.
@@ -59,8 +64,8 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
 
   const wildlife = (species ?? []).filter((s) => isWildlifeLabel(s.species));
   const shown = wildlife.slice(0, MAX_BARS);
-  // Share is of every wildlife detection, including the species below the cut,
-  // so the percentages describe the project rather than just this chart.
+  // Share is of every wildlife individual, including the species below the
+  // cut, so the percentages describe the project rather than just this chart.
   const total = wildlife.reduce((sum, s) => sum + s.count, 0);
 
   const data = {
@@ -88,7 +93,7 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
           label: (ctx: any) => {
             const count = ctx.parsed.x as number;
             const share = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
-            return ` ${count.toLocaleString()} events, ${share}% of all detections`;
+            return ` ${count.toLocaleString()} individuals, ${share}% of all animals counted`;
           },
         },
       },
@@ -97,7 +102,7 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
       x: {
         beginAtZero: true,
         ticks: { precision: 0 },
-        title: { display: true, text: 'Independent events' },
+        title: { display: true, text: 'Individuals' },
       },
       y: { grid: { display: false } },
     },
@@ -114,9 +119,9 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">Species detected</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {wildlife.length > MAX_BARS
-            ? `Top ${MAX_BARS} of ${wildlife.length}, click a bar to open its images`
-            : 'Click a bar to open its images'}
+          {wildlife.length > MAX_BARS ? `Top ${MAX_BARS} of ${wildlife.length}. ` : ''}
+          Most individuals seen at once, added up across independent events.
+          Click a bar to open its images.
         </p>
       </CardHeader>
       <CardContent>
@@ -127,21 +132,12 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
             No animals detected yet in this selection
           </p>
         ) : (
-          <>
-            <div style={{ height: shown.length * ROW_HEIGHT + AXIS_HEIGHT }}>
-              <Bar data={data} options={options} />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3 text-xs tabular-nums text-muted-foreground">
-              {shown.map((s) => (
-                <span key={s.species}>
-                  {normalizeLabel(s.species)}{' '}
-                  <strong className="font-medium text-foreground">
-                    {total > 0 ? Math.round((s.count / total) * 100) : 0}%
-                  </strong>
-                </span>
-              ))}
-            </div>
-          </>
+          // The share of each species is in the tooltip rather than printed
+          // under the chart. Eight species meant eight more numbers competing
+          // with the bars that already show the same comparison.
+          <div style={{ height: shown.length * ROW_HEIGHT + AXIS_HEIGHT }}>
+            <Bar data={data} options={options} />
+          </div>
         )}
       </CardContent>
     </Card>
