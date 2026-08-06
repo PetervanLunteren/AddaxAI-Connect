@@ -128,10 +128,10 @@ export const DashboardOverview: React.FC = () => {
     (pipeline?.animal_count ?? 0) + (pipeline?.person_count ?? 0) + (pipeline?.vehicle_count ?? 0);
   const totalClassified = withContent + (pipeline?.empty_count ?? 0);
   const emptyShare = totalClassified > 0 ? (pipeline?.empty_count ?? 0) / totalClassified : 0;
-  const animalShare =
-    totalClassified > 0
-      ? Math.round(((pipeline?.animal_count ?? 0) / totalClassified) * 100)
-      : 0;
+  // Not-empty rather than animals, so the two shares are one split that adds
+  // to a hundred. Animals alone left people and vehicles unaccounted for, and
+  // the per-species detail lives in the chart below anyway.
+  const detectionShare = totalClassified > 0 ? withContent / totalClassified : 0;
 
   const allVerified = verification?.rows.find((r) => r.label === 'all');
 
@@ -173,17 +173,18 @@ export const DashboardOverview: React.FC = () => {
           series={dailyCounts}
           loading={overviewLoading}
         />
-        {/* Empty images used to have a tile of its own. It is the same split
-            seen from the other side, so it is the note here instead. */}
+        {/* Whether the detector found anything, which is the split that really
+            exists. Counting only animals left people and vehicles out, so the
+            two percentages never reached a hundred and invited the question. */}
         <StatTile
-          label="Images with animals"
-          value={(pipeline?.animal_count ?? 0).toLocaleString()}
+          label="Images with detections"
+          value={withContent.toLocaleString()}
           note={
             totalClassified > 0
-              ? `${animalShare}% with animals, ${Math.round(emptyShare * 100)}% empty`
+              ? `${Math.round(detectionShare * 100)}% of all images, ${Math.round(emptyShare * 100)}% empty`
               : undefined
           }
-          progress={totalClassified > 0 ? animalShare / 100 : undefined}
+          progress={totalClassified > 0 ? detectionShare : undefined}
         />
         {/* No progress bar here on purpose. A bar says "on the way to 100%",
             and verifying is optional: the classifier does the work and a
