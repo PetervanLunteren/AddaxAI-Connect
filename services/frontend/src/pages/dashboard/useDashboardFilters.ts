@@ -149,49 +149,48 @@ export function useDashboardFilters(tab: DashboardTab = 'overview') {
   }, [allSpeciesOptions]);
 
   const filterFields = useMemo<FilterFieldDef[]>(() => {
-    // Sites and tags filter every card on both tabs.
-    const fields: FilterFieldDef[] = [
-      {
-        kind: 'multi-select',
-        key: 'site_ids',
-        label: 'Sites',
-        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
-        placeholder: 'All sites',
-        summary: (n) => `${n} sites`,
-      },
-      {
-        kind: 'multi-select',
-        key: 'tags',
-        label: 'Site tags',
-        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
-        placeholder: 'Any tags',
-        summary: (n) => `${n} tags`,
-      },
-    ];
-    // Species and date range drive all three Explore cards, and nothing on
-    // Overview, so they only appear on Explore.
-    if (tab === 'explore') {
-      fields.push(
-        {
-          kind: 'select',
-          key: 'species',
-          label: 'Species',
-          options: (allSpeciesOptions ?? []).map((s) => ({
-            value: String(s.value),
-            label: String(s.label),
-          })),
-        },
-        {
-          kind: 'date-range',
-          fromKey: 'date_from',
-          toKey: 'date_to',
-          label: 'Date range',
-          minDate: overview?.first_image_date,
-          maxDate: overview?.last_image_date,
-        },
-      );
-    }
-    return fields;
+    const sitesField: FilterFieldDef = {
+      kind: 'multi-select',
+      key: 'site_ids',
+      label: 'Sites',
+      options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+      placeholder: 'All sites',
+      summary: (n) => `${n} sites`,
+    };
+    const tagsField: FilterFieldDef = {
+      kind: 'multi-select',
+      key: 'tags',
+      label: 'Site tags',
+      options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+      placeholder: 'Any tags',
+      summary: (n) => `${n} tags`,
+    };
+    const speciesField: FilterFieldDef = {
+      kind: 'select',
+      key: 'species',
+      label: 'Species',
+      options: (allSpeciesOptions ?? []).map((s) => ({
+        value: String(s.value),
+        label: String(s.label),
+      })),
+    };
+    const dateField: FilterFieldDef = {
+      kind: 'date-range',
+      fromKey: 'date_from',
+      toKey: 'date_to',
+      label: 'Date range',
+      minDate: overview?.first_image_date,
+      maxDate: overview?.last_image_date,
+    };
+
+    // Explore leads with species, because it is the choice every card on that
+    // tab answers to, and the order runs from most to least used from there.
+    // Overview has no species or date control: of its cards none accept a
+    // species and the date range would appear to move everything while moving
+    // nothing, so it keeps sites and tags alone.
+    return tab === 'explore'
+      ? [speciesField, sitesField, dateField, tagsField]
+      : [sitesField, tagsField];
   }, [sites, tagOptions, allSpeciesOptions, overview, tab]);
 
   return {
