@@ -24,27 +24,33 @@
  * cropped portrait on every species row, and at 44 pixels a night infrared
  * shot is a grey rectangle.
  *
- * Holds only cards whose endpoint ignores species, so nothing here is affected
- * by the species filter on the Explore tab.
+ * No filters at all. This is the front page and it always shows the whole
+ * project: every figure is the project entire, over its whole history.
+ *
+ * The tab deliberately ignores the site and date parameters the URL may carry
+ * from Explore, which shares the address. Reading them would mean the page
+ * quietly filtered itself with no control on screen to explain why, and the
+ * only thing worse than a missing filter is an invisible one.
+ *
+ * It also means every card here is one less thing to keep in step. A filter is
+ * a promise that every card honours it, and a card that does not honour it
+ * lies rather than fails.
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FilterBar } from '../../components/ui/FilterBar';
 import { statisticsApi } from '../../api/statistics';
 import { imagesApi } from '../../api/images';
 import { camerasApi } from '../../api/cameras';
 import { isWildlifeLabel } from '../../utils/labels';
+import { useProject } from '../../contexts/ProjectContext';
 import type { DateRange } from '../../components/dashboard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
 import { SpeciesChart } from '../../components/dashboard/SpeciesChart';
 import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
 import { CameraAttentionBar } from '../../components/cameras/CameraAttentionBar';
 import { StatTile } from '../../components/dashboard/StatTile';
-import { useDashboardFilters } from './useDashboardFilters';
 
-// Overview has no date filter. The URL can still carry a date range because
-// the Explore tab uses one, so verification progress is pinned to all time
-// here rather than being filtered by a control the user cannot see.
+/** Verification progress covers the project's whole history. */
 const ALL_TIME: DateRange = { startDate: null, endDate: null };
 
 /** Days of daily counts behind the sparkline. */
@@ -64,18 +70,18 @@ function weekOverWeek(counts: number[]): number | null {
 }
 
 export const DashboardOverview: React.FC = () => {
-  const {
-    projectId,
-    siteIdsFromTags,
-    overview,
-    overviewLoading,
-    filterValues,
-    filterFields,
-    onFilterChange,
-    onClearAll,
-  } = useDashboardFilters('overview');
+  const { selectedProject } = useProject();
+  const projectId = selectedProject?.id;
 
-  // Same query key as the filter hook, so this is served from cache.
+  // Every key ends in undefined where a site filter used to sit, which is the
+  // same key the Explore tab produces with no sites chosen, so the two tabs
+  // still share one cache entry per query.
+  const { data: overview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['statistics', 'overview', projectId, undefined],
+    queryFn: () => statisticsApi.getOverview(projectId),
+    enabled: projectId !== undefined,
+  });
+
   const { data: allSpeciesList } = useQuery({
     queryKey: ['species', projectId],
     queryFn: () => imagesApi.getSpecies(projectId),
@@ -89,21 +95,20 @@ export const DashboardOverview: React.FC = () => {
   });
 
   const { data: pipeline } = useQuery({
-    queryKey: ['statistics', 'pipeline-status', projectId, siteIdsFromTags],
-    queryFn: () => statisticsApi.getPipelineStatus(projectId, siteIdsFromTags),
+    queryKey: ['statistics', 'pipeline-status', projectId, undefined],
+    queryFn: () => statisticsApi.getPipelineStatus(projectId),
     enabled: projectId !== undefined,
   });
 
   const { data: timeline } = useQuery({
-    queryKey: ['statistics', 'images-timeline', projectId, TREND_DAYS, siteIdsFromTags],
-    queryFn: () => statisticsApi.getImagesTimeline(projectId, TREND_DAYS, siteIdsFromTags),
+    queryKey: ['statistics', 'images-timeline', projectId, TREND_DAYS, undefined],
+    queryFn: () => statisticsApi.getImagesTimeline(projectId, TREND_DAYS),
     enabled: projectId !== undefined,
   });
 
   const { data: verification } = useQuery({
-    queryKey: ['statistics', 'verification-progress-all', projectId, undefined, undefined, siteIdsFromTags],
-    queryFn: () =>
-      statisticsApi.getVerificationProgressAll(projectId!, { site_ids: siteIdsFromTags }),
+    queryKey: ['statistics', 'verification-progress-all', projectId, undefined, undefined, undefined],
+    queryFn: () => statisticsApi.getVerificationProgressAll(projectId!),
     enabled: projectId !== undefined,
   });
 
@@ -137,13 +142,6 @@ export const DashboardOverview: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <FilterBar
-        fields={filterFields}
-        values={filterValues}
-        onChange={onFilterChange}
-        onClearAll={onClearAll}
-      />
-
       {/* The same strip the Cameras page shows, not a second opinion. It
           renders nothing when every camera is fine, so a healthy project sees
           no card at all rather than a reassuring one. */}
@@ -154,7 +152,6 @@ export const DashboardOverview: React.FC = () => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <LastDetectionCard
           projectId={projectId}
-          siteIds={siteIdsFromTags}
           wildlifeSpecies={wildlifeSpecies}
           className="md:col-span-2 lg:row-span-2"
         />
@@ -205,12 +202,8 @@ export const DashboardOverview: React.FC = () => {
           longer overlap: the chart is share of all detections, the card is
           share verified. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <SpeciesChart projectId={projectId} siteIds={siteIdsFromTags} />
-        <VerificationProgressCard
-          dateRange={ALL_TIME}
-          projectId={projectId}
-          siteIds={siteIdsFromTags}
-        />
+        <SpeciesChart projectId={projectId} />
+        <VerificationProgressCard dateRange={ALL_TIME} projectId={projectId} />
       </div>
     </div>
   );

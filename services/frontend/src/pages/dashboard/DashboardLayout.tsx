@@ -2,9 +2,13 @@
  * Dashboard shell: page header and the Overview / Explore tab strip.
  *
  * The two tabs are real routes, so deep links, the back button and
- * "open in new tab" all work. The current query string is carried across
- * when switching tabs, which is what keeps the filters in place. Both tabs
- * share one filter schema (see useDashboardFilters), so nothing is dropped.
+ * "open in new tab" all work. The current query string is carried across when
+ * switching tabs, which is what keeps the Explore filters in place.
+ *
+ * Only Explore has filters. Overview always shows the whole project and never
+ * reads the query string, so moving between the tabs cannot disturb what
+ * Explore has selected, and Overview cannot end up filtered by a control it
+ * does not show.
  */
 import React from 'react';
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';

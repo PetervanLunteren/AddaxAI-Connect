@@ -1,13 +1,13 @@
 /**
- * Shared filter state for the two dashboard tabs.
+ * Filter state for the Explore tab.
  *
- * Both tabs use ONE schema. filtersToSearchParams() drops any key that is not
- * in the schema it is given, so if the Overview tab used a schema without
- * `species`, changing a date there would silently wipe the species chosen on
- * the Explore tab. Overview therefore reads and re-writes `species` even
- * though it never shows the control.
+ * Only Explore has filters. The Overview shows the whole project and never
+ * reads these parameters, so nothing here has to be carried on its behalf.
+ * An earlier version had Overview read and re-write `species` it never
+ * displayed, purely so switching tabs did not wipe the Explore selection.
+ * That is unnecessary once Overview stops touching the URL at all.
  *
- * The URL is the only shared state. There is no context and no store.
+ * The URL is the only state. There is no context and no store.
  */
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -33,19 +33,7 @@ export const DASHBOARD_FILTER_SCHEMA: FilterSchema = {
   species: 'string',
 };
 
-/**
- * Which tab is asking. This decides the filter bar only, never the values.
- *
- * Overview shows sites and tags, because every card there is filtered by
- * site. It does not show species or a date range: of its five cards only
- * verification progress accepts dates and none accept a species, so a
- * control at the top of the page would look like it moved everything while
- * moving one card or nothing. Overview therefore ignores both, see
- * ALL_TIME in DashboardOverview.
- */
-type DashboardTab = 'overview' | 'explore';
-
-export function useDashboardFilters(tab: DashboardTab = 'overview') {
+export function useDashboardFilters() {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
 
@@ -102,7 +90,6 @@ export function useDashboardFilters(tab: DashboardTab = 'overview') {
       date_to: dateRange.endDate ?? undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
       site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
-      // Carried on both tabs, see the file comment.
       species: species || undefined,
     }),
     [dateRange, tagValues, siteIdValues, species],
@@ -183,15 +170,10 @@ export function useDashboardFilters(tab: DashboardTab = 'overview') {
       maxDate: overview?.last_image_date,
     };
 
-    // Explore leads with species, because it is the choice every card on that
-    // tab answers to, and the order runs from most to least used from there.
-    // Overview has no species or date control: of its cards none accept a
-    // species and the date range would appear to move everything while moving
-    // nothing, so it keeps sites and tags alone.
-    return tab === 'explore'
-      ? [speciesField, sitesField, dateField, tagsField]
-      : [sitesField, tagsField];
-  }, [sites, tagOptions, allSpeciesOptions, overview, tab]);
+    // Species first, because it is the choice every card on the tab answers
+    // to, then the rest in order of how often they are used.
+    return [speciesField, sitesField, dateField, tagsField];
+  }, [sites, tagOptions, allSpeciesOptions, overview]);
 
   return {
     projectId,

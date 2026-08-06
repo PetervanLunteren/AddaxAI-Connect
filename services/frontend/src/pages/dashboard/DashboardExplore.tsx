@@ -31,7 +31,7 @@ export const DashboardExplore: React.FC = () => {
     filterFields,
     onFilterChange,
     onClearAll,
-  } = useDashboardFilters('explore');
+  } = useDashboardFilters();
 
   const speciesParam = species || undefined;
 
