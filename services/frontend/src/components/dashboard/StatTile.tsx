@@ -85,9 +85,11 @@ export const StatTile: React.FC<StatTileProps> = ({
             />
           </div>
         ) : series && series.length > 1 ? (
-          // Fills whatever height is left rather than sitting at a fixed size
-          // above a gap, which is what a stretched tile leaves behind.
-          <div className="mt-auto min-h-[1.5rem] flex-1 pt-2">
+          // A definite height, not flex-1. Without one the svg's h-full has
+          // nothing to resolve against and it falls back to sizing itself from
+          // its own viewBox, which made a 547px-wide tile draw a 131px chart
+          // and pushed the whole row taller than anything asked for.
+          <div className="mt-auto h-16 pt-2">
             <Sparkline values={series} className="h-full" />
           </div>
         ) : null}
