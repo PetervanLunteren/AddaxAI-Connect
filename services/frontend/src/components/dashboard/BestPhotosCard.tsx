@@ -80,7 +80,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: COUNT }, (_, i) => (
               <div key={i} className="aspect-[4/3] animate-pulse rounded-md bg-muted" />
             ))}
@@ -90,7 +90,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
             No photos match this selection yet
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3">
             {items.map((image) => (
               <button
                 key={image.uuid}

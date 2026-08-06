@@ -357,7 +357,10 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
   const granularityLabel = granularity === 'day' ? 'days' : granularity === 'week' ? 'weeks' : 'months';
 
   return (
-    <Card>
+    // Flex column so the plot can take whatever height the card is given.
+    // Beside the photo wall the card stretches, and a fixed-height chart left
+    // 200px of white under it.
+    <Card className="flex h-full flex-col">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Detection trend</CardTitle>
@@ -379,8 +382,12 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
           </p>
         )}
       </CardHeader>
-      <CardContent>
-        <div className="h-72">
+      <CardContent className="flex flex-1 flex-col">
+        {/* min-h keeps the plot usable when the card is not stretched, on the
+            overview and at narrow widths. A taller plot also helps the daily
+            view, where a spiky line is easier to follow with more vertical
+            room. */}
+        <div className="min-h-[18rem] flex-1">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Loading...</p>

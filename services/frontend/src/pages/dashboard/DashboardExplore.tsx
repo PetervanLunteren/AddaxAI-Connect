@@ -60,24 +60,27 @@ export const DashboardExplore: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      <BestPhotosCard
-        projectId={projectId}
-        siteIds={siteIdsFromTags}
-        species={photoSpecies}
-        isAllSpecies={!species}
-        startDate={dateRange.startDate || undefined}
-        endDate={dateRange.endDate || undefined}
-      />
-
-      {/* The timeline gets the full width, it benefits most from the pixels. */}
-      <DetectionTrendChart
-        dateRange={dateRange}
-        projectId={projectId}
-        siteIds={siteIdsFromTags}
-        species={speciesParam}
-        projectFirstDate={overview?.first_image_date ?? null}
-        projectLastDate={overview?.last_image_date ?? null}
-      />
+      {/* Side by side, which is counter-intuitively better for the photographs
+          too. Four across a full-width card spends most of the width on gaps
+          and gives 230px tiles; two by two in half the width gives 267px. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <BestPhotosCard
+          projectId={projectId}
+          siteIds={siteIdsFromTags}
+          species={photoSpecies}
+          isAllSpecies={!species}
+          startDate={dateRange.startDate || undefined}
+          endDate={dateRange.endDate || undefined}
+        />
+        <DetectionTrendChart
+          dateRange={dateRange}
+          projectId={projectId}
+          siteIds={siteIdsFromTags}
+          species={speciesParam}
+          projectFirstDate={overview?.first_image_date ?? null}
+          projectLastDate={overview?.last_image_date ?? null}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <ActivityPatternChart
