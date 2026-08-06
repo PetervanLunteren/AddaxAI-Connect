@@ -156,10 +156,17 @@ export function useDashboardFilters() {
       kind: 'select',
       key: 'species',
       label: 'Species',
-      options: (allSpeciesOptions ?? []).map((s) => ({
-        value: String(s.value),
-        label: String(s.label),
-      })),
+      // "Empty" is not a species, it is the absence of one, and the endpoint
+      // adds it for the Images page where filtering for blank frames is the
+      // point. Nothing on this tab survives it: there is no animal to
+      // photograph, group size excludes it, and the demographics are about
+      // observations that do not exist.
+      options: (allSpeciesOptions ?? [])
+        .filter((s) => String(s.value) !== 'empty')
+        .map((s) => ({
+          value: String(s.value),
+          label: String(s.label),
+        })),
     };
     const dateField: FilterFieldDef = {
       kind: 'date-range',

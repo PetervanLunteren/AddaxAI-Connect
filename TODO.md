@@ -21,10 +21,6 @@ DASHBOARD
 
 - remove empty from the dropdown
 - blur people and vehicles if the setting says so
-- what to do about images that were changed labels and verified? Sometimes there is an bat added, but the bbox doesnt show it. And sometimes there are two species, but the bbox dont know which one is which? Perhaps safe fallbakc is to just show the full image in this case and add a penalty in the preference list? 
-
-
-exmaples: bat, micromammal, 
 
 - [ ] Group size inside page: remove: "The detector misses animals standing behind each other, so verified counts usually come out higher."
 
