@@ -33,18 +33,11 @@ import { FilterBar } from '../../components/ui/FilterBar';
 import { statisticsApi } from '../../api/statistics';
 import { imagesApi } from '../../api/images';
 import { isWildlifeLabel } from '../../utils/labels';
-import type { DateRange } from '../../components/dashboard';
-import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
 import { SpeciesList } from '../../components/dashboard/SpeciesList';
 import { AttentionList } from '../../components/dashboard/AttentionList';
 import { StatTile } from '../../components/dashboard/StatTile';
 import { useDashboardFilters } from './useDashboardFilters';
-
-// Overview has no date filter. The URL can still carry a date range because
-// the Explore tab uses one, so verification progress is pinned to all time
-// here rather than being filtered by a control the user cannot see.
-const ALL_TIME: DateRange = { startDate: null, endDate: null };
 
 /** Days of daily counts behind the sparkline. */
 const TREND_DAYS = 30;
@@ -116,6 +109,10 @@ export const DashboardOverview: React.FC = () => {
     (pipeline?.animal_count ?? 0) + (pipeline?.person_count ?? 0) + (pipeline?.vehicle_count ?? 0);
   const totalClassified = withContent + (pipeline?.empty_count ?? 0);
   const emptyShare = totalClassified > 0 ? (pipeline?.empty_count ?? 0) / totalClassified : 0;
+  const animalShare =
+    totalClassified > 0
+      ? Math.round(((pipeline?.animal_count ?? 0) / totalClassified) * 100)
+      : 0;
 
   const allVerified = verification?.rows.find((r) => r.label === 'all');
 
@@ -128,8 +125,13 @@ export const DashboardOverview: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      {/* Tile sizes carry priority. The photograph and the species list get the
-          most room; single numbers get the least. */}
+      {/* Anything broken goes first and spans the width. It is one short row
+          per fault and usually none, so a full-width strip costs almost no
+          height while putting the only urgent thing where the eye starts. */}
+      <AttentionList projectId={projectId} siteIds={siteIdsFromTags} />
+
+      {/* The photograph earns the most room. The stat with a chart in it gets
+          double width; the two bare numbers sit beneath at single width. */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <LastDetectionCard
           projectId={projectId}
@@ -139,6 +141,7 @@ export const DashboardOverview: React.FC = () => {
         />
 
         <StatTile
+          className="md:col-span-2"
           label="Total images"
           value={(overview?.total_images ?? 0).toLocaleString()}
           delta={delta}
@@ -152,20 +155,17 @@ export const DashboardOverview: React.FC = () => {
           series={dailyCounts}
           loading={overviewLoading}
         />
+        {/* Empty images used to have a tile of its own. It is the same split
+            seen from the other side, so it is the note here instead. */}
         <StatTile
           label="Images with animals"
           value={(pipeline?.animal_count ?? 0).toLocaleString()}
           note={
             totalClassified > 0
-              ? `${Math.round(((pipeline?.animal_count ?? 0) / totalClassified) * 100)}% of all images`
+              ? `${animalShare}% with animals, ${Math.round(emptyShare * 100)}% empty`
               : undefined
           }
-        />
-        <StatTile
-          label="Empty images"
-          value={`${Math.round(emptyShare * 100)}%`}
-          note={`${(pipeline?.empty_count ?? 0).toLocaleString()} images with nothing in them`}
-          progress={emptyShare}
+          progress={totalClassified > 0 ? animalShare / 100 : undefined}
         />
         <StatTile
           label="Verified"
@@ -177,24 +177,9 @@ export const DashboardOverview: React.FC = () => {
           }
           progress={(allVerified?.percentage ?? 0) / 100}
         />
-
-        {/* self-start so a short attention list stays short instead of
-            stretching to match the species card beside it. */}
-        <div className="md:col-span-2 md:self-start">
-          <AttentionList projectId={projectId} siteIds={siteIdsFromTags} />
-        </div>
-        <div className="md:col-span-2">
-          <SpeciesList projectId={projectId} siteIds={siteIdsFromTags} />
-        </div>
-
-        <div className="md:col-span-2 lg:col-span-4">
-          <VerificationProgressCard
-            dateRange={ALL_TIME}
-            projectId={projectId}
-            siteIds={siteIdsFromTags}
-          />
-        </div>
       </div>
+
+      <SpeciesList projectId={projectId} siteIds={siteIdsFromTags} />
     </div>
   );
 };

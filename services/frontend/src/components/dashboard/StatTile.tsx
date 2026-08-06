@@ -25,6 +25,8 @@ interface StatTileProps {
   /** Colours the value when the number itself is the warning. */
   tone?: 'normal' | 'bad';
   loading?: boolean;
+  /** Grid placement from the page. The tile does not choose its own width. */
+  className?: string;
 }
 
 export const StatTile: React.FC<StatTileProps> = ({
@@ -36,12 +38,13 @@ export const StatTile: React.FC<StatTileProps> = ({
   progress,
   tone = 'normal',
   loading = false,
+  className = '',
 }) => {
   const hasDelta = typeof delta === 'number' && Number.isFinite(delta);
   const up = hasDelta && (delta as number) >= 0;
 
   return (
-    <Card className="h-full">
+    <Card className={`h-full ${className}`}>
       <CardContent className="flex h-full flex-col gap-2 p-4">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}

@@ -69,14 +69,18 @@ export const SpeciesList: React.FC<SpeciesListProps> = ({ projectId, siteIds }) 
             No animals detected yet in this selection
           </p>
         ) : (
-          <div className="flex flex-col gap-2.5">
+          // Two columns on a wide screen. A ranked list of eight is twice as
+          // tall as it needs to be in one column, and this card sits across
+          // the full width. CSS columns flow down first, so the ranking still
+          // reads 1 to 4 on the left and 5 to 8 on the right.
+          <div className="lg:columns-2 lg:gap-8">
             {shown.map((s) => {
               const verified = verifiedByLabel.get(s.species);
               return (
                 <Link
                   key={s.species}
                   to={`${base}/images?species=${encodeURIComponent(s.species)}`}
-                  className="group block rounded px-1 py-0.5 -mx-1 hover:bg-accent/50"
+                  className="group mb-2.5 block break-inside-avoid rounded px-1 py-0.5 -mx-1 hover:bg-accent/50"
                 >
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="truncate text-sm font-medium">
