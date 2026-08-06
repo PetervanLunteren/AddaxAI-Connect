@@ -131,9 +131,12 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
               >
                 {/* Passing no detections means "do not crop": the whole frame
                     is the honest answer when we cannot say which animal is the
-                    one being asked for. */}
+                    one being asked for. The thumbnail shows blurred while the
+                    full image downloads, so the wall appears at once on slow
+                    connections. */}
                 <DetectionCrop
                   imageUrl={`/api/images/${image.uuid}/full`}
+                  previewUrl={`/api/images/${image.uuid}/thumbnail`}
                   alt={image.top_species ? normalizeLabel(image.top_species) : 'Detection'}
                   detections={
                     cannotTellWhichAnimal(image, chosenSpecies) ? [] : image.detections

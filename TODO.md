@@ -26,6 +26,8 @@ IMAGES
 
 - [x] Display the detection confidence score for images classified as "empty", so that users can see how close each image was to the detection threshold. A clearer understanding of this value would allow us to fine-tune the optimal threshold much more precisely. (Shown in the image detail view. A distribution view for real threshold tuning is a possible follow-up, see the conversation of 6 Aug 2026.)
 
+- [x] The best photographs in the dashboard, And the last detection in the dashboard, They take quite some internet to load. How can we make this faster? Can we use the thumbnails? (Blur-up added 6 Aug 2026, the thumbnail shows immediately and the full image replaces it. If data usage itself becomes the problem, a ~1000px display rendition is the discussed next step.)
+
 - [ ] Fix the confidence score filter (both classification and detection) so that the slider operates continuously rather than jumping between fixed steps. As it stands, it is impossible to select a precise range such as 75–100%, which limits our ability to filter images meaningfully.
 
 - [ ] Add a filter by data validator, allowing users to retrieve all images validated by a specific person. This would make it easy for a more experienced colleague to review the work of interns or junior validators, and for species specialists to re-check identifications made by their peers.  This could be an important quality control step in collaborative workflows.

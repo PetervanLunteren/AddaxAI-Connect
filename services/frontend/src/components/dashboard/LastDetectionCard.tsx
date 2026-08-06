@@ -94,9 +94,12 @@ export const LastDetectionCard: React.FC<LastDetectionCardProps> = ({
         {/* Full size, not the thumbnail. This tile is around 540px wide and a
             distant animal is only a dozen pixels across in a 300px thumbnail,
             which magnifies into mush. One large image on the dashboard is a
-            fair price for a photograph people actually want to look at. */}
+            fair price for a photograph people actually want to look at. The
+            thumbnail bridges the wait: it shows blurred right away and the
+            full image replaces it when downloaded. */}
         <DetectionCrop
           imageUrl={`/api/images/${image.uuid}/full`}
+          previewUrl={`/api/images/${image.uuid}/thumbnail`}
           alt={species}
           detections={image.detections}
           imageWidth={image.image_width}

@@ -30,6 +30,12 @@ interface DetectionCropProps {
    * full-size URL and small ones the thumbnail.
    */
   imageUrl: string;
+  /**
+   * Small rendition shown while imageUrl downloads. The thumbnail is around
+   * 16 KB against a few hundred for the full image, so the tile shows the
+   * scene almost immediately and sharpens when the real image arrives.
+   */
+  previewUrl?: string;
   alt: string;
   detections: Detection[];
   imageWidth: number | null;
@@ -80,6 +86,7 @@ function pickMostConfident(detections: Detection[]): Detection | null {
 
 export const DetectionCrop: React.FC<DetectionCropProps> = ({
   imageUrl,
+  previewUrl,
   alt,
   detections,
   imageWidth,
@@ -116,6 +123,7 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
       {canCrop ? (
         <CroppedImage
           imageUrl={imageUrl}
+          previewUrl={previewUrl}
           alt={alt}
           detection={detection}
           imageWidth={imageWidth}
@@ -124,7 +132,12 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
           maxZoom={maxZoom}
         />
       ) : detection === null || !imageWidth || !imageHeight ? (
-        <AuthenticatedImage src={imageUrl} alt={alt} className="h-full w-full object-cover" />
+        <AuthenticatedImage
+          src={imageUrl}
+          previewSrc={previewUrl}
+          alt={alt}
+          className="h-full w-full object-cover"
+        />
       ) : null}
     </div>
   );
@@ -133,13 +146,14 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
 /** The framing maths, split out so the wrapper can stay a single stable node. */
 const CroppedImage: React.FC<{
   imageUrl: string;
+  previewUrl?: string;
   alt: string;
   detection: Detection;
   imageWidth: number;
   imageHeight: number;
   aspect: number;
   maxZoom: number;
-}> = ({ imageUrl, alt, detection, imageWidth, imageHeight, aspect, maxZoom }) => {
+}> = ({ imageUrl, previewUrl, alt, detection, imageWidth, imageHeight, aspect, maxZoom }) => {
   // Box as fractions of the original image.
   const fw = detection.bbox.width / imageWidth;
   const fh = detection.bbox.height / imageHeight;
@@ -171,6 +185,7 @@ const CroppedImage: React.FC<{
   return (
     <AuthenticatedImage
       src={imageUrl}
+      previewSrc={previewUrl}
       alt={alt}
       className="absolute max-w-none"
       style={{

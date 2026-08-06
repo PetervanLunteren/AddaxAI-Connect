@@ -3,6 +3,11 @@
  *
  * Regular <img> tags can't send Authorization headers, so we fetch
  * the image with credentials and create a blob URL to display it.
+ *
+ * With `previewSrc` set, both renditions are fetched in parallel and the
+ * preview (a small thumbnail) is shown as soon as it arrives, slightly
+ * blurred, until the real image replaces it. Both images get the same
+ * positioning styles, so the swap never moves the frame.
  */
 import React, { useEffect, useState, forwardRef } from 'react';
 import apiClient from '../api/client';
@@ -15,51 +20,76 @@ interface AuthenticatedImageProps {
   onLoad?: () => void;
   /** Inline style on the <img>. Used by DetectionCrop to position the frame. */
   style?: React.CSSProperties;
+  /** Small rendition to show while `src` is still downloading. */
+  previewSrc?: string;
 }
 
 export const AuthenticatedImage = forwardRef<HTMLImageElement, AuthenticatedImageProps>(
-  ({ src, alt, className, fallback, onLoad, style }, ref) => {
+  ({ src, alt, className, fallback, onLoad, style, previewSrc }, ref) => {
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
+    const [isPreview, setIsPreview] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
 
   useEffect(() => {
-    let objectUrl: string | null = null;
+    const objectUrls: string[] = [];
+    let cancelled = false;
+    let fullArrived = false;
 
-    const fetchImage = async () => {
+    setBlobUrl(null);
+    setIsPreview(false);
+    setLoading(true);
+    setError(false);
+
+    // The preview is best-effort: a failure or a late arrival is simply
+    // ignored, the real image is the one that decides loading and error.
+    const fetchPreview = async () => {
+      if (!previewSrc) return;
       try {
-        setLoading(true);
-        setError(false);
+        const response = await apiClient.get(previewSrc, { responseType: 'blob' });
+        if (cancelled || fullArrived) return;
+        const url = URL.createObjectURL(response.data);
+        objectUrls.push(url);
+        setBlobUrl(url);
+        setIsPreview(true);
+        setLoading(false);
+      } catch {
+        // Preview failing is fine; the main image still loads.
+      }
+    };
 
-        // Fetch image with authentication
-        const response = await apiClient.get(src, {
-          responseType: 'blob',
-        });
-
-        // Create blob URL
-        objectUrl = URL.createObjectURL(response.data);
-        setBlobUrl(objectUrl);
+    const fetchFull = async () => {
+      try {
+        const response = await apiClient.get(src, { responseType: 'blob' });
+        fullArrived = true;
+        if (cancelled) return;
+        const url = URL.createObjectURL(response.data);
+        objectUrls.push(url);
+        setBlobUrl(url);
+        setIsPreview(false);
       } catch (err) {
+        fullArrived = true;
+        if (cancelled) return;
         console.error('Failed to load authenticated image:', err);
         setError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (src) {
-      fetchImage();
+      fetchPreview();
+      fetchFull();
     }
 
-    // Cleanup: revoke blob URL when component unmounts
+    // Cleanup: revoke blob URLs when component unmounts
     return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      cancelled = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [src]);
+  }, [src, previewSrc]);
 
-  if (loading) {
+  if (loading && !blobUrl) {
     return (
       <div className={`flex items-center justify-center bg-muted ${className}`}>
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -77,7 +107,16 @@ export const AuthenticatedImage = forwardRef<HTMLImageElement, AuthenticatedImag
       );
     }
 
-    return <img ref={ref} src={blobUrl} alt={alt} className={className} style={style} onLoad={onLoad} />;
+    return (
+      <img
+        ref={ref}
+        src={blobUrl}
+        alt={alt}
+        className={className}
+        style={isPreview ? { ...style, filter: 'blur(2px)' } : style}
+        onLoad={isPreview ? undefined : onLoad}
+      />
+    );
   }
 );
 
