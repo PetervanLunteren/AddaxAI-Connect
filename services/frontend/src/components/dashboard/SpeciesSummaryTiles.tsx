@@ -35,6 +35,8 @@ interface SpeciesSummaryTilesProps {
   species: string;
   startDate?: string;
   endDate?: string;
+  /** Grid placement from the page. The tiles do not choose their own size. */
+  className?: string;
 }
 
 export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
@@ -43,6 +45,7 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
   species,
   startDate,
   endDate,
+  className = '',
 }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'group-size', projectId, siteIds, species, startDate, endDate],
@@ -66,7 +69,7 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
   const interval = data?.metadata.independence_interval_minutes ?? 0;
 
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className={`grid grid-cols-2 gap-4 ${className}`}>
       <StatTile
         label="Independent events"
         value={isLoading ? '...' : events.toLocaleString()}

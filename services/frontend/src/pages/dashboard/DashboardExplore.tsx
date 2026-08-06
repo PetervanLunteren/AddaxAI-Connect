@@ -103,7 +103,11 @@ export const DashboardExplore: React.FC = () => {
             siteIds={siteIdsFromTags}
             species={speciesParam}
           />
+          {/* flex-1 so the two tiles absorb the slack left by the short
+              demographics card, and this column ends level with the activity
+              chart beside it. */}
           <SpeciesSummaryTiles
+            className="flex-1"
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={photoSpecies}
