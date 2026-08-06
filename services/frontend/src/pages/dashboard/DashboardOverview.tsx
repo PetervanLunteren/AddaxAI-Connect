@@ -33,11 +33,18 @@ import { FilterBar } from '../../components/ui/FilterBar';
 import { statisticsApi } from '../../api/statistics';
 import { imagesApi } from '../../api/images';
 import { isWildlifeLabel } from '../../utils/labels';
+import type { DateRange } from '../../components/dashboard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
-import { SpeciesList } from '../../components/dashboard/SpeciesList';
+import { SpeciesChart } from '../../components/dashboard/SpeciesChart';
+import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
 import { AttentionList } from '../../components/dashboard/AttentionList';
 import { StatTile } from '../../components/dashboard/StatTile';
 import { useDashboardFilters } from './useDashboardFilters';
+
+// Overview has no date filter. The URL can still carry a date range because
+// the Explore tab uses one, so verification progress is pinned to all time
+// here rather than being filtered by a control the user cannot see.
+const ALL_TIME: DateRange = { startDate: null, endDate: null };
 
 /** Days of daily counts behind the sparkline. */
 const TREND_DAYS = 30;
@@ -179,7 +186,17 @@ export const DashboardOverview: React.FC = () => {
         />
       </div>
 
-      <SpeciesList projectId={projectId} siteIds={siteIdsFromTags} />
+      {/* What was seen, next to how much of it a person has checked. They no
+          longer overlap: the chart is share of all detections, the card is
+          share verified. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <SpeciesChart projectId={projectId} siteIds={siteIdsFromTags} />
+        <VerificationProgressCard
+          dateRange={ALL_TIME}
+          projectId={projectId}
+          siteIds={siteIdsFromTags}
+        />
+      </div>
     </div>
   );
 };
