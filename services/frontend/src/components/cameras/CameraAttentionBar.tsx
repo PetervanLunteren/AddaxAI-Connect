@@ -31,9 +31,13 @@ export const SD_NEARLY_FULL_PERCENT = 80;
 
 interface AttentionItem {
   count: number;
+  /** Reads as a whole phrase, because the dashboard has no camera table
+   *  around it to supply the context the Cameras page used to. */
   label: string;
   patch: Record<string, string>;
 }
+
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 interface CameraAttentionBarProps {
   cameras: Camera[] | undefined;
@@ -50,26 +54,30 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
 }) => {
   if (!cameras || cameras.length === 0) return null;
 
+  const inactive = cameras.filter((c) => c.status === 'inactive').length;
+  const lowBattery = cameras.filter(
+    (c) => c.battery_percentage != null && c.battery_percentage < LOW_BATTERY_PERCENT,
+  ).length;
+  const sdNearlyFull = cameras.filter(
+    (c) =>
+      c.sd_utilization_percentage != null &&
+      c.sd_utilization_percentage > SD_NEARLY_FULL_PERCENT,
+  ).length;
+
   const candidates: AttentionItem[] = [
     {
-      count: cameras.filter((c) => c.status === 'inactive').length,
-      label: 'inactive',
+      count: inactive,
+      label: `${inactive} inactive ${plural(inactive, 'camera', 'cameras')}`,
       patch: { status: 'inactive' },
     },
     {
-      count: cameras.filter(
-        (c) => c.battery_percentage != null && c.battery_percentage < LOW_BATTERY_PERCENT,
-      ).length,
-      label: 'low battery',
+      count: lowBattery,
+      label: `${lowBattery} ${plural(lowBattery, 'camera', 'cameras')} low on battery`,
       patch: { battery: 'low' },
     },
     {
-      count: cameras.filter(
-        (c) =>
-          c.sd_utilization_percentage != null &&
-          c.sd_utilization_percentage > SD_NEARLY_FULL_PERCENT,
-      ).length,
-      label: 'SD nearly full',
+      count: sdNearlyFull,
+      label: `${sdNearlyFull} SD ${plural(sdNearlyFull, 'card', 'cards')} nearly full`,
       patch: { sd_usage: 'high' },
     },
   ];
@@ -93,7 +101,7 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
                 size="sm"
                 onClick={() => onSelect(item.patch)}
               >
-                {item.count} {item.label}
+                {item.label}
               </Button>
             ) : (
               <Link
@@ -101,7 +109,7 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
                 to={`/projects/${projectId}/cameras?${new URLSearchParams(item.patch).toString()}`}
                 className={buttonVariants({ variant: 'outline', size: 'sm' })}
               >
-                {item.count} {item.label}
+                {item.label}
               </Link>
             ),
           )}

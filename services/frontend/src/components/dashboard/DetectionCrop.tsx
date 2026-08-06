@@ -6,15 +6,16 @@
  * pans the thumbnail so the detection sits in the middle at a readable size,
  * while keeping enough surroundings that the habitat is still visible.
  *
- * The maths needs the container's aspect ratio, so the caller passes it and
- * the component sets it, rather than measuring the DOM. Everything else comes
- * from the image list response, which already carries the boxes in original
- * pixels plus the original width and height.
+ * The maths needs the container's aspect ratio, and the component measures it
+ * rather than being told. A caller that stretches to fill a grid row does not
+ * know its own shape, and a wrong aspect quietly slides the animal off centre.
+ * Everything else comes from the image list response, which already carries
+ * the boxes in original pixels plus the original width and height.
  *
  * Falls back to a plain cover image whenever the box or the dimensions are
  * missing, so a partially processed image never renders as a blank card.
  */
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AuthenticatedImage } from '../AuthenticatedImage';
 import type { Detection } from '../../api/types';
 
@@ -33,8 +34,6 @@ interface DetectionCropProps {
   detections: Detection[];
   imageWidth: number | null;
   imageHeight: number | null;
-  /** Container aspect ratio as width / height. Must match the CSS box. */
-  aspect: number;
   /**
    * Upper bound on magnification. Pick it from the source: roughly the
    * container width divided by the source width, so the picture is never
@@ -58,24 +57,61 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
   detections,
   imageWidth,
   imageHeight,
-  aspect,
   maxZoom = 6,
   className = '',
 }) => {
+  const boxRef = useRef<HTMLDivElement>(null);
+  // Starts null so nothing is drawn from a guessed shape. One frame of empty
+  // frame beats a frame of the animal in the wrong place.
+  const [aspect, setAspect] = useState<number | null>(null);
+
+  useEffect(() => {
+    const node = boxRef.current;
+    if (!node) return;
+    const measure = () => {
+      const { width, height } = node.getBoundingClientRect();
+      if (width > 0 && height > 0) setAspect(width / height);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const detection = pickDetection(detections);
+  const canCrop = detection !== null && !!imageWidth && !!imageHeight && aspect !== null;
 
-  if (!detection || !imageWidth || !imageHeight) {
-    return (
-      <div className={`overflow-hidden bg-muted ${className}`}>
-        <AuthenticatedImage
-          src={imageUrl}
+  // One element either way, so the ref keeps pointing at the same node and the
+  // observer survives the switch from unmeasured to cropped.
+  return (
+    <div ref={boxRef} className={`relative overflow-hidden bg-muted ${className}`}>
+      {canCrop ? (
+        <CroppedImage
+          imageUrl={imageUrl}
           alt={alt}
-          className="h-full w-full object-cover"
+          detection={detection}
+          imageWidth={imageWidth}
+          imageHeight={imageHeight}
+          aspect={aspect}
+          maxZoom={maxZoom}
         />
-      </div>
-    );
-  }
+      ) : detection === null || !imageWidth || !imageHeight ? (
+        <AuthenticatedImage src={imageUrl} alt={alt} className="h-full w-full object-cover" />
+      ) : null}
+    </div>
+  );
+};
 
+/** The framing maths, split out so the wrapper can stay a single stable node. */
+const CroppedImage: React.FC<{
+  imageUrl: string;
+  alt: string;
+  detection: Detection;
+  imageWidth: number;
+  imageHeight: number;
+  aspect: number;
+  maxZoom: number;
+}> = ({ imageUrl, alt, detection, imageWidth, imageHeight, aspect, maxZoom }) => {
   // Box as fractions of the original image.
   const fw = detection.bbox.width / imageWidth;
   const fh = detection.bbox.height / imageHeight;
@@ -92,22 +128,17 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
     Math.max(1, Math.min(FILL / Math.max(fw, 0.001), FILL / Math.max(fh * heightRatio, 0.001))),
   );
 
-  const widthPct = zoom * 100;
-  const heightPct = zoom * heightRatio * 100;
-
   return (
-    <div className={`relative overflow-hidden bg-muted ${className}`}>
-      <AuthenticatedImage
-        src={imageUrl}
-        alt={alt}
-        className="absolute max-w-none"
-        style={{
-          width: `${widthPct}%`,
-          height: `${heightPct}%`,
-          left: `${(0.5 - cx * zoom) * 100}%`,
-          top: `${(0.5 - cy * zoom * heightRatio) * 100}%`,
-        }}
-      />
-    </div>
+    <AuthenticatedImage
+      src={imageUrl}
+      alt={alt}
+      className="absolute max-w-none"
+      style={{
+        width: `${zoom * 100}%`,
+        height: `${zoom * heightRatio * 100}%`,
+        left: `${(0.5 - cx * zoom) * 100}%`,
+        top: `${(0.5 - cy * zoom * heightRatio) * 100}%`,
+      }}
+    />
   );
 };

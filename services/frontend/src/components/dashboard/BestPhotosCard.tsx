@@ -104,7 +104,6 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
                   detections={image.detections}
                   imageWidth={image.image_width}
                   imageHeight={image.image_height}
-                  aspect={4 / 3}
                   maxZoom={5}
                   className="h-full w-full"
                 />

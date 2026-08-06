@@ -82,12 +82,14 @@ export const LastDetectionCard: React.FC<LastDetectionCardProps> = ({
 
   return (
     <>
-      {/* The aspect is fixed here because DetectionCrop frames the animal
-          against it. Callers style the tile, not its shape. */}
+      {/* Keeps a 16:10 shape while it is the only thing in its row, and
+          stretches to the row height once it sits beside the stat tiles, so
+          the photograph and the tiles finish at the same line. DetectionCrop
+          measures whatever shape it ends up with. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`group relative block w-full overflow-hidden rounded-lg border text-left aspect-[16/10] ${className}`}
+        className={`group relative block w-full overflow-hidden rounded-lg border text-left aspect-[16/10] lg:aspect-auto lg:h-full ${className}`}
       >
         {/* Full size, not the thumbnail. This tile is around 540px wide and a
             distant animal is only a dozen pixels across in a 300px thumbnail,
@@ -99,7 +101,6 @@ export const LastDetectionCard: React.FC<LastDetectionCardProps> = ({
           detections={image.detections}
           imageWidth={image.image_width}
           imageHeight={image.image_height}
-          aspect={16 / 10}
           maxZoom={5}
           className="h-full w-full"
         />
