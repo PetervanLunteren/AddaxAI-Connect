@@ -16,7 +16,15 @@ DASHBOARD
 
 - [x] Add group size statistics for one or several selected species, including average, minimum, maximum, and a histogram of group sizes. This would be a particularly valuable feature for behavioural research.  
 
-- [ ] How can we make the dashboard more visually appealing? Could we do for instance a photo of an animal saying  last detection? or on the explorer when you select one species you'll get the highest detection of that species cropped so you can see what kind of animal it is? I don't know, just spicing up the dashboard to make it more visually appealing. Please do web queries on how other platforms do it. advise me on how to make the graphs more visually appealing, More modern, Add cards or stuff like that. I want you to take your time. I'm not in a rush. What are best practices. Check other major platforms and websites and references that talk about this. I want the best UX UI. It must feel modern, professional and reliable. First, let's do a thorough investigation and then show me some previews of what you have found and what you suggest. Take your time, I have all the time in the world and all the tokens. Do web queries read best practices, do whatever it takes. 
+- [x] How can we make the dashboard more visually appealing? Could we do for instance a photo of an animal saying  last detection? or on the explorer when you select one species you'll get the highest detection of that species cropped so you can see what kind of animal it is? I don't know, just spicing up the dashboard to make it more visually appealing. Please do web queries on how other platforms do it. advise me on how to make the graphs more visually appealing, More modern, Add cards or stuff like that. I want you to take your time. I'm not in a rush. What are best practices. Check other major platforms and websites and references that talk about this. I want the best UX UI. It must feel modern, professional and reliable. First, let's do a thorough investigation and then show me some previews of what you have found and what you suggest. Take your time, I have all the time in the world and all the tokens. Do web queries read best practices, do whatever it takes. 
+
+
+- remove empty from the dropdown
+- blur people and vehicles if the setting says so
+- what to do about images that were changed labels and verified? Sometimes there is an bat added, but the bbox doesnt show it. And sometimes there are two species, but the bbox dont know which one is which? Perhaps safe fallbakc is to just show the full image in this case and add a penalty in the preference list? 
+
+
+exmaples: bat, micromammal, 
 
 - [ ] Group size inside page: remove: "The detector misses animals standing behind each other, so verified counts usually come out higher."
 

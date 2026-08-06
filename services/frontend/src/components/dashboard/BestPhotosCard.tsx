@@ -17,7 +17,7 @@ import { imagesApi } from '../../api/images';
 import { normalizeLabel } from '../../utils/labels';
 import { DetectionCrop } from './DetectionCrop';
 import { ImageDetailModal } from '../ImageDetailModal';
-import { rankByAppeal } from './photoAppeal';
+import { rankByAppeal, cannotTellWhichAnimal } from './photoAppeal';
 
 /**
  * Four rather than six, because each tile loads the full-size image.
@@ -93,7 +93,10 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
     enabled: projectId !== undefined && species.length > 0,
   });
 
-  const items = rankByAppeal(data?.items ?? [], COUNT);
+  // One chosen species can frame a box; the all-species fallback is a list, so
+  // there is nothing to match against and the crop stays on the biggest animal.
+  const chosenSpecies = isAllSpecies ? undefined : species;
+  const items = rankByAppeal(data?.items ?? [], COUNT, chosenSpecies);
   const uuids = items.map((i) => i.uuid);
 
   return (
@@ -126,10 +129,16 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
                 onClick={() => setOpenUuid(image.uuid)}
                 className="group relative block aspect-[16/10] overflow-hidden rounded-md border text-left"
               >
+                {/* Passing no detections means "do not crop": the whole frame
+                    is the honest answer when we cannot say which animal is the
+                    one being asked for. */}
                 <DetectionCrop
                   imageUrl={`/api/images/${image.uuid}/full`}
                   alt={image.top_species ? normalizeLabel(image.top_species) : 'Detection'}
-                  detections={image.detections}
+                  detections={
+                    cannotTellWhichAnimal(image, chosenSpecies) ? [] : image.detections
+                  }
+                  species={chosenSpecies}
                   imageWidth={image.image_width}
                   imageHeight={image.image_height}
                   maxZoom={5}

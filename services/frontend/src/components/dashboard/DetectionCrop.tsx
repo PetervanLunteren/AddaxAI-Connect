@@ -34,6 +34,8 @@ interface DetectionCropProps {
   detections: Detection[];
   imageWidth: number | null;
   imageHeight: number | null;
+  /** Frame the box carrying this species when the frame holds several. */
+  species?: string;
   /**
    * Upper bound on magnification. Pick it from the source: roughly the
    * container width divided by the source width, so the picture is never
@@ -44,13 +46,32 @@ interface DetectionCropProps {
 }
 
 /**
- * The detection to frame: the most confident one, animals preferred.
+ * The detection to frame: the one carrying the species asked for, otherwise
+ * the most confident, animals preferred.
+ *
+ * The species argument matters when a frame holds more than one animal. Boxes
+ * come from the detector and its own labels; a human's verification carries no
+ * coordinates at all. So asking for the box the model called a fox, rather
+ * than simply the biggest box, is the only way to frame the fox and not the
+ * boar standing next to it.
  *
  * Exported so the photo wall can score a picture on the same box it will end
  * up showing. Judging one detection and then framing another would rank a
  * photo on an animal the viewer never sees.
  */
-export function pickDetection(detections: Detection[]): Detection | null {
+export function pickDetection(detections: Detection[], species?: string): Detection | null {
+  if (species) {
+    const named = detections.filter((d) =>
+      d.classifications.some((c) => c.species === species),
+    );
+    if (named.length > 0) {
+      return named.reduce((best, d) => (d.confidence > best.confidence ? d : best));
+    }
+  }
+  return pickMostConfident(detections);
+}
+
+function pickMostConfident(detections: Detection[]): Detection | null {
   if (detections.length === 0) return null;
   const animals = detections.filter((d) => d.category === 'animal');
   const pool = animals.length > 0 ? animals : detections;
@@ -63,6 +84,7 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
   detections,
   imageWidth,
   imageHeight,
+  species,
   maxZoom = 6,
   className = '',
 }) => {
@@ -84,7 +106,7 @@ export const DetectionCrop: React.FC<DetectionCropProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  const detection = pickDetection(detections);
+  const detection = pickDetection(detections, species);
   const canCrop = detection !== null && !!imageWidth && !!imageHeight && aspect !== null;
 
   // One element either way, so the ref keeps pointing at the same node and the

@@ -59,12 +59,34 @@ function isDaylight(capturedAt: string): boolean {
 }
 
 /**
+ * True when the frame holds several recorded species and no box is labelled
+ * with the one being asked for, so there is no way to tell which animal is
+ * which.
+ *
+ * A verification records species, counts and sex, but no coordinates. The
+ * boxes come from the detector and carry its own labels. Usually that is
+ * enough: with a single species recorded, every animal box is that species by
+ * elimination, whatever the model called it. It breaks when a person records
+ * two species on one frame, or adds one the detector never boxed. Bats and
+ * micromammals are the usual causes, small and fast enough that the detector
+ * either misses them or boxes something else.
+ *
+ * Cropping then shows a confident close-up of the wrong animal, which is worse
+ * than showing nothing in particular.
+ */
+export function cannotTellWhichAnimal(image: ImageListItem, species?: string): boolean {
+  if (!species) return false;
+  if (image.observed_species.length <= 1) return false;
+  return !image.detections.some((d) => d.classifications.some((c) => c.species === species));
+}
+
+/**
  * How much of the frame the animal fills, 0 to 1, on the box that will
  * actually be shown. Zero when the image has no usable box or no dimensions,
  * which drops it below every scorable photo rather than crashing.
  */
-export function subjectShare(image: ImageListItem): number {
-  const detection = pickDetection(image.detections);
+export function subjectShare(image: ImageListItem, species?: string): number {
+  const detection = pickDetection(image.detections, species);
   if (!detection || !image.image_width || !image.image_height) return 0;
   return (
     (detection.bbox.width * detection.bbox.height) /
@@ -72,9 +94,20 @@ export function subjectShare(image: ImageListItem): number {
   );
 }
 
-/** Bigger is better looking, and colour beats infrared. That is the whole rule. */
-export function photoAppeal(image: ImageListItem): number {
-  return subjectShare(image) * (isDaylight(image.captured_at) ? 1 : NIGHT_FACTOR);
+/**
+ * What an unframeable photo is worth against one we can crop.
+ *
+ * Not zero. These are real sightings and sometimes the only photo a species
+ * has, so they stay eligible and simply lose to anything we can frame.
+ */
+const AMBIGUOUS_FACTOR = 0.4;
+
+/** Bigger is better looking, colour beats infrared, and a frame we can read
+ *  beats one where the animal cannot be located. */
+export function photoAppeal(image: ImageListItem, species?: string): number {
+  const light = isDaylight(image.captured_at) ? 1 : NIGHT_FACTOR;
+  const certain = cannotTellWhichAnimal(image, species) ? AMBIGUOUS_FACTOR : 1;
+  return subjectShare(image, species) * light * certain;
 }
 
 /**
@@ -107,8 +140,12 @@ function minutesApart(a: string, b: string): number {
  * Anything skipped comes back at the end, so a species with only one visit on
  * record still fills the wall rather than showing a gap.
  */
-export function rankByAppeal(images: ImageListItem[], count: number): ImageListItem[] {
-  const sorted = [...images].sort((a, b) => photoAppeal(b) - photoAppeal(a));
+export function rankByAppeal(
+  images: ImageListItem[],
+  count: number,
+  species?: string,
+): ImageListItem[] {
+  const sorted = [...images].sort((a, b) => photoAppeal(b, species) - photoAppeal(a, species));
   const chosen: ImageListItem[] = [];
   const sameVisit: ImageListItem[] = [];
 
