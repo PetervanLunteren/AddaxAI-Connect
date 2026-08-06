@@ -6,18 +6,21 @@
  *
  * First, these fields are almost always "unknown" until somebody has done a
  * lot of verifying. A doughnut with one slice is a ring, and three of those
- * side by side filled half the page while saying nothing. The old card had a
- * good empty state but it only appeared when the total was zero, so 414
- * observations that are all unknown still drew the useless chart. Now a
- * single-category result collapses to one line that says so and links to the
- * work that fixes it.
+ * side by side filled half the page while saying nothing. Three stacked bars
+ * fit in the height one ring used.
+ *
+ * The three bars always render, including when every value is unknown and all
+ * three read 100%. An earlier version collapsed that case into a line urging
+ * the reader to go and verify. That was the wrong message: the classifier does
+ * the work and filling these fields in is optional, so an empty bar is a fact
+ * about what has been recorded, not a task anyone has failed to do. Keeping
+ * the bars also means the card does not change shape as data arrives.
  *
  * Second, the colours came from the teal-to-yellow scale, which turned
  * "female" and "male" into two points on a ramp. They are two names, not two
  * magnitudes, so the palette is now fixed and assigned by position.
  */
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
@@ -95,12 +98,6 @@ function toSegments(values: { value: string; count: number }[], total: number): 
   return segments;
 }
 
-/** True when this field holds nothing but "unknown". */
-function isBlank(data: DemographicsData | undefined): boolean {
-  const values = data?.values ?? [];
-  return values.length <= 1 && (values[0]?.value ?? 'unknown') === 'unknown';
-}
-
 const FieldRow: React.FC<{ label: string; data: DemographicsData | undefined }> = ({
   label,
   data,
@@ -176,10 +173,6 @@ export const DemographicsCard: React.FC<DemographicsCardProps> = ({
 
   const loading = sex.isLoading || lifeStage.isLoading || behavior.isLoading;
   const total = sex.data?.total ?? 0;
-  const nothingRecorded =
-    total > 0 && isBlank(sex.data) && isBlank(lifeStage.data) && isBlank(behavior.data);
-
-  const base = projectId !== undefined ? `/projects/${projectId}` : '';
 
   return (
     <Card>
@@ -198,23 +191,6 @@ export const DemographicsCard: React.FC<DemographicsCardProps> = ({
           <p className="py-4 text-sm text-muted-foreground">
             No verified observations yet for this selection.
           </p>
-        ) : nothingRecorded ? (
-          <div className="flex items-center gap-3">
-            <span className="h-8 w-1.5 shrink-0 rounded-full bg-[#ff8945]" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">Nothing recorded yet</p>
-              <p className="text-xs text-muted-foreground">
-                All {total.toLocaleString()} observations have these three fields set to
-                unknown. They are filled in while verifying an image.
-              </p>
-            </div>
-            <Link
-              to={`${base}/images?verified=false`}
-              className="shrink-0 text-xs font-medium text-primary hover:underline"
-            >
-              Verify
-            </Link>
-          </div>
         ) : (
           <div className="flex flex-col gap-3">
             <FieldRow label="Sex" data={sex.data} />
