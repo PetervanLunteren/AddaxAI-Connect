@@ -156,6 +156,16 @@ export interface SetNeedsReviewResponse {
   needs_review_by_email: string | null;
 }
 
+// Strongest hidden detection on an image with no visible detections.
+// Lets the detail view show how close an "empty" image came to the thresholds.
+export interface HiddenDetection {
+  category: string;
+  confidence: number;
+  species: string | null;
+  species_confidence: number | null;
+  hidden_by: 'detection_threshold' | 'classification_threshold';
+}
+
 export interface ImageDetail {
   id: number;
   uuid: string;
@@ -170,6 +180,7 @@ export interface ImageDetail {
   image_metadata: Record<string, any>;
   full_image_url: string;
   detections: Detection[];
+  hidden_detection: HiddenDetection | null;
   verification: VerificationInfo;
   human_observations: HumanObservation[];
   is_liked: boolean;

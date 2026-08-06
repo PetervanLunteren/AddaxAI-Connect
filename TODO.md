@@ -24,7 +24,7 @@ DASHBOARD
 
 IMAGES
 
-- [ ] Display the detection confidence score for images classified as "empty", so that users can see how close each image was to the detection threshold. A clearer understanding of this value would allow us to fine-tune the optimal threshold much more precisely.
+- [x] Display the detection confidence score for images classified as "empty", so that users can see how close each image was to the detection threshold. A clearer understanding of this value would allow us to fine-tune the optimal threshold much more precisely. (Shown in the image detail view. A distribution view for real threshold tuning is a possible follow-up, see the conversation of 6 Aug 2026.)
 
 - [ ] Fix the confidence score filter (both classification and detection) so that the slider operates continuously rather than jumping between fixed steps. As it stands, it is impossible to select a precise range such as 75–100%, which limits our ability to filter images meaningfully.
 

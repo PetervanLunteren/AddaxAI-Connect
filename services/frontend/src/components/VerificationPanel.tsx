@@ -74,6 +74,41 @@ function CompactSelect({
   );
 }
 
+// One small line under the empty state of an image without visible
+// detections. It shows how close the image came to the project's thresholds,
+// so borderline empties can be told apart from truly empty ones.
+function EmptyReasonHint({ imageDetail }: { imageDetail: ImageDetail }) {
+  const { selectedProject } = useProject();
+
+  if (imageDetail.detections.length > 0) return null;
+
+  const hidden = imageDetail.hidden_detection;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+  let text: string;
+  if (!hidden) {
+    text = 'The detector found nothing in this image, not even a weak detection.';
+  } else if (hidden.hidden_by === 'detection_threshold') {
+    const what =
+      hidden.category === 'person' ? 'a person'
+      : hidden.category === 'vehicle' ? 'a vehicle'
+      : 'an animal';
+    const threshold = selectedProject?.detection_threshold;
+    text = threshold != null
+      ? `The detector saw a possible ${what} at ${pct(hidden.confidence)}, under the project threshold of ${pct(threshold)}.`
+      : `The detector saw a possible ${what} at ${pct(hidden.confidence)}, under the project threshold.`;
+  } else {
+    const guess = hidden.species !== null && hidden.species_confidence !== null
+      ? ` (${normalizeLabel(hidden.species)} at ${pct(hidden.species_confidence)})`
+      : '';
+    text = `An animal was detected at ${pct(hidden.confidence)}, but the species prediction${guess} stayed under the species threshold.`;
+  }
+
+  return (
+    <p className="text-xs text-muted-foreground text-center mt-2">{text}</p>
+  );
+}
+
 // Expose methods for parent components (keyboard shortcuts, bbox linking, notes)
 export interface VerificationPanelRef {
   save: (onComplete?: () => void) => void;
@@ -543,8 +578,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
             {/* Species list - read only */}
             <div className="space-y-2">
               {imageDetail.human_observations.length === 0 ? (
-                <div className="flex justify-center items-center py-1.5 px-2">
+                <div className="flex flex-col justify-center items-center py-1.5 px-2">
                   <span className="text-sm text-muted-foreground">Empty</span>
+                  <EmptyReasonHint imageDetail={imageDetail} />
                 </div>
               ) : (
                 imageDetail.human_observations.map((obs) => (
@@ -608,8 +644,9 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
       <CardContent className="pt-4 pb-3">
         <div className="space-y-2">
           {observations.length === 0 && (
-            <div className="flex items-center justify-center p-2 rounded-md border border-input bg-background">
+            <div className="flex flex-col items-center justify-center p-2 rounded-md border border-input bg-background">
               <span className="text-sm text-muted-foreground h-9 flex items-center">No detections</span>
+              <EmptyReasonHint imageDetail={imageDetail} />
             </div>
           )}
           {observations.map((obs, index) => (

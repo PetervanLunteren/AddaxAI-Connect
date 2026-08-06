@@ -18,6 +18,7 @@ from shared.config import get_settings
 from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, narrow_to_project
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
+from utils.detection_filtering import strongest_hidden_detection
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -105,6 +106,15 @@ class VerificationInfo(BaseModel):
     notes: Optional[str] = None
 
 
+class HiddenDetectionResponse(BaseModel):
+    """Strongest hidden detection on an image with no visible detections"""
+    category: str
+    confidence: float
+    species: Optional[str] = None
+    species_confidence: Optional[float] = None
+    hidden_by: str  # 'detection_threshold' | 'classification_threshold'
+
+
 class ImageDetailResponse(BaseModel):
     """Full image detail with all detections"""
     id: int
@@ -120,6 +130,9 @@ class ImageDetailResponse(BaseModel):
     camera_location: Optional[dict] = None
     site: Optional[dict] = None  # {name, lat, lon} of the deployment site, or null
     detections: List[DetectionResponse]
+    # Set only when the image has no visible detections, so the user can see
+    # how close an "empty" image came to the project's thresholds.
+    hidden_detection: Optional[HiddenDetectionResponse] = None
     verification: VerificationInfo
     human_observations: List[HumanObservationResponse]
     is_liked: bool = False
@@ -1150,6 +1163,12 @@ async def get_image(
             classifications=classifications_response,
         ))
 
+    # For an image with no visible detections, report the strongest hidden
+    # detection so the user can see how close it came to the thresholds.
+    hidden = None
+    if not visible_detections:
+        hidden = strongest_hidden_detection(image.detections, project.detection_threshold)
+
     # Build verification info
     verification = VerificationInfo(
         is_verified=image.is_verified,
@@ -1211,6 +1230,7 @@ async def get_image(
         site=site,
         full_image_url=full_image_url,
         detections=detections_response,
+        hidden_detection=HiddenDetectionResponse(**hidden) if hidden else None,
         verification=verification,
         human_observations=human_observations_response,
         is_liked=image.is_liked,
