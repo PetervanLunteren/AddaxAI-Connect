@@ -85,8 +85,8 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
         <CardTitle className="text-lg">Best photographs</CardTitle>
         <p className="text-sm text-muted-foreground">
           {isAllSpecies
-            ? 'Clearest animal photos in this selection, open one to check or correct it'
-            : 'Clearest photos of this species, open one to check or correct it'}
+            ? 'Clearest animal photos in this selection'
+            : 'Clearest photos of this species'}
         </p>
       </CardHeader>
       <CardContent>
