@@ -70,7 +70,55 @@ export function photoAppeal(image: ImageListItem): number {
   return subjectShare(image) * (isDaylight(image.captured_at) ? 1 : NIGHT_FACTOR);
 }
 
-/** The best-looking `count` images, most appealing first. */
+/**
+ * Photos from one camera closer together than this count as the same visit.
+ *
+ * A camera trap fires a burst, so the frames either side of the best one look
+ * almost as good and show the same animal in the same pose. Roughly the length
+ * of one visit, and in the same range as a typical independence interval,
+ * which is the project's own definition of when a sighting becomes a new one.
+ */
+const SAME_VISIT_MINUTES = 30;
+
+/** Absolute gap in minutes. Both strings are parsed alike, so the difference
+ *  is right whatever the browser's timezone does to the absolute values. */
+function minutesApart(a: string, b: string): number {
+  return Math.abs(Date.parse(a) - Date.parse(b)) / 60000;
+}
+
+/**
+ * The best-looking `count` images, most appealing first, at most one per visit.
+ *
+ * Without the spacing rule a burst sweeps the board: for wolf, three of the
+ * four came from 23:55, 23:56 and 23:57 on one night. Four photographs of one
+ * animal in one pose is a worse wall than four decent ones from four nights,
+ * even when the burst frames score higher.
+ *
+ * Same camera only. Two sites photographing the same species at the same
+ * moment are genuinely different sightings and both deserve a place.
+ *
+ * Anything skipped comes back at the end, so a species with only one visit on
+ * record still fills the wall rather than showing a gap.
+ */
 export function rankByAppeal(images: ImageListItem[], count: number): ImageListItem[] {
-  return [...images].sort((a, b) => photoAppeal(b) - photoAppeal(a)).slice(0, count);
+  const sorted = [...images].sort((a, b) => photoAppeal(b) - photoAppeal(a));
+  const chosen: ImageListItem[] = [];
+  const sameVisit: ImageListItem[] = [];
+
+  for (const image of sorted) {
+    if (chosen.length === count) break;
+    const alreadyHaveThisVisit = chosen.some(
+      (picked) =>
+        picked.camera_id === image.camera_id &&
+        minutesApart(picked.captured_at, image.captured_at) < SAME_VISIT_MINUTES,
+    );
+    if (alreadyHaveThisVisit) sameVisit.push(image);
+    else chosen.push(image);
+  }
+
+  for (const image of sameVisit) {
+    if (chosen.length === count) break;
+    chosen.push(image);
+  }
+  return chosen;
 }
