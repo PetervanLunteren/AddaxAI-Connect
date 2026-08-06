@@ -14,20 +14,27 @@ import type { ImageListItem } from '../../api/types';
 import { pickDetection } from './DetectionCrop';
 
 /**
- * Camera-clock hours treated as daylight. Deliberately narrow: this window is
- * daylight all year at Belgian latitudes, so a photo inside it is in colour.
+ * Camera-clock hours treated as daylight, so probably in colour rather than
+ * infrared.
  *
- * The error runs one way on purpose. A bright June evening at 19:00 counts as
- * night here and needs a larger animal to win, which costs us a good photo now
- * and then. The opposite mistake would promote an infrared frame to the top of
- * the wall, which is the thing this ranking exists to prevent.
+ * 07:00 to 19:00 covers most of the year. It was 09:00 to 16:00, which is
+ * daylight even in midwinter but threw away most of the colour photographs a
+ * project has: on this data it called only 14% of red deer daylight against
+ * 33% for this window, and 23% of roe deer against 41%.
  *
- * Knowing for certain would mean decoding pixels to measure saturation, and
- * decoding two dozen thumbnails to choose four is slower than the feature is
- * worth.
+ * The cost is winter. In December the sun here rises around 08:45 and sets
+ * around 16:40, so an early or late frame in those months is infrared and gets
+ * treated as colour. That is bounded rather than fatal, because losing the
+ * penalty only lets a photo compete on how much of the frame the animal fills,
+ * it does not put it in front.
+ *
+ * Knowing for certain would mean decoding pixels to measure saturation, which
+ * is far slower than the feature is worth. Doing it properly means real
+ * sunrise and sunset per date, which sun_time.py already computes, and moving
+ * this ranking to the backend where the coordinates are.
  */
-const DAYLIGHT_FROM_HOUR = 9;
-const DAYLIGHT_TO_HOUR = 16;
+const DAYLIGHT_FROM_HOUR = 7;
+const DAYLIGHT_TO_HOUR = 19;
 
 /** What a night photo's area is worth against a daylight one. */
 const NIGHT_FACTOR = 0.6;
