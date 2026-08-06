@@ -90,9 +90,9 @@ function EmptyReasonHint({ imageDetail }: { imageDetail: ImageDetail }) {
     text = 'The detector found nothing in this image, not even a weak detection.';
   } else if (hidden.hidden_by === 'detection_threshold') {
     const what =
-      hidden.category === 'person' ? 'a person'
-      : hidden.category === 'vehicle' ? 'a vehicle'
-      : 'an animal';
+      hidden.category === 'person' ? 'person'
+      : hidden.category === 'vehicle' ? 'vehicle'
+      : 'animal';
     const threshold = selectedProject?.detection_threshold;
     text = threshold != null
       ? `The detector saw a possible ${what} at ${pct(hidden.confidence)}, under the project threshold of ${pct(threshold)}.`
