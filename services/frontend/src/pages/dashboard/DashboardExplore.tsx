@@ -15,6 +15,7 @@ import { FilterBar } from '../../components/ui/FilterBar';
 import { ActivityPatternChart, DetectionTrendChart } from '../../components/dashboard';
 import { DemographicsCard } from '../../components/dashboard/DemographicsCard';
 import { BestPhotosCard } from '../../components/dashboard/BestPhotosCard';
+import { SpeciesSummaryTiles } from '../../components/dashboard/SpeciesSummaryTiles';
 import { imagesApi } from '../../api/images';
 import { isWildlifeLabel } from '../../utils/labels';
 import { useDashboardFilters } from './useDashboardFilters';
@@ -86,13 +87,28 @@ export const DashboardExplore: React.FC = () => {
           species={speciesParam}
         />
         {/* Sex, age class and behaviour share one card now. Separately they
-            were three near-empty charts filling half the page. */}
-        <DemographicsCard
-          dateRange={dateRange}
-          projectId={projectId}
-          siteIds={siteIdsFromTags}
-          species={speciesParam}
-        />
+            were three near-empty charts filling half the page.
+
+            The two figures sit under it rather than above, because they fill
+            the space the short demographic card leaves against the tall
+            activity chart beside it. Above, they would have pushed both
+            charts down for no gain. */}
+        <div className="flex flex-col gap-6">
+          <DemographicsCard
+            dateRange={dateRange}
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+            species={speciesParam}
+          />
+          <SpeciesSummaryTiles
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+            species={photoSpecies}
+            isAllSpecies={!species}
+            startDate={dateRange.startDate || undefined}
+            endDate={dateRange.endDate || undefined}
+          />
+        </div>
       </div>
     </div>
   );

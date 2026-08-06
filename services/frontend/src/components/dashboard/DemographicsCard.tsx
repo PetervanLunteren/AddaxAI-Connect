@@ -108,7 +108,15 @@ const FieldRow: React.FC<{ label: string; data: DemographicsData | undefined }> 
   if (!data || data.total === 0) return null;
 
   const segments = toSegments(data.values, data.total);
-  const summary = segments.map((s) => `${s.label} ${Math.round(s.share * 100)}%`).join(' · ');
+  // A recorded value must never print as 0%. Behaviour has 12 foraging out of
+  // 6,855, which rounds to zero and then reads as "we looked and found none"
+  // rather than "almost nobody has filled this in".
+  const share = (value: number) => {
+    const percent = value * 100;
+    if (percent > 0 && percent < 0.5) return '<1%';
+    return `${Math.round(percent)}%`;
+  };
+  const summary = segments.map((s) => `${s.label} ${share(s.share)}`).join(' · ');
 
   return (
     <div>
