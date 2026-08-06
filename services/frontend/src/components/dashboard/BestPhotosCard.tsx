@@ -34,11 +34,17 @@ const COUNT = 4;
  * How many the endpoint returns before appeal picks four from them.
  *
  * Confidence is the gate and appeal is the ranker, so the pool has to be wide
- * enough to contain a good-looking photo but narrow enough that every member
- * is unmistakably the right species. Two dozen rows of JSON is a few tens of
- * kilobytes and no extra image bytes, since only the four shown are loaded.
+ * enough to hold some good-looking photos. It is the endpoint's maximum,
+ * because on this data confidence saturates: every candidate scores 1.0000, so
+ * the order past that is really capture time and a small pool is just "the
+ * most recent", which is night-heavy for most species.
+ *
+ * Measured on red deer: 24 candidates contain 5 daylight photos, 100 contain
+ * 17. The cost is 80 KB of JSON instead of 17 KB and about 100 ms, against the
+ * 2.4 MB of full-size images the card then loads for the four it shows. No
+ * extra image bytes at all.
  */
-const CANDIDATES = 24;
+const CANDIDATES = 100;
 
 /**
  * Tiles are 16:10 rather than 4:3, which takes about 65px off the card.
