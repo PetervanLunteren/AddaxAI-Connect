@@ -51,6 +51,12 @@ export const DashboardExplore: React.FC = () => {
     .join(',');
   const photoSpecies = species || wildlifeSpecies;
 
+  // Independent events and mean group size come from the group size endpoint,
+  // which excludes person, vehicle and empty by design, so both tiles read
+  // zero for them. Hidden rather than made to work: a person walking past is
+  // not a sighting with a group size, and a zero would look like a bug.
+  const showSummaryTiles = !species || isWildlifeLabel(species);
+
   return (
     <div className="space-y-6">
       <FilterBar
@@ -96,7 +102,9 @@ export const DashboardExplore: React.FC = () => {
             the space the short demographic card leaves against the tall
             activity chart beside it. Above, they would have pushed both
             charts down for no gain. */}
-        <div className="flex flex-col gap-6">
+        {/* self-start when the tiles are hidden, so the lone demographics card
+            keeps its own height instead of stretching into white space. */}
+        <div className={`flex flex-col gap-6 ${showSummaryTiles ? '' : 'self-start'}`}>
           <DemographicsCard
             dateRange={dateRange}
             projectId={projectId}
@@ -106,14 +114,16 @@ export const DashboardExplore: React.FC = () => {
           {/* flex-1 so the two tiles absorb the slack left by the short
               demographics card, and this column ends level with the activity
               chart beside it. */}
-          <SpeciesSummaryTiles
-            className="flex-1"
-            projectId={projectId}
-            siteIds={siteIdsFromTags}
-            species={photoSpecies}
-            startDate={dateRange.startDate || undefined}
-            endDate={dateRange.endDate || undefined}
-          />
+          {showSummaryTiles && (
+            <SpeciesSummaryTiles
+              className="flex-1"
+              projectId={projectId}
+              siteIds={siteIdsFromTags}
+              species={photoSpecies}
+              startDate={dateRange.startDate || undefined}
+              endDate={dateRange.endDate || undefined}
+            />
+          )}
         </div>
       </div>
     </div>
