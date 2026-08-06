@@ -1,10 +1,15 @@
 /**
  * One headline number, in the shape the dashboard literature agrees on:
- * label, value, change against the previous period, then one small visual.
- * One visual only, never a sparkline and an arrow and a bar together.
+ * label, value, change against the previous period, timeframe, then one small
+ * visual. One visual only, never a sparkline and a bar together.
  *
  * A number with no comparison cannot be judged, which is why `delta` and
  * `note` exist and why at least one of them should always be passed.
+ *
+ * The value, the delta and the series must all describe the same quantity.
+ * A cumulative total with a week-on-week change under it reads as "the
+ * project grew 22% last week" when the change really refers to arrivals, so
+ * the caller measures one thing and shows that thing three ways.
  */
 import React from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
@@ -57,7 +62,9 @@ export const StatTile: React.FC<StatTileProps> = ({
           {loading ? '...' : value}
         </p>
 
-        {hasDelta ? (
+        {/* Delta and note can both show. The delta says which way it moved,
+            the note says what the number sits inside. */}
+        {hasDelta && (
           <p
             className={`flex items-center gap-1 text-xs tabular-nums ${
               up ? 'text-primary' : 'text-[#882000] dark:text-[#f0917a]'
@@ -67,9 +74,8 @@ export const StatTile: React.FC<StatTileProps> = ({
             {up ? '+' : ''}
             {Math.round(delta as number)}% vs previous week
           </p>
-        ) : note ? (
-          <p className="text-xs text-muted-foreground">{note}</p>
-        ) : null}
+        )}
+        {note && <p className="text-xs text-muted-foreground">{note}</p>}
 
         {progress !== undefined ? (
           <div className="mt-auto h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -79,8 +85,10 @@ export const StatTile: React.FC<StatTileProps> = ({
             />
           </div>
         ) : series && series.length > 1 ? (
-          <div className="mt-auto pt-1">
-            <Sparkline values={series} />
+          // Fills whatever height is left rather than sitting at a fixed size
+          // above a gap, which is what a stretched tile leaves behind.
+          <div className="mt-auto min-h-[1.5rem] flex-1 pt-2">
+            <Sparkline values={series} className="h-full" />
           </div>
         ) : null}
       </CardContent>

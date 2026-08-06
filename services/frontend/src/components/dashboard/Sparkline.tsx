@@ -9,6 +9,7 @@ import React from 'react';
 
 interface SparklineProps {
   values: number[];
+  /** Height comes from the caller, so a tile can let it fill leftover space. */
   className?: string;
 }
 
@@ -16,7 +17,7 @@ const WIDTH = 100;
 const HEIGHT = 24;
 const PAD = 2;
 
-export const Sparkline: React.FC<SparklineProps> = ({ values, className = '' }) => {
+export const Sparkline: React.FC<SparklineProps> = ({ values, className = 'h-6' }) => {
   if (values.length < 2) return null;
 
   const max = Math.max(...values);
@@ -39,7 +40,7 @@ export const Sparkline: React.FC<SparklineProps> = ({ values, className = '' }) 
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       preserveAspectRatio="none"
-      className={`block h-6 w-full ${className}`}
+      className={`block w-full ${className}`}
       aria-hidden="true"
     >
       <path d={area} fill="rgba(15, 96, 100, 0.13)" />

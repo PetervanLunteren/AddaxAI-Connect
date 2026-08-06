@@ -118,6 +118,11 @@ export const DashboardOverview: React.FC = () => {
 
   const dailyCounts = (timeline ?? []).map((p) => p.count);
   const delta = weekOverWeek(dailyCounts);
+  // The headline is arrivals, matching the delta and the sparkline. Putting
+  // the lifetime total up here instead made the tile claim the project grew
+  // by the week-on-week percentage, which it never does.
+  const imagesThisWeek = dailyCounts.slice(-7).reduce((a, b) => a + b, 0);
+  const totalImages = overview?.total_images ?? 0;
 
   const withContent =
     (pipeline?.animal_count ?? 0) + (pipeline?.person_count ?? 0) + (pipeline?.vehicle_count ?? 0);
@@ -156,15 +161,14 @@ export const DashboardOverview: React.FC = () => {
 
         <StatTile
           className="md:col-span-2"
-          label="Total images"
-          value={(overview?.total_images ?? 0).toLocaleString()}
+          label="Images this week"
+          value={imagesThisWeek.toLocaleString()}
           delta={delta}
+          // When nothing arrived, when it stopped is the more useful fact.
           note={
-            delta === null
-              ? overview?.last_image_date
-                ? `Last image ${overview.last_image_date}`
-                : 'No images yet'
-              : undefined
+            imagesThisWeek === 0 && overview?.last_image_date
+              ? `Nothing this week, last image ${overview.last_image_date}`
+              : `${totalImages.toLocaleString()} in total`
           }
           series={dailyCounts}
           loading={overviewLoading}
@@ -181,6 +185,10 @@ export const DashboardOverview: React.FC = () => {
           }
           progress={totalClassified > 0 ? animalShare / 100 : undefined}
         />
+        {/* No progress bar here on purpose. A bar says "on the way to 100%",
+            and verifying is optional: the classifier does the work and a
+            person confirms as much or as little as they want. The number is
+            a fact, not an unfinished task. */}
         <StatTile
           label="Verified"
           value={`${allVerified?.percentage ?? 0}%`}
@@ -189,7 +197,6 @@ export const DashboardOverview: React.FC = () => {
               ? `${allVerified.verified.toLocaleString()} of ${allVerified.total.toLocaleString()} images`
               : undefined
           }
-          progress={(allVerified?.percentage ?? 0) / 100}
         />
       </div>
 
