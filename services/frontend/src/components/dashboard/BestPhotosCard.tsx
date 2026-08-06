@@ -29,6 +29,17 @@ import { ImageDetailModal } from '../ImageDetailModal';
  */
 const COUNT = 4;
 
+/**
+ * Tiles are 16:10 rather than 4:3, which takes about 65px off the card.
+ *
+ * Cheap to change because DetectionCrop measures its own box now. It used to
+ * be told the aspect, so this would have meant editing two places and would
+ * have silently mis-framed every animal if the second one were missed.
+ *
+ * A shorter window crops sky and foreground, which is what a camera trap
+ * frame has most of, and the animal keeps the same share of the tile.
+ */
+
 interface BestPhotosCardProps {
   projectId?: number;
   siteIds?: string;
@@ -82,7 +93,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: COUNT }, (_, i) => (
-              <div key={i} className="aspect-[4/3] animate-pulse rounded-md bg-muted" />
+              <div key={i} className="aspect-[16/10] animate-pulse rounded-md bg-muted" />
             ))}
           </div>
         ) : items.length === 0 ? (
@@ -96,7 +107,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
                 key={image.uuid}
                 type="button"
                 onClick={() => setOpenUuid(image.uuid)}
-                className="group relative block aspect-[4/3] overflow-hidden rounded-md border text-left"
+                className="group relative block aspect-[16/10] overflow-hidden rounded-md border text-left"
               >
                 <DetectionCrop
                   imageUrl={`/api/images/${image.uuid}/full`}
