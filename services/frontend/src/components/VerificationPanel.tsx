@@ -95,13 +95,21 @@ function EmptyReasonHint({ imageDetail }: { imageDetail: ImageDetail }) {
       : 'animal';
     const threshold = selectedProject?.detection_threshold;
     text = threshold != null
-      ? `The detector saw a possible ${what} at ${pct(hidden.confidence)}, under the project threshold of ${pct(threshold)}.`
-      : `The detector saw a possible ${what} at ${pct(hidden.confidence)}, under the project threshold.`;
+      ? `Empty because of the detection threshold. The detector saw a possible ${what} at ${pct(hidden.confidence)}, and the threshold is ${pct(threshold)}.`
+      : `Empty because of the detection threshold. The detector saw a possible ${what} at ${pct(hidden.confidence)}.`;
   } else {
+    // Effective species threshold, mirroring the backend coalesce of
+    // overrides[species] then default (shared/classification_threshold.py).
+    const thresholds = selectedProject?.classification_thresholds;
+    const speciesThreshold = hidden.species !== null
+      ? thresholds?.overrides?.[hidden.species] ?? thresholds?.default ?? null
+      : null;
     const guess = hidden.species !== null && hidden.species_confidence !== null
       ? ` (${normalizeLabel(hidden.species)} at ${pct(hidden.species_confidence)})`
       : '';
-    text = `An animal was detected at ${pct(hidden.confidence)}, but the species prediction${guess} stayed under the species threshold.`;
+    text = speciesThreshold != null
+      ? `Empty because of the species threshold. An animal was detected at ${pct(hidden.confidence)}, but the species guess${guess} needed ${pct(speciesThreshold)}.`
+      : `Empty because of the species threshold. An animal was detected at ${pct(hidden.confidence)}, but the species guess${guess} stayed under it.`;
   }
 
   return (
