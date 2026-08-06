@@ -32,12 +32,13 @@ import { useQuery } from '@tanstack/react-query';
 import { FilterBar } from '../../components/ui/FilterBar';
 import { statisticsApi } from '../../api/statistics';
 import { imagesApi } from '../../api/images';
+import { camerasApi } from '../../api/cameras';
 import { isWildlifeLabel } from '../../utils/labels';
 import type { DateRange } from '../../components/dashboard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
 import { SpeciesChart } from '../../components/dashboard/SpeciesChart';
 import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
-import { AttentionList } from '../../components/dashboard/AttentionList';
+import { CameraAttentionBar } from '../../components/cameras/CameraAttentionBar';
 import { StatTile } from '../../components/dashboard/StatTile';
 import { useDashboardFilters } from './useDashboardFilters';
 
@@ -78,6 +79,12 @@ export const DashboardOverview: React.FC = () => {
   const { data: allSpeciesList } = useQuery({
     queryKey: ['species', projectId],
     queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  const { data: cameras } = useQuery({
+    queryKey: ['cameras', projectId],
+    queryFn: () => camerasApi.getAll(projectId),
     enabled: projectId !== undefined,
   });
 
@@ -132,10 +139,10 @@ export const DashboardOverview: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      {/* Anything broken goes first and spans the width. It is one short row
-          per fault and usually none, so a full-width strip costs almost no
-          height while putting the only urgent thing where the eye starts. */}
-      <AttentionList projectId={projectId} siteIds={siteIdsFromTags} />
+      {/* The same strip the Cameras page shows, not a second opinion. It
+          renders nothing when every camera is fine, so a healthy project sees
+          no card at all rather than a reassuring one. */}
+      <CameraAttentionBar cameras={cameras} projectId={projectId} />
 
       {/* The photograph earns the most room. The stat with a chart in it gets
           double width; the two bare numbers sit beneath at single width. */}

@@ -12,7 +12,6 @@ import {
   Plus,
   Upload,
   Loader2,
-  AlertTriangle,
   CheckCircle,
   XCircle,
   ChevronDown,
@@ -98,6 +97,7 @@ import {
   BulkSetNotesDialog,
 } from '../components/BulkEditDialogs';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
+import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
 import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
 import { feedApi } from '../api/feed';
@@ -854,55 +854,10 @@ export const CamerasPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Needs attention. Page-wide counts of cameras that want a visit,
-          independent of the table filters. Clicking a count applies the
-          matching filter. Thresholds match the battery/SD filter buckets
-          (low battery <30%, SD nearly full >80%). */}
-      {cameras && cameras.length > 0 && (() => {
-        const inactiveCount = cameras.filter((c: Camera) => c.status === 'inactive').length;
-        const lowBatteryCount = cameras.filter(
-          (c: Camera) => c.battery_percentage != null && c.battery_percentage < 30,
-        ).length;
-        const sdHighCount = cameras.filter(
-          (c: Camera) => c.sd_utilization_percentage != null && c.sd_utilization_percentage > 80,
-        ).length;
-        const allClear = inactiveCount === 0 && lowBatteryCount === 0 && sdHighCount === 0;
-
-        const items: { count: number; label: string; patch: Record<string, FilterValue> }[] = [
-          { count: inactiveCount, label: 'inactive', patch: { status: 'inactive' } },
-          { count: lowBatteryCount, label: 'low battery', patch: { battery: 'low' } },
-          { count: sdHighCount, label: 'SD nearly full', patch: { sd_usage: 'high' } },
-        ];
-
-        // Nothing to flag means no banner at all, rather than a reassuring
-        // line that just takes up space.
-        if (allClear) return null;
-
-        return (
-          <Card>
-            <CardContent className="p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="flex items-center gap-1.5 text-sm text-muted-foreground mr-1">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  Needs attention
-                </span>
-                {items
-                  .filter((it) => it.count > 0)
-                  .map((it) => (
-                    <Button
-                      key={it.label}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onFilterChange(it.patch)}
-                    >
-                      {it.count} {it.label}
-                    </Button>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {/* Page-wide counts of cameras that want a visit, independent of the
+          table filters. Clicking a count applies the matching filter. Shared
+          with the dashboard so the thresholds cannot drift apart. */}
+      <CameraAttentionBar cameras={cameras} onSelect={onFilterChange} />
 
       {/* Shared filter bar (drives both table and map views) */}
       {cameras && cameras.length > 0 && (
