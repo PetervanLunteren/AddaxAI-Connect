@@ -65,26 +65,28 @@ def _rejected_filename(filepath: str) -> str:
     """
     Derive a unique, collision-safe filename for the rejected/ directory.
 
-    Flat uploads keep their original basename (e.g. ``A.jpg``). Nested uploads
-    are flattened by replacing path separators with underscores so that two
-    different source paths with the same basename do not clobber each other.
+    The name is the source path flattened (path separators become underscores)
+    with the rejection wall-clock time (UTC, microsecond precision) prefixed.
+    The prefix makes every rejected file unique: without it, 50 cameras all
+    sending an ``img001.jpg`` with bad GPS would overwrite each other and only
+    one file would survive for inspection.
 
     Example:
         /uploads/A.jpg
-            -> A.jpg
+            -> 20260806T142530_123456_A.jpg
         /uploads/INSTAR/lat52.02368_lon12.98290/20260409/images/Test-Snapshot.jpeg
-            -> INSTAR_lat52.02368_lon12.98290_20260409_images_Test-Snapshot.jpeg
+            -> 20260806T142530_123456_INSTAR_lat52.02368_lon12.98290_20260409_images_Test-Snapshot.jpeg
     """
     path = Path(filepath)
     try:
         rel = path.relative_to(_upload_root())
+        flattened = "_".join(rel.parts)
     except ValueError:
         # filepath is not under the upload root (shouldn't happen, but be safe)
-        return path.name
+        flattened = path.name
 
-    if len(rel.parts) == 1:
-        return rel.parts[0]
-    return "_".join(rel.parts)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%f")
+    return f"{stamp}_{flattened}"
 
 
 def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_metadata: Optional[dict] = None) -> str:
@@ -92,11 +94,11 @@ def reject_file(filepath: str, reason: str, details: Optional[str] = None, exif_
     Move file to rejected directory with error log.
 
     Creates:
-    - <upload_root>/rejected/{reason}/{flattened_filename}
-    - <upload_root>/rejected/{reason}/{flattened_filename}.error.json
+    - <upload_root>/rejected/{reason}/{timestamp}_{flattened_filename}
+    - <upload_root>/rejected/{reason}/{timestamp}_{flattened_filename}.error.json
 
-    Nested source paths are flattened into the rejected filename to avoid
-    basename collisions (see _rejected_filename).
+    The rejected filename carries a timestamp prefix and the flattened source
+    path, so no two rejections ever share a name (see _rejected_filename).
 
     After moving, empty parent directories between the source and the upload
     root are pruned so nested camera trees (e.g. INSTAR/<lat-lon>/<date>/images/)

@@ -1,6 +1,7 @@
 """Tests for ingestion utility helpers (reject_file, prune_empty_parents)."""
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,15 @@ from utils import (
     prune_empty_parents,
     reject_file,
 )
+
+# Rejected filenames are "<UTC timestamp>_<flattened source path>",
+# e.g. 20260806T142530_123456_IMG_0001.jpg
+TIMESTAMP_PREFIX_RE = r"\d{8}T\d{6}_\d{6}_"
+
+
+def rejected_images(reason_dir: Path) -> list[Path]:
+    """The rejected image files in a reason directory (error logs excluded)."""
+    return sorted(p for p in reason_dir.iterdir() if not p.name.endswith(".error.json"))
 
 
 @pytest.fixture
@@ -46,17 +56,18 @@ class TestIsValidGps:
 
 
 class TestRejectFileFlat:
-    def test_flat_source_keeps_original_basename(self, upload_root):
+    def test_flat_source_gets_timestamp_prefixed_basename(self, upload_root):
         src = upload_root / "IMG_0001.jpg"
         src.write_bytes(b"\xff\xd8\xff\x00")
 
         reject_file(str(src), "missing_datetime", "no timestamp")
 
-        rejected = upload_root / "rejected" / "missing_datetime" / "IMG_0001.jpg"
-        assert rejected.exists()
+        reason_dir = upload_root / "rejected" / "missing_datetime"
+        (rejected,) = rejected_images(reason_dir)
+        assert re.fullmatch(TIMESTAMP_PREFIX_RE + r"IMG_0001\.jpg", rejected.name)
         assert not src.exists()
 
-        error_json = upload_root / "rejected" / "missing_datetime" / "IMG_0001.jpg.error.json"
+        error_json = reason_dir / f"{rejected.name}.error.json"
         assert error_json.exists()
         data = json.loads(error_json.read_text())
         assert data["filename"] == "IMG_0001.jpg"
@@ -71,9 +82,28 @@ class TestRejectFileFlat:
 
         dest = reject_file(str(src), "missing_gps", "no gps")
 
-        expected = upload_root / "rejected" / "missing_gps" / "IMG_0002.jpg"
-        assert dest == str(expected)
-        assert Path(dest).exists()
+        (rejected,) = rejected_images(upload_root / "rejected" / "missing_gps")
+        assert dest == str(rejected)
+        assert rejected.name.endswith("_IMG_0002.jpg")
+
+    def test_same_basename_rejected_twice_does_not_overwrite(self, upload_root):
+        # The TODO scenario: many cameras all send an img001.jpg with bad GPS.
+        # Every rejection must survive as its own file with its own error log.
+        for details in ("first camera", "second camera"):
+            src = upload_root / "img001.jpg"
+            src.write_bytes(b"\xff\xd8\xff\x00")
+            reject_file(str(src), "invalid_gps", details)
+
+        reason_dir = upload_root / "rejected" / "invalid_gps"
+        rejected = rejected_images(reason_dir)
+        assert len(rejected) == 2
+        assert all(p.name.endswith("_img001.jpg") for p in rejected)
+
+        details = sorted(
+            json.loads((reason_dir / f"{p.name}.error.json").read_text())["details"]
+            for p in rejected
+        )
+        assert details == ["first camera", "second camera"]
 
 
 class TestRejectFileNested:
@@ -89,13 +119,14 @@ class TestRejectFileNested:
 
         reject_file(str(src), "missing_datetime", "no timestamp")
 
-        expected = upload_root / "rejected" / "missing_datetime" / (
-            "INSTAR_lat52.02368_lon12.98290_Test-Snapshot.jpeg"
+        (rejected,) = rejected_images(upload_root / "rejected" / "missing_datetime")
+        assert re.fullmatch(
+            TIMESTAMP_PREFIX_RE + r"INSTAR_lat52\.02368_lon12\.98290_Test-Snapshot\.jpeg",
+            rejected.name,
         )
-        assert expected.exists()
         assert not src.exists()
 
-        error_json = expected.with_suffix(expected.suffix + ".error.json")
+        error_json = rejected.with_suffix(rejected.suffix + ".error.json")
         assert error_json.exists()
         data = json.loads(error_json.read_text())
         assert data["filename"] == "Test-Snapshot.jpeg"
@@ -112,12 +143,11 @@ class TestRejectFileNested:
         reject_file(str(src_a), "missing_datetime", "a")
         reject_file(str(src_b), "missing_datetime", "b")
 
-        rejected_dir = upload_root / "rejected" / "missing_datetime"
-        rejected_files = sorted(p.name for p in rejected_dir.iterdir() if not p.name.endswith(".error.json"))
-        assert rejected_files == [
-            "INSTAR_lat-33.85679_lon-70.65876_Test-Snapshot.jpeg",
-            "INSTAR_lat52.02368_lon12.98290_Test-Snapshot.jpeg",
-        ]
+        rejected = rejected_images(upload_root / "rejected" / "missing_datetime")
+        names = sorted(p.name for p in rejected)
+        assert len(names) == 2
+        assert any(n.endswith("_INSTAR_lat-33.85679_lon-70.65876_Test-Snapshot.jpeg") for n in names)
+        assert any(n.endswith("_INSTAR_lat52.02368_lon12.98290_Test-Snapshot.jpeg") for n in names)
 
     def test_nested_reject_prunes_empty_parents(self, upload_root):
         src = self._setup_instar_tree(upload_root)
