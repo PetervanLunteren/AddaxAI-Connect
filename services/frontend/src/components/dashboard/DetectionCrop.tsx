@@ -128,11 +128,23 @@ const CroppedImage: React.FC<{
   // expressed against the container. Keeps the picture undistorted.
   const heightRatio = (aspect * imageHeight) / imageWidth;
 
-  // Zoom so the box fills FILL of the frame in whichever direction is tighter.
+  // Smallest zoom that still covers the frame in both directions. Width is
+  // covered at zoom 1 by definition; height needs more whenever the image is
+  // relatively wider than its container.
+  const coverZoom = Math.max(1, 1 / heightRatio);
+
+  // Zoom so the box fills FILL of the frame in whichever direction is tighter,
+  // never below what it takes to cover.
   const zoom = Math.min(
     maxZoom,
-    Math.max(1, Math.min(FILL / Math.max(fw, 0.001), FILL / Math.max(fh * heightRatio, 0.001))),
+    Math.max(
+      coverZoom,
+      Math.min(FILL / Math.max(fw, 0.001), FILL / Math.max(fh * heightRatio, 0.001)),
+    ),
   );
+
+  const widthFraction = zoom;
+  const heightFraction = zoom * heightRatio;
 
   return (
     <AuthenticatedImage
@@ -140,11 +152,32 @@ const CroppedImage: React.FC<{
       alt={alt}
       className="absolute max-w-none"
       style={{
-        width: `${zoom * 100}%`,
-        height: `${zoom * heightRatio * 100}%`,
-        left: `${(0.5 - cx * zoom) * 100}%`,
-        top: `${(0.5 - cy * zoom * heightRatio) * 100}%`,
+        width: `${widthFraction * 100}%`,
+        height: `${heightFraction * 100}%`,
+        left: `${place(widthFraction, cx) * 100}%`,
+        top: `${place(heightFraction, cy) * 100}%`,
       }}
     />
   );
 };
+
+/**
+ * Where to put one edge of the image so the detection sits as central as it
+ * can without uncovering the frame.
+ *
+ * Centring alone is not enough. A large animal needs little or no zoom, and
+ * an off-centre one then drags the picture sideways until bare card shows at
+ * the edge. Ranking photographs by how much of the frame the animal fills
+ * made that the common case rather than the rare one.
+ *
+ * `fraction` is the rendered size of the image as a multiple of the frame,
+ * `centre` is where the detection sits in the image, 0 to 1.
+ */
+function place(fraction: number, centre: number): number {
+  // Cannot cover, so centre the shortfall rather than leaving it all on one
+  // side. Only reachable when maxZoom is too low for a very wide image.
+  if (fraction <= 1) return (1 - fraction) / 2;
+  const centred = 0.5 - centre * fraction;
+  // Never past the leading edge, never short of the trailing one.
+  return Math.min(0, Math.max(1 - fraction, centred));
+}
