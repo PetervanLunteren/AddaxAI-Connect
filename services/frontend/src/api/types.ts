@@ -203,7 +203,10 @@ export interface TimelineDataPoint {
 
 export interface SpeciesCount {
   species: string;
+  /** Sum of each event's MaxN, so individuals rather than sightings. */
   count: number;
+  /** Independent events behind that count. Null when the project groups nothing. */
+  events?: number | null;
 }
 
 export interface CameraActivitySummary {

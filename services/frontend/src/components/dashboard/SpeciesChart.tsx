@@ -90,10 +90,22 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
       legend: { display: false },
       tooltip: {
         callbacks: {
+          // Individuals and events together, because one without the other
+          // hides the story: 50 individuals across 40 events is a scattering
+          // of singles, across 5 events it is a herd.
           label: (ctx: any) => {
+            const picked = shown[ctx.dataIndex];
             const count = ctx.parsed.x as number;
             const share = total > 0 ? ((count / total) * 100).toFixed(1) : '0';
-            return ` ${count.toLocaleString()} individuals, ${share}% of all animals counted`;
+            const lines = [` ${count.toLocaleString()} individuals, ${share}% of all animals counted`];
+            if (picked?.events) {
+              const events = picked.events;
+              const mean = (count / events).toFixed(2);
+              lines.push(
+                ` across ${events.toLocaleString()} independent event${events === 1 ? '' : 's'}, ${mean} per event`,
+              );
+            }
+            return lines;
           },
         },
       },

@@ -140,7 +140,13 @@ class TimelineDataPoint(BaseModel):
 class SpeciesCount(BaseModel):
     """Species distribution data"""
     species: str
+    # Sum of each event's MaxN, so "individuals", not sightings.
     count: int
+    # How many independent events those individuals came from. Null when the
+    # project has no independence interval, because then there is nothing to
+    # group and every image stands alone, so an event count would just be an
+    # image count wearing the wrong name.
+    events: Optional[int] = None
 
 
 class CameraActivitySummary(BaseModel):
@@ -380,7 +386,10 @@ async def get_species_distribution(
             site_ids=site_id_list,
         )
 
-    return [SpeciesCount(species=c['species'], count=c['count']) for c in counts]
+    return [
+        SpeciesCount(species=c['species'], count=c['count'], events=c.get('events'))
+        for c in counts
+    ]
 
 
 @router.get(

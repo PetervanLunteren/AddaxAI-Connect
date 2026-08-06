@@ -223,7 +223,10 @@ async def get_independent_species_counts(
     """
     Get species counts using independence interval grouping.
 
-    Returns list of {species: str, count: int} sorted by count descending.
+    Returns list of {species, count, events} sorted by count descending, where
+    count is the sum of each event's MaxN (individuals) and events is how many
+    independent events those individuals came from. Both matter to a reader:
+    50 individuals over 40 events is a different picture from 50 over 5.
     """
     cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
@@ -235,7 +238,7 @@ async def get_independent_species_counts(
 
     query = f"""
     {cte_sql}
-    SELECT species, SUM(event_count)::int as count
+    SELECT species, SUM(event_count)::int as count, COUNT(*)::int as events
     FROM events
     GROUP BY species
     ORDER BY count DESC
@@ -243,7 +246,10 @@ async def get_independent_species_counts(
     """
 
     result = await db.execute(text(query), params)
-    return [{"species": row.species, "count": row.count} for row in result.all()]
+    return [
+        {"species": row.species, "count": row.count, "events": row.events}
+        for row in result.all()
+    ]
 
 
 async def get_independent_event_counts(
