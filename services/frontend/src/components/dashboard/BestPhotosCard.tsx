@@ -17,6 +17,7 @@ import { imagesApi } from '../../api/images';
 import { normalizeLabel } from '../../utils/labels';
 import { DetectionCrop } from './DetectionCrop';
 import { ImageDetailModal } from '../ImageDetailModal';
+import { rankByAppeal } from './photoAppeal';
 
 /**
  * Four rather than six, because each tile loads the full-size image.
@@ -28,6 +29,16 @@ import { ImageDetailModal } from '../ImageDetailModal';
  * browser reuses them when the modal opens the same image.
  */
 const COUNT = 4;
+
+/**
+ * How many the endpoint returns before appeal picks four from them.
+ *
+ * Confidence is the gate and appeal is the ranker, so the pool has to be wide
+ * enough to contain a good-looking photo but narrow enough that every member
+ * is unmistakably the right species. Two dozen rows of JSON is a few tens of
+ * kilobytes and no extra image bytes, since only the four shown are loaded.
+ */
+const CANDIDATES = 24;
 
 /**
  * Tiles are 16:10 rather than 4:3, which takes about 65px off the card.
@@ -66,7 +77,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
     queryFn: () =>
       imagesApi.getAll({
         project_id: projectId,
-        limit: COUNT,
+        limit: CANDIDATES,
         species,
         site_id: siteIds,
         start_date: startDate,
@@ -76,7 +87,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
     enabled: projectId !== undefined && species.length > 0,
   });
 
-  const items = data?.items ?? [];
+  const items = rankByAppeal(data?.items ?? [], COUNT);
   const uuids = items.map((i) => i.uuid);
 
   return (

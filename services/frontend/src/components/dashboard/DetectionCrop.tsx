@@ -43,8 +43,14 @@ interface DetectionCropProps {
   className?: string;
 }
 
-/** The detection to frame: the most confident one, animals preferred. */
-function pickDetection(detections: Detection[]): Detection | null {
+/**
+ * The detection to frame: the most confident one, animals preferred.
+ *
+ * Exported so the photo wall can score a picture on the same box it will end
+ * up showing. Judging one detection and then framing another would rank a
+ * photo on an animal the viewer never sees.
+ */
+export function pickDetection(detections: Detection[]): Detection | null {
   if (detections.length === 0) return null;
   const animals = detections.filter((d) => d.category === 'animal');
   const pool = animals.length > 0 ? animals : detections;
