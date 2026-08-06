@@ -335,8 +335,7 @@ export const GroupSizePage: React.FC = () => {
               By default every image counts. A verified image uses the number a person
               entered, an unverified image counts one per detection box. Switching to{' '}
               <em>Only verified counts</em> in the Display menu drops the unverified
-              images. The detector misses animals standing behind each other, so verified
-              counts usually come out higher.
+              images.
             </p>
           </>
         }
