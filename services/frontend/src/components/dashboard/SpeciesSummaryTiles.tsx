@@ -1,10 +1,18 @@
 /**
  * Two figures for whatever the Explore tab is currently showing: how many
- * times it turned up, and how many animals came at once.
+ * independent events, and the mean group size across them.
  *
  * The tab was photographs and charts with no numbers in it at all, so you
- * could look at red deer and still not know whether that meant forty
- * sightings or four hundred.
+ * could look at red deer and still not know whether that meant forty events
+ * or four hundred.
+ *
+ * The words are the app's own, not new ones. "Independent event", "MaxN" and
+ * "individuals" are defined on the project settings page where the interval
+ * is configured, and used again on the Group size insights page. An earlier
+ * version of this file said "sightings" and "animals", which meant a reader
+ * had to work out that they were the same things under different names, and
+ * "animals" additionally read as a headcount of the forest rather than a sum
+ * of appearances.
  *
  * Both come from the group-size endpoint, which already returns events and a
  * histogram per species and honours the species, site and date filters. The
@@ -25,7 +33,6 @@ interface SpeciesSummaryTilesProps {
   siteIds?: string;
   /** One species, or the comma-separated wildlife list when none is chosen. */
   species: string;
-  isAllSpecies: boolean;
   startDate?: string;
   endDate?: string;
 }
@@ -34,7 +41,6 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
   projectId,
   siteIds,
   species,
-  isAllSpecies,
   startDate,
   endDate,
 }) => {
@@ -62,22 +68,25 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
   return (
     <div className="grid grid-cols-2 gap-4">
       <StatTile
-        label="Sightings"
+        label="Independent events"
         value={isLoading ? '...' : events.toLocaleString()}
+        // The rule is the gap between consecutive photos, not a fixed window.
+        // "Within 60 min counts once" implied the latter, so an animal
+        // reappearing every 50 minutes all evening looked like six events
+        // when it is one.
         note={
           interval > 0
-            ? `Repeat photos within ${interval} min count once`
-            : 'Every image counts separately'
+            ? `Same species at one place, a gap over ${interval} min starts a new event`
+            : 'No grouping, every image is its own event'
         }
       />
       <StatTile
-        label="Average group size"
+        label="Mean group size"
         value={isLoading ? '...' : meanGroup.toFixed(2)}
-        note={
-          isAllSpecies
-            ? `${individuals.toLocaleString()} animals across all species`
-            : `${individuals.toLocaleString()} animals in total`
-        }
+        // Individuals, not animals. The same deer photographed on forty
+        // occasions counts forty times, so "animals" read as a headcount of
+        // the forest. Matches the axis on the overview species chart.
+        note={`${individuals.toLocaleString()} individuals counted`}
       />
     </div>
   );

@@ -104,7 +104,6 @@ export const DashboardExplore: React.FC = () => {
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={photoSpecies}
-            isAllSpecies={!species}
             startDate={dateRange.startDate || undefined}
             endDate={dateRange.endDate || undefined}
           />
