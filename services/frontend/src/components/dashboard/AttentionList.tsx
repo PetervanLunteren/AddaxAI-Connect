@@ -1,14 +1,27 @@
 /**
- * What needs doing, with a link to the page that does it.
+ * What is broken, with a link to the page that fixes it.
  *
  * This replaces the camera activity doughnut. Camera health is a status
  * question, "which ones stopped and when", not a proportion question, and a
- * ring drawn from three numbers answered neither. Rows are ordered worst
- * first and each one names the problem in the row itself, so the colour is a
- * second signal rather than the only one.
+ * ring drawn from three numbers answered neither. Each row names the problem
+ * in the row itself, so colour is a second signal rather than the only one.
+ *
+ * Only things a person can act on belong here. Two rows were removed after
+ * review because they were facts, not faults:
+ *
+ * The share of empty images. On a camera trap network most triggers are
+ * branches and weather, and 50 to 85 percent empty is ordinary. It is a
+ * property of the data, not a problem to solve.
+ *
+ * The share of verified images. The product classifies images automatically
+ * and verifying is optional, so a low number is a choice rather than a
+ * failure. Nagging about it misrepresents what the software is for.
+ *
+ * Both are still on the dashboard as plain stat tiles, which is the right
+ * place for a fact.
  *
  * A project with nothing wrong gets a single calm line instead of an empty
- * card.
+ * card. That is the normal state and it should look normal.
  */
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -49,18 +62,6 @@ export const AttentionList: React.FC<AttentionListProps> = ({
     enabled: projectId !== undefined,
   });
 
-  const { data: pipeline } = useQuery({
-    queryKey: ['statistics', 'pipeline-status', projectId, siteIds],
-    queryFn: () => statisticsApi.getPipelineStatus(projectId, siteIds),
-    enabled: projectId !== undefined,
-  });
-
-  const { data: verification } = useQuery({
-    queryKey: ['statistics', 'verification-progress-all', projectId, undefined, undefined, siteIds],
-    queryFn: () => statisticsApi.getVerificationProgressAll(projectId!, { site_ids: siteIds }),
-    enabled: projectId !== undefined,
-  });
-
   const base = projectId !== undefined ? `/projects/${projectId}` : '';
   const rows: Row[] = [];
 
@@ -78,33 +79,6 @@ export const AttentionList: React.FC<AttentionListProps> = ({
         action: { label: 'Open cameras', to: `${base}/cameras` },
       });
     }
-  }
-
-  if (pipeline) {
-    const withContent = pipeline.animal_count + pipeline.person_count + pipeline.vehicle_count;
-    const total = withContent + pipeline.empty_count;
-    // Empty images are the single largest cost in most projects and the
-    // dashboard never mentioned them before. Only worth raising once they
-    // dominate, otherwise it is noise on a healthy project.
-    if (total > 0 && pipeline.empty_count / total >= 0.5) {
-      const share = Math.round((pipeline.empty_count / total) * 100);
-      rows.push({
-        severity: 'warn',
-        title: `${share}% of images have nothing in them`,
-        detail: `${pipeline.empty_count.toLocaleString()} empty images, worth checking the trigger settings`,
-        action: { label: 'Open images', to: `${base}/images?species=empty` },
-      });
-    }
-  }
-
-  const all = verification?.rows.find((r) => r.label === 'all');
-  if (all && all.total > 0 && all.percentage < 100) {
-    rows.push({
-      severity: all.percentage < 25 ? 'warn' : 'ok',
-      title: `${all.percentage}% of images verified`,
-      detail: `${all.verified.toLocaleString()} of ${all.total.toLocaleString()} checked by a person`,
-      action: { label: 'Verify', to: `${base}/images?verified=false` },
-    });
   }
 
   return (

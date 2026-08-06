@@ -12,12 +12,17 @@
  * not a proportion question, and it now sits in the attention list with the
  * other things a person can act on.
  *
- * The species bar chart is gone, replaced by rows with a photograph each. The
- * bars were coloured from a continuous scale even though the name was already
- * on the axis, so the colour said nothing while implying an order.
+ * The species bar chart is gone, replaced by a ranked list. The bars were
+ * coloured from a continuous scale even though the name was already on the
+ * axis, so the colour said nothing while implying an order.
  *
  * The three plain counters gained a comparison, because a total with nothing
  * to compare it against cannot be judged.
+ *
+ * Photographs appear only where they are big enough to read: the hero tile
+ * here, and the wall on the Explore tab. A tried-and-dropped version put a
+ * cropped portrait on every species row, and at 44 pixels a night infrared
+ * shot is a grey rectangle.
  *
  * Holds only cards whose endpoint ignores species, so nothing here is affected
  * by the species filter on the Explore tab.
@@ -31,7 +36,7 @@ import { isWildlifeLabel } from '../../utils/labels';
 import type { DateRange } from '../../components/dashboard';
 import { VerificationProgressCard } from '../../components/dashboard/VerificationProgressCard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
-import { SpeciesPortraitList } from '../../components/dashboard/SpeciesPortraitList';
+import { SpeciesList } from '../../components/dashboard/SpeciesList';
 import { AttentionList } from '../../components/dashboard/AttentionList';
 import { StatTile } from '../../components/dashboard/StatTile';
 import { useDashboardFilters } from './useDashboardFilters';
@@ -179,7 +184,7 @@ export const DashboardOverview: React.FC = () => {
           <AttentionList projectId={projectId} siteIds={siteIdsFromTags} />
         </div>
         <div className="md:col-span-2">
-          <SpeciesPortraitList projectId={projectId} siteIds={siteIdsFromTags} />
+          <SpeciesList projectId={projectId} siteIds={siteIdsFromTags} />
         </div>
 
         <div className="md:col-span-2 lg:col-span-4">

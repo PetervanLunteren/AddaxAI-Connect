@@ -20,6 +20,8 @@ DASHBOARD
 
 - [ ] Group size inside page: remove: "The detector misses animals standing behind each other, so verified counts usually come out higher."
 
+- [ ] A common scenario: A project starts and about 50 cameras all send there first image ever. All the file names will be something like img001.jpg. If they all are rejected because of bad GPS, only one is saved because the file names override in the rejected folder, Correct? So why don't we save the rejected files in the folder under a timestamped name or something like that so that it doesn't overwrite? Then we save all of them and we can inspect all of them and we can count how many came in etc etc etc. Now we miss information. 
+
 IMAGES
 
 - [ ] Display the detection confidence score for images classified as "empty", so that users can see how close each image was to the detection threshold. A clearer understanding of this value would allow us to fine-tune the optimal threshold much more precisely.
