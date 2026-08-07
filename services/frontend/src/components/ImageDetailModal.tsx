@@ -944,7 +944,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 onChange={(tags) => tagsMutation.mutate(tags)}
                 suggestions={imageTagSuggestions ?? []}
                 disabled={tagsMutation.isPending}
-                placeholder='For example "infraction" or "predation event"'
+                placeholder='For example "predation event" or "injured animal"'
               />
             </div>
 
