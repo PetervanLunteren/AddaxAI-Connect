@@ -13,7 +13,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2 } from 'lucide-react';
+import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
@@ -21,6 +21,7 @@ import { imagesApi } from '../api/images';
 import { drawDetectionOverlay } from '../utils/detection-overlay';
 import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { useImageCache } from '../contexts/ImageCacheContext';
+import { useProject } from '../contexts/ProjectContext';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -54,6 +55,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageBlobUrl, setImageBlobUrl] = useState<string | null>(null);
   const [showBboxes, setShowBboxes] = useState(true);
+  // Admin-only unblur for identification cases. Deliberately resets to
+  // blurred on every image change, unblurring is a conscious per-image act.
+  const [showUnblurred, setShowUnblurred] = useState(false);
   const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -63,6 +67,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [adjustOpen, setAdjustOpen] = useState(false);
   const adjustRef = useRef<HTMLDivElement>(null);
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
+  const { isProjectAdmin, selectedProject } = useProject();
 
   const queryClient = useQueryClient();
 
@@ -122,8 +127,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       ? `brightness(${brightness / 50}) contrast(${contrast / 50})`
       : undefined;
 
+  // Reset on image change only, not on URL change, or toggling the blur
+  // would immediately reset itself
+  useEffect(() => {
+    setShowUnblurred(false);
+  }, [imageUuid]);
+
   // Construct URL directly from UUID - don't wait for imageDetail
-  const fullImageUrl = `/api/images/${imageUuid}/full`;
+  const fullImageUrl = `/api/images/${imageUuid}/full${showUnblurred ? '?unblurred=true' : ''}`;
 
   // Fetch authenticated image using the shared cache
   // Check synchronously first to avoid loader flash for cached images
@@ -557,6 +568,29 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 >
                   {showBboxes ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </Button>
+                {/* Admin-only unblur for identification cases (theft,
+                    infractions). Shown only when this image has a detection
+                    of a category the project actually blurs. The server
+                    enforces the permission, this button is convenience. */}
+                {isProjectAdmin &&
+                  imageDetail?.detections.some(
+                    (d) =>
+                      (d.category === 'person' && selectedProject?.blur_people) ||
+                      (d.category === 'vehicle' && selectedProject?.blur_vehicles),
+                  ) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowUnblurred(!showUnblurred)}
+                      title={showUnblurred ? 'Restore privacy blur' : 'Show without privacy blur'}
+                    >
+                      {showUnblurred ? (
+                        <ShieldOff className="h-5 w-5 text-red-600" />
+                      ) : (
+                        <Shield className="h-5 w-5" />
+                      )}
+                    </Button>
+                  )}
                 <div className="relative" ref={adjustRef}>
                   <Button
                     variant="ghost"

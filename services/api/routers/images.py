@@ -16,13 +16,16 @@ from shared.database import get_async_session
 from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_verified_user
+from auth.permissions import can_admin_project
 from auth.project_access import get_accessible_project_ids, narrow_to_project
+from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 from utils.detection_filtering import strongest_hidden_detection
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
 settings = get_settings()
+logger = get_logger("api")
 
 
 class BoundingBox(BaseModel):
@@ -1722,6 +1725,13 @@ async def get_image_thumbnail(
 @router.get("/{uuid}/full")
 async def get_image_full(
     uuid: str,
+    unblurred: bool = Query(
+        False,
+        description=(
+            "Serve without the privacy blur. Project admins only, every "
+            "use is logged with the viewer's identity."
+        ),
+    ),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1732,6 +1742,11 @@ async def get_image_full(
     This endpoint fetches the full-resolution image from MinIO and streams it
     to the client with JWT authentication. Includes 24-hour cache to reduce
     server load while maintaining security.
+
+    With unblurred=true the privacy blur is skipped for identification
+    cases (camera theft, infractions). Hard 403 for non-admins, never a
+    silent fallback to the blurred version, and the response is not cached
+    so no unblurred copy lingers in the browser cache.
     """
     # Fetch image record with camera for project check
     query = select(Image).join(Camera).where(Image.uuid == uuid)
@@ -1758,6 +1773,26 @@ async def get_image_full(
     if camera and camera.project_id:
         project_result = await db.execute(select(Project).where(Project.id == camera.project_id))
         project = project_result.scalar_one_or_none()
+
+    if unblurred:
+        # The server is the gate, not the UI toggle. Fail hard instead of
+        # silently serving the blurred version, so a crafted URL by a
+        # non-admin can never be mistaken for a working unblur.
+        if not project or not await can_admin_project(current_user, project.id, db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project admin access required to view without privacy blur",
+            )
+        # Audit trail for identification cases, who looked at what
+        logger.info(
+            "Unblurred image served",
+            user_id=current_user.id,
+            user_email=current_user.email,
+            image_uuid=image.uuid,
+            project_id=project.id,
+        )
+        # max-age 0 so no unblurred copy lingers in the browser cache
+        return await _stream_image_from_storage(image, cache_max_age=0)
 
     blur_regions = await _get_blur_regions(db, image, project) if project else []
 
