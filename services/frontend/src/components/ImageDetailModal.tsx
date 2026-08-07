@@ -136,6 +136,34 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full${showUnblurred ? '?unblurred=true' : ''}`;
 
+  // Blur-up: show the small thumbnail while the full image downloads, so
+  // the modal keeps its proportions instead of collapsing to a spinner.
+  // Thumbnails preserve the aspect ratio, so the layout box matches the
+  // full image exactly. The browser HTTP cache usually still holds the
+  // thumbnail from the grid, making this fetch effectively free.
+  const thumbnailUrl = `/api/images/${imageUuid}/thumbnail`;
+  const [thumbnailBlobUrl, setThumbnailBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isOpen || !imageUuid) return;
+    const cached = getImageBlobUrl(thumbnailUrl);
+    if (cached) {
+      setThumbnailBlobUrl(cached);
+      return;
+    }
+    setThumbnailBlobUrl(null);
+    let cancelled = false;
+    getOrFetchImage(thumbnailUrl)
+      .then((blobUrl) => {
+        if (!cancelled) setThumbnailBlobUrl(blobUrl);
+      })
+      .catch(() => {
+        // No thumbnail is not an error, the spinner fallback covers it
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, imageUuid, thumbnailUrl, getImageBlobUrl, getOrFetchImage]);
+
   // Fetch authenticated image using the shared cache
   // Check synchronously first to avoid loader flash for cached images
   useEffect(() => {
@@ -545,6 +573,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     </button>
                   </div>
                 </>
+              ) : thumbnailBlobUrl ? (
+                // Blur-up placeholder, same width classes as the real image
+                // so the modal proportions never jump on load
+                <div className="relative w-full overflow-hidden rounded-lg">
+                  <img
+                    src={thumbnailBlobUrl}
+                    alt={imageDetail.filename}
+                    className="block w-full max-w-full h-auto rounded-lg blur-sm"
+                    draggable={false}
+                  />
+                  <div className="absolute bottom-3 right-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-white drop-shadow" />
+                  </div>
+                </div>
               ) : (
                 <div className="flex items-center justify-center py-12 bg-muted rounded-lg">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
