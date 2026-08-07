@@ -21,7 +21,8 @@ export interface ImageFilters {
   hour_from?: number;  // Time-of-day lower bound, camera clock hour (inclusive)
   hour_to?: number;  // Time-of-day upper bound, exclusive; from later than to wraps past midnight
   origin?: string;  // "live", "bulk", or undefined for all
-  tags?: string;  // Comma-separated camera tags
+  tags?: string;  // Comma-separated site tags
+  image_tags?: string;  // Comma-separated image tags, matches images carrying any of them
   min_detection_confidence?: number;
   max_detection_confidence?: number;
   min_classification_confidence?: number;
@@ -113,6 +114,27 @@ export const imagesApi = {
       `/api/images/${uuid}/needs-review`,
       { needs_review: needsReview },
     );
+    return response.data;
+  },
+
+  /**
+   * Replace an image's tags (user-assigned flags for events of interest)
+   */
+  setTags: async (uuid: string, tags: string[]): Promise<{ tags: string[] }> => {
+    const response = await apiClient.put<{ tags: string[] }>(
+      `/api/images/${uuid}/tags`,
+      { tags },
+    );
+    return response.data;
+  },
+
+  /**
+   * All unique image tags in the project, for TagInput autocomplete
+   */
+  getTags: async (projectId?: number): Promise<string[]> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<string[]>('/api/images/tags', { params });
     return response.data;
   },
 };

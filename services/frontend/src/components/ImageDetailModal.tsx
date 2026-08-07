@@ -32,6 +32,7 @@ import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { useImageCache } from '../contexts/ImageCacheContext';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
+import { TagInput } from './TagInput';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -111,6 +112,22 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
       queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
       queryClient.invalidateQueries({ queryKey: ['images'] });
     },
+  });
+
+  const tagsMutation = useMutation({
+    mutationFn: (tags: string[]) => imagesApi.setTags(imageUuid, tags),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['image', imageUuid] });
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+      queryClient.invalidateQueries({ queryKey: ['image-tags'] });
+    },
+  });
+
+  // Autocomplete suggestions for the tag input, the project's vocabulary
+  const { data: imageTagSuggestions } = useQuery({
+    queryKey: ['image-tags', selectedProject?.id],
+    queryFn: () => imagesApi.getTags(selectedProject?.id),
+    enabled: isOpen && selectedProject?.id !== undefined,
   });
 
   // Sync notes from verification panel when image changes
@@ -915,6 +932,20 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   + Add notes
                 </button>
               )}
+            </div>
+
+            {/* Image tags, user-assigned flags for events of interest.
+                Each add or remove saves immediately, like the heart and
+                flag buttons, there is no draft state for chips. */}
+            <div className="pt-2">
+              <p className="text-xs text-muted-foreground mb-1">Tags</p>
+              <TagInput
+                value={imageDetail.tags}
+                onChange={(tags) => tagsMutation.mutate(tags)}
+                suggestions={imageTagSuggestions ?? []}
+                disabled={tagsMutation.isPending}
+                placeholder="infraction, predation event"
+              />
             </div>
 
           </div>

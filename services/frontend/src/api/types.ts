@@ -187,6 +187,8 @@ export interface ImageDetail {
   liked_by_email: string | null;
   needs_review: boolean;
   needs_review_by_email: string | null;
+  /** User-assigned flags for events of interest, normalized lowercase. */
+  tags: string[];
 }
 
 export interface PaginatedResponse<T> {

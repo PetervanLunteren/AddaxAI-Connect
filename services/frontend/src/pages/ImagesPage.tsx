@@ -36,6 +36,7 @@ const FILTER_SCHEMA: FilterSchema = {
   // The deployment slideout instead deep-links camera + date range.
   site_id: 'string[]',
   tags: 'string[]',
+  image_tags: 'string[]',
   species: 'string[]',
   date_from: 'date',
   date_to: 'date',
@@ -86,6 +87,7 @@ export const ImagesPage: React.FC = () => {
   const cameraIdValues = asStringArray(parsed.camera_ids);
   const siteIdValues = asStringArray(parsed.site_id);
   const tagValues = asStringArray(parsed.tags);
+  const imageTagValues = asStringArray(parsed.image_tags);
   const speciesValues = asStringArray(parsed.species);
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
@@ -108,6 +110,7 @@ export const ImagesPage: React.FC = () => {
       camera_ids: cameraIdValues.length > 0 ? cameraIdValues : undefined,
       site_id: siteIdValues.length > 0 ? siteIdValues : undefined,
       tags: tagValues.length > 0 ? tagValues : undefined,
+      image_tags: imageTagValues.length > 0 ? imageTagValues : undefined,
       species: speciesValues.length > 0 ? speciesValues : undefined,
       date_from: startDate || undefined,
       date_to: endDate || undefined,
@@ -125,7 +128,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, siteIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, hourFrom, hourTo, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteIdValues, tagValues, imageTagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, hourFrom, hourTo, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -156,6 +159,7 @@ export const ImagesPage: React.FC = () => {
         camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
         site_id: siteIdValues.length > 0 ? siteIdValues.join(',') : undefined,
         tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
+        image_tags: imageTagValues.length > 0 ? imageTagValues.join(',') : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
         species: speciesValues.length > 0 ? speciesValues.join(',') : undefined,
@@ -195,6 +199,13 @@ export const ImagesPage: React.FC = () => {
   const { data: tagOptions } = useQuery({
     queryKey: ['site-tags', projectId],
     queryFn: () => sitesApi.getTags(projectId!),
+    enabled: projectId !== undefined,
+  });
+
+  // Image tag options, the project's vocabulary of user-assigned flags
+  const { data: imageTagOptions } = useQuery({
+    queryKey: ['image-tags', projectId],
+    queryFn: () => imagesApi.getTags(projectId),
     enabled: projectId !== undefined,
   });
 
@@ -304,6 +315,15 @@ export const ImagesPage: React.FC = () => {
       },
       {
         kind: 'multi-select',
+        key: 'image_tags',
+        label: 'Image tags',
+        primary: false,
+        options: (imageTagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} image tags`,
+      },
+      {
+        kind: 'multi-select',
         key: 'camera_ids',
         label: 'Cameras',
         primary: false,
@@ -403,7 +423,7 @@ export const ImagesPage: React.FC = () => {
         primary: false,
       },
     ],
-    [cameras, sites, tagOptions, speciesOptions, speciesLoading, validators, overview, selectedProject],
+    [cameras, sites, tagOptions, imageTagOptions, speciesOptions, speciesLoading, validators, overview, selectedProject],
   );
 
   // Set species context using the full species list for consistent colors app-wide
@@ -443,6 +463,7 @@ export const ImagesPage: React.FC = () => {
       camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
       site_id: siteIdValues.length > 0 ? siteIdValues.join(',') : undefined,
       tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
+      image_tags: imageTagValues.length > 0 ? imageTagValues.join(',') : undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
       species: speciesValues.length > 0 ? speciesValues.join(',') : undefined,

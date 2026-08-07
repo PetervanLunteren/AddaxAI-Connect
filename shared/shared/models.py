@@ -87,6 +87,11 @@ class Image(Base):
     needs_review_at = Column(DateTime(timezone=True), nullable=True)
     needs_review_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    # User-assigned flags for events of interest, e.g. ["infraction",
+    # "predation event"]. Normalized lowercase, same pattern as Site.tags
+    # and Camera.tags.
+    tags = Column(JSON, nullable=True)
+
     # Relationships
     camera = relationship("Camera", back_populates="images")
     detections = relationship("Detection", back_populates="image", cascade="all, delete-orphan")

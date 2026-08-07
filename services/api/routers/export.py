@@ -755,6 +755,7 @@ def _build_observation_rows(
         "species", "scientific_name", "count", "sex", "life_stage", "behavior",
         "max_confidence",
         "classification_method", "observation_comments", "is_verified",
+        "image_tags",
     ]
     rows = []
 
@@ -785,6 +786,7 @@ def _build_observation_rows(
                     ho.species, sci_name, ho.count, ho.sex, ho.life_stage, ho.behavior,
                     "",
                     "human", "Human identification", is_verified,
+                    ",".join(image.tags) if image.tags else "",
                 ])
         else:
             groups: Dict[str, Dict[str, Any]] = {}
@@ -829,6 +831,7 @@ def _build_observation_rows(
                     species, sci_name, data["count"], "unknown", "unknown", "unknown",
                     round(data["max_confidence"], 6),
                     "machine", f"{data['classified_by']}, not reviewed", is_verified,
+                    ",".join(image.tags) if image.tags else "",
                 ])
 
         if not has_observations:
@@ -845,6 +848,7 @@ def _build_observation_rows(
                 "blank", "", "", "", "", "",
                 "",
                 blank_method, blank_comments, is_verified,
+                ",".join(image.tags) if image.tags else "",
             ])
 
     return headers, rows

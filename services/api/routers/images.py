@@ -21,6 +21,7 @@ from auth.project_access import get_accessible_project_ids, narrow_to_project
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 from utils.detection_filtering import strongest_hidden_detection
+from utils.tags import normalize_tags
 
 
 router = APIRouter(prefix="/api/images", tags=["images"])
@@ -142,6 +143,7 @@ class ImageDetailResponse(BaseModel):
     liked_by_email: Optional[str] = None
     needs_review: bool = False
     needs_review_by_email: Optional[str] = None
+    tags: List[str] = []
 
     class Config:
         from_attributes = True
@@ -213,6 +215,16 @@ class SetNeedsReviewResponse(BaseModel):
     needs_review: bool
     needs_review_at: Optional[str] = None
     needs_review_by_email: Optional[str] = None
+
+
+class SetTagsRequest(BaseModel):
+    """Request body for replacing an image's tags"""
+    tags: List[str]
+
+
+class SetTagsResponse(BaseModel):
+    """Response after replacing an image's tags"""
+    tags: List[str]
 
 
 @router.get(
@@ -361,6 +373,41 @@ async def get_validators(
     return [ValidatorOption(user_id=row.id, email=row.email) for row in result.all()]
 
 
+# Declared before GET /{uuid} below, or "tags" would be swallowed as a uuid.
+# Same route-ordering trap as in sites.py and cameras.py.
+@router.get(
+    "/tags",
+    response_model=List[str],
+)
+async def get_image_tags(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    All unique image tags across the accessible projects, sorted, used
+    for TagInput autocomplete. The vocabulary emerges from use, mirroring
+    site and camera tags.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    result = await db.execute(
+        select(Image.tags)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            Camera.project_id.in_(accessible_project_ids),
+            Image.tags.isnot(None),
+        )
+    )
+    all_tags: set = set()
+    for (tags,) in result.all():
+        if tags:
+            for tag in tags:
+                if tag and isinstance(tag, str):
+                    all_tags.add(tag.strip().lower())
+    return sorted(all_tags)
+
+
 @router.get(
     "",
     response_model=PaginatedImagesResponse,
@@ -411,6 +458,7 @@ async def list_images(
     ),
     origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
+    image_tags: Optional[str] = Query(None, description="Comma-separated image tags, matches images carrying any of them"),
     site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment"),
     min_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
     max_detection_confidence: Optional[float] = Query(None, ge=0, le=1),
@@ -496,6 +544,18 @@ async def list_images(
                         cast(Site.tags, JSONB).has_any(cast(tag_list, ARRAY(PG_TEXT))),
                     )
                 )
+            )
+
+    # Image-level tags filter. Same has_any shape as the site tags above,
+    # but on the image itself, no deployment join. Input normalized so it
+    # matches the stored lowercase form.
+    if image_tags:
+        image_tag_list = normalize_tags(image_tags.split(','))
+        if image_tag_list:
+            from sqlalchemy.dialects.postgresql import JSONB, ARRAY, TEXT as PG_TEXT
+            filters.append(Image.tags.isnot(None))
+            filters.append(
+                cast(Image.tags, JSONB).has_any(cast(image_tag_list, ARRAY(PG_TEXT)))
             )
 
     if start_date:
@@ -1325,6 +1385,7 @@ async def get_image(
         liked_by_email=image.liked_by.email if image.liked_by else None,
         needs_review=image.needs_review,
         needs_review_by_email=image.needs_review_by.email if image.needs_review_by else None,
+        tags=image.tags or [],
     )
 
 
@@ -1579,6 +1640,51 @@ async def set_needs_review(
         needs_review_at=image.needs_review_at.isoformat() if image.needs_review_at else None,
         needs_review_by_email=current_user.email if image.needs_review else None,
     )
+
+
+@router.put(
+    "/{uuid}/tags",
+    response_model=SetTagsResponse,
+)
+async def set_image_tags(
+    uuid: str,
+    request: SetTagsRequest,
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Replace an image's tags.
+
+    Anyone with project access can tag, same rule as the like and
+    needs-review flags. Tags mark events of interest ("infraction",
+    "predation event") so cases can be retrieved later. Normalized
+    lowercase on save so the vocabulary cannot split on casing.
+    """
+    result = await db.execute(
+        select(Image, Camera)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(Image.uuid == uuid)
+    )
+    row = result.first()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+    image, camera = row
+
+    if camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image",
+        )
+
+    image.tags = normalize_tags(request.tags)
+    await db.commit()
+
+    return SetTagsResponse(tags=image.tags or [])
 
 
 async def _get_blur_regions(
