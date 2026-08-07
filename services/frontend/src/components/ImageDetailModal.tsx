@@ -10,8 +10,8 @@
  * - 1-9: Type the focused observation's count (multi-digit within 700ms)
  * - Q/W/E: Species shortcut slots, assigned in the shortcuts popover,
  *   stored per user per project in localStorage
- * - Tab/Shift+Tab: Cycle focus between observations
- * - Up/Down arrows: Increase/decrease count of focused observation
+ * - Up/Down arrows: Move focus between observations (Tab/Shift+Tab alias)
+ * - Plus/Minus: Increase/decrease count of focused observation
  * - X: Delete focused observation
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -428,13 +428,28 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           }
           break;
         case 'ArrowUp':
-          // Increment count of focused observation
+          // Move to the previous observation (arrows navigate the list,
+          // like AddaxAI's count panel; Tab stays as a quiet alias)
           e.preventDefault();
-          verificationPanelRef.current?.incrementFocused();
+          verificationPanelRef.current?.focusPrevious();
           break;
         case 'ArrowDown':
-          // Decrement count of focused observation
+          // Move to the next observation
           e.preventDefault();
+          verificationPanelRef.current?.focusNext();
+          break;
+        case '+':
+        case '=':
+          // Nudge the focused observation's count up, mirroring the row's
+          // plus button ('=' is the unshifted + on most layouts)
+          e.preventDefault();
+          digitBufferRef.current = '';
+          verificationPanelRef.current?.incrementFocused();
+          break;
+        case '-':
+          // Nudge the focused observation's count down
+          e.preventDefault();
+          digitBufferRef.current = '';
           verificationPanelRef.current?.decrementFocused();
           break;
         case 'x':
@@ -933,15 +948,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span>Navigate</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Tab</span>
-                  <span>Next observation</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">⇧Tab</span>
-                  <span>Prev observation</span>
-                </div>
-                <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">↑ ↓</span>
+                  <span>Move between observations</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">+ -</span>
                   <span>Change count</span>
                 </div>
                 <div className="flex justify-between gap-4">
