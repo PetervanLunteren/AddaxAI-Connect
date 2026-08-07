@@ -242,6 +242,10 @@ export interface SiteFeatureProperties {
   detection_count: number;
   detection_rate: number;  // detections per trap-day
   detection_rate_per_100: number;  // detections per 100 trap-days
+  /** Pooled count per species (lowercased) or detector category, only entries
+   *  actually seen at the site. Summing the values gives detection_count.
+   *  Feeds the richness and diversity map metrics. */
+  species_counts: Record<string, number>;
 }
 
 export interface SiteFeatureGeometry {

@@ -513,6 +513,10 @@ class SiteFeatureProperties(BaseModel):
     detection_count: int
     detection_rate: float  # detections per trap-day
     detection_rate_per_100: float  # detections per 100 trap-days (for display)
+    # Pooled count per species (lowercased) or detector category, only entries
+    # actually seen at the site. Feeds the richness and diversity map metrics;
+    # summing the values gives detection_count.
+    species_counts: Dict[str, int]
 
 
 class SiteFeatureGeometry(BaseModel):
@@ -533,6 +537,91 @@ class DetectionRateMapResponse(BaseModel):
     """GeoJSON FeatureCollection for detection rate map (one point per site)"""
     type: str = "FeatureCollection"
     features: List[SiteFeature]
+
+
+def pool_map_rows(rows, indep_counts: Optional[dict] = None) -> dict:
+    """
+    Collapse per-(deployment, species) rows into per-site buckets.
+
+    rows come from the detection-rate-map query, one row per deployment and
+    species; species is None for deployments with no detections (LEFT JOIN).
+    Collapsing happens in two passes so a deployment with several species
+    still contributes its trap_days and deployment count exactly once.
+
+    indep_counts optionally maps (camera_id, deployment_number) to a
+    {species: event_count} dict; when given it replaces each deployment's
+    species counts entirely (independence-interval override).
+
+    Species keys are lowercased here, in one place, because verified
+    human-typed species and AI species can differ in case and would
+    otherwise split one species into two.
+
+    Returns {site_id: bucket}; bucket detections is the sum of its
+    species_counts values.
+    """
+    # Pass 1: one entry per deployment, metadata captured once
+    deployments: dict = {}
+    for row in rows:
+        d = deployments.get(row.deployment_id)
+        if d is None:
+            d = {
+                "site_id": row.site_id,
+                "site_name": row.site_name,
+                "camera_id": row.camera_id,
+                "deployment_number": row.deployment_number,
+                "start_date": row.start_date,
+                "end_date": row.end_date,
+                "lon": row.lon,
+                "lat": row.lat,
+                "trap_days": row.trap_days,
+                "species_counts": {},
+            }
+            deployments[row.deployment_id] = d
+        if row.species is not None and row.detection_count > 0:
+            key = row.species.lower()
+            d["species_counts"][key] = d["species_counts"].get(key, 0) + row.detection_count
+
+    # Pass 2: pool deployments into site buckets
+    buckets: dict = {}
+    for d in deployments.values():
+        counts = d["species_counts"]
+        if indep_counts is not None:
+            counts = {
+                species.lower(): count
+                for species, count in indep_counts.get(
+                    (d["camera_id"], d["deployment_number"]), {}
+                ).items()
+            }
+
+        b = buckets.get(d["site_id"])
+        if b is None:
+            b = {
+                "site_name": d["site_name"],
+                "lon": d["lon"],
+                "lat": d["lat"],
+                "trap_days": 0,
+                "deployments": 0,
+                "first": d["start_date"],
+                "last_end": None,
+                "has_active": False,
+                "species_counts": {},
+            }
+            buckets[d["site_id"]] = b
+
+        b["trap_days"] += d["trap_days"]
+        b["deployments"] += 1
+        for species, count in counts.items():
+            b["species_counts"][species] = b["species_counts"].get(species, 0) + count
+        if d["start_date"] < b["first"]:
+            b["first"] = d["start_date"]
+        if d["end_date"] is None:
+            b["has_active"] = True
+        elif b["last_end"] is None or d["end_date"] > b["last_end"]:
+            b["last_end"] = d["end_date"]
+
+    for b in buckets.values():
+        b["detections"] = sum(b["species_counts"].values())
+    return buckets
 
 
 @router.get(
@@ -605,6 +694,7 @@ async def get_detection_rate_map(
             -- Counts from human observations (verified images only)
             SELECT
                 cdp.id as deployment_id,
+                ho.species,
                 COALESCE(SUM(ho.count) FILTER (WHERE
                     ho.id IS NOT NULL
                     AND (CAST(:species_list AS text[]) IS NULL OR LOWER(ho.species) = ANY(CAST(:species_list AS text[])))
@@ -621,7 +711,7 @@ async def get_detection_rate_map(
             LEFT JOIN human_observations ho ON ho.image_id = i.id
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-            GROUP BY cdp.id
+            GROUP BY cdp.id, ho.species
         ),
         unverified_counts AS (
             -- Counts from AI detections (unverified images only).
@@ -630,6 +720,7 @@ async def get_detection_rate_map(
             -- from the count.
             SELECT
                 cdp.id as deployment_id,
+                cl.species,
                 COUNT(d.id) FILTER (WHERE
                     d.id IS NOT NULL
                     AND d.confidence >= p.detection_threshold
@@ -654,12 +745,13 @@ async def get_detection_rate_map(
             LEFT JOIN classifications cl ON cl.detection_id = d.id
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-            GROUP BY cdp.id
+            GROUP BY cdp.id, cl.species
         ),
         pv_counts AS (
             -- Counts from person/vehicle detections (unverified images only)
             SELECT
                 cdp.id as deployment_id,
+                d.category as species,
                 COUNT(d.id) FILTER (WHERE
                     d.id IS NOT NULL
                     AND d.confidence >= p.detection_threshold
@@ -679,21 +771,24 @@ async def get_detection_rate_map(
             LEFT JOIN detections d ON d.image_id = i.id AND d.category IN ('person', 'vehicle')
             WHERE c.project_id = ANY(:project_ids)
               AND (CAST(:site_ids AS integer[]) IS NULL OR cdp.site_id = ANY(CAST(:site_ids AS integer[])))
-            GROUP BY cdp.id
+            GROUP BY cdp.id, d.category
         ),
         combined_counts AS (
-            -- Sum verified, unverified, and person/vehicle counts per deployment
+            -- Sum verified, unverified, and person/vehicle counts per
+            -- deployment and species. The species dimension feeds the
+            -- per-site species breakdown (richness and diversity metrics).
             SELECT
                 deployment_id,
+                species,
                 SUM(detection_count) as detection_count
             FROM (
-                SELECT deployment_id, detection_count FROM verified_counts
+                SELECT deployment_id, species, detection_count FROM verified_counts
                 UNION ALL
-                SELECT deployment_id, detection_count FROM unverified_counts
+                SELECT deployment_id, species, detection_count FROM unverified_counts
                 UNION ALL
-                SELECT deployment_id, detection_count FROM pv_counts
+                SELECT deployment_id, species, detection_count FROM pv_counts
             ) combined
-            GROUP BY deployment_id
+            GROUP BY deployment_id, species
         ),
         deployment_info AS (
             -- Get deployment metadata. The two extra WHERE clauses below are
@@ -727,6 +822,7 @@ async def get_detection_rate_map(
               AND (cdp.end_date IS NULL OR cdp.end_date >= cdp.start_date)
         )
         SELECT
+            di.deployment_id,
             di.site_id,
             di.site_name,
             di.camera_id,
@@ -736,6 +832,7 @@ async def get_detection_rate_map(
             di.lon,
             di.lat,
             di.trap_days,
+            cc.species,
             COALESCE(cc.detection_count, 0) as detection_count
         FROM deployment_info di
         LEFT JOIN combined_counts cc ON cc.deployment_id = di.deployment_id
@@ -769,40 +866,10 @@ async def get_detection_rate_map(
             end_date=end_dt,
         )
 
-    # Pool the per-deployment rows into one point per site. Detection counts and
-    # trap-days sum across the site's deployments, so the rate stays effort-
-    # corrected. The independence-interval override is applied per deployment
-    # (keyed by camera + deployment number) before summing.
-    buckets: dict = {}
-    for row in rows:
-        det_count = row.detection_count
-        if indep_counts is not None:
-            det_count = indep_counts.get((row.camera_id, row.deployment_number), 0)
-
-        b = buckets.get(row.site_id)
-        if b is None:
-            b = {
-                "site_name": row.site_name,
-                "lon": row.lon,
-                "lat": row.lat,
-                "detections": 0,
-                "trap_days": 0,
-                "deployments": 0,
-                "first": row.start_date,
-                "last_end": None,
-                "has_active": False,
-            }
-            buckets[row.site_id] = b
-
-        b["detections"] += det_count
-        b["trap_days"] += row.trap_days
-        b["deployments"] += 1
-        if row.start_date < b["first"]:
-            b["first"] = row.start_date
-        if row.end_date is None:
-            b["has_active"] = True
-        elif b["last_end"] is None or row.end_date > b["last_end"]:
-            b["last_end"] = row.end_date
+    # Pool the per-(deployment, species) rows into one point per site.
+    # Detection counts and trap-days sum across the site's deployments, so
+    # the rate stays effort-corrected. See pool_map_rows.
+    buckets = pool_map_rows(rows, indep_counts)
 
     features = []
     for site_id, b in buckets.items():
@@ -821,6 +888,7 @@ async def get_detection_rate_map(
                     detection_count=b["detections"],
                     detection_rate=round(det_rate, 4),
                     detection_rate_per_100=round(det_rate * 100, 2),
+                    species_counts=b["species_counts"],
                 ),
             )
         )

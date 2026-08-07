@@ -454,10 +454,13 @@ async def get_independent_detection_rate_counts(
     site_ids: Optional[List[int]] = None,
 ) -> dict:
     """
-    Get per-deployment detection counts using independence interval grouping.
+    Get per-deployment, per-species detection counts using independence
+    interval grouping.
 
-    Returns dict mapping (camera_id, deployment_number) -> event_count
-    for use by detection-rate-map endpoint.
+    Returns dict mapping (camera_id, deployment_number) -> {species: event_count}
+    for use by the detection-rate-map endpoint. The species dimension feeds
+    the per-site species breakdown (richness and diversity metrics); summing
+    the inner dict gives the deployment's total event count.
     """
     cte_sql, params = _build_cte(species_filter, start_date, end_date, site_ids)
     params["project_ids"] = project_ids
@@ -467,21 +470,22 @@ async def get_independent_detection_rate_counts(
     {cte_sql}
     , deployment_events AS (
         SELECT cdp.camera_id, cdp.deployment_number as deployment_number,
+               e.species,
                SUM(e.event_count)::int as detection_count
         FROM events e
         JOIN deployments cdp ON e.camera_id = cdp.camera_id
             AND DATE(e.event_start) >= cdp.start_date
             AND (cdp.end_date IS NULL OR DATE(e.event_start) <= cdp.end_date)
-        GROUP BY cdp.camera_id, cdp.deployment_number
+        GROUP BY cdp.camera_id, cdp.deployment_number, e.species
     )
-    SELECT camera_id, deployment_number, detection_count FROM deployment_events
+    SELECT camera_id, deployment_number, species, detection_count FROM deployment_events
     """
 
     result = await db.execute(text(query), params)
-    return {
-        (row.camera_id, row.deployment_number): row.detection_count
-        for row in result.all()
-    }
+    counts: dict = {}
+    for row in result.all():
+        counts.setdefault((row.camera_id, row.deployment_number), {})[row.species] = row.detection_count
+    return counts
 
 
 async def compute_event_assignments(

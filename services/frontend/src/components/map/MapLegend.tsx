@@ -13,9 +13,15 @@ interface MapLegendProps {
     p33: number;
     p66: number;
   };
+  /** Two-line title, static registry strings (safe for innerHTML). */
+  title: [string, string];
+  /** Footer label for the hollow marker, null hides the footer. */
+  emptyLabel: string | null;
+  /** Tick formatter, per metric (Math.round is useless for Shannon's 0-3 range). */
+  formatShort: (v: number) => string;
 }
 
-export function MapLegend({ domain }: MapLegendProps) {
+export function MapLegend({ domain, title, emptyLabel, formatShort }: MapLegendProps) {
   const map = useMap();
 
   useEffect(() => {
@@ -40,7 +46,7 @@ export function MapLegend({ domain }: MapLegendProps) {
 
       div.innerHTML = `
         <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; line-height: 1.3;">
-          Detections per<br>100 trap-days
+          ${title[0]}<br>${title[1]}
         </div>
         <div style="display: flex; align-items: center;">
           <div style="
@@ -58,11 +64,12 @@ export function MapLegend({ domain }: MapLegendProps) {
             height: 150px;
             font-size: 11px;
           ">
-            <div>${Math.round(domain.max)}</div>
-            <div>${Math.round(middleValue)}</div>
+            <div>${formatShort(domain.max)}</div>
+            <div>${formatShort(middleValue)}</div>
             <div>0</div>
           </div>
         </div>
+        ${emptyLabel === null ? '' : `
         <div style="
           margin-top: 8px;
           padding-top: 8px;
@@ -80,8 +87,9 @@ export function MapLegend({ domain }: MapLegendProps) {
             margin-right: 8px;
             box-sizing: border-box;
           "></div>
-          <div>No detections</div>
+          <div>${emptyLabel}</div>
         </div>
+        `}
       `;
 
       return div;
@@ -92,7 +100,7 @@ export function MapLegend({ domain }: MapLegendProps) {
     return () => {
       legend.remove();
     };
-  }, [map, domain]);
+  }, [map, domain, title, emptyLabel, formatShort]);
 
   return null;
 }

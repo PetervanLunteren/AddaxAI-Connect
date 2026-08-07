@@ -4,22 +4,25 @@
  */
 import { CircleMarker, Popup } from 'react-leaflet';
 import type { SiteFeature } from '../../api/types';
+import type { MapMetric } from '../../utils/map-metrics';
 import { SitePopup } from './SitePopup';
 
 interface SiteMarkerProps {
   feature: SiteFeature;
   color: string;
+  metric: MapMetric;
 }
 
-export function SiteMarker({ feature, color }: SiteMarkerProps) {
+export function SiteMarker({ feature, color, metric }: SiteMarkerProps) {
   const [lat, lon] = [
     feature.geometry.coordinates[1],
     feature.geometry.coordinates[0],
   ];
 
-  // Hollow circle for zero detections so they read as "covered, nothing seen"
-  // instead of blending with the low end of the colour gradient.
-  const isZero = feature.properties.detection_count === 0;
+  // Hollow circle when the site has no data for this metric, so it reads as
+  // "covered, nothing seen" instead of blending with the low end of the
+  // colour gradient.
+  const isZero = metric.isEmpty(feature.properties);
 
   return (
     <CircleMarker
@@ -34,7 +37,7 @@ export function SiteMarker({ feature, color }: SiteMarkerProps) {
       }}
     >
       <Popup>
-        <SitePopup properties={feature.properties} />
+        <SitePopup properties={feature.properties} metric={metric} />
       </Popup>
     </CircleMarker>
   );

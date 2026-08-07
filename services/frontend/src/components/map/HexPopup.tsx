@@ -1,16 +1,20 @@
 /**
  * Popup for a hexbin cell on the detection-rate map. Shows the cell's pooled
- * metrics and the sites inside it.
+ * metric and the sites inside it. Trap-days stay visible on every metric so
+ * effort-sensitive numbers like richness can be judged honestly.
  */
 import type { HexCell } from '../../utils/hex-grid';
+import type { MapMetric } from '../../utils/map-metrics';
 
 interface HexPopupProps {
   hexCell: HexCell;
+  metric: MapMetric;
+  /** The cell's pooled metric value, computed by the layer. */
+  value: number;
 }
 
-export function HexPopup({ hexCell }: HexPopupProps) {
-  const { trap_days, detection_count, detection_rate_per_100, site_count, sites } =
-    hexCell;
+export function HexPopup({ hexCell, metric, value }: HexPopupProps) {
+  const { trap_days, detection_count, site_count, sites } = hexCell;
 
   return (
     <div className="p-2 min-w-[280px] max-w-[400px]">
@@ -18,6 +22,10 @@ export function HexPopup({ hexCell }: HexPopupProps) {
       <div className="mb-3 pb-2 border-b border-gray-200">
         <div className="font-semibold text-gray-900 mb-1">This area</div>
         <div className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-600">{metric.label}</span>
+            <span className="font-medium">{metric.formatValue(value)}</span>
+          </div>
           <div className="flex justify-between">
             <span className="text-gray-600">Sites</span>
             <span className="font-medium">{site_count}</span>
@@ -30,12 +38,6 @@ export function HexPopup({ hexCell }: HexPopupProps) {
             <span className="text-gray-600">Detections</span>
             <span className="font-medium">{detection_count}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Detection rate</span>
-            <span className="font-medium">
-              {detection_rate_per_100.toFixed(2)} per 100 trap-days
-            </span>
-          </div>
         </div>
       </div>
 
@@ -46,9 +48,9 @@ export function HexPopup({ hexCell }: HexPopupProps) {
         </div>
         <div className="max-h-[200px] overflow-y-auto space-y-2">
           {sites.map((site) => {
-            const { site_id, site_name, trap_days, detection_count, detection_rate_per_100 } =
+            const { site_id, site_name, trap_days, detection_count } =
               site.properties;
-            const isZeroDetections = detection_count === 0;
+            const isEmpty = metric.isEmpty(site.properties);
 
             return (
               <div
@@ -60,12 +62,12 @@ export function HexPopup({ hexCell }: HexPopupProps) {
                   <span>{trap_days} trap-days</span>
                   <span>
                     {detection_count} detections
-                    {isZeroDetections && <span className="text-gray-500 ml-1">(none)</span>}
+                    {detection_count === 0 && <span className="text-gray-500 ml-1">(none)</span>}
                   </span>
                 </div>
-                {!isZeroDetections && (
+                {!isEmpty && (
                   <div className="text-gray-700">
-                    {detection_rate_per_100.toFixed(2)} per 100 trap-days
+                    {metric.formatValue(metric.siteValue(site.properties))}
                   </div>
                 )}
               </div>

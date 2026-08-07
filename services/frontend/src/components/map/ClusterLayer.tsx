@@ -5,16 +5,18 @@
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import type { SiteFeature } from '../../api/types';
+import type { MapMetric } from '../../utils/map-metrics';
 import { SiteMarker } from './SiteMarker';
 import { getDetectionRateColor } from '../../utils/color-scale';
 
 interface ClusterLayerProps {
   sites: SiteFeature[];
-  maxDetectionRate: number;
+  metric: MapMetric;
+  domainMax: number;
   getMarkerColor: (feature: SiteFeature) => string;
 }
 
-export function ClusterLayer({ sites, maxDetectionRate, getMarkerColor }: ClusterLayerProps) {
+export function ClusterLayer({ sites, metric, domainMax, getMarkerColor }: ClusterLayerProps) {
   // Map of coordinates to site feature for quick lookup.
   const coordsToFeature = new Map<string, SiteFeature>();
   sites.forEach((feature) => {
@@ -26,28 +28,20 @@ export function ClusterLayer({ sites, maxDetectionRate, getMarkerColor }: Cluste
   const createClusterCustomIcon = (cluster: L.MarkerCluster) => {
     const markers = cluster.getAllChildMarkers();
 
-    // Calculate trap-day-weighted detection rate (same as hexbins)
-    let totalDetections = 0;
-    let totalTrapDays = 0;
-
-    markers.forEach((marker: any) => {
+    const members: SiteFeature[] = [];
+    markers.forEach((marker: L.Marker) => {
       const latlng = marker.getLatLng();
-      const key = `${latlng.lat},${latlng.lng}`;
-      const feature = coordsToFeature.get(key);
-
-      if (feature) {
-        totalDetections += feature.properties.detection_count;
-        totalTrapDays += feature.properties.trap_days;
-      }
+      const feature = coordsToFeature.get(`${latlng.lat},${latlng.lng}`);
+      if (feature) members.push(feature);
     });
 
-    // Calculate overall rate: total detections / total trap-days × 100
-    const overallRate = totalTrapDays > 0 ? (totalDetections / totalTrapDays) * 100 : 0;
+    // The metric defines how member sites pool (same rule as hexbins)
+    const value = metric.aggregate(members.map((f) => f.properties));
 
-    // Hollow cluster icon when every member site has zero detections,
+    // Hollow cluster icon when every member site is empty for this metric,
     // matching the points and hexbin views.
-    const isZero = totalDetections === 0;
-    const color = getDetectionRateColor(overallRate, maxDetectionRate);
+    const isZero = members.every((f) => metric.isEmpty(f.properties));
+    const color = getDetectionRateColor(value, domainMax);
     const background = isZero ? 'transparent' : color;
     const textColor = isZero ? '#555555' : 'white';
     const textShadow = isZero ? 'none' : '0 0 2px rgba(0,0,0,0.5)';
@@ -66,7 +60,7 @@ export function ClusterLayer({ sites, maxDetectionRate, getMarkerColor }: Cluste
         font-weight: bold;
         font-size: 14px;
         text-shadow: ${textShadow};
-      ">${Math.round(overallRate)}</div>`,
+      ">${metric.formatShort(value)}</div>`,
       className: 'custom-cluster-icon',
       iconSize: L.point(40, 40, true),
     });
@@ -74,6 +68,7 @@ export function ClusterLayer({ sites, maxDetectionRate, getMarkerColor }: Cluste
 
   return (
     <MarkerClusterGroup
+      key={`clusters-${metric.id}`}
       iconCreateFunction={createClusterCustomIcon}
       maxClusterRadius={50}
       spiderfyOnMaxZoom={true}
@@ -88,6 +83,7 @@ export function ClusterLayer({ sites, maxDetectionRate, getMarkerColor }: Cluste
             key={feature.id}
             feature={feature}
             color={color}
+            metric={metric}
           />
         );
       })}

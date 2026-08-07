@@ -19,6 +19,7 @@ import {
   generateHexGrid,
   aggregateSitesToHexes,
 } from '../../utils/hex-grid';
+import { MAP_METRICS, type MapMetricId } from '../../utils/map-metrics';
 import { SiteMarker } from './SiteMarker';
 import { HexbinLayer } from './HexbinLayer';
 import { ClusterLayer } from './ClusterLayer';
@@ -31,6 +32,7 @@ export type ViewMode = 'points' | 'hexbins' | 'clusters';
 interface DetectionRateMapProps {
   filters: DetectionRateMapFilters;
   viewMode: ViewMode;
+  metric: MapMetricId;
 }
 
 /**
@@ -111,9 +113,10 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
-export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
+export function DetectionRateMap({ filters, viewMode, metric: metricId }: DetectionRateMapProps) {
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id;
+  const metric = MAP_METRICS[metricId];
 
   const [zoomLevel, setZoomLevel] = useState(12);
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
@@ -149,9 +152,9 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
       return { min: 0, max: 0, p33: 0, p66: 0 };
     }
 
-    const rates = visibleSites.map((f) => f.properties.detection_rate_per_100);
-    return calculateColorScaleDomain(rates);
-  }, [visibleSites]);
+    const values = visibleSites.map((f) => metric.siteValue(f.properties));
+    return calculateColorScaleDomain(values);
+  }, [visibleSites, metric]);
 
   // Convert Leaflet bounds to bbox array for hex grid generation
   const bboxBounds = useMemo<[number, number, number, number] | null>(() => {
@@ -211,13 +214,14 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
 
   // Get description based on view mode
   const getViewDescription = () => {
+    const noun = metric.label.toLowerCase();
     switch (viewMode) {
       case 'hexbins':
-        return `Sites are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the overall detection rate across the sites within it.`;
+        return `Sites are grouped into ${hexCellsCount} hexagonal cells. Each hexagon's color shows the overall ${noun} across the sites within it.`;
       case 'points':
-        return `Each point represents one site. Color shows its detection rate per 100 trap-days.`;
+        return `Each point represents one site. Color shows its ${noun}.`;
       case 'clusters':
-        return `Nearby sites are grouped into clusters. Each cluster shows the overall detection rate across the sites within it.`;
+        return `Nearby sites are grouped into clusters. Each cluster's color and number show the overall ${noun} across the sites within it.`;
       default:
         return '';
     }
@@ -240,7 +244,7 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
         {viewMode === 'points' ? (
           visibleSites?.map((feature) => {
             const color = getDetectionRateColor(
-              feature.properties.detection_rate_per_100,
+              metric.siteValue(feature.properties),
               colorDomain.max
             );
 
@@ -249,6 +253,7 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
                 key={feature.id}
                 feature={feature}
                 color={color}
+                metric={metric}
               />
             );
           })
@@ -256,10 +261,11 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
           visibleSites && (
             <ClusterLayer
               sites={visibleSites}
-              maxDetectionRate={colorDomain.max}
+              metric={metric}
+              domainMax={colorDomain.max}
               getMarkerColor={(feature) =>
                 getDetectionRateColor(
-                  feature.properties.detection_rate_per_100,
+                  metric.siteValue(feature.properties),
                   colorDomain.max
                 )
               }
@@ -271,12 +277,18 @@ export function DetectionRateMap({ filters, viewMode }: DetectionRateMapProps) {
               sites={visibleSites}
               zoomLevel={zoomLevel}
               mapBounds={bboxBounds}
-              maxDetectionRate={colorDomain.max}
+              metric={metric}
+              domainMax={colorDomain.max}
             />
           )
         )}
 
-        <MapLegend domain={colorDomain} />
+        <MapLegend
+          domain={colorDomain}
+          title={metric.legendLines}
+          emptyLabel={metric.emptyLabel}
+          formatShort={metric.formatShort}
+        />
         <FullscreenControl />
       </MapContainer>
 
