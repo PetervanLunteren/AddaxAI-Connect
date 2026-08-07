@@ -55,6 +55,11 @@ const FILTER_SCHEMA: FilterSchema = {
 const formatPct = (lo: number, hi: number): string =>
   `${Math.round(lo * 100)}% - ${Math.round(hi * 100)}%`;
 
+// Slider stops sit at min + k * step, so a threshold floor that is not a
+// whole percent would put every stop off-grid (e.g. 61.5%, 62.5%, ...).
+// Round the floor up so exact values like 75% are always selectable.
+const ceilPct = (v: number): number => Math.ceil(v * 100) / 100;
+
 const asStringArray = (v: string | string[] | undefined): string[] =>
   Array.isArray(v) ? v : [];
 const asString = (v: string | string[] | undefined): string =>
@@ -339,9 +344,9 @@ export const ImagesPage: React.FC = () => {
         // Clamp the floor to the project's detection threshold; below
         // that, detections are hidden from every other view too, so the
         // slider should match.
-        min: selectedProject?.detection_threshold ?? 0,
+        min: ceilPct(selectedProject?.detection_threshold ?? 0),
         max: 1,
-        step: 0.05,
+        step: 0.01,
         format: formatPct,
         chipPrefix: 'Detection',
         primary: false,
@@ -354,9 +359,9 @@ export const ImagesPage: React.FC = () => {
         // Floor at the project-wide default classification threshold,
         // mirroring detection. Per-species overrides aren't useful here
         // because the slider has no species context.
-        min: selectedProject?.classification_thresholds?.default ?? 0,
+        min: ceilPct(selectedProject?.classification_thresholds?.default ?? 0),
         max: 1,
-        step: 0.05,
+        step: 0.01,
         format: formatPct,
         chipPrefix: 'Classification',
         primary: false,

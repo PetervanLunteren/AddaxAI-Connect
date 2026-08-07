@@ -70,6 +70,11 @@ const FILTER_SCHEMA: FilterSchema = {
 const formatPct = (lo: number, hi: number): string =>
   `${Math.round(lo * 100)}% - ${Math.round(hi * 100)}%`;
 
+// Slider stops sit at min + k * step, so a threshold floor that is not a
+// whole percent would put every stop off-grid (e.g. 61.5%, 62.5%, ...).
+// Round the floor up so exact values like 75% are always selectable.
+const ceilPct = (v: number): number => Math.ceil(v * 100) / 100;
+
 const asString = (v: string | string[] | undefined): string =>
   typeof v === 'string' ? v : '';
 const asStringArray = (v: string | string[] | undefined): string[] =>
@@ -539,9 +544,9 @@ export const ManageImagesPage: React.FC = () => {
       minKey: 'min_detection_confidence',
       maxKey: 'max_detection_confidence',
       label: 'Detection confidence',
-      min: selectedProject?.detection_threshold ?? 0,
+      min: ceilPct(selectedProject?.detection_threshold ?? 0),
       max: 1,
-      step: 0.05,
+      step: 0.01,
       format: formatPct,
       chipPrefix: 'Detection',
       primary: false,
@@ -551,9 +556,9 @@ export const ManageImagesPage: React.FC = () => {
       minKey: 'min_classification_confidence',
       maxKey: 'max_classification_confidence',
       label: 'Classification confidence',
-      min: selectedProject?.classification_thresholds?.default ?? 0,
+      min: ceilPct(selectedProject?.classification_thresholds?.default ?? 0),
       max: 1,
-      step: 0.05,
+      step: 0.01,
       format: formatPct,
       chipPrefix: 'Classification',
       primary: false,

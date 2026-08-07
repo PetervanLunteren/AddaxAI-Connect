@@ -28,7 +28,7 @@ IMAGES
 
 - [x] The best photographs in the dashboard, And the last detection in the dashboard, They take quite some internet to load. How can we make this faster? Can we use the thumbnails? (Blur-up added 6 Aug 2026, the thumbnail shows immediately and the full image replaces it. If data usage itself becomes the problem, a ~1000px display rendition is the discussed next step.)
 
-- [ ] Fix the confidence score filter (both classification and detection) so that the slider operates continuously rather than jumping between fixed steps. As it stands, it is impossible to select a precise range such as 75–100%, which limits our ability to filter images meaningfully.
+- [x] Fix the confidence score filter (both classification and detection) so that the slider operates continuously rather than jumping between fixed steps. As it stands, it is impossible to select a precise range such as 75–100%, which limits our ability to filter images meaningfully. (Sliders now step in 1% increments and the floor is rounded up to a whole percent, so exact ranges like 75-100% are always selectable. 7 Aug 2026.)
 
 - [ ] Add a filter by data validator, allowing users to retrieve all images validated by a specific person. This would make it easy for a more experienced colleague to review the work of interns or junior validators, and for species specialists to re-check identifications made by their peers.  This could be an important quality control step in collaborative workflows.
 
@@ -84,6 +84,9 @@ MAJOR IMPROVEMENTS
 - [ ] multi language
 - [ ] Make it event aware. 
 - [ ] Make it use label verification, and count confirmation just like AddaxAI WebUI. This improves the overcounting.... 
+- [ ] Gundi integration
+- [ ] Sensing clues integration
+
 
 # Add INSTAR camera profile
 INSTAR — implemented as a path-based profile.
