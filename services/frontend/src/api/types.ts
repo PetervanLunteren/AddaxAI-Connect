@@ -279,7 +279,8 @@ export interface Project {
   included_species: string[] | null;
   detection_threshold: number;
   classification_thresholds: ClassificationThresholds | null;
-  blur_people_vehicles: boolean;
+  blur_people: boolean;
+  blur_vehicles: boolean;
   independence_interval_minutes: number;
   created_at: string;
   updated_at: string | null;
@@ -298,7 +299,8 @@ export interface ProjectUpdate {
   name?: string;
   description?: string;
   included_species?: string[] | null;
-  blur_people_vehicles?: boolean;
+  blur_people?: boolean;
+  blur_vehicles?: boolean;
   independence_interval_minutes?: number;
   classification_thresholds?: { default: number; overrides: Record<string, number> };
 }

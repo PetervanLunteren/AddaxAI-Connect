@@ -53,7 +53,8 @@ export const ProjectSettingsPage: React.FC = () => {
   // Form state
   const [threshold, setThreshold] = useState<number>(currentProject?.detection_threshold ?? 0.2);
   const [includedSpecies, setIncludedSpecies] = useState<Option[]>([]);
-  const [blurPeopleVehicles, setBlurPeopleVehicles] = useState<boolean>(currentProject?.blur_people_vehicles ?? true);
+  const [blurPeople, setBlurPeople] = useState<boolean>(currentProject?.blur_people ?? true);
+  const [blurVehicles, setBlurVehicles] = useState<boolean>(currentProject?.blur_vehicles ?? true);
   const [independenceInterval, setIndependenceInterval] = useState<number>(currentProject?.independence_interval_minutes ?? 30);
   const [classificationDefault, setClassificationDefault] = useState<number>(
     currentProject?.classification_thresholds?.default ?? 0.0,
@@ -81,7 +82,8 @@ export const ProjectSettingsPage: React.FC = () => {
   useEffect(() => {
     if (currentProject) {
       setThreshold(currentProject.detection_threshold ?? 0.2);
-      setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
+      setBlurPeople(currentProject.blur_people ?? true);
+      setBlurVehicles(currentProject.blur_vehicles ?? true);
       setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
       setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
       setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
@@ -202,7 +204,9 @@ export const ProjectSettingsPage: React.FC = () => {
     ? '__all__'
     : includedSpecies.map(s => s.value as string).sort().join(',');
   const hasSpeciesChanges = currentSpeciesValues !== selectedSpeciesValues;
-  const hasBlurChanges = blurPeopleVehicles !== (currentProject.blur_people_vehicles ?? true);
+  const hasBlurChanges =
+    blurPeople !== (currentProject.blur_people ?? true) ||
+    blurVehicles !== (currentProject.blur_vehicles ?? true);
   const hasIntervalChanges = independenceInterval !== (currentProject.independence_interval_minutes ?? 30);
 
   const hasClassificationThresholdChanges = (() => {
@@ -285,7 +289,8 @@ export const ProjectSettingsPage: React.FC = () => {
             : includedSpecies.map(s => s.value as string);
         }
         if (hasBlurChanges) {
-          update.blur_people_vehicles = blurPeopleVehicles;
+          update.blur_people = blurPeople;
+          update.blur_vehicles = blurVehicles;
         }
         if (hasIntervalChanges) {
           update.independence_interval_minutes = independenceInterval;
@@ -374,7 +379,8 @@ export const ProjectSettingsPage: React.FC = () => {
   // Reset form to currently saved values
   const handleResetUnsaved = () => {
     setThreshold(currentProject.detection_threshold ?? 0.2);
-    setBlurPeopleVehicles(currentProject.blur_people_vehicles ?? true);
+    setBlurPeople(currentProject.blur_people ?? true);
+    setBlurVehicles(currentProject.blur_vehicles ?? true);
     setIndependenceInterval(currentProject.independence_interval_minutes ?? 30);
     setClassificationDefault(currentProject.classification_thresholds?.default ?? 0.0);
     setClassificationOverrides(currentProject.classification_thresholds?.overrides ?? {});
@@ -388,7 +394,8 @@ export const ProjectSettingsPage: React.FC = () => {
   // Restore defaults (fill form only, user must save)
   const handleRestoreDefaults = () => {
     setThreshold(0.5);
-    setBlurPeopleVehicles(true);
+    setBlurPeople(true);
+    setBlurVehicles(true);
     setIndependenceInterval(30);
     setClassificationDefault(0.0);
     setClassificationOverrides({});
@@ -519,30 +526,59 @@ export const ProjectSettingsPage: React.FC = () => {
           {/* Divider */}
           <div className="border-t my-6" />
 
-          {/* Privacy blur */}
+          {/* Privacy blur, people and vehicles independently */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
             <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
-                Blur people and vehicles
+                Blur people
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Automatically blur detected people and vehicles in all images for privacy. This is a visual change only and does not affect statistics or exports.
+                Automatically blur detected people in all images for privacy. Applies everywhere images are shown or exported. Statistics stay unaffected.
               </p>
             </div>
             <div className="flex-1">
               <button
                 type="button"
                 role="switch"
-                aria-checked={blurPeopleVehicles}
-                onClick={() => setBlurPeopleVehicles(!blurPeopleVehicles)}
+                aria-checked={blurPeople}
+                onClick={() => setBlurPeople(!blurPeople)}
                 disabled={isSaving}
                 className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                  blurPeopleVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
+                  blurPeople ? 'bg-[#0f6064]' : 'bg-gray-300'
                 } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    blurPeopleVehicles ? 'translate-x-6' : 'translate-x-1'
+                    blurPeople ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 mt-4">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
+              <label className="text-sm font-medium block">
+                Blur vehicles
+              </label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Automatically blur detected vehicles in all images for privacy. Applies everywhere images are shown or exported. Statistics stay unaffected.
+              </p>
+            </div>
+            <div className="flex-1">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={blurVehicles}
+                onClick={() => setBlurVehicles(!blurVehicles)}
+                disabled={isSaving}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                  blurVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
+                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    blurVehicles ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
               </button>

@@ -58,7 +58,7 @@ MAP (INSIGHTS MENU)
 
 BLURRING 
 
-- [ ] Make the blurring of people and vehicles independently configurable, so that the choice for one does not affect the other. Different situations call for different privacy handling depending on the category.  
+- [x] Make the blurring of people and vehicles independently configurable, so that the choice for one does not affect the other. Different situations call for different privacy handling depending on the category. (Two toggles in the project settings, backed by two columns. Existing projects keep their current behaviour through the migration. 7 Aug 2026.)
 
 - [ ] Make blurring reversible, with this capability restricted to administrators or protected by a specific access code. A concrete example: if a person is suspected of camera theft or an forestry infraction, it may be necessary to unblur their image for identification purposes. This feature would need to be tightly access-controlled.
 

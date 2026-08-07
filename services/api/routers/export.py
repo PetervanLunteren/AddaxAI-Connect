@@ -686,11 +686,12 @@ async def export_camtrap_dp(
                 try:
                     thumb_data = storage_client.download_fileobj(BUCKET_THUMBNAILS, image.thumbnail_path)
 
-                    # Apply privacy blur to person/vehicle detections
-                    if project.blur_people_vehicles:
+                    # Apply privacy blur to the categories the project blurs
+                    blur_cats = project.blur_categories()
+                    if blur_cats:
                         blur_regions = [
                             d.bbox for d in image.detections
-                            if d.category in ("person", "vehicle")
+                            if d.category in blur_cats
                             and d.confidence >= project.detection_threshold
                         ]
                         thumb_data = apply_privacy_blur(thumb_data, blur_regions)

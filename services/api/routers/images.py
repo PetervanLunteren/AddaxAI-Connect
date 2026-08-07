@@ -1582,18 +1582,21 @@ async def _get_blur_regions(
     db: AsyncSession, image: Image, project: Project,
 ) -> list[dict]:
     """
-    Return person/vehicle detection bboxes if blur is enabled for the project.
+    Return detection bboxes of the categories the project blurs.
 
-    Returns empty list if blur is disabled or no matching detections exist.
-    Only includes detections above the project's detection threshold.
+    People and vehicles are independently configurable, so the category list
+    comes from Project.blur_categories(). Returns an empty list if blur is
+    fully disabled or no matching detections exist. Only includes detections
+    above the project's detection threshold.
     """
-    if not project.blur_people_vehicles:
+    categories = project.blur_categories()
+    if not categories:
         return []
 
     result = await db.execute(
         select(Detection).where(
             Detection.image_id == image.id,
-            Detection.category.in_(["person", "vehicle"]),
+            Detection.category.in_(categories),
             Detection.confidence >= project.detection_threshold,
         )
     )

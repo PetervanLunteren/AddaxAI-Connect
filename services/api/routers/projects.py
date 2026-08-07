@@ -63,7 +63,8 @@ class ProjectUpdate(BaseModel):
     included_species: Optional[List[str]] = None
     detection_threshold: Optional[float] = None
     classification_thresholds: Optional[Dict[str, Any]] = None
-    blur_people_vehicles: Optional[bool] = None
+    blur_people: Optional[bool] = None
+    blur_vehicles: Optional[bool] = None
     independence_interval_minutes: Optional[int] = None
 
 
@@ -84,7 +85,8 @@ class ProjectResponse(BaseModel):
     included_species: Optional[List[str]] = None
     detection_threshold: float
     classification_thresholds: Optional[Dict[str, Any]] = None
-    blur_people_vehicles: bool
+    blur_people: bool
+    blur_vehicles: bool
     independence_interval_minutes: int
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
@@ -150,7 +152,8 @@ async def list_projects(
             included_species=project.included_species,
             detection_threshold=project.detection_threshold,
             classification_thresholds=project.classification_thresholds,
-            blur_people_vehicles=project.blur_people_vehicles,
+            blur_people=project.blur_people,
+            blur_vehicles=project.blur_vehicles,
             independence_interval_minutes=project.independence_interval_minutes,
             image_url=image_url,
             thumbnail_url=thumbnail_url,
@@ -201,7 +204,8 @@ async def get_project(
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
         classification_thresholds=project.classification_thresholds,
-        blur_people_vehicles=project.blur_people_vehicles,
+        blur_people=project.blur_people,
+        blur_vehicles=project.blur_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -267,7 +271,8 @@ async def create_project(
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
         classification_thresholds=project.classification_thresholds,
-        blur_people_vehicles=project.blur_people_vehicles,
+        blur_people=project.blur_people,
+        blur_vehicles=project.blur_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
@@ -324,8 +329,10 @@ async def update_project(
         project.description = project_data.description
     if project_data.included_species is not None:
         project.included_species = project_data.included_species
-    if project_data.blur_people_vehicles is not None:
-        project.blur_people_vehicles = project_data.blur_people_vehicles
+    if project_data.blur_people is not None:
+        project.blur_people = project_data.blur_people
+    if project_data.blur_vehicles is not None:
+        project.blur_vehicles = project_data.blur_vehicles
     if project_data.independence_interval_minutes is not None:
         if not (0 <= project_data.independence_interval_minutes <= 1440):
             raise HTTPException(
@@ -369,7 +376,8 @@ async def update_project(
         included_species=project.included_species,
         detection_threshold=project.detection_threshold,
         classification_thresholds=project.classification_thresholds,
-        blur_people_vehicles=project.blur_people_vehicles,
+        blur_people=project.blur_people,
+        blur_vehicles=project.blur_vehicles,
         independence_interval_minutes=project.independence_interval_minutes,
         image_url=image_url,
         thumbnail_url=thumbnail_url,

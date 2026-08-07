@@ -28,7 +28,8 @@ class ProjectWithRole(BaseModel):
     included_species: List[str] | None = None
     detection_threshold: float
     classification_thresholds: dict | None = None
-    blur_people_vehicles: bool
+    blur_people: bool
+    blur_vehicles: bool
     independence_interval_minutes: int
     image_url: str | None = None
     thumbnail_url: str | None = None
@@ -80,7 +81,8 @@ async def get_my_projects(
                     included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
                     classification_thresholds=project.classification_thresholds,
-                    blur_people_vehicles=project.blur_people_vehicles,
+                    blur_people=project.blur_people,
+                    blur_vehicles=project.blur_vehicles,
                     independence_interval_minutes=project.independence_interval_minutes,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,
@@ -109,7 +111,8 @@ async def get_my_projects(
                     included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
                     classification_thresholds=project.classification_thresholds,
-                    blur_people_vehicles=project.blur_people_vehicles,
+                    blur_people=project.blur_people,
+                    blur_vehicles=project.blur_vehicles,
                     independence_interval_minutes=project.independence_interval_minutes,
                     image_url=image_url,
                     thumbnail_url=thumbnail_url,

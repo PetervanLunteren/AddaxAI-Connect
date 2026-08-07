@@ -344,10 +344,25 @@ class Project(Base):
     thumbnail_path = Column(String(512), nullable=True)  # MinIO path to thumbnail (256x256)
     detection_threshold = Column(Float, nullable=False, server_default='0.5')  # Minimum confidence for detections to be visible (0.0-1.0)
     classification_thresholds = Column(JSON, nullable=True)  # Optional {"default": float, "overrides": {species: float}}; null = no filtering
-    blur_people_vehicles = Column(Boolean, nullable=False, server_default='true')  # Blur detected people and vehicles in all images for privacy
+    blur_people = Column(Boolean, nullable=False, server_default='true')  # Blur detected people in all images for privacy
+    blur_vehicles = Column(Boolean, nullable=False, server_default='true')  # Blur detected vehicles in all images for privacy
     independence_interval_minutes = Column(Integer, nullable=False, server_default='30')  # Group same-species detections within N minutes as one event (0 = disabled)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    def blur_categories(self) -> list:
+        """Detector categories to blur for this project's images.
+
+        The single source of truth for the privacy blur. Every consumer
+        (serve path, export, notification workers) filters detections
+        against this list instead of hardcoding the category pair.
+        """
+        categories = []
+        if self.blur_people:
+            categories.append("person")
+        if self.blur_vehicles:
+            categories.append("vehicle")
+        return categories
 
 
 class ProjectMembership(Base):

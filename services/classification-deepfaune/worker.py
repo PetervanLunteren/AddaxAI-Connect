@@ -141,15 +141,19 @@ def process_detection_complete(message: dict, classifier) -> None:
                             image_path = download_image_from_minio(image_record.storage_path)
                             temp_files.append(image_path)
 
-                            # Apply privacy blur if enabled
-                            if project.blur_people_vehicles:
+                            # Apply privacy blur to the categories the
+                            # project blurs (people and vehicles are
+                            # independently configurable)
+                            blur_dets = [d for d in pv_dets
+                                         if d.category in project.blur_categories()]
+                            if blur_dets:
                                 from PIL import Image as PILImage
                                 from PIL import ImageFilter
                                 img = PILImage.open(image_path)
                                 if img.mode != 'RGB':
                                     img = img.convert('RGB')
                                 img_w, img_h = img.size
-                                for det in pv_dets:
+                                for det in blur_dets:
                                     normalized = det.bbox_normalized
                                     if not normalized or len(normalized) != 4:
                                         continue
@@ -315,10 +319,11 @@ def process_detection_complete(message: dict, classifier) -> None:
                                 detection_threshold=det_threshold
                             )
                         else:
-                            if project and project.blur_people_vehicles:
+                            blur_cats = project.blur_categories() if project else []
+                            if blur_cats:
                                 pv_dets = db.query(DetectionModel).filter(
                                     DetectionModel.image_id == image.id,
-                                    DetectionModel.category.in_(["person", "vehicle"]),
+                                    DetectionModel.category.in_(blur_cats),
                                     DetectionModel.confidence >= project.detection_threshold,
                                 ).all()
                                 if pv_dets:
