@@ -260,6 +260,26 @@ export const ImagesPage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
+        key: 'species',
+        label: 'Labels',
+        options: speciesOptions.map((s) => ({
+          label: String(s.label),
+          value: String(s.value),
+        })),
+        placeholder: 'All labels',
+        isLoading: speciesLoading,
+        summary: (n) => `${n} labels`,
+      },
+      {
+        kind: 'date-range',
+        fromKey: 'date_from',
+        toKey: 'date_to',
+        label: 'Date range',
+        minDate: overview?.first_image_date,
+        maxDate: overview?.last_image_date,
+      },
+      {
+        kind: 'multi-select',
         key: 'site_id',
         label: 'Sites',
         options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
@@ -282,26 +302,6 @@ export const ImagesPage: React.FC = () => {
         options: (cameras ?? []).map((c) => ({ label: c.name, value: String(c.id) })),
         placeholder: 'All cameras',
         summary: (n) => `${n} cameras`,
-      },
-      {
-        kind: 'multi-select',
-        key: 'species',
-        label: 'Labels',
-        options: speciesOptions.map((s) => ({
-          label: String(s.label),
-          value: String(s.value),
-        })),
-        placeholder: 'All labels',
-        isLoading: speciesLoading,
-        summary: (n) => `${n} labels`,
-      },
-      {
-        kind: 'date-range',
-        fromKey: 'date_from',
-        toKey: 'date_to',
-        label: 'Date range',
-        minDate: overview?.first_image_date,
-        maxDate: overview?.last_image_date,
       },
       {
         kind: 'select',
