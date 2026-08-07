@@ -88,7 +88,7 @@ addaxai-connect/
 │   │   ├── rule_engine.py             # Evaluates per-user notification preferences
 │   │   ├── email_report.py            # Daily/weekly/monthly email report generation
 │   │   ├── report_stats.py            # Report statistics
-│   │   ├── battery_digest.py          # Daily battery status summaries
+│   │   ├── camera_alerts.py           # User-defined camera condition alert rules
 │   │   ├── excessive_images.py        # Excessive image alerts
 │   │   ├── project_inactivity.py      # Project inactivity alerts
 │   │   ├── disk_usage_alert.py        # Disk usage alerts
@@ -108,9 +108,6 @@ addaxai-connect/
 │   │   ├── telegram_client.py         # Telegram Bot API client
 │   │   ├── image_handler.py           # Image sending for Telegram
 │   │   └── db_operations.py
-│   │
-│   ├── alerts/                        # Alert evaluation (stub, not yet implemented)
-│   │   └── worker.py
 │   │
 │   ├── minio-init/                    # One-shot MinIO bootstrap (buckets, ILM rules)
 │   │   └── entrypoint.sh

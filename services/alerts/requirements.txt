@@ -1,3 +1,0 @@
-# Shared runtime deps (redis, sqlalchemy, pydantic, etc.) come from the shared
-# package; see shared/pyproject.toml. Only service-specific deps go here.
-requests==2.31.0

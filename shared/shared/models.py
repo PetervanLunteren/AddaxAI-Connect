@@ -416,28 +416,44 @@ class User(Base):
     # Note: role and project_id removed - now handled via ProjectMembership table
 
 
-class AlertRule(Base):
-    """Alert notification rule"""
-    __tablename__ = "alert_rules"
+class CameraAlertRule(Base):
+    """
+    A user-defined camera condition alert.
+
+    Private per user, the creator is the only recipient and other members
+    never see the rule. Evaluated by the daily cron at 07:00 UTC. Fires
+    once per incident, notified_camera_ids holds the cameras already
+    alerted for the current incident and is cleared per camera when the
+    condition recovers, so the rule re-arms.
+    """
+    __tablename__ = "camera_alert_rules"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    rule_type = Column(String(50), nullable=False)  # species, battery, offline
-    condition = Column(JSON, nullable=False)
-    notification_method = Column(String(50), nullable=False)  # email, signal, whatsapp
-    is_active = Column(Boolean, default=True, nullable=False)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # ON DELETE CASCADE, a private rule dies with its owner
+    created_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    rule_type = Column(String(20), nullable=False)  # battery_low | sd_full | camera_silent
+    threshold = Column(Integer, nullable=False)  # percent (battery/sd) or days (silent)
+    # null means all cameras of the project, else a non-empty list of camera
+    # ids. An empty list is rejected by the API so one meaning has one form.
+    camera_ids = Column(JSON, nullable=True)
+    channels = Column(JSON, nullable=False)  # non-empty subset of ["email", "telegram"]
+    is_active = Column(Boolean, nullable=False, server_default='true')
+    # Once-per-incident state. Always reassigned as a new list, never
+    # mutated in place, so SQLAlchemy change tracking fires.
+    notified_camera_ids = Column(JSON, nullable=False, server_default='[]')
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
-class AlertLog(Base):
-    """Alert notification history"""
-    __tablename__ = "alert_logs"
-
-    id = Column(Integer, primary_key=True, index=True)
-    rule_id = Column(Integer, ForeignKey("alert_rules.id"), nullable=False)
-    triggered_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    details = Column(JSON)
-    status = Column(String(50), nullable=False)  # sent, failed
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
 class ProjectNotificationPreference(Base):

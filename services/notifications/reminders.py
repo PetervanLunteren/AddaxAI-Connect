@@ -23,7 +23,6 @@ from shared.logger import get_logger
 from shared.database import get_sync_session
 from shared.models import (
     Project,
-    ProjectMembership,
     ProjectReminder,
     User,
 )
@@ -31,7 +30,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log, get_server_timezone
+from db_operations import create_notification_log, get_server_timezone, has_project_access
 
 logger = get_logger("notifications.reminders")
 settings = get_settings()
@@ -73,7 +72,7 @@ def send_due_reminders() -> None:
 
         for reminder, user, project in rows:
             try:
-                if not _has_project_access(db, user.id, project.id):
+                if not has_project_access(db, user.id, project.id):
                     # Creator was removed from the project after creating the
                     # reminder. Leave the row unsent so admins notice it.
                     logger.warning(
@@ -119,23 +118,6 @@ def send_due_reminders() -> None:
             skipped_no_access=skipped_no_access,
             failed=failed,
         )
-
-
-def _has_project_access(db, user_id: int, project_id: int) -> bool:
-    """Server admins have implicit access; regular users must hold any
-    membership row (admin or viewer) on the project."""
-    user = db.execute(
-        select(User).where(User.id == user_id)
-    ).scalar_one_or_none()
-    if user and user.is_superuser:
-        return True
-    membership = db.execute(
-        select(ProjectMembership.role).where(
-            ProjectMembership.user_id == user_id,
-            ProjectMembership.project_id == project_id,
-        )
-    ).scalar_one_or_none()
-    return membership is not None
 
 
 def _queue_email(

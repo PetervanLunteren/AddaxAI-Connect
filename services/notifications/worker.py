@@ -21,7 +21,7 @@ from shared.config import get_settings
 
 from rule_engine import get_matching_users
 from event_handlers import handle_species_detection, handle_low_battery, handle_system_health
-from battery_digest import send_daily_battery_digest
+from camera_alerts import send_camera_condition_alerts
 from email_report import send_daily_reports, send_weekly_reports, send_monthly_reports
 from excessive_images import send_excessive_image_alerts
 from project_inactivity import send_project_inactivity_alerts
@@ -97,16 +97,8 @@ def main() -> None:
     """Main entry point for notifications service"""
     logger.info("Starting notifications service")
 
-    # Set up daily battery digest scheduler
+    # Set up the scheduled jobs (15-minute spacing convention)
     scheduler = BackgroundScheduler(timezone='UTC')
-    scheduler.add_job(
-        send_daily_battery_digest,
-        'cron',
-        hour=12,
-        minute=0,
-        id='daily_battery_digest',
-        name='Send daily battery digest at noon UTC'
-    )
     # Email reports - daily at 06:00 UTC
     scheduler.add_job(
         send_daily_reports,
@@ -203,9 +195,20 @@ def main() -> None:
         name='Daily infra alert check at 03:00 UTC'
     )
 
+    # Camera condition alert rules - daily at 07:00 UTC (next free slot
+    # after reminders at 06:45)
+    scheduler.add_job(
+        send_camera_condition_alerts,
+        'cron',
+        hour=7,
+        minute=0,
+        id='camera_condition_alerts',
+        name='Evaluate camera condition alert rules daily at 07:00 UTC'
+    )
+
     scheduler.start()
 
-    logger.info("Scheduled daily battery digest at 12:00 UTC")
+    logger.info("Scheduled camera condition alerts at 07:00 UTC")
     logger.info("Scheduled email reports: daily 06:00, weekly Monday 06:00, monthly 1st 06:00 UTC")
     logger.info("Scheduled excessive image alerts at 06:30 UTC")
     logger.info("Scheduled project inactivity alerts at 06:00 UTC")

@@ -38,7 +38,6 @@ def get_matching_users(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     - Uses notification_channels JSON field for per-type channel selection
     - Legacy fields no longer supported (only Telegram)
     - Species detection: checks notify_species list in JSON
-    - Battery digest: separate handler (battery_digest.py)
     - System health: checks enabled flag in JSON
 
     All rules also check:
@@ -223,11 +222,6 @@ def _evaluate_json_preferences(
                     species=species,
                 )
                 return None
-
-    elif event_type == 'battery_digest':
-        # Battery threshold is stored in type config
-        # Threshold checking happens in battery_digest.py, not here
-        pass
 
     elif event_type == 'system_health':
         # Just needs to be enabled (already checked above)

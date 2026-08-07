@@ -15,6 +15,8 @@ import { MultiSelect, Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { remindersApi } from '../api/reminders';
 import { RemindersSheet } from '../components/RemindersSheet';
+import { CameraAlertRulesSheet } from '../components/CameraAlertRulesSheet';
+import { cameraAlertRulesApi } from '../api/cameraAlertRules';
 import { adminApi } from '../api/admin';
 import { sitesApi } from '../api/sites';
 import { speciesApi } from '../api/species';
@@ -59,6 +61,7 @@ export const NotificationsPage: React.FC = () => {
   // a slideout; we only need to track whether the sheet is open and the
   // count for the row-level summary below.
   const [showRemindersSheet, setShowRemindersSheet] = useState(false);
+  const [showAlertRulesSheet, setShowAlertRulesSheet] = useState(false);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -227,6 +230,14 @@ export const NotificationsPage: React.FC = () => {
   const activeReminderCount = (reminders || []).filter(
     (r) => !r.sent_at && !r.cancelled_at,
   ).length;
+
+  // Same lightweight count pattern for the camera alert rules row
+  const { data: alertRules } = useQuery({
+    queryKey: ['camera-alert-rules', projectIdNum],
+    queryFn: () => cameraAlertRulesApi.list(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0,
+  });
+  const activeAlertRuleCount = (alertRules || []).filter((r) => r.is_active).length;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -482,6 +493,31 @@ export const NotificationsPage: React.FC = () => {
                 </>
               )}
 
+              {/* Camera condition alerts row (any member). The slideout
+                  holds the rule list plus add / edit / delete. */}
+              <div className="border-t my-6" />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
+                  <label className="text-sm font-medium block">Camera condition alerts</label>
+                  <p className="text-sm text-muted-foreground mt-1">Get an email or Telegram message when a camera's battery drops below a threshold, its SD card fills up, or it goes silent for too long. Alerts fire once per incident and re-arm when the camera recovers. Only you receive your alerts.</p>
+                </div>
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAlertRulesSheet(true)}
+                  >
+                    Manage alert rules
+                    {activeAlertRuleCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                        {activeAlertRuleCount}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
               {/* Divider */}
               <div className="border-t my-6" />
 
@@ -607,6 +643,17 @@ export const NotificationsPage: React.FC = () => {
           open={showRemindersSheet}
           onClose={() => setShowRemindersSheet(false)}
           projectId={projectIdNum}
+        />
+      )}
+
+      {/* Camera condition alert rules slideout (any member). Rules are
+          private, only the creator receives the alerts. */}
+      {projectIdNum > 0 && (
+        <CameraAlertRulesSheet
+          open={showAlertRulesSheet}
+          onClose={() => setShowAlertRulesSheet(false)}
+          projectId={projectIdNum}
+          telegramLinked={isTelegramLinked}
         />
       )}
     </div>

@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, text
 
 from shared.logger import get_logger
-from shared.models import NotificationLog, Project, ServerSettings
+from shared.models import NotificationLog, Project, ProjectMembership, ServerSettings, User
 from shared.database import get_sync_session
 
 logger = get_logger("notifications.db")
@@ -193,3 +193,21 @@ def get_image_site_id(image_uuid: str) -> Optional[int]:
     if not row:
         return None
     return row.site_id
+
+
+def has_project_access(db, user_id: int, project_id: int) -> bool:
+    """Server admins have implicit access; regular users must hold any
+    membership row (admin or viewer) on the project. Defense-in-depth for
+    scheduled jobs whose config rows can outlive a membership."""
+    user = db.execute(
+        select(User).where(User.id == user_id)
+    ).scalar_one_or_none()
+    if user and user.is_superuser:
+        return True
+    membership = db.execute(
+        select(ProjectMembership.role).where(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.project_id == project_id,
+        )
+    ).scalar_one_or_none()
+    return membership is not None
