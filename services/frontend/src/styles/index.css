@@ -58,6 +58,10 @@
     /* Stop pull-to-refresh and rubber-band scroll chaining in the installed
        app, so a swipe down at the top does not reload the page. */
     overscroll-behavior-y: none;
+    /* Keep the scrollbar space reserved even when content momentarily
+       shrinks (e.g. a grid collapsing to a spinner during refetch), so
+       the page width never jumps under the pointer. */
+    scrollbar-gutter: stable;
     /* No grey/blue flash on tap, buttons give visual feedback themselves. */
     -webkit-tap-highlight-color: transparent;
   }

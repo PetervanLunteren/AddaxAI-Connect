@@ -320,24 +320,31 @@ const RangeControl: React.FC<{
   const hi = rawHi === '' ? field.max : Number(rawHi);
   const safeLo = Number.isFinite(lo) ? lo : field.min;
   const safeHi = Number.isFinite(hi) ? hi : field.max;
+  // Track the value locally while dragging and only commit on release.
+  // Committing every movement refetches the page content mid-drag, and the
+  // resulting layout shift under the pointer changes the value again.
+  const [draft, setDraft] = useState<[number, number] | null>(null);
+  const [shownLo, shownHi] = draft ?? [safeLo, safeHi];
   const eps = field.step / 2;
   return (
     <div className="flex items-center gap-3">
       <Slider
         className="h-9 flex-1"
-        value={[safeLo, safeHi]}
+        value={[shownLo, shownHi]}
         min={field.min}
         max={field.max}
         step={field.step}
-        onValueChange={([nextLo, nextHi]) =>
+        onValueChange={(next) => setDraft(next as [number, number])}
+        onValueCommit={([nextLo, nextHi]) => {
+          setDraft(null);
           onChange({
             [field.minKey]: nextLo > field.min + eps ? String(nextLo) : undefined,
             [field.maxKey]: nextHi < field.max - eps ? String(nextHi) : undefined,
-          })
-        }
+          });
+        }}
       />
       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-        {field.format(safeLo, safeHi)}
+        {field.format(shownLo, shownHi)}
       </span>
     </div>
   );
