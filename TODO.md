@@ -60,7 +60,7 @@ BLURRING
 
 - [x] Make the blurring of people and vehicles independently configurable, so that the choice for one does not affect the other. Different situations call for different privacy handling depending on the category. (Two toggles in the project settings, backed by two columns. Existing projects keep their current behaviour through the migration. 7 Aug 2026.)
 
-- [ ] Make blurring reversible, with this capability restricted to administrators or protected by a specific access code. A concrete example: if a person is suspected of camera theft or an forestry infraction, it may be necessary to unblur their image for identification purposes. This feature would need to be tightly access-controlled.
+- [x] Make blurring reversible, with this capability restricted to administrators or protected by a specific access code. A concrete example: if a person is suspected of camera theft or an forestry infraction, it may be necessary to unblur their image for identification purposes. This feature would need to be tightly access-controlled. (Admin-only toggle in the image detail modal. The server enforces the permission with a hard 403 for others, every unblurred view is logged with the viewer identity, the response is never cached, and the toggle resets to blurred on every image. 7 Aug 2026.)
 
 - [ ] Allow blurring settings to be configured on a per-site basis. On public paths, blurring is important for privacy compliance, whereas on private land, unblurred images can be a valuable tool for rangers dealing with trespassing or enforcement cases.
 
