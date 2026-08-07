@@ -307,7 +307,7 @@ export const SiteDetailSheet: React.FC<Props> = ({
                         value={editTags}
                         onChange={setEditTags}
                         suggestions={tagSuggestions ?? []}
-                        placeholder="wetland, otter-territory"
+                        placeholder='For example "wetland" or "otter territory"'
                       />
                     ) : (
                       <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">

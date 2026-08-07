@@ -360,7 +360,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                         value={editTags}
                         onChange={setEditTags}
                         suggestions={tagSuggestions ?? []}
-                        placeholder="unreliable-trigger, camouflaged-casing"
+                        placeholder='For example "unreliable trigger" or "camouflaged casing"'
                       />
                     ) : (
                       <div className="flex flex-wrap gap-1.5 min-h-[2.5rem] px-3 py-1.5">
