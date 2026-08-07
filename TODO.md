@@ -62,13 +62,13 @@ BLURRING
 
 - [x] Make blurring reversible, with this capability restricted to administrators or protected by a specific access code. A concrete example: if a person is suspected of camera theft or an forestry infraction, it may be necessary to unblur their image for identification purposes. This feature would need to be tightly access-controlled. (Admin-only toggle in the image detail modal. The server enforces the permission with a hard 403 for others, every unblurred view is logged with the viewer identity, the response is never cached, and the toggle resets to blurred on every image. 7 Aug 2026.)
 
-- [ ] Allow blurring settings to be configured on a per-site basis. On public paths, blurring is important for privacy compliance, whereas on private land, unblurred images can be a valuable tool for rangers dealing with trespassing or enforcement cases.
+- [ ] NOT DONE - Allow blurring settings to be configured on a per-site basis. On public paths, blurring is important for privacy compliance, whereas on private land, unblurred images can be a valuable tool for rangers dealing with trespassing or enforcement cases.
 
 MAJOR IMPROVEMENTS
 
 - [ ] Explore the possibility of a theft-detection alert system that sends a notification (e.g., via Telegram) when camera tampering is suspected.  For example, when the framing shifts suddenly or an incoming image differs significantly from the previous one. Camera theft is a recurring problem for us, and we work closely enough with forest rangers that a rapid response would be feasible. We acknowledge this is a complex feature and are not proposing it as a near-term priority, but we wanted to put the idea forward.
 
-- [ ] Add support for secondary classification models, as discussed with Simon Chamaillé and Gaspard Dussert. The concept: after DeepFaune detects a given species (e.g., red deer), a secondary model further classifies the individual into a management-relevant category (adult male, adult female, fawn, etc.). Age-class data is central to hunting quotas and wildlife management plans.  We currently encode this manually, and automating it would significantly increase both efficiency and dataset reliability.
+- [ ] NOT DOING - Add support for secondary classification models, as discussed with Simon Chamaillé and Gaspard Dussert. The concept: after DeepFaune detects a given species (e.g., red deer), a secondary model further classifies the individual into a management-relevant category (adult male, adult female, fawn, etc.). Age-class data is central to hunting quotas and wildlife management plans.  We currently encode this manually, and automating it would significantly increase both efficiency and dataset reliability.
 
 - [ ] Add a configuration menu for automated, scheduled analytical reports sent by email at regular intervals. For example, a monthly summary of raccoon detections and abundance estimates per camera across the network. This would allow managers to stay informed without having to log in and generate reports manually each time.
 
@@ -76,7 +76,7 @@ MAJOR IMPROVEMENTS
 
 ##### Larger tasks
 
-- [ ] Allow users and/or projects to define custom keyboard shortcuts for encoding observations. For example, assigning "w" key to Wild boar and using arrow keys to adjust the individual count. Even a few seconds saved per image translates into significant time savings when working with validation.
+- [x] Allow users and/or projects to define custom keyboard shortcuts for encoding observations. For example, assigning "w" key to Wild boar and using arrow keys to adjust the individual count. Even a few seconds saved per image translates into significant time savings when working with validation. (Digits type the count directly, multi-digit like AddaxAI. Q, W, and E are species slots each user assigns in the shortcuts popover, stored per user per project in the browser. Arrow keys for counts already existed. 7 Aug 2026.)
 
 - [ ] Add customisable flags that users can assign to images to mark specific events of interest, such as "Notable observation", "Identification issue", "Infraction", or "Predation event". This would make it much easier to retrieve and review specific cases at a later stage, without having to rely on free-text notes or external tracking systems.
 

@@ -130,6 +130,13 @@ export interface VerificationPanelRef {
   incrementFocused: () => void;
   decrementFocused: () => void;
   deleteFocused: () => void;
+  /** True when at least one observation row exists. */
+  hasObservations: () => boolean;
+  /** Set the focused observation's count directly (digit typing). */
+  setCountFocused: (count: number) => void;
+  /** Set the focused observation's species, or add a first row with it
+   *  (species shortcut slots). */
+  applySpeciesToFocused: (species: Option) => void;
 }
 
 export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPanelProps>(({
@@ -438,6 +445,29 @@ export const VerificationPanel = forwardRef<VerificationPanelRef, VerificationPa
         if (focusedIndex >= observations.length - 1 && focusedIndex > 0) {
           setFocusedIndex(focusedIndex - 1);
         }
+      }
+    },
+    hasObservations: () => observations.length > 0,
+    setCountFocused: (count: number) => {
+      if (observations.length > 0 && focusedIndex < observations.length) {
+        const id = observations[focusedIndex].id;
+        setObservations(prev =>
+          prev.map(obs =>
+            obs.id === id
+              ? { ...obs, count: Math.max(1, count), isAiSuggested: false }
+              : obs
+          )
+        );
+      }
+    },
+    applySpeciesToFocused: (species: Option) => {
+      if (observations.length > 0 && focusedIndex < observations.length) {
+        updateSpecies(observations[focusedIndex].id, species);
+      } else {
+        setObservations([
+          { id: `new-${Date.now()}`, species, sex: 'unknown', life_stage: 'unknown', behavior: 'unknown', count: 1, isAiSuggested: false },
+        ]);
+        setFocusedIndex(0);
       }
     },
   }));

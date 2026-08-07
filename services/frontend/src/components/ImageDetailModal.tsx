@@ -6,7 +6,10 @@
  * - Escape: Close modal
  * - Left/Right arrows: Navigate images
  * - B: Toggle bounding boxes
- * - 0: Mark as empty and go to next
+ * - 0: Mark as empty and go to next (while the form has no observations)
+ * - 1-9: Type the focused observation's count (multi-digit within 700ms)
+ * - Q/W/E: Species shortcut slots, assigned in the shortcuts popover,
+ *   stored per user per project in localStorage
  * - Tab/Shift+Tab: Cycle focus between observations
  * - Up/Down arrows: Increase/decrease count of focused observation
  * - X: Delete focused observation
@@ -15,6 +18,12 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
+
+type SlotKey = 'q' | 'w' | 'e';
+const SLOT_KEYS: SlotKey[] = ['q', 'w', 'e'];
+// Fast typing of e.g. 1 then 2 sets the count to 12; after this pause the
+// next digit starts a fresh number. Mirrors AddaxAI's event count panel.
+const DIGIT_WINDOW_MS = 700;
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { imagesApi } from '../api/images';
@@ -22,6 +31,7 @@ import { drawDetectionOverlay } from '../utils/detection-overlay';
 import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { useImageCache } from '../contexts/ImageCacheContext';
 import { useProject } from '../contexts/ProjectContext';
+import { normalizeLabel } from '../utils/labels';
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -58,6 +68,14 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   // Admin-only unblur for identification cases. Deliberately resets to
   // blurred on every image change, unblurring is a conscious per-image act.
   const [showUnblurred, setShowUnblurred] = useState(false);
+  // Species shortcut slots (Q, W, E), assigned in the shortcuts popover and
+  // stored per user per project in localStorage
+  const [speciesSlots, setSpeciesSlots] = useState<Record<SlotKey, string>>({ q: '', w: '', e: '' });
+  const speciesSlotsRef = useRef(speciesSlots);
+  speciesSlotsRef.current = speciesSlots;
+  // Multi-digit count entry (typing 1 then 2 quickly sets the count to 12)
+  const digitBufferRef = useRef<string>('');
+  const digitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
@@ -131,7 +149,33 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   // would immediately reset itself
   useEffect(() => {
     setShowUnblurred(false);
+    digitBufferRef.current = '';
   }, [imageUuid]);
+
+  // Load the species slots for the current project
+  const slotsStorageKey = `addaxai-connect:speciesSlots:${selectedProject?.id ?? 0}`;
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(slotsStorageKey) || '{}');
+      setSpeciesSlots({ q: saved.q || '', w: saved.w || '', e: saved.e || '' });
+    } catch {
+      setSpeciesSlots({ q: '', w: '', e: '' });
+    }
+  }, [slotsStorageKey]);
+  const updateSlot = (key: SlotKey, value: string) => {
+    setSpeciesSlots((prev) => {
+      const next = { ...prev, [key]: value };
+      localStorage.setItem(slotsStorageKey, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Species options for the slot pickers, same cached query the filter uses
+  const { data: slotSpeciesOptions } = useQuery({
+    queryKey: ['species', selectedProject?.id],
+    queryFn: () => imagesApi.getSpecies(selectedProject?.id),
+    enabled: isOpen && selectedProject?.id !== undefined,
+  });
 
   // Construct URL directly from UUID - don't wait for imageDetail
   const fullImageUrl = `/api/images/${imageUuid}/full${showUnblurred ? '?unblurred=true' : ''}`;
@@ -281,9 +325,53 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in inputs
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) {
         // Allow Escape even in inputs
         if (e.key !== 'Escape') return;
+      }
+
+      // Species shortcut slots. Sets the focused observation's species, or
+      // adds a first observation of that species on an empty form.
+      const lower = e.key.toLowerCase();
+      if (SLOT_KEYS.includes(lower as SlotKey) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const value = speciesSlotsRef.current[lower as SlotKey];
+        if (value) {
+          e.preventDefault();
+          verificationPanelRef.current?.applySpeciesToFocused({
+            value,
+            label: normalizeLabel(value),
+          });
+          return;
+        }
+      }
+
+      // Digits type the focused observation's count, multi-digit within the
+      // window. 0 keeps meaning "empty + next" while the form has no rows.
+      if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const hasRows = verificationPanelRef.current?.hasObservations() ?? false;
+        const bufferOpen = digitBufferRef.current.length > 0;
+        if (e.key === '0' && !bufferOpen && !hasRows) {
+          e.preventDefault();
+          verificationPanelRef.current?.noAnimals(() => {
+            if (hasNext && onNext) {
+              onNext();
+            }
+          });
+          return;
+        }
+        if (hasRows) {
+          e.preventDefault();
+          // Cap at 4 digits (9999) so a key-mash cannot request an absurd count
+          const digits = (digitBufferRef.current + e.key).slice(0, 4);
+          digitBufferRef.current = digits;
+          if (digitTimerRef.current) clearTimeout(digitTimerRef.current);
+          digitTimerRef.current = setTimeout(() => {
+            digitBufferRef.current = '';
+          }, DIGIT_WINDOW_MS);
+          verificationPanelRef.current?.setCountFocused(Number(digits));
+          return;
+        }
+        return;
       }
 
       switch (e.key) {
@@ -329,15 +417,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           // Toggle bounding boxes
           e.preventDefault();
           setShowBboxes(prev => !prev);
-          break;
-        case '0':
-          // Verify as empty (no animals) and go to next
-          e.preventDefault();
-          verificationPanelRef.current?.noAnimals(() => {
-            if (hasNext && onNext) {
-              onNext();
-            }
-          });
           break;
         case 'Tab':
           // Cycle focus between observations
@@ -835,7 +914,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             Show shortcuts
           </button>
           {showShortcuts && (
-            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[180px]">
+            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 min-w-[230px]">
               <div className="text-xs space-y-1">
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Enter</span>
@@ -844,6 +923,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">0</span>
                   <span>Empty + next</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">1-9</span>
+                  <span>Type the count</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">← →</span>
@@ -877,6 +960,28 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   <span className="text-muted-foreground">Esc</span>
                   <span>Close</span>
                 </div>
+                {/* Species shortcut slots, per user per project */}
+                <div className="border-t my-2" />
+                <div className="text-muted-foreground">Species keys, set the focused observation to</div>
+                {SLOT_KEYS.map((slotKey) => (
+                  <div key={slotKey} className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground uppercase">{slotKey}</span>
+                    <select
+                      className="border border-input rounded bg-background text-xs px-1 py-0.5 max-w-[160px]"
+                      value={speciesSlots[slotKey]}
+                      onChange={(ev) => updateSlot(slotKey, ev.target.value)}
+                    >
+                      <option value="">Not set</option>
+                      {(slotSpeciesOptions ?? [])
+                        .filter((o) => String(o.value) !== 'empty')
+                        .map((o) => (
+                          <option key={String(o.value)} value={String(o.value)}>
+                            {String(o.label)}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ))}
               </div>
             </div>
           )}
