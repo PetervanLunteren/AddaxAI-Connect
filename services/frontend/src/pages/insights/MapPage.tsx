@@ -135,22 +135,6 @@ export const InsightsMapPage: React.FC = () => {
     () => [
       {
         kind: 'multi-select',
-        key: 'site_ids',
-        label: 'Sites',
-        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
-        placeholder: 'All sites',
-        summary: (n) => `${n} sites`,
-      },
-      {
-        kind: 'multi-select',
-        key: 'tags',
-        label: 'Site tags',
-        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
-        placeholder: 'Any tags',
-        summary: (n) => `${n} tags`,
-      },
-      {
-        kind: 'multi-select',
         key: 'species',
         label: 'Species',
         options: (speciesOptions ?? []).map((s) => ({
@@ -167,6 +151,22 @@ export const InsightsMapPage: React.FC = () => {
         label: 'Date range',
         minDate: overview?.first_image_date,
         maxDate: overview?.last_image_date,
+      },
+      {
+        kind: 'multi-select',
+        key: 'site_ids',
+        label: 'Sites',
+        options: (sites ?? []).map((s) => ({ label: s.name, value: String(s.id) })),
+        placeholder: 'All sites',
+        summary: (n) => `${n} sites`,
+      },
+      {
+        kind: 'multi-select',
+        key: 'tags',
+        label: 'Site tags',
+        options: (tagOptions ?? []).map((t) => ({ label: t, value: t })),
+        placeholder: 'Any tags',
+        summary: (n) => `${n} tags`,
       },
     ],
     [sites, tagOptions, speciesOptions, overview],
