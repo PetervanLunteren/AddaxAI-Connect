@@ -53,7 +53,7 @@ MAP (INSIGHTS MENU)
 
 - [x] Allow the selection of multiple species simultaneously on the map, merging their RAI (Relative Abundance Index) values to display combined abundance. A concrete use case: we often want to visualise the distribution of large game as a whole (red deer + wild boar + roe deer), which is currently not possible. (Species filter on the map is now a multi-select and the counts sum per site. With an independence interval, events stay grouped per species, so the combined RAI equals the sum of the per-species RAIs. 7 Aug 2026.)
 
-- [ ] Introduce additional map visualisation options beyond abundance/RAI.  For example, species richness when a subset of multiple species are selected. This would help identify locations with the highest biodiversity within the network, which is directly relevant to habitat assessment and conservation planning.
+- [x] Introduce additional map visualisation options beyond abundance/RAI.  For example, species richness when a subset of multiple species are selected. This would help identify locations with the highest biodiversity within the network, which is directly relevant to habitat assessment and conservation planning. (A Metric select on the map switches between abundance, species richness, trap effort, and Shannon diversity. Richness respects the species selection, counts wildlife only, and is shown as observed values with trap-days next to it. 7 Aug 2026.)
 
 
 BLURRING 
