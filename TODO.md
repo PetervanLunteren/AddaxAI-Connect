@@ -36,27 +36,20 @@ IMAGES
 
 - [x] Add a time-of-day filter so users can select images that fall within a defined hourly range. This would be useful for behavioural analysis. (Two hour dropdowns in the More popover. A start later than the end wraps past midnight, so night windows like 21:00 to 05:00 work. 7 Aug 2026.)
 
-- [ ] Allow users and/or projects to define custom keyboard shortcuts for encoding observations. For example, assigning "w" key to Wild boar and using arrow keys to adjust the individual count. Even a few seconds saved per image translates into significant time savings when working with validation.
-
-
-- [ ] Add customisable flags that users can assign to images to mark specific events of interest, such as "Notable observation", "Identification issue", "Infraction", or "Predation event". This would make it much easier to retrieve and review specific cases at a later stage, without having to rely on free-text notes or external tracking systems.
-
 ALERTS
 
-- [ ] Allow users to configure alerts for specific camera conditions: full SD card, battery below a defined threshold, or no signal received for a set number of days. While this information is already accessible via the interface, receiving proactive notifications would greatly improve field maintenance management and reactivity. The ability to set these alerts on a per-camera basis would be an additional advantage, as it aligns with the territorial management approach (more explanation below).
+
 
 USERS
 
-- [ ] Introduce a user role with access restricted to a defined subset of cameras, going beyond the current binary admin/user system. We work closely with forest agents who are each responsible for distinct territories within the camera network. Some of them are sensitive about other agents having visibility into their zones, and a territorially scoped access level would address this directly.
 
-CAMERAS
 
-- [ ] Add structured fields to log maintenance events.  Such as the date of the last SD card retrieval and the last battery change, along with a dropdown to record which user performed the maintenance (similar to the existing SIM card expiration date field). We currently track this information in a shared Drive file, which is functional but not ideal. Having it directly within the platform in a structured format would standardise maintenance tracking and reduce the risk of oversights.
+
 
 
 MAP (INSIGHTS MENU)
 
-- [ ] Set "points" as the default map display mode instead of hexbins, as this better matches our typical use of the map view.
+- [x] Set "points" as the default map display mode instead of hexbins, as this better matches our typical use of the map view. (Done 7 Aug 2026, hexbins and clusters stay available in the Display popover.)
 
 - [ ] Allow the selection of multiple species simultaneously on the map, merging their RAI (Relative Abundance Index) values to display combined abundance. A concrete use case: we often want to visualise the distribution of large game as a whole (red deer + wild boar + roe deer), which is currently not possible.
 
@@ -78,6 +71,22 @@ MAJOR IMPROVEMENTS
 - [ ] Add support for secondary classification models, as discussed with Simon Chamaillé and Gaspard Dussert. The concept: after DeepFaune detects a given species (e.g., red deer), a secondary model further classifies the individual into a management-relevant category (adult male, adult female, fawn, etc.). Age-class data is central to hunting quotas and wildlife management plans.  We currently encode this manually, and automating it would significantly increase both efficiency and dataset reliability.
 
 - [ ] Add a configuration menu for automated, scheduled analytical reports sent by email at regular intervals. For example, a monthly summary of raccoon detections and abundance estimates per camera across the network. This would allow managers to stay informed without having to log in and generate reports manually each time.
+
+
+
+##### Larger tasks
+
+- [ ] Allow users and/or projects to define custom keyboard shortcuts for encoding observations. For example, assigning "w" key to Wild boar and using arrow keys to adjust the individual count. Even a few seconds saved per image translates into significant time savings when working with validation.
+
+- [ ] Add customisable flags that users can assign to images to mark specific events of interest, such as "Notable observation", "Identification issue", "Infraction", or "Predation event". This would make it much easier to retrieve and review specific cases at a later stage, without having to rely on free-text notes or external tracking systems.
+
+- [ ] Allow users to configure alerts for specific camera conditions: full SD card, battery below a defined threshold, or no signal received for a set number of days. While this information is already accessible via the interface, receiving proactive notifications would greatly improve field maintenance management and reactivity. The ability to set these alerts on a per-camera basis would be an additional advantage, as it aligns with the territorial management approach (more explanation below).
+
+- [ ] Introduce a user role with access restricted to a defined subset of cameras, going beyond the current binary admin/user system. We work closely with forest agents who are each responsible for distinct territories within the camera network. Some of them are sensitive about other agents having visibility into their zones, and a territorially scoped access level would address this directly.
+
+CAMERAS
+
+- [ ] Add structured fields to log maintenance events.  Such as the date of the last SD card retrieval and the last battery change, along with a dropdown to record which user performed the maintenance (similar to the existing SIM card expiration date field). We currently track this information in a shared Drive file, which is functional but not ideal. Having it directly within the platform in a structured format would standardise maintenance tracking and reduce the risk of oversights.
 
 ## Possible future features
 - [ ] Make a script that tests updates on prod data on a dev server. Basically, I want a scipt (or edit restore.sh) that takes these args: original_code_commit hash (to see from where we need to update test it), the data to restore from backup disk (to ghet prod data to test it on, so you'll need to do more or less the same as restore.sh), which means youl need the source domain, the date is always the latetst, and --force always (this is for testing updates, so always on dev dummy data, perhaps with a confirmation prompt?). You see what I need? I just want a way to test updates more automaticaly. What do you think? What is best here?  

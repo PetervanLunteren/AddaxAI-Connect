@@ -54,9 +54,9 @@ export const InsightsMapPage: React.FC = () => {
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
   const species = asString(parsed.species);
-  const viewMode = (parsed.view_mode === 'points' || parsed.view_mode === 'clusters'
+  const viewMode = (parsed.view_mode === 'hexbins' || parsed.view_mode === 'clusters'
     ? parsed.view_mode
-    : 'hexbins') as ViewMode;
+    : 'points') as ViewMode;
 
   const filterValues: Record<string, FilterValue> = {
     site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
@@ -69,7 +69,7 @@ export const InsightsMapPage: React.FC = () => {
   const writeAll = (next: Record<string, FilterValue | undefined>) => {
     const merged: Record<string, FilterValue | undefined> = {
       ...filterValues,
-      view_mode: viewMode === 'hexbins' ? undefined : viewMode,
+      view_mode: viewMode === 'points' ? undefined : viewMode,
       ...next,
     };
     setSearchParams(filtersToSearchParams(merged, FILTER_SCHEMA), { replace: true });
@@ -174,8 +174,8 @@ export const InsightsMapPage: React.FC = () => {
       key: 'view_mode',
       label: 'View mode',
       options: [
-        { value: 'hexbins', label: 'Hexbins' },
         { value: 'points', label: 'Points' },
+        { value: 'hexbins', label: 'Hexbins' },
         { value: 'clusters', label: 'Clusters' },
       ],
     },
