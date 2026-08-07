@@ -80,9 +80,9 @@ class TestVerifiedOnlyMode:
             "fox", datetime(2026, 1, 1), datetime(2026, 7, 1), [1, 2],
             verified_only=True,
         )
-        assert "LOWER(ho.species) = LOWER(:species_filter)" in sql
+        assert "LOWER(ho.species) = ANY(CAST(:species_filter AS text[]))" in sql
         assert ":start_date" in sql and ":end_date" in sql and ":site_ids" in sql
-        assert params["species_filter"] == "fox"
+        assert params["species_filter"] == ["fox"]
 
 
 class TestMixedModeUnchanged:

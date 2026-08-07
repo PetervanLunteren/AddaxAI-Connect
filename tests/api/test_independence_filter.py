@@ -23,11 +23,13 @@ class TestBuildFilters:
         assert params == {}
 
     def test_species_filter(self):
+        # Single name or a list, both become a lowercased array matched
+        # with ANY so several species can combine on the map
         v, u, pv, params = _build_filters("fox", None, None)
-        assert "LOWER(ho.species) = LOWER(:species_filter)" in v
-        assert "LOWER(cl.species) = LOWER(:species_filter)" in u
-        assert "LOWER(d.category) = LOWER(:species_filter)" in pv
-        assert params["species_filter"] == "fox"
+        assert "LOWER(ho.species) = ANY(CAST(:species_filter AS text[]))" in v
+        assert "LOWER(cl.species) = ANY(CAST(:species_filter AS text[]))" in u
+        assert "LOWER(d.category) = ANY(CAST(:species_filter AS text[]))" in pv
+        assert params["species_filter"] == ["fox"]
 
     def test_start_date(self):
         dt = datetime(2025, 1, 1)
@@ -81,9 +83,9 @@ class TestBuildCte:
 
     def test_filters_are_injected(self):
         sql, params = _build_cte(species_filter="fox")
-        assert "LOWER(ho.species) = LOWER(:species_filter)" in sql
-        assert "LOWER(cl.species) = LOWER(:species_filter)" in sql
-        assert params["species_filter"] == "fox"
+        assert "LOWER(ho.species) = ANY(CAST(:species_filter AS text[]))" in sql
+        assert "LOWER(cl.species) = ANY(CAST(:species_filter AS text[]))" in sql
+        assert params["species_filter"] == ["fox"]
 
     def test_no_format_placeholders_remain(self):
         """After formatting, no {placeholder} strings should remain."""

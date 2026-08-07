@@ -51,7 +51,7 @@ MAP (INSIGHTS MENU)
 
 - [x] Set "points" as the default map display mode instead of hexbins, as this better matches our typical use of the map view. (Done 7 Aug 2026, hexbins and clusters stay available in the Display popover.)
 
-- [ ] Allow the selection of multiple species simultaneously on the map, merging their RAI (Relative Abundance Index) values to display combined abundance. A concrete use case: we often want to visualise the distribution of large game as a whole (red deer + wild boar + roe deer), which is currently not possible.
+- [x] Allow the selection of multiple species simultaneously on the map, merging their RAI (Relative Abundance Index) values to display combined abundance. A concrete use case: we often want to visualise the distribution of large game as a whole (red deer + wild boar + roe deer), which is currently not possible. (Species filter on the map is now a multi-select and the counts sum per site. With an independence interval, events stay grouped per species, so the combined RAI equals the sum of the per-species RAIs. 7 Aug 2026.)
 
 - [ ] Introduce additional map visualisation options beyond abundance/RAI.  For example, species richness when a subset of multiple species are selected. This would help identify locations with the highest biodiversity within the network, which is directly relevant to habitat assessment and conservation planning.
 

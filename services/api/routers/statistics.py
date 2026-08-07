@@ -541,7 +541,13 @@ class DetectionRateMapResponse(BaseModel):
 )
 async def get_detection_rate_map(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    species: Optional[str] = Query(None, description="Filter by species (case-insensitive)"),
+    species: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated species (case-insensitive). Several species "
+            "combine their counts into one abundance."
+        ),
+    ),
     start_date: Optional[date] = Query(None, description="Filter detections from this date (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Filter detections to this date (YYYY-MM-DD)"),
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
@@ -559,7 +565,8 @@ async def get_detection_rate_map(
 
     Filtering:
     - Automatically filtered by user's accessible projects
-    - Optional species filter (exact match, case-insensitive)
+    - Optional species filter (comma-separated, case-insensitive; several
+      species sum their counts into a combined abundance)
     - Optional date range filter (applies to detection dates)
     - Respects project detection thresholds
 
@@ -583,6 +590,11 @@ async def get_detection_rate_map(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     interval = await _get_independence_interval(db, project_id)
     site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    # Lowercased list for the = ANY comparisons below. Several species merge
+    # their counts, which is the combined-abundance behaviour of the map.
+    species_list = (
+        [s.strip().lower() for s in species.split(',') if s.strip()] if species else None
+    ) or None
 
     # Build SQL query with conditional filters
     # Use UNION to combine verified (human observations) and unverified (AI) counts
@@ -595,7 +607,7 @@ async def get_detection_rate_map(
                 cdp.id as deployment_id,
                 COALESCE(SUM(ho.count) FILTER (WHERE
                     ho.id IS NOT NULL
-                    AND (CAST(:species AS text) IS NULL OR LOWER(ho.species) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:species_list AS text[]) IS NULL OR LOWER(ho.species) = ANY(CAST(:species_list AS text[])))
                     AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ), 0) as detection_count
@@ -626,7 +638,7 @@ async def get_detection_rate_map(
                         (p.classification_thresholds->>'default')::float,
                         0.0
                     )
-                    AND (CAST(:species AS text) IS NULL OR LOWER(cl.species) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:species_list AS text[]) IS NULL OR LOWER(cl.species) = ANY(CAST(:species_list AS text[])))
                     AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ) as detection_count
@@ -652,7 +664,7 @@ async def get_detection_rate_map(
                     d.id IS NOT NULL
                     AND d.confidence >= p.detection_threshold
                     AND d.category IN ('person', 'vehicle')
-                    AND (CAST(:species AS text) IS NULL OR LOWER(d.category) = LOWER(CAST(:species AS text)))
+                    AND (CAST(:species_list AS text[]) IS NULL OR LOWER(d.category) = ANY(CAST(:species_list AS text[])))
                     AND (CAST(:start_date AS date) IS NULL OR i.captured_at::date >= CAST(:start_date AS date))
                     AND (CAST(:end_date AS date) IS NULL OR i.captured_at::date <= CAST(:end_date AS date))
                 ) as detection_count
@@ -734,7 +746,7 @@ async def get_detection_rate_map(
     result = await db.execute(
         text(query_sql),
         {
-            "species": species,
+            "species_list": species_list,
             "start_date": start_date,
             "end_date": end_date,
             "project_ids": accessible_project_ids,
@@ -752,7 +764,7 @@ async def get_detection_rate_map(
             db=db,
             project_ids=accessible_project_ids,
             interval_minutes=interval,
-            species_filter=species,
+            species_filter=species_list,
             start_date=start_dt,
             end_date=end_dt,
         )

@@ -8,7 +8,7 @@ individuals seen in any single image within that event.
 This is the standard approach in camera trap ecology (O'Brien et al. 2003),
 used by camtrapR, Camelot, eMammal, and Snapshot Safari.
 """
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -133,22 +133,31 @@ def _build_unverified_branches(
 
 
 def _build_filters(
-    species_filter: Optional[str],
+    species_filter: Optional[Union[str, List[str]]],
     start_date: Optional[datetime],
     end_date: Optional[datetime],
     site_ids: Optional[List[int]] = None,
 ) -> tuple:
-    """Build filter clauses and params for the CTE."""
+    """Build filter clauses and params for the CTE.
+
+    species_filter accepts a single name or a list. A list matches any of
+    the names, and since events are grouped per species (PARTITION BY
+    pool_id, species), the summed counts equal the sum of the per-species
+    independent events, which is how a combined abundance must behave.
+    """
     verified_parts = []
     unverified_parts = []
     pv_parts = []
     params = {}
 
     if species_filter:
-        verified_parts.append("AND LOWER(ho.species) = LOWER(:species_filter)")
-        unverified_parts.append("AND LOWER(cl.species) = LOWER(:species_filter)")
-        pv_parts.append("AND LOWER(d.category) = LOWER(:species_filter)")
-        params["species_filter"] = species_filter
+        species_list = (
+            [species_filter] if isinstance(species_filter, str) else list(species_filter)
+        )
+        verified_parts.append("AND LOWER(ho.species) = ANY(CAST(:species_filter AS text[]))")
+        unverified_parts.append("AND LOWER(cl.species) = ANY(CAST(:species_filter AS text[]))")
+        pv_parts.append("AND LOWER(d.category) = ANY(CAST(:species_filter AS text[]))")
+        params["species_filter"] = [s.lower() for s in species_list]
 
     if start_date:
         verified_parts.append("AND i.captured_at >= :start_date")
@@ -184,7 +193,7 @@ def _build_filters(
 
 
 def _build_cte(
-    species_filter: Optional[str] = None,
+    species_filter: Optional[Union[str, List[str]]] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,
@@ -439,7 +448,7 @@ async def get_independent_detection_rate_counts(
     db: AsyncSession,
     project_ids: List[int],
     interval_minutes: int,
-    species_filter: Optional[str] = None,
+    species_filter: Optional[Union[str, List[str]]] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     site_ids: Optional[List[int]] = None,

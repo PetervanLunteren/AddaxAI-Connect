@@ -34,7 +34,7 @@ const FILTER_SCHEMA: FilterSchema = {
   date_to: 'date',
   tags: 'string[]',
   site_ids: 'string[]',
-  species: 'string',
+  species: 'string[]',
   view_mode: 'string',
 };
 
@@ -53,7 +53,7 @@ export const InsightsMapPage: React.FC = () => {
   const tagValues = asStringArray(parsed.tags);
   const startDate = asString(parsed.date_from);
   const endDate = asString(parsed.date_to);
-  const species = asString(parsed.species);
+  const speciesValues = asStringArray(parsed.species);
   const viewMode = (parsed.view_mode === 'hexbins' || parsed.view_mode === 'clusters'
     ? parsed.view_mode
     : 'points') as ViewMode;
@@ -61,7 +61,7 @@ export const InsightsMapPage: React.FC = () => {
   const filterValues: Record<string, FilterValue> = {
     site_ids: siteIdValues.length > 0 ? siteIdValues : undefined,
     tags: tagValues.length > 0 ? tagValues : undefined,
-    species: species || undefined,
+    species: speciesValues.length > 0 ? speciesValues : undefined,
     date_from: startDate || undefined,
     date_to: endDate || undefined,
   };
@@ -122,12 +122,13 @@ export const InsightsMapPage: React.FC = () => {
 
   const mapFilters: DetectionRateMapFilters = useMemo(
     () => ({
-      species: species || undefined,
+      // Comma-separated; several species combine their counts on the map
+      species: speciesValues.length > 0 ? speciesValues.join(',') : undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
       site_ids: siteIdsParam,
     }),
-    [species, startDate, endDate, siteIdsParam],
+    [speciesValues, startDate, endDate, siteIdsParam],
   );
 
   const filterFields: FilterFieldDef[] = useMemo(
@@ -149,13 +150,15 @@ export const InsightsMapPage: React.FC = () => {
         summary: (n) => `${n} tags`,
       },
       {
-        kind: 'select',
+        kind: 'multi-select',
         key: 'species',
         label: 'Species',
         options: (speciesOptions ?? []).map((s) => ({
           value: String(s.value),
           label: String(s.label),
         })),
+        placeholder: 'All species',
+        summary: (n) => `${n} species`,
       },
       {
         kind: 'date-range',
