@@ -17,6 +17,7 @@ export interface ImageFilters {
   verified?: string;  // "true", "false", or undefined for all
   liked?: string;  // "true", "false", or undefined for all
   needs_review?: string;  // "true", "false", or undefined for all
+  validated_by?: string;  // Comma-separated user ids of the verifying user
   origin?: string;  // "live", "bulk", or undefined for all
   tags?: string;  // Comma-separated camera tags
   min_detection_confidence?: number;
@@ -36,6 +37,11 @@ export interface ImageFilters {
 export interface SpeciesOption {
   label: string;
   value: string;
+}
+
+export interface ValidatorOption {
+  user_id: number;
+  email: string;
 }
 
 export const imagesApi = {
@@ -64,6 +70,17 @@ export const imagesApi = {
     const params: Record<string, string> = {};
     if (projectId !== undefined) params.project_id = projectId.toString();
     const response = await apiClient.get<SpeciesOption[]>('/api/images/species', { params });
+    return response.data;
+  },
+
+  /**
+   * Get the users who verified at least one image, for the validated-by
+   * filter dropdown
+   */
+  getValidators: async (projectId?: number): Promise<ValidatorOption[]> => {
+    const params: Record<string, string> = {};
+    if (projectId !== undefined) params.project_id = projectId.toString();
+    const response = await apiClient.get<ValidatorOption[]>('/api/images/validators', { params });
     return response.data;
   },
 

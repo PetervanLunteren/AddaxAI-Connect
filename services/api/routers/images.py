@@ -317,6 +317,47 @@ async def get_species(
     return options
 
 
+class ValidatorOption(BaseModel):
+    """A user who verified at least one image, for the validated-by filter"""
+    user_id: int
+    email: str
+
+
+@router.get(
+    "/validators",
+    response_model=List[ValidatorOption],
+)
+async def get_validators(
+    project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Get the users who verified at least one image, for the validated-by
+    filter dropdown.
+
+    Open to every project member, unlike the admin-only project user list.
+    It only names people whose identity the image detail already exposes
+    through verified_by_email, so no new information leaks.
+    """
+    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    query = (
+        select(User.id, User.email)
+        .join(Image, Image.verified_by_user_id == User.id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(
+            Image.is_verified == True,
+            Image.is_hidden == False,
+            Camera.project_id.in_(accessible_project_ids),
+        )
+        .distinct()
+        .order_by(User.email)
+    )
+    result = await db.execute(query)
+    return [ValidatorOption(user_id=row.id, email=row.email) for row in result.all()]
+
+
 @router.get(
     "",
     response_model=PaginatedImagesResponse,
@@ -346,6 +387,13 @@ async def list_images(
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
+    validated_by: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated user ids. Only images whose current "
+            "verification was done by one of these users."
+        ),
+    ),
     origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment"),
@@ -502,6 +550,14 @@ async def list_images(
             filters.append(Image.needs_review == True)
         elif needs_review.lower() == "false":
             filters.append(Image.needs_review == False)
+
+    # Handle validator filter. Un-verifying keeps verified_by_user_id for
+    # audit, so is_verified must be checked too or stale rows would match.
+    if validated_by:
+        validator_ids = [int(v.strip()) for v in validated_by.split(',') if v.strip()]
+        if validator_ids:
+            filters.append(Image.is_verified == True)
+            filters.append(Image.verified_by_user_id.in_(validator_ids))
 
     # Handle source filter ('live' camera ingest vs 'bulk' SD-card upload)
     if origin in ("live", "bulk"):

@@ -30,7 +30,9 @@ IMAGES
 
 - [x] Fix the confidence score filter (both classification and detection) so that the slider operates continuously rather than jumping between fixed steps. As it stands, it is impossible to select a precise range such as 75–100%, which limits our ability to filter images meaningfully. (Sliders now step in 1% increments and the floor is rounded up to a whole percent, so exact ranges like 75-100% are always selectable. 7 Aug 2026.)
 
-- [ ] Add a filter by data validator, allowing users to retrieve all images validated by a specific person. This would make it easy for a more experienced colleague to review the work of interns or junior validators, and for species specialists to re-check identifications made by their peers.  This could be an important quality control step in collaborative workflows.
+- [x] Add a filter by data validator, allowing users to retrieve all images validated by a specific person. This would make it easy for a more experienced colleague to review the work of interns or junior validators, and for species specialists to re-check identifications made by their peers. This could be an important quality control step in collaborative workflows. (A "Validated by" multi-select in the More popover, options come from a new endpoint listing the users who verified at least one image. 7 Aug 2026.)
+
+- [ ] make the filters in the images page in this order: Labels, date range, site, site tags. Leave the More Filters button as is. 
 
 - [ ] Add a time-of-day filter so users can select images that fall within a defined hourly range. This would be useful for behavioural analysis.
 

@@ -13,8 +13,10 @@ class TestSettings:
         assert s.database_url == "postgresql://test:test@localhost:5432/test"
         assert s.redis_url == "redis://localhost:6379/0"
 
-    def test_optional_fields_default_to_none(self):
-        """Optional fields have sensible defaults."""
+    def test_optional_fields_default_to_none(self, monkeypatch):
+        """Optional fields have sensible defaults when unset. The root
+        conftest sets JWT_SECRET for router imports, so clear it here."""
+        monkeypatch.delenv("JWT_SECRET", raising=False)
         s = Settings()
         assert s.jwt_secret is None
         assert s.mail_server is None

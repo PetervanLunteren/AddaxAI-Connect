@@ -42,6 +42,7 @@ const FILTER_SCHEMA: FilterSchema = {
   verified: 'string',
   liked: 'string',
   needs_review: 'string',
+  validated_by: 'string[]',
   origin: 'string',
   min_detection_confidence: 'number',
   max_detection_confidence: 'number',
@@ -89,6 +90,7 @@ export const ImagesPage: React.FC = () => {
   const verified = asString(parsed.verified) as '' | 'true' | 'false';
   const liked = asString(parsed.liked) as '' | 'true' | 'false';
   const needsReview = asString(parsed.needs_review) as '' | 'true' | 'false';
+  const validatedByValues = asStringArray(parsed.validated_by);
   const origin = asString(parsed.origin) as '' | 'live' | 'bulk';
   const humanTop = asString(parsed.human_top);
   const aiTop = asString(parsed.ai_top);
@@ -108,6 +110,7 @@ export const ImagesPage: React.FC = () => {
       verified: verified || undefined,
       liked: liked || undefined,
       needs_review: needsReview || undefined,
+      validated_by: validatedByValues.length > 0 ? validatedByValues : undefined,
       origin: origin || undefined,
       min_detection_confidence: minDetConf || undefined,
       max_detection_confidence: maxDetConf || undefined,
@@ -116,7 +119,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, siteIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -153,6 +156,7 @@ export const ImagesPage: React.FC = () => {
         verified: verified || undefined,
         liked: liked || undefined,
         needs_review: needsReview || undefined,
+        validated_by: validatedByValues.length > 0 ? validatedByValues.join(',') : undefined,
         origin: origin || undefined,
         min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
         max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
@@ -190,6 +194,14 @@ export const ImagesPage: React.FC = () => {
   const { data: rawLabelOptions, isLoading: speciesLoading } = useQuery({
     queryKey: ['species', projectId],
     queryFn: () => imagesApi.getSpecies(projectId),
+    enabled: projectId !== undefined,
+  });
+
+  // Fetch the users who verified at least one image, for the validated-by
+  // filter dropdown
+  const { data: validators } = useQuery({
+    queryKey: ['validators', projectId],
+    queryFn: () => imagesApi.getValidators(projectId),
     enabled: projectId !== undefined,
   });
 
@@ -302,6 +314,15 @@ export const ImagesPage: React.FC = () => {
         ],
       },
       {
+        kind: 'multi-select',
+        key: 'validated_by',
+        label: 'Validated by',
+        primary: false,
+        options: (validators ?? []).map((v) => ({ label: v.email, value: String(v.user_id) })),
+        placeholder: 'Anyone',
+        summary: (n) => `${n} validators`,
+      },
+      {
         kind: 'select',
         key: 'liked',
         label: 'Liked',
@@ -367,7 +388,7 @@ export const ImagesPage: React.FC = () => {
         primary: false,
       },
     ],
-    [cameras, sites, tagOptions, speciesOptions, speciesLoading, overview, selectedProject],
+    [cameras, sites, tagOptions, speciesOptions, speciesLoading, validators, overview, selectedProject],
   );
 
   // Set species context using the full species list for consistent colors app-wide
@@ -405,6 +426,7 @@ export const ImagesPage: React.FC = () => {
       limit,
       project_id: projectId,
       camera_id: cameraIdValues.length > 0 ? cameraIdValues.join(',') : undefined,
+      site_id: siteIdValues.length > 0 ? siteIdValues.join(',') : undefined,
       tags: tagValues.length > 0 ? tagValues.join(',') : undefined,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
@@ -412,6 +434,8 @@ export const ImagesPage: React.FC = () => {
       verified: verified || undefined,
       liked: liked || undefined,
       needs_review: needsReview || undefined,
+      validated_by: validatedByValues.length > 0 ? validatedByValues.join(',') : undefined,
+      origin: origin || undefined,
       min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
       max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
       min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
