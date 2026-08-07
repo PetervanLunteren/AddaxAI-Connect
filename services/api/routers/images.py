@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc, cast, Float, text
+from sqlalchemy import select, func, and_, or_, desc, cast, extract, Float, text
 from sqlalchemy.orm import selectinload, aliased
 from pydantic import BaseModel
 import io
@@ -394,6 +394,18 @@ async def list_images(
             "verification was done by one of these users."
         ),
     ),
+    hour_from: Optional[int] = Query(
+        None, ge=0, le=23,
+        description="Time-of-day lower bound, camera clock hour (inclusive)",
+    ),
+    hour_to: Optional[int] = Query(
+        None, ge=0, le=23,
+        description=(
+            "Time-of-day upper bound, camera clock hour (exclusive). A "
+            "hour_from later than hour_to wraps past midnight, 21 to 5 "
+            "is the night."
+        ),
+    ),
     origin: Optional[str] = Query(None, description="Image source: 'live' or 'bulk'"),
     tags: Optional[str] = Query(None, description="Comma-separated site tags"),
     site_id: Optional[str] = Query(None, description="Filter to images at one or more sites (comma-separated), via their deployment"),
@@ -558,6 +570,23 @@ async def list_images(
         if validator_ids:
             filters.append(Image.is_verified == True)
             filters.append(Image.verified_by_user_id.in_(validator_ids))
+
+    # Time-of-day filter on the camera clock (captured_at is naive local,
+    # plain extract with no timezone conversion, see DEVELOPERS.md). The
+    # range is half-open clock time, from 6 to 10 means 06:00 up to 09:59.
+    # A from later than to wraps past midnight for night windows. Equal
+    # bounds cover the whole day, so no filter.
+    if hour_from is not None or hour_to is not None:
+        hour = extract('hour', Image.captured_at)
+        if hour_from is not None and hour_to is not None:
+            if hour_from < hour_to:
+                filters.append(and_(hour >= hour_from, hour < hour_to))
+            elif hour_from > hour_to:
+                filters.append(or_(hour >= hour_from, hour < hour_to))
+        elif hour_from is not None:
+            filters.append(hour >= hour_from)
+        else:
+            filters.append(hour < hour_to)
 
     # Handle source filter ('live' camera ingest vs 'bulk' SD-card upload)
     if origin in ("live", "bulk"):

@@ -43,6 +43,8 @@ const FILTER_SCHEMA: FilterSchema = {
   liked: 'string',
   needs_review: 'string',
   validated_by: 'string[]',
+  hour_from: 'string',
+  hour_to: 'string',
   origin: 'string',
   min_detection_confidence: 'number',
   max_detection_confidence: 'number',
@@ -91,6 +93,8 @@ export const ImagesPage: React.FC = () => {
   const liked = asString(parsed.liked) as '' | 'true' | 'false';
   const needsReview = asString(parsed.needs_review) as '' | 'true' | 'false';
   const validatedByValues = asStringArray(parsed.validated_by);
+  const hourFrom = asString(parsed.hour_from);
+  const hourTo = asString(parsed.hour_to);
   const origin = asString(parsed.origin) as '' | 'live' | 'bulk';
   const humanTop = asString(parsed.human_top);
   const aiTop = asString(parsed.ai_top);
@@ -111,6 +115,8 @@ export const ImagesPage: React.FC = () => {
       liked: liked || undefined,
       needs_review: needsReview || undefined,
       validated_by: validatedByValues.length > 0 ? validatedByValues : undefined,
+      hour_from: hourFrom || undefined,
+      hour_to: hourTo || undefined,
       origin: origin || undefined,
       min_detection_confidence: minDetConf || undefined,
       max_detection_confidence: maxDetConf || undefined,
@@ -119,7 +125,7 @@ export const ImagesPage: React.FC = () => {
       human_top: humanTop || undefined,
       ai_top: aiTop || undefined,
     }),
-    [cameraIdValues, siteIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteIdValues, tagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, hourFrom, hourTo, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -157,6 +163,8 @@ export const ImagesPage: React.FC = () => {
         liked: liked || undefined,
         needs_review: needsReview || undefined,
         validated_by: validatedByValues.length > 0 ? validatedByValues.join(',') : undefined,
+        hour_from: hourFrom ? Number(hourFrom) : undefined,
+        hour_to: hourTo ? Number(hourTo) : undefined,
         origin: origin || undefined,
         min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
         max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
@@ -323,6 +331,13 @@ export const ImagesPage: React.FC = () => {
         summary: (n) => `${n} validators`,
       },
       {
+        kind: 'hour-range',
+        fromKey: 'hour_from',
+        toKey: 'hour_to',
+        label: 'Time of day',
+        primary: false,
+      },
+      {
         kind: 'select',
         key: 'liked',
         label: 'Liked',
@@ -435,6 +450,8 @@ export const ImagesPage: React.FC = () => {
       liked: liked || undefined,
       needs_review: needsReview || undefined,
       validated_by: validatedByValues.length > 0 ? validatedByValues.join(',') : undefined,
+      hour_from: hourFrom ? Number(hourFrom) : undefined,
+      hour_to: hourTo ? Number(hourTo) : undefined,
       origin: origin || undefined,
       min_detection_confidence: minDetConf ? Number(minDetConf) : undefined,
       max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,

@@ -18,6 +18,8 @@ export interface ImageFilters {
   liked?: string;  // "true", "false", or undefined for all
   needs_review?: string;  // "true", "false", or undefined for all
   validated_by?: string;  // Comma-separated user ids of the verifying user
+  hour_from?: number;  // Time-of-day lower bound, camera clock hour (inclusive)
+  hour_to?: number;  // Time-of-day upper bound, exclusive; from later than to wraps past midnight
   origin?: string;  // "live", "bulk", or undefined for all
   tags?: string;  // Comma-separated camera tags
   min_detection_confidence?: number;

@@ -62,6 +62,15 @@ export type FilterFieldDef =
       primary?: boolean;
     }
   | {
+      kind: 'hour-range';
+      /** URL key for the start hour (0-23, inclusive). */
+      fromKey: string;
+      /** URL key for the end hour (0-23, exclusive). */
+      toKey: string;
+      label: string;
+      primary?: boolean;
+    }
+  | {
       kind: 'range';
       /** URL key for the lower bound. */
       minKey: string;
@@ -118,7 +127,9 @@ interface ChipDescriptor {
 }
 
 const VALUE_KEYS = (field: FilterFieldDef): string[] => {
-  if (field.kind === 'date-range') return [field.fromKey, field.toKey];
+  if (field.kind === 'date-range' || field.kind === 'hour-range') {
+    return [field.fromKey, field.toKey];
+  }
   if (field.kind === 'range') return [field.minKey, field.maxKey];
   return [field.key];
 };
@@ -288,6 +299,11 @@ const FieldControl: React.FC<{
       />
     );
   }
+  if (field.kind === 'hour-range') {
+    return (
+      <HourRangeControl field={field} values={values} onChange={onChange} />
+    );
+  }
   if (field.kind === 'range') {
     return (
       <RangeControl field={field} values={values} onChange={onChange} />
@@ -308,6 +324,44 @@ const FieldControl: React.FC<{
     />
   );
 };
+
+const formatHour = (h: number): string => `${String(h).padStart(2, '0')}:00`;
+
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => ({
+  value: String(h),
+  label: formatHour(h),
+}));
+
+/**
+ * Two hour selects (from, to). Selects instead of a slider because the
+ * range must wrap past midnight, 21:00 to 05:00 is the night window and
+ * a slider's thumbs cannot cross.
+ */
+const HourRangeControl: React.FC<{
+  field: Extract<FilterFieldDef, { kind: 'hour-range' }>;
+  values: Record<string, FilterValue>;
+  onChange: (patch: Record<string, FilterValue>) => void;
+}> = ({ field, values, onChange }) => (
+  <div className="flex items-center gap-2">
+    <div className="flex-1">
+      <NativeSelect
+        value={asString(values[field.fromKey])}
+        onChange={(v) => onChange({ [field.fromKey]: v === '' ? undefined : v })}
+        placeholder="Any"
+        options={HOUR_OPTIONS}
+      />
+    </div>
+    <span className="text-xs text-muted-foreground shrink-0">to</span>
+    <div className="flex-1">
+      <NativeSelect
+        value={asString(values[field.toKey])}
+        onChange={(v) => onChange({ [field.toKey]: v === '' ? undefined : v })}
+        placeholder="Any"
+        options={HOUR_OPTIONS}
+      />
+    </div>
+  </div>
+);
 
 const RangeControl: React.FC<{
   field: Extract<FilterFieldDef, { kind: 'range' }>;
@@ -449,7 +503,7 @@ const DisplayPopover: React.FC<{
 };
 
 const fieldKey = (field: FilterFieldDef): string => {
-  if (field.kind === 'date-range') return field.fromKey;
+  if (field.kind === 'date-range' || field.kind === 'hour-range') return field.fromKey;
   if (field.kind === 'range') return field.minKey;
   return field.key;
 };
@@ -512,6 +566,22 @@ function buildChips(
           onRemove: () => onChange({ [field.toKey]: undefined }),
         });
       }
+    } else if (field.kind === 'hour-range') {
+      const from = asString(values[field.fromKey]);
+      const to = asString(values[field.toKey]);
+      if (!from && !to) continue;
+      const label =
+        from && to
+          ? `${formatHour(Number(from))} - ${formatHour(Number(to))}`
+          : from
+            ? `From ${formatHour(Number(from))}`
+            : `Until ${formatHour(Number(to))}`;
+      chips.push({
+        key: `${field.fromKey}:${field.toKey}`,
+        label,
+        onRemove: () =>
+          onChange({ [field.fromKey]: undefined, [field.toKey]: undefined }),
+      });
     } else if (field.kind === 'search') {
       const value = asString(values[field.key]);
       if (!value) continue;

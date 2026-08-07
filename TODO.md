@@ -34,7 +34,7 @@ IMAGES
 
 - [x] make the filters in the images page in this order: Labels, date range, site, site tags. Leave the More Filters button as is. (Done 7 Aug 2026.)
 
-- [ ] Add a time-of-day filter so users can select images that fall within a defined hourly range. This would be useful for behavioural analysis.
+- [x] Add a time-of-day filter so users can select images that fall within a defined hourly range. This would be useful for behavioural analysis. (Two hour dropdowns in the More popover. A start later than the end wraps past midnight, so night windows like 21:00 to 05:00 work. 7 Aug 2026.)
 
 - [ ] Allow users and/or projects to define custom keyboard shortcuts for encoding observations. For example, assigning "w" key to Wild boar and using arrow keys to adjust the individual count. Even a few seconds saved per image translates into significant time savings when working with validation.
 
