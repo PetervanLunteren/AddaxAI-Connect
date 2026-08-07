@@ -556,7 +556,10 @@ export const ProjectSettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 mt-4">
+          {/* Divider */}
+          <div className="border-t my-6" />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
             <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
                 Blur vehicles
