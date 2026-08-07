@@ -184,10 +184,15 @@ export const ActivityOverlapPage: React.FC = () => {
 
   const speciesOptions = useMemo(
     () =>
-      (allSpeciesList ?? []).map((s) => ({
-        value: String(s.value),
-        label: normalizeLabel(String(s.value)),
-      })),
+      // Empty is an image-level pseudo-label (no detections), an overlap
+      // against it is meaningless. Person stays, human-wildlife overlap is
+      // a legitimate question.
+      (allSpeciesList ?? [])
+        .filter((s) => String(s.value) !== 'empty')
+        .map((s) => ({
+          value: String(s.value),
+          label: normalizeLabel(String(s.value)),
+        })),
     [allSpeciesList],
   );
 

@@ -475,7 +475,9 @@ export const ManageImagesPage: React.FC = () => {
     {
       kind: 'select',
       key: 'species',
-      label: 'Species',
+      // "Labels", not "Species": the list includes Empty, Person, and
+      // Vehicle, same as the images page
+      label: 'Labels',
       options: (speciesOptions ?? []).map((s) => ({
         value: String(s.value),
         label: String(s.label),

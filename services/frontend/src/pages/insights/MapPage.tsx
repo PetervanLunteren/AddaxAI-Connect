@@ -137,10 +137,15 @@ export const InsightsMapPage: React.FC = () => {
         kind: 'multi-select',
         key: 'species',
         label: 'Species',
-        options: (speciesOptions ?? []).map((s) => ({
-          value: String(s.value),
-          label: String(s.label),
-        })),
+        // Person and vehicle stay, their distribution is useful on a map.
+        // Empty is an image-level pseudo-label (no detections), so it can
+        // never produce a count here and is dropped from the options.
+        options: (speciesOptions ?? [])
+          .filter((s) => String(s.value) !== 'empty')
+          .map((s) => ({
+            value: String(s.value),
+            label: String(s.label),
+          })),
         placeholder: 'All species',
         summary: (n) => `${n} species`,
       },
