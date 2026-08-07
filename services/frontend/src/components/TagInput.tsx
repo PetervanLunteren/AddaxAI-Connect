@@ -27,6 +27,9 @@ export const TagInput: React.FC<TagInputProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // Highlighted suggestion, standard combobox behaviour: the first match is
+  // preselected, arrows move through the list, Enter picks the highlight
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +52,11 @@ export const TagInput: React.FC<TagInputProps> = ({
     );
   }, [inputValue, suggestions, value]);
 
+  // Back to the first match whenever the list changes
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [filteredSuggestions]);
+
   const addTag = (tag: string) => {
     const normalized = tag.trim().toLowerCase().replace(/,/g, '');
     if (!normalized || normalized.length > MAX_TAG_LENGTH) return;
@@ -63,12 +71,25 @@ export const TagInput: React.FC<TagInputProps> = ({
     onChange(value.filter((t) => t !== tag));
   };
 
+  const suggestionsOpen = showSuggestions && filteredSuggestions.length > 0;
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (inputValue.trim()) {
+      // Enter picks the highlighted suggestion when the list is open,
+      // else adds the typed text as a new tag. Escape first to type a
+      // tag that is a prefix of an existing one.
+      if (suggestionsOpen) {
+        addTag(filteredSuggestions[activeIndex]);
+      } else if (inputValue.trim()) {
         addTag(inputValue);
       }
+    } else if (e.key === 'ArrowDown' && suggestionsOpen) {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % filteredSuggestions.length);
+    } else if (e.key === 'ArrowUp' && suggestionsOpen) {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + filteredSuggestions.length) % filteredSuggestions.length);
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
       removeTag(value[value.length - 1]);
     } else if (e.key === 'Escape') {
@@ -123,14 +144,17 @@ export const TagInput: React.FC<TagInputProps> = ({
       </div>
 
       {/* Autocomplete suggestions */}
-      {showSuggestions && filteredSuggestions.length > 0 && (
+      {suggestionsOpen && (
         <div className="absolute left-0 right-0 mt-1 border rounded-md bg-background shadow-lg z-50 max-h-40 overflow-y-auto">
-          {filteredSuggestions.map((suggestion) => (
+          {filteredSuggestions.map((suggestion, index) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => addTag(suggestion)}
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent"
+              onMouseEnter={() => setActiveIndex(index)}
+              className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent ${
+                index === activeIndex ? 'bg-accent' : ''
+              }`}
             >
               {suggestion}
             </button>
