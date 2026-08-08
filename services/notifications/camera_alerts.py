@@ -14,16 +14,15 @@ alerted for. Only cameras newly entering the offending state trigger a
 message; recovered cameras are silently removed from the state, which
 re-arms the rule for them. No recovery notifications.
 
-Silence semantics: "silent" means nothing heard at all, the newer of the
-last health report and the last image. This covers camera models that
-never send health reports (they still send images). Cameras that have
-never produced either are excluded, a freshly registered camera should
-not alarm on day one. Battery and SD rules can only fire for cameras
-that send health reports.
-
-Timestamps: `reported_at` and `captured_at` are naive camera-clock values
-interpreted under the server timezone, so comparisons use the naive
-server-local now (see DEVELOPERS.md, timestamp conventions).
+Silence semantics: "silent" means the server has not heard from the
+camera, measured by server receive times (health report arrival and live
+image ingestion), never by the camera clock, so a camera with a wrong
+clock cannot dodge or trigger the rule. Bulk-uploaded images do not
+count, a human carrying an SD card in is not the camera transmitting.
+This covers camera models that never send health reports (they still
+send images). Cameras the server has never heard from at all are
+excluded, a freshly registered camera should not alarm on day one.
+Battery and SD rules can only fire for cameras that send health reports.
 """
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -63,7 +62,7 @@ class CamState:
     device_id: Optional[str]
     battery_percent: Optional[int]
     sd_utilization_percent: Optional[float]
-    last_seen: Optional[datetime]  # naive camera-clock, newer of report/image
+    last_seen: Optional[datetime]  # aware UTC server receive time, newer of report arrival and live image ingestion
 
 
 def battery_offending(battery: Optional[int], threshold: int) -> bool:
@@ -75,10 +74,10 @@ def sd_offending(sd: Optional[float], threshold: int) -> bool:
 
 
 def silent_offending(
-    last_seen: Optional[datetime], days: int, naive_now: datetime
+    last_seen: Optional[datetime], days: int, now: datetime
 ) -> bool:
     # Cameras never heard from at all are excluded, see module docstring
-    return last_seen is not None and (naive_now - last_seen) > timedelta(days=days)
+    return last_seen is not None and (now - last_seen) > timedelta(days=days)
 
 
 def split_incidents(
@@ -90,11 +89,23 @@ def split_incidents(
     return sorted(off - prev), sorted(off & prev), sorted(prev - off)
 
 
+def next_notified_state(
+    new: List[int], ongoing: List[int], delivered: bool
+) -> List[int]:
+    """The notified_camera_ids to store after a run. New offenders only
+    count as notified when a message was actually queued on at least one
+    channel, otherwise they stay unmarked and retry the next day (a
+    telegram-only rule without a linked chat must not swallow alerts).
+    Recovered cameras are dropped by construction, they are in neither
+    input."""
+    return sorted(set(ongoing) | set(new)) if delivered else sorted(ongoing)
+
+
 def rule_label(rule_type: str, threshold: int) -> str:
     if rule_type == "battery_low":
-        return f"battery below {threshold}%"
+        return f"with battery below {threshold}%"
     if rule_type == "sd_full":
-        return f"SD card above {threshold}% full"
+        return f"with the SD card above {threshold}% full"
     if rule_type == "camera_silent":
         return f"silent for more than {threshold} day{'s' if threshold != 1 else ''}"
     raise ValueError(f"Unknown rule type {rule_type}")
@@ -106,14 +117,14 @@ def value_label(rule_type: str, state: CamState) -> str:
     if rule_type == "sd_full":
         return f"{round(state.sd_utilization_percent)}% full"
     if rule_type == "camera_silent":
-        return f"last seen {state.last_seen.strftime('%b %d')}"
+        return f"last seen {state.last_seen.strftime('%b %d, %Y')}"
     raise ValueError(f"Unknown rule type {rule_type}")
 
 
 def offending_cameras(
     rule: CameraAlertRule,
     states: Dict[int, CamState],
-    naive_now: datetime,
+    now: datetime,
 ) -> List[int]:
     """Camera ids currently violating the rule, within the rule's scope.
 
@@ -132,7 +143,7 @@ def offending_cameras(
             result.append(camera_id)
         elif rule.rule_type == "sd_full" and sd_offending(state.sd_utilization_percent, rule.threshold):
             result.append(camera_id)
-        elif rule.rule_type == "camera_silent" and silent_offending(state.last_seen, rule.threshold, naive_now):
+        elif rule.rule_type == "camera_silent" and silent_offending(state.last_seen, rule.threshold, now):
             result.append(camera_id)
     return sorted(result)
 
@@ -143,8 +154,11 @@ def send_camera_condition_alerts() -> None:
     logger.info("Starting camera condition alert check")
 
     with get_sync_session() as db:
+        # Silence is measured with server receive times (aware UTC); the
+        # server timezone is only needed for the human-readable run date
         tz = get_server_timezone(db)
-        naive_now = datetime.now(tz).replace(tzinfo=None)
+        now_utc = datetime.now(timezone.utc)
+        run_date = datetime.now(tz).date()
 
         rows = list(db.execute(
             select(CameraAlertRule, User, Project)
@@ -188,24 +202,38 @@ def send_camera_condition_alerts() -> None:
                     state_cache[project.id] = _load_camera_states(db, project.id)
                 states = state_cache[project.id]
 
-                offending = offending_cameras(rule, states, naive_now)
+                offending = offending_cameras(rule, states, now_utc)
                 new, ongoing, recovered = split_incidents(
                     offending, rule.notified_camera_ids
                 )
 
+                delivered = False
                 if new:
-                    _notify(
+                    delivered = _notify(
                         email_queue, telegram_queue, db,
-                        rule, user, project, states, new, naive_now,
+                        rule, user, project, states, new, run_date,
                     )
-                    fired += 1
+                    if delivered:
+                        fired += 1
+                    else:
+                        # Nothing could be queued (for example a
+                        # telegram-only rule without a linked chat). The
+                        # new offenders stay unmarked so tomorrow retries
+                        # instead of silently swallowing the alert.
+                        logger.warning(
+                            "Alert rule fired but no channel delivered",
+                            rule_id=rule.id,
+                            new_camera_ids=new,
+                        )
+                        quiet += 1
                 else:
                     quiet += 1
 
-                if sorted(offending) != sorted(rule.notified_camera_ids or []):
-                    # Records new incidents and silently clears recovered
-                    # cameras, which re-arms the rule for them
-                    rule.notified_camera_ids = sorted(offending)
+                next_state = next_notified_state(new, ongoing, delivered)
+                if next_state != sorted(rule.notified_camera_ids or []):
+                    # Records delivered incidents and silently clears
+                    # recovered cameras, which re-arms the rule for them
+                    rule.notified_camera_ids = next_state
 
             except Exception as exc:
                 logger.error(
@@ -247,8 +275,8 @@ def _load_camera_states(db, project_id: int) -> Dict[int, CamState]:
     if not cameras:
         return cameras
 
-    # Latest health report per camera. The per-day unique index guarantees
-    # the max-join-back returns one row per camera.
+    # Latest health report values per camera (battery, SD). The per-day
+    # unique index guarantees the max-join-back returns one row per camera.
     latest = (
         select(
             CameraHealthReport.camera_id,
@@ -262,7 +290,6 @@ def _load_camera_states(db, project_id: int) -> Dict[int, CamState]:
     for row in db.execute(
         select(
             CameraHealthReport.camera_id,
-            CameraHealthReport.reported_at,
             CameraHealthReport.battery_percent,
             CameraHealthReport.sd_utilization_percent,
         ).join(
@@ -276,18 +303,31 @@ def _load_camera_states(db, project_id: int) -> Dict[int, CamState]:
         state = cameras[row.camera_id]
         state.battery_percent = row.battery_percent
         state.sd_utilization_percent = row.sd_utilization_percent
-        state.last_seen = row.reported_at
 
-    # Last image per camera, covers cameras that never send health reports
+    # last_seen uses server receive times, never the camera clock: the
+    # arrival of the latest health report, and the ingestion of the
+    # latest live image (bulk uploads excluded, a carried-in SD card is
+    # not the camera transmitting)
     for row in db.execute(
-        select(Image.camera_id, func.max(Image.captured_at).label("last_captured_at"))
-        .join(Camera, Image.camera_id == Camera.id)
+        select(
+            CameraHealthReport.camera_id,
+            func.max(CameraHealthReport.created_at).label("last_report_arrival"),
+        )
+        .join(Camera, CameraHealthReport.camera_id == Camera.id)
         .where(Camera.project_id == project_id)
+        .group_by(CameraHealthReport.camera_id)
+    ).all():
+        cameras[row.camera_id].last_seen = row.last_report_arrival
+
+    for row in db.execute(
+        select(Image.camera_id, func.max(Image.ingested_at).label("last_ingested_at"))
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(Camera.project_id == project_id, Image.origin == 'live')
         .group_by(Image.camera_id)
     ).all():
         state = cameras[row.camera_id]
-        if state.last_seen is None or row.last_captured_at > state.last_seen:
-            state.last_seen = row.last_captured_at
+        if state.last_seen is None or row.last_ingested_at > state.last_seen:
+            state.last_seen = row.last_ingested_at
 
     return cameras
 
@@ -316,9 +356,10 @@ def _notify(
     project: Project,
     states: Dict[int, CamState],
     new_camera_ids: List[int],
-    naive_now: datetime,
-) -> None:
-    """Send one message per configured channel listing the new offenders."""
+    run_date,
+) -> bool:
+    """Send one message per configured channel listing the new offenders.
+    Returns True when at least one channel actually queued a message."""
     domain = settings.domain_name or "localhost:3000"
     cameras_url = f"https://{domain}/projects/{project.id}/cameras"
     settings_url = f"https://{domain}/projects/{project.id}/notifications"
@@ -334,7 +375,7 @@ def _notify(
         "project_id": project.id,
         "project_name": project.name,
         "camera_ids": new_camera_ids,
-        "run_date": naive_now.date().isoformat(),
+        "run_date": run_date.isoformat(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -345,7 +386,7 @@ def _notify(
         f"{project.name} - camera alert",
         "=" * 50,
         "",
-        f"{count} camera{'s' if count != 1 else ''} now {label}.",
+        f"{count} camera{'s' if count != 1 else ''} {label}.",
         "",
     ]
     for cam in cameras:
@@ -360,6 +401,8 @@ def _notify(
     ]
     text_content = "\n".join(text_lines)
 
+    queued = 0
+
     if "email" in rule.channels:
         if not user.email:
             logger.warning("Skipping email channel; user has no email", rule_id=rule.id)
@@ -368,7 +411,7 @@ def _notify(
                 "camera_alert.html",
                 project_name=project.name,
                 rule_label=label,
-                date_label=naive_now.strftime("%B %d, %Y"),
+                date_label=run_date.strftime("%B %d, %Y"),
                 camera_count=count,
                 cameras=cameras,
                 cameras_url=cameras_url,
@@ -388,6 +431,7 @@ def _notify(
                 "body_text": text_content,
                 "body_html": html_content,
             })
+            queued += 1
             logger.info("Queued alert email", rule_id=rule.id, log_id=log_id)
 
     if "telegram" in rule.channels:
@@ -407,7 +451,7 @@ def _notify(
         else:
             message_lines = [
                 f"*{project.name}*",
-                f"{count} camera{'s' if count != 1 else ''} now {label}",
+                f"{count} camera{'s' if count != 1 else ''} {label}",
                 "",
             ]
             for cam in cameras:
@@ -430,4 +474,7 @@ def _notify(
                     "inline_keyboard": [[{"text": "View cameras", "url": cameras_url}]]
                 },
             })
+            queued += 1
             logger.info("Queued alert telegram", rule_id=rule.id, log_id=log_id)
+
+    return queued > 0

@@ -4,13 +4,15 @@ Core Notifications Service
 Listens to notification events from classification/ingestion workers,
 evaluates rules, and routes to appropriate channel queues.
 
-Also runs scheduled jobs:
-- Daily battery digest at 12:00 UTC
+Also runs scheduled jobs (15-minute spacing convention):
+- Infra alert check daily at 03:00 UTC
 - Email reports: daily at 06:00 UTC, weekly on Monday, monthly on 1st
-- Excessive image alerts at 06:30 UTC
-- Project inactivity alerts at 06:00 UTC
+- Project inactivity alerts daily at 06:00 UTC
 - SIM expiry alerts on the 1st at 06:15 UTC
+- Excessive image alerts daily at 06:30 UTC
 - Scheduled project reminders daily at 06:45 UTC
+- Camera condition alert rules daily at 07:00 UTC
+- Disk usage alert check hourly
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler

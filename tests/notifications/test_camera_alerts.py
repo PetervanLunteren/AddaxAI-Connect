@@ -7,12 +7,13 @@ from camera_alerts import (
     sd_offending,
     silent_offending,
     split_incidents,
+    next_notified_state,
     rule_label,
     value_label,
 )
 
 
-NOW = datetime(2026, 8, 7, 12, 0, 0)  # naive, like the job's naive_now
+NOW = datetime(2026, 8, 7, 12, 0, 0)  # the math is tz-agnostic, the job passes aware UTC
 
 
 class TestBatteryOffending:
@@ -83,8 +84,9 @@ class TestSplitIncidents:
 
 class TestLabels:
     def test_rule_labels(self):
-        assert rule_label("battery_low", 20) == "battery below 20%"
-        assert rule_label("sd_full", 90) == "SD card above 90% full"
+        # Phrased to read as "N cameras <label>"
+        assert rule_label("battery_low", 20) == "with battery below 20%"
+        assert rule_label("sd_full", 90) == "with the SD card above 90% full"
         assert rule_label("camera_silent", 10) == "silent for more than 10 days"
         assert rule_label("camera_silent", 1) == "silent for more than 1 day"
 
@@ -98,16 +100,32 @@ class TestLabels:
         silent = CamState(device_id="a", battery_percent=None,
                           sd_utilization_percent=None,
                           last_seen=datetime(2026, 5, 3, 8, 0))
-        assert value_label("camera_silent", silent) == "last seen May 03"
+        assert value_label("camera_silent", silent) == "last seen May 03, 2026"
 
 
 class TestLastSeenSemantics:
     def test_newer_of_report_and_image_wins(self):
-        """The state loader takes max(report, image). Mirror the comparison
-        here so the semantics are pinned: a camera whose last image is newer
-        than its last report counts as seen at the image time."""
-        report_time = NOW - timedelta(days=20)
-        image_time = NOW - timedelta(days=2)
-        last_seen = max(report_time, image_time)
+        """The state loader takes the newer of the last report arrival and
+        the last live image ingestion, both server receive times. A camera
+        whose last live image arrived recently counts as seen then, even if
+        its reports stopped long ago."""
+        report_arrival = NOW - timedelta(days=20)
+        image_ingested = NOW - timedelta(days=2)
+        last_seen = max(report_arrival, image_ingested)
         assert silent_offending(last_seen, 10, NOW) is False
-        assert silent_offending(report_time, 10, NOW) is True
+        assert silent_offending(report_arrival, 10, NOW) is True
+
+
+class TestNextNotifiedState:
+    def test_delivered_marks_new_and_keeps_ongoing(self):
+        assert next_notified_state([3], [1, 2], True) == [1, 2, 3]
+
+    def test_not_delivered_leaves_new_unmarked(self):
+        # A telegram-only rule without a linked chat queues nothing, the
+        # new offenders must stay unmarked so the next run retries
+        assert next_notified_state([3], [1, 2], False) == [1, 2]
+
+    def test_recovered_cameras_are_gone_either_way(self):
+        # Recovered ids are in neither input, so they drop out
+        assert next_notified_state([], [1], True) == [1]
+        assert next_notified_state([], [], False) == []

@@ -279,10 +279,15 @@ async def update_alert_rule(
     if next_camera_ids is not None and next_camera_ids != rule.camera_ids:
         await _check_cameras_in_project(db, project_id, next_camera_ids)
 
+    # Order-insensitive camera comparison, reordering the same set is
+    # not a condition change and must not reset the incident state
+    def _normalized(ids):
+        return sorted(ids) if ids else None
+
     condition_changed = (
         next_type != rule.rule_type
         or next_threshold != rule.threshold
-        or next_camera_ids != rule.camera_ids
+        or _normalized(next_camera_ids) != _normalized(rule.camera_ids)
     )
 
     rule.rule_type = next_type

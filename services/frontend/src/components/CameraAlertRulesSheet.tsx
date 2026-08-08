@@ -140,7 +140,8 @@ export const CameraAlertRulesSheet: React.FC<CameraAlertRulesSheetProps> = ({
               once a day, alert once per incident, and re-arm when the camera
               recovers. Only you receive your alerts. Battery and SD rules
               need cameras that send daily health reports; the silent rule
-              counts any sign of life, reports or images.
+              counts any sign of life reaching the server, reports or live
+              images.
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
@@ -284,10 +285,17 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
 
   const isSilent = ruleType === 'camera_silent';
   const thresholdNumber = Number(threshold);
-  const thresholdValid = isSilent
-    ? thresholdNumber >= 1 && thresholdNumber <= 365
-    : thresholdNumber >= 1 && thresholdNumber <= 99;
-  const canConfirm = thresholdValid && channels.length > 0;
+  // Whole numbers only, the API stores an integer and would reject 20.5
+  const thresholdValid =
+    Number.isInteger(thresholdNumber) &&
+    (isSilent
+      ? thresholdNumber >= 1 && thresholdNumber <= 365
+      : thresholdNumber >= 1 && thresholdNumber <= 99);
+  // A telegram-only rule without a linked account could never deliver,
+  // the evaluator would skip the channel and the alert would be lost
+  const telegramOnlyUnlinked =
+    channels.length === 1 && channels[0] === 'telegram' && !telegramLinked;
+  const canConfirm = thresholdValid && channels.length > 0 && !telegramOnlyUnlinked;
 
   const toggleChannel = (channel: string) => {
     setChannels((prev) =>
@@ -330,6 +338,7 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
                 value={threshold}
                 min={1}
                 max={isSilent ? 365 : 99}
+                step={1}
                 onChange={(e) => setThreshold(e.target.value)}
                 className="w-20 px-3 py-2 border rounded-md text-sm"
               />
@@ -371,9 +380,10 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
               </label>
             </div>
             {channels.includes('telegram') && !telegramLinked && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Telegram alerts need a linked Telegram account, see the
-                detection alerts section.
+              <p className={`text-xs mt-1 ${telegramOnlyUnlinked ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {telegramOnlyUnlinked
+                  ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram in the detection alerts section, or add email.'
+                  : 'Telegram alerts need a linked Telegram account, see the detection alerts section.'}
               </p>
             )}
           </div>
