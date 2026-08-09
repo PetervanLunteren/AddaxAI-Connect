@@ -11,12 +11,14 @@ import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import { useToast } from '../components/ui/Toaster';
-import { MultiSelect, Option } from '../components/ui/MultiSelect';
+import { Option } from '../components/ui/MultiSelect';
 import { notificationsApi } from '../api/notifications';
 import { remindersApi } from '../api/reminders';
 import { RemindersSheet } from '../components/RemindersSheet';
 import { CameraAlertRulesSheet } from '../components/CameraAlertRulesSheet';
 import { cameraAlertRulesApi } from '../api/cameraAlertRules';
+import { DetectionAlertRulesSheet } from '../components/DetectionAlertRulesSheet';
+import { detectionAlertRulesApi } from '../api/detectionAlertRules';
 import { adminApi } from '../api/admin';
 import { sitesApi } from '../api/sites';
 import { speciesApi } from '../api/species';
@@ -32,14 +34,6 @@ export const NotificationsPage: React.FC = () => {
   const projectIdNum = parseInt(projectId || '0', 10);
   const { user } = useAuth();
   const { selectedProject, canAdminCurrentProject } = useProject();
-
-  // Telegram species state
-  const [telegramNotifySpecies, setTelegramNotifySpecies] = useState<Option[]>([]);
-
-  // Telegram per-site scope. Empty selection = all sites (saved as null
-  // in notification_channels.species_detection.notify_sites). A non-empty
-  // selection limits alerts to those site ids.
-  const [telegramNotifySites, setTelegramNotifySites] = useState<Option[]>([]);
 
   // Telegram linking state
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -62,6 +56,7 @@ export const NotificationsPage: React.FC = () => {
   // count for the row-level summary below.
   const [showRemindersSheet, setShowRemindersSheet] = useState(false);
   const [showAlertRulesSheet, setShowAlertRulesSheet] = useState(false);
+  const [showDetectionRulesSheet, setShowDetectionRulesSheet] = useState(false);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -118,39 +113,13 @@ export const NotificationsPage: React.FC = () => {
     [availableSpecies]
   );
 
-  // Update form when preferences load
+  // Update form when preferences load. Real-time detection alerts live in
+  // their own rules (the slideout), not in this blob anymore.
   useEffect(() => {
     if (preferences) {
       const notificationChannels = (preferences as any).notification_channels;
 
       if (notificationChannels) {
-        const speciesConfig = notificationChannels.species_detection || {};
-
-        // Convert species to options, filtering out species no longer in the project
-        const telegramSpeciesValues = (speciesConfig.notify_species || [])
-          .filter((species: string) => availableSpecies.includes(species));
-        setTelegramNotifySpecies(telegramSpeciesValues.map((species: string) => ({
-          label: normalizeLabel(species),
-          value: species
-        })));
-
-        // Per-site scope. Sites now behave like notify_species: the list
-        // is required, an empty list means no alerts. Rows that pre-date this
-        // feature (notify_sites missing or null) are read as 'every site
-        // in the project' and the picker pre-fills with all options, so the
-        // user can see the current scope and save explicitly.
-        const siteOptionById = new Map(siteOptions.map((opt) => [opt.value as number, opt]));
-        const storedNotifySites = speciesConfig.notify_sites;
-        if (Array.isArray(storedNotifySites)) {
-          setTelegramNotifySites(
-            storedNotifySites
-              .map((cid: number) => siteOptionById.get(cid))
-              .filter((opt): opt is Option => Boolean(opt))
-          );
-        } else {
-          setTelegramNotifySites(siteOptions);
-        }
-
         // Email reports configuration
         const emailReportConfig = notificationChannels.email_report || {};
         setReportFrequency(emailReportConfig.enabled ? (emailReportConfig.frequency || 'weekly') : 'disabled');
@@ -166,19 +135,9 @@ export const NotificationsPage: React.FC = () => {
         // SIM expiry alert configuration
         const simExpiryConfig = notificationChannels.sim_expiry || {};
         setSimExpiryEnabled(simExpiryConfig.enabled || false);
-
-      } else {
-        // Fall back to legacy fields if notification_channels doesn't exist
-        const speciesOpts = (preferences.notify_species || [])
-          .filter(species => availableSpecies.includes(species))
-          .map(species => ({
-            label: normalizeLabel(species),
-            value: species
-          }));
-        setTelegramNotifySpecies(speciesOpts);
       }
     }
-  }, [preferences, availableSpecies, siteOptions]);
+  }, [preferences]);
 
   // Update preferences mutation
   const updateMutation = useMutation({
@@ -201,7 +160,6 @@ export const NotificationsPage: React.FC = () => {
   });
 
   const isTelegramLinked = linkStatus?.linked ?? false;
-  const isTelegramUsable = isTelegramConfigured && isTelegramLinked;
 
   // Generate Telegram link token mutation
   const generateTokenMutation = useMutation({
@@ -239,32 +197,29 @@ export const NotificationsPage: React.FC = () => {
   });
   const activeAlertRuleCount = (alertRules || []).filter((r) => r.is_active).length;
 
+  // And for the detection alert rules row
+  const { data: detectionRules } = useQuery({
+    queryKey: ['detection-alert-rules', projectIdNum],
+    queryFn: () => detectionAlertRulesApi.list(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0,
+  });
+  const activeDetectionRuleCount = (detectionRules || []).filter((r) => r.is_active).length;
+
+  // Default cooldown for new detection rules. The independence interval
+  // expresses how far apart two sightings must be to count as separate
+  // events, so it is the natural burst control; 30 minutes when disabled.
+  const defaultCooldownMinutes =
+    selectedProject && selectedProject.independence_interval_minutes > 0
+      ? selectedProject.independence_interval_minutes
+      : 30;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Build notification_channels JSON structure
-    const channels: string[] = [];
-    if (isTelegramLinked) channels.push('telegram');
-
-    // Use Telegram settings for legacy fields
-    const legacySpeciesValues = isTelegramLinked ? telegramNotifySpecies.map(opt => opt.value) : [];
-
-    // Site scope mirrors species: an explicit list of ids that must
-    // contain the event's site. An empty list means no alerts.
-    const siteScope: number[] = isTelegramLinked
-      ? telegramNotifySites.map(opt => Number(opt.value))
-      : [];
-
-    // Build notification_channels JSON with per-channel configuration
+    // Build notification_channels JSON with per-type configuration.
+    // Real-time detection alerts are rules-as-rows now and no longer
+    // written here; the retired species_detection key is left alone.
     const notificationChannels = {
-      species_detection: {
-        enabled: isTelegramLinked,
-        channels: channels,
-        notify_species: isTelegramLinked
-          ? telegramNotifySpecies.map(opt => opt.value)
-          : [],
-        notify_sites: siteScope,
-      },
       email_report: {
         enabled: reportFrequency !== 'disabled',
         frequency: reportFrequency !== 'disabled' ? reportFrequency : 'weekly'
@@ -282,14 +237,6 @@ export const NotificationsPage: React.FC = () => {
     };
 
     updateMutation.mutate({
-      // Legacy fields (for backward compatibility)
-      enabled: isTelegramLinked,
-      telegram_chat_id: isTelegramLinked ? (linkStatus?.chat_id || null) : null,
-      notify_species: legacySpeciesValues,
-      notify_low_battery: false,
-      battery_threshold: 30,
-      notify_system_health: false,
-      // New multi-channel configuration
       notification_channels: notificationChannels,
     });
   };
@@ -308,85 +255,90 @@ export const NotificationsPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
 
-              {/* Real-time detection alerts row. Species and site scope sit in
-                  one column on the right so they read as one notification type,
-                  not two. When Telegram is not yet linked the pickers are greyed
-                  via opacity-50 and the call-to-action sits under them. */}
-              <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8 ${!isTelegramUsable ? 'opacity-50 pointer-events-none' : ''}`}>
+              {/* Telegram account row. The link CTA lives here so both the
+                  detection and camera alert rules can point at one place. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
                 <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Real-time detection alerts</label>
+                  <label className="text-sm font-medium block">Telegram account</label>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isTelegramLinked
-                      ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. Both lists must contain at least one entry, otherwise no alerts fire.'
+                      ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
                       : isTelegramConfigured
-                        ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. Link your Telegram account to get started.'
+                        ? 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'
                         : user?.is_superuser
-                          ? 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. A Telegram bot has not been configured yet.'
-                          : 'Receive an instant Telegram message with a photo each time a selected label is detected at a selected site. A Telegram bot has not been configured for this server yet.'
+                          ? 'A Telegram bot has not been set up for this server yet.'
+                          : 'A Telegram bot has not been set up for this server yet. Ask your administrator.'
                     }
                   </p>
                 </div>
-                <div className="w-full sm:flex-1 flex flex-col gap-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-                    <div className="w-full sm:flex-1 min-w-0">
-                      <MultiSelect
-                        options={speciesOptions}
-                        value={telegramNotifySpecies}
-                        onChange={setTelegramNotifySpecies}
-                        placeholder="Select labels"
-                        selectedNoun="labels"
-                      />
-                    </div>
-                    <div className="w-full sm:flex-1 min-w-0">
-                      <MultiSelect
-                        options={siteOptions}
-                        value={telegramNotifySites}
-                        onChange={setTelegramNotifySites}
-                        placeholder="Select sites"
-                        selectedNoun="sites"
-                      />
-                    </div>
-                  </div>
-                  {!isTelegramLinked && (
-                    <div className="flex justify-end">
-                      {isTelegramConfigured ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          type="button"
-                          onClick={handleGenerateLink}
-                          disabled={generateTokenMutation.isPending}
-                          className="whitespace-nowrap pointer-events-auto"
-                        >
-                          {generateTokenMutation.isPending ? (
-                            <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
-                          ) : (
-                            'Link Telegram'
-                          )}
-                        </Button>
-                      ) : user?.is_superuser ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          type="button"
-                          onClick={() => window.location.href = '/server/settings'}
-                          className="whitespace-nowrap pointer-events-auto"
-                        >
-                          Configure
-                        </Button>
-                      ) : adminEmail ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          type="button"
-                          onClick={() => window.location.href = `mailto:${adminEmail}`}
-                          className="whitespace-nowrap pointer-events-auto"
-                        >
-                          Contact admin
-                        </Button>
-                      ) : null}
-                    </div>
-                  )}
+                <div className="flex-1">
+                  {isTelegramLinked ? (
+                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                      Linked
+                    </span>
+                  ) : isTelegramConfigured ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={handleGenerateLink}
+                      disabled={generateTokenMutation.isPending}
+                      className="whitespace-nowrap"
+                    >
+                      {generateTokenMutation.isPending ? (
+                        <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
+                      ) : (
+                        'Link Telegram'
+                      )}
+                    </Button>
+                  ) : user?.is_superuser ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => window.location.href = '/server/settings'}
+                      className="whitespace-nowrap"
+                    >
+                      Configure
+                    </Button>
+                  ) : adminEmail ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => window.location.href = `mailto:${adminEmail}`}
+                      className="whitespace-nowrap"
+                    >
+                      Contact admin
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t my-6" />
+
+              {/* Real-time detection alerts row (any member). The slideout
+                  holds the rule list plus add / edit / delete. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
+                  <label className="text-sm font-medium block">Real-time detection alerts</label>
+                  <p className="text-sm text-muted-foreground mt-1">Get an instant email or Telegram message with a photo each time a selected label is detected. Rules can be narrowed by site, time of day, or group size, and quieted with a cooldown. Only you receive your alerts.</p>
+                </div>
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDetectionRulesSheet(true)}
+                  >
+                    Manage detection rules
+                    {activeDetectionRuleCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                        {activeDetectionRuleCount}
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
 
@@ -654,6 +606,20 @@ export const NotificationsPage: React.FC = () => {
           onClose={() => setShowAlertRulesSheet(false)}
           projectId={projectIdNum}
           telegramLinked={isTelegramLinked}
+        />
+      )}
+
+      {/* Real-time detection alert rules slideout (any member). Rules are
+          private, only the creator receives the alerts. */}
+      {projectIdNum > 0 && (
+        <DetectionAlertRulesSheet
+          open={showDetectionRulesSheet}
+          onClose={() => setShowDetectionRulesSheet(false)}
+          projectId={projectIdNum}
+          telegramLinked={isTelegramLinked}
+          speciesOptions={speciesOptions}
+          siteOptions={siteOptions}
+          defaultCooldownMinutes={defaultCooldownMinutes}
         />
       )}
     </div>

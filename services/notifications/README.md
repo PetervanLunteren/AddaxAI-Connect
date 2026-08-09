@@ -1,83 +1,52 @@
 # Notifications service
 
-Core notification coordinator that evaluates rules and routes to channel-specific workers.
+Central notification coordinator. Evaluates real-time detection alert
+rules on the live event path and runs the scheduled notification jobs.
 
 ## Architecture
 
-This service acts as a central dispatcher:
-1. Listens to `QUEUE_NOTIFICATION_EVENTS` for events from classification/ingestion workers
-2. Evaluates user notification preferences (rule engine)
-3. Creates `notification_logs` entries for audit trail
-4. Routes messages to channel-specific queues (e.g., `QUEUE_NOTIFICATION_SIGNAL`)
+1. Listens to `QUEUE_NOTIFICATION_EVENTS` for `species_detection` events
+   from the classification workers
+2. Evaluates each event against the users' private detection alert rules
+   (`detection_alerts.py`), including site scope, time-of-day window,
+   group size, cooldown, and rarity conditions
+3. Creates `notification_logs` entries for the audit trail
+4. Routes messages to the channel queues (`QUEUE_NOTIFICATION_EMAIL`,
+   `QUEUE_NOTIFICATION_TELEGRAM`); the channel workers handle delivery
 
-Channel workers (e.g., `notifications-signal`) consume from their queues and handle delivery.
+Scheduled jobs (APScheduler, see `worker.py` for times): email reports,
+excessive image alerts, project inactivity alerts, SIM expiry alerts,
+project reminders, camera condition alert rules, disk usage and infra
+alert checks.
 
-## Event Types
+## Species detection event
 
-### Species detection
-Triggered by classification worker when animal detected.
+Published by both classification workers, suppressed for bulk uploads:
 
-Event structure:
 ```python
 {
-    'type': 'species_detection',
-    'image_id': str (UUID),
-    'species': str,
-    'confidence': float,
+    'event_type': 'species_detection',
+    'project_id': int,
+    'image_uuid': str,
     'camera_id': int,
     'camera_name': str,
-    'location': {'lat': float, 'lon': float} or None,
-    'thumbnail_path': str,  # MinIO path to image thumbnail with bbox
-    'timestamp': str (ISO 8601)
+    'camera_location': {'lat': float, 'lon': float} or None,
+    'species': str,               # species label, or person/vehicle
+    'confidence': float,          # classification confidence
+    'detection_confidence': float,
+    'detection_count': int,       # all detections in the image
+    'species_count': int,         # detections of this species
+    'annotated_minio_path': str or None,
+    'timestamp': str,             # camera capture time
 }
 ```
-
-### Low battery
-Triggered by ingestion worker when camera battery drops below threshold.
-
-Event structure:
-```python
-{
-    'type': 'low_battery',
-    'camera_id': int,
-    'camera_name': str,
-    'device_id': str,
-    'battery_percentage': int,
-    'location': {'lat': float, 'lon': float} or None,
-    'timestamp': str (ISO 8601)
-}
-```
-
-### System health
-Triggered by monitoring systems for operational issues.
-
-Event structure:
-```python
-{
-    'type': 'system_health',
-    'alert_type': str,  # e.g., 'service_down', 'queue_backlog'
-    'severity': str,  # 'warning', 'error', 'critical'
-    'message': str,
-    'details': dict,
-    'timestamp': str (ISO 8601)
-}
-```
-
-## Rule Engine
-
-Simple toggle-based rules (MVP):
-- **Species detection**: `notify_species` must be a non-empty list that contains the detected species. An empty or null list means no notifications.
-- **Low battery**: User's `notify_low_battery` is true AND battery <= user's `battery_threshold`
-- **System health**: User's `notify_system_health` is true (typically admins only)
-
-All rules require:
-- User has notifications enabled (`enabled=true`)
-- User has configured contact method (e.g., Signal phone number)
-- User is active and verified
 
 ## Files
 
-- `worker.py` - Main entry point, listens to events queue
-- `rule_engine.py` - Evaluates which users should be notified
-- `event_handlers.py` - Formats messages and publishes to channel queues
-- `db_operations.py` - Database operations for notification logs
+- `worker.py` - Main entry point, event loop plus the scheduled jobs
+- `detection_alerts.py` - Detection alert rules, live event path
+- `camera_alerts.py` - Camera condition alert rules, daily cron
+- `email_report.py`, `report_stats.py` - Scheduled email reports
+- `excessive_images.py`, `project_inactivity.py`, `sim_expiry.py`,
+  `disk_usage_alert.py`, `infra_alert.py`, `reminders.py` - Other crons
+- `db_operations.py` - Notification logs and shared DB helpers

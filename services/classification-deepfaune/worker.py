@@ -234,6 +234,7 @@ def process_detection_complete(message: dict, classifier) -> None:
                                         "confidence": best_det.confidence,
                                         "detection_confidence": best_det.confidence,
                                         "detection_count": len(pv_dets),
+                                        "species_count": sum(1 for d in pv_dets if d.category == category),
                                         "annotated_minio_path": annotated_minio_path,
                                         "timestamp": timestamp
                                     })
@@ -304,11 +305,13 @@ def process_detection_complete(message: dict, classifier) -> None:
                         # Filter classifications by parent detection confidence vs project threshold
                         det_threshold = project.detection_threshold if project else 0
                         species_map = {}
+                        species_counts = {}
                         for classification in classifications:
                             det_conf = detection_confidence.get(classification.detection_id, 0)
                             if det_conf < det_threshold:
                                 continue
                             species = classification.species
+                            species_counts[species] = species_counts.get(species, 0) + 1
                             if species not in species_map or classification.confidence > species_map[species].confidence:
                                 species_map[species] = classification
 
@@ -451,6 +454,7 @@ def process_detection_complete(message: dict, classifier) -> None:
                                     "confidence": classification.confidence,
                                     "detection_confidence": detection_confidence.get(classification.detection_id, 0),
                                     "detection_count": len(classifications),
+                                    "species_count": species_counts[species],
                                     "annotated_minio_path": annotated_minio_path,
                                     "timestamp": timestamp
                                 })
@@ -481,6 +485,7 @@ def process_detection_complete(message: dict, classifier) -> None:
                                         "confidence": best_det.confidence,
                                         "detection_confidence": best_det.confidence,
                                         "detection_count": len(pv_above),
+                                        "species_count": sum(1 for d in pv_above if d.category == category),
                                         "annotated_minio_path": annotated_minio_path,
                                         "timestamp": timestamp
                                     })

@@ -174,27 +174,6 @@ def get_camera_site_label(camera_id: int) -> Optional[str]:
     return row.site_name
 
 
-def get_image_site_id(image_uuid: str) -> Optional[int]:
-    """
-    The id of the site an image was taken at, via its deployment. Returns None
-    when the image has no resolved site. Used to match per-site notification
-    scope (notify_sites).
-    """
-    with get_sync_session() as session:
-        row = session.execute(
-            text("""
-                SELECT d.site_id AS site_id
-                FROM images i
-                JOIN deployments d ON d.id = i.deployment_id
-                WHERE i.uuid = :uuid
-            """),
-            {"uuid": image_uuid},
-        ).first()
-    if not row:
-        return None
-    return row.site_id
-
-
 def has_project_access(db, user_id: int, project_id: int) -> bool:
     """Server admins have implicit access; regular users must hold any
     membership row (admin or viewer) on the project. Defense-in-depth for

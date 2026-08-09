@@ -456,6 +456,58 @@ class CameraAlertRule(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
+class DetectionAlertRule(Base):
+    """
+    A user-defined real-time detection alert.
+
+    Private per user, the creator is the only recipient. Evaluated on the
+    live event path for every species_detection event. A rule names its
+    labels (species plus person/vehicle) and optionally narrows by site,
+    time of day, group size, a cooldown, and a rarity lookback.
+
+    cooldown_state maps "species|site_id" (site_id is the literal string
+    "none" for images without a resolved site) to the ISO UTC timestamp of
+    the last delivered alert. Always reassigned as a new dict, never
+    mutated in place, so SQLAlchemy change tracking fires. Entries older
+    than the cooldown are pruned on every write, so the map stays small.
+    """
+    __tablename__ = "detection_alert_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # ON DELETE CASCADE, a private rule dies with its owner
+    created_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Non-empty list of label strings. A rule always names its labels,
+    # there is no "all species" form.
+    species = Column(JSON, nullable=False)
+    # null means all sites of the project, else a non-empty list of site
+    # ids. An empty list is rejected by the API so one meaning has one form.
+    site_ids = Column(JSON, nullable=True)
+    channels = Column(JSON, nullable=False)  # non-empty subset of ["email", "telegram"]
+    # Optional conditions, null means the condition is off. The hour window
+    # is half-open [from, to) on the camera capture hour and wraps past
+    # midnight when from is later than to, same as the images page filter.
+    hour_from = Column(Integer, nullable=True)  # 0-23, set together with hour_to
+    hour_to = Column(Integer, nullable=True)
+    min_group_size = Column(Integer, nullable=True)  # per-species count in the image
+    cooldown_minutes = Column(Integer, nullable=True)  # per species and site
+    rarity_days = Column(Integer, nullable=True)  # project-wide lookback
+    is_active = Column(Boolean, nullable=False, server_default='true')
+    cooldown_state = Column(JSON, nullable=False, server_default='{}')
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
 class ProjectNotificationPreference(Base):
     """Per-user per-project notification preferences"""
     __tablename__ = "project_notification_preferences"

@@ -38,7 +38,7 @@ IMAGES
 
 ALERTS
 
-
+- [x] Replace the single species/site real-time alert settings with per-user detection alert rules, same architecture as the camera condition alerts. Each rule names its labels and can be narrowed by site, time of day (wraps midnight), minimum group size (per-species count), a cooldown per species and site (on by default for new rules, prefilled with the project independence interval), and a rarity lookback (species absent for N days, project-wide). Email offered next to Telegram. Existing settings migrate into one seeded telegram-only rule per user with identical behaviour; the old rule engine was deleted as dead code. (9 Aug 2026.)
 
 USERS
 

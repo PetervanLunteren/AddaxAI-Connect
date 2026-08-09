@@ -83,9 +83,8 @@ addaxai-connect/
 │   │   └── worker.py                  # Entry point (ingests staged files into the bulk pipeline)
 │   │
 │   ├── notifications/                 # Notification coordinator and scheduled jobs
-│   │   ├── worker.py                  # Entry point (event routing + APScheduler)
-│   │   ├── event_handlers.py          # Handles species_detection, low_battery, etc.
-│   │   ├── rule_engine.py             # Evaluates per-user notification preferences
+│   │   ├── worker.py                  # Entry point (event loop + APScheduler)
+│   │   ├── detection_alerts.py        # Real-time detection alert rules (live event path)
 │   │   ├── email_report.py            # Daily/weekly/monthly email report generation
 │   │   ├── report_stats.py            # Report statistics
 │   │   ├── camera_alerts.py           # User-defined camera condition alert rules
@@ -150,6 +149,8 @@ addaxai-connect/
 │   │   │   ├── ingestion_monitoring.py # Rejected files, upload monitoring
 │   │   │   ├── logs.py                # Notification log queries
 │   │   │   ├── notifications.py       # Notification preference management
+│   │   │   ├── camera_alert_rules.py  # Camera condition alert rules
+│   │   │   ├── detection_alert_rules.py # Real-time detection alert rules
 │   │   │   ├── reminders.py           # Project reminders
 │   │   │   ├── projects.py            # Project CRUD
 │   │   │   ├── project_documents.py   # Project document uploads

@@ -1,0 +1,72 @@
+{% extends "base_email.html" %}
+
+{% block title %}{{ project_name }} - Detection alert{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
+<p style="font-size: 16px; font-weight: 500; margin: 0; color: #1f2937;">Detection alert</p>
+<p style="font-size: 14px; color: #6b7280; margin: 4px 0 0 0;">{{ date_label }}</p>
+{% endblock %}
+
+{% block content %}
+<!-- Summary stat -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td align="center" style="padding: 10px;">
+            <p style="font-size: 36px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ species_display }}</p>
+            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">detected at {{ site_label }}</p>
+        </td>
+    </tr>
+</table>
+{% endblock %}
+
+{% block extra_sections %}
+<!-- Detail rows -->
+<tr>
+    <td style="padding: 24px; border-top: 1px solid #e5e7eb;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+                <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Site</td>
+                <td style="padding: 6px 0; font-size: 14px; color: #1f2937; text-align: right; font-weight: 600;">{{ site_label }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Time</td>
+                <td style="padding: 6px 0; font-size: 14px; color: #1f2937; text-align: right; font-weight: 600;">{{ time_label }}</td>
+            </tr>
+            <tr>
+                <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Date</td>
+                <td style="padding: 6px 0; font-size: 14px; color: #1f2937; text-align: right; font-weight: 600;">{{ date_label }}</td>
+            </tr>
+            {% if count %}
+            <tr>
+                <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Count</td>
+                <td style="padding: 6px 0; font-size: 14px; color: #1f2937; text-align: right; font-weight: 600;">{{ count }}</td>
+            </tr>
+            {% endif %}
+            {% if confidence_label %}
+            <tr>
+                <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Confidence</td>
+                <td style="padding: 6px 0; font-size: 14px; color: #1f2937; text-align: right; font-weight: 600;">{{ confidence_label }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </td>
+</tr>
+
+<!-- Action button -->
+<tr>
+    <td align="center" style="padding: 0 24px 24px 24px;">
+        <a href="{{ images_url }}" style="display: inline-block; padding: 10px 24px; background: #0f6064; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">View images</a>
+    </td>
+</tr>
+
+<!-- Footer note -->
+<tr>
+    <td style="padding: 0 24px 24px 24px;">
+        <p style="font-size: 12px; color: #9ca3af; margin: 0; text-align: center;">
+            This alert comes from one of your detection alert rules.
+            <a href="{{ settings_url }}" style="color: #0f6064;">Manage alert rules</a>
+        </p>
+    </td>
+</tr>
+{% endblock %}

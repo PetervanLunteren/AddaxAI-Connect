@@ -1,8 +1,8 @@
 """
 Core Notifications Service
 
-Listens to notification events from classification/ingestion workers,
-evaluates rules, and routes to appropriate channel queues.
+Listens to species_detection events from the classification workers and
+evaluates them against the users' detection alert rules.
 
 Also runs scheduled jobs (15-minute spacing convention):
 - Infra alert check daily at 03:00 UTC
@@ -21,8 +21,7 @@ from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EVENTS
 from shared.config import get_settings
 
-from rule_engine import get_matching_users
-from event_handlers import handle_species_detection, handle_low_battery, handle_system_health
+from detection_alerts import handle_detection_event
 from camera_alerts import send_camera_condition_alerts
 from email_report import send_daily_reports, send_weekly_reports, send_monthly_reports
 from excessive_images import send_excessive_image_alerts
@@ -41,12 +40,12 @@ def process_notification_event(event: Dict[str, Any]) -> None:
     Process incoming notification event.
 
     Args:
-        event: Notification event from classification/ingestion workers
+        event: Notification event from the classification workers
 
     Expected event structure:
     {
-        'event_type': 'species_detection' | 'low_battery' | 'system_health',
-        ... (type-specific fields)
+        'event_type': 'species_detection',
+        ... (see detection_alerts.handle_detection_event)
     }
     """
     event_type = event.get('event_type')
@@ -58,30 +57,8 @@ def process_notification_event(event: Dict[str, Any]) -> None:
     logger.info("Processing notification event", event_type=event_type)
 
     try:
-        # Get users who should be notified based on their preferences
-        matching_users = get_matching_users(event)
-
-        if not matching_users:
-            logger.debug(
-                "No users match notification criteria",
-                event_type=event_type,
-                event_id=event.get('image_id') or event.get('camera_id')
-            )
-            return
-
-        logger.info(
-            "Found matching users",
-            event_type=event_type,
-            user_count=len(matching_users)
-        )
-
-        # Route to appropriate event handler
         if event_type == 'species_detection':
-            handle_species_detection(event, matching_users)
-        elif event_type == 'low_battery':
-            handle_low_battery(event, matching_users)
-        elif event_type == 'system_health':
-            handle_system_health(event, matching_users)
+            handle_detection_event(event)
         else:
             logger.error("Unknown event type", event_type=event_type)
 

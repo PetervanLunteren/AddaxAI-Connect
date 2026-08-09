@@ -382,8 +382,8 @@ const AlertRuleEditDialog: React.FC<AlertRuleEditDialogProps> = ({
             {channels.includes('telegram') && !telegramLinked && (
               <p className={`text-xs mt-1 ${telegramOnlyUnlinked ? 'text-destructive' : 'text-muted-foreground'}`}>
                 {telegramOnlyUnlinked
-                  ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram in the detection alerts section, or add email.'
-                  : 'Telegram alerts need a linked Telegram account, see the detection alerts section.'}
+                  ? 'No Telegram account is linked, so this rule could never reach you. Link Telegram on the notifications page, or add email.'
+                  : 'Telegram alerts need a linked Telegram account, see the notifications page.'}
               </p>
             )}
           </div>
