@@ -388,6 +388,11 @@ class ProjectMembership(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     role = Column(String(50), nullable=False, index=True)  # 'project-admin' or 'project-viewer'
+    # Site scope for project-viewer memberships. null means all sites, else
+    # a non-empty list of site ids the viewer is restricted to. An empty
+    # list is rejected by the API so one meaning has one form, the same
+    # convention as DetectionAlertRule.site_ids. Always null for admins.
+    site_ids = Column(JSON, nullable=True)
     added_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -849,6 +854,9 @@ class UserInvitation(Base):
     invited_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)  # NULL for server-admin
     role = Column(String(50), nullable=False, index=True)  # 'server-admin', 'project-admin', or 'project-viewer'
+    # Site scope carried onto the membership at registration. Same
+    # semantics as ProjectMembership.site_ids, only for project-viewer.
+    site_ids = Column(JSON, nullable=True)
     token = Column(String(64), unique=True, nullable=True, index=True)  # Secure URL-safe token for invite link
     expires_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Expiry date (default 7 days)
     used = Column(Boolean, nullable=False, server_default="false", index=True)  # Whether invitation has been accepted
