@@ -10,6 +10,11 @@
 <p style="margin: 0 0 16px 0; color: #1f2937;">
     <strong style="color: #0f6064;">{{ inviter_email }}</strong> has added you to the project <strong style="color: #0f6064;">{{ project_name }}</strong> as {{ role }}.
 </p>
+{% if restricted_site_names %}
+<p style="margin: 0 0 16px 0; color: #1f2937;">
+    Your access is limited to {{ restricted_site_names | length }} site{{ 's' if restricted_site_names | length != 1 else '' }}, {{ restricted_site_names | join(', ') }}. Data from other sites in the project stays hidden.
+</p>
+{% endif %}
 <p style="margin: 0; color: #1f2937;">
     You can now access this project from your dashboard.
 </p>

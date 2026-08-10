@@ -8,7 +8,7 @@ import aiosmtplib
 from email.message import EmailMessage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional
+from typing import List, Optional
 
 from shared.config import get_settings
 from shared.logger import get_logger
@@ -221,6 +221,7 @@ class EmailSender:
         role: str,
         inviter_name: str,
         inviter_email: str,
+        restricted_site_names: Optional[List[str]] = None,
     ) -> None:
         """
         Send project invitation email with secure token.
@@ -232,6 +233,8 @@ class EmailSender:
             role: Role they're assigned (e.g., 'project-admin', 'project-viewer')
             inviter_name: Name of the person who sent the invitation
             inviter_email: Email of the person who sent the invitation
+            restricted_site_names: Site names a restricted viewer is limited
+                to, or None when they can see the whole project
 
         Raises:
             aiosmtplib.SMTPException: If email sending fails
@@ -257,6 +260,7 @@ class EmailSender:
             inviter_email=inviter_email,
             registration_url=registration_url,
             expiry_days=7,
+            restricted_site_names=restricted_site_names,
         )
 
         subject = f"You've been invited to join {project_name} on AddaxAI Connect"
@@ -275,6 +279,7 @@ class EmailSender:
         role: str,
         inviter_name: str,
         inviter_email: str,
+        restricted_site_names: Optional[List[str]] = None,
     ) -> None:
         """
         Send project assignment notification to existing user.
@@ -285,6 +290,8 @@ class EmailSender:
             role: Role they're assigned (e.g., 'project-admin', 'project-viewer')
             inviter_name: Name of the person who added them
             inviter_email: Email of the person who added them
+            restricted_site_names: Site names a restricted viewer is limited
+                to, or None when they can see the whole project
 
         Raises:
             aiosmtplib.SMTPException: If email sending fails
@@ -308,6 +315,7 @@ class EmailSender:
             role=role_display,
             inviter_email=inviter_email,
             login_url=login_url,
+            restricted_site_names=restricted_site_names,
         )
 
         subject = f"You've been added to {project_name} on AddaxAI Connect"

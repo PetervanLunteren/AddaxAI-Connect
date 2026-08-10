@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping
+from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Site
 from shared.database import get_async_session
 from shared.config import get_settings
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS, BUCKET_PROJECT_DOCUMENTS
@@ -130,6 +130,24 @@ class UpdateProjectUserRoleRequest(BaseModel):
     always sends the complete state. Omitted means unrestricted."""
     role: str  # 'project-admin' or 'project-viewer'
     site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
+
+
+async def _resolve_site_names(
+    db: AsyncSession, project_id: int, site_ids: Optional[List[int]]
+) -> Optional[List[str]]:
+    """Site names for a viewer scope, sorted, or None when unrestricted.
+
+    Used to name the sites in the invitation and assignment emails so a
+    restricted viewer learns which zones they can see."""
+    if not site_ids:
+        return None
+    rows = await db.execute(
+        select(Site.name).where(
+            Site.id.in_(site_ids),
+            Site.project_id == project_id,
+        )
+    )
+    return sorted(name for (name,) in rows.all())
 
 
 @router.get(
@@ -1300,6 +1318,7 @@ async def add_project_user_by_email(
                 role=data.role,
                 inviter_name=current_user.email,  # Using email as name for now
                 inviter_email=current_user.email,
+                restricted_site_names=await _resolve_site_names(db, project_id, data.site_ids),
             )
             logger.info(
                 "Project assignment email sent successfully",
@@ -1391,6 +1410,7 @@ async def add_project_user_by_email(
                 role=data.role,
                 inviter_name=current_user.email,  # Using email as name for now
                 inviter_email=current_user.email,
+                restricted_site_names=await _resolve_site_names(db, project_id, data.site_ids),
             )
             logger.info(
                 "Invitation email sent successfully",
