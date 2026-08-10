@@ -32,6 +32,7 @@ import { Button } from './ui/Button';
 import { Dialog, DialogContent } from './ui/Dialog';
 import { CameraHealthHistoryChart } from './CameraHealthHistoryChart';
 import { CameraDeploymentHistory } from './CameraDeploymentHistory';
+import { CameraMaintenanceTab } from './CameraMaintenanceTab';
 import { TagInput } from './TagInput';
 import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
@@ -52,7 +53,7 @@ interface CameraDetailSheetProps {
   onDeleteRequested?: (camera: { id: number; name: string }) => void;
 }
 
-type TabType = 'overview' | 'history' | 'deployments' | 'details';
+type TabType = 'overview' | 'history' | 'deployments' | 'maintenance' | 'details';
 
 export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
   camera,
@@ -306,6 +307,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Placements" />
+              {canAdmin && <TabButton tab="maintenance" label="Maintenance" />}
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
 
@@ -522,6 +524,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last maintenance</span>
+                    <span>{camera.last_maintenance_date ?? '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-muted-foreground">Total images</span>
                     <span>{camera.total_images ?? 'N/A'}</span>
                   </div>
@@ -569,6 +575,11 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             {/* Deployments tab */}
             {activeTab === 'deployments' && (
               <CameraDeploymentHistory cameraId={camera.id} cameraName={camera.name} />
+            )}
+
+            {/* Maintenance tab: log of field visits (admins) */}
+            {activeTab === 'maintenance' && canAdmin && projectId != null && (
+              <CameraMaintenanceTab cameraId={camera.id} projectId={projectId} />
             )}
 
             {/* Details tab: custom fields (admins). Read by default; Edit toggles the editor. */}
