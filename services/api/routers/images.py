@@ -1802,7 +1802,7 @@ async def get_image_thumbnail(
     # Check project access and get project for blur setting
     camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
     camera = camera_result.scalar_one_or_none()
-    if camera and camera.project_id not in accessible_project_ids:
+    if camera is None or camera.project_id not in accessible_project_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image"
@@ -1875,7 +1875,7 @@ async def get_image_full(
     # Check project access and get project for blur setting
     camera_result = await db.execute(select(Camera).where(Camera.id == image.camera_id))
     camera = camera_result.scalar_one_or_none()
-    if camera and camera.project_id not in accessible_project_ids:
+    if camera is None or camera.project_id not in accessible_project_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image"
