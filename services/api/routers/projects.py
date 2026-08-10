@@ -16,6 +16,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from auth.users import current_verified_user
 from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
+from auth.project_access import get_accessible_project_ids
 from utils.image_processing import delete_project_images
 from mailer.sender import get_email_sender
 
@@ -132,13 +133,14 @@ class UpdateProjectUserRoleRequest(BaseModel):
 async def list_projects(
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
 ):
     """
-    List all projects
+    List projects the current user is a member of
 
-    Returns list of all projects with their excluded species configurations.
+    Returns list of accessible projects with their excluded species configurations.
     """
-    query = select(Project)
+    query = select(Project).where(Project.id.in_(accessible_project_ids))
     result = await db.execute(query)
     projects = result.scalars().all()
 
@@ -172,6 +174,7 @@ async def get_project(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
 ):
     """
     Get single project by ID
@@ -183,8 +186,14 @@ async def get_project(
         Project details with excluded species configuration
 
     Raises:
-        HTTPException: If project not found
+        HTTPException: If project not found or the user is not a member
     """
+    if project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No access to this project",
+        )
+
     query = select(Project).where(Project.id == project_id)
     result = await db.execute(query)
     project = result.scalar_one_or_none()
