@@ -1973,7 +1973,7 @@ async def get_annotated_image(
         )
 
     # Check user has access to this project
-    accessible_projects = await get_accessible_project_ids(db, current_user)
+    accessible_projects = await get_accessible_project_ids(current_user, db)
     if image.camera.project_id not in accessible_projects:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
