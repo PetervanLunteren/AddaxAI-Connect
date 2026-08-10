@@ -15,10 +15,16 @@ from shared.models import User, Camera, Project, Image, CameraHealthReport, Dete
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
-from auth.project_access import get_accessible_project_ids, narrow_to_project
+from auth.project_access import (
+    get_accessible_project_ids,
+    narrow_to_project,
+    get_allowed_site_ids,
+    get_site_scope_or_400,
+)
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 from utils.camera_status import camera_status as _camera_status
+from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags
 
 logger = get_logger(__name__)
@@ -115,6 +121,41 @@ def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
     return dt.replace(tzinfo=tz).isoformat()
 
 
+async def _current_site_id(db: AsyncSession, camera_id: int) -> Optional[int]:
+    """Site of the camera's latest deployment, None when it has no
+    deployments or the latest one has no site."""
+    row = (
+        await db.execute(
+            text("""
+                SELECT d.site_id FROM deployments d
+                WHERE d.camera_id = :cam
+                ORDER BY d.deployment_number DESC
+                LIMIT 1
+            """),
+            {"cam": camera_id},
+        )
+    ).first()
+    return row[0] if row else None
+
+
+async def _check_camera_in_scope(
+    db: AsyncSession, current_user: User, camera: Camera
+) -> Optional[List[int]]:
+    """404 when a site-restricted viewer must not see this camera.
+
+    A camera is visible when its current site is in the allow-list.
+    Returns the caller's scope for further row filtering."""
+    site_scope = await get_allowed_site_ids(current_user, camera.project_id, db)
+    if site_scope is not None and not site_in_scope(
+        await _current_site_id(db, camera.id), site_scope
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Camera not found",
+        )
+    return site_scope
+
+
 def camera_to_response(
     camera: Camera,
     tz: ZoneInfo,
@@ -179,9 +220,13 @@ async def list_cameras(
         List of cameras with health data
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_scope = await get_site_scope_or_400(current_user, project_id, db)
 
-    # Filter cameras by accessible projects
+    # Filter cameras by accessible projects; restricted viewers only see
+    # cameras whose current site is in their allow-list
     query = select(Camera).where(Camera.project_id.in_(accessible_project_ids))
+    if site_scope is not None:
+        query = query.where(cameras_current_site_clause(site_scope))
     result = await db.execute(query)
     cameras = result.scalars().all()
 
@@ -254,13 +299,15 @@ async def get_camera_tags(
     Returns sorted list of unique tags for autocomplete.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_scope = await get_site_scope_or_400(current_user, project_id, db)
 
-    result = await db.execute(
-        select(Camera.tags).where(
-            Camera.project_id.in_(accessible_project_ids),
-            Camera.tags.isnot(None),
-        )
+    query = select(Camera.tags).where(
+        Camera.project_id.in_(accessible_project_ids),
+        Camera.tags.isnot(None),
     )
+    if site_scope is not None:
+        query = query.where(cameras_current_site_clause(site_scope))
+    result = await db.execute(query)
 
     all_tags = set()
     for (tags,) in result.all():
@@ -516,6 +563,8 @@ async def get_camera(
             detail="You do not have access to this camera"
         )
 
+    await _check_camera_in_scope(db, current_user, camera)
+
     last_captured_at = (await db.execute(
         select(func.max(Image.captured_at)).where(Image.camera_id == camera_id)
     )).scalar_one_or_none()
@@ -591,9 +640,17 @@ async def get_camera_deployments(
             detail="You do not have access to this camera",
         )
 
+    site_scope = await _check_camera_in_scope(db, current_user, camera)
+
+    # Restricted viewers only see the periods this camera spent at their
+    # sites; the rest of the relocation history stays hidden
+    scope_sql = " AND d.site_id = ANY(:scope)" if site_scope is not None else ""
+    params: dict = {"camera_id": camera_id}
+    if site_scope is not None:
+        params["scope"] = site_scope
     rows = (
         await db.execute(
-            text("""
+            text(f"""
                 SELECT d.id, d.deployment_number, d.site_id, s.name AS site_name,
                        ST_Y(d.location::geometry) AS lat,
                        ST_X(d.location::geometry) AS lon,
@@ -602,11 +659,11 @@ async def get_camera_deployments(
                 FROM deployments d
                 LEFT JOIN sites s ON s.id = d.site_id
                 LEFT JOIN images i ON i.deployment_id = d.id
-                WHERE d.camera_id = :camera_id
+                WHERE d.camera_id = :camera_id{scope_sql}
                 GROUP BY d.id, s.name
                 ORDER BY d.deployment_number
             """),
-            {"camera_id": camera_id},
+            params,
         )
     ).mappings().all()
 
@@ -678,6 +735,8 @@ async def get_camera_health_history(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this camera"
         )
+
+    await _check_camera_in_scope(db, current_user, camera)
 
     # Calculate date range
     if end_date is None:
