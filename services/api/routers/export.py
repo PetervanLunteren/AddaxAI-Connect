@@ -33,7 +33,8 @@ from shared.database import get_async_session
 from shared.storage import StorageClient, BUCKET_THUMBNAILS
 from shared.logger import get_logger
 from auth.users import current_verified_user
-from auth.project_access import get_accessible_project_ids
+from auth.project_access import get_accessible_project_ids, get_allowed_site_ids
+from utils.site_scope import site_image_clause, cameras_current_site_clause
 from shared.classification_threshold import effective_classification_threshold
 from utils.camera_status import camera_status
 
@@ -526,6 +527,8 @@ async def export_camtrap_dp(
     if project_id not in accessible_project_ids:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
 
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+
     # Load project
     project_result = await db.execute(select(Project).where(Project.id == project_id))
     project = project_result.scalar_one_or_none()
@@ -552,7 +555,11 @@ async def export_camtrap_dp(
     # site, so deployments at one place share a locationID and coordinates as
     # CamTrap DP expects. Fall back to the deployment's own point when it has no
     # site (legacy or missing-GPS rows).
-    dep_query = text("""
+    scope_sql = " AND cdp.site_id = ANY(:scope)" if site_scope is not None else ""
+    dep_params: Dict[str, Any] = {"project_id": project_id}
+    if site_scope is not None:
+        dep_params["scope"] = site_scope
+    dep_query = text(f"""
         SELECT
             cdp.id, cdp.camera_id, cdp.deployment_number, cdp.start_date, cdp.end_date,
             cdp.site_id,
@@ -564,10 +571,10 @@ async def export_camtrap_dp(
         FROM deployments cdp
         JOIN cameras c ON cdp.camera_id = c.id
         LEFT JOIN sites s ON s.id = cdp.site_id
-        WHERE c.project_id = :project_id
+        WHERE c.project_id = :project_id{scope_sql}
         ORDER BY cdp.camera_id, cdp.deployment_number
     """)
-    dep_result = await db.execute(dep_query, {"project_id": project_id})
+    dep_result = await db.execute(dep_query, dep_params)
     dep_rows = dep_result.mappings().all()
 
     if not dep_rows:
@@ -618,6 +625,8 @@ async def export_camtrap_dp(
         )
         .order_by(Image.captured_at)
     )
+    if site_scope is not None:
+        images_query = images_query.where(site_image_clause(site_scope))
     images_result = await db.execute(images_query)
     images = images_result.scalars().unique().all()
 
@@ -901,6 +910,8 @@ async def export_observations(
     if project_id not in accessible_project_ids:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
 
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+
     project_result = await db.execute(select(Project).where(Project.id == project_id))
     project = project_result.scalar_one_or_none()
     if project is None:
@@ -954,6 +965,8 @@ async def export_observations(
         )
         .order_by(Image.captured_at)
     )
+    if site_scope is not None:
+        images_query = images_query.where(site_image_clause(site_scope))
     images_result = await db.execute(images_query)
     images = images_result.scalars().unique().all()
 
@@ -1014,12 +1027,16 @@ async def _build_camera_rows(
     db: AsyncSession,
     project_id: int,
     tz: ZoneInfo,
+    site_scope: Optional[List[int]] = None,
 ) -> tuple[list, list]:
-    cameras = (await db.execute(
+    cameras_query = (
         select(Camera)
         .where(Camera.project_id == project_id)
         .order_by(Camera.device_id)
-    )).scalars().all()
+    )
+    if site_scope is not None:
+        cameras_query = cameras_query.where(cameras_current_site_clause(site_scope))
+    cameras = (await db.execute(cameras_query)).scalars().all()
 
     camera_ids = [c.id for c in cameras]
     last_captured_map: Dict[int, datetime] = {}
@@ -1109,6 +1126,8 @@ async def export_cameras(
     if project_id not in accessible_project_ids:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No access to this project")
 
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+
     project_result = await db.execute(select(Project).where(Project.id == project_id))
     project = project_result.scalar_one_or_none()
     if project is None:
@@ -1117,7 +1136,7 @@ async def export_cameras(
     from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
-    headers, rows = await _build_camera_rows(db, project_id, tz)
+    headers, rows = await _build_camera_rows(db, project_id, tz, site_scope)
 
     today = date.today().isoformat()
     slug = _slugify(project.name)
@@ -1648,6 +1667,8 @@ async def export_spatial(
             detail="No access to this project",
         )
 
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+
     project_result = await db.execute(select(Project).where(Project.id == project_id))
     project = project_result.scalar_one_or_none()
     if project is None:
@@ -1694,11 +1715,14 @@ async def export_spatial(
         )
         .order_by(Image.captured_at)
     )
+    if site_scope is not None:
+        images_query = images_query.where(site_image_clause(site_scope))
     images_result = await db.execute(images_query)
     images = images_result.scalars().unique().all()
 
     # Query deployment data with detection counts
-    deployment_sql = text("""
+    scope_sql = " AND cdp.site_id = ANY(:scope)" if site_scope is not None else ""
+    deployment_sql = text(f"""
         WITH dep_info AS (
             SELECT cdp.id,
                    cdp.camera_id,
@@ -1719,7 +1743,7 @@ async def export_spatial(
             FROM deployments cdp
             JOIN cameras c ON cdp.camera_id = c.id
             LEFT JOIN sites s ON s.id = cdp.site_id
-            WHERE c.project_id = :project_id
+            WHERE c.project_id = :project_id{scope_sql}
         ),
         dep_det_counts AS (
             -- Count detections per deployment, applying both the detection
@@ -1763,10 +1787,13 @@ async def export_spatial(
         LEFT JOIN dep_det_counts dc ON dc.dep_id = di.id
         ORDER BY di.camera_name, di.start_date
     """)
-    dep_result = await db.execute(
-        deployment_sql,
-        {"project_id": project_id, "detection_threshold": project.detection_threshold},
-    )
+    spatial_params: Dict[str, Any] = {
+        "project_id": project_id,
+        "detection_threshold": project.detection_threshold,
+    }
+    if site_scope is not None:
+        spatial_params["scope"] = site_scope
+    dep_result = await db.execute(deployment_sql, spatial_params)
     deployment_rows = dep_result.all()
 
     logger.info(

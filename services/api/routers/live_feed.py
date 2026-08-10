@@ -20,7 +20,12 @@ from shared.models import User, Image, Camera, Rejection
 from shared.database import get_async_session
 from shared.logger import get_logger
 from auth.users import current_verified_user
-from auth.project_access import get_accessible_project_ids, narrow_to_project
+from auth.project_access import (
+    get_accessible_project_ids,
+    narrow_to_project,
+    get_allowed_site_ids,
+)
+from utils.site_scope import site_image_clause
 
 
 router = APIRouter(prefix="/api/projects/{project_id}/live-feed", tags=["live-feed"])
@@ -60,29 +65,37 @@ async def get_live_feed(
 
     Merges the latest images (by server arrival time) with the latest rejections
     resolved to the project, then returns the newest `limit` across both.
+
+    Site-restricted viewers only see images at their sites (filtered inside
+    the query, before the limit) and no rejections at all; a rejection has no
+    site, so it fails a restricted scope, fail closed.
     """
     narrow_to_project(accessible_project_ids, project_id)  # raises 403 if no access
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
 
     # Latest images for the project's cameras, by server arrival time.
-    image_rows = (
-        await db.execute(
-            select(Image, Camera.device_id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .where(Camera.project_id == project_id)
-            .order_by(Image.ingested_at.desc())
-            .limit(limit)
-        )
-    ).all()
+    images_query = (
+        select(Image, Camera.device_id)
+        .join(Camera, Image.camera_id == Camera.id)
+        .where(Camera.project_id == project_id)
+        .order_by(Image.ingested_at.desc())
+        .limit(limit)
+    )
+    if site_scope is not None:
+        images_query = images_query.where(site_image_clause(site_scope))
+    image_rows = (await db.execute(images_query)).all()
 
     # Latest rejections resolved to the project.
-    rejection_rows = (
-        await db.execute(
-            select(Rejection)
-            .where(Rejection.project_id == project_id)
-            .order_by(Rejection.rejected_at.desc())
-            .limit(limit)
-        )
-    ).scalars().all()
+    rejection_rows = []
+    if site_scope is None:
+        rejection_rows = (
+            await db.execute(
+                select(Rejection)
+                .where(Rejection.project_id == project_id)
+                .order_by(Rejection.rejected_at.desc())
+                .limit(limit)
+            )
+        ).scalars().all()
 
     items: list[tuple] = []  # (sort_key_datetime, LiveFeedItem)
 
@@ -133,9 +146,13 @@ async def get_rejection_image(
     Stream a rejected file's bytes from disk (full image on click).
 
     Rejected files live under <upload_root>/rejected/, not in MinIO. Access is
-    gated on the rejection belonging to a project the user can see.
+    gated on the rejection belonging to a project the user can see. Rejections
+    have no site, so site-restricted viewers get 404, fail closed.
     """
     narrow_to_project(accessible_project_ids, project_id)  # raises 403 if no access
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+    if site_scope is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rejection not found")
 
     rejection = (
         await db.execute(select(Rejection).where(Rejection.id == rejection_id))
