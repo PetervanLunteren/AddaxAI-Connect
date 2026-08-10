@@ -38,6 +38,7 @@ from shared.models import (
     CameraHealthReport,
     Image,
     Project,
+    ProjectMembership,
     ProjectNotificationPreference,
     User,
 )
@@ -46,10 +47,10 @@ from shared.config import get_settings
 from shared.email_renderer import render_email
 
 from db_operations import (
+    camera_ids_at_current_sites,
     create_notification_log,
     get_camera_site_label,
     get_server_timezone,
-    has_project_access,
 )
 
 logger = get_logger("notifications.camera_alerts")
@@ -125,16 +126,23 @@ def offending_cameras(
     rule: CameraAlertRule,
     states: Dict[int, CamState],
     now: datetime,
+    allowed_camera_ids: Optional[set] = None,
 ) -> List[int]:
     """Camera ids currently violating the rule, within the rule's scope.
 
-    Stale ids of deleted cameras drop out naturally because they are no
-    longer in the project state map.
+    allowed_camera_ids is a site-restricted creator's camera allow-list
+    (None = unrestricted); it clamps both an explicit camera scope and
+    the null all-cameras scope, so rules created before a restriction
+    cannot report other sites' cameras. Stale ids of deleted cameras
+    drop out naturally because they are no longer in the project state
+    map.
     """
     if rule.camera_ids:
         scope = [c for c in rule.camera_ids if c in states]
     else:
         scope = list(states.keys())
+    if allowed_camera_ids is not None:
+        scope = [c for c in scope if c in allowed_camera_ids]
 
     result = []
     for camera_id in scope:
@@ -161,9 +169,17 @@ def send_camera_condition_alerts() -> None:
         run_date = datetime.now(tz).date()
 
         rows = list(db.execute(
-            select(CameraAlertRule, User, Project)
+            select(
+                CameraAlertRule, User, Project,
+                ProjectMembership.role, ProjectMembership.site_ids,
+            )
             .join(User, CameraAlertRule.created_by_user_id == User.id)
             .join(Project, CameraAlertRule.project_id == Project.id)
+            .outerjoin(
+                ProjectMembership,
+                (ProjectMembership.user_id == User.id)
+                & (ProjectMembership.project_id == CameraAlertRule.project_id),
+            )
             .where(
                 CameraAlertRule.is_active == True,
                 User.is_active == True,
@@ -181,16 +197,18 @@ def send_camera_condition_alerts() -> None:
         email_queue = RedisQueue(QUEUE_NOTIFICATION_EMAIL)
         telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
         state_cache: Dict[int, Dict[int, CamState]] = {}
+        # (project_id, frozenset(site_ids)) -> allowed camera ids
+        allowed_cache: Dict[tuple, set] = {}
         fired = 0
         quiet = 0
         skipped_no_access = 0
         failed = 0
 
-        for rule, user, project in rows:
+        for rule, user, project, membership_role, membership_site_ids in rows:
             try:
-                if not has_project_access(db, user.id, project.id):
+                if membership_role is None and not user.is_superuser:
                     logger.warning(
-                        "Skipping alert rule; creator has no project access",
+                        "Skipping alert rule; creator has no project membership",
                         rule_id=rule.id,
                         project_id=project.id,
                         user_id=user.id,
@@ -198,11 +216,22 @@ def send_camera_condition_alerts() -> None:
                     skipped_no_access += 1
                     continue
 
+                # A site-restricted viewer's rule only covers cameras whose
+                # current site is in their allow-list
+                allowed_camera_ids = None
+                if membership_role == 'project-viewer' and membership_site_ids is not None:
+                    cache_key = (project.id, frozenset(membership_site_ids))
+                    if cache_key not in allowed_cache:
+                        allowed_cache[cache_key] = camera_ids_at_current_sites(
+                            db, project.id, membership_site_ids,
+                        )
+                    allowed_camera_ids = allowed_cache[cache_key]
+
                 if project.id not in state_cache:
                     state_cache[project.id] = _load_camera_states(db, project.id)
                 states = state_cache[project.id]
 
-                offending = offending_cameras(rule, states, now_utc)
+                offending = offending_cameras(rule, states, now_utc, allowed_camera_ids)
                 new, ongoing, recovered = split_incidents(
                     offending, rule.notified_camera_ids
                 )

@@ -174,6 +174,40 @@ def get_camera_site_label(camera_id: int) -> Optional[str]:
     return row.site_name
 
 
+def project_wide_email_skip_reason(is_superuser, membership_role, membership_site_ids):
+    """Why a user must not receive a project-wide email, or None when they
+    may. Project-wide emails (reports, excessive image alerts) aggregate
+    over every site, so they are skipped for users without a membership
+    (stale preference rows) and for site-restricted viewers. Pure so the
+    gate is unit-testable."""
+    if membership_role is None and not is_superuser:
+        return 'no_membership'
+    if membership_role == 'project-viewer' and membership_site_ids is not None:
+        return 'site_restricted'
+    return None
+
+
+def camera_ids_at_current_sites(db, project_id: int, site_ids) -> set:
+    """
+    Cameras of the project whose current site (active, else latest
+    deployment, mirroring get_camera_site_label) is one of the given
+    sites. Used to clamp camera alert rules to a site-restricted
+    viewer's allow-list; cameras without a resolved site never qualify.
+    """
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT ON (d.camera_id) d.camera_id, d.site_id
+            FROM deployments d
+            JOIN cameras c ON c.id = d.camera_id
+            WHERE c.project_id = :project_id
+            ORDER BY d.camera_id, (d.end_date IS NULL) DESC, d.start_date DESC
+        """),
+        {"project_id": project_id},
+    ).all()
+    allowed = set(site_ids)
+    return {r.camera_id for r in rows if r.site_id in allowed}
+
+
 def has_project_access(db, user_id: int, project_id: int) -> bool:
     """Server admins have implicit access; regular users must hold any
     membership row (admin or viewer) on the project. Defense-in-depth for

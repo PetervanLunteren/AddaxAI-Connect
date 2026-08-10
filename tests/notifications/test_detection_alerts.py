@@ -138,33 +138,38 @@ def _facts(**overrides):
     return EventFacts(**base)
 
 
+def _matches(rule, facts):
+    # Unrestricted creators evaluate with the rule's own scope
+    return rule_matches(rule, facts, rule.site_ids)
+
+
 class TestRuleMatches:
     def test_species_membership(self):
-        assert rule_matches(_rule(species=["wolf", "red_fox"]), _facts()) is True
-        assert rule_matches(_rule(species=["red_fox"]), _facts()) is False
+        assert _matches(_rule(species=["wolf", "red_fox"]), _facts()) is True
+        assert _matches(_rule(species=["red_fox"]), _facts()) is False
 
     def test_site_scope_null_is_all_sites(self):
-        assert rule_matches(_rule(site_ids=None), _facts(site_id=None)) is True
+        assert _matches(_rule(site_ids=None), _facts(site_id=None)) is True
 
     def test_site_scope_list(self):
-        assert rule_matches(_rule(site_ids=[4, 5]), _facts(site_id=4)) is True
-        assert rule_matches(_rule(site_ids=[5]), _facts(site_id=4)) is False
+        assert _matches(_rule(site_ids=[4, 5]), _facts(site_id=4)) is True
+        assert _matches(_rule(site_ids=[5]), _facts(site_id=4)) is False
 
     def test_siteless_image_never_matches_scoped_rule(self):
-        assert rule_matches(_rule(site_ids=[4]), _facts(site_id=None)) is False
+        assert _matches(_rule(site_ids=[4]), _facts(site_id=None)) is False
 
     def test_hour_window(self):
         night = _rule(hour_from=21, hour_to=5)
-        assert rule_matches(night, _facts(capture_hour=23)) is True
-        assert rule_matches(night, _facts(capture_hour=14)) is False
+        assert _matches(night, _facts(capture_hour=23)) is True
+        assert _matches(night, _facts(capture_hour=14)) is False
 
     def test_hour_window_fails_closed_without_capture_time(self):
-        assert rule_matches(_rule(hour_from=21, hour_to=5), _facts(capture_hour=None)) is False
+        assert _matches(_rule(hour_from=21, hour_to=5), _facts(capture_hour=None)) is False
 
     def test_group_size(self):
         rule = _rule(min_group_size=3)
-        assert rule_matches(rule, _facts(species_count=3)) is True
-        assert rule_matches(rule, _facts(species_count=2)) is False
+        assert _matches(rule, _facts(species_count=3)) is True
+        assert _matches(rule, _facts(species_count=2)) is False
 
 
 class TestSpeciesDisplayName:
@@ -247,45 +252,49 @@ def _wire(monkeypatch, project, rules, delivered=True, image=(10, CAPTURED_AT, 4
     monkeypatch.setattr(da, "RedisQueue", lambda name: SimpleNamespace(name=name))
     monkeypatch.setattr(da, "_load_event_image", lambda db_, uuid: image)
     monkeypatch.setattr(da, "_load_rules", lambda db_, pid: rules)
-    monkeypatch.setattr(da, "has_project_access", lambda db_, uid, pid: True)
     monkeypatch.setattr(da, "species_seen_in_lookback", fake_lookback)
     monkeypatch.setattr(da, "_notify_rule", fake_notify)
     return db, calls
 
 
 def _user(user_id=7):
-    return SimpleNamespace(id=user_id, email="user@example.com")
+    return SimpleNamespace(id=user_id, email="user@example.com", is_superuser=False)
+
+
+def _row(rule, user=None, role='project-admin', site_ids=None):
+    """A _load_rules row: rule, creator, and the creator's membership."""
+    return (rule, user or _user(), role, site_ids)
 
 
 class TestHandleDetectionEvent:
     def test_two_matching_rules_notify_twice(self, monkeypatch):
-        rules = [(_rule(id=1), _user()), (_rule(id=2), _user())]
+        rules = [_row(_rule(id=1)), _row(_rule(id=2))]
         db, calls = _wire(monkeypatch, _project(), rules)
         da.handle_detection_event(_event())
         assert calls["notified"] == [1, 2]
         assert db.committed is True
 
     def test_non_matching_rule_is_quiet(self, monkeypatch):
-        rules = [(_rule(id=1, species=["red_fox"]), _user())]
+        rules = [_row(_rule(id=1, species=["red_fox"]))]
         db, calls = _wire(monkeypatch, _project(), rules)
         da.handle_detection_event(_event())
         assert calls["notified"] == []
 
     def test_below_detection_threshold_stops_early(self, monkeypatch):
-        rules = [(_rule(id=1), _user())]
+        rules = [_row(_rule(id=1))]
         db, calls = _wire(monkeypatch, _project(detection_threshold=0.9), rules)
         da.handle_detection_event(_event(detection_confidence=0.5))
         assert calls["notified"] == []
 
     def test_below_per_species_threshold_stops_early(self, monkeypatch):
         project = _project(classification_thresholds={"default": 0.95})
-        db, calls = _wire(monkeypatch, project, [(_rule(id=1), _user())])
+        db, calls = _wire(monkeypatch, project, [_row(_rule(id=1))])
         da.handle_detection_event(_event(confidence=0.9))
         assert calls["notified"] == []
 
     def test_cooldown_stamped_only_after_delivery(self, monkeypatch):
         rule = _rule(id=1, cooldown_minutes=30)
-        db, calls = _wire(monkeypatch, _project(), [(rule, _user())], delivered=True)
+        db, calls = _wire(monkeypatch, _project(), [_row(rule)], delivered=True)
         da.handle_detection_event(_event())
         assert "wolf|4" in rule.cooldown_state
 
@@ -293,20 +302,20 @@ class TestHandleDetectionEvent:
         # A telegram-only rule without a linked chat queues nothing and
         # must not swallow the next event
         rule = _rule(id=1, cooldown_minutes=30)
-        db, calls = _wire(monkeypatch, _project(), [(rule, _user())], delivered=False)
+        db, calls = _wire(monkeypatch, _project(), [_row(rule)], delivered=False)
         da.handle_detection_event(_event())
         assert rule.cooldown_state == {}
 
     def test_active_cooldown_suppresses(self, monkeypatch):
         recent = datetime.now(timezone.utc).isoformat()
         rule = _rule(id=1, cooldown_minutes=30, cooldown_state={"wolf|4": recent})
-        db, calls = _wire(monkeypatch, _project(), [(rule, _user())])
+        db, calls = _wire(monkeypatch, _project(), [_row(rule)])
         da.handle_detection_event(_event())
         assert calls["notified"] == []
 
     def test_rarity_suppresses_when_seen(self, monkeypatch):
         rule = _rule(id=1, rarity_days=30)
-        db, calls = _wire(monkeypatch, _project(), [(rule, _user())])
+        db, calls = _wire(monkeypatch, _project(), [_row(rule)])
         calls["lookback_result"] = True
         da.handle_detection_event(_event())
         assert calls["notified"] == []
@@ -314,7 +323,7 @@ class TestHandleDetectionEvent:
 
     def test_rarity_fires_when_absent_and_caches_per_days(self, monkeypatch):
         # Two rules with the same lookback share one query
-        rules = [(_rule(id=1, rarity_days=30), _user()), (_rule(id=2, rarity_days=30), _user())]
+        rules = [_row(_rule(id=1, rarity_days=30)), _row(_rule(id=2, rarity_days=30))]
         db, calls = _wire(monkeypatch, _project(), rules)
         da.handle_detection_event(_event())
         assert calls["notified"] == [1, 2]
@@ -326,6 +335,6 @@ class TestHandleDetectionEvent:
         assert exclude_image_id == 10
 
     def test_rarity_without_lookback_never_queries(self, monkeypatch):
-        db, calls = _wire(monkeypatch, _project(), [(_rule(id=1), _user())])
+        db, calls = _wire(monkeypatch, _project(), [_row(_rule(id=1))])
         da.handle_detection_event(_event())
         assert calls["lookbacks"] == []

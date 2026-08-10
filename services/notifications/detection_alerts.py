@@ -53,6 +53,7 @@ from shared.models import (
     DetectionAlertRule,
     Image,
     Project,
+    ProjectMembership,
     ProjectNotificationPreference,
     Site,
     User,
@@ -61,7 +62,7 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATIO
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log, has_project_access
+from db_operations import create_notification_log
 
 logger = get_logger("notifications.detection_alerts")
 settings = get_settings()
@@ -138,17 +139,45 @@ def next_cooldown_state(
     return fresh
 
 
-def rule_matches(rule: DetectionAlertRule, facts: EventFacts) -> bool:
+def effective_site_scope(
+    membership_role: Optional[str],
+    membership_site_ids: Optional[List[int]],
+    rule_site_ids: Optional[List[int]],
+) -> Optional[List[int]]:
+    """The site scope a rule is actually evaluated with.
+
+    Admins, unscoped viewers, and server admins without a membership row
+    (membership_role None) keep the rule's own scope. A site-restricted
+    viewer's rule is intersected with their allow-list, and a null rule
+    scope (all sites) becomes the allow-list itself, so rules created
+    before a restriction cannot leak. An empty result means the rule can
+    never match.
+    """
+    if membership_role != 'project-viewer' or membership_site_ids is None:
+        return rule_site_ids
+    if rule_site_ids is None:
+        return list(membership_site_ids)
+    allowed = set(membership_site_ids)
+    return [s for s in rule_site_ids if s in allowed]
+
+
+def rule_matches(
+    rule: DetectionAlertRule,
+    facts: EventFacts,
+    site_scope: Optional[List[int]],
+) -> bool:
     """Species membership, site scope, hour window, and group size.
     Cooldown and rarity are checked separately, they need time and DB.
 
-    A site-less image never matches a site-scoped rule (but still reaches
-    rules without a scope). A rule with an hour window fails closed when
-    the capture hour is unknown, the window exists to suppress."""
+    site_scope is the clamped scope from effective_site_scope, not the
+    rule's raw site_ids. A site-less image never matches a scoped rule
+    (but still reaches rules without a scope). A rule with an hour window
+    fails closed when the capture hour is unknown, the window exists to
+    suppress."""
     if facts.species not in (rule.species or []):
         return False
-    if rule.site_ids is not None:
-        if facts.site_id is None or facts.site_id not in rule.site_ids:
+    if site_scope is not None:
+        if facts.site_id is None or facts.site_id not in site_scope:
             return False
     if rule.hour_from is not None and rule.hour_to is not None:
         if facts.capture_hour is None:
@@ -194,10 +223,26 @@ def _load_event_image(
     return row.id, row.captured_at, row.site_id, row.name
 
 
-def _load_rules(db, project_id: int) -> List[Tuple[DetectionAlertRule, User]]:
-    return list(db.execute(
-        select(DetectionAlertRule, User)
+def _load_rules(
+    db, project_id: int
+) -> List[Tuple[DetectionAlertRule, User, Optional[str], Optional[List[int]]]]:
+    """Active rules with their creator and the creator's membership (role,
+    site_ids). Rules whose creator has no membership are dropped, unless
+    the creator is a server admin, who has implicit access to every
+    project and no membership row."""
+    rows = db.execute(
+        select(
+            DetectionAlertRule,
+            User,
+            ProjectMembership.role,
+            ProjectMembership.site_ids,
+        )
         .join(User, DetectionAlertRule.created_by_user_id == User.id)
+        .outerjoin(
+            ProjectMembership,
+            (ProjectMembership.user_id == User.id)
+            & (ProjectMembership.project_id == DetectionAlertRule.project_id),
+        )
         .where(
             DetectionAlertRule.project_id == project_id,
             DetectionAlertRule.is_active == True,
@@ -205,7 +250,19 @@ def _load_rules(db, project_id: int) -> List[Tuple[DetectionAlertRule, User]]:
             User.is_verified == True,
         )
         .order_by(DetectionAlertRule.id.asc())
-    ).all())
+    ).all()
+
+    kept = []
+    for rule, user, role, membership_site_ids in rows:
+        if role is None and not user.is_superuser:
+            logger.warning(
+                "Skipping detection rule; creator has no project membership",
+                rule_id=rule.id,
+                user_id=user.id,
+            )
+            continue
+        kept.append((rule, user, role, membership_site_ids))
+    return kept
 
 
 def species_seen_in_lookback(
@@ -329,22 +386,16 @@ def handle_detection_event(event: Dict[str, Any]) -> None:
         key = cooldown_key(species, site_id)
         # Rarity depends only on the lookback length within one event
         rarity_cache: Dict[int, bool] = {}
-        access_cache: Dict[int, bool] = {}
         fired = 0
 
-        for rule, user in rows:
+        for rule, user, membership_role, membership_site_ids in rows:
             try:
-                if user.id not in access_cache:
-                    access_cache[user.id] = has_project_access(db, user.id, project.id)
-                if not access_cache[user.id]:
-                    logger.warning(
-                        "Skipping detection rule; creator has no project access",
-                        rule_id=rule.id,
-                        user_id=user.id,
-                    )
-                    continue
-
-                if not rule_matches(rule, facts):
+                # Membership presence was already checked in _load_rules;
+                # clamp the rule to the creator's site allow-list
+                site_scope = effective_site_scope(
+                    membership_role, membership_site_ids, rule.site_ids,
+                )
+                if not rule_matches(rule, facts, site_scope):
                     continue
 
                 if rule.cooldown_minutes and cooldown_active(

@@ -12,6 +12,7 @@ from sqlalchemy import select, and_
 from shared.logger import get_logger
 from shared.database import get_sync_session
 from shared.models import (
+    ProjectMembership,
     ProjectNotificationPreference,
     User,
     Project
@@ -20,7 +21,11 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log, get_server_timezone
+from db_operations import (
+    create_notification_log,
+    get_server_timezone,
+    project_wide_email_skip_reason,
+)
 from report_stats import (
     get_overview_stats,
     get_species_distribution,
@@ -133,9 +138,17 @@ def _send_reports_for_frequency(
     with get_sync_session() as db:
         # Query users with email reports enabled for this frequency
         query = (
-            select(ProjectNotificationPreference, User, Project)
+            select(
+                ProjectNotificationPreference, User, Project,
+                ProjectMembership.role, ProjectMembership.site_ids,
+            )
             .join(User, ProjectNotificationPreference.user_id == User.id)
             .join(Project, ProjectNotificationPreference.project_id == Project.id)
+            .outerjoin(
+                ProjectMembership,
+                (ProjectMembership.user_id == User.id)
+                & (ProjectMembership.project_id == ProjectNotificationPreference.project_id),
+            )
             .where(
                 User.is_active == True,
                 User.is_verified == True
@@ -148,9 +161,23 @@ def _send_reports_for_frequency(
             logger.info("No users with notification preferences found")
             return
 
-        # Filter to users with email reports enabled at this frequency
+        # Filter to users with email reports enabled at this frequency.
+        # The report aggregates over the whole project, so it is skipped
+        # for users without a current membership (stale preference rows)
+        # and for site-restricted viewers.
         eligible_prefs = []
-        for pref, user, project in preferences:
+        for pref, user, project, membership_role, membership_site_ids in preferences:
+            skip = project_wide_email_skip_reason(
+                user.is_superuser, membership_role, membership_site_ids,
+            )
+            if skip:
+                logger.info(
+                    "Skipping email report recipient",
+                    user_id=user.id,
+                    project_id=project.id,
+                    reason=skip,
+                )
+                continue
             email_config = _get_email_report_config(pref)
             if email_config and email_config.get('frequency') == frequency:
                 eligible_prefs.append((pref, user, project, email_config))

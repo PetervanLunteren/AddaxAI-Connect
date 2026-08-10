@@ -13,6 +13,7 @@ from sqlalchemy import text, select
 from shared.logger import get_logger
 from shared.database import get_sync_session
 from shared.models import (
+    ProjectMembership,
     ProjectNotificationPreference,
     User,
     Project
@@ -21,7 +22,11 @@ from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
 from shared.config import get_settings
 from shared.email_renderer import render_email
 
-from db_operations import create_notification_log, get_server_timezone
+from db_operations import (
+    create_notification_log,
+    get_server_timezone,
+    project_wide_email_skip_reason,
+)
 
 logger = get_logger("notifications.excessive_images")
 settings = get_settings()
@@ -166,9 +171,17 @@ def _load_eligible_users(db) -> List[Tuple[int, str, int, str, int]]:
     after the session closes.
     """
     query = (
-        select(ProjectNotificationPreference, User, Project)
+        select(
+            ProjectNotificationPreference, User, Project,
+            ProjectMembership.role, ProjectMembership.site_ids,
+        )
         .join(User, ProjectNotificationPreference.user_id == User.id)
         .join(Project, ProjectNotificationPreference.project_id == Project.id)
+        .outerjoin(
+            ProjectMembership,
+            (ProjectMembership.user_id == User.id)
+            & (ProjectMembership.project_id == ProjectNotificationPreference.project_id),
+        )
         .where(
             User.is_active == True,
             User.is_verified == True,
@@ -176,7 +189,21 @@ def _load_eligible_users(db) -> List[Tuple[int, str, int, str, int]]:
     )
 
     eligible: List[Tuple[int, str, int, str, int]] = []
-    for pref, user, project in db.execute(query).all():
+    for pref, user, project, membership_role, membership_site_ids in db.execute(query).all():
+        # The alert carries site names and camera GPS for the whole
+        # project, so skip users without a current membership and
+        # site-restricted viewers
+        skip = project_wide_email_skip_reason(
+            user.is_superuser, membership_role, membership_site_ids,
+        )
+        if skip:
+            logger.info(
+                "Skipping excessive image alert recipient",
+                user_id=user.id,
+                project_id=project.id,
+                reason=skip,
+            )
+            continue
         config = _get_excessive_images_config(pref)
         if not config:
             continue
