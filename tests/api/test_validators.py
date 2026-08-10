@@ -17,6 +17,12 @@ class _FakeResult:
         return []
 
 
+class _SuperUser:
+    """Minimal user stand-in; superusers skip the site scope lookup so the
+    compile-asserting session only sees the endpoint's own query."""
+    is_superuser = True
+
+
 class _CompileAssertingSession:
     """AsyncSession stand-in whose execute() compiles the query against the
     postgres dialect, so JOIN and column bugs surface without a live DB.
@@ -44,7 +50,7 @@ class TestGetValidators:
             project_id=None,
             accessible_project_ids=[1, 2],
             db=db,
-            current_user=None,
+            current_user=_SuperUser(),
         )
 
         assert out == []
@@ -71,7 +77,7 @@ class TestGetValidators:
                 project_id=99,
                 accessible_project_ids=[1, 2],
                 db=_CompileAssertingSession(),
-                current_user=None,
+                current_user=_SuperUser(),
             )
         assert exc.value.status_code == 403
 

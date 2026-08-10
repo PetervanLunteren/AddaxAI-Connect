@@ -17,7 +17,13 @@ from shared.storage import StorageClient
 from shared.config import get_settings
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
-from auth.project_access import get_accessible_project_ids, narrow_to_project
+from auth.project_access import (
+    get_accessible_project_ids,
+    narrow_to_project,
+    get_allowed_site_ids,
+    get_site_scope_or_400,
+)
+from utils.site_scope import intersect_scope, site_image_clause, site_in_scope
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 from utils.detection_filtering import strongest_hidden_detection
@@ -227,6 +233,34 @@ class SetTagsResponse(BaseModel):
     tags: List[str]
 
 
+async def _check_image_in_scope(
+    db: AsyncSession,
+    current_user: User,
+    image: Image,
+    project_id: int,
+) -> None:
+    """404 when a site-restricted viewer must not see this image.
+
+    The image's site is the site of its deployment. Images without a
+    deployment or without a resolved site fail a restricted scope, fail
+    closed. 404 rather than 403 so uuids cannot be probed."""
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+    if site_scope is None:
+        return
+    image_site_id = None
+    if image.deployment_id is not None:
+        image_site_id = (
+            await db.execute(
+                select(Deployment.site_id).where(Deployment.id == image.deployment_id)
+            )
+        ).scalar_one_or_none()
+    if not site_in_scope(image_site_id, site_scope):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+
 @router.get(
     "/species",
     response_model=List[SpeciesOption],
@@ -244,6 +278,7 @@ async def get_species(
     Includes species from both human observations (verified) and AI classifications (unverified).
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_scope = await get_site_scope_or_400(current_user, project_id, db)
     from sqlalchemy import union_all
 
     # Query 1: Species from human observations (verified images)
@@ -301,6 +336,13 @@ async def get_species(
         .distinct()
     )
 
+    # Restricted viewers only see the species vocabulary of their sites
+    if site_scope is not None:
+        scope_clause = site_image_clause(site_scope)
+        human_species = human_species.where(scope_clause)
+        ai_species = ai_species.where(scope_clause)
+        pv_species = pv_species.where(scope_clause)
+
     # Combine and get unique species
     combined = union_all(human_species, ai_species, pv_species).subquery()
     final_query = select(combined.c.species).distinct().order_by(combined.c.species)
@@ -357,6 +399,7 @@ async def get_validators(
     through verified_by_email, so no new information leaks.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_scope = await get_site_scope_or_400(current_user, project_id, db)
     query = (
         select(User.id, User.email)
         .join(Image, Image.verified_by_user_id == User.id)
@@ -369,6 +412,8 @@ async def get_validators(
         .distinct()
         .order_by(User.email)
     )
+    if site_scope is not None:
+        query = query.where(site_image_clause(site_scope))
     result = await db.execute(query)
     return [ValidatorOption(user_id=row.id, email=row.email) for row in result.all()]
 
@@ -391,7 +436,8 @@ async def get_image_tags(
     site and camera tags.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    result = await db.execute(
+    site_scope = await get_site_scope_or_400(current_user, project_id, db)
+    query = (
         select(Image.tags)
         .join(Camera, Image.camera_id == Camera.id)
         .where(
@@ -399,6 +445,9 @@ async def get_image_tags(
             Image.tags.isnot(None),
         )
     )
+    if site_scope is not None:
+        query = query.where(site_image_clause(site_scope))
+    result = await db.execute(query)
     all_tags: set = set()
     for (tags,) in result.all():
         if tags:
@@ -498,6 +547,7 @@ async def list_images(
         Paginated list of images with detection summaries (filtered by accessible projects)
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_scope = await get_site_scope_or_400(current_user, project_id, db)
 
     # Build query filters
     filters = [
@@ -519,14 +569,16 @@ async def list_images(
     # Images at one or more sites: every image whose deployment belongs to a
     # selected site. Comma-separated so the Images page can filter by several
     # sites; the "View images" link on the site slideout passes a single id.
+    # A restricted viewer's allow-list is intersected with the requested
+    # sites, so out-of-scope requests behave like nonexistent sites (empty
+    # result) and an unfiltered request still only covers allowed sites.
+    user_site_ids = None
     if site_id:
-        site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
-        if site_ids:
-            filters.append(
-                Image.deployment_id.in_(
-                    select(Deployment.id).where(Deployment.site_id.in_(site_ids))
-                )
-            )
+        parsed_site_ids = [int(s.strip()) for s in site_id.split(',') if s.strip()]
+        user_site_ids = parsed_site_ids or None
+    effective_site_ids = intersect_scope(site_scope, user_site_ids)
+    if effective_site_ids is not None:
+        filters.append(site_image_clause(effective_site_ids))
 
     # Handle tags filter: an image matches when its deployment's site carries
     # any of the given tags. Tags describe the place, so they live on the Site;
@@ -1268,6 +1320,8 @@ async def get_image(
             detail="You do not have access to this image"
         )
 
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
+
     # Filter detections by project thresholds. A detection is hidden when:
     # - its confidence is below the detection threshold, OR
     # - it is an animal with a classification below the per-species
@@ -1458,6 +1512,8 @@ async def save_verification(
             detail="You do not have access to this image",
         )
 
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
+
     # Delete existing human observations for this image
     from sqlalchemy import delete
     await db.execute(
@@ -1574,6 +1630,8 @@ async def set_like(
             detail="You do not have access to this image",
         )
 
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
+
     image.is_liked = request.is_liked
     if request.is_liked:
         image.liked_at = datetime.now(timezone.utc)
@@ -1631,6 +1689,8 @@ async def set_needs_review(
             detail="You do not have access to this image",
         )
 
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
+
     image.needs_review = request.needs_review
     if request.needs_review:
         image.needs_review_at = datetime.now(timezone.utc)
@@ -1687,6 +1747,8 @@ async def set_image_tags(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image",
         )
+
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
 
     image.tags = normalize_tags(request.tags)
     await db.commit()
@@ -1808,6 +1870,8 @@ async def get_image_thumbnail(
             detail="You do not have access to this image"
         )
 
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
+
     # Check if privacy blur is needed
     project = None
     if camera and camera.project_id:
@@ -1880,6 +1944,8 @@ async def get_image_full(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image"
         )
+
+    await _check_image_in_scope(db, current_user, image, camera.project_id)
 
     # Check if privacy blur is needed
     project = None
@@ -1979,6 +2045,8 @@ async def get_annotated_image(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this image"
         )
+
+    await _check_image_in_scope(db, current_user, image, image.camera.project_id)
 
     # Load project to get detection threshold
     project_result = await db.execute(
