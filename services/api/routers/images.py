@@ -1219,6 +1219,7 @@ async def get_image(
     uuid: str,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
+    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
 ):
     """
     Get single image detail by UUID
@@ -1260,6 +1261,12 @@ async def get_image(
         )
 
     image, camera, project = row
+
+    if camera.project_id not in accessible_project_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this image"
+        )
 
     # Filter detections by project thresholds. A detection is hidden when:
     # - its confidence is below the detection threshold, OR
