@@ -19,7 +19,11 @@ from shared.classification_threshold import (
 )
 from shared.database import get_async_session
 from auth.users import current_verified_user
-from auth.project_access import get_accessible_project_ids, narrow_to_project
+from auth.project_access import (
+    get_accessible_project_ids,
+    narrow_to_project,
+    get_site_scope_or_400,
+)
 from utils.preferred_counts import (
     get_preferred_species_counts,
     get_preferred_unique_species,
@@ -51,7 +55,7 @@ from utils.sun_time import (
     reference_date_for_sun,
     transform_to_sun_time,
 )
-from utils.site_scope import site_image_clause, cameras_at_sites_clause
+from utils.site_scope import site_image_clause, cameras_at_sites_clause, intersect_scope
 from utils.timeline import get_deployment_timeline
 from utils.independence_filter import (
     get_independent_species_counts,
@@ -78,6 +82,27 @@ def _parse_id_list(raw: Optional[str]) -> Optional[List[int]]:
 # the local names keep the existing call sites unchanged.
 _site_image_condition = site_image_clause
 _cameras_at_sites_condition = cameras_at_sites_clause
+
+
+async def _scoped_site_ids(
+    current_user: User,
+    project_id: Optional[int],
+    db: AsyncSession,
+    site_ids: Optional[str],
+) -> Optional[List[int]]:
+    """The effective site filter for a statistics endpoint.
+
+    Intersects the caller's membership site scope with the requested CSV
+    filter. None means no restriction from either side. Never returns an
+    empty list: a disjoint intersection becomes [-1], which matches no
+    site, so the endpoints' `if site_id_list` truthiness checks keep
+    filtering instead of silently dropping the restriction.
+    """
+    scope = await get_site_scope_or_400(current_user, project_id, db)
+    effective = intersect_scope(scope, _parse_id_list(site_ids))
+    if effective == []:
+        return [-1]
+    return effective
 
 
 async def _get_independence_interval(db: AsyncSession, project_id: Optional[int]) -> int:
@@ -173,7 +198,7 @@ async def get_overview(
         Overview statistics for dashboard
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = _parse_id_list(site_ids)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # Total images (filtered by project via camera, excluding hidden)
     img_conditions = [Camera.project_id.in_(accessible_project_ids), Image.is_hidden == False]
@@ -298,7 +323,7 @@ async def get_images_timeline(
         conditions.append(Image.captured_at >= start_date)
     # Resolved through the deployment so an image counts for the site its camera
     # stood at when it was taken, matching every other site filter in this file.
-    site_id_list = _parse_id_list(site_ids)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     if site_id_list:
         conditions.append(
             Image.deployment_id.in_(
@@ -356,7 +381,7 @@ async def get_species_distribution(
         List of species with counts (top 10 by count)
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = _parse_id_list(site_ids)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     interval = await _get_independence_interval(db, project_id)
 
     if interval > 0:
@@ -411,7 +436,7 @@ async def get_camera_activity(
     from shared.models import CameraHealthReport
 
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # Pair each accessible camera with the timestamp of its latest health report (NULL if never reported).
     cam_conditions = [Camera.project_id.in_(accessible_project_ids)]
@@ -452,6 +477,7 @@ async def get_camera_activity(
 )
 async def get_last_update(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -462,6 +488,7 @@ async def get_last_update(
     UTC. The frontend renders it in the user's browser locale.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     query = (
         select(Image.captured_at)
@@ -476,6 +503,8 @@ async def get_last_update(
         .order_by(desc(Image.captured_at))
         .limit(1)
     )
+    if site_id_list:
+        query = query.where(_site_image_condition(site_id_list))
 
     result = await db.execute(query)
     captured_at = result.scalar_one_or_none()
@@ -667,7 +696,7 @@ async def get_detection_rate_map(
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     interval = await _get_independence_interval(db, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     # Lowercased list for the = ANY comparisons below. Several species merge
     # their counts, which is the combined-abundance behaviour of the map.
     species_list = (
@@ -1000,7 +1029,7 @@ async def get_activity_pattern(
     Used for radial/polar charts showing diel activity patterns.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     interval = await _get_independence_interval(db, project_id)
 
     # Convert date to datetime for the helper
@@ -1087,6 +1116,7 @@ async def get_species_accumulation(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1098,6 +1128,7 @@ async def get_species_accumulation(
     Returns the first date each species was observed and cumulative count per day.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     # Convert dates
     start_dt = datetime.combine(start_date, datetime.min.time()) if start_date else None
     end_dt = datetime.combine(end_date, datetime.max.time()) if end_date else None
@@ -1108,6 +1139,7 @@ async def get_species_accumulation(
         project_ids=accessible_project_ids,
         start_date=start_dt,
         end_date=end_dt,
+        site_ids=site_id_list,
     )
 
     # Convert to row-like format for existing logic
@@ -1166,7 +1198,7 @@ async def get_detection_trend(
     No date filter means all-time, same as the other dashboard endpoints.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     interval = await _get_independence_interval(db, project_id)
 
     # No date filter means all-time, matching the other dashboard
@@ -1235,7 +1267,7 @@ async def get_trap_effort(
     start_date and end_date (NULL end_date means currently active).
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     if not accessible_project_ids:
         return []
@@ -1314,6 +1346,7 @@ async def get_confidence_distribution(
     project_id: Optional[int] = Query(None, description="Filter to a single project"),
     start_date: Optional[date] = Query(None, description="Filter from this date"),
     end_date: Optional[date] = Query(None, description="Filter to this date"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1324,6 +1357,7 @@ async def get_confidence_distribution(
     Returns counts for each 0.1-width bin from 0.0 to 1.0.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     # Define bins (0.0-0.1, 0.1-0.2, ..., 0.9-1.0)
     bins = [(i / 10, (i + 1) / 10) for i in range(10)]
 
@@ -1333,6 +1367,8 @@ async def get_confidence_distribution(
         .join(Camera)
         .where(Camera.project_id.in_(accessible_project_ids))
     )
+    if site_id_list:
+        query = query.where(_site_image_condition(site_id_list))
 
     if start_date:
         query = query.where(func.date(Image.captured_at) >= start_date)
@@ -1431,7 +1467,7 @@ async def get_group_size(
     group size is meaningless for them.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = _parse_id_list(site_ids)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     species_list = [s.strip() for s in species.split(',') if s.strip()] if species else None
     interval = await _get_independence_interval(db, project_id)
 
@@ -1520,7 +1556,7 @@ async def get_naive_occupancy_endpoint(
     detection-history CSV and run unmarked::occu() / camtrapR.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # No date filter = all available data. Wide sentinel dates so the
     # downstream SQL bound checks still run unmodified. Avoids an
@@ -1766,7 +1802,7 @@ async def get_activity_overlap(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # If the user picked the same species for A and B, drop B and run the
     # single-species path. Two identical curves overlap with Δ = 1 by
@@ -1991,7 +2027,7 @@ async def get_timeline(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
-    site_id_list = _parse_id_list(site_ids)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # `today` is the server-local calendar date used for date-range
     # bookkeeping; matches the captured_at convention. Open CDPs no
@@ -2045,7 +2081,7 @@ async def get_detection_history_csv(
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     if not accessible_project_ids:
         raise HTTPException(status_code=403, detail="No access to this project.")
-    site_id_list = _parse_id_list(site_ids)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     history = await build_site_detection_history(
         db=db,
@@ -2110,7 +2146,7 @@ async def get_pipeline_status(
     images that are either verified or fully classified.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(',') if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     if not accessible_project_ids:
         return PipelineStatusResponse(
@@ -2261,6 +2297,7 @@ class DetectionCountResponse(BaseModel):
 async def get_detection_count(
     project_id: int = Query(..., description="Project ID (required)"),
     threshold: float = Query(..., description="Confidence threshold (0-1)"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -2272,6 +2309,7 @@ async def get_detection_count(
     Unverified images count AI classifications above the threshold.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # Verified: human observations grouped by species (threshold doesn't apply)
     verified_query = (
@@ -2332,6 +2370,13 @@ async def get_detection_count(
         .group_by(Detection.category)
     )
 
+    # Restricted viewers only count images at their sites
+    if site_id_list:
+        scope_clause = _site_image_condition(site_id_list)
+        verified_query = verified_query.where(scope_clause)
+        unverified_query = unverified_query.where(scope_clause)
+        pv_query = pv_query.where(scope_clause)
+
     # Combine and sum per species
     from sqlalchemy import union_all
     combined = union_all(verified_query, unverified_query, pv_query).subquery()
@@ -2377,6 +2422,7 @@ class IndependenceSummaryResponse(BaseModel):
 async def get_independence_summary(
     project_id: int = Query(..., description="Project ID (required)"),
     interval_minutes: Optional[int] = Query(None, description="Override interval (uses project setting if omitted)"),
+    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -2388,6 +2434,7 @@ async def get_independence_summary(
     If interval_minutes is provided, uses that instead of the project's saved setting.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     interval = interval_minutes if interval_minutes is not None else await _get_independence_interval(db, project_id)
 
     if interval == 0:
@@ -2402,6 +2449,7 @@ async def get_independence_summary(
     raw_counts = await get_preferred_species_counts(
         db=db,
         project_ids=accessible_project_ids,
+        site_ids=site_id_list,
     )
 
     # Get independence-filtered counts (sum of MaxN per event) and event counts
@@ -2409,11 +2457,13 @@ async def get_independence_summary(
         db=db,
         project_ids=accessible_project_ids,
         interval_minutes=interval,
+        site_ids=site_id_list,
     )
     event_counts = await get_independent_event_counts(
         db=db,
         project_ids=accessible_project_ids,
         interval_minutes=interval,
+        site_ids=site_id_list,
     )
 
     # Build lookups
@@ -2511,8 +2561,8 @@ async def get_demographics(
         filters.append(Image.captured_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
         filters.append(Image.captured_at <= datetime.combine(end_date, datetime.max.time()))
-    if site_ids:
-        site_id_list = [int(x.strip()) for x in site_ids.split(",") if x.strip()]
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
+    if site_id_list:
         filters.append(_site_image_condition(site_id_list))
 
     query = (
@@ -2566,7 +2616,7 @@ async def get_verification_progress(
     Get verification progress (verified / total images) with optional label filter.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(",") if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     base_filters: list = [
         Camera.project_id.in_(accessible_project_ids),
@@ -2702,7 +2752,7 @@ async def get_verification_progress_all(
     ascending so the least-verified labels appear first.
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = [int(x.strip()) for x in site_ids.split(",") if x.strip()] if site_ids else None
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     base_filters: list = [
         Camera.project_id.in_(accessible_project_ids),
@@ -2931,11 +2981,7 @@ async def get_performance(
             detail=f"Project {project_id} not found",
         )
 
-    site_id_list = (
-        [int(x.strip()) for x in site_ids.split(',') if x.strip()]
-        if site_ids
-        else None
-    )
+    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
 
     # Fetch verified, classified, non-hidden images for this project with
     # their detections and human observations eagerly loaded. One query.
