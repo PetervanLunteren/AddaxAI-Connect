@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { resetPassword } from '../api/auth';
 import { AuthLayout } from '../components/AuthLayout';
+import { Callout } from '../components/ui/Callout';
 
 export const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -89,9 +90,7 @@ export const ResetPassword: React.FC = () => {
     <AuthLayout title="Set new password" subtitle="Enter your new password below">
       <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                {error}
-              </div>
+              <Callout variant="error">{error}</Callout>
             )}
 
             <div>

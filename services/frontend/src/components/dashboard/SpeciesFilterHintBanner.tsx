@@ -15,7 +15,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Info, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { Callout } from '../ui/Callout';
 
 import { speciesApi } from '../../api/species';
 import { useProject } from '../../contexts/ProjectContext';
@@ -64,9 +65,20 @@ export function SpeciesFilterHintBanner() {
   };
 
   return (
-    <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-start gap-2">
-      <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
-      <div className="flex-1 text-sm">
+    <Callout
+      variant="info"
+      action={
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label="Dismiss"
+          className="p-0.5 rounded hover:bg-blue-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      }
+    >
+      <div>
         <p>
           Right now every species the model knows can be classified in this project.
           If you limit it to the species that live in your area, classification often
@@ -89,14 +101,6 @@ export function SpeciesFilterHintBanner() {
           </button>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={handleDismiss}
-        aria-label="Dismiss"
-        className="flex-shrink-0 opacity-60 hover:opacity-100"
-      >
-        <X className="h-4 w-4" />
-      </button>
-    </div>
+    </Callout>
   );
 }

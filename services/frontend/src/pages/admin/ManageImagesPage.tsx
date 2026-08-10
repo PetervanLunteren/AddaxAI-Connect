@@ -9,9 +9,10 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   EyeOff, Eye, Trash2, Loader2, ArrowUp, ArrowDown, ArrowUpDown,
-  ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Check, Download,
+  ChevronLeft, ChevronRight, AlertTriangle, Check, Download,
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { Callout } from '../../components/ui/Callout';
 import {
   FilterBar,
   type FilterFieldDef,
@@ -596,10 +597,7 @@ export const ManageImagesPage: React.FC = () => {
 
       {/* Success message */}
       {successMessage && (
-        <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-md border border-green-200">
-          <CheckCircle className="h-4 w-4" />
-          <span className="text-sm">{successMessage}</span>
-        </div>
+        <Callout variant="success">{successMessage}</Callout>
       )}
 
       <FilterBar

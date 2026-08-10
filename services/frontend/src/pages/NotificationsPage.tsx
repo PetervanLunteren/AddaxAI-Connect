@@ -9,6 +9,7 @@ import { useParams } from 'react-router-dom';
 import { Loader2, Save, MessageCircle, ChevronDown } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Callout } from '../components/ui/Callout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/Dialog';
 import { useToast } from '../components/ui/Toaster';
 import { Option } from '../components/ui/MultiSelect';
@@ -249,6 +250,42 @@ export const NotificationsPage: React.FC = () => {
       <h1 className="text-2xl font-bold mb-0">Notifications</h1>
       <p className="text-sm text-gray-600 mt-1 mb-6">Configure alerts for species detections and system events. These settings apply to your account only.</p>
 
+      {/* Without a Telegram bot there is nothing account-related to
+          configure, so the Telegram row disappears and this note takes
+          its place */}
+      {telegramStatus && !isTelegramConfigured && (
+        <Callout
+          variant="info"
+          className="mb-6"
+          action={
+            user?.is_superuser ? (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => window.location.href = '/server/settings'}
+                className="whitespace-nowrap"
+              >
+                Server settings
+              </Button>
+            ) : adminEmail ? (
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => window.location.href = `mailto:${adminEmail}`}
+                className="whitespace-nowrap"
+              >
+                Contact admin
+              </Button>
+            ) : null
+          }
+        >
+          Telegram messages are not available yet. A Telegram bot has not
+          been set up for this server. Ask your server admin to set it up.
+        </Callout>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -258,66 +295,50 @@ export const NotificationsPage: React.FC = () => {
           <Card>
             <CardContent className="pt-6">
 
-              {/* Telegram account row. The link CTA lives here so both the
-                  detection and camera alert rules can point at one place. */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-                <div className="w-full sm:w-1/2 sm:shrink-0">
-                  <label className="text-sm font-medium block">Telegram account</label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {isTelegramLinked
-                      ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
-                      : isTelegramConfigured
-                        ? 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'
-                        : 'A Telegram bot has not been set up for this server yet. Ask your server admin to set it up.'
-                    }
-                  </p>
-                </div>
-                <div className="flex-1">
-                  {isTelegramLinked ? (
-                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                      Linked
-                    </span>
-                  ) : isTelegramConfigured ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={handleGenerateLink}
-                      disabled={generateTokenMutation.isPending}
-                      className="whitespace-nowrap"
-                    >
-                      {generateTokenMutation.isPending ? (
-                        <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
+              {/* Telegram account row, only when a bot exists. Linking a
+                  personal account is a per-user setting; the link CTA
+                  lives here so both the detection and camera alert rules
+                  can point at one place. */}
+              {isTelegramConfigured && (
+                <>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                    <div className="w-full sm:w-1/2 sm:shrink-0">
+                      <label className="text-sm font-medium block">Telegram account</label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {isTelegramLinked
+                          ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
+                          : 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'
+                        }
+                      </p>
+                    </div>
+                    <div className="flex-1">
+                      {isTelegramLinked ? (
+                        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                          Linked
+                        </span>
                       ) : (
-                        'Link Telegram'
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={handleGenerateLink}
+                          disabled={generateTokenMutation.isPending}
+                          className="whitespace-nowrap"
+                        >
+                          {generateTokenMutation.isPending ? (
+                            <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Linking...</>
+                          ) : (
+                            'Link Telegram'
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                  ) : user?.is_superuser ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={() => window.location.href = '/server/settings'}
-                      className="whitespace-nowrap"
-                    >
-                      Server settings
-                    </Button>
-                  ) : adminEmail ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={() => window.location.href = `mailto:${adminEmail}`}
-                      className="whitespace-nowrap"
-                    >
-                      Contact admin
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
+                    </div>
+                  </div>
 
-              {/* Divider */}
-              <div className="border-t my-6" />
+                  {/* Divider */}
+                  <div className="border-t my-6" />
+                </>
+              )}
 
               {/* Real-time detection alerts row (any member). The slideout
                   holds the rule list plus add / edit / delete. */}

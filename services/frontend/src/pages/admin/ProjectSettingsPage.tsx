@@ -7,8 +7,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Save, AlertCircle, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
+import { Loader2, Save, Check, X, ChevronDown, ChevronUp, RotateCcw, Undo2 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Callout } from '../../components/ui/Callout';
 import { Button } from '../../components/ui/Button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/Dialog';
 import { MultiSelect, Option } from '../../components/ui/MultiSelect';
@@ -414,10 +415,7 @@ export const ProjectSettingsPage: React.FC = () => {
       <p className="text-sm text-gray-600 mt-1 mb-6">Configure project-wide settings and preferences</p>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-800 rounded-md flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
-          {error}
-        </div>
+        <Callout variant="error" className="mb-4">{error}</Callout>
       )}
 
       <Card>

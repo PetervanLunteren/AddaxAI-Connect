@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { Callout } from '../components/ui/Callout';
 import { AuthLayout } from '../components/AuthLayout';
 import apiClient from '../api/client';
 
@@ -69,9 +70,7 @@ export const Login: React.FC = () => {
     <AuthLayout subtitle={isDemoMode ? "Explore the platform with a demo account" : "Sign in to your account"}>
       <div className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-            {error}
-          </div>
+          <Callout variant="error">{error}</Callout>
         )}
 
         {isDemoMode && (

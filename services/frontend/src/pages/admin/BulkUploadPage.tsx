@@ -14,7 +14,6 @@ import {
   Loader2,
   Upload,
   Plus,
-  Info,
   FolderOpen,
   Check,
   AlertTriangle,
@@ -27,6 +26,7 @@ import {
 
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Callout } from '../../components/ui/Callout';
 import { Select } from '../../components/ui/Select';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import {
@@ -1241,26 +1241,17 @@ const ReviewStep: React.FC<{
           Checking which camera these images came from
         </div>
       ) : profile?.multiple_cameras ? (
-        <div
-          role="note"
-          className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900"
-        >
-          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
-          <div>
-            <span className="font-medium">This folder holds more than one camera.</span>
-            {' '}
-            Bulk upload handles one camera per folder. Split the images per camera and
-            upload each set separately.
-          </div>
-        </div>
+        <Callout variant="warning">
+          <span className="font-medium">This folder holds more than one camera.</span>
+          {' '}
+          Bulk upload handles one camera per folder. Split the images per camera and
+          upload each set separately.
+        </Callout>
       ) : profile?.mode === 'profile' ? (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-start gap-2">
-          <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <div className="text-sm">
-            Detected camera ID <span className="font-medium">{profile.device_id}</span>.
-            {!profile.camera_registered && ' This camera will be added to this project.'}
-          </div>
-        </div>
+        <Callout variant="info">
+          Detected camera ID <span className="font-medium">{profile.device_id}</span>.
+          {!profile.camera_registered && ' This camera will be added to this project.'}
+        </Callout>
       ) : (
         <div className="space-y-2">
           <label className="text-sm font-medium">Site</label>
@@ -1290,17 +1281,11 @@ const ReviewStep: React.FC<{
         </div>
       )}
 
-      <div
-        role="note"
-        className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900"
-      >
-        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
-        <div>
-          <span className="font-medium">Keep this tab open during the upload.</span>
-          {' '}
-          Once the analysis starts, you can close it.
-        </div>
-      </div>
+      <Callout variant="warning">
+        <span className="font-medium">Keep this tab open during the upload.</span>
+        {' '}
+        Once the analysis starts, you can close it.
+      </Callout>
 
       <div className="flex justify-between gap-2 pt-2">
         <div className="flex gap-2">

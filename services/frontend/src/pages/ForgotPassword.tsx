@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { forgotPassword } from '../api/auth';
 import { AuthLayout } from '../components/AuthLayout';
+import { Callout } from '../components/ui/Callout';
 
 export const ForgotPassword: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -54,9 +55,7 @@ export const ForgotPassword: React.FC = () => {
     <AuthLayout title="Reset your password" subtitle="Enter your email to receive a reset link">
       <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                {error}
-              </div>
+              <Callout variant="error">{error}</Callout>
             )}
 
             <div>

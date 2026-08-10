@@ -8,11 +8,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, AlertCircle, Info, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
 import { useAuth } from '../hooks/useAuth';
 import { useProject } from '../contexts/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
+import { Callout } from '../components/ui/Callout';
 import { Button } from '../components/ui/Button';
 import { ProjectCard } from '../components/projects/ProjectCard';
 import { CreateProjectModal } from '../components/projects/CreateProjectModal';
@@ -107,29 +108,23 @@ export const ProjectsPage: React.FC = () => {
             automatically from the browser on first login, so it is not listed
             here and the banner no longer gates on it. */}
         {isServerAdmin && setupStatus && (!setupStatus.country_code || !setupStatus.taxonomy_mapping) && (
-          <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-md p-3 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm">
-              Server setup incomplete.{' '}
-              {!setupStatus.country_code && (
-                <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
-              )}
-              {!setupStatus.taxonomy_mapping && (
-                <><Link to="/server/settings" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
-              )}
-            </span>
-          </div>
+          <Callout variant="warning" className="mb-6">
+            Server setup incomplete.{' '}
+            {!setupStatus.country_code && (
+              <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
+            )}
+            {!setupStatus.taxonomy_mapping && (
+              <><Link to="/server/settings" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
+            )}
+          </Callout>
         )}
 
         {/* Telegram not configured banner (server admins only) */}
         {isServerAdmin && setupStatus && !setupStatus.telegram && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 flex items-center gap-2">
-            <Info className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm">
-              Telegram bot is not configured. This is optional, but without it no one will be able to sign up for real-time notifications.{' '}
-              <Link to="/server/settings" className="underline font-medium">Configure Telegram</Link>.
-            </span>
-          </div>
+          <Callout variant="info" className="mb-6">
+            Telegram bot is not configured. This is optional, but without it no one will be able to sign up for real-time notifications.{' '}
+            <Link to="/server/settings" className="underline font-medium">Configure Telegram</Link>.
+          </Callout>
         )}
 
       {loading ? (

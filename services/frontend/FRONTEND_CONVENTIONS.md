@@ -127,6 +127,7 @@ Location: `src/components/ui/`
 
 **Available Components:**
 - `Button`: Primary UI actions
+- `Callout`: Info, warning, error, and success message boxes. Every short status or hint message uses this, never a hand-rolled colored div
 - `Card`: Content containers
 - `Dialog`: Modals/popups
 - `Form`: Form wrapper with context

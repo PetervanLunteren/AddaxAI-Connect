@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { register, validateInviteToken } from '../api/auth';
 import { AuthLayout } from '../components/AuthLayout';
+import { Callout } from '../components/ui/Callout';
 
 export const Register: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -151,17 +152,13 @@ export const Register: React.FC = () => {
     <AuthLayout title="Create your account" subtitle={`Join ${projectName}`}>
       <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                {error}
-              </div>
+              <Callout variant="error">{error}</Callout>
             )}
 
-            <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded">
-              <p className="text-sm text-blue-800">
-                You've been invited as <strong>{role.replace('-', ' ')}</strong>
-                {projectName !== 'AddaxAI Connect' && <> for <strong>{projectName}</strong></>}
-              </p>
-            </div>
+            <Callout variant="info">
+              You've been invited as <strong>{role.replace('-', ' ')}</strong>
+              {projectName !== 'AddaxAI Connect' && <> for <strong>{projectName}</strong></>}
+            </Callout>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
