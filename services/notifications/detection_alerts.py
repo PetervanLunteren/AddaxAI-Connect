@@ -540,10 +540,10 @@ def _notify_rule(
             location = event.get('camera_location')
             if location and location.get('lat') and location.get('lon'):
                 buttons_row.append({
-                    'text': 'Map',
+                    'text': 'Show on map',
                     'url': f"https://maps.google.com/?q={location['lat']},{location['lon']}",
                 })
-            buttons_row.append({'text': 'View', 'url': images_url})
+            buttons_row.append({'text': 'View images', 'url': images_url})
 
             log_id = create_notification_log(
                 user_id=user.id,
