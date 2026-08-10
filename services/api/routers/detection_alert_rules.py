@@ -24,6 +24,7 @@ from shared.models import DetectionAlertRule, Project, Site, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_access_project
+from auth.project_access import get_allowed_site_ids
 
 
 router = APIRouter(prefix="/api/projects", tags=["detection-alert-rules"])
@@ -167,6 +168,28 @@ async def _require_project_access(
         )
 
 
+async def _check_sites_in_scope(
+    db: AsyncSession, current_user: User, project_id: int,
+    site_ids: Optional[List[int]],
+) -> None:
+    """400 when a site-restricted viewer names a site outside their scope.
+
+    A null site list (all sites) is allowed and stays null; the worker
+    clamps it to the allow-list at evaluation time, so the stored rule
+    keeps its single representation.
+    """
+    if site_ids is None:
+        return
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+    if site_scope is None:
+        return
+    if any(s not in site_scope for s in site_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="All sites must be within your allowed sites",
+        )
+
+
 async def _check_sites_in_project(
     db: AsyncSession, project_id: int, site_ids: List[int]
 ) -> None:
@@ -258,6 +281,7 @@ async def create_detection_rule(
 
     if request.site_ids is not None:
         await _check_sites_in_project(db, project_id, request.site_ids)
+    await _check_sites_in_scope(db, current_user, project_id, request.site_ids)
 
     rule = DetectionAlertRule(
         project_id=project_id,
@@ -330,6 +354,7 @@ async def update_detection_rule(
 
     if next_site_ids is not None and next_site_ids != rule.site_ids:
         await _check_sites_in_project(db, project_id, next_site_ids)
+    await _check_sites_in_scope(db, current_user, project_id, next_site_ids)
 
     # Order-insensitive comparison, reordering the same set is not a
     # condition change and must not reset the cooldown state

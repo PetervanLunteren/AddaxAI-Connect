@@ -24,6 +24,8 @@ from shared.models import Camera, CameraAlertRule, Project, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_access_project
+from auth.project_access import get_allowed_site_ids
+from utils.site_scope import cameras_current_site_clause
 
 
 router = APIRouter(prefix="/api/projects", tags=["camera-alert-rules"])
@@ -155,6 +157,37 @@ async def _check_cameras_in_project(
         )
 
 
+async def _check_cameras_in_scope(
+    db: AsyncSession, current_user: User, project_id: int,
+    camera_ids: Optional[List[int]],
+) -> None:
+    """400 when a site-restricted viewer names a camera outside their
+    scope. A camera is in scope when its current site is in the
+    allow-list, the same visibility rule the cameras router uses. A null
+    camera list (all cameras) is allowed and stays null; the worker
+    clamps it at evaluation time.
+    """
+    if camera_ids is None:
+        return
+    site_scope = await get_allowed_site_ids(current_user, project_id, db)
+    if site_scope is None:
+        return
+    allowed = {
+        row[0]
+        for row in (await db.execute(
+            select(Camera.id).where(
+                Camera.id.in_(camera_ids),
+                cameras_current_site_clause(site_scope),
+            )
+        )).all()
+    }
+    if any(c not in allowed for c in camera_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="All cameras must be within your allowed sites",
+        )
+
+
 async def _load_own_rule(
     db: AsyncSession,
     project_id: int,
@@ -228,6 +261,7 @@ async def create_alert_rule(
 
     if request.camera_ids is not None:
         await _check_cameras_in_project(db, project_id, request.camera_ids)
+    await _check_cameras_in_scope(db, current_user, project_id, request.camera_ids)
 
     rule = CameraAlertRule(
         project_id=project_id,
@@ -278,6 +312,7 @@ async def update_alert_rule(
 
     if next_camera_ids is not None and next_camera_ids != rule.camera_ids:
         await _check_cameras_in_project(db, project_id, next_camera_ids)
+    await _check_cameras_in_scope(db, current_user, project_id, next_camera_ids)
 
     # Order-insensitive camera comparison, reordering the same set is
     # not a condition change and must not reset the incident state

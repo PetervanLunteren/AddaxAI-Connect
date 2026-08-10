@@ -13,12 +13,20 @@ from shared.models import User, ProjectNotificationPreference, Project, Site
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_access_project, can_admin_project
+from auth.project_access import get_allowed_site_ids
 
 
 # Notification toggles that only project admins (or server admins) may flip.
 # Non-admins who try to change these keys are rejected with 403 even if the
 # frontend hides the row, so the API does not rely on the UI for enforcement.
 ADMIN_ONLY_NOTIFICATION_KEYS = {"sim_expiry", "project_inactivity"}
+
+# Project-wide emails a site-restricted viewer cannot enable. These jobs
+# aggregate over the whole project (species counts, camera health, camera
+# GPS), so a restricted viewer receiving them would see the other sites.
+# Filtered per-scope reports are a possible follow-up; for now the toggle
+# is refused with 403 and the worker skips such recipients as well.
+SCOPED_VIEWER_BLOCKED_KEYS = {"email_report", "excessive_images"}
 
 
 router = APIRouter(prefix="/api/projects", tags=["notifications"])
@@ -212,6 +220,21 @@ async def update_notification_preferences(
                     )
                 if existing is not None:
                     data.notification_channels[key] = existing
+
+            # Site-restricted viewers cannot enable project-wide emails
+            site_scope = await get_allowed_site_ids(current_user, project_id, db)
+            if site_scope is not None:
+                for key in SCOPED_VIEWER_BLOCKED_KEYS:
+                    incoming = data.notification_channels.get(key)
+                    if isinstance(incoming, dict) and incoming.get("enabled"):
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=(
+                                f"The '{key}' notification covers the whole "
+                                "project and is not available for accounts "
+                                "restricted to specific sites"
+                            ),
+                        )
 
         # Validate per-site scope on species_detection. Sites can only be
         # selected from this project, so a stale id or a cross-project id is
