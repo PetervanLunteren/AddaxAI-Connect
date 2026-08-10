@@ -51,6 +51,7 @@ from utils.sun_time import (
     reference_date_for_sun,
     transform_to_sun_time,
 )
+from utils.site_scope import site_image_clause, cameras_at_sites_clause
 from utils.timeline import get_deployment_timeline
 from utils.independence_filter import (
     get_independent_species_counts,
@@ -73,22 +74,10 @@ def _parse_id_list(raw: Optional[str]) -> Optional[List[int]]:
     return [int(x.strip()) for x in raw.split(',') if x.strip()]
 
 
-def _site_image_condition(site_id_list: List[int]):
-    """Restrict images to a set of sites through each image's deployment.
-
-    Time-correct: an image counts for the site its deployment stood at when
-    captured, not the camera's current site.
-    """
-    return Image.deployment_id.in_(
-        select(Deployment.id).where(Deployment.site_id.in_(site_id_list))
-    )
-
-
-def _cameras_at_sites_condition(site_id_list: List[int]):
-    """Restrict cameras to those with any deployment at the given sites."""
-    return Camera.id.in_(
-        select(Deployment.camera_id).where(Deployment.site_id.in_(site_id_list))
-    )
+# Moved to utils/site_scope.py so scope enforcement shares one clause;
+# the local names keep the existing call sites unchanged.
+_site_image_condition = site_image_clause
+_cameras_at_sites_condition = cameras_at_sites_clause
 
 
 async def _get_independence_interval(db: AsyncSession, project_id: Optional[int]) -> int:
