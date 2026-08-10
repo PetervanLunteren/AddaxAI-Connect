@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text, delete as sql_delete
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project, Image, CameraHealthReport, Detection, Classification
+from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, Detection, Classification
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -54,6 +54,7 @@ class CameraResponse(BaseModel):
     reference_image_url: Optional[str] = None
     reference_thumbnail_url: Optional[str] = None
     sim_expiry_date: Optional[str] = None  # YYYY-MM-DD or null
+    last_maintenance_date: Optional[str] = None  # YYYY-MM-DD or null, max event_date of the camera's maintenance log
 
     class Config:
         from_attributes = True
@@ -162,6 +163,7 @@ def camera_to_response(
     last_captured_at: Optional[datetime] = None,
     last_reported_at: Optional[datetime] = None,
     current_site: Optional[dict] = None,
+    last_maintenance_date: Optional[date] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape."""
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
@@ -190,6 +192,7 @@ def camera_to_response(
         reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
         reference_thumbnail_url=f"/reference-images/{camera.reference_thumbnail_path}" if camera.reference_thumbnail_path else None,
         sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
+        last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
     )
 
 
@@ -233,6 +236,7 @@ async def list_cameras(
     camera_ids = [c.id for c in cameras]
     last_captured_map: dict[int, datetime] = {}
     last_reported_map: dict[int, datetime] = {}
+    last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         captured_rows = await db.execute(
             select(Image.camera_id, func.max(Image.captured_at))
@@ -247,6 +251,13 @@ async def list_cameras(
             .group_by(CameraHealthReport.camera_id)
         )
         last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
+
+        maintenance_rows = await db.execute(
+            select(CameraMaintenanceEvent.camera_id, func.max(CameraMaintenanceEvent.event_date))
+            .where(CameraMaintenanceEvent.camera_id.in_(camera_ids))
+            .group_by(CameraMaintenanceEvent.camera_id)
+        )
+        last_maintenance_map = {cam_id: d for cam_id, d in maintenance_rows.all()}
 
     # Each camera's current site = the site of its most recent deployment.
     current_site_map: dict[int, dict] = {}
@@ -278,6 +289,7 @@ async def list_cameras(
             last_captured_at=last_captured_map.get(camera.id),
             last_reported_at=last_reported_map.get(camera.id),
             current_site=current_site_map.get(camera.id),
+            last_maintenance_date=last_maintenance_map.get(camera.id),
         )
         for camera in cameras
     ]
@@ -573,6 +585,10 @@ async def get_camera(
         select(func.max(CameraHealthReport.reported_at)).where(CameraHealthReport.camera_id == camera_id)
     )).scalar_one_or_none()
 
+    last_maintenance_date = (await db.execute(
+        select(func.max(CameraMaintenanceEvent.event_date)).where(CameraMaintenanceEvent.camera_id == camera_id)
+    )).scalar_one_or_none()
+
     from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
 
@@ -599,6 +615,7 @@ async def get_camera(
         last_captured_at=last_captured_at,
         last_reported_at=last_reported_at,
         current_site=current_site,
+        last_maintenance_date=last_maintenance_date,
     )
 
 
@@ -918,9 +935,15 @@ async def update_camera(
     await db.commit()
     await db.refresh(camera)
 
+    # The sheet replaces its camera row with this response, so carry the
+    # derived last maintenance date or saving would blank it in the UI.
+    last_maintenance_date = (await db.execute(
+        select(func.max(CameraMaintenanceEvent.event_date)).where(CameraMaintenanceEvent.camera_id == camera_id)
+    )).scalar_one_or_none()
+
     from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
-    return camera_to_response(camera, tz=tz)
+    return camera_to_response(camera, tz=tz, last_maintenance_date=last_maintenance_date)
 
 
 async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> dict:

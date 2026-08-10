@@ -165,6 +165,7 @@ addaxai-connect/
 │   │   ├── routers/                   # API route handlers
 │   │   │   ├── admin.py               # Server admin endpoints
 │   │   │   ├── cameras.py             # Camera CRUD
+│   │   │   ├── camera_maintenance.py  # Camera maintenance event log
 │   │   │   ├── site_groups.py         # Merged sites (site groups) for the independence interval
 │   │   │   ├── camera_reference_images.py # Reference images per camera
 │   │   │   ├── sites.py               # Site CRUD
