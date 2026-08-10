@@ -5,6 +5,7 @@ Provides service status information for server admins.
 """
 import json
 import os
+from datetime import datetime, timezone
 from typing import List, Literal
 import httpx
 from fastapi import APIRouter, Depends
@@ -15,7 +16,13 @@ from sqlalchemy import text
 from shared.models import User
 from shared.database import get_async_session
 from shared.logger import get_logger
-from shared.queue import RedisQueue
+from shared.queue import (
+    RedisQueue,
+    HEARTBEAT_KEY_NOTIFICATIONS,
+    HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
+    HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
+    HEARTBEAT_STALE_AFTER_MINUTES,
+)
 from auth.permissions import require_server_admin
 
 router = APIRouter(prefix="/api/health", tags=["health"])
@@ -219,6 +226,55 @@ def check_backup() -> ServiceStatus:
         )
 
 
+def check_heartbeat(name: str, heartbeat_key: str, queue_name: str) -> ServiceStatus:
+    """
+    Check a notification worker through its Redis heartbeat.
+
+    The worker stamps the key every consume-loop iteration (see
+    shared.queue.consume_forever), so a fresh stamp proves the loop is
+    actually alive, unlike the queue-accessible check below. The queue
+    depth in the message shows any backlog waiting for the worker.
+    """
+    try:
+        queue = RedisQueue(queue_name)
+        depth = queue.queue_depth()
+        raw = queue.client.get(heartbeat_key)
+        if not raw:
+            return ServiceStatus(
+                name=name,
+                status="unhealthy",
+                message="No heartbeat recorded (worker never started)",
+            )
+        last_seen = datetime.fromisoformat(raw)
+        age = datetime.now(timezone.utc) - last_seen
+        age_seconds = int(age.total_seconds())
+        if age_seconds < 120:
+            age_label = f"{age_seconds} s ago"
+        else:
+            age_label = f"{age_seconds // 60} min ago"
+        if age.total_seconds() > HEARTBEAT_STALE_AFTER_MINUTES * 60:
+            return ServiceStatus(
+                name=name,
+                status="unhealthy",
+                message=(
+                    f"Last heartbeat {age_label}, stale after "
+                    f"{HEARTBEAT_STALE_AFTER_MINUTES} min (queue depth {depth})"
+                ),
+            )
+        return ServiceStatus(
+            name=name,
+            status="healthy",
+            message=f"Last heartbeat {age_label} (queue depth {depth})",
+        )
+    except Exception as e:
+        logger.error("Heartbeat health check failed", service=name, error=str(e))
+        return ServiceStatus(
+            name=name,
+            status="unhealthy",
+            message=f"Heartbeat check error: {str(e)}",
+        )
+
+
 def check_worker_service(name: str, queue_name: str) -> ServiceStatus:
     """
     Check if worker service is alive by checking queue depth.
@@ -290,8 +346,11 @@ async def get_services_health(
     services.append(check_worker_service("ingestion", "image-ingested"))
     services.append(check_worker_service("detection", "image-ingested"))
     services.append(check_worker_service("classification", "detection-complete"))
-    services.append(check_worker_service("notifications", "notification-events"))
-    services.append(check_worker_service("notifications-telegram", "notification-telegram"))
+    # Notification workers have real heartbeats (stamped every consume
+    # loop iteration), so their rows reflect actual liveness
+    services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, "notification-events"))
+    services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, "notification-email"))
+    services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, "notification-telegram"))
     services.append(check_cold_tier_watchdog())
     services.append(check_backup())
 

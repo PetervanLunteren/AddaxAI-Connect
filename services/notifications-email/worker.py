@@ -7,7 +7,7 @@ Supports both HTML and plain text emails for reports and notifications.
 from typing import Dict, Any
 
 from shared.logger import get_logger
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, HEARTBEAT_KEY_NOTIFICATIONS_EMAIL
 from shared.config import get_settings
 
 from email_client import get_email_client
@@ -118,7 +118,9 @@ def main() -> None:
     logger.info("Listening for email messages", queue=QUEUE_NOTIFICATION_EMAIL)
 
     try:
-        queue.consume_forever(process_email_message)
+        queue.consume_forever(
+            process_email_message, heartbeat_key=HEARTBEAT_KEY_NOTIFICATIONS_EMAIL
+        )
     except KeyboardInterrupt:
         logger.info("Shutting down email notifications worker")
 

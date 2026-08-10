@@ -12,13 +12,14 @@ Also runs scheduled jobs (15-minute spacing convention):
 - Excessive image alerts daily at 06:30 UTC
 - Scheduled project reminders daily at 06:45 UTC
 - Camera condition alert rules daily at 07:00 UTC
-- Disk usage alert check hourly
+- Disk usage alert check hourly at :00
+- Delivery worker liveness check hourly at :15
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EVENTS
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EVENTS, HEARTBEAT_KEY_NOTIFICATIONS
 from shared.config import get_settings
 
 from detection_alerts import handle_detection_event
@@ -30,6 +31,7 @@ from sim_expiry import send_sim_expiry_alerts
 from reminders import send_due_reminders
 from disk_usage_alert import check_disk_usage_and_alert
 from infra_alert import check_infra_alerts
+from delivery_liveness import check_delivery_liveness
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -163,6 +165,16 @@ def main() -> None:
         name='Check disk usage hourly, email admins on threshold crossing'
     )
 
+    # Delivery worker liveness - hourly at :15 (disk owns :00; :15 only
+    # overlaps SIM expiry on the 1st at 06:15, the least-colliding slot)
+    scheduler.add_job(
+        check_delivery_liveness,
+        'cron',
+        minute=15,
+        id='delivery_liveness',
+        name='Check delivery worker liveness hourly at :15'
+    )
+
     # Infra alerts (cold tier + backup) - daily at 03:00 UTC, one hour after the
     # backup cron so the new backup:last_run key is fresh when we check it.
     scheduler.add_job(
@@ -200,7 +212,9 @@ def main() -> None:
     logger.info("Listening for notification events")
 
     try:
-        queue.consume_forever(process_notification_event)
+        queue.consume_forever(
+            process_notification_event, heartbeat_key=HEARTBEAT_KEY_NOTIFICATIONS
+        )
     except KeyboardInterrupt:
         logger.info("Shutting down notifications service")
         scheduler.shutdown()

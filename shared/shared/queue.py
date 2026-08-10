@@ -6,6 +6,7 @@ Provides simple interface for pub/sub messaging between services.
 import redis
 import json
 import time
+from datetime import datetime, timezone
 from typing import Any, Optional, Callable
 from .config import get_settings
 from .logger import get_logger
@@ -66,17 +67,36 @@ class RedisQueue:
             pass
         self.client = redis.from_url(settings.redis_url, decode_responses=True)
 
-    def consume_forever(self, callback: Callable[[dict], None]) -> None:
+    def consume_forever(
+        self,
+        callback: Callable[[dict], None],
+        heartbeat_key: Optional[str] = None,
+    ) -> None:
         """
         Consume messages in infinite loop.
 
+        With a heartbeat_key, every loop iteration stamps the current UTC
+        time into that Redis key so liveness checks can see the worker is
+        alive. The BRPOP timeout is finite for that reason: an idle worker
+        must still return to the loop top and tick. The stamp sits before
+        the consume on purpose, it asserts "the loop is alive"; a callback
+        wedged on a hung send never returns here, the stamps stop
+        advancing, and staleness fires. No TTL on the key, so the last
+        seen time survives restarts and a missing key means the worker
+        never ran against this Redis.
+
         Args:
             callback: Function to call with each message
+            heartbeat_key: Redis key to stamp each iteration, or None
         """
         logger.info("Worker listening on queue", queue=self.queue_name)
         while True:
             try:
-                message = self.consume()
+                if heartbeat_key:
+                    self.client.set(
+                        heartbeat_key, datetime.now(timezone.utc).isoformat()
+                    )
+                message = self.consume(timeout=HEARTBEAT_TICK_SECONDS)
             except (redis.ConnectionError, redis.TimeoutError) as e:
                 logger.warning(
                     "Redis read failed, reconnecting",
@@ -168,6 +188,18 @@ QUEUE_BULK_UPLOAD_JOB_PROCESS = "bulk-upload-job-process"
 QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here
 QUEUE_NOTIFICATION_TELEGRAM = "notification-telegram"  # Telegram worker listens here
 QUEUE_NOTIFICATION_EMAIL = "notification-email"  # Email worker listens here
+
+# Worker heartbeats. The three notification services stamp these keys
+# every consume_forever iteration; the API health endpoint and the hourly
+# delivery liveness check read them. Names match the health page rows.
+HEARTBEAT_KEY_NOTIFICATIONS = "heartbeat:notifications"
+HEARTBEAT_KEY_NOTIFICATIONS_EMAIL = "heartbeat:notifications-email"
+HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM = "heartbeat:notifications-telegram"
+# How often an idle consume loop wakes to stamp, and how old a stamp may
+# get before the worker counts as dead. The margin between the two keeps
+# one slow message from raising a false alarm.
+HEARTBEAT_TICK_SECONDS = 60
+HEARTBEAT_STALE_AFTER_MINUTES = 15
 # Future channels:
 # QUEUE_NOTIFICATION_SMS = "notification-sms"
 # QUEUE_NOTIFICATION_EARTHRANGER = "notification-earthranger"

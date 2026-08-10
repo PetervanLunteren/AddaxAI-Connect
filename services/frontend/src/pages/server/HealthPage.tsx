@@ -25,6 +25,7 @@ const SERVICE_DISPLAY_NAMES: Record<string, string> = {
   detection: 'Detection worker',
   classification: 'Classification worker',
   notifications: 'Notifications worker',
+  'notifications-email': 'Email notifications worker',
   'notifications-telegram': 'Telegram notifications worker',
   'processing-pipeline': 'Processing pipeline',
 };

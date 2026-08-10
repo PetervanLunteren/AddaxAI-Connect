@@ -14,7 +14,7 @@ import threading
 import time
 
 from shared.logger import get_logger
-from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM
+from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM, HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM
 from shared.config import get_settings
 from shared.database import get_sync_session
 from shared.models import TelegramLinkingToken, ProjectNotificationPreference
@@ -340,7 +340,9 @@ def main() -> None:
     logger.info("Listening for Telegram notification messages")
 
     try:
-        queue.consume_forever(process_telegram_message)
+        queue.consume_forever(
+            process_telegram_message, heartbeat_key=HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM
+        )
     except KeyboardInterrupt:
         logger.info("Shutting down Telegram notifications worker")
 
