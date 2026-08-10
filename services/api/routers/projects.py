@@ -1047,6 +1047,80 @@ async def cancel_project_invitation(
     return {"message": f"Invitation for {email} cancelled"}
 
 
+class UpdateProjectInvitationRequest(BaseModel):
+    """Request to change a pending invitation's role and site scope.
+
+    site_ids is the full new scope, not a partial update; omitted means
+    unrestricted."""
+    role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
+
+
+@router.patch(
+    "/{project_id}/invitations/{invitation_id}",
+)
+async def update_project_invitation(
+    project_id: int,
+    invitation_id: int,
+    request: UpdateProjectInvitationRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """
+    Change a pending invitation's role and site scope (project admin or
+    server admin), so a restricted viewer's sites can be adjusted before
+    they register. Mirrors the registered-user role update.
+    """
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    valid_roles = ["project-admin", "project-viewer"]
+    if request.role not in valid_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}",
+        )
+
+    result = await db.execute(
+        select(UserInvitation).where(
+            UserInvitation.id == invitation_id,
+            UserInvitation.project_id == project_id,
+        )
+    )
+    invitation = result.scalar_one_or_none()
+
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found in this project",
+        )
+    if invitation.used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invitation for {invitation.email} has already been used",
+        )
+
+    await check_site_scope_or_400(db, project_id, request.role, request.site_ids)
+
+    invitation.role = request.role
+    invitation.site_ids = request.site_ids
+    await db.commit()
+
+    logger.info(
+        "Project invitation updated",
+        invitation_id=invitation_id,
+        email=invitation.email,
+        project_id=project_id,
+        role=request.role,
+        updated_by=current_user.id,
+    )
+
+    return {"message": f"Invitation for {invitation.email} updated"}
+
+
 # Project User Invitation
 
 class InviteProjectUserRequest(BaseModel):

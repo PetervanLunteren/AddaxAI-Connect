@@ -136,6 +136,22 @@ export const projectsApi = {
   },
 
   /**
+   * Update a pending invitation's role and site scope (project admin or server admin)
+   */
+  updateInvitation: async (
+    projectId: number,
+    invitationId: number,
+    role: string,
+    siteIds: number[] | null = null,
+  ): Promise<{ message: string }> => {
+    const response = await apiClient.patch<{ message: string }>(
+      `/api/projects/${projectId}/invitations/${invitationId}`,
+      { role, site_ids: siteIds }
+    );
+    return response.data;
+  },
+
+  /**
    * Invite a new user to project (project admin or server admin)
    */
   inviteUser: async (projectId: number, email: string, role: string): Promise<InvitationResponse> => {

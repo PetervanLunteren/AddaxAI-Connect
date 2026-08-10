@@ -92,10 +92,13 @@ export const ProjectUsersPage: React.FC = () => {
     },
   });
 
-  // Update role mutation
+  // Update role mutation (registered users and pending invitations use the
+  // same dialog; the mutation picks the endpoint by which id is present)
   const updateRoleMutation = useMutation({
-    mutationFn: ({ userId, role, siteIds }: { userId: number; role: string; siteIds: number[] | null }) =>
-      projectsApi.updateUserRole(parseInt(projectId!), userId, role, siteIds),
+    mutationFn: ({ user, role, siteIds }: { user: ProjectUserInfo; role: string; siteIds: number[] | null }) =>
+      user.user_id != null
+        ? projectsApi.updateUserRole(parseInt(projectId!), user.user_id, role, siteIds)
+        : projectsApi.updateInvitation(parseInt(projectId!), user.invitation_id!, role, siteIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
       setShowEditRoleModal(false);
@@ -150,9 +153,11 @@ export const ProjectUsersPage: React.FC = () => {
   };
 
   const handleUpdateRole = () => {
-    if (selectedUser && selectedUser.user_id && selectedRole) {
+    // Both registered users (user_id) and pending invitations (invitation_id)
+    // are editable through this dialog
+    if (selectedUser && (selectedUser.user_id != null || selectedUser.invitation_id != null) && selectedRole) {
       updateRoleMutation.mutate({
-        userId: selectedUser.user_id,
+        user: selectedUser,
         role: selectedRole,
         siteIds: toSiteIds(selectedSites, selectedRole),
       });
