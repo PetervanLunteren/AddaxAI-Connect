@@ -28,6 +28,35 @@ Users can have different roles in different projects (e.g., admin of Project A, 
 - `project_memberships` table maps users to projects with roles
 - No role = no access to that project
 
+### Site-restricted viewers
+A project-viewer membership can carry a site allow-list in
+`project_memberships.site_ids`. Null means all sites (every membership
+made before this feature), a non-empty list restricts the viewer to
+those sites, an empty list is rejected so "all sites" has one
+representation. Only viewers can be scoped; admins are always
+project-wide.
+
+The rules for a restricted viewer:
+- Hard hide: out-of-scope sites do not exist for them anywhere (site
+  lists, cameras, images, statistics, exports, feed, image bytes).
+  Totals mean totals over their sites.
+- Fail closed: data without a resolved site (images with no deployment,
+  rejections, inventory cameras) is invisible to them.
+- A camera is visible when its current site (latest deployment) is in
+  the allow-list. Statistics filters use the image's own deployment,
+  which is time-correct for historical data.
+- Alert rules are clamped to the allow-list at write time (API) and at
+  evaluation time (worker), so rules created before a restriction cannot
+  leak. Project-wide preference emails (`email_report`,
+  `excessive_images`) are blocked for them.
+- New sites are not visible until an admin adds them to the scope.
+
+The scope is resolved in one place, `get_allowed_site_ids` in
+`services/api/auth/project_access.py` (None = unrestricted, list = only
+these sites), and the shared SQL clauses and pure helpers live in
+`services/api/utils/site_scope.py`. Every new viewer-reachable endpoint
+that touches per-site data must apply the scope through these helpers.
+
 ### Inviting users
 **Server admin:** can add users to any project with any role via the User Assignment page
 **Project admin:** can add users to their own projects only via the Project Users page
