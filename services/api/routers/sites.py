@@ -19,7 +19,9 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import Site, Deployment, User
 from auth.permissions import require_project_access, require_project_admin_access
+from auth.project_access import get_site_scope
 from utils.deployment_edits import recompute_site_location
+from utils.site_scope import site_in_scope
 from utils.tags import normalize_tags
 
 logger = get_logger("api.sites")
@@ -178,12 +180,17 @@ async def _build_detail(db: AsyncSession, project_id: int, site_id: int) -> Site
 async def list_sites(
     project_id: int,
     user: User = Depends(require_project_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
     db: AsyncSession = Depends(get_async_session),
 ):
     """List the project's sites with aggregate counts and last activity."""
+    scope_sql = " AND s.id = ANY(:scope)" if site_scope is not None else ""
+    params: Dict[str, Any] = {"project_id": project_id}
+    if site_scope is not None:
+        params["scope"] = site_scope
     rows = (
         await db.execute(
-            text("""
+            text(f"""
                 SELECT s.id, s.uuid, s.name, s.habitat_type, s.tags, s.notes,
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon,
@@ -194,11 +201,11 @@ async def list_sites(
                 FROM sites s
                 LEFT JOIN deployments d ON d.site_id = s.id
                 LEFT JOIN images i ON i.deployment_id = d.id
-                WHERE s.project_id = :project_id
+                WHERE s.project_id = :project_id{scope_sql}
                 GROUP BY s.id
                 ORDER BY s.name
             """),
-            {"project_id": project_id},
+            params,
         )
     ).mappings().all()
 
@@ -225,15 +232,17 @@ async def list_sites(
 async def get_site_tags(
     project_id: int,
     user: User = Depends(require_project_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
     db: AsyncSession = Depends(get_async_session),
 ):
     """All unique tags across sites in this project, sorted, used for TagInput autocomplete."""
-    result = await db.execute(
-        select(Site.tags).where(
-            Site.project_id == project_id,
-            Site.tags.isnot(None),
-        )
+    query = select(Site.tags).where(
+        Site.project_id == project_id,
+        Site.tags.isnot(None),
     )
+    if site_scope is not None:
+        query = query.where(Site.id.in_(site_scope))
+    result = await db.execute(query)
     all_tags: set = set()
     for (tags,) in result.all():
         if tags:
@@ -416,9 +425,13 @@ async def get_site(
     project_id: int,
     site_id: int,
     user: User = Depends(require_project_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
     db: AsyncSession = Depends(get_async_session),
 ):
     """One site with its deployments."""
+    # 404 rather than 403 so restricted viewers cannot enumerate sites
+    if not site_in_scope(site_id, site_scope):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Site not found")
     return await _build_detail(db, project_id, site_id)
 
 

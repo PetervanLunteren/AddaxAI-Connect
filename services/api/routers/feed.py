@@ -37,8 +37,10 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.models import Deployment, FeedEvent, FeedSeen, Image, Site, User
 from auth.permissions import require_project_access, require_project_admin_access
+from auth.project_access import get_site_scope
 from utils.deployment_edits import reassign_deployment_site
 from utils.feed import nearby_sites
+from utils.site_scope import site_in_scope
 
 logger = get_logger("api.feed")
 
@@ -99,11 +101,24 @@ async def list_feed(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
-    """The project's most recent camera updates, newest first."""
+    """The project's most recent camera updates, newest first.
+
+    Site-restricted viewers only see events at their sites. Moves that
+    involve an out-of-scope site on either end are hidden entirely, so no
+    other site's name or distance leaks through the move context."""
+    scope_sql = ""
+    params = {"project_id": project_id, "limit": FEED_LIMIT, "user_id": user.id}
+    if site_scope is not None:
+        scope_sql = (
+            " AND e.site_id = ANY(:scope)"
+            " AND (e.from_site_id IS NULL OR e.from_site_id = ANY(:scope))"
+        )
+        params["scope"] = site_scope
     rows = (
         await db.execute(
-            text("""
+            text(f"""
                 SELECT e.id, e.event_type, e.created_at, e.camera_id,
                        c.device_id AS camera_label,
                        e.site_id, s.name AS site_name, e.original_site_name,
@@ -123,25 +138,30 @@ async def list_feed(
                 LEFT JOIN users u ON u.id = e.resolved_by_user_id
                 LEFT JOIN feed_seen fsn ON fsn.project_id = e.project_id
                                        AND fsn.user_id = :user_id
-                WHERE e.project_id = :project_id
+                WHERE e.project_id = :project_id{scope_sql}
                 ORDER BY e.created_at DESC, e.id DESC
                 LIMIT :limit
             """),
-            {"project_id": project_id, "limit": FEED_LIMIT, "user_id": user.id},
+            params,
         )
     ).mappings().all()
 
     # One sites query for the whole page; candidate lists are computed in
-    # Python per entry (a project has tens of sites, not thousands).
+    # Python per entry (a project has tens of sites, not thousands). The
+    # scope filter also narrows the candidate picker for restricted viewers.
+    sites_scope_sql = " AND id = ANY(:scope)" if site_scope is not None else ""
+    sites_params = {"project_id": project_id}
+    if site_scope is not None:
+        sites_params["scope"] = site_scope
     sites = (
         await db.execute(
-            text("""
+            text(f"""
                 SELECT id, name,
                        ST_Y(location::geometry) AS lat,
                        ST_X(location::geometry) AS lon
-                FROM sites WHERE project_id = :project_id
+                FROM sites WHERE project_id = :project_id{sites_scope_sql}
             """),
-            {"project_id": project_id},
+            sites_params,
         )
     ).mappings().all()
     site_dicts = [dict(s) for s in sites]
@@ -185,6 +205,7 @@ async def unseen_count(
     project_id: int,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """How many feed entries this user has not seen yet (the sidebar badge)."""
     last_seen = (
@@ -196,6 +217,12 @@ async def unseen_count(
     ).scalar_one_or_none()
 
     query = select(func.count(FeedEvent.id)).where(FeedEvent.project_id == project_id)
+    if site_scope is not None:
+        # Same visibility rule as the list, count only what the viewer can see
+        query = query.where(
+            FeedEvent.site_id.in_(site_scope),
+            (FeedEvent.from_site_id.is_(None)) | FeedEvent.from_site_id.in_(site_scope),
+        )
     if last_seen is not None:
         query = query.where(FeedEvent.created_at > last_seen)
     count = (await db.execute(query)).scalar_one()
@@ -230,6 +257,7 @@ async def event_thumbnails(
     event_id: int,
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
+    site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """
     Photos for an entry whose deployment was merged away (an undone move):
@@ -245,7 +273,11 @@ async def event_thumbnails(
             )
         )
     ).scalar_one_or_none()
-    if event is None:
+    if event is None or not site_in_scope(event.site_id, site_scope) or (
+        site_scope is not None
+        and event.from_site_id is not None
+        and event.from_site_id not in site_scope
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Feed entry not found",
         )
