@@ -36,6 +36,7 @@ from shared.config import get_settings
 from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, QUEUE_NOTIFICATION_TELEGRAM
 from auth.permissions import require_server_admin
+from auth.project_access import check_site_scope_or_400
 from auth.users import current_verified_user
 from mailer.sender import get_email_sender
 from utils.dev_mode import is_dev_server, assert_dev_server
@@ -51,6 +52,7 @@ class ProjectMembershipInfo(BaseModel):
     project_id: int
     project_name: str
     role: str
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 class UserResponse(BaseModel):
@@ -72,11 +74,16 @@ class AddUserToProjectRequest(BaseModel):
     """Request to add user to project"""
     project_id: int
     role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 class UpdateRoleRequest(BaseModel):
-    """Request to update user's role in project"""
+    """Request to update user's role in project.
+
+    site_ids is the full new scope, not a partial update; omitted means
+    unrestricted."""
     role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 @router.get(
@@ -122,7 +129,8 @@ async def list_users(
             ProjectMembershipInfo(
                 project_id=membership.ProjectMembership.project_id,
                 project_name=membership.Project.name,
-                role=membership.ProjectMembership.role
+                role=membership.ProjectMembership.role,
+                site_ids=membership.ProjectMembership.site_ids,
             )
             for membership in memberships
         ]
@@ -207,7 +215,8 @@ async def get_user_projects(
         ProjectMembershipInfo(
             project_id=membership.ProjectMembership.project_id,
             project_name=membership.Project.name,
-            role=membership.ProjectMembership.role
+            role=membership.ProjectMembership.role,
+            site_ids=membership.ProjectMembership.site_ids,
         )
         for membership in memberships
     ]
@@ -282,11 +291,14 @@ async def add_user_to_project(
             detail=f"User already assigned to project {data.project_id}"
         )
 
+    await check_site_scope_or_400(db, data.project_id, data.role, data.site_ids)
+
     # Create membership
     membership = ProjectMembership(
         user_id=user_id,
         project_id=data.project_id,
         role=data.role,
+        site_ids=data.site_ids,
         added_by_user_id=current_user.id
     )
     db.add(membership)
@@ -295,7 +307,8 @@ async def add_user_to_project(
     return ProjectMembershipInfo(
         project_id=project.id,
         project_name=project.name,
-        role=data.role
+        role=data.role,
+        site_ids=data.site_ids,
     )
 
 
@@ -360,9 +373,12 @@ async def update_user_project_role(
     )
     user = user_result.scalar_one_or_none()
 
-    # Update role
+    await check_site_scope_or_400(db, project_id, data.role, data.site_ids)
+
+    # Update role and site scope
     old_role = membership.role
     membership.role = data.role
+    membership.site_ids = data.site_ids
     await db.commit()
 
     # Send role change email if role actually changed and user exists
@@ -394,7 +410,8 @@ async def update_user_project_role(
     return ProjectMembershipInfo(
         project_id=project.id,
         project_name=project.name,
-        role=data.role
+        role=data.role,
+        site_ids=data.site_ids,
     )
 
 

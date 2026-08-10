@@ -15,6 +15,7 @@ from shared.models import User, Project, ProjectMembership
 from shared.database import get_async_session
 from auth.users import current_active_user
 from auth.permissions import Role
+from utils.site_scope import validate_membership_site_ids, sites_in_project
 
 
 async def get_accessible_project_ids(
@@ -106,6 +107,27 @@ async def get_site_scope(
     """Dependency form of get_allowed_site_ids for routers whose prefix
     contains {project_id}."""
     return await get_allowed_site_ids(current_user, project_id, db)
+
+
+async def check_site_scope_or_400(
+    db: AsyncSession,
+    project_id: int,
+    role: str,
+    site_ids: Optional[List[int]],
+) -> None:
+    """Reject an invalid membership site scope with 400. Shared by every
+    membership write path."""
+    error = validate_membership_site_ids(role, site_ids)
+    if error:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail=error,
+        )
+    if site_ids and not await sites_in_project(db, project_id, site_ids):
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="All sites must belong to this project",
+        )
 
 
 async def get_site_scope_or_400(

@@ -35,6 +35,9 @@ class InviteTokenValidationResponse(BaseModel):
     email: str
     role: str
     project_name: str | None = None
+    # Number of sites a restricted viewer invitation is limited to,
+    # null when the invitation is unrestricted
+    restricted_site_count: int | None = None
 
 
 def get_auth_router() -> APIRouter:
@@ -233,7 +236,8 @@ def get_auth_router() -> APIRouter:
         return InviteTokenValidationResponse(
             email=invitation.email,
             role=invitation.role,
-            project_name=project_name
+            project_name=project_name,
+            restricted_site_count=len(invitation.site_ids) if invitation.site_ids else None,
         )
 
     return router

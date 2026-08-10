@@ -25,6 +25,7 @@ class ProjectWithRole(BaseModel):
     name: str
     description: str | None = None
     role: str
+    site_ids: List[int] | None = None  # Viewer site scope, null = all sites
     included_species: List[str] | None = None
     detection_threshold: float
     classification_thresholds: dict | None = None
@@ -108,6 +109,7 @@ async def get_my_projects(
                     name=project.name,
                     description=project.description,
                     role=membership.role,
+                    site_ids=membership.site_ids,
                     included_species=project.included_species,
                     detection_threshold=project.detection_threshold,
                     classification_thresholds=project.classification_thresholds,

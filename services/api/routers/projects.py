@@ -16,7 +16,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from auth.users import current_verified_user
 from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
-from auth.project_access import get_accessible_project_ids
+from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
 from utils.image_processing import delete_project_images
 from mailer.sender import get_email_sender
 
@@ -104,6 +104,7 @@ class ProjectUserInfo(BaseModel):
     invitation_id: Optional[int] = None  # Set for pending invitations, None for registered users
     email: str
     role: str
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
     is_registered: bool  # True for registered users, False for pending invitations
     is_active: bool
     is_verified: bool
@@ -119,11 +120,16 @@ class AddUserToProjectRequest(BaseModel):
     """Request to add user to project"""
     user_id: int
     role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 class UpdateProjectUserRoleRequest(BaseModel):
-    """Request to update user's role in project"""
+    """Request to update user's role in project.
+
+    site_ids is the full new scope, not a partial update; the client
+    always sends the complete state. Omitted means unrestricted."""
     role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 @router.get(
@@ -629,6 +635,7 @@ async def list_project_users(
                 user_id=user.id,
                 email=user.email,
                 role=membership.role,
+                site_ids=membership.site_ids,
                 is_registered=True,
                 is_active=user.is_active,
                 is_verified=user.is_verified,
@@ -651,6 +658,7 @@ async def list_project_users(
                 invitation_id=invitation.id,
                 email=invitation.email,
                 role=invitation.role,
+                site_ids=invitation.site_ids,
                 is_registered=False,
                 is_active=False,
                 is_verified=False,
@@ -735,11 +743,14 @@ async def add_user_to_project(
             detail=f"User {user.email} is already a member of project {project.name}",
         )
 
+    await check_site_scope_or_400(db, project_id, request.role, request.site_ids)
+
     # Create membership
     membership = ProjectMembership(
         user_id=request.user_id,
         project_id=project_id,
         role=request.role,
+        site_ids=request.site_ids,
         added_by_user_id=current_user.id,
     )
     db.add(membership)
@@ -833,9 +844,12 @@ async def update_project_user_role(
             detail=f"User {user.email} is not a member of project {project.name}",
         )
 
-    # Update role
+    await check_site_scope_or_400(db, project_id, request.role, request.site_ids)
+
+    # Update role and site scope
     old_role = membership.role
     membership.role = request.role
+    membership.site_ids = request.site_ids
     await db.commit()
 
     logger.info(
@@ -1021,12 +1035,14 @@ class InviteProjectUserRequest(BaseModel):
     """Request to invite a new user to a project (project admin)"""
     email: EmailStr
     role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 class AddProjectUserByEmailRequest(BaseModel):
     """Request to add a user to project by email (unified add/invite)"""
     email: EmailStr
     role: str  # 'project-admin' or 'project-viewer'
+    site_ids: Optional[List[int]] = None  # Viewer site scope, null = all sites
 
 
 class AddProjectUserByEmailResponse(BaseModel):
@@ -1135,6 +1151,8 @@ async def invite_project_user(
             detail=f"User {data.email} already has a pending invitation for another project. Users can only have one pending invitation at a time."
         )
 
+    await check_site_scope_or_400(db, project_id, data.role, data.site_ids)
+
     # Generate secure token for invitation link
     invite_token = secrets.token_urlsafe(32)
 
@@ -1147,6 +1165,7 @@ async def invite_project_user(
         invited_by_user_id=current_user.id,
         project_id=project_id,
         role=data.role,
+        site_ids=data.site_ids,
         token=invite_token,
         expires_at=expires_at,
         used=False
@@ -1250,11 +1269,14 @@ async def add_project_user_by_email(
                 detail=f"User {data.email} is already a member of this project"
             )
 
+        await check_site_scope_or_400(db, project_id, data.role, data.site_ids)
+
         # Create membership
         membership = ProjectMembership(
             user_id=existing_user.id,
             project_id=project_id,
             role=data.role,
+            site_ids=data.site_ids,
             added_by_user_id=current_user.id,
         )
         db.add(membership)
@@ -1327,6 +1349,8 @@ async def add_project_user_by_email(
                 detail=f"User {data.email} already has a pending invitation for another project"
             )
 
+        await check_site_scope_or_400(db, project_id, data.role, data.site_ids)
+
         # Generate secure token for invitation link
         invite_token = secrets.token_urlsafe(32)
 
@@ -1339,6 +1363,7 @@ async def add_project_user_by_email(
             invited_by_user_id=current_user.id,
             project_id=project_id,
             role=data.role,
+            site_ids=data.site_ids,
             token=invite_token,
             expires_at=expires_at,
             used=False
