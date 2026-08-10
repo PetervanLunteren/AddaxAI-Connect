@@ -216,10 +216,13 @@ export const NotificationsPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Build notification_channels JSON with per-type configuration.
-    // Real-time detection alerts are rules-as-rows now and no longer
-    // written here; the retired species_detection key is left alone.
+    // Build notification_channels JSON with per-type configuration. The
+    // stored blob is spread first so keys this page does not manage
+    // survive the whole-replace PUT, including the retired
+    // species_detection key, which must stay untouched so a version
+    // rollback still finds the old real-time alert configuration.
     const notificationChannels = {
+      ...((preferences as any)?.notification_channels ?? {}),
       email_report: {
         enabled: reportFrequency !== 'disabled',
         frequency: reportFrequency !== 'disabled' ? reportFrequency : 'weekly'

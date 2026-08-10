@@ -135,7 +135,14 @@ export const DetectionAlertRulesSheet: React.FC<DetectionAlertRulesSheetProps> =
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      {/* While the edit or delete dialog is open, Escape and backdrop
+          clicks target the dialog, not the sheet behind it */}
+      <Sheet
+        open={open}
+        onOpenChange={(o) => {
+          if (!o && dialog.kind === 'closed' && ruleToDelete === null) onClose();
+        }}
+      >
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Real-time detection alerts</SheetTitle>
@@ -356,12 +363,15 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
         <div className="py-4 space-y-3">
           <div>
             <label className="text-xs text-muted-foreground">Labels</label>
+            {/* No selectedNoun: with it the trigger would always show a
+                count and the placeholder would never appear. An empty
+                sites selection means all sites, so the trigger must say
+                "All sites", not "0 sites selected". */}
             <MultiSelect
               options={speciesOptions}
               value={selectedSpecies}
               onChange={setSelectedSpecies}
               placeholder="Select labels"
-              selectedNoun="labels"
             />
           </div>
           <div>
@@ -371,7 +381,6 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
               value={selectedSites}
               onChange={setSelectedSites}
               placeholder="All sites"
-              selectedNoun="sites"
             />
             <p className="text-xs text-muted-foreground mt-1">
               Leave empty to watch all sites of the project.

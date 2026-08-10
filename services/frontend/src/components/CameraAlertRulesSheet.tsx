@@ -131,7 +131,14 @@ export const CameraAlertRulesSheet: React.FC<CameraAlertRulesSheetProps> = ({
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      {/* While the edit or delete dialog is open, Escape and backdrop
+          clicks target the dialog, not the sheet behind it */}
+      <Sheet
+        open={open}
+        onOpenChange={(o) => {
+          if (!o && dialog.kind === 'closed' && ruleToDelete === null) onClose();
+        }}
+      >
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Camera condition alerts</SheetTitle>
