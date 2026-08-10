@@ -91,6 +91,7 @@ addaxai-connect/
 │   │   ├── excessive_images.py        # Excessive image alerts
 │   │   ├── project_inactivity.py      # Project inactivity alerts
 │   │   ├── disk_usage_alert.py        # Disk usage alerts
+│   │   ├── delivery_liveness.py       # Delivery worker heartbeat and queue depth alerts
 │   │   ├── infra_alert.py             # Infrastructure health alerts
 │   │   ├── sim_expiry.py              # SIM card expiry alerts
 │   │   ├── reminders.py               # Project reminder digests
