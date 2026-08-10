@@ -108,7 +108,7 @@ export const SiteGroupsModal: React.FC<Props> = ({ groups, sites, open, onOpenCh
         <DialogHeader>
           <DialogTitle>Merged sites</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Sites in a group are treated as one place for the independence interval.
+            Sites merged together are treated as one place for the independence interval.
           </p>
         </DialogHeader>
 
@@ -198,7 +198,7 @@ export const SiteGroupsModal: React.FC<Props> = ({ groups, sites, open, onOpenCh
                 value={newGroupName}
                 onChange={e => setNewGroupName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setCreating(false); }}
-                placeholder="Group name"
+                placeholder="Merged site name"
                 className="flex-1 h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 autoFocus
               />
@@ -225,7 +225,7 @@ export const SiteGroupsModal: React.FC<Props> = ({ groups, sites, open, onOpenCh
               className="w-full"
             >
               <Plus className="h-4 w-4 mr-2" />
-              New group
+              New merged site
             </Button>
           )}
 
@@ -233,7 +233,7 @@ export const SiteGroupsModal: React.FC<Props> = ({ groups, sites, open, onOpenCh
           {ungroupedSites.length > 0 && (
             <div className="pt-2 border-t">
               <p className="text-xs font-medium text-muted-foreground mb-1">
-                Ungrouped sites ({ungroupedSites.length})
+                Sites not merged ({ungroupedSites.length})
               </p>
               <div className="flex flex-wrap gap-1">
                 {ungroupedSites.map(site => (

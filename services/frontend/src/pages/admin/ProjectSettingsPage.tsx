@@ -618,28 +618,24 @@ export const ProjectSettingsPage: React.FC = () => {
                     Merged sites
                   </label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Sites in a group are treated as one place for the independence interval. Cameras at the same site already count as one place, so use this only to merge distinct sites, like both ends of a wildlife crossing.
+                    Merged sites are treated as one place for the independence interval. Cameras at the same site already count as one place, so use this only to merge distinct sites, like both ends of a wildlife crossing.
                   </p>
                 </div>
-                <div className="flex-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                  <div className="w-full sm:flex-[2]">
-                    <span className="text-sm text-muted-foreground">
-                      {pendingGroups.length > 0
-                        ? `${pendingGroups.length} group${pendingGroups.length !== 1 ? 's' : ''}, ${pendingGroups.reduce((sum, g) => sum + g.site_ids.length, 0)} sites grouped`
-                        : 'No groups configured'}
-                    </span>
-                  </div>
-                  <div className="w-full flex sm:flex-1 sm:justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowSiteGroups(true)}
-                      disabled={isSaving}
-                      className="w-full whitespace-nowrap"
-                    >
-                      Manage groups
-                    </Button>
-                  </div>
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSiteGroups(true)}
+                    disabled={isSaving}
+                  >
+                    Manage merged sites
+                    {pendingGroups.length > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                        {pendingGroups.length}
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
             </>
