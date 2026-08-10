@@ -189,6 +189,27 @@ QUEUE_NOTIFICATION_EVENTS = "notification-events"  # Core service listens here
 QUEUE_NOTIFICATION_TELEGRAM = "notification-telegram"  # Telegram worker listens here
 QUEUE_NOTIFICATION_EMAIL = "notification-email"  # Email worker listens here
 
+def parse_heartbeat(raw: Optional[str]) -> Optional[datetime]:
+    """Parse a stored heartbeat stamp. None on missing or garbage.
+
+    A stamp without a timezone is treated as UTC. Nothing writes naive
+    stamps today, but the watchdog must not be killable by one bad
+    value: subtracting a naive datetime from an aware one raises, and an
+    uncaught error here would silently disable the very check that
+    exists to catch silent failures. Shared by the API health endpoint
+    and the delivery liveness check so both classify values identically.
+    """
+    if not raw:
+        return None
+    try:
+        stamp = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp
+
+
 # Worker heartbeats. The three notification services stamp these keys
 # every consume_forever iteration; the API health endpoint and the hourly
 # delivery liveness check read them. Names match the health page rows.

@@ -123,6 +123,17 @@ class StructuredLogger:
         """Log critical message with optional kwargs."""
         self._log(logging.CRITICAL, msg, *args, **kwargs)
 
+    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        """Log an error with the current exception's traceback attached.
+
+        Mirrors logging.Logger.exception. Several alert error handlers
+        already called this; without the method the handler itself raised
+        AttributeError instead of logging, crashing the very job whose
+        failure it was supposed to record.
+        """
+        kwargs.setdefault("exc_info", True)
+        self._log(logging.ERROR, msg, *args, **kwargs)
+
 
 def get_logger(service_name: str) -> StructuredLogger:
     """

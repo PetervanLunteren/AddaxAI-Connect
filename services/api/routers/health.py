@@ -22,6 +22,7 @@ from shared.queue import (
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
     HEARTBEAT_STALE_AFTER_MINUTES,
+    parse_heartbeat,
 )
 from auth.permissions import require_server_admin
 
@@ -238,17 +239,21 @@ def check_heartbeat(name: str, heartbeat_key: str, queue_name: str) -> ServiceSt
     try:
         queue = RedisQueue(queue_name)
         depth = queue.queue_depth()
-        raw = queue.client.get(heartbeat_key)
-        if not raw:
+        # Same tolerant parse as the delivery liveness check, so a
+        # missing key and an unreadable value classify identically
+        last_seen = parse_heartbeat(queue.client.get(heartbeat_key))
+        if last_seen is None:
             return ServiceStatus(
                 name=name,
                 status="unhealthy",
                 message="No heartbeat recorded (worker never started)",
             )
-        last_seen = datetime.fromisoformat(raw)
         age = datetime.now(timezone.utc) - last_seen
         age_seconds = int(age.total_seconds())
-        if age_seconds < 120:
+        if age_seconds < 0:
+            # A stamp from the future means clock skew, not an outage
+            age_label = "just now"
+        elif age_seconds < 120:
             age_label = f"{age_seconds} s ago"
         else:
             age_label = f"{age_seconds // 60} min ago"

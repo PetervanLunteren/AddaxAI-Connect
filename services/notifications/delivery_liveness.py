@@ -39,6 +39,7 @@ from shared.queue import (
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
     HEARTBEAT_STALE_AFTER_MINUTES,
+    parse_heartbeat,
 )
 
 from db_operations import create_notification_log
@@ -57,16 +58,6 @@ WORKERS = [
     ("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, QUEUE_NOTIFICATION_EMAIL),
     ("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, QUEUE_NOTIFICATION_TELEGRAM),
 ]
-
-
-def parse_heartbeat(raw: Optional[str]) -> Optional[datetime]:
-    """Parse a stored heartbeat stamp. None on missing or garbage."""
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw)
-    except ValueError:
-        return None
 
 
 def heartbeat_stale(last_seen: Optional[datetime], now: datetime) -> bool:
@@ -122,9 +113,15 @@ def check_delivery_liveness() -> None:
 
     problems = {}
     for name, heartbeat_key, queue_name in WORKERS:
-        last_seen = parse_heartbeat(redis_client.get(heartbeat_key))
-        depth = RedisQueue(queue_name).queue_depth()
-        reason = worker_problem(last_seen, queue_name, depth, now)
+        # Per-worker isolation: whatever goes wrong probing one worker
+        # must never stop the other worker from being checked
+        try:
+            last_seen = parse_heartbeat(redis_client.get(heartbeat_key))
+            depth = RedisQueue(queue_name).queue_depth()
+            reason = worker_problem(last_seen, queue_name, depth, now)
+        except Exception:
+            logger.exception("Failed to probe delivery worker", worker=name)
+            continue
         if reason:
             problems[name] = (reason, last_seen, queue_name, depth)
 

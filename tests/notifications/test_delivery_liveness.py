@@ -27,6 +27,14 @@ class TestParseHeartbeat:
     def test_garbage(self):
         assert parse_heartbeat("not-a-date") is None
 
+    def test_naive_stamp_is_treated_as_utc(self):
+        # A naive stamp must never crash the aware-datetime arithmetic
+        # downstream; the watchdog would die silently (found in the bug
+        # hunt of 10 Aug 2026)
+        parsed = parse_heartbeat("2026-07-01T09:00:00")
+        assert parsed == datetime(2026, 7, 1, 9, 0, 0, tzinfo=timezone.utc)
+        assert heartbeat_stale(parsed, NOW) is True  # must not raise
+
 
 class TestHeartbeatStale:
     def test_fresh(self):
@@ -103,3 +111,48 @@ class TestSplitIncidents:
     def test_empty_inputs(self):
         assert split_incidents([], []) == ([], [], [])
         assert split_incidents([], None) == ([], [], [])
+
+
+class TestProbeIsolation:
+    def test_one_broken_probe_does_not_block_the_other_worker(self, monkeypatch):
+        """A failure probing one worker must never stop the other from
+        being checked; the watchdog has to be unkillable by one bad
+        value or one flaky read."""
+        import delivery_liveness as dl
+
+        class FakeRedisClient:
+            def __init__(self):
+                self.stored = {}
+
+            def get(self, key):
+                return None  # no heartbeats: both workers look never-seen
+
+            def set(self, key, value):
+                self.stored[key] = value
+
+        fake_client = FakeRedisClient()
+        monkeypatch.setattr(dl.redis, "from_url", lambda url, **kw: fake_client)
+
+        class FakeQueue:
+            def __init__(self, queue_name):
+                self.queue_name = queue_name
+
+            def queue_depth(self):
+                if self.queue_name == "notification-email":
+                    raise RuntimeError("boom")
+                return 0
+
+        monkeypatch.setattr(dl, "RedisQueue", FakeQueue)
+
+        alerted = []
+        monkeypatch.setattr(
+            dl, "_send_alerts",
+            lambda name, *args, **kw: alerted.append(name),
+        )
+
+        dl.check_delivery_liveness()
+
+        # The email probe blew up, the telegram worker was still checked
+        # and alerted for its missing heartbeat
+        assert alerted == ["notifications-telegram"]
+        assert fake_client.stored[dl.STATE_REDIS_KEY] == '["notifications-telegram"]'
