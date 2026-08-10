@@ -147,19 +147,6 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
                   maxZoom={5}
                   className="h-full w-full"
                 />
-                {/* A verified image carries no AI confidence, on purpose. It is
-                    the most trustworthy photo on the wall, so say so rather
-                    than leaving the corner blank. */}
-                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2 pb-1.5 pt-5 text-xs font-medium tabular-nums text-white">
-                  {image.is_verified
-                    ? 'Verified'
-                    : image.max_confidence !== null
-                      ? `${Math.round(image.max_confidence * 100)}%`
-                      : ''}
-                  {isAllSpecies && image.top_species
-                    ? ` · ${normalizeLabel(image.top_species)}`
-                    : ''}
-                </span>
               </button>
             ))}
           </div>
