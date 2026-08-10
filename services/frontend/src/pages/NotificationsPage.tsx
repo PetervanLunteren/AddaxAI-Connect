@@ -268,9 +268,7 @@ export const NotificationsPage: React.FC = () => {
                       ? 'Your Telegram account is linked. Alert rules can send you Telegram messages with photos.'
                       : isTelegramConfigured
                         ? 'Link your Telegram account so alert rules can send you instant Telegram messages with photos.'
-                        : user?.is_superuser
-                          ? 'A Telegram bot has not been set up for this server yet.'
-                          : 'A Telegram bot has not been set up for this server yet. Ask your administrator.'
+                        : 'A Telegram bot has not been set up for this server yet. Ask your server admin to set it up.'
                     }
                   </p>
                 </div>
@@ -302,7 +300,7 @@ export const NotificationsPage: React.FC = () => {
                       onClick={() => window.location.href = '/server/settings'}
                       className="whitespace-nowrap"
                     >
-                      Configure
+                      Server settings
                     </Button>
                   ) : adminEmail ? (
                     <Button

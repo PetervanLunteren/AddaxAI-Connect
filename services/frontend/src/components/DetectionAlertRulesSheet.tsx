@@ -373,6 +373,9 @@ const DetectionRuleEditDialog: React.FC<DetectionRuleEditDialogProps> = ({
               onChange={setSelectedSpecies}
               placeholder="Select labels"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              At least one label is required.
+            </p>
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Sites</label>

@@ -526,65 +526,57 @@ export const ProjectSettingsPage: React.FC = () => {
           {/* Divider */}
           <div className="border-t my-6" />
 
-          {/* Privacy blur, people and vehicles independently */}
+          {/* Privacy blur, one row, people and vehicles toggle independently */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
             <div className="w-full sm:w-1/2 sm:shrink-0">
               <label className="text-sm font-medium block">
-                Blur people
+                Blur people and vehicles
               </label>
               <p className="text-sm text-muted-foreground mt-1">
-                Automatically blur detected people in all images for privacy. Applies everywhere images are shown or exported. Statistics stay unaffected.
+                Automatically blur detected people and vehicles in all images for privacy. The two categories work independently. Applies everywhere images are shown or exported. Statistics stay unaffected.
               </p>
             </div>
-            <div className="flex-1">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={blurPeople}
-                onClick={() => setBlurPeople(!blurPeople)}
-                disabled={isSaving}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                  blurPeople ? 'bg-[#0f6064]' : 'bg-gray-300'
-                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    blurPeople ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t my-6" />
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
-            <div className="w-full sm:w-1/2 sm:shrink-0">
-              <label className="text-sm font-medium block">
-                Blur vehicles
+            <div className="flex-1 flex items-center gap-6">
+              <label className="flex items-center gap-2 text-sm">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={blurPeople}
+                  aria-label="Blur people"
+                  onClick={() => setBlurPeople(!blurPeople)}
+                  disabled={isSaving}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                    blurPeople ? 'bg-[#0f6064]' : 'bg-gray-300'
+                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      blurPeople ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                People
               </label>
-              <p className="text-sm text-muted-foreground mt-1">
-                Automatically blur detected vehicles in all images for privacy. Applies everywhere images are shown or exported. Statistics stay unaffected.
-              </p>
-            </div>
-            <div className="flex-1">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={blurVehicles}
-                onClick={() => setBlurVehicles(!blurVehicles)}
-                disabled={isSaving}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                  blurVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
-                } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    blurVehicles ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+              <label className="flex items-center gap-2 text-sm">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={blurVehicles}
+                  aria-label="Blur vehicles"
+                  onClick={() => setBlurVehicles(!blurVehicles)}
+                  disabled={isSaving}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                    blurVehicles ? 'bg-[#0f6064]' : 'bg-gray-300'
+                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      blurVehicles ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                Vehicles
+              </label>
             </div>
           </div>
 
