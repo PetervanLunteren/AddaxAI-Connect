@@ -348,6 +348,7 @@ export interface ClassificationThresholds {
 // endpoint returns every Project field plus the caller's role).
 export interface ProjectWithRole extends Project {
   role: string;
+  site_ids?: number[] | null;  // viewer site scope, null = all sites
 }
 
 // Server-wide settings
@@ -365,6 +366,7 @@ export interface ProjectUserInfo {
   invitation_id: number | null;  // set for pending invitations, null for registered users
   email: string;
   role: string;
+  site_ids?: number[] | null;  // viewer site scope, null = all sites
   is_registered: boolean;  // true for registered users, false for pending invitations
   is_active: boolean;
   is_verified: boolean;
@@ -374,10 +376,12 @@ export interface ProjectUserInfo {
 export interface AddUserToProjectRequest {
   user_id: number;
   role: string;
+  site_ids?: number[] | null;  // viewer site scope, null = all sites
 }
 
 export interface UpdateProjectUserRoleRequest {
   role: string;
+  site_ids?: number[] | null;  // the full new scope, omitted means unrestricted
 }
 
 export interface InviteUserRequest {
@@ -415,6 +419,7 @@ export interface RemoveServerAdminResponse {
 export interface AddProjectUserByEmailRequest {
   email: string;
   role: string;  // 'project-admin' or 'project-viewer'
+  site_ids?: number[] | null;  // viewer site scope, null = all sites
 }
 
 export interface AddProjectUserByEmailResponse {

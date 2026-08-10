@@ -21,6 +21,9 @@ export interface RegisterRequest {
 }
 
 export interface InviteTokenValidationResponse {
+  // Number of sites a restricted viewer invitation is limited to,
+  // null when the invitation is unrestricted
+  restricted_site_count?: number | null;
   email: string;
   role: string;
   project_name: string | null;

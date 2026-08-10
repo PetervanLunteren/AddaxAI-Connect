@@ -102,10 +102,15 @@ export const projectsApi = {
   /**
    * Update user's role in project (project admin or server admin)
    */
-  updateUserRole: async (projectId: number, userId: number, role: string): Promise<{ message: string }> => {
+  updateUserRole: async (
+    projectId: number,
+    userId: number,
+    role: string,
+    siteIds: number[] | null = null,
+  ): Promise<{ message: string }> => {
     const response = await apiClient.patch<{ message: string }>(
       `/api/projects/${projectId}/users/${userId}`,
-      { role }
+      { role, site_ids: siteIds }
     );
     return response.data;
   },

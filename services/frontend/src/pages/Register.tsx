@@ -12,6 +12,7 @@ export const Register: React.FC = () => {
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
+  const [restrictedSiteCount, setRestrictedSiteCount] = useState<number | null>(null);
   const [projectName, setProjectName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -41,6 +42,7 @@ export const Register: React.FC = () => {
         setEmail(data.email);
         setRole(data.role);
         setProjectName(data.project_name || 'AddaxAI Connect');
+        setRestrictedSiteCount(data.restricted_site_count ?? null);
         setValidatingToken(false);
       } catch (err: any) {
         setValidatingToken(false);
@@ -158,6 +160,9 @@ export const Register: React.FC = () => {
             <Callout variant="info">
               You've been invited as <strong>{role.replace('-', ' ')}</strong>
               {projectName !== 'AddaxAI Connect' && <> for <strong>{projectName}</strong></>}
+              {restrictedSiteCount != null && (
+                <> with access to {restrictedSiteCount} site{restrictedSiteCount !== 1 ? 's' : ''}</>
+              )}
             </Callout>
 
             <div>

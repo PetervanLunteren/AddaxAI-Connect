@@ -9,7 +9,10 @@ import { useParams, Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, UserPlus, Trash2, Edit2, Shield, Eye, Users as UsersIcon } from 'lucide-react';
 import { projectsApi } from '../api/projects';
+import { sitesApi } from '../api/sites';
 import { useProject } from '../contexts/ProjectContext';
+import { MultiSelect } from '../components/ui/MultiSelect';
+import type { Option } from '../components/ui/MultiSelect';
 import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import {
@@ -45,8 +48,10 @@ export const ProjectUsersPage: React.FC = () => {
   const [showRemoveUserModal, setShowRemoveUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ProjectUserInfo | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('project-viewer');
+  const [selectedSites, setSelectedSites] = useState<Option[]>([]);
   const [addUserEmail, setAddUserEmail] = useState<string>('');
   const [addUserRole, setAddUserRole] = useState<string>('project-viewer');
+  const [addUserSites, setAddUserSites] = useState<Option[]>([]);
 
   // Fetch project users
   const { data: projectUsers, isLoading: loadingUsers } = useQuery({
@@ -55,15 +60,32 @@ export const ProjectUsersPage: React.FC = () => {
     enabled: !!projectId,
   });
 
+  // Sites for the viewer site restriction pickers
+  const { data: sites = [], isLoading: loadingSites } = useQuery({
+    queryKey: ['sites', projectId],
+    queryFn: () => sitesApi.list(parseInt(projectId!)),
+    enabled: !!projectId,
+  });
+  const siteOptions: Option[] = sites.map((s) => ({ label: s.name, value: s.id }));
+  const siteName = (id: number) =>
+    sites.find((s) => s.id === id)?.name ?? `Site ${id}`;
+
+  // An empty selection submits null, meaning all sites
+  const toSiteIds = (selection: Option[], role: string): number[] | null =>
+    role === 'project-viewer' && selection.length > 0
+      ? selection.map((o) => Number(o.value))
+      : null;
+
   // Unified add user mutation (handles both existing users and new invitations)
   const addUserByEmailMutation = useMutation({
-    mutationFn: ({ email, role }: { email: string; role: string }) =>
-      projectsApi.addUserByEmail(parseInt(projectId!), { email, role }),
+    mutationFn: ({ email, role, site_ids }: { email: string; role: string; site_ids: number[] | null }) =>
+      projectsApi.addUserByEmail(parseInt(projectId!), { email, role, site_ids }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
       setShowAddUserModal(false);
       setAddUserEmail('');
       setAddUserRole('project-viewer');
+      setAddUserSites([]);
     },
     onError: (error: any) => {
       toast.error(`Failed to add user: ${error.response?.data?.detail || 'Unknown error'}`);
@@ -72,8 +94,8 @@ export const ProjectUsersPage: React.FC = () => {
 
   // Update role mutation
   const updateRoleMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: number; role: string }) =>
-      projectsApi.updateUserRole(parseInt(projectId!), userId, role),
+    mutationFn: ({ userId, role, siteIds }: { userId: number; role: string; siteIds: number[] | null }) =>
+      projectsApi.updateUserRole(parseInt(projectId!), userId, role, siteIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project-users', projectId] });
       setShowEditRoleModal(false);
@@ -121,22 +143,19 @@ export const ProjectUsersPage: React.FC = () => {
     if (addUserEmail && addUserRole) {
       addUserByEmailMutation.mutate({
         email: addUserEmail,
-        role: addUserRole
+        role: addUserRole,
+        site_ids: toSiteIds(addUserSites, addUserRole),
       });
     }
   };
 
   const handleUpdateRole = () => {
-    console.log('[DEBUG] handleUpdateRole called', {
-      selectedUser,
-      selectedRole,
-      userId: selectedUser?.user_id
-    });
     if (selectedUser && selectedUser.user_id && selectedRole) {
-      console.log('[DEBUG] Calling updateRoleMutation with:', { userId: selectedUser.user_id, role: selectedRole });
-      updateRoleMutation.mutate({ userId: selectedUser.user_id, role: selectedRole });
-    } else {
-      console.log('[DEBUG] Skipping mutation - missing data');
+      updateRoleMutation.mutate({
+        userId: selectedUser.user_id,
+        role: selectedRole,
+        siteIds: toSiteIds(selectedSites, selectedRole),
+      });
     }
   };
 
@@ -149,7 +168,7 @@ export const ProjectUsersPage: React.FC = () => {
     }
   };
 
-  const getRoleBadge = (role: string) => {
+  const getRoleBadge = (role: string, siteIds?: number[] | null) => {
     const config = {
       'project-admin': { label: 'project admin', icon: UsersIcon, color: '#ff8945' },
       'project-viewer': { label: 'project viewer', icon: Eye, color: '#71b7ba' },
@@ -157,14 +176,20 @@ export const ProjectUsersPage: React.FC = () => {
     }[role] || { label: role, icon: Shield, color: '#71b7ba' };
 
     const Icon = config.icon;
+    const restricted = role === 'project-viewer' && siteIds && siteIds.length > 0;
+    const label = restricted ? 'project viewer (restricted)' : config.label;
+    const title = restricted
+      ? `Only sees ${siteIds.map(siteName).join(', ')}`
+      : undefined;
 
     return (
       <div
         className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium"
         style={{ backgroundColor: `${config.color}1a`, color: config.color }}
+        title={title}
       >
         <Icon className="h-3 w-3" />
-        <span>{config.label}</span>
+        <span>{label}</span>
       </div>
     );
   };
@@ -211,7 +236,7 @@ export const ProjectUsersPage: React.FC = () => {
                 {projectUsers.map((user, index) => (
                   <TableRow key={user.user_id || `pending-${index}`}>
                     <TableCell className="font-medium break-all">{user.email}</TableCell>
-                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell>{getRoleBadge(user.role, user.site_ids)}</TableCell>
                     <TableCell>
                       {user.is_registered ? (
                         <span
@@ -258,10 +283,14 @@ export const ProjectUsersPage: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            console.log('[DEBUG] Edit button clicked for user:', { email: user.email, role: user.role, user_id: user.user_id });
                             setSelectedUser(user);
                             setSelectedRole(user.role);
-                            console.log('[DEBUG] Set selectedRole to:', user.role);
+                            setSelectedSites(
+                              (user.site_ids ?? []).map((id) => ({
+                                label: siteName(id),
+                                value: id,
+                              }))
+                            );
                             setShowEditRoleModal(true);
                           }}
                         >
@@ -317,6 +346,23 @@ export const ProjectUsersPage: React.FC = () => {
                 <SelectItem value="project-admin">project admin</SelectItem>
               </Select>
             </div>
+
+            {addUserRole === 'project-viewer' && (
+              <div>
+                <Label>Restrict to sites</Label>
+                <MultiSelect
+                  options={siteOptions}
+                  value={addUserSites}
+                  onChange={setAddUserSites}
+                  placeholder="All sites"
+                  isLoading={loadingSites}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Leave empty for access to all sites. With a selection, the
+                  viewer only sees data from those sites.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -326,6 +372,7 @@ export const ProjectUsersPage: React.FC = () => {
                 setShowAddUserModal(false);
                 setAddUserEmail('');
                 setAddUserRole('project-viewer');
+                setAddUserSites([]);
               }}
               disabled={addUserByEmailMutation.isPending}
             >
@@ -345,13 +392,7 @@ export const ProjectUsersPage: React.FC = () => {
       </Dialog>
 
       {/* Edit Role Modal */}
-      <Dialog
-        open={showEditRoleModal}
-        onOpenChange={(open) => {
-          console.log('[DEBUG] Dialog onOpenChange:', { open, selectedRole });
-          setShowEditRoleModal(open);
-        }}
-      >
+      <Dialog open={showEditRoleModal} onOpenChange={setShowEditRoleModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update user role</DialogTitle>
@@ -360,20 +401,35 @@ export const ProjectUsersPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div>
-            <Label htmlFor="edit-role">Role</Label>
-            <Select
-              id="edit-role"
-              value={selectedRole}
-              onValueChange={(value) => {
-                console.log('[DEBUG] Edit Role Select onChange:', { from: selectedRole, to: value });
-                setSelectedRole(value);
-              }}
-            >
-              <SelectItem value="project-viewer">project viewer</SelectItem>
-              <SelectItem value="project-admin">project admin</SelectItem>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">Current value: {selectedRole}</p>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-role">Role</Label>
+              <Select
+                id="edit-role"
+                value={selectedRole}
+                onValueChange={setSelectedRole}
+              >
+                <SelectItem value="project-viewer">project viewer</SelectItem>
+                <SelectItem value="project-admin">project admin</SelectItem>
+              </Select>
+            </div>
+
+            {selectedRole === 'project-viewer' && (
+              <div>
+                <Label>Restrict to sites</Label>
+                <MultiSelect
+                  options={siteOptions}
+                  value={selectedSites}
+                  onChange={setSelectedSites}
+                  placeholder="All sites"
+                  isLoading={loadingSites}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Leave empty for access to all sites. With a selection, the
+                  viewer only sees data from those sites.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
