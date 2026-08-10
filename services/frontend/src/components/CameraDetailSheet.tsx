@@ -85,7 +85,10 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     enabled: isOpen && projectId !== undefined,
   });
 
-  // Reset editing state and tab when camera changes or sheet closes
+  // Reset editing state and tab when a different camera opens. Keyed on the
+  // id, not the object: the page refreshes the camera prop with a fresher
+  // row after list refetches, and that must not kick the user back to the
+  // Overview tab or clobber a form they are editing.
   useEffect(() => {
     if (camera) {
       setEditForm({
@@ -101,7 +104,8 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     }
     setIsEditing(false);
     setActiveTab('overview');
-  }, [camera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera?.id]);
 
   // Check if notes have been modified
   const tagsChanged = camera && (

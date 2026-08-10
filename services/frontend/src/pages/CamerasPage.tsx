@@ -222,6 +222,16 @@ export const CamerasPage: React.FC = () => {
     enabled: !!currentProject,
   });
 
+  // Keep the open detail sheet in sync with the list. The sheet holds a
+  // snapshot row, so derived fields (e.g. last maintenance after logging
+  // a visit on the Maintenance tab) would go stale after a refetch.
+  useEffect(() => {
+    if (!selectedCamera || !cameras) return;
+    const fresh = cameras.find((c) => c.id === selectedCamera.id);
+    if (fresh && fresh !== selectedCamera) setSelectedCamera(fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameras]);
+
   // Unseen camera updates for the header button. Shares the query key with
   // the sidebar badge, so both clear together when the sheet marks seen.
   const { data: unseenUpdates } = useQuery({
