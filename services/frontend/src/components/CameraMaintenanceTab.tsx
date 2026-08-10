@@ -15,7 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from './ui/Toaster';
 import { Button } from './ui/Button';
 
-const ACTION_LABELS: Record<MaintenanceActionType, string> = {
+export const ACTION_LABELS: Record<MaintenanceActionType, string> = {
   battery_change: 'Battery change',
   sd_card_swap: 'SD card swap',
   inspection: 'Inspection or cleaning',
