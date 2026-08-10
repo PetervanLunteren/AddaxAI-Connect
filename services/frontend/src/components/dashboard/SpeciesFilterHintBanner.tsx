@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { Callout } from '../ui/Callout';
+import { Button } from '../ui/Button';
 
 import { speciesApi } from '../../api/species';
 import { useProject } from '../../contexts/ProjectContext';
@@ -68,39 +69,31 @@ export function SpeciesFilterHintBanner() {
     <Callout
       variant="info"
       action={
-        <button
-          type="button"
-          onClick={handleDismiss}
-          aria-label="Dismiss"
-          className="p-0.5 rounded hover:bg-blue-100"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      }
-    >
-      <div>
-        <p>
-          Right now every species the model knows can be classified in this project.
-          If you limit it to the species that live in your area, classification often
-          gets more accurate. You can change this any time in the project settings.
-        </p>
-        <div className="mt-2 flex flex-wrap gap-4">
-          <button
+        <>
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             onClick={() => navigate(`/projects/${selectedProject.id}/settings`)}
-            className="underline font-medium"
+            className="whitespace-nowrap"
           >
             Open settings
-          </button>
+          </Button>
+          {/* Dismiss writes localStorage, so the hint stays gone */}
           <button
             type="button"
             onClick={handleDismiss}
-            className="underline font-medium"
+            aria-label="Dismiss"
+            className="p-0.5 rounded hover:bg-blue-100"
           >
-            Don't show again
+            <X className="h-4 w-4" />
           </button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      Right now every species the model knows can be classified in this project.
+      If you limit it to the species that live in your area, classification often
+      gets more accurate. You can change this any time in the project settings.
     </Callout>
   );
 }

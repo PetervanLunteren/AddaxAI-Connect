@@ -6,7 +6,7 @@
  * Server admins and project admins can manage their projects.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus } from 'lucide-react';
 import { adminApi } from '../api/admin';
@@ -108,22 +108,46 @@ export const ProjectsPage: React.FC = () => {
             automatically from the browser on first login, so it is not listed
             here and the banner no longer gates on it. */}
         {isServerAdmin && setupStatus && (!setupStatus.country_code || !setupStatus.taxonomy_mapping) && (
-          <Callout variant="warning" className="mb-6">
-            Server setup incomplete.{' '}
-            {!setupStatus.country_code && (
-              <><Link to="/server/settings" className="underline font-medium">Set the country code</Link>. </>
-            )}
-            {!setupStatus.taxonomy_mapping && (
-              <><Link to="/server/settings" className="underline font-medium">Upload a taxonomy mapping</Link>. </>
-            )}
+          <Callout
+            variant="warning"
+            className="mb-6"
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => navigate('/server/settings')}
+                className="whitespace-nowrap"
+              >
+                Server settings
+              </Button>
+            }
+          >
+            Server setup incomplete.
+            {!setupStatus.country_code && ' Set the country code.'}
+            {!setupStatus.taxonomy_mapping && ' Upload a taxonomy mapping.'}
           </Callout>
         )}
 
         {/* Telegram not configured banner (server admins only) */}
         {isServerAdmin && setupStatus && !setupStatus.telegram && (
-          <Callout variant="info" className="mb-6">
-            Telegram bot is not configured. This is optional, but without it no one will be able to sign up for real-time notifications.{' '}
-            <Link to="/server/settings" className="underline font-medium">Configure Telegram</Link>.
+          <Callout
+            variant="info"
+            className="mb-6"
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => navigate('/server/settings')}
+                className="whitespace-nowrap"
+              >
+                Server settings
+              </Button>
+            }
+          >
+            Telegram bot is not configured. This is optional, but without it no
+            one will be able to sign up for real-time notifications.
           </Callout>
         )}
 
