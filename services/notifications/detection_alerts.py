@@ -35,6 +35,7 @@ seen; the triggering image is excluded by id.
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 from sqlalchemy import select
 
@@ -162,6 +163,18 @@ def rule_matches(rule: DetectionAlertRule, facts: EventFacts) -> bool:
 
 def species_display_name(species: str) -> str:
     return species.replace('_', ' ').capitalize()
+
+
+def images_link(domain: str, project_id: int, species: str, site_id: Optional[int]) -> str:
+    """Deep link to the images page filtered to the alert's species (and
+    site when the image has one), so the reader lands on the pictures
+    that triggered the alert instead of the unfiltered wall. The filter
+    format matches the images page URL schema, comma-separated values in
+    one query parameter per filter."""
+    url = f"https://{domain}/projects/{project_id}/images?species={quote(species)}"
+    if site_id is not None:
+        url += f"&site_id={site_id}"
+    return url
 
 
 def _load_event_image(
@@ -366,7 +379,7 @@ def handle_detection_event(event: Dict[str, Any]) -> None:
 
                 delivered = _notify_rule(
                     email_queue, telegram_queue, db,
-                    rule, user, project, event, captured_at, site_name,
+                    rule, user, project, event, captured_at, site_id, site_name,
                 )
                 if delivered:
                     fired += 1
@@ -409,6 +422,7 @@ def _notify_rule(
     project: Project,
     event: Dict[str, Any],
     captured_at: Optional[datetime],
+    site_id: Optional[int],
     site_name: Optional[str],
 ) -> bool:
     """Send one message per configured channel for a matched rule.
@@ -427,7 +441,7 @@ def _notify_rule(
         date_str = "Unknown"
 
     domain = settings.domain_name or "localhost:3000"
-    images_url = f"https://{domain}/projects/{project.id}/images"
+    images_url = images_link(domain, project.id, species, site_id)
     settings_url = f"https://{domain}/projects/{project.id}/notifications"
 
     count = event.get('species_count', event.get('detection_count'))
