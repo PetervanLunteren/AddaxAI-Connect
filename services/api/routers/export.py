@@ -26,7 +26,7 @@ from sqlalchemy.orm import selectinload
 
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
-    HumanObservation, CameraHealthReport,
+    HumanObservation, CameraHealthReport, CameraMaintenanceEvent,
     SpeciesTaxonomy, ServerSettings,
 )
 from shared.database import get_async_session
@@ -1041,6 +1041,7 @@ async def _build_camera_rows(
     camera_ids = [c.id for c in cameras]
     last_captured_map: Dict[int, datetime] = {}
     last_reported_map: Dict[int, datetime] = {}
+    last_maintenance_map: Dict[int, date] = {}
     if camera_ids:
         captured_rows = await db.execute(
             select(Image.camera_id, func.max(Image.captured_at))
@@ -1055,6 +1056,13 @@ async def _build_camera_rows(
             .group_by(CameraHealthReport.camera_id)
         )
         last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
+
+        maintenance_rows = await db.execute(
+            select(CameraMaintenanceEvent.camera_id, func.max(CameraMaintenanceEvent.event_date))
+            .where(CameraMaintenanceEvent.camera_id.in_(camera_ids))
+            .group_by(CameraMaintenanceEvent.camera_id)
+        )
+        last_maintenance_map = {cam_id: d for cam_id, d in maintenance_rows.all()}
 
     custom_keys = sorted({
         key
@@ -1078,6 +1086,7 @@ async def _build_camera_rows(
         gps = camera.config.get('gps_from_report') if camera.config else None
         last_captured = last_captured_map.get(camera.id)
         last_reported = last_reported_map.get(camera.id)
+        last_maintenance = last_maintenance_map.get(camera.id)
         custom = camera.custom_fields if isinstance(camera.custom_fields, dict) else {}
 
         row = [
@@ -1103,7 +1112,7 @@ async def _build_camera_rows(
             gps['lat'] if isinstance(gps, dict) and gps.get('lat') is not None else '',
             gps['lon'] if isinstance(gps, dict) and gps.get('lon') is not None else '',
             camera.installed_at.isoformat() if camera.installed_at else '',
-            camera.last_maintenance_at.isoformat() if camera.last_maintenance_at else '',
+            last_maintenance.isoformat() if last_maintenance else '',
             camera.created_at.isoformat() if camera.created_at else '',
         ]
         for key in custom_keys:

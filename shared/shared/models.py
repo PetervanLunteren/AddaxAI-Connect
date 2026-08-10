@@ -131,9 +131,6 @@ class Camera(Base):
     temperature_c = Column(Integer, nullable=True)
     signal_quality = Column(Integer, nullable=True)
 
-    # Timestamps
-    last_maintenance_at = Column(DateTime(timezone=True), nullable=True)
-
     # SIM card expiry. Plain Date so the monthly cron can filter naturally and
     # the camera form / CSV upload speak YYYY-MM-DD without timezone math.
     sim_expiry_date = Column(Date, nullable=True)
@@ -148,6 +145,33 @@ class Camera(Base):
 
     # Relationships
     images = relationship("Image", back_populates="camera")
+
+
+class CameraMaintenanceEvent(Base):
+    """
+    One maintenance visit to a camera.
+
+    Logged by project admins on the camera's Maintenance tab or via the
+    bulk action. event_date is a plain Date, field visits are day-granular
+    and need no timezone math (same reasoning as Camera.sim_expiry_date).
+    action_types holds a non-empty list from a fixed vocabulary, validated
+    by the API (see routers/camera_maintenance.py). The derived
+    max(event_date) per camera is shown as "last maintenance" in the
+    camera list, detail sheet, and export.
+    """
+    __tablename__ = "camera_maintenance_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    camera_id = Column(Integer, ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_date = Column(Date, nullable=False, index=True)
+    # e.g. ["battery_change", "sd_card_swap"]
+    action_types = Column(JSON, nullable=False)
+    # Who did the field work. SET NULL so history survives a user delete.
+    performed_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Who logged the event, distinct from who performed it.
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
 class SiteGroup(Base):
