@@ -1,0 +1,124 @@
+{% extends "base_email.html" %}
+
+{% block title %}{{ project_name }} - {{ frequency }} species report{% endblock %}
+
+{% block header_content %}
+<h1 style="font-size: 24px; font-weight: 600; margin: 0 0 4px 0; color: #0f6064;">{{ project_name }}</h1>
+<p style="font-size: 16px; font-weight: 500; margin: 0; color: #1f2937;">{{ frequency }} species report</p>
+<p style="font-size: 14px; color: #6b7280; margin: 4px 0 0 0;">{{ period_label }}</p>
+{% endblock %}
+
+{% block content %}
+<!-- Combined stats across the rule's species -->
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+    <tr>
+        <td width="33%" align="center" style="padding: 10px;">
+            <p style="font-size: 28px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ combined.total }}</p>
+            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">{% if methods.counting_label.startswith('independent') %}events{% else %}detections{% endif %}</p>
+        </td>
+        <td width="33%" align="center" style="padding: 10px;">
+            <p style="font-size: 28px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ combined.delta_label }}</p>
+            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">vs previous period</p>
+        </td>
+        <td width="33%" align="center" style="padding: 10px;">
+            <p style="font-size: 28px; font-weight: 700; color: #0f6064; line-height: 1.2; margin: 0;">{{ active_sites }}</p>
+            <p style="font-size: 12px; color: #6b7280; margin: 2px 0 0 0;">active sites</p>
+        </td>
+    </tr>
+</table>
+{% endblock %}
+
+{% block extra_sections %}
+{% for block in species_blocks %}
+<tr>
+    <td style="padding: 24px; border-top: 1px solid #e5e7eb;">
+        <h2 style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px 0;">{{ block.label|replace('_', ' ')|title }}</h2>
+        <p style="font-size: 14px; color: #1f2937; margin: 0 0 12px 0;">
+            <span style="font-weight: 700; color: #0f6064;">{{ block.total }}</span>
+            in this period ({{ block.delta_label }} vs previous), {{ block.presence_line }}
+        </p>
+        {% if block.rows %}
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+                <td style="padding: 6px 0; border-bottom: 1px solid #e5e7eb;">
+                    <span style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Site</span>
+                </td>
+                <td align="right" style="padding: 6px 0; border-bottom: 1px solid #e5e7eb;">
+                    <span style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Count</span>
+                </td>
+                <td align="right" style="padding: 6px 0 6px 12px; border-bottom: 1px solid #e5e7eb;">
+                    <span style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Trap-days</span>
+                </td>
+                <td align="right" style="padding: 6px 0 6px 12px; border-bottom: 1px solid #e5e7eb;">
+                    <span style="font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Per 100 trap-days</span>
+                </td>
+            </tr>
+            {% for row in block.rows %}
+            <tr>
+                <td style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                    <span style="font-size: 14px; color: #1f2937;">{{ row.site_name }}</span>
+                </td>
+                <td align="right" style="padding: 8px 0; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                    <span style="font-size: 14px; font-weight: 600; color: {% if row.count > 0 %}#0f6064{% else %}#9ca3af{% endif %};">{{ row.count }}</span>
+                </td>
+                <td align="right" style="padding: 8px 0 8px 12px; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                    <span style="font-size: 14px; color: #6b7280;">{{ row.trap_days }}</span>
+                </td>
+                <td align="right" style="padding: 8px 0 8px 12px; {% if not loop.last %}border-bottom: 1px solid #f3f4f6;{% endif %}">
+                    <span style="font-size: 14px; color: {% if row.rate_per_100 and row.rate_per_100 > 0 %}#1f2937{% else %}#9ca3af{% endif %};">{% if row.rate_per_100 is none %}n/a{% else %}{{ row.rate_per_100 }}{% endif %}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p style="font-size: 14px; color: #6b7280; margin: 0;">No camera effort was recorded in this period.</p>
+        {% endif %}
+        {% if block.unassigned_count > 0 %}
+        <p style="font-size: 12px; color: #6b7280; margin: 8px 0 0 0;">{{ block.unassigned_count }} of the counted individuals could not be assigned to a site.</p>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+
+<!-- Methods -->
+<tr>
+    <td style="padding: 24px; border-top: 1px solid #e5e7eb;">
+        <h2 style="font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">About these numbers</h2>
+        <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0;">Counted as {{ methods.counting_label }}. Counts include unverified AI identifications.</p>
+        <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0;">Camera effort is counted within the report period only. Total effort {{ methods.trap_days_total }} trap-days, previous period {{ methods.prev_trap_days_total }} trap-days.</p>
+        {% if methods.inactive_sites > 0 %}
+        <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0;">{{ methods.inactive_sites }} site{% if methods.inactive_sites != 1 %}s{% endif %} had no camera effort in this period and {% if methods.inactive_sites != 1 %}are{% else %}is{% endif %} not shown.</p>
+        {% endif %}
+        {% if methods.no_prior_effort %}
+        <p style="font-size: 12px; color: #6b7280; margin: 0 0 4px 0;">No camera effort was recorded in the previous period, so no comparison is shown.</p>
+        {% endif %}
+        {% if methods.effort_warning %}
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 8px;">
+            <tr>
+                <td style="background: #fff5f0; border-left: 3px solid #882000; border-radius: 0 8px 8px 0; padding: 12px 16px;">
+                    <p style="font-size: 13px; color: #882000; margin: 0;">Camera effort changed by {{ methods.effort_change_pct }}% compared with the previous period, so the rates of the two periods are not directly comparable.</p>
+                </td>
+            </tr>
+        </table>
+        {% endif %}
+    </td>
+</tr>
+{% endblock %}
+
+{% block cta %}
+<tr>
+    <td align="center" style="padding: 24px; border-top: 1px solid #e5e7eb;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+                <td style="background: #0f6064; border-radius: 8px;">
+                    <a href="{{ project_url }}" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none;">Visit project</a>
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+{% endblock %}
+
+{% block footer_link %}
+<p style="margin: 0;"><a href="{{ settings_url }}" style="color: #0f6064; text-decoration: none;">Manage notification settings</a></p>
+{% endblock %}

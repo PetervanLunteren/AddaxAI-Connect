@@ -12,6 +12,7 @@ Also runs scheduled jobs (15-minute spacing convention):
 - Excessive image alerts daily at 06:30 UTC
 - Scheduled project reminders daily at 06:45 UTC
 - Camera condition alert rules daily at 07:00 UTC
+- Scheduled species reports daily at 07:30 UTC
 - Disk usage alert check hourly at :00
 - Delivery worker liveness check hourly at :15
 """
@@ -32,6 +33,7 @@ from reminders import send_due_reminders
 from disk_usage_alert import check_disk_usage_and_alert
 from infra_alert import check_infra_alerts
 from delivery_liveness import check_delivery_liveness
+from scheduled_species_reports import send_scheduled_species_reports
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -197,9 +199,22 @@ def main() -> None:
         name='Evaluate camera condition alert rules daily at 07:00 UTC'
     )
 
+    # Scheduled species reports - daily at 07:30 UTC (07:15 would collide
+    # with the hourly delivery liveness check at :15). The job itself
+    # decides which frequencies are due on the server-local date.
+    scheduler.add_job(
+        send_scheduled_species_reports,
+        'cron',
+        hour=7,
+        minute=30,
+        id='scheduled_species_reports',
+        name='Send scheduled species reports daily at 07:30 UTC'
+    )
+
     scheduler.start()
 
     logger.info("Scheduled camera condition alerts at 07:00 UTC")
+    logger.info("Scheduled species reports at 07:30 UTC")
     logger.info("Scheduled email reports: daily 06:00, weekly Monday 06:00, monthly 1st 06:00 UTC")
     logger.info("Scheduled excessive image alerts at 06:30 UTC")
     logger.info("Scheduled project inactivity alerts at 06:00 UTC")
