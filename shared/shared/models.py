@@ -537,6 +537,47 @@ class DetectionAlertRule(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
+class ScheduledReportRule(Base):
+    """
+    A user-defined scheduled species report.
+
+    Private per user, the creator is the only email recipient and other
+    members never see the rule. One rule produces one email per period:
+    weekly rules send Monday covering the previous Mon-Sun week, monthly
+    rules send on the 1st covering the previous calendar month, quarterly
+    rules send on 1 Jan/Apr/Jul/Oct covering the previous quarter. Dates
+    follow the server timezone. Evaluated by the daily cron at 07:30 UTC.
+
+    No delivery state is kept: the in-memory scheduler cannot re-fire a
+    crashed run, so a missed period is possible but a duplicate email is
+    not; NotificationLog records what was sent. If manual re-runs ever
+    become a tool, a last_sent_period_end column is the upgrade path.
+    """
+    __tablename__ = "scheduled_report_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # ON DELETE CASCADE, a private rule dies with its owner
+    created_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Non-empty list of label strings. A rule always names its labels,
+    # there is no "all species" form.
+    species = Column(JSON, nullable=False)
+    frequency = Column(String(10), nullable=False)  # weekly | monthly | quarterly
+    is_active = Column(Boolean, nullable=False, server_default='true')
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
 class ProjectNotificationPreference(Base):
     """Per-user per-project notification preferences"""
     __tablename__ = "project_notification_preferences"
