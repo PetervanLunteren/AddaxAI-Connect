@@ -36,9 +36,9 @@ type DialogMode =
   | { kind: 'edit'; rule: SpeciesReportRule };
 
 const FREQUENCY_SUMMARIES: Record<ReportFrequency, string> = {
-  weekly: 'Weekly, sent every Monday',
-  monthly: 'Monthly, sent on the 1st',
-  quarterly: 'Quarterly, sent on the first day of each quarter',
+  weekly: 'Weekly, covering the previous week',
+  monthly: 'Monthly, covering the previous month',
+  quarterly: 'Quarterly, covering the previous quarter',
 };
 
 const ruleTitle = (rule: SpeciesReportRule): string =>
@@ -241,9 +241,9 @@ interface SpeciesReportEditDialogProps {
 }
 
 const FREQUENCY_CHOICES: { value: ReportFrequency; label: string; hint: string }[] = [
-  { value: 'weekly', label: 'Weekly', hint: 'Sent every Monday for the previous week' },
-  { value: 'monthly', label: 'Monthly', hint: 'Sent on the 1st for the previous month' },
-  { value: 'quarterly', label: 'Quarterly', hint: 'Sent on 1 January, April, July, and October for the previous quarter' },
+  { value: 'weekly', label: 'Weekly', hint: 'Sent every Monday, covering the previous week' },
+  { value: 'monthly', label: 'Monthly', hint: 'Sent on the first of the month, covering the previous month' },
+  { value: 'quarterly', label: 'Quarterly', hint: 'Sent on 1 January, April, July, and October, covering the previous quarter' },
 ];
 
 const SpeciesReportEditDialog: React.FC<SpeciesReportEditDialogProps> = ({
@@ -285,8 +285,7 @@ const SpeciesReportEditDialog: React.FC<SpeciesReportEditDialogProps> = ({
               placeholder="Select labels"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              At least one label is required. Several labels share one email
-              with a section per label.
+              At least one label is required. Several labels share one email.
             </p>
           </div>
           <div>
