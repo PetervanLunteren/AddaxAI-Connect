@@ -39,7 +39,7 @@ import { normalizeLabel, isWildlifeLabel } from '../../utils/labels';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 /** Species shown before the chart is cut. Beyond this it stops being readable. */
-const MAX_BARS = 8;
+const MAX_BARS = 10;
 
 const BAR_FILL = 'rgba(15, 96, 100, 0.18)';
 const BAR_BORDER = '#0f6064';

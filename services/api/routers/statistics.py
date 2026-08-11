@@ -368,9 +368,15 @@ async def get_species_distribution(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Get species distribution (top 10, filtered by accessible projects)
+    Get species distribution, count-sorted, filtered by accessible projects.
 
     Prefers human observations for verified images, falls back to AI for unverified.
+
+    Returns every species rather than a fixed top slice, so callers can cap the
+    display themselves and still know the true total. The dashboard card filters
+    to wildlife and shows the top ones; the insight pages read only the most
+    detected. A project's distinct-species count is small, so the full list is
+    cheap. The cap below is just a runaway guard.
 
     Args:
         accessible_project_ids: Project IDs accessible to user
@@ -378,25 +384,28 @@ async def get_species_distribution(
         current_user: Current authenticated user
 
     Returns:
-        List of species with counts (top 10 by count)
+        List of species with counts, most detected first
     """
     accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
     site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
     interval = await _get_independence_interval(db, project_id)
+
+    # Well above any real project's distinct-species count.
+    SPECIES_LIMIT = 100
 
     if interval > 0:
         counts = await get_independent_species_counts(
             db=db,
             project_ids=accessible_project_ids,
             interval_minutes=interval,
-            limit=10,
+            limit=SPECIES_LIMIT,
             site_ids=site_id_list,
         )
     else:
         counts = await get_preferred_species_counts(
             db=db,
             project_ids=accessible_project_ids,
-            limit=10,
+            limit=SPECIES_LIMIT,
             site_ids=site_id_list,
         )
 
