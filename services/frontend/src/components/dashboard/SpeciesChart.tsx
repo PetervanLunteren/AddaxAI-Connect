@@ -133,7 +133,6 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
         <p className="text-sm text-muted-foreground">
           {wildlife.length > MAX_BARS ? `Top ${MAX_BARS} of ${wildlife.length}. ` : ''}
           Most individuals seen at once, added up across independent events.
-          Click a bar to open its images.
         </p>
       </CardHeader>
       <CardContent>

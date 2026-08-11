@@ -98,7 +98,7 @@ CAMERAS
 
 - [x] When clicking on the mini map in the dashboard explorer, it opens the insights map. Should we do the same on the Mini activity pattern? So it opens the activity overlap in the insights? (Done 11 Aug 2026. Added a corner "Compare in insights" link on the activity pattern card, shown only when one species is selected, that opens the activity overlap page seeded with that species and the current date, site and tag filters. Made it a corner link rather than a full-card click because the clock face keeps its own hourly hover. Hidden on the all-species view since the overlap page is per-species.)
 
-- [ ] Dashboard overview: rm: "Click a bar to open its images."
+- [x] Dashboard overview: rm: "Click a bar to open its images." (Done 11 Aug 2026, removed the caption sentence from the Species detected card. Bars still open their images on click.)
 
 - [ ] Dashboard overview: Species detected: Is this the top eight? Or is this all? 
 
