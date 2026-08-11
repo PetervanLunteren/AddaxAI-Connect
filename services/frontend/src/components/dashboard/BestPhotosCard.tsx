@@ -20,16 +20,16 @@ import { ImageDetailModal } from '../ImageDetailModal';
 import { rankByAppeal, cannotTellWhichAnimal } from './photoAppeal';
 
 /**
- * Three, in one row, because each tile loads the full-size image.
+ * Two, side by side, because each tile loads the full-size image.
  *
  * Thumbnails are 300 pixels wide, and a distant animal is only a dozen pixels
  * across in one, so a wall built from thumbnails is a wall of mush and answers
- * nothing. Full images cost around 600 KB each. Three across keeps the top of
- * the tab short, so the cards below it rise into view, and the wider landscape
- * crop reads better than the old square. The browser reuses each image when
- * the modal opens it.
+ * nothing. Full images cost around 600 KB each. Two across gives each photo
+ * enough width to be worth looking at, and makes the card tall enough to sit
+ * level with the trend chart beside it instead of leaving a gap under a short
+ * strip. The browser reuses each image when the modal opens it.
  */
-const COUNT = 3;
+const COUNT = 2;
 
 /**
  * How many the endpoint returns before appeal picks the shown ones from them.
@@ -112,7 +112,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: COUNT }, (_, i) => (
               <div key={i} className="aspect-[16/10] animate-pulse rounded-md bg-muted" />
             ))}
@@ -122,7 +122,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
             No photos match this selection yet
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {items.map((image) => (
               <button
                 key={image.uuid}
