@@ -13,7 +13,7 @@ if _api not in sys.path:
     sys.path.insert(0, _api)
 
 from utils import preferred_counts
-from utils.independence_filter import get_independent_hourly_activity
+from shared.independence_filter import get_independent_hourly_activity
 
 
 class TestPreferredCountsNoLocalHour:

@@ -18,7 +18,7 @@ export const normalizeLabel = (label: string): string => {
  * it differently: the performance page marks these rows and leaves them out of
  * its averages, the group size page drops them from the picker entirely.
  * The backend excludes them too, see NON_WILDLIFE_LABELS in
- * services/api/utils/independence_filter.py.
+ * shared/shared/independence_filter.py.
  */
 export const DETECTOR_CATEGORIES = new Set(['empty', 'person', 'vehicle']);
 

@@ -25,7 +25,7 @@ _api = os.path.abspath(
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from utils.independence_filter import (  # noqa: E402
+from shared.independence_filter import (  # noqa: E402
     NON_WILDLIFE_LABELS,
     _build_cte,
     _build_unverified_branches,

@@ -152,7 +152,7 @@ class TestMapQuerySource:
 
 class TestIndependencePerSpecies:
     def test_independence_counts_carry_species(self):
-        from utils.independence_filter import get_independent_detection_rate_counts
+        from shared.independence_filter import get_independent_detection_rate_counts
 
         src = inspect.getsource(get_independent_detection_rate_counts)
         assert "e.species" in src

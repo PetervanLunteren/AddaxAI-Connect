@@ -488,6 +488,53 @@ async def get_independent_detection_rate_counts(
     return counts
 
 
+def get_independent_site_species_counts_sync(
+    db,
+    project_id: int,
+    interval_minutes: int,
+    species: List[str],
+    start_date: datetime,
+    end_date: datetime,
+) -> List[dict]:
+    """
+    Per-site, per-species independent event counts for a period, on a sync
+    session. Used by the notifications worker (scheduled species reports),
+    which cannot run the async executors.
+
+    Returns a list of {site_id, species, count} where count sums each
+    event's MaxN. site_id is None for events whose camera had no deployment
+    covering the event start (LEFT JOIN, so those events are kept and land
+    in the report's unassigned bucket). Species keys are lowercased.
+
+    Two known approximations, both shared with the detection-rate map:
+    - An event in a merged-site pool is attributed to the site of its
+      earliest observation's camera.
+    - A camera whose deployment ends the same day the next one starts can
+      join an event on that boundary date to both deployments; this only
+      double-counts when the two deployments are at different sites.
+    """
+    cte_sql, params = _build_cte(species, start_date, end_date)
+    params["project_ids"] = [project_id]
+    params["interval"] = interval_minutes
+
+    query = f"""
+    {cte_sql}
+    SELECT dep.site_id, LOWER(e.species) as species,
+           SUM(e.event_count)::int as count
+    FROM events e
+    LEFT JOIN deployments dep ON e.camera_id = dep.camera_id
+        AND DATE(e.event_start) >= dep.start_date
+        AND (dep.end_date IS NULL OR DATE(e.event_start) <= dep.end_date)
+    GROUP BY dep.site_id, LOWER(e.species)
+    """
+
+    rows = db.execute(text(query), params).all()
+    return [
+        {"site_id": row.site_id, "species": row.species, "count": row.count}
+        for row in rows
+    ]
+
+
 async def compute_event_assignments(
     db: AsyncSession,
     project_id: int,

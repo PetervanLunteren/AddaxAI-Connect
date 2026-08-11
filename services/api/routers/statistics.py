@@ -57,7 +57,7 @@ from utils.sun_time import (
 )
 from utils.site_scope import site_image_clause, cameras_at_sites_clause, intersect_scope
 from utils.timeline import get_deployment_timeline
-from utils.independence_filter import (
+from shared.independence_filter import (
     get_independent_species_counts,
     get_independent_event_counts,
     get_independent_hourly_activity,

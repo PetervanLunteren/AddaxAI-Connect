@@ -12,7 +12,7 @@ if _api not in sys.path:
 
 class TestBuildFiltersSpecies:
     def test_list_matches_any_of_the_names(self):
-        from utils.independence_filter import _build_filters
+        from shared.independence_filter import _build_filters
 
         verified, unverified, pv, params = _build_filters(
             ["Red Deer", "wild_boar"], None, None,
@@ -25,14 +25,14 @@ class TestBuildFiltersSpecies:
 
     def test_single_string_still_works(self):
         # Existing callers (species counts, hourly activity) pass one name
-        from utils.independence_filter import _build_filters
+        from shared.independence_filter import _build_filters
 
         verified, _, _, params = _build_filters("Roe_Deer", None, None)
         assert "= ANY(CAST(:species_filter AS text[]))" in verified
         assert params["species_filter"] == ["roe_deer"]
 
     def test_no_species_no_clause(self):
-        from utils.independence_filter import _build_filters
+        from shared.independence_filter import _build_filters
 
         verified, unverified, pv, params = _build_filters(None, None, None)
         assert "species_filter" not in params

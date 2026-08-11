@@ -9,7 +9,7 @@ _api = os.path.abspath(_api)
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from utils.independence_filter import _build_filters, _build_cte, _INDEPENDENCE_CTE
+from shared.independence_filter import _build_filters, _build_cte, _INDEPENDENCE_CTE
 
 
 class TestBuildFilters:

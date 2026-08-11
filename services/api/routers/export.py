@@ -649,7 +649,7 @@ async def export_camtrap_dp(
     # consumer serializes ISO 8601 with the correct DST-aware offset.
     event_assignments = None
     if project.independence_interval_minutes > 0:
-        from utils.independence_filter import compute_event_assignments
+        from shared.independence_filter import compute_event_assignments
         event_assignments = await compute_event_assignments(
             db=db,
             project_id=project_id,
