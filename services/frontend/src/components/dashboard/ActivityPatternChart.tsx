@@ -239,24 +239,12 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
   });
 
   return (
-    <Card>
+    <Card className="group relative">
       <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-lg">Activity pattern</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              24-hour pattern{data ? `, ${data.total_detections.toLocaleString()} total detections` : ''}
-            </p>
-          </div>
-          {insightsHref && (
-            <Link
-              to={insightsHref}
-              className="shrink-0 whitespace-nowrap text-xs font-medium text-primary hover:underline"
-            >
-              Compare in insights
-            </Link>
-          )}
-        </div>
+        <CardTitle className="text-lg">Activity pattern</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          24-hour pattern{data ? `, ${data.total_detections.toLocaleString()} total detections` : ''}
+        </p>
       </CardHeader>
       <CardContent>
         <div className="aspect-square w-full max-h-72 mx-auto">
@@ -288,6 +276,20 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
           </div>
         </div>
       </CardContent>
+
+      {/* Same hover-revealed pill as the mini map, bottom-right. Unlike the
+          map this is only the pill, not a full-card overlay, because the clock
+          face keeps its own hourly hover. Shown only when one species is
+          chosen, since the overlap page is per-species. */}
+      {insightsHref && (
+        <Link
+          to={insightsHref}
+          aria-label="Open the activity overlap with these filters"
+          className="absolute bottom-4 right-4 z-10 rounded-full border bg-background/90 px-3 py-1 text-xs font-medium text-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+        >
+          Compare in insights
+        </Link>
+      )}
     </Card>
   );
 };
