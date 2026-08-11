@@ -96,6 +96,11 @@ CAMERAS
 
 - [ ] The deployment timeline, perhaps we can have the deployments with their horizontal bars in a scrollable area so that the concurrent cameras graph in the bottom shows without having to scroll all the way down. This makes sense if you have a project with hundreds of cameras. Or maybe the same result but much easier:  move the concurrent chart to the top of the SVG. What do you think?
 
+- [ ] When clicking on the mini map in the dashboard explorer, it opens the insights map. Should we do the same on the Mini activity pattern? So it opens the activity overlap in the insights? 
+
+- [ ] Dashboard overview: rm: "Click a bar to open its images."
+
+- [ ] Dashboard overview: Species detected: Is this the top eight? Or is this all? 
 
 ## Possible future features
 - [ ] Make a script that tests updates on prod data on a dev server. Basically, I want a scipt (or edit restore.sh) that takes these args: original_code_commit hash (to see from where we need to update test it), the data to restore from backup disk (to ghet prod data to test it on, so you'll need to do more or less the same as restore.sh), which means youl need the source domain, the date is always the latetst, and --force always (this is for testing updates, so always on dev dummy data, perhaps with a confirmation prompt?). You see what I need? I just want a way to test updates more automaticaly. What do you think? What is best here?  
