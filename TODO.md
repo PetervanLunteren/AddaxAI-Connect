@@ -96,7 +96,7 @@ CAMERAS
 
 - [x] The deployment timeline, perhaps we can have the deployments with their horizontal bars in a scrollable area so that the concurrent cameras graph in the bottom shows without having to scroll all the way down. This makes sense if you have a project with hundreds of cameras. Or maybe the same result but much easier:  move the concurrent chart to the top of the SVG. What do you think? (Done 11 Aug 2026, took the easy option. The concurrent-sites strip now sits right under the axis, above the per-site rows, so it stays in view instead of below every row. Only the vertical band offsets changed, the shared x-scale, drag-to-zoom and hover are untouched. The scrollable-region option was rejected as a large refactor for a marginal gain over this.)
 
-- [ ] When clicking on the mini map in the dashboard explorer, it opens the insights map. Should we do the same on the Mini activity pattern? So it opens the activity overlap in the insights? 
+- [x] When clicking on the mini map in the dashboard explorer, it opens the insights map. Should we do the same on the Mini activity pattern? So it opens the activity overlap in the insights? (Done 11 Aug 2026. Added a corner "Compare in insights" link on the activity pattern card, shown only when one species is selected, that opens the activity overlap page seeded with that species and the current date, site and tag filters. Made it a corner link rather than a full-card click because the clock face keeps its own hourly hover. Hidden on the all-species view since the overlap page is per-species.)
 
 - [ ] Dashboard overview: rm: "Click a bar to open its images."
 
