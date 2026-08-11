@@ -16,8 +16,10 @@ import { ActivityPatternChart, DetectionTrendChart } from '../../components/dash
 import { DemographicsCard } from '../../components/dashboard/DemographicsCard';
 import { BestPhotosCard } from '../../components/dashboard/BestPhotosCard';
 import { SpeciesSummaryTiles } from '../../components/dashboard/SpeciesSummaryTiles';
+import { MiniMapCard } from '../../components/dashboard/MiniMapCard';
 import { imagesApi } from '../../api/images';
 import { isWildlifeLabel } from '../../utils/labels';
+import { filtersToSearchParams } from '../../lib/filter-url';
 import { useDashboardFilters } from './useDashboardFilters';
 
 export const DashboardExplore: React.FC = () => {
@@ -56,6 +58,30 @@ export const DashboardExplore: React.FC = () => {
   // zero for them. Hidden rather than made to work: a person walking past is
   // not a sighting with a group size, and a zero would look like a bug.
   const showSummaryTiles = !species || isWildlifeLabel(species);
+
+  // Keys and encoding match the insights map page schema exactly, so the
+  // mini map's click-through opens the full map with the same filters
+  // already applied. Species is single-select here and multi there, hence
+  // the one-element array.
+  const mapSearch = filtersToSearchParams(
+    {
+      species: species ? [species] : undefined,
+      date_from: dateRange.startDate || undefined,
+      date_to: dateRange.endDate || undefined,
+      site_ids: filterValues.site_ids,
+      tags: filterValues.tags,
+    },
+    {
+      species: 'string[]',
+      date_from: 'date',
+      date_to: 'date',
+      site_ids: 'string[]',
+      tags: 'string[]',
+    },
+  );
+  const mapHref = mapSearch.toString()
+    ? `/insights/map?${mapSearch.toString()}`
+    : '/insights/map';
 
   return (
     <div className="space-y-6">
@@ -102,21 +128,15 @@ export const DashboardExplore: React.FC = () => {
             the space the short demographic card leaves against the tall
             activity chart beside it. Above, they would have pushed both
             charts down for no gain. */}
-        {/* self-start when the tiles are hidden, so the lone demographics card
-            keeps its own height instead of stretching into white space. */}
-        <div className={`flex flex-col gap-6 ${showSummaryTiles ? '' : 'self-start'}`}>
+        <div className="flex flex-col gap-6">
           <DemographicsCard
             dateRange={dateRange}
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={speciesParam}
           />
-          {/* flex-1 so the two tiles absorb the slack left by the short
-              demographics card, and this column ends level with the activity
-              chart beside it. */}
           {showSummaryTiles && (
             <SpeciesSummaryTiles
-              className="flex-1"
               projectId={projectId}
               siteIds={siteIdsFromTags}
               species={photoSpecies}
@@ -124,6 +144,17 @@ export const DashboardExplore: React.FC = () => {
               endDate={dateRange.endDate || undefined}
             />
           )}
+          {/* flex-1 so the map absorbs the slack under the short cards above
+              and this column ends level with the activity chart beside it. */}
+          <MiniMapCard
+            className="flex-1"
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+            species={speciesParam}
+            startDate={dateRange.startDate || undefined}
+            endDate={dateRange.endDate || undefined}
+            mapHref={mapHref}
+          />
         </div>
       </div>
     </div>
