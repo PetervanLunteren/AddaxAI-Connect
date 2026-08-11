@@ -3,15 +3,16 @@
  *
  * One `<svg>` hosts:
  *   - Top axis with month / year ticks.
- *   - Middle, one row per site, prefixed with a status dot.
+ *   - A step-function area chart of how many sites delivered at least one
+ *     image each day, kept right under the axis so it stays in view instead
+ *     of sitting below every row off-screen on projects with many sites.
+ *   - Below it, one row per site, prefixed with a status dot.
  *     - Deployment mode: light outer bar per CDP, solid inner segments for
  *       image-observed activity, vertical ticks at CDP boundaries.
  *     - Heatmap mode: a per-day rect grid coloured by image count, with
  *       a faint CDP-window guideline behind it. Switches to weekly bins
  *       when the visible window spans more than a year, so day cells stay
  *       legible on long ranges.
- *   - Bottom, step-function area chart of how many sites delivered at
- *     least one image each day.
  *
  * Drag-to-zoom on the chart writes back to the parent's date filter.
  */
@@ -236,8 +237,15 @@ export function DeploymentTimelineChart({
     xMinMs + ((px - plotLeft) / Math.max(1, plotWidth)) * (xMaxMs - xMinMs);
 
   const rowsHeight = data.sites.length * (cfg.rowHeight + cfg.rowGap);
-  const totalHeight =
-    TOP_PADDING + AXIS_HEIGHT + rowsHeight + SECTION_GAP + CONCURRENT_HEIGHT + 8;
+  // Bands top to bottom: axis, then the concurrent-sites summary, then the
+  // per-site rows. The summary sits right under the axis so it stays in view
+  // on projects with many sites, instead of below every row off-screen.
+  const plotTop = TOP_PADDING + AXIS_HEIGHT;
+  const concurrentTop = plotTop;
+  const concurrentBottom = concurrentTop + CONCURRENT_HEIGHT;
+  const rowsTop = concurrentBottom + SECTION_GAP;
+  const rowsBottom = rowsTop + rowsHeight;
+  const totalHeight = rowsBottom + 8;
 
   const ticks = useMemo(() => generateMonthTicks(xMinMs, xMaxMs), [xMinMs, xMaxMs]);
   const tickKeep = useMemo(() => thinTicks(ticks, plotWidth), [ticks, plotWidth]);
@@ -264,8 +272,6 @@ export function DeploymentTimelineChart({
     () => Math.max(1, data.metrics.max_concurrent_cameras),
     [data],
   );
-  const concurrentTop = TOP_PADDING + AXIS_HEIGHT + rowsHeight + SECTION_GAP;
-  const concurrentBottom = concurrentTop + CONCURRENT_HEIGHT;
   const concurrentYToPx = (count: number) =>
     concurrentBottom - (count / concurrentMax) * CONCURRENT_HEIGHT;
 
@@ -409,8 +415,8 @@ export function DeploymentTimelineChart({
               <line
                 x1={x}
                 x2={x}
-                y1={TOP_PADDING + AXIS_HEIGHT}
-                y2={concurrentBottom}
+                y1={plotTop}
+                y2={rowsBottom}
                 stroke={GRID_STROKE}
               />
               {tickKeep.has(i) && (
@@ -430,8 +436,7 @@ export function DeploymentTimelineChart({
         })}
 
         {data.sites.map((site, rowIdx) => {
-          const rowTop =
-            TOP_PADDING + AXIS_HEIGHT + rowIdx * (cfg.rowHeight + cfg.rowGap);
+          const rowTop = rowsTop + rowIdx * (cfg.rowHeight + cfg.rowGap);
           const barY = rowTop + (cfg.rowHeight - cfg.barHeight) / 2;
           const siteId = site.site_id !== null ? Number(site.site_id) : -1;
           const heatmap = heatmapBySite.get(siteId);
