@@ -94,7 +94,7 @@ CAMERAS
 
 - [x] Would it be a nice idea to have a tiny little heat map on the Explore dashboard? So you get an overview of the species and map would be a good spatial exploration there. Of course it shouldn't replace the inside map, Just a tiny heat map. What do you think? What should be smaller or where should it be placed? (Built 11 Aug 2026 as a Detection map card in the left column of the Explore tab. Each site is a soft colored blob, darker means more detections per 100 trap-days, using the same endpoint and color scale as the full insights map. The card is inert, no zoom or pan or popups, and the whole card is one link that opens the full map with the current species, date and site filters applied.)
 
-- [ ] The deployment timeline, perhaps we can have the deployments with their horizontal bars in a scrollable area so that the concurrent cameras graph in the bottom shows without having to scroll all the way down. This makes sense if you have a project with hundreds of cameras. Or maybe the same result but much easier:  move the concurrent chart to the top of the SVG. What do you think?
+- [x] The deployment timeline, perhaps we can have the deployments with their horizontal bars in a scrollable area so that the concurrent cameras graph in the bottom shows without having to scroll all the way down. This makes sense if you have a project with hundreds of cameras. Or maybe the same result but much easier:  move the concurrent chart to the top of the SVG. What do you think? (Done 11 Aug 2026, took the easy option. The concurrent-sites strip now sits right under the axis, above the per-site rows, so it stays in view instead of below every row. Only the vertical band offsets changed, the shared x-scale, drag-to-zoom and hover are untouched. The scrollable-region option was rejected as a large refactor for a marginal gain over this.)
 
 - [ ] When clicking on the mini map in the dashboard explorer, it opens the insights map. Should we do the same on the Mini activity pattern? So it opens the activity overlap in the insights? 
 
@@ -111,6 +111,8 @@ CAMERAS
 - [ ] Make it use label verification, and count confirmation just like AddaxAI WebUI. This improves the overcounting.... 
 - [ ] Gundi integration
 - [ ] Sensing clues integration
+- [ ] Make the graphs, maps and charts use icons next to the species names: https://www.phylopic.org/. 
+
 
 
 # Add INSTAR camera profile
