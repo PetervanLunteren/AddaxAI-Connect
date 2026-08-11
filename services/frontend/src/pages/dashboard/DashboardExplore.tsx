@@ -94,34 +94,20 @@ export const DashboardExplore: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      {/* Photographs beside the trend. items-start so the photo card keeps its
-          own short height instead of stretching to the taller chart, which
-          would leave a void under a single row of pictures. Any slack falls
-          outside the card as page background, and the cards below rise up. */}
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-        <BestPhotosCard
-          projectId={projectId}
-          siteIds={siteIdsFromTags}
-          species={photoSpecies}
-          isAllSpecies={!species}
-          startDate={dateRange.startDate || undefined}
-          endDate={dateRange.endDate || undefined}
-        />
-        <DetectionTrendChart
-          dateRange={dateRange}
-          projectId={projectId}
-          siteIds={siteIdsFromTags}
-          species={speciesParam}
-          projectFirstDate={overview?.first_image_date ?? null}
-          projectLastDate={overview?.last_image_date ?? null}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {/* Left: the activity clock, with the two headline figures under it.
-            The figures carry no sub-line here, the labels are enough next to
-            the charts and the captions only added height. */}
+      {/* Two columns that each flow on their own, so a short card lets the one
+          under it rise instead of leaving a gap that lines up with the taller
+          column. Left leads with the photographs, right with the trend. The
+          map is flex-1, so the right column fills to end level with the left. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="flex flex-col gap-6">
+          <BestPhotosCard
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+            species={photoSpecies}
+            isAllSpecies={!species}
+            startDate={dateRange.startDate || undefined}
+            endDate={dateRange.endDate || undefined}
+          />
           <ActivityPatternChart
             dateRange={dateRange}
             projectId={projectId}
@@ -139,13 +125,17 @@ export const DashboardExplore: React.FC = () => {
             />
           )}
         </div>
-        {/* Right: the map leads, sex, age class and behaviour sit under it.
-            Those three share one card now, separately they were three
-            near-empty charts filling half the page.
-
-            flex-1 on the map so it absorbs the slack and this column ends
-            level with the taller left column beside it. */}
         <div className="flex flex-col gap-6">
+          <DetectionTrendChart
+            dateRange={dateRange}
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+            species={speciesParam}
+            projectFirstDate={overview?.first_image_date ?? null}
+            projectLastDate={overview?.last_image_date ?? null}
+          />
+          {/* Sex, age class and behaviour share one card now. Separately they
+              were three near-empty charts filling half the page. */}
           <MiniMapCard
             className="flex-1"
             projectId={projectId}
