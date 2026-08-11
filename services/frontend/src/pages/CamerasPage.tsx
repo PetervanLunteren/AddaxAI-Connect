@@ -954,7 +954,7 @@ export const CamerasPage: React.FC = () => {
               Set notes
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowBulkLogMaintenance(true)}>
-              Log maintenance
+              Log service
             </Button>
             <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
               Delete

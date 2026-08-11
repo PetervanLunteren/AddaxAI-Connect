@@ -311,7 +311,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Placements" />
-              {canAdmin && <TabButton tab="maintenance" label="Maintenance" />}
+              {canAdmin && <TabButton tab="maintenance" label="Service" />}
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
 
@@ -528,7 +528,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last maintenance</span>
+                    <span className="text-muted-foreground">Last service</span>
                     <span>{camera.last_maintenance_date ?? '-'}</span>
                   </div>
                   <div className="flex justify-between">
@@ -581,7 +581,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <CameraDeploymentHistory cameraId={camera.id} cameraName={camera.name} />
             )}
 
-            {/* Maintenance tab: log of field visits (admins) */}
+            {/* Service tab: log of field service visits (admins) */}
             {activeTab === 'maintenance' && canAdmin && projectId != null && (
               <CameraMaintenanceTab cameraId={camera.id} projectId={projectId} />
             )}

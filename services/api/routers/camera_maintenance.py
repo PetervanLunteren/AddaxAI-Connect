@@ -30,7 +30,22 @@ from routers.cameras import (
 
 router = APIRouter(prefix="/api/cameras", tags=["camera-maintenance"])
 
-VALID_ACTION_TYPES = {"battery_change", "sd_card_swap", "inspection", "repair", "other"}
+# The service-action vocabulary and its human labels, in display order. The
+# frontend keeps its own copy of the labels (TypeScript can't import this);
+# test_maintenance_events pins the value set so the two cannot drift.
+ACTION_LABELS = {
+    "battery_change": "Battery change",
+    "sd_card_swap": "SD card swap",
+    "cleaning": "Cleaning",
+    "vegetation_clearing": "Vegetation clearing",
+    "inspection": "Inspection / check",
+    # In-place aim or angle adjustment; moving a camera to a new site is a
+    # placement change, not a service action.
+    "repositioning": "Repositioned / re-aimed",
+    "repair": "Repair",
+    "other": "Other",
+}
+VALID_ACTION_TYPES = set(ACTION_LABELS)
 
 # Cap the free-text note. Long enough for a real remark, short enough that a
 # pathological paste cannot bloat the row or break the sheet layout.

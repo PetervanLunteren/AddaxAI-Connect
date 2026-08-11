@@ -209,7 +209,7 @@ export const BulkLogMaintenanceDialog: React.FC<LogMaintenanceDialogProps> = ({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
         <DialogHeader>
-          <DialogTitle>Log maintenance on {plural(count, noun)}</DialogTitle>
+          <DialogTitle>Log a service visit on {plural(count, noun)}</DialogTitle>
           <DialogDescription>
             One visit with the same date and actions is logged on every selected {noun}.
           </DialogDescription>

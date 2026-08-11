@@ -34,7 +34,10 @@ export interface Camera {
 export type MaintenanceActionType =
   | 'battery_change'
   | 'sd_card_swap'
+  | 'cleaning'
+  | 'vegetation_clearing'
   | 'inspection'
+  | 'repositioning'
   | 'repair'
   | 'other';
 

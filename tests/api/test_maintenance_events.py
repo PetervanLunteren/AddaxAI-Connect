@@ -60,7 +60,8 @@ class TestActionTypes:
         # MaintenanceActionType union; this pins the backend side so
         # drift shows up as a test failure instead of silent 400s.
         assert VALID_ACTION_TYPES == {
-            "battery_change", "sd_card_swap", "inspection", "repair", "other",
+            "battery_change", "sd_card_swap", "cleaning", "vegetation_clearing",
+            "inspection", "repositioning", "repair", "other",
         }
 
 

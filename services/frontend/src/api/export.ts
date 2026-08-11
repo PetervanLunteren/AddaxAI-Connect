@@ -47,4 +47,16 @@ export const exportApi = {
     );
     return response.data;
   },
+
+  /**
+   * Download the service-visit log (one row per event) as CSV, TSV, or XLSX.
+   * Admin only, the endpoint returns 403 for non-admins.
+   */
+  downloadMaintenance: async (projectId: number, format: 'csv' | 'tsv' | 'xlsx' = 'csv'): Promise<Blob> => {
+    const response = await apiClient.get(
+      `/api/projects/${projectId}/export/maintenance`,
+      { params: { format }, responseType: 'blob' },
+    );
+    return response.data;
+  },
 };

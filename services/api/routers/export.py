@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
@@ -1077,7 +1077,7 @@ async def _build_camera_rows(
         'Status', 'BatteryPercent', 'SignalQuality', 'SDUsedPercent',
         'TemperatureC', 'LastReportTimestamp', 'LastImageTimestamp',
         'LocationLat', 'LocationLon',
-        'InstalledAt', 'LastMaintenanceAt', 'CreatedAt',
+        'InstalledAt', 'LastServiceDate', 'CreatedAt',
     ] + custom_keys
 
     rows: list = []
@@ -1171,6 +1171,112 @@ async def export_cameras(
             io.BytesIO(content.encode("utf-8-sig")),
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="cameras-{slug}-{today}.csv"'},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Service visits export (one row per logged maintenance event)
+# ---------------------------------------------------------------------------
+
+
+async def _build_maintenance_rows(
+    db: AsyncSession, project_id: int, tz: ZoneInfo
+) -> tuple[list, list]:
+    """One row per service event of the project, newest first per camera.
+
+    Admin-only data, so no site scope is applied (admins are project-wide).
+    """
+    from routers.camera_maintenance import ACTION_LABELS
+
+    performer = aliased(User)
+    logger_user = aliased(User)
+    result = await db.execute(
+        select(
+            Camera.device_id,
+            CameraMaintenanceEvent.event_date,
+            CameraMaintenanceEvent.action_types,
+            performer.email,
+            CameraMaintenanceEvent.note,
+            logger_user.email,
+            CameraMaintenanceEvent.created_at,
+        )
+        .join(Camera, Camera.id == CameraMaintenanceEvent.camera_id)
+        .outerjoin(performer, performer.id == CameraMaintenanceEvent.performed_by_user_id)
+        .outerjoin(logger_user, logger_user.id == CameraMaintenanceEvent.created_by_user_id)
+        .where(Camera.project_id == project_id)
+        .order_by(
+            Camera.device_id,
+            CameraMaintenanceEvent.event_date.desc(),
+            CameraMaintenanceEvent.id.desc(),
+        )
+    )
+
+    headers = [
+        'CameraID', 'EventDate', 'Actions', 'PerformedBy', 'Note', 'LoggedBy', 'LoggedAt',
+    ]
+    rows: list = []
+    for device_id, event_date, action_types, performed_by, note, logged_by, created_at in result.all():
+        actions = '; '.join(ACTION_LABELS.get(a, a) for a in (action_types or []))
+        rows.append([
+            device_id or '',
+            event_date.isoformat() if event_date else '',
+            actions,
+            performed_by or '',
+            note or '',
+            logged_by or '',
+            created_at.astimezone(tz).isoformat() if created_at else '',
+        ])
+    return headers, rows
+
+
+@router.get("/maintenance")
+async def export_maintenance(
+    project_id: int,
+    format: str = Query("csv", pattern="^(csv|tsv|xlsx)$"),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+) -> StreamingResponse:
+    """Export every logged service visit in a project (project admin only)."""
+    from auth.permissions import can_admin_project
+    if not await can_admin_project(current_user, project_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Project admin access required for project {project_id}",
+        )
+
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    project = project_result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    headers, rows = await _build_maintenance_rows(db, project_id, tz)
+
+    today = date.today().isoformat()
+    slug = _slugify(project.name)
+
+    if format == "xlsx":
+        content = _serialize_xlsx(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="service-visits-{slug}-{today}.xlsx"'},
+        )
+    elif format == "tsv":
+        content = _serialize_tsv(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8")),
+            media_type="text/tab-separated-values",
+            headers={"Content-Disposition": f'attachment; filename="service-visits-{slug}-{today}.tsv"'},
+        )
+    else:
+        content = _serialize_csv(headers, rows)
+        return StreamingResponse(
+            io.BytesIO(content.encode("utf-8-sig")),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="service-visits-{slug}-{today}.csv"'},
         )
 
 

@@ -41,5 +41,5 @@ export const cameraColumnPrefs = makeColumnPrefs<ColumnId>('cameras-visible-colu
   { id: 'location', label: 'Location', defaultVisible: false, sortable: true },
   { id: 'notes', label: 'Notes', defaultVisible: false, sortable: false },
   { id: 'sim_expiry', label: 'SIM expiry', defaultVisible: false, sortable: true },
-  { id: 'last_maintenance', label: 'Last maintenance', defaultVisible: false, sortable: true },
+  { id: 'last_maintenance', label: 'Last service', defaultVisible: false, sortable: true },
 ]);

@@ -1,7 +1,7 @@
 /**
  * Maintenance tab of the camera detail sheet (admins only).
  *
- * A short form to log a maintenance visit (date, actions, who did it,
+ * A short form to log a service visit (date, actions, who did it,
  * optional note) with the event history below it, newest first. Fetches
  * its own data, the same pattern as CameraHealthHistoryChart.
  */
@@ -18,7 +18,12 @@ import { Button } from './ui/Button';
 export const ACTION_LABELS: Record<MaintenanceActionType, string> = {
   battery_change: 'Battery change',
   sd_card_swap: 'SD card swap',
-  inspection: 'Inspection or cleaning',
+  cleaning: 'Cleaning',
+  vegetation_clearing: 'Vegetation clearing',
+  inspection: 'Inspection / check',
+  // In-place aim or angle adjustment. Moving a camera to a new site is a
+  // placement change, handled on the Placements tab, not here.
+  repositioning: 'Repositioned / re-aimed',
   repair: 'Repair',
   other: 'Other',
 };
@@ -86,7 +91,7 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
       setEventDate(localToday());
     },
     onError: (error: any) => {
-      toast.error(`Failed to log maintenance: ${error.response?.data?.detail || error.message}`);
+      toast.error(`Failed to log service visit: ${error.response?.data?.detail || error.message}`);
     },
   });
 
@@ -115,7 +120,7 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
     <div className="space-y-6">
       {/* Log form */}
       <div className="rounded-lg border p-4 space-y-4">
-        <p className="text-sm font-medium">Log a maintenance visit</p>
+        <p className="text-sm font-medium">Log a service visit</p>
         <div>
           <label className="text-xs text-muted-foreground">Date</label>
           <input
@@ -138,7 +143,7 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
                   type="checkbox"
                   checked={actions.includes(action)}
                   onChange={() => toggleAction(action)}
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 cursor-pointer accent-primary"
                 />
                 {ACTION_LABELS[action]}
               </label>
@@ -189,7 +194,7 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : !events || events.length === 0 ? (
-          <p className="text-sm text-muted-foreground mt-1">No maintenance logged yet</p>
+          <p className="text-sm text-muted-foreground mt-1">No service visits logged yet</p>
         ) : (
           <div className="mt-1 space-y-2">
             {events.map((event: MaintenanceEvent) => (

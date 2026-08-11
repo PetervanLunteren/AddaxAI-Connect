@@ -148,12 +148,14 @@ const SPATIAL_EXTENSIONS: Record<SpatialFormat, string> = {
 export const ExportsPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const projectIdNum = parseInt(projectId || '0', 10);
-  const { selectedProject } = useProject();
+  const { selectedProject, canAdminCurrentProject } = useProject();
 
   const [isExportingObs, setIsExportingObs] = useState(false);
   const [obsError, setObsError] = useState<string | null>(null);
   const [isExportingCameras, setIsExportingCameras] = useState(false);
   const [camerasError, setCamerasError] = useState<string | null>(null);
+  const [isExportingMaintenance, setIsExportingMaintenance] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [isExportingSpatial, setIsExportingSpatial] = useState(false);
   const [spatialError, setSpatialError] = useState<string | null>(null);
   const [isExportingDP, setIsExportingDP] = useState(false);
@@ -192,6 +194,20 @@ export const ExportsPage: React.FC = () => {
       setCamerasError(await extractErrorMessage(err));
     } finally {
       setIsExportingCameras(false);
+    }
+  };
+
+  const handleMaintenance = async (format: string) => {
+    if (!projectIdNum) return;
+    setIsExportingMaintenance(true);
+    setMaintenanceError(null);
+    try {
+      const blob = await exportApi.downloadMaintenance(projectIdNum, format as CamerasFormat);
+      downloadBlob(blob, `service-visits-${projectSlug}-${today}.${format}`);
+    } catch (err: any) {
+      setMaintenanceError(await extractErrorMessage(err));
+    } finally {
+      setIsExportingMaintenance(false);
     }
   };
 
@@ -276,6 +292,21 @@ export const ExportsPage: React.FC = () => {
             onSelect={handleCameras}
             error={camerasError}
           />
+
+          {canAdminCurrentProject && (
+            <>
+              <div className="border-t my-6" />
+
+              <ExportRow
+                title="Service visits"
+                description="Field service log with the date, actions, who serviced the camera, and notes (one row per visit)."
+                options={CAMERAS_OPTIONS}
+                isLoading={isExportingMaintenance}
+                onSelect={handleMaintenance}
+                error={maintenanceError}
+              />
+            </>
+          )}
 
           <div className="border-t my-6" />
 
