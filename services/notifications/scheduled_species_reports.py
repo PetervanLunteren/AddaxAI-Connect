@@ -153,9 +153,20 @@ def build_species_block(
     active = [row for row in effort_rows if row["trap_days"] > 0]
     active_site_ids = {row["site_id"] for row in active}
 
+    # Only sites where the species was actually seen get a table row. The
+    # active sites with zero detections are folded into one summary line
+    # (zero_sites), so a report with many species on a large network stays
+    # short and readable and does not run past the email client's clip
+    # limit. Their absence is still reported, just not one row each.
     rows = []
+    zero_sites = 0
+    zero_sites_trap_days = 0
     for row in active:
         count = cur_by_site.get(row["site_id"], 0)
+        if count == 0:
+            zero_sites += 1
+            zero_sites_trap_days += row["trap_days"]
+            continue
         rows.append({
             "site_name": row["site_name"],
             "count": count,
@@ -194,6 +205,8 @@ def build_species_block(
         "active_sites": len(active),
         "presence_line": f"detected at {sites_detected} of {len(active)} active sites",
         "rows": rows,
+        "zero_sites": zero_sites,
+        "zero_sites_trap_days": zero_sites_trap_days,
         "unassigned_count": cur_by_site.get(None, 0),
     }
 
@@ -443,15 +456,23 @@ def generate_text_report(data: Dict[str, Any]) -> str:
             f"Total {block['total']} ({block['delta_label']} compared with the previous period)",
             block["presence_line"].capitalize(),
         ])
-        if block["rows"]:
-            lines.append("Site, count, trap-days, per 100 trap-days")
-            for row in block["rows"]:
-                rate = "n/a" if row["rate_per_100"] is None else row["rate_per_100"]
-                lines.append(
-                    f"  {row['site_name']}, {row['count']}, {row['trap_days']}, {rate}"
-                )
-        else:
+        if block["active_sites"] == 0:
             lines.append("No camera effort was recorded in this period.")
+        else:
+            if block["rows"]:
+                lines.append("Site, count, trap-days, per 100 trap-days")
+                for row in block["rows"]:
+                    rate = "n/a" if row["rate_per_100"] is None else row["rate_per_100"]
+                    lines.append(
+                        f"  {row['site_name']}, {row['count']}, {row['trap_days']}, {rate}"
+                    )
+            if block["zero_sites"] > 0:
+                other = "other " if block["rows"] else ""
+                plural = "s" if block["zero_sites"] != 1 else ""
+                lines.append(
+                    f"  {block['zero_sites']} {other}active site{plural} had no detections "
+                    f"({block['zero_sites_trap_days']} trap-days)"
+                )
         if block["unassigned_count"] > 0:
             lines.append(f"  No site assigned, {block['unassigned_count']}")
         lines.append("")

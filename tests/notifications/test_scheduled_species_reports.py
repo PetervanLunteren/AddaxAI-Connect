@@ -128,11 +128,24 @@ EFFORT = [
 
 
 class TestBuildSpeciesBlock:
-    def test_active_sites_zero_filled_and_sorted(self):
+    def test_only_detected_sites_get_rows(self):
+        # River bend has a detection; North ridge is active but zero, so it
+        # is folded into the summary instead of getting its own row.
         block = build_species_block("raccoon", {1: 12}, 5, EFFORT, False)
-        assert [row["site_name"] for row in block["rows"]] == ["River bend", "North ridge"]
-        assert block["rows"][1]["count"] == 0
-        assert block["rows"][1]["rate_per_100"] == 0.0
+        assert [row["site_name"] for row in block["rows"]] == ["River bend"]
+        assert block["rows"][0]["rate_per_100"] == round(12 / 7 * 100, 1)
+
+    def test_zero_detection_active_sites_collapsed(self):
+        block = build_species_block("raccoon", {1: 12}, 5, EFFORT, False)
+        assert block["zero_sites"] == 1  # North ridge
+        assert block["zero_sites_trap_days"] == 7
+
+    def test_all_zero_detections_has_no_rows_but_counts_zero_sites(self):
+        block = build_species_block("raccoon", {}, 5, EFFORT, False)
+        assert block["rows"] == []
+        assert block["zero_sites"] == 2  # River bend + North ridge
+        assert block["zero_sites_trap_days"] == 14
+        assert block["active_sites"] == 2
 
     def test_zero_effort_site_excluded(self):
         block = build_species_block("raccoon", {1: 12}, 5, EFFORT, False)
