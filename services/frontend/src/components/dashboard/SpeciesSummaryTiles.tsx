@@ -37,6 +37,8 @@ interface SpeciesSummaryTilesProps {
   endDate?: string;
   /** Grid placement from the page. The tiles do not choose their own size. */
   className?: string;
+  /** Drop the sub-line under each figure, for a tighter placement. */
+  showNotes?: boolean;
 }
 
 export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
@@ -46,6 +48,7 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
   startDate,
   endDate,
   className = '',
+  showNotes = true,
 }) => {
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'group-size', projectId, siteIds, species, startDate, endDate],
@@ -78,9 +81,11 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
         // reappearing every 50 minutes all evening looked like six events
         // when it is one.
         note={
-          interval > 0
-            ? `Same species at one place, a gap over ${interval} min starts a new event`
-            : 'No grouping, every image is its own event'
+          !showNotes
+            ? undefined
+            : interval > 0
+              ? `Same species at one place, a gap over ${interval} min starts a new event`
+              : 'No grouping, every image is its own event'
         }
       />
       <StatTile
@@ -89,7 +94,7 @@ export const SpeciesSummaryTiles: React.FC<SpeciesSummaryTilesProps> = ({
         // Individuals, not animals. The same deer photographed on forty
         // occasions counts forty times, so "animals" read as a headcount of
         // the forest. Matches the axis on the overview species chart.
-        note={`${individuals.toLocaleString()} individuals counted`}
+        note={showNotes ? `${individuals.toLocaleString()} individuals counted` : undefined}
       />
     </div>
   );

@@ -79,9 +79,11 @@ export const DashboardExplore: React.FC = () => {
       tags: 'string[]',
     },
   );
-  const mapHref = mapSearch.toString()
-    ? `/insights/map?${mapSearch.toString()}`
-    : '/insights/map';
+  // The insights map route is nested under the project, so the link must be
+  // project-scoped. An absolute /insights/map matches no route and falls
+  // through to the projects overview redirect.
+  const mapBase = `/projects/${projectId}/insights/map`;
+  const mapHref = mapSearch.toString() ? `${mapBase}?${mapSearch.toString()}` : mapBase;
 
   return (
     <div className="space-y-6">
@@ -115,21 +117,11 @@ export const DashboardExplore: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <ActivityPatternChart
-          dateRange={dateRange}
-          projectId={projectId}
-          siteIds={siteIdsFromTags}
-          species={speciesParam}
-        />
-        {/* Sex, age class and behaviour share one card now. Separately they
-            were three near-empty charts filling half the page.
-
-            The two figures sit under it rather than above, because they fill
-            the space the short demographic card leaves against the tall
-            activity chart beside it. Above, they would have pushed both
-            charts down for no gain. */}
+        {/* Left: the activity clock, with the two headline figures under it.
+            The figures carry no sub-line here, the labels are enough next to
+            the charts and the captions only added height. */}
         <div className="flex flex-col gap-6">
-          <DemographicsCard
+          <ActivityPatternChart
             dateRange={dateRange}
             projectId={projectId}
             siteIds={siteIdsFromTags}
@@ -142,10 +134,17 @@ export const DashboardExplore: React.FC = () => {
               species={photoSpecies}
               startDate={dateRange.startDate || undefined}
               endDate={dateRange.endDate || undefined}
+              showNotes={false}
             />
           )}
-          {/* flex-1 so the map absorbs the slack under the short cards above
-              and this column ends level with the activity chart beside it. */}
+        </div>
+        {/* Right: the map leads, sex, age class and behaviour sit under it.
+            Those three share one card now, separately they were three
+            near-empty charts filling half the page.
+
+            flex-1 on the map so it absorbs the slack and this column ends
+            level with the taller left column beside it. */}
+        <div className="flex flex-col gap-6">
           <MiniMapCard
             className="flex-1"
             projectId={projectId}
@@ -154,6 +153,12 @@ export const DashboardExplore: React.FC = () => {
             startDate={dateRange.startDate || undefined}
             endDate={dateRange.endDate || undefined}
             mapHref={mapHref}
+          />
+          <DemographicsCard
+            dateRange={dateRange}
+            projectId={projectId}
+            siteIds={siteIdsFromTags}
+            species={speciesParam}
           />
         </div>
       </div>
