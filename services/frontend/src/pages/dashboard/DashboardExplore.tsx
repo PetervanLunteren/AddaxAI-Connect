@@ -94,10 +94,11 @@ export const DashboardExplore: React.FC = () => {
         onClearAll={onClearAll}
       />
 
-      {/* Side by side, which is counter-intuitively better for the photographs
-          too. Four across a full-width card spends most of the width on gaps
-          and gives 230px tiles; two by two in half the width gives 267px. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Photographs beside the trend. items-start so the photo card keeps its
+          own short height instead of stretching to the taller chart, which
+          would leave a void under a single row of pictures. Any slack falls
+          outside the card as page background, and the cards below rise up. */}
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
         <BestPhotosCard
           projectId={projectId}
           siteIds={siteIdsFromTags}

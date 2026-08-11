@@ -20,18 +20,19 @@ import { ImageDetailModal } from '../ImageDetailModal';
 import { rankByAppeal, cannotTellWhichAnimal } from './photoAppeal';
 
 /**
- * Four rather than six, because each tile loads the full-size image.
+ * Three, in one row, because each tile loads the full-size image.
  *
  * Thumbnails are 300 pixels wide, and a distant animal is only a dozen pixels
  * across in one, so a wall built from thumbnails is a wall of mush and answers
- * nothing. Full images cost around 600 KB each. Four is the point where the
- * pictures are worth looking at without the page becoming heavy, and the
- * browser reuses them when the modal opens the same image.
+ * nothing. Full images cost around 600 KB each. Three across keeps the top of
+ * the tab short, so the cards below it rise into view, and the wider landscape
+ * crop reads better than the old square. The browser reuses each image when
+ * the modal opens it.
  */
-const COUNT = 4;
+const COUNT = 3;
 
 /**
- * How many the endpoint returns before appeal picks four from them.
+ * How many the endpoint returns before appeal picks the shown ones from them.
  *
  * Confidence is the gate and appeal is the ranker, so the pool has to be wide
  * enough to hold some good-looking photos. It is the endpoint's maximum,
@@ -41,7 +42,7 @@ const COUNT = 4;
  *
  * Measured on red deer: 24 candidates contain 5 daylight photos, 100 contain
  * 17. The cost is 80 KB of JSON instead of 17 KB and about 100 ms, against the
- * 2.4 MB of full-size images the card then loads for the four it shows. No
+ * 2.4 MB of full-size images the card then loads for the ones it shows. No
  * extra image bytes at all.
  */
 const CANDIDATES = 100;
@@ -111,7 +112,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {Array.from({ length: COUNT }, (_, i) => (
               <div key={i} className="aspect-[16/10] animate-pulse rounded-md bg-muted" />
             ))}
@@ -121,7 +122,7 @@ export const BestPhotosCard: React.FC<BestPhotosCardProps> = ({
             No photos match this selection yet
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {items.map((image) => (
               <button
                 key={image.uuid}

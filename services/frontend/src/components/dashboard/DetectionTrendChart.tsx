@@ -387,7 +387,7 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
             overview and at narrow widths. A taller plot also helps the daily
             view, where a spiky line is easier to follow with more vertical
             room. */}
-        <div className="min-h-[18rem] flex-1">
+        <div className="min-h-[12rem] flex-1">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-muted-foreground">Loading...</p>
