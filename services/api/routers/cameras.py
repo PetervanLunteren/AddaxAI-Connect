@@ -226,8 +226,14 @@ async def list_cameras(
     site_scope = await get_site_scope_or_400(current_user, project_id, db)
 
     # Filter cameras by accessible projects; restricted viewers only see
-    # cameras whose current site is in their allow-list
-    query = select(Camera).where(Camera.project_id.in_(accessible_project_ids))
+    # cameras whose current site is in their allow-list. Order by device_id
+    # (then id) so the default list order is stable across requests; the
+    # frontend re-sorts client-side, this only fixes the unsorted default.
+    query = (
+        select(Camera)
+        .where(Camera.project_id.in_(accessible_project_ids))
+        .order_by(Camera.device_id, Camera.id)
+    )
     if site_scope is not None:
         query = query.where(cameras_current_site_clause(site_scope))
     result = await db.execute(query)
