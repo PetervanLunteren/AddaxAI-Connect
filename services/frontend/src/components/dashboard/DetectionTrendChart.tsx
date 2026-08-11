@@ -20,7 +20,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Select, SelectItem } from '../ui/Select';
 import { statisticsApi } from '../../api/statistics';
 import { formatDateShort, formatMonth } from '../../utils/datetime';
-import { getSpeciesColor } from '../../utils/species-colors';
 import type { DateRange } from './DateRangeFilter';
 
 // Register Chart.js components
@@ -209,8 +208,9 @@ export const DetectionTrendChart: React.FC<DetectionTrendChartProps> = ({
     }));
   }, [rawData, trapEffort, granularity, effectiveStart, effectiveEnd]);
 
-  // Use species color if one is selected, otherwise teal
-  const lineColor = species ? getSpeciesColor(species) : '#0f6064';
+  // Always teal. This is the only chart on the tab that ever used a
+  // per-species color, which made it an island, so it now matches the rest.
+  const lineColor = '#0f6064';
 
   // Create gradient for fill
   const createGradient = (ctx: CanvasRenderingContext2D, chartArea: { top: number; bottom: number }, color: string) => {
