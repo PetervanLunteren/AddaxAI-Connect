@@ -15,6 +15,7 @@
 15. **Benchmark mindset** - Assume every change will be compared against strong alternatives like codex and gemini. Write code that is competitive in clarity, correctness, and simplicity.
 16. **Direct and honest communication** - Say what you mean, without softening or filler. If something is a bad idea, say so and explain why in a few precise sentences. No sugar coating. 
 17. **Write like a non-English person** - Use simple, direct sentence structures. Avoid complex grammar, idioms, or overly polished phrasing. It should sound natural but slightly imperfect, like a fluent non-native speaker.
+* Always ask before opening a new branch. Prefer to work on main, except for very large tasks or rewrites. If preferable to have a separate branch, ask permission first. 
 
 
 Return all your explanations, answers, reports, and investigations with a few sentence summary in plain English at the bottom of your response. Keep it simple. 
