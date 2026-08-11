@@ -8,7 +8,11 @@ _api = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "serv
 if _api not in sys.path:
     sys.path.insert(0, _api)
 
-from routers.camera_maintenance import VALID_ACTION_TYPES, validate_maintenance_event
+from routers.camera_maintenance import (
+    NOTE_MAX_LENGTH,
+    VALID_ACTION_TYPES,
+    validate_maintenance_event,
+)
 
 TODAY = date(2026, 8, 10)
 
@@ -46,6 +50,9 @@ class TestActionTypes:
         rejected(["repair", "repair"], TODAY)
 
     def test_non_string_action_rejected(self):
+        # Caught by the unknown-actions branch (a non-string is never in the
+        # vocabulary). The API layer never reaches this, Pydantic's List[str]
+        # rejects non-strings with a 422 first.
         rejected([1], TODAY)
 
     def test_vocabulary_is_exact(self):
@@ -69,3 +76,17 @@ class TestEventDate:
 
     def test_far_future_rejected(self):
         rejected(["inspection"], TODAY + timedelta(days=365))
+
+
+class TestNote:
+    def test_none_note_ok(self):
+        assert validate_maintenance_event(["repair"], TODAY, TODAY, None) is None
+
+    def test_short_note_ok(self):
+        assert validate_maintenance_event(["repair"], TODAY, TODAY, "changed the mount") is None
+
+    def test_note_at_limit_ok(self):
+        assert validate_maintenance_event(["repair"], TODAY, TODAY, "x" * NOTE_MAX_LENGTH) is None
+
+    def test_note_over_limit_rejected(self):
+        assert validate_maintenance_event(["repair"], TODAY, TODAY, "x" * (NOTE_MAX_LENGTH + 1)) is not None

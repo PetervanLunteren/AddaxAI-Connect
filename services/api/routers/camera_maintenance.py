@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from shared.models import User, Camera, CameraMaintenanceEvent
+from shared.models import User, Camera, CameraMaintenanceEvent, ProjectMembership
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -32,30 +32,36 @@ router = APIRouter(prefix="/api/cameras", tags=["camera-maintenance"])
 
 VALID_ACTION_TYPES = {"battery_change", "sd_card_swap", "inspection", "repair", "other"}
 
+# Cap the free-text note. Long enough for a real remark, short enough that a
+# pathological paste cannot bloat the row or break the sheet layout.
+NOTE_MAX_LENGTH = 2000
+
 
 def validate_maintenance_event(
     action_types: List[str],
     event_date: date,
     today: date,
+    note: Optional[str] = None,
 ) -> Optional[str]:
     """Validate maintenance fields, returning an error message or None.
 
     Pure so it is unit-testable without a database, the same contract as
     camera_alert_rules.validate_rule_fields. The performed-by user
-    existence check needs the database and lives in the endpoints.
+    membership check needs the database and lives in the endpoints.
     """
     if not action_types:
         return "at least one action is required"
-    if not all(isinstance(a, str) for a in action_types):
-        return "action_types must be strings"
     if len(action_types) != len(set(action_types)):
         return "action_types must not repeat"
     invalid = set(action_types) - VALID_ACTION_TYPES
     if invalid:
-        return f"unknown action types {', '.join(sorted(invalid))}"
+        return f"unknown action types {', '.join(sorted(str(a) for a in invalid))}"
 
     if event_date > today:
         return "event_date must not be in the future"
+
+    if note is not None and len(note) > NOTE_MAX_LENGTH:
+        return f"note must be {NOTE_MAX_LENGTH} characters or fewer"
 
     return None
 
@@ -129,18 +135,29 @@ def _event_to_response(
     )
 
 
-async def _check_performed_by_exists(
-    db: AsyncSession, performed_by_user_id: Optional[int]
+async def _check_performed_by_member(
+    db: AsyncSession, performed_by_user_id: Optional[int], project_ids: List[int]
 ) -> None:
-    """400 when the performed-by user id does not exist."""
+    """400 when the performed-by user is not a member of every given project.
+
+    Constrains the performer to the registered project members the UI
+    dropdown already offers, so an admin cannot attribute a visit to, or
+    read back the email of, a user outside the camera's project.
+    """
     if performed_by_user_id is None:
         return
-    result = await db.execute(select(User.id).where(User.id == performed_by_user_id))
-    if result.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User with ID {performed_by_user_id} not found",
+    for project_id in set(project_ids):
+        result = await db.execute(
+            select(ProjectMembership.id).where(
+                ProjectMembership.user_id == performed_by_user_id,
+                ProjectMembership.project_id == project_id,
+            )
         )
+        if result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Performed-by user must be a member of the camera's project",
+            )
 
 
 @router.get(
@@ -176,14 +193,14 @@ async def log_maintenance_event(
     current_user: User = Depends(current_verified_user),
 ):
     """Log one maintenance visit on a camera (project admin)."""
-    await _load_camera_for_admin(db, camera_id, current_user)
+    camera = await _load_camera_for_admin(db, camera_id, current_user)
 
     error = validate_maintenance_event(
-        request.action_types, request.event_date, await _server_today(db)
+        request.action_types, request.event_date, await _server_today(db), request.note
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await _check_performed_by_exists(db, request.performed_by_user_id)
+    await _check_performed_by_member(db, request.performed_by_user_id, [camera.project_id])
 
     event = CameraMaintenanceEvent(
         camera_id=camera_id,
@@ -249,11 +266,13 @@ async def bulk_log_maintenance(
     await _verify_admin_on_all_projects(current_user, cameras, db)
 
     error = validate_maintenance_event(
-        request.action_types, request.event_date, await _server_today(db)
+        request.action_types, request.event_date, await _server_today(db), request.note
     )
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    await _check_performed_by_exists(db, request.performed_by_user_id)
+    await _check_performed_by_member(
+        db, request.performed_by_user_id, [camera.project_id for camera in cameras]
+    )
 
     for camera in cameras:
         db.add(
