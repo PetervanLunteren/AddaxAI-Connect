@@ -61,7 +61,7 @@ class TestActionTypes:
         # drift shows up as a test failure instead of silent 400s.
         assert VALID_ACTION_TYPES == {
             "battery_change", "sd_card_swap", "cleaning", "vegetation_clearing",
-            "inspection", "repositioning", "repair", "other",
+            "inspection", "angle_adjustment", "repair", "other",
         }
 
 

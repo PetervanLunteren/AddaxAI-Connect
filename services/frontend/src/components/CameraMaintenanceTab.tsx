@@ -21,9 +21,9 @@ export const ACTION_LABELS: Record<MaintenanceActionType, string> = {
   cleaning: 'Cleaning',
   vegetation_clearing: 'Vegetation clearing',
   inspection: 'Inspection / check',
-  // In-place aim or angle adjustment. Moving a camera to a new site is a
+  // In-place angle change only. Moving a camera to a new site is a
   // placement change, handled on the Placements tab, not here.
-  repositioning: 'Repositioned / re-aimed',
+  angle_adjustment: 'Adjusted angle',
   repair: 'Repair',
   other: 'Other',
 };

@@ -39,9 +39,10 @@ ACTION_LABELS = {
     "cleaning": "Cleaning",
     "vegetation_clearing": "Vegetation clearing",
     "inspection": "Inspection / check",
-    # In-place aim or angle adjustment; moving a camera to a new site is a
-    # placement change, not a service action.
-    "repositioning": "Repositioned / re-aimed",
+    # In-place angle change only. Moving a camera to a new site is a
+    # placement change (the Placements tab), not a service action, so this
+    # is named "angle" rather than "reposition" to avoid that overlap.
+    "angle_adjustment": "Adjusted angle",
     "repair": "Repair",
     "other": "Other",
 }

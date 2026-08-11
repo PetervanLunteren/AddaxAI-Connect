@@ -37,7 +37,7 @@ export type MaintenanceActionType =
   | 'cleaning'
   | 'vegetation_clearing'
   | 'inspection'
-  | 'repositioning'
+  | 'angle_adjustment'
   | 'repair'
   | 'other';
 
