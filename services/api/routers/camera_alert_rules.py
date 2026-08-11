@@ -16,15 +16,15 @@ enumerable, same convention as reminders.
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, and_
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
-from shared.models import Camera, CameraAlertRule, Project, User
+from shared.models import Camera, CameraAlertRule, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
-from auth.permissions import can_access_project
 from auth.project_access import get_allowed_site_ids
+from routers.rule_helpers import require_project_access, load_own_row
 from utils.site_scope import cameras_current_site_clause
 
 
@@ -123,24 +123,6 @@ def _serialize(rule: CameraAlertRule) -> AlertRuleResponse:
     )
 
 
-async def _require_project_access(
-    db: AsyncSession, current_user: User, project_id: int
-) -> None:
-    if not await can_access_project(current_user, project_id, db):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Project access required",
-        )
-    project = (await db.execute(
-        select(Project).where(Project.id == project_id)
-    )).scalar_one_or_none()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found",
-        )
-
-
 async def _check_cameras_in_project(
     db: AsyncSession, project_id: int, camera_ids: List[int]
 ) -> None:
@@ -188,32 +170,6 @@ async def _check_cameras_in_scope(
         )
 
 
-async def _load_own_rule(
-    db: AsyncSession,
-    project_id: int,
-    rule_id: int,
-    current_user: User,
-) -> CameraAlertRule:
-    """Fetch a rule owned by the current user. 404 (not 403) if it
-    belongs to someone else, so other members' rules are not
-    enumerable."""
-    rule = (await db.execute(
-        select(CameraAlertRule).where(
-            and_(
-                CameraAlertRule.id == rule_id,
-                CameraAlertRule.project_id == project_id,
-                CameraAlertRule.created_by_user_id == current_user.id,
-            )
-        )
-    )).scalar_one_or_none()
-    if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alert rule not found",
-        )
-    return rule
-
-
 @router.get(
     "/{project_id}/alert-rules",
     response_model=List[AlertRuleResponse],
@@ -224,7 +180,7 @@ async def list_alert_rules(
     current_user: User = Depends(current_verified_user),
 ):
     """List the current user's own alert rules for a project."""
-    await _require_project_access(db, current_user, project_id)
+    await require_project_access(db, current_user, project_id)
 
     rows = (await db.execute(
         select(CameraAlertRule)
@@ -251,7 +207,7 @@ async def create_alert_rule(
 ):
     """Create an alert rule. camera_ids null watches all cameras of the
     project, a non-empty list watches only those cameras."""
-    await _require_project_access(db, current_user, project_id)
+    await require_project_access(db, current_user, project_id)
 
     error = validate_rule_fields(
         request.rule_type, request.threshold, request.channels, request.camera_ids
@@ -293,8 +249,8 @@ async def update_alert_rule(
     """Edit a rule. Changing what the rule measures (type, threshold, or
     camera scope) resets the once-per-incident state so the edited rule
     fires fresh on the next evaluation."""
-    await _require_project_access(db, current_user, project_id)
-    rule = await _load_own_rule(db, project_id, rule_id, current_user)
+    await require_project_access(db, current_user, project_id)
+    rule = await load_own_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
 
     next_type = request.rule_type if request.rule_type is not None else rule.rule_type
     next_threshold = request.threshold if request.threshold is not None else rule.threshold
@@ -351,7 +307,7 @@ async def delete_alert_rule(
 ):
     """Delete a rule. Hard delete, a standing rule needs no cancel
     audit, the notification log is the trail of what fired."""
-    await _require_project_access(db, current_user, project_id)
-    rule = await _load_own_rule(db, project_id, rule_id, current_user)
+    await require_project_access(db, current_user, project_id)
+    rule = await load_own_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
     await db.delete(rule)
     await db.commit()

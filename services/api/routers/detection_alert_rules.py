@@ -16,15 +16,15 @@ enumerable, same convention as the camera alert rules.
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select, and_
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
-from shared.models import DetectionAlertRule, Project, Site, User
+from shared.models import DetectionAlertRule, Site, User
 from shared.database import get_async_session
 from auth.users import current_verified_user
-from auth.permissions import can_access_project
 from auth.project_access import get_allowed_site_ids
+from routers.rule_helpers import require_project_access, load_own_row
 
 
 router = APIRouter(prefix="/api/projects", tags=["detection-alert-rules"])
@@ -150,24 +150,6 @@ def _serialize(rule: DetectionAlertRule) -> DetectionRuleResponse:
     )
 
 
-async def _require_project_access(
-    db: AsyncSession, current_user: User, project_id: int
-) -> None:
-    if not await can_access_project(current_user, project_id, db):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Project access required",
-        )
-    project = (await db.execute(
-        select(Project).where(Project.id == project_id)
-    )).scalar_one_or_none()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found",
-        )
-
-
 async def _check_sites_in_scope(
     db: AsyncSession, current_user: User, project_id: int,
     site_ids: Optional[List[int]],
@@ -206,32 +188,6 @@ async def _check_sites_in_project(
         )
 
 
-async def _load_own_rule(
-    db: AsyncSession,
-    project_id: int,
-    rule_id: int,
-    current_user: User,
-) -> DetectionAlertRule:
-    """Fetch a rule owned by the current user. 404 (not 403) if it
-    belongs to someone else, so other members' rules are not
-    enumerable."""
-    rule = (await db.execute(
-        select(DetectionAlertRule).where(
-            and_(
-                DetectionAlertRule.id == rule_id,
-                DetectionAlertRule.project_id == project_id,
-                DetectionAlertRule.created_by_user_id == current_user.id,
-            )
-        )
-    )).scalar_one_or_none()
-    if not rule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Detection rule not found",
-        )
-    return rule
-
-
 @router.get(
     "/{project_id}/detection-rules",
     response_model=List[DetectionRuleResponse],
@@ -242,7 +198,7 @@ async def list_detection_rules(
     current_user: User = Depends(current_verified_user),
 ):
     """List the current user's own detection rules for a project."""
-    await _require_project_access(db, current_user, project_id)
+    await require_project_access(db, current_user, project_id)
 
     rows = (await db.execute(
         select(DetectionAlertRule)
@@ -269,7 +225,7 @@ async def create_detection_rule(
 ):
     """Create a detection rule. site_ids null watches all sites of the
     project, a non-empty list watches only those sites."""
-    await _require_project_access(db, current_user, project_id)
+    await require_project_access(db, current_user, project_id)
 
     error = validate_rule_fields(
         request.species, request.site_ids, request.channels,
@@ -316,8 +272,8 @@ async def update_detection_rule(
 ):
     """Edit a rule. Changing what the rule matches (labels, scope, or any
     condition) resets the cooldown state so the edited rule fires fresh."""
-    await _require_project_access(db, current_user, project_id)
-    rule = await _load_own_rule(db, project_id, rule_id, current_user)
+    await require_project_access(db, current_user, project_id)
+    rule = await load_own_row(db, DetectionAlertRule, project_id, rule_id, current_user, "Detection rule not found")
 
     sent = request.model_fields_set
 
@@ -401,7 +357,7 @@ async def delete_detection_rule(
 ):
     """Delete a rule. Hard delete, a standing rule needs no cancel
     audit, the notification log is the trail of what fired."""
-    await _require_project_access(db, current_user, project_id)
-    rule = await _load_own_rule(db, project_id, rule_id, current_user)
+    await require_project_access(db, current_user, project_id)
+    rule = await load_own_row(db, DetectionAlertRule, project_id, rule_id, current_user, "Detection rule not found")
     await db.delete(rule)
     await db.commit()
