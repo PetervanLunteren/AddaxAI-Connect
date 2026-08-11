@@ -3,6 +3,7 @@
  */
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { statisticsApi } from '../../api/statistics';
 import type { HourlyActivityPoint, SunBands } from '../../api/types';
@@ -14,6 +15,13 @@ interface ActivityPatternChartProps {
   siteIds?: string;
   /** Selected species. undefined means all species. */
   species?: string;
+  /**
+   * Activity overlap page URL, seeded with the current filters. Present only
+   * when one species is chosen, since that page is per-species. The card
+   * shows a corner link to it rather than a full-card click, because the
+   * clock face has its own hourly hover to keep.
+   */
+  insightsHref?: string;
 }
 
 // Time-of-day color buckets (palette from FRONTEND_CONVENTIONS.md)
@@ -216,7 +224,7 @@ function ActivityClock({ hours, sunBands }: ActivityClockProps) {
   );
 }
 
-export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds, species }) => {
+export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ dateRange, projectId, siteIds, species, insightsHref }) => {
   // Fetch activity pattern data
   const { data, isLoading } = useQuery({
     queryKey: ['statistics', 'activity-pattern', projectId, species ?? 'all', dateRange.startDate, dateRange.endDate, siteIds],
@@ -233,10 +241,22 @@ export const ActivityPatternChart: React.FC<ActivityPatternChartProps> = ({ date
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Activity pattern</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          24-hour pattern{data ? `, ${data.total_detections.toLocaleString()} total detections` : ''}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-lg">Activity pattern</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              24-hour pattern{data ? `, ${data.total_detections.toLocaleString()} total detections` : ''}
+            </p>
+          </div>
+          {insightsHref && (
+            <Link
+              to={insightsHref}
+              className="shrink-0 whitespace-nowrap text-xs font-medium text-primary hover:underline"
+            >
+              Compare in insights
+            </Link>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="aspect-square w-full max-h-72 mx-auto">

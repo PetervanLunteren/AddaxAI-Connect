@@ -85,6 +85,34 @@ export const DashboardExplore: React.FC = () => {
   const mapBase = `/projects/${projectId}/insights/map`;
   const mapHref = mapSearch.toString() ? `${mapBase}?${mapSearch.toString()}` : mapBase;
 
+  // The activity overlap insight is per-species, so the activity card links
+  // out only when a single species is chosen. species_a seeds that page with
+  // it, and the reader adds a second species there to compare rhythms.
+  const activitySearch = species
+    ? filtersToSearchParams(
+        {
+          species_a: species,
+          date_from: dateRange.startDate || undefined,
+          date_to: dateRange.endDate || undefined,
+          site_ids: filterValues.site_ids,
+          tags: filterValues.tags,
+        },
+        {
+          species_a: 'string',
+          date_from: 'date',
+          date_to: 'date',
+          site_ids: 'string[]',
+          tags: 'string[]',
+        },
+      ).toString()
+    : '';
+  const activityBase = `/projects/${projectId}/insights/activity-overlap`;
+  const activityHref = species
+    ? activitySearch
+      ? `${activityBase}?${activitySearch}`
+      : activityBase
+    : undefined;
+
   return (
     <div className="space-y-6">
       <FilterBar
@@ -113,6 +141,7 @@ export const DashboardExplore: React.FC = () => {
             projectId={projectId}
             siteIds={siteIdsFromTags}
             species={speciesParam}
+            insightsHref={activityHref}
           />
           {showSummaryTiles && (
             <SpeciesSummaryTiles
