@@ -1,7 +1,15 @@
 /**
- * MultiSelect component with popover checkbox list
+ * MultiSelect component with popover checkbox list.
+ *
+ * The dropdown panel is rendered in a portal to document.body with fixed
+ * positioning anchored to the trigger. That keeps it from being clipped
+ * when the MultiSelect sits inside a scrollable, overflow-hidden
+ * container such as a Dialog. It opens upward when there is more room
+ * above the trigger than below, and follows the trigger on scroll and
+ * resize.
  */
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronUp, Search, Loader2 } from 'lucide-react';
 
 export interface Option {
@@ -22,6 +30,20 @@ interface MultiSelectProps {
   selectedNoun?: string;
 }
 
+// The panel prefers to open downward; it flips up only when the space
+// below is tighter than this and there is more room above.
+const PANEL_MAX_HEIGHT = 360;
+const VIEWPORT_GAP = 8;
+const TRIGGER_GAP = 4;
+
+interface MenuPosition {
+  left: number;
+  width: number;
+  top?: number;
+  bottom?: number;
+  maxHeight: number;
+}
+
 export const MultiSelect: React.FC<MultiSelectProps> = ({
   options,
   value,
@@ -33,16 +55,62 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Close on click outside
+  const updatePosition = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_GAP;
+    const spaceAbove = rect.top - VIEWPORT_GAP;
+    const openUp = spaceBelow < PANEL_MAX_HEIGHT && spaceAbove > spaceBelow;
+    const available = openUp ? spaceAbove : spaceBelow;
+    const maxHeight = Math.min(PANEL_MAX_HEIGHT, Math.max(0, available));
+    if (openUp) {
+      setMenuPos({
+        left: rect.left,
+        width: rect.width,
+        bottom: window.innerHeight - rect.top + TRIGGER_GAP,
+        maxHeight,
+      });
+    } else {
+      setMenuPos({
+        left: rect.left,
+        width: rect.width,
+        top: rect.bottom + TRIGGER_GAP,
+        maxHeight,
+      });
+    }
+  }, []);
+
+  // Position the panel while open and keep it anchored to the trigger as
+  // the page or any scroll container moves (capture catches ancestor
+  // scrolls, including a Dialog's own overflow).
+  useEffect(() => {
+    if (!isOpen) {
+      setMenuPos(null);
+      return;
+    }
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen, updatePosition]);
+
+  // Close on click outside. The panel lives in a portal, so both the
+  // trigger container and the panel must count as "inside".
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setIsOpen(false);
+      setSearch('');
     };
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
@@ -58,13 +126,6 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
-
-  // Focus search input when dropdown opens
-  useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
   }, [isOpen]);
 
   const selectedValues = useMemo(
@@ -119,9 +180,20 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
         }
       </button>
 
-      {/* Dropdown */}
-      {isOpen && (
-        <div className="absolute left-0 right-0 mt-1 border border-input rounded-md bg-background shadow-lg z-50">
+      {/* Dropdown, portaled to the body so a Dialog's overflow cannot clip it */}
+      {isOpen && menuPos && createPortal(
+        <div
+          ref={panelRef}
+          style={{
+            position: 'fixed',
+            left: menuPos.left,
+            width: menuPos.width,
+            top: menuPos.top,
+            bottom: menuPos.bottom,
+            maxHeight: menuPos.maxHeight,
+          }}
+          className="z-50 flex flex-col overflow-hidden border border-input rounded-md bg-background shadow-lg"
+        >
           {isLoading ? (
             <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -130,10 +202,10 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
           ) : (
             <>
               {/* Search */}
-              <div className="flex items-center gap-2 px-3 py-2 border-b">
+              <div className="flex items-center gap-2 px-3 py-2 border-b flex-shrink-0">
                 <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <input
-                  ref={searchInputRef}
+                  autoFocus
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -143,7 +215,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
               </div>
 
               {/* Select all / Clear all */}
-              <div className="flex items-center justify-between px-3 py-1.5 border-b">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b flex-shrink-0">
                 <button
                   type="button"
                   onClick={selectAllVisible}
@@ -161,7 +233,7 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
               </div>
 
               {/* Checkbox list */}
-              <div className="max-h-60 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 {filteredOptions.length === 0 ? (
                   <div className="px-3 py-3 text-sm text-muted-foreground text-center">
                     No results
@@ -185,12 +257,13 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
               </div>
 
               {/* Footer count */}
-              <div className="px-3 py-1.5 border-t text-xs text-muted-foreground">
+              <div className="px-3 py-1.5 border-t text-xs text-muted-foreground flex-shrink-0">
                 {value.length} of {options.length} selected
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
