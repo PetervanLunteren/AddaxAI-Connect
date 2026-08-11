@@ -20,6 +20,8 @@ import { CameraAlertRulesSheet } from '../components/CameraAlertRulesSheet';
 import { cameraAlertRulesApi } from '../api/cameraAlertRules';
 import { DetectionAlertRulesSheet } from '../components/DetectionAlertRulesSheet';
 import { detectionAlertRulesApi } from '../api/detectionAlertRules';
+import { SpeciesReportsSheet } from '../components/SpeciesReportsSheet';
+import { scheduledReportsApi } from '../api/scheduledReports';
 import { adminApi } from '../api/admin';
 import { sitesApi } from '../api/sites';
 import { speciesApi } from '../api/species';
@@ -58,6 +60,7 @@ export const NotificationsPage: React.FC = () => {
   const [showRemindersSheet, setShowRemindersSheet] = useState(false);
   const [showAlertRulesSheet, setShowAlertRulesSheet] = useState(false);
   const [showDetectionRulesSheet, setShowDetectionRulesSheet] = useState(false);
+  const [showSpeciesReportsSheet, setShowSpeciesReportsSheet] = useState(false);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -205,6 +208,15 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0,
   });
   const activeDetectionRuleCount = (detectionRules || []).filter((r) => r.is_active).length;
+
+  // And for the species reports row. Same query key as the sheet, so
+  // changes made there refresh this badge too.
+  const { data: speciesReportRules } = useQuery({
+    queryKey: ['species-report-rules', projectIdNum],
+    queryFn: () => scheduledReportsApi.list(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0,
+  });
+  const activeSpeciesReportCount = (speciesReportRules || []).filter((r) => r.is_active).length;
 
   // Default cooldown for new detection rules. The independence interval
   // expresses how far apart two sightings must be to count as separate
@@ -385,6 +397,33 @@ export const NotificationsPage: React.FC = () => {
                     <option value="monthly">Monthly (on the 1st)</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t my-6" />
+
+              {/* Species reports row (any member). The slideout holds the
+                  report list plus add / edit / delete. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
+                  <label className="text-sm font-medium block">Species reports</label>
+                  <p className="text-sm text-muted-foreground mt-1">Get a weekly, monthly, or quarterly email with the numbers for selected species. Each report shows a per-site table with counts, trap-days, and detections per 100 trap-days. Only you receive your reports.</p>
+                </div>
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSpeciesReportsSheet(true)}
+                  >
+                    Manage species reports
+                    {activeSpeciesReportCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                        {activeSpeciesReportCount}
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
 
@@ -642,6 +681,17 @@ export const NotificationsPage: React.FC = () => {
           speciesOptions={speciesOptions}
           siteOptions={siteOptions}
           defaultCooldownMinutes={defaultCooldownMinutes}
+        />
+      )}
+
+      {/* Species reports slideout (any member). Rules are private, only
+          the creator receives the emails. */}
+      {projectIdNum > 0 && (
+        <SpeciesReportsSheet
+          open={showSpeciesReportsSheet}
+          onClose={() => setShowSpeciesReportsSheet(false)}
+          projectId={projectIdNum}
+          speciesOptions={speciesOptions}
         />
       )}
     </div>
