@@ -115,6 +115,7 @@ addaxai-connect/
 │   │   ├── worker.py                  # Entry point (event loop + APScheduler)
 │   │   ├── detection_alerts.py        # Real-time detection alert rules (live event path)
 │   │   ├── email_report.py            # Daily/weekly/monthly email report generation
+│   │   ├── scheduled_species_reports.py # Scheduled species report emails (per-user rules)
 │   │   ├── report_stats.py            # Report statistics
 │   │   ├── camera_alerts.py           # User-defined camera condition alert rules
 │   │   ├── excessive_images.py        # Excessive image alerts
@@ -182,6 +183,8 @@ addaxai-connect/
 │   │   │   ├── notifications.py       # Notification preference management
 │   │   │   ├── camera_alert_rules.py  # Camera condition alert rules
 │   │   │   ├── detection_alert_rules.py # Real-time detection alert rules
+│   │   │   ├── scheduled_reports.py   # Scheduled species report rules
+│   │   │   ├── rule_helpers.py        # Shared helpers for the rule routers
 │   │   │   ├── reminders.py           # Project reminders
 │   │   │   ├── projects.py            # Project CRUD
 │   │   │   ├── project_documents.py   # Project document uploads
@@ -198,7 +201,6 @@ addaxai-connect/
 │   │       ├── deployment_edits.py    # Reassign/recompute/merge plumbing (deployments + feed)
 │   │       ├── feed.py                # Feed candidate-site helper
 │   │       ├── detection_filtering.py # Detection confidence and class filtering
-│   │       ├── independence_filter.py # Independent-detection (capture event) filtering
 │   │       ├── occupancy_model.py     # Naive occupancy estimation
 │   │       ├── preferred_counts.py    # Preferred per-image counts
 │   │       ├── image_processing.py    # Image helpers
@@ -241,6 +243,7 @@ addaxai-connect/
 │       ├── species.py                 # Species data helpers
 │       ├── geo.py                     # GPS and spatial helpers
 │       ├── deployments.py             # Site and deployment grouping logic
+│       ├── independence_filter.py     # Independent-detection (capture event) filtering
 │       ├── classification_threshold.py # Per-project classification thresholds
 │       └── templates/                 # Shared email templates (base + per-notification)
 │
