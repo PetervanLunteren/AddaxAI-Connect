@@ -29,6 +29,9 @@ export function localToday(): string {
   return new Date().toLocaleDateString('sv');
 }
 
+// Keep in sync with NOTE_MAX_LENGTH in services/api/routers/camera_maintenance.py.
+export const NOTE_MAX_LENGTH = 2000;
+
 interface CameraMaintenanceTabProps {
   cameraId: number;
   projectId: number;
@@ -101,7 +104,12 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
     );
   };
 
-  const canSubmit = actions.length > 0 && eventDate !== '' && !logMutation.isPending;
+  // The server rejects future dates (against its own timezone). Catch the
+  // obvious case here so the user is not surprised by an error toast; the
+  // server stays the source of truth for the timezone-boundary edge.
+  const dateInFuture = eventDate !== '' && eventDate > localToday();
+  const canSubmit =
+    actions.length > 0 && eventDate !== '' && !dateInFuture && !logMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -117,6 +125,9 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
             onChange={(e) => setEventDate(e.target.value)}
             className="w-full px-3 py-2 border rounded-md text-sm"
           />
+          {dateInFuture && (
+            <p className="text-xs text-destructive mt-1">The date cannot be in the future.</p>
+          )}
         </div>
         <div>
           <label className="text-xs text-muted-foreground">Actions</label>
@@ -157,6 +168,7 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
             placeholder="Optional, e.g. lens fogged up, replaced the desiccant"
             className="w-full px-3 py-2 border rounded-md text-sm"
             rows={2}
+            maxLength={NOTE_MAX_LENGTH}
           />
         </div>
         <Button onClick={() => logMutation.mutate()} disabled={!canSubmit} className="w-full">
@@ -201,7 +213,7 @@ export const CameraMaintenanceTab: React.FC<CameraMaintenanceTabProps> = ({
                       </p>
                     )}
                     {event.note && (
-                      <p className="text-xs whitespace-pre-wrap">{event.note}</p>
+                      <p className="text-xs whitespace-pre-wrap break-words">{event.note}</p>
                     )}
                   </div>
                   <button

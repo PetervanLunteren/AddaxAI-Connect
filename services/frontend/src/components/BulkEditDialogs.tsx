@@ -20,7 +20,7 @@ import {
 } from './ui/Dialog';
 import { Button } from './ui/Button';
 import { TagInput } from './TagInput';
-import { ACTION_LABELS, localToday } from './CameraMaintenanceTab';
+import { ACTION_LABELS, localToday, NOTE_MAX_LENGTH } from './CameraMaintenanceTab';
 import type { MaintenanceActionType } from '../api/types';
 import type { LogMaintenanceRequest } from '../api/cameras';
 
@@ -202,7 +202,8 @@ export const BulkLogMaintenanceDialog: React.FC<LogMaintenanceDialogProps> = ({
     );
   };
 
-  const canConfirm = actions.length > 0 && date !== '';
+  const dateInFuture = date !== '' && date > localToday();
+  const canConfirm = actions.length > 0 && date !== '' && !dateInFuture;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -223,6 +224,9 @@ export const BulkLogMaintenanceDialog: React.FC<LogMaintenanceDialogProps> = ({
               onChange={(e) => setDate(e.target.value)}
               className="w-full px-3 py-2 border rounded-md text-sm"
             />
+            {dateInFuture && (
+              <p className="text-xs text-destructive mt-1">The date cannot be in the future.</p>
+            )}
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Actions</label>
@@ -261,6 +265,7 @@ export const BulkLogMaintenanceDialog: React.FC<LogMaintenanceDialogProps> = ({
               placeholder="Optional"
               className="w-full px-3 py-2 border rounded-md text-sm"
               rows={2}
+              maxLength={NOTE_MAX_LENGTH}
             />
           </div>
         </div>
