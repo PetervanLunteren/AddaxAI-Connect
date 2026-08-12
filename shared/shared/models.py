@@ -578,6 +578,58 @@ class ScheduledReportRule(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
 
+class TheftWatchRule(Base):
+    """
+    A user-defined theft watch (beta).
+
+    Private per user, the creator is the only recipient. One rule carries
+    two triggers. The person trigger fires on the live event path when a
+    person bounding box is an outlier against the camera's own person-box
+    history, or on any person where people are rare. The silence trigger
+    is evaluated hourly and fires when a camera has been quiet longer
+    than its own historical contact rhythm. Both triggers skip cameras
+    whose current deployment is younger than the warm-up period.
+
+    sensitivity picks a preset (low, medium, high) that sets the margins
+    of both triggers, see services/notifications/theft_watch.py.
+
+    person_cooldown_state maps camera_id (as string, JSON keys) to the
+    ISO UTC timestamp of the last delivered person alert, so one group of
+    walkers does not fire a burst of alerts. Always reassigned as a new
+    dict, never mutated, same convention as DetectionAlertRule.
+
+    notified_camera_ids is the once-per-incident state of the silence
+    trigger, same convention as CameraAlertRule: a camera in the list has
+    an active alert; it leaves the list on recovery, which re-arms it.
+    """
+    __tablename__ = "theft_watch_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # ON DELETE CASCADE, a private rule dies with its owner
+    created_by_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sensitivity = Column(String(10), nullable=False)  # low | medium | high
+    # null means all sites of the project, else a non-empty list of site
+    # ids. An empty list is rejected by the API so one meaning has one form.
+    site_ids = Column(JSON, nullable=True)
+    channels = Column(JSON, nullable=False)  # non-empty subset of ["email", "telegram"]
+    is_active = Column(Boolean, nullable=False, server_default='true')
+    person_cooldown_state = Column(JSON, nullable=False, server_default='{}')
+    notified_camera_ids = Column(JSON, nullable=False, server_default='[]')
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+
 class ProjectNotificationPreference(Base):
     """Per-user per-project notification preferences"""
     __tablename__ = "project_notification_preferences"

@@ -15,6 +15,7 @@ Also runs scheduled jobs (15-minute spacing convention):
 - Scheduled species reports daily at 07:30 UTC
 - Disk usage alert check hourly at :00
 - Delivery worker liveness check hourly at :15
+- Theft watch silence check hourly at :30
 """
 from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -34,6 +35,7 @@ from disk_usage_alert import check_disk_usage_and_alert
 from infra_alert import check_infra_alerts
 from delivery_liveness import check_delivery_liveness
 from scheduled_species_reports import send_scheduled_species_reports
+from theft_watch import check_theft_watch_silence, handle_person_event
 
 logger = get_logger("notifications")
 settings = get_settings()
@@ -63,6 +65,9 @@ def process_notification_event(event: Dict[str, Any]) -> None:
     try:
         if event_type == 'species_detection':
             handle_detection_event(event)
+            # Theft watch person trigger, only person events qualify
+            if event.get('species') == 'person':
+                handle_person_event(event)
         else:
             logger.error("Unknown event type", event_type=event_type)
 
@@ -211,9 +216,21 @@ def main() -> None:
         name='Send scheduled species reports daily at 07:30 UTC'
     )
 
+    # Theft watch silence trigger - hourly at :30 (:00 and :15 are taken;
+    # coincides once a day with the 06:30 and 07:30 daily jobs, accepted
+    # like delivery liveness at :15 does with SIM expiry)
+    scheduler.add_job(
+        check_theft_watch_silence,
+        'cron',
+        minute=30,
+        id='theft_watch_silence',
+        name='Evaluate theft watch silence trigger hourly at :30'
+    )
+
     scheduler.start()
 
     logger.info("Scheduled camera condition alerts at 07:00 UTC")
+    logger.info("Scheduled theft watch silence check hourly at :30")
     logger.info("Scheduled species reports at 07:30 UTC")
     logger.info("Scheduled email reports: daily 06:00, weekly Monday 06:00, monthly 1st 06:00 UTC")
     logger.info("Scheduled excessive image alerts at 06:30 UTC")

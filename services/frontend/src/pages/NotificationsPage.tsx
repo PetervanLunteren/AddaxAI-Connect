@@ -22,6 +22,8 @@ import { DetectionAlertRulesSheet } from '../components/DetectionAlertRulesSheet
 import { detectionAlertRulesApi } from '../api/detectionAlertRules';
 import { SpeciesReportsSheet } from '../components/SpeciesReportsSheet';
 import { scheduledReportsApi } from '../api/scheduledReports';
+import { TheftWatchSheet } from '../components/TheftWatchSheet';
+import { theftWatchApi } from '../api/theftWatch';
 import { adminApi } from '../api/admin';
 import { sitesApi } from '../api/sites';
 import { speciesApi } from '../api/species';
@@ -61,6 +63,7 @@ export const NotificationsPage: React.FC = () => {
   const [showAlertRulesSheet, setShowAlertRulesSheet] = useState(false);
   const [showDetectionRulesSheet, setShowDetectionRulesSheet] = useState(false);
   const [showSpeciesReportsSheet, setShowSpeciesReportsSheet] = useState(false);
+  const [showTheftWatchSheet, setShowTheftWatchSheet] = useState(false);
 
   // Query preferences
   const { data: preferences, isLoading } = useQuery({
@@ -217,6 +220,14 @@ export const NotificationsPage: React.FC = () => {
     enabled: !!projectIdNum && projectIdNum > 0,
   });
   const activeSpeciesReportCount = (speciesReportRules || []).filter((r) => r.is_active).length;
+
+  // And for the theft watch row
+  const { data: theftWatchRules } = useQuery({
+    queryKey: ['theft-watch-rules', projectIdNum],
+    queryFn: () => theftWatchApi.list(projectIdNum),
+    enabled: !!projectIdNum && projectIdNum > 0,
+  });
+  const activeTheftWatchCount = (theftWatchRules || []).filter((r) => r.is_active).length;
 
   // Default cooldown for new detection rules. The independence interval
   // expresses how far apart two sightings must be to count as separate
@@ -421,6 +432,38 @@ export const NotificationsPage: React.FC = () => {
                     {activeSpeciesReportCount > 0 && (
                       <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
                         {activeSpeciesReportCount}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t my-6" />
+
+              {/* Theft watch row (any member, beta). The slideout holds
+                  the rule list plus add / edit / delete. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+                <div className="w-full sm:w-1/2 sm:shrink-0">
+                  <label className="text-sm font-medium block">
+                    Theft watch
+                    <span className="ml-2 align-middle inline-flex items-center px-1.5 h-5 text-[10px] font-semibold uppercase tracking-wide rounded bg-[#882000]/10 text-[#882000]">
+                      beta
+                    </span>
+                  </label>
+                  <p className="text-sm text-muted-foreground mt-1">An experimental attempt to notice camera theft or tampering. A person unusually close to a camera sends an instant alert, and a camera that stays silent longer than its own normal rhythm sends an alert within hours or days. It can miss real thefts and it can raise false alarms. Only you receive your alerts.</p>
+                </div>
+                <div className="flex-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTheftWatchSheet(true)}
+                  >
+                    Manage theft watch
+                    {activeTheftWatchCount > 0 && (
+                      <span className="ml-2 inline-flex items-center justify-center min-w-[1.5rem] px-1.5 h-5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                        {activeTheftWatchCount}
                       </span>
                     )}
                   </Button>
@@ -692,6 +735,18 @@ export const NotificationsPage: React.FC = () => {
           onClose={() => setShowSpeciesReportsSheet(false)}
           projectId={projectIdNum}
           speciesOptions={speciesOptions}
+        />
+      )}
+
+      {/* Theft watch slideout (any member, beta). Rules are private,
+          only the creator receives the alerts. */}
+      {projectIdNum > 0 && (
+        <TheftWatchSheet
+          open={showTheftWatchSheet}
+          onClose={() => setShowTheftWatchSheet(false)}
+          projectId={projectIdNum}
+          telegramLinked={isTelegramLinked}
+          siteOptions={siteOptions}
         />
       )}
     </div>
