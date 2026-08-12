@@ -257,9 +257,13 @@ export const ImagesPage: React.FC = () => {
 
     // The excessive-images email links here with show_empty=true. Tick every
     // label so the user lands on all images of the camera, not just the
-    // empties that triggered the alert.
+    // empties that triggered the alert. Dedupe: the label list can already
+    // carry "empty", and a repeated value desyncs the chip count from the
+    // dropdown selection.
     if (showEmptyParam === 'true') {
-      next.species = rawLabelOptions.map((opt) => String(opt.value));
+      next.species = Array.from(
+        new Set(rawLabelOptions.map((opt) => String(opt.value))),
+      );
     }
 
     const params = filtersToSearchParams(next, FILTER_SCHEMA);

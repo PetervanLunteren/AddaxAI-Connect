@@ -153,6 +153,18 @@ log "Applying any pending Alembic migrations"
 bash scripts/update-database.sh > /dev/null
 log "Schema is at HEAD"
 
+# On a dev box, drop the restored Telegram bot config. A prod backup carries
+# the production bot token, and two servers long-polling one token steal each
+# other's /start messages (a real incident on 2026-08-12). Clearing it forces
+# whoever tests on dev to configure a separate dev bot. A real prod-to-prod
+# disaster recovery keeps the config, that server IS the one bot owner.
+ENVIRONMENT="$(env_get ENVIRONMENT)"
+if [ "$ENVIRONMENT" = "development" ]; then
+  log "Dev server: clearing restored Telegram bot config so it cannot fight the source bot"
+  docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q \
+    -c 'DELETE FROM telegram_config;' > /dev/null
+fi
+
 # Whole-mirror retries, on top of mc's own per-object --retry. Pulling tens of
 # thousands of objects over the public internet will hit the occasional dropped
 # connection, and one dropped object used to abort the entire restore and leave

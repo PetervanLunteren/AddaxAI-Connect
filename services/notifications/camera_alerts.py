@@ -52,6 +52,7 @@ from db_operations import (
     get_camera_site_label,
     get_server_timezone,
 )
+from text_format import md_escape
 
 logger = get_logger("notifications.camera_alerts")
 settings = get_settings()
@@ -479,12 +480,14 @@ def _notify(
             )
         else:
             message_lines = [
-                f"*{project.name}*",
+                f"*{md_escape(project.name)}*",
                 f"{count} camera{'s' if count != 1 else ''} {label}",
                 "",
             ]
             for cam in cameras:
-                message_lines.append(f"- {cam['site']} - {cam['name']}: {cam['value_label']}")
+                message_lines.append(
+                    f"- {md_escape(cam['site'])} - {md_escape(cam['name'])}: {cam['value_label']}"
+                )
             message_text = "\n".join(message_lines)
 
             log_id = create_notification_log(

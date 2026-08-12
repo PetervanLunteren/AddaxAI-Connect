@@ -63,6 +63,7 @@ from shared.config import get_settings
 from shared.email_renderer import render_email
 
 from db_operations import create_notification_log
+from text_format import md_escape
 
 logger = get_logger("notifications.detection_alerts")
 settings = get_settings()
@@ -579,11 +580,11 @@ def _notify_rule(
             )
         else:
             message_lines = [
-                f"*{species_display} detected!*",
-                f"*Site:* {site_label}",
+                f"*{md_escape(species_display)} detected!*",
+                f"*Site:* {md_escape(site_label)}",
                 f"*Time:* {time_str}",
                 f"*Date:* {date_str}",
-                f"*Project:* {project.name}",
+                f"*Project:* {md_escape(project.name)}",
             ]
             message_content = "\n".join(message_lines)
 

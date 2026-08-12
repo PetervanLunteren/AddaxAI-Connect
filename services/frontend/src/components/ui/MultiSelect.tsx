@@ -116,16 +116,19 @@ export const MultiSelect: React.FC<MultiSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, []);
 
-  // Close on Escape
+  // Close on Escape. Stop the event when the panel is open so it closes
+  // the dropdown only, not an enclosing dialog (which would discard the
+  // edit). Capture phase, to win over the dialog's own document listener.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
+        e.stopPropagation();
         setIsOpen(false);
         setSearch('');
       }
     };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen]);
 
   const selectedValues = useMemo(

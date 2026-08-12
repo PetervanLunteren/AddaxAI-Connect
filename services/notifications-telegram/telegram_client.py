@@ -3,6 +3,7 @@ Telegram Bot API client
 
 API documentation: https://core.telegram.org/bots/api
 """
+import re
 import requests
 from typing import Optional
 from io import BytesIO
@@ -12,6 +13,15 @@ from shared.database import get_sync_session
 from shared.models import TelegramConfig
 
 logger = get_logger("notifications-telegram.client")
+
+# Telegram API URLs embed the bot token as /bot<token>/. requests puts the
+# full URL in HTTPError, which would leak the token into logs and the
+# notification_logs table. Mask it before any error string is built.
+_TOKEN_IN_URL = re.compile(r"/bot[0-9]+:[A-Za-z0-9_-]+")
+
+
+def _mask(text: str) -> str:
+    return _TOKEN_IN_URL.sub("/bot<redacted>", text)
 
 
 class TelegramNotConfiguredError(Exception):
@@ -91,7 +101,12 @@ class TelegramClient:
                 data['reply_markup'] = reply_markup
             response = requests.post(url, json=data, timeout=30)
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            # Re-raise without the token in the URL so callers (worker.py,
+            # notification_logs) never persist the secret
+            raise requests.HTTPError(_mask(str(exc)), response=exc.response) from None
 
         logger.info(
             "Telegram message sent",
@@ -112,7 +127,7 @@ class TelegramClient:
             response.raise_for_status()
             return True
         except Exception as e:
-            logger.error("Telegram health check failed", error=str(e))
+            logger.error("Telegram health check failed", error=_mask(str(e)))
             return False
 
     def get_updates(self, offset: Optional[int] = None, timeout: int = 30) -> list:
@@ -147,7 +162,7 @@ class TelegramClient:
                 return []
 
         except Exception as e:
-            logger.error("Failed to get updates", error=str(e))
+            logger.error("Failed to get updates", error=_mask(str(e)))
             return []
 
     def send_reply(self, chat_id: str, text: str) -> None:
@@ -169,4 +184,4 @@ class TelegramClient:
             response.raise_for_status()
             logger.info("Bot reply sent", chat_id=chat_id[:5] + "***")
         except Exception as e:
-            logger.error("Failed to send reply", error=str(e))
+            logger.error("Failed to send reply", error=_mask(str(e)))

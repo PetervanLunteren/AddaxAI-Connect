@@ -67,6 +67,7 @@ from detection_alerts import (
     next_cooldown_state,
 )
 from db_operations import create_notification_log, get_server_timezone
+from text_format import md_escape
 
 logger = get_logger("notifications.theft_watch")
 settings = get_settings()
@@ -320,7 +321,7 @@ def handle_person_event(event: Dict[str, Any]) -> None:
             )
             return
 
-        area = _image_person_area(db, image_id)
+        area = _image_person_area(db, image_id, project.detection_threshold)
         if area is None:
             logger.debug("No usable person box for event", image_uuid=image_uuid)
             return
@@ -330,7 +331,9 @@ def handle_person_event(event: Dict[str, Any]) -> None:
             datetime.now(server_tz).replace(tzinfo=None)
             - timedelta(days=PERSON_HISTORY_DAYS)
         )
-        history = _person_area_history(db, deployment.id, image_id, history_cutoff)
+        history = _person_area_history(
+            db, deployment.id, image_id, history_cutoff, project.detection_threshold,
+        )
 
         email_queue = RedisQueue(QUEUE_NOTIFICATION_EMAIL)
         telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
@@ -392,13 +395,16 @@ def handle_person_event(event: Dict[str, Any]) -> None:
         )
 
 
-def _image_person_area(db, image_id: int) -> Optional[float]:
+def _image_person_area(db, image_id: int, min_confidence: float) -> Optional[float]:
     """The largest person-box area of one image, None when no person box
-    carries usable normalized coordinates."""
+    carries usable normalized coordinates. Only detections at or above the
+    project threshold count, the same boxes every other view shows, so a
+    low-confidence noise box cannot fire a false alert."""
     rows = db.execute(
         select(Detection.bbox).where(
             Detection.image_id == image_id,
             Detection.category == 'person',
+            Detection.confidence >= min_confidence,
         )
     ).all()
     areas = [a for (bbox,) in rows if (a := bbox_area(bbox)) is not None]
@@ -406,10 +412,13 @@ def _image_person_area(db, image_id: int) -> Optional[float]:
 
 
 def _person_area_history(
-    db, deployment_id: int, exclude_image_id: int, cutoff_naive: datetime
+    db, deployment_id: int, exclude_image_id: int, cutoff_naive: datetime,
+    min_confidence: float,
 ) -> List[float]:
     """Largest person-box area per image over the current deployment's
-    recent live images, the triggering image excluded."""
+    recent live images, the triggering image excluded. Sub-threshold
+    boxes are excluded so the learned percentile is not polluted by noise
+    the rest of the app hides."""
     rows = db.execute(
         select(Image.id, Detection.bbox)
         .join(Detection, Detection.image_id == Image.id)
@@ -419,6 +428,7 @@ def _person_area_history(
             Image.id != exclude_image_id,
             Image.captured_at >= cutoff_naive,
             Detection.category == 'person',
+            Detection.confidence >= min_confidence,
         )
     ).all()
     per_image: Dict[int, float] = {}
@@ -550,11 +560,11 @@ def _notify_person(
         else:
             message_content = "\n".join([
                 "*Theft watch (beta)*",
-                f"A person was detected at {site_label}.",
+                f"A person was detected at {md_escape(site_label)}.",
                 reason,
                 f"*Time:* {time_str}",
                 f"*Date:* {date_str}",
-                f"*Project:* {project.name}",
+                f"*Project:* {md_escape(project.name)}",
             ])
             buttons_row = []
             location = event.get('camera_location')
@@ -1004,13 +1014,17 @@ def _notify_silence(
             )
         else:
             message_lines = [
-                f"*Theft watch (beta)* · {project.name}",
+                f"*Theft watch (beta)* · {md_escape(project.name)}",
                 "",
                 f"*{count} camera{'s' if count != 1 else ''} silent for"
                 " longer than usual*",
             ]
             for cam in cameras[:TELEGRAM_MAX_CAMERAS]:
-                message_lines += ["", f"*{cam['site']}* · {cam['name']}", cam['value_label']]
+                message_lines += [
+                    "",
+                    f"*{md_escape(cam['site'])}* · {md_escape(cam['name'])}",
+                    cam['value_label'],
+                ]
                 if cam['nearby_label']:
                     message_lines.append(cam['nearby_label'])
             if count > TELEGRAM_MAX_CAMERAS:

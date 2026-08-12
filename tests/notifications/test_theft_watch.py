@@ -324,8 +324,10 @@ def _wire(
     monkeypatch.setattr(tw, "RedisQueue", lambda name: SimpleNamespace(name=name))
     monkeypatch.setattr(tw, "_load_rules", lambda db_, pid: rules)
     monkeypatch.setattr(tw, "_load_event_image", lambda db_, uuid: image)
-    monkeypatch.setattr(tw, "_image_person_area", lambda db_, image_id: area)
-    monkeypatch.setattr(tw, "_person_area_history", lambda db_, dep, ex, cutoff: history or [])
+    monkeypatch.setattr(tw, "_image_person_area", lambda db_, image_id, conf: area)
+    monkeypatch.setattr(
+        tw, "_person_area_history", lambda db_, dep, ex, cutoff, conf: history or []
+    )
     monkeypatch.setattr(tw, "get_server_timezone", lambda db_: timezone.utc)
     monkeypatch.setattr(tw, "_notify_person", fake_notify)
     return db, calls
