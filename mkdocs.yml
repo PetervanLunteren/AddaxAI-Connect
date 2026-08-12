@@ -52,6 +52,7 @@ nav:
     - SpeciesNet setup: speciesnet-setup.md
   - Using the app:
     - Sites and cameras: sites-and-deployments.md
+    - Theft watch: theft-watch.md
     - Install as an app: install-as-app.md
   - Running your server:
     - Operations and monitoring: operations.md
