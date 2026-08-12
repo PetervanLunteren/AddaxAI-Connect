@@ -828,7 +828,15 @@ def _notify_silence(
     """One message per configured channel listing the newly silent
     cameras. Returns True when at least one channel actually queued."""
     domain = settings.domain_name or "localhost:3000"
-    cameras_url = f"https://{domain}/projects/{project.id}/cameras"
+    # Deep link to the last images of exactly the silent cameras, empties
+    # included; the frames right before the silence are what the reader
+    # wants to see. Same camera_id deep-link the excessive-images email
+    # uses, migrated into the filter bar by the images page.
+    ids = ",".join(str(camera_id) for camera_id in new_camera_ids)
+    images_url = (
+        f"https://{domain}/projects/{project.id}/images"
+        f"?camera_id={ids}&show_empty=true"
+    )
     settings_url = f"https://{domain}/projects/{project.id}/notifications"
 
     cameras = _silence_lines(states, new_camera_ids, offending)
@@ -874,7 +882,7 @@ def _notify_silence(
         "battery, a full SD card, or bad signal. Please check on site.",
         "",
         "-" * 50,
-        f"View cameras: {cameras_url}",
+        f"View the last images: {images_url}",
         f"Manage rules: {settings_url}",
         "",
         "AddaxAI Connect - Camera trap image processing",
@@ -892,7 +900,7 @@ def _notify_silence(
                 project_name=project.name,
                 camera_count=count,
                 cameras=cameras,
-                cameras_url=cameras_url,
+                images_url=images_url,
                 settings_url=settings_url,
             )
             log_id = create_notification_log(
@@ -953,7 +961,7 @@ def _notify_silence(
                 "message_text": message_text,
                 "annotated_minio_path": None,
                 "reply_markup": {
-                    "inline_keyboard": [[{"text": "View cameras", "url": cameras_url}]]
+                    "inline_keyboard": [[{"text": "View last images", "url": images_url}]]
                 },
             })
             queued += 1
