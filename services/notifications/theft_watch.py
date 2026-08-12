@@ -440,9 +440,9 @@ def _notify_person(
     # Rare-site cameras alert on any person, busy ones only on unusually
     # close people; say which case this was so the reader can judge
     if threshold is None:
-        reason = "This camera almost never sees people, so any person is notable."
+        reason = "People are rarely seen by this camera."
     else:
-        reason = "The person is closer to the camera than people usually get here."
+        reason = "The person is unusually close for this camera."
 
     trigger_data = {
         "rule_id": rule.id,
