@@ -118,29 +118,52 @@ def _dispatch_file(filepath: str, base_ext: str) -> None:
         _reject(filepath, "unsupported_file_type", "Extension not recognized")
 
 
+def _base_extension(filename: str) -> str:
+    """
+    Extension to route on, ignoring Pure-FTPd's AutoRename suffix.
+
+    Pure-FTPd appends .1, .2 when a name already exists, so ``IMG.JPG.1``
+    still routes as a jpg.
+    """
+    parts = filename.lower().split('.')
+    if len(parts) < 2:
+        return ''
+    if parts[-1].isdigit() and len(parts) > 2:
+        return parts[-2]
+    return parts[-1]
+
+
 class IngestionEventHandler(FileSystemEventHandler):
     """
     Handles file system events in the FTPS upload directory.
     """
 
-    def on_created(self, event: FileCreatedEvent):
-        """
-        Handle new file created in upload directory.
+    def on_created(self, event: FileCreatedEvent) -> None:
+        """A file written straight into the upload tree."""
+        if not event.is_directory:
+            self._handle(event.src_path)
 
-        Args:
-            event: File system event
+    def on_moved(self, event: FileMovedEvent) -> None:
         """
-        if event.is_directory:
-            return
+        A rename into the upload tree, which is new input just the same.
 
-        filepath = event.src_path
+        Pure-FTPd uploads atomically (.pureftpd-upload.NAME becomes NAME), and
+        the API moves a file back here when an admin reprocesses a rejection.
+        Both arrive as a rename, so both take the same path. Only the
+        destination matters; where the file came from is not our business.
+        """
+        if not event.is_directory:
+            self._handle(event.dest_path)
+
+    def _handle(self, filepath: str) -> None:
+        """Check a path that just appeared and route the file to its handler."""
         filename = os.path.basename(filepath)
 
-        # Ignore hidden files
+        # Hidden files are Pure-FTPd's temp uploads; their visible rename follows.
         if filename.startswith('.'):
             return
 
-        # Ignore files inside the rejected/ tree (recursive observer picks them up)
+        # Files landing in rejected/ are the reject path itself, not new input.
         if _is_under_rejected_tree(filepath):
             return
 
@@ -151,54 +174,7 @@ class IngestionEventHandler(FileSystemEventHandler):
         if not os.path.exists(filepath):
             return
 
-        base_ext = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
-        _dispatch_file(filepath, base_ext)
-
-    def on_moved(self, event: FileMovedEvent):
-        """
-        Handle file rename/move events from Pure-FTPd.
-
-        Pure-FTPd's CustomerProof feature uses atomic uploads:
-        1. Upload to hidden temp file: .pureftpd-upload.FILENAME
-        2. Atomic rename to visible: FILENAME or FILENAME.1 (if collision)
-
-        This handler catches the atomic rename and processes the file immediately.
-
-        Args:
-            event: File system move/rename event
-        """
-        if event.is_directory:
-            return
-
-        src_filename = os.path.basename(event.src_path)
-        dest_filename = os.path.basename(event.dest_path)
-
-        # Only process CustomerProof atomic uploads (hidden → visible)
-        if not src_filename.startswith('.pureftpd-upload.'):
-            return
-
-        filepath = event.dest_path
-
-        # Ignore hidden files (shouldn't happen, but defensive)
-        if dest_filename.startswith('.'):
-            return
-
-        # Ignore files inside the rejected/ tree
-        if _is_under_rejected_tree(filepath):
-            return
-
-        # No sleep needed - file was fully written before atomic rename
-
-        # Route by file extension (checking base extension, not AutoRename suffix)
-        # Extract last extension component (e.g., IMG.JPG.1 → jpg)
-        parts = dest_filename.lower().split('.')
-        base_ext = parts[-1] if len(parts) > 1 else ''
-
-        # If extension is numeric (AutoRename suffix), use second-to-last part
-        if base_ext.isdigit() and len(parts) > 2:
-            base_ext = parts[-2]
-
-        _dispatch_file(filepath, base_ext)
+        _dispatch_file(filepath, _base_extension(filename))
 
 
 def strip_autorename_suffix(filename: str) -> str:
