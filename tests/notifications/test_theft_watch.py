@@ -21,6 +21,7 @@ from theft_watch import (
     percentile,
     person_outlier,
     person_threshold,
+    pick_attachment,
     silence_threshold_hours,
 )
 
@@ -170,6 +171,35 @@ class TestNearbySilentCount:
     def test_others_without_coordinates_are_skipped(self):
         states = {1: _state(), 2: _state(lat=None, lon=None)}
         assert nearby_silent_count(1, [1, 2], states) == 0
+
+
+class TestPickAttachment:
+    T0 = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    T1 = datetime(2026, 8, 2, tzinfo=timezone.utc)
+
+    def test_no_candidates_returns_none(self):
+        assert pick_attachment([]) is None
+
+    def test_largest_person_box_wins_over_recency(self):
+        candidates = [
+            {"thumbnail_path": "a.jpg", "person_area": 0.4, "ingested_at": self.T0},
+            {"thumbnail_path": "b.jpg", "person_area": 0.1, "ingested_at": self.T1},
+        ]
+        assert pick_attachment(candidates) == "a.jpg"
+
+    def test_without_persons_most_recent_wins(self):
+        candidates = [
+            {"thumbnail_path": "a.jpg", "person_area": 0.0, "ingested_at": self.T0},
+            {"thumbnail_path": "b.jpg", "person_area": 0.0, "ingested_at": self.T1},
+        ]
+        assert pick_attachment(candidates) == "b.jpg"
+
+    def test_none_person_area_treated_as_zero(self):
+        candidates = [
+            {"thumbnail_path": "a.jpg", "person_area": None, "ingested_at": self.T0},
+            {"thumbnail_path": "b.jpg", "person_area": 0.05, "ingested_at": self.T0},
+        ]
+        assert pick_attachment(candidates) == "b.jpg"
 
 
 # --- Silence trigger decision ---------------------------------------------

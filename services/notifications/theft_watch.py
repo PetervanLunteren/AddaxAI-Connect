@@ -187,6 +187,21 @@ def contact_gap_hours(contacts: List[datetime]) -> List[float]:
     ]
 
 
+def pick_attachment(candidates: List[Dict[str, Any]]) -> Optional[str]:
+    """The thumbnail to attach to a silence alert, from one candidate per
+    camera (its most recent image). The frame with the largest person box
+    wins, a possible thief beats a landscape; without any person the most
+    recent frame wins. Candidates carry thumbnail_path, person_area, and
+    ingested_at."""
+    if not candidates:
+        return None
+    best = max(
+        candidates,
+        key=lambda c: (c.get("person_area") or 0.0, c["ingested_at"]),
+    )
+    return best["thumbnail_path"]
+
+
 def nearby_silent_count(
     camera_id: int,
     offending: List[int],
@@ -780,6 +795,51 @@ def _load_watch_states(
     return states
 
 
+def _last_image_attachment(db, camera_ids: List[int]) -> Optional[str]:
+    """Thumbnail key for the silence alert photo: each camera's most
+    recent live image, then pick_attachment chooses among them. The
+    thumbnails bucket never expires, so old frames stay fetchable, and
+    the delivery worker degrades to text when a download fails."""
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT ON (i.camera_id)
+                   i.camera_id, i.id, i.thumbnail_path, i.ingested_at
+            FROM images i
+            WHERE i.camera_id = ANY(:ids)
+              AND i.origin = 'live'
+              AND i.thumbnail_path IS NOT NULL
+            ORDER BY i.camera_id, i.ingested_at DESC
+        """),
+        {"ids": camera_ids},
+    ).all()
+    if not rows:
+        return None
+    areas: Dict[int, float] = {}
+    for det in db.execute(
+        select(Detection.image_id, Detection.bbox).where(
+            Detection.image_id.in_([r.id for r in rows]),
+            Detection.category == 'person',
+        )
+    ).all():
+        area = bbox_area(det.bbox)
+        if area is not None:
+            areas[det.image_id] = max(areas.get(det.image_id, 0.0), area)
+    return pick_attachment([
+        {
+            "thumbnail_path": r.thumbnail_path,
+            "person_area": areas.get(r.id, 0.0),
+            "ingested_at": r.ingested_at,
+        }
+        for r in rows
+    ])
+
+
+# At most this many cameras are listed in a Telegram message; with a
+# photo attached the text becomes a caption, which Telegram caps at
+# 1024 characters
+TELEGRAM_MAX_CAMERAS = 6
+
+
 def _silence_lines(
     states: Dict[int, WatchCamState],
     new_camera_ids: List[int],
@@ -936,16 +996,17 @@ def _notify_silence(
             )
         else:
             message_lines = [
-                "*Theft watch (beta)*",
-                f"*{project.name}*",
-                f"{count} camera{'s have' if count != 1 else ' has'} been"
-                " silent for longer than usual.",
+                f"*Theft watch (beta)* · {project.name}",
                 "",
+                f"*{count} camera{'s' if count != 1 else ''} silent for"
+                " longer than usual*",
             ]
-            for cam in cameras:
-                message_lines.append(f"- {cam['site']} - {cam['name']}: {cam['value_label']}")
+            for cam in cameras[:TELEGRAM_MAX_CAMERAS]:
+                message_lines += ["", f"*{cam['site']}* · {cam['name']}", cam['value_label']]
                 if cam['nearby_label']:
-                    message_lines.append(f"  {cam['nearby_label']}")
+                    message_lines.append(cam['nearby_label'])
+            if count > TELEGRAM_MAX_CAMERAS:
+                message_lines += ["", f"and {count - TELEGRAM_MAX_CAMERAS} more"]
             message_text = "\n".join(message_lines)
 
             log_id = create_notification_log(
@@ -959,7 +1020,7 @@ def _notify_silence(
                 "notification_log_id": log_id,
                 "chat_id": chat_id,
                 "message_text": message_text,
-                "annotated_minio_path": None,
+                "annotated_minio_path": _last_image_attachment(db, new_camera_ids),
                 "reply_markup": {
                     "inline_keyboard": [[{"text": "View last images", "url": images_url}]]
                 },
