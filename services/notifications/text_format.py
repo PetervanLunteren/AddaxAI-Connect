@@ -2,22 +2,30 @@
 Small formatting helpers shared by the notification message builders.
 """
 
+# Telegram legacy Markdown (parse_mode 'Markdown') treats these four
+# characters as entity markers and, unlike MarkdownV2, offers no working
+# backslash escape. An unescaped '*' in a site or camera name breaks the
+# bold rendering, and an odd count makes Telegram reject the whole message
+# with HTTP 400, silently losing the alert. Since the character cannot be
+# escaped, it is replaced with a visually identical code point that Telegram
+# does not treat as markup, so the label still reads right and always sends.
+_TELEGRAM_MD_LOOKALIKES = {
+    "*": "∗",  # ∗ asterisk operator
+    "_": "ˍ",  # ˍ modifier letter low macron
+    "`": "ˋ",  # ˋ modifier letter grave accent
+    "[": "［",  # ［ fullwidth left square bracket
+}
+
 
 def md_escape(text: str) -> str:
-    """Escape a user-controlled string for Telegram legacy Markdown.
-
-    The delivery worker sends with parse_mode 'Markdown'. Legacy Markdown
-    treats '_', '*', '`', and '[' as entity markers; an unescaped '*' in a
-    site or camera name breaks the bold rendering, and an odd number of
-    them makes Telegram reject the whole message with HTTP 400, which
-    silently loses the alert. Legacy Markdown supports backslash escaping
-    for exactly these four characters, so prepend a backslash to each.
+    """Make a user-controlled string safe for Telegram legacy Markdown.
 
     Only apply to values that come from users (site names, camera device
-    ids, project names), never to the static message scaffolding.
+    ids, project names), never to the static message scaffolding, whose
+    real '*' markers must keep working.
     """
     if not text:
         return text
-    for ch in ("_", "*", "`", "["):
-        text = text.replace(ch, "\\" + ch)
+    for ch, replacement in _TELEGRAM_MD_LOOKALIKES.items():
+        text = text.replace(ch, replacement)
     return text
