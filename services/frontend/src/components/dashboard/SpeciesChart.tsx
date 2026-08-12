@@ -93,8 +93,8 @@ export const SpeciesChart: React.FC<SpeciesChartProps> = ({ projectId, siteIds }
   const axisLabel = activeMode === 'events' ? 'Independent events' : 'Individuals';
   const caption =
     activeMode === 'events'
-      ? 'Separate visits, so a group of five counts as one.'
-      : 'Individuals seen, so a group of five counts as five.';
+      ? 'Separate visits, so five animals together count as one.'
+      : 'Individuals seen, so five animals together count as five.';
 
   const data = {
     labels: shown.map((s) => normalizeLabel(s.species)),
