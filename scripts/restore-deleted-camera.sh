@@ -313,8 +313,9 @@ for bucket in raw-images thumbnails; do
   log "Restoring $TOTAL objects into local/$bucket"
   N=0
   while IFS=$'\t' read -r VID KEY; do
+    # </dev/null: docker exec -T must not eat the loop's stdin (the list file)
     docker compose exec -T minio mc cp --quiet --version-id "$VID" \
-      "$SRC_PREFIX/minio/$bucket/$KEY" "local/$bucket/$KEY" > /dev/null
+      "$SRC_PREFIX/minio/$bucket/$KEY" "local/$bucket/$KEY" > /dev/null < /dev/null
     N=$((N+1))
     [ $((N % 50)) -eq 0 ] && log "  $N/$TOTAL"
   done < "$WORKDIR/$bucket.restore"
