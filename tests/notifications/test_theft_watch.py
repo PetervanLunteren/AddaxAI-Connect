@@ -255,8 +255,9 @@ OLD_START = date(2026, 1, 1)
 
 
 class FakeDb:
-    """Stubs the two direct DB touchpoints of handle_person_event: the
-    project load and the current-deployment lookup."""
+    """Stubs the direct DB touchpoints of handle_person_event: the
+    project load, the current-deployment lookup (consumed via .first()),
+    and the thumbnail fallback lookup (via .scalar_one_or_none())."""
 
     def __init__(self, project, deployment):
         self.project = project
@@ -268,7 +269,10 @@ class FakeDb:
 
     def execute(self, query):
         deployment = self.deployment
-        return SimpleNamespace(first=lambda: deployment)
+        return SimpleNamespace(
+            first=lambda: deployment,
+            scalar_one_or_none=lambda: "thumb.jpg",
+        )
 
     def commit(self):
         self.committed = True
@@ -312,7 +316,7 @@ def _wire(
 
     def fake_notify(email_queue, telegram_queue, db_, rule, user, project_,
                     event, captured_at, site_id, site_name,
-                    area_, threshold, history_n):
+                    area_, threshold, history_n, thumbnail_path=None):
         calls["notified"].append(rule.id)
         return calls["delivered"]
 

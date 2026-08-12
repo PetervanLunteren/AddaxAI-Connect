@@ -299,6 +299,12 @@ def handle_person_event(event: Dict[str, Any]) -> None:
             logger.error("Image not found for person event", image_uuid=image_uuid)
             return
         image_id, captured_at, site_id, site_name = loaded
+        # Photo fallback when the classifier produced no annotated image;
+        # the plain thumbnail lives in the same bucket the delivery
+        # worker downloads from
+        thumbnail_path = db.execute(
+            select(Image.thumbnail_path).where(Image.id == image_id)
+        ).scalar_one_or_none()
 
         deployment = db.execute(
             select(Deployment.id, Deployment.start_date)
@@ -351,6 +357,7 @@ def handle_person_event(event: Dict[str, Any]) -> None:
                     email_queue, telegram_queue, db,
                     rule, user, project, event, captured_at, site_id, site_name,
                     area, person_threshold(history, rule.sensitivity), len(history),
+                    thumbnail_path,
                 )
                 if delivered:
                     fired += 1
@@ -437,6 +444,7 @@ def _notify_person(
     area: float,
     threshold: Optional[float],
     history_n: int,
+    thumbnail_path: Optional[str] = None,
 ) -> bool:
     """One message per configured channel. Returns True when at least one
     channel actually queued a message."""
@@ -568,7 +576,7 @@ def _notify_person(
                 "notification_log_id": log_id,
                 "chat_id": chat_id,
                 "message_text": message_content,
-                "annotated_minio_path": event.get('annotated_minio_path'),
+                "annotated_minio_path": event.get('annotated_minio_path') or thumbnail_path,
                 "reply_markup": {"inline_keyboard": [buttons_row]},
             })
             queued += 1
