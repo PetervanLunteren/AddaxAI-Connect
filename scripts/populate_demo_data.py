@@ -2069,7 +2069,14 @@ def insert_classifications_batch(session: Session, classifications: list, old_to
 
 
 def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id: dict):
-    """Batch insert health reports."""
+    """Batch insert health reports.
+
+    reported_at is naive camera-clock; created_at is the server receive time
+    and is derived from it under the server timezone, the same way image
+    ingested_at is. Letting created_at default to now() would stamp every
+    report, however old, with the seed moment, and created_at is what drives
+    the camera liveness status (see shared/camera_status.py).
+    """
     chunk_size = 5000
     for i in range(0, len(reports), chunk_size):
         chunk = reports[i:i + chunk_size]
@@ -2079,7 +2086,8 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
             key = f"_{j}"
             values_parts.append(
                 f"(:camera_id{key}, :reported_at{key}, :battery{key}, "
-                f":signal{key}, :temp{key}, :sd{key}, :total{key}, :sent{key})"
+                f":signal{key}, :temp{key}, :sd{key}, :total{key}, :sent{key}, "
+                f"(CAST(:reported_at{key} AS timestamp) AT TIME ZONE '{SERVER_TIMEZONE}'))"
             )
             params[f"camera_id{key}"] = cam_index_to_id[rep["camera_index"]]
             params[f"reported_at{key}"] = rep["reported_at"]
@@ -2093,7 +2101,8 @@ def insert_health_reports_batch(session: Session, reports: list, cam_index_to_id
         sql = (
             "INSERT INTO camera_health_reports "
             "(camera_id, reported_at, battery_percent, signal_quality, "
-            "temperature_c, sd_utilization_percent, total_images, sent_images) VALUES "
+            "temperature_c, sd_utilization_percent, total_images, sent_images, "
+            "created_at) VALUES "
             + ", ".join(values_parts)
         )
         session.execute(text(sql), params)

@@ -104,11 +104,15 @@ def main():
             {"project": PROJECT_NAME, "delta": delta},
         )
 
-        # 3) camera_health_reports.reported_at
-        #    Two-pass to avoid transiently violating the functional unique
-        #    index on (camera_id, reported_at::date): first move all
-        #    timestamps to a far-future range where no collisions are
-        #    possible, then move back to the correct position.
+        # 3) camera_health_reports.reported_at (camera clock) and created_at
+        #    (server receive time). Both must move: created_at drives the
+        #    camera liveness status (see shared/camera_status.py), so leaving
+        #    it behind makes every demo camera look like it stopped reporting.
+        #    Two-pass on reported_at to avoid transiently violating the
+        #    functional unique index on (camera_id, reported_at::date): first
+        #    move all timestamps to a far-future range where no collisions are
+        #    possible, then move back to the correct position. created_at is
+        #    not in that index, so it moves once, in the second pass.
         temp_offset = 100000
         session.execute(
             text(f"""
@@ -121,7 +125,8 @@ def main():
         session.execute(
             text(f"""
                 UPDATE camera_health_reports
-                SET reported_at = reported_at + ((:delta - :offset) * INTERVAL '1 day')
+                SET reported_at = reported_at + ((:delta - :offset) * INTERVAL '1 day'),
+                    created_at  = created_at  + (:delta * INTERVAL '1 day')
                 WHERE camera_id IN ({demo_cameras})
             """),
             {"project": PROJECT_NAME, "offset": temp_offset, "delta": delta},

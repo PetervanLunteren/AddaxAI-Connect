@@ -204,6 +204,53 @@ def camera_to_response(
     )
 
 
+async def camera_detail_response(
+    db: AsyncSession, camera: Camera
+) -> CameraResponse:
+    """Build the full response for one camera, looking up everything derived.
+
+    Every endpoint that returns a single camera must go through here. Calling
+    `camera_to_response` directly leaves the derived arguments at their
+    defaults, which makes a healthy camera come back as `never_reported` with
+    no site and no timestamps, and the detail sheet then shows that.
+    """
+    recency = await fetch_camera_recency(db, [camera.id])
+
+    last_maintenance_date = (await db.execute(
+        select(func.max(CameraMaintenanceEvent.event_date))
+        .where(CameraMaintenanceEvent.camera_id == camera.id)
+    )).scalar_one_or_none()
+
+    site_row = (await db.execute(
+        text("""
+            SELECT s.id AS site_id, s.name AS site_name
+            FROM deployments d
+            LEFT JOIN sites s ON s.id = d.site_id
+            WHERE d.camera_id = :cam
+            ORDER BY d.deployment_number DESC
+            LIMIT 1
+        """),
+        {"cam": camera.id},
+    )).mappings().first()
+    current_site = None
+    if site_row and site_row["site_id"] is not None:
+        current_site = {"id": site_row["site_id"], "name": site_row["site_name"]}
+
+    from routers.admin import get_server_timezone
+    tz = ZoneInfo(await get_server_timezone(db))
+
+    return camera_to_response(
+        camera,
+        tz=tz,
+        last_captured_at=recency.last_captured.get(camera.id),
+        last_reported_at=recency.last_reported.get(camera.id),
+        last_report_arrival=recency.last_report_arrival.get(camera.id),
+        last_image_arrival=recency.last_image_arrival.get(camera.id),
+        current_site=current_site,
+        last_maintenance_date=last_maintenance_date,
+    )
+
+
 @router.get(
     "",
     response_model=List[CameraResponse],
@@ -578,42 +625,7 @@ async def get_camera(
 
     await _check_camera_in_scope(db, current_user, camera)
 
-    recency = await fetch_camera_recency(db, [camera_id])
-
-    last_maintenance_date = (await db.execute(
-        select(func.max(CameraMaintenanceEvent.event_date)).where(CameraMaintenanceEvent.camera_id == camera_id)
-    )).scalar_one_or_none()
-
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-
-    site_row = (await db.execute(
-        text("""
-            SELECT s.id AS site_id, s.name AS site_name
-            FROM deployments d
-            LEFT JOIN sites s ON s.id = d.site_id
-            WHERE d.camera_id = :cam
-            ORDER BY d.deployment_number DESC
-            LIMIT 1
-        """),
-        {"cam": camera_id},
-    )).mappings().first()
-    current_site = None
-    if site_row and site_row["site_id"] is not None:
-        current_site = {
-            "id": site_row["site_id"], "name": site_row["site_name"],
-        }
-
-    return camera_to_response(
-        camera,
-        tz=tz,
-        last_captured_at=recency.last_captured.get(camera_id),
-        last_reported_at=recency.last_reported.get(camera_id),
-        last_report_arrival=recency.last_report_arrival.get(camera_id),
-        last_image_arrival=recency.last_image_arrival.get(camera_id),
-        current_site=current_site,
-        last_maintenance_date=last_maintenance_date,
-    )
+    return await camera_detail_response(db, camera)
 
 
 class CameraDeploymentResponse(BaseModel):
@@ -867,9 +879,7 @@ async def create_camera(
     await db.commit()
     await db.refresh(camera)
 
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-    return camera_to_response(camera, tz=tz)
+    return await camera_detail_response(db, camera)
 
 
 @router.put(
@@ -932,15 +942,9 @@ async def update_camera(
     await db.commit()
     await db.refresh(camera)
 
-    # The sheet replaces its camera row with this response, so carry the
-    # derived last maintenance date or saving would blank it in the UI.
-    last_maintenance_date = (await db.execute(
-        select(func.max(CameraMaintenanceEvent.event_date)).where(CameraMaintenanceEvent.camera_id == camera_id)
-    )).scalar_one_or_none()
-
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-    return camera_to_response(camera, tz=tz, last_maintenance_date=last_maintenance_date)
+    # The sheet replaces its camera row with this response, so it has to carry
+    # every derived field or saving would blank them in the UI.
+    return await camera_detail_response(db, camera)
 
 
 async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> dict:

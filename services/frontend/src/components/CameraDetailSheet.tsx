@@ -243,11 +243,12 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
       ? {}
       : { className: 'text-muted-foreground', title: 'Camera is not active, showing the last reported value' };
 
-  // A camera with no live signal yet (e.g. a bulk-upload camera) has no
-  // telemetry, so its last-report / last-image / location read "N/A" rather
-  // than "Never" / a stale date / "Unknown". Battery, signal, and SD are
-  // already null (so they show N/A) for such a camera.
-  const noLiveSignal = camera.status === 'never_reported';
+  // Last report and location both come from the daily health report, so a
+  // camera that never sent one reads "N/A" rather than "Never" / "Unknown".
+  // Some camera models (INSTAR) never send a report while delivering images
+  // fine, so this keys on the absence of a report and not on the liveness
+  // status. Last image is excluded: it comes from the images themselves.
+  const noReports = camera.last_report_timestamp === null;
 
   const getGoogleMapsUrl = (location: { lat: number; lon: number }) => {
     return `https://www.google.com/maps?q=${location.lat},${location.lon}`;
@@ -509,15 +510,15 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Last report</span>
-                    <span>{noLiveSignal ? 'N/A' : formatDateTime(camera.last_report_timestamp, 'Never')}</span>
+                    <span>{noReports ? 'N/A' : formatDateTime(camera.last_report_timestamp, 'Never')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Last image</span>
-                    <span>{noLiveSignal ? 'N/A' : formatDateTime(camera.last_image_timestamp, 'Never')}</span>
+                    <span>{formatDateTime(camera.last_image_timestamp, 'Never')}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Location</span>
-                    {noLiveSignal ? (
+                    {noReports ? (
                       <span>N/A</span>
                     ) : camera.location ? (
                       <span className="flex items-center gap-1">

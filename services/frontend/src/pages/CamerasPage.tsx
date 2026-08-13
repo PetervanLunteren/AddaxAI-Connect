@@ -693,16 +693,18 @@ export const CamerasPage: React.FC = () => {
   // above. Each ColumnId returns the cell body, not the wrapping <TableCell>.
   const renderCameraCell = (id: ColumnId, camera: Camera): React.ReactNode => {
     const isActive = camera.status === 'active';
-    // A camera with no live signal yet (e.g. a bulk-upload camera) has no
-    // telemetry, so its health/recency/location columns show a plain "N/A"
-    // rather than stale dates or red "unknown" flags. The device id, status,
-    // site, tags, and notes still render normally.
-    const TELEMETRY_COLUMNS = new Set<ColumnId>([
-      'battery', 'signal', 'sd_used', 'temperature', 'last_report', 'last_image', 'location',
+    // Every column below comes from a daily health report, so a camera that
+    // never sent one has nothing to show and gets a plain "N/A" rather than
+    // stale dates or a red "unknown" flag. Some camera models (INSTAR) never
+    // send a report at all while delivering images fine, so this keys on the
+    // absence of a report and not on the liveness status. Last image is not
+    // in the set: it comes from the images, which such a camera does have.
+    const REPORT_COLUMNS = new Set<ColumnId>([
+      'battery', 'signal', 'sd_used', 'temperature', 'last_report', 'location',
     ]);
-    if (camera.status === 'never_reported' && TELEMETRY_COLUMNS.has(id)) {
+    if (camera.last_report_timestamp === null && REPORT_COLUMNS.has(id)) {
       return (
-        <span className="text-sm text-muted-foreground" title="No live signal from this camera yet">
+        <span className="text-sm text-muted-foreground" title="This camera does not send daily reports">
           N/A
         </span>
       );

@@ -6,15 +6,11 @@ mounting post, a nearby landmark) to each camera so anyone revisiting
 weeks later can find the exact spot. Mirrors the project image flow:
 multipart upload, 512px thumbnail, local filesystem served by nginx.
 """
-from datetime import date
-from typing import Optional
-from zoneinfo import ZoneInfo
-
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
-from shared.models import User, Camera, CameraMaintenanceEvent
+from shared.models import User, Camera
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -22,23 +18,9 @@ from utils.image_processing import (
     process_and_upload_reference_image,
     delete_reference_images,
 )
-from routers.cameras import camera_to_response, CameraResponse
+from routers.cameras import camera_detail_response, CameraResponse
 
 router = APIRouter(prefix="/api/cameras", tags=["camera-reference-images"])
-
-
-async def _response_context(db: AsyncSession, camera_id: int) -> tuple[ZoneInfo, Optional[date]]:
-    """Server tz plus the derived last maintenance date for the response.
-
-    The detail sheet replaces its camera row with these responses, so
-    they must carry the derived field or the UI would blank it.
-    """
-    from routers.admin import get_server_timezone
-    tz = ZoneInfo(await get_server_timezone(db))
-    last_maintenance_date = (await db.execute(
-        select(func.max(CameraMaintenanceEvent.event_date)).where(CameraMaintenanceEvent.camera_id == camera_id)
-    )).scalar_one_or_none()
-    return tz, last_maintenance_date
 
 
 @router.post(
@@ -89,8 +71,7 @@ async def upload_camera_reference_image(
     await db.commit()
     await db.refresh(camera)
 
-    tz, last_maintenance_date = await _response_context(db, camera_id)
-    return camera_to_response(camera, tz=tz, last_maintenance_date=last_maintenance_date)
+    return await camera_detail_response(db, camera)
 
 
 @router.delete(
@@ -127,5 +108,4 @@ async def delete_camera_reference_image(
     await db.commit()
     await db.refresh(camera)
 
-    tz, last_maintenance_date = await _response_context(db, camera_id)
-    return camera_to_response(camera, tz=tz, last_maintenance_date=last_maintenance_date)
+    return await camera_detail_response(db, camera)
