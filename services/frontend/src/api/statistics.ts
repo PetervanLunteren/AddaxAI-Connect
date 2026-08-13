@@ -8,7 +8,6 @@ import type {
   StatisticsOverview,
   TimelineDataPoint,
   SpeciesCount,
-  CameraActivitySummary,
   LastUpdateResponse,
   DetectionRateMapResponse,
   DetectionRateMapFilters,
@@ -68,17 +67,6 @@ export const statisticsApi = {
     if (projectId !== undefined) params.project_id = projectId.toString();
     if (siteIds) params.site_ids = siteIds;
     const response = await apiClient.get<SpeciesCount[]>('/api/statistics/species-distribution', { params });
-    return response.data;
-  },
-
-  /**
-   * Get camera activity summary
-   */
-  getCameraActivity: async (projectId?: number, siteIds?: string): Promise<CameraActivitySummary> => {
-    const params: Record<string, string> = {};
-    if (projectId !== undefined) params.project_id = projectId.toString();
-    if (siteIds) params.site_ids = siteIds;
-    const response = await apiClient.get<CameraActivitySummary>('/api/statistics/camera-activity', { params });
     return response.data;
   },
 

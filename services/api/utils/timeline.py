@@ -17,15 +17,15 @@ that delivered at least one image each day.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from statistics import median
 from typing import Optional
 
-from sqlalchemy import func, select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models import CameraHealthReport
-from utils.camera_status import camera_status
+from shared.camera_status import camera_status
+from utils.camera_recency import fetch_camera_recency
 from utils.timeline_activity import (
     clip_segments_to_window,
     concurrent_from_signal_days,
@@ -131,9 +131,9 @@ async def get_deployment_timeline(
         )
         signal_days_by_camera[cid] = sorted(merged)
 
-    # 4. Last health-report per camera, source of the status pill. Driven
-    #    by CameraHealthReport, identical rule to the Cameras page.
-    last_reported_by_camera = await _fetch_last_reported(db, camera_id_set)
+    # 4. Last contact per camera, source of the status pill. Same rule as the
+    #    Cameras page: server receive time of a health report or a live image.
+    recency = await fetch_camera_recency(db, camera_id_set)
 
     # 5. Build one row per site (fallback: per camera for site-less deployments).
     groups: dict[int, dict] = {}
@@ -248,16 +248,16 @@ async def get_deployment_timeline(
         img_days = sorted(group_image_days.get(gkey, set()))
         grp["last_image_day"] = img_days[-1] if img_days else None
 
+        # The site's status is that of its liveliest candidate camera, so one
+        # retired camera on the row cannot mark a live site as silent.
         candidate_cams = (
             open_cameras_by_group.get(gkey)
             or all_cameras_by_group.get(gkey, set())
         )
-        reports = [
-            last_reported_by_camera.get(cid)
-            for cid in candidate_cams
-            if last_reported_by_camera.get(cid) is not None
-        ]
-        grp["camera_status"] = camera_status(max(reports) if reports else None)
+        grp["camera_status"] = camera_status(
+            _latest(recency.last_report_arrival, candidate_cams),
+            _latest(recency.last_image_arrival, candidate_cams),
+        )
 
     sites = sorted(groups.values(), key=lambda s: s["site_name"].lower())
 
@@ -378,18 +378,14 @@ async def _fetch_cdp_rows(
     })).all()
 
 
-async def _fetch_last_reported(
-    db: AsyncSession, camera_ids: list[int]
-) -> dict[int, object]:
-    """Return the latest `reported_at` per camera, or empty when none."""
-    if not camera_ids:
-        return {}
-    rows = await db.execute(
-        select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
-        .where(CameraHealthReport.camera_id.in_(camera_ids))
-        .group_by(CameraHealthReport.camera_id)
-    )
-    return {camera_id: reported_at for camera_id, reported_at in rows.all()}
+def _latest(
+    stamps_by_camera: dict[int, datetime], camera_ids: set[int]
+) -> Optional[datetime]:
+    """Newest stamp among `camera_ids`, or None when none of them has one."""
+    stamps = [
+        stamps_by_camera[cid] for cid in camera_ids if cid in stamps_by_camera
+    ]
+    return max(stamps) if stamps else None
 
 
 def _filter_days_to_cdp(

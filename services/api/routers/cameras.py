@@ -23,7 +23,8 @@ from auth.project_access import (
 )
 from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS
 from shared.logger import get_logger
-from utils.camera_status import camera_status as _camera_status
+from shared.camera_status import camera_status as _camera_status
+from utils.camera_recency import fetch_camera_recency
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags
 
@@ -162,10 +163,17 @@ def camera_to_response(
     tz: ZoneInfo,
     last_captured_at: Optional[datetime] = None,
     last_reported_at: Optional[datetime] = None,
+    last_report_arrival: Optional[datetime] = None,
+    last_image_arrival: Optional[datetime] = None,
     current_site: Optional[dict] = None,
     last_maintenance_date: Optional[date] = None,
 ) -> CameraResponse:
-    """Convert a Camera model to the API response shape."""
+    """Convert a Camera model to the API response shape.
+
+    `last_captured_at` / `last_reported_at` are camera-clock readings and
+    feed the two displayed timestamps. The `*_arrival` pair are server
+    receive times and feed the status, see `shared.camera_status`.
+    """
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
@@ -186,7 +194,7 @@ def camera_to_response(
         sd_utilization_percentage=health_data.get('sd_utilization_percentage'),
         last_report_timestamp=_localize(last_reported_at, tz),
         last_image_timestamp=_localize(last_captured_at, tz),
-        status=_camera_status(last_reported_at),
+        status=_camera_status(last_report_arrival, last_image_arrival),
         total_images=health_data.get('total_images'),
         sent_images=health_data.get('sent_images'),
         reference_image_url=f"/reference-images/{camera.reference_image_path}" if camera.reference_image_path else None,
@@ -240,24 +248,9 @@ async def list_cameras(
     cameras = result.scalars().all()
 
     camera_ids = [c.id for c in cameras]
-    last_captured_map: dict[int, datetime] = {}
-    last_reported_map: dict[int, datetime] = {}
+    recency = await fetch_camera_recency(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
-        captured_rows = await db.execute(
-            select(Image.camera_id, func.max(Image.captured_at))
-            .where(Image.camera_id.in_(camera_ids))
-            .group_by(Image.camera_id)
-        )
-        last_captured_map = {cam_id: ts for cam_id, ts in captured_rows.all()}
-
-        reported_rows = await db.execute(
-            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
-            .where(CameraHealthReport.camera_id.in_(camera_ids))
-            .group_by(CameraHealthReport.camera_id)
-        )
-        last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
-
         maintenance_rows = await db.execute(
             select(CameraMaintenanceEvent.camera_id, func.max(CameraMaintenanceEvent.event_date))
             .where(CameraMaintenanceEvent.camera_id.in_(camera_ids))
@@ -292,8 +285,10 @@ async def list_cameras(
         camera_to_response(
             camera,
             tz=tz,
-            last_captured_at=last_captured_map.get(camera.id),
-            last_reported_at=last_reported_map.get(camera.id),
+            last_captured_at=recency.last_captured.get(camera.id),
+            last_reported_at=recency.last_reported.get(camera.id),
+            last_report_arrival=recency.last_report_arrival.get(camera.id),
+            last_image_arrival=recency.last_image_arrival.get(camera.id),
             current_site=current_site_map.get(camera.id),
             last_maintenance_date=last_maintenance_map.get(camera.id),
         )
@@ -583,13 +578,7 @@ async def get_camera(
 
     await _check_camera_in_scope(db, current_user, camera)
 
-    last_captured_at = (await db.execute(
-        select(func.max(Image.captured_at)).where(Image.camera_id == camera_id)
-    )).scalar_one_or_none()
-
-    last_reported_at = (await db.execute(
-        select(func.max(CameraHealthReport.reported_at)).where(CameraHealthReport.camera_id == camera_id)
-    )).scalar_one_or_none()
+    recency = await fetch_camera_recency(db, [camera_id])
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date)).where(CameraMaintenanceEvent.camera_id == camera_id)
@@ -618,8 +607,10 @@ async def get_camera(
     return camera_to_response(
         camera,
         tz=tz,
-        last_captured_at=last_captured_at,
-        last_reported_at=last_reported_at,
+        last_captured_at=recency.last_captured.get(camera_id),
+        last_reported_at=recency.last_reported.get(camera_id),
+        last_report_arrival=recency.last_report_arrival.get(camera_id),
+        last_image_arrival=recency.last_image_arrival.get(camera_id),
         current_site=current_site,
         last_maintenance_date=last_maintenance_date,
     )

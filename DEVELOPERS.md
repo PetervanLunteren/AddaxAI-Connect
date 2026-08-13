@@ -197,7 +197,7 @@ addaxai-connect/
 │   │   └── utils/                     # API utilities
 │   │       ├── activity_analysis.py   # Activity pattern analysis
 │   │       ├── annotated_image_generator.py # On-demand annotated image rendering
-│   │       ├── camera_status.py       # Camera online/offline status
+│   │       ├── camera_recency.py      # Per-camera last-capture / last-arrival lookups
 │   │       ├── deployment_edits.py    # Reassign/recompute/merge plumbing (deployments + feed)
 │   │       ├── feed.py                # Feed candidate-site helper
 │   │       ├── detection_filtering.py # Detection confidence and class filtering
@@ -239,6 +239,7 @@ addaxai-connect/
 │       ├── storage.py                 # StorageClient (MinIO/S3 wrapper)
 │       ├── logger.py                  # Structured JSON logging with correlation IDs
 │       ├── email_renderer.py          # Jinja2 email template rendering
+│       ├── camera_status.py           # Camera liveness rule (active / inactive / never_reported)
 │       ├── taxonomy.py                # Species taxonomy utilities
 │       ├── species.py                 # Species data helpers
 │       ├── geo.py                     # GPS and spatial helpers
@@ -375,6 +376,29 @@ Rules:
 - Never reintroduce `AT TIME ZONE 'UTC'` on these columns, that was a fix-on-read hack for the pre-refactor mistagged-UTC storage and is gone.
 - When serializing a camera-clock value to ISO 8601, localize first with `.replace(tzinfo=ZoneInfo(server_tz))` so the output carries the correct DST-aware offset.
 - Server wall-clock filters stay aware UTC as before.
+
+## Camera liveness status
+
+The `active / inactive / never_reported` badge has one rule, in
+`shared/shared/camera_status.py`. It is driven by **last contact**: the most
+recent moment a camera reached the server, either with a daily health report
+or with a live image.
+
+- Never use health reports alone. Some camera models send no daily report at
+  all (INSTAR), and report parsing can break while the camera keeps sending
+  photos. A report-only rule marks those cameras silent forever.
+- Always pass server receive times (`CameraHealthReport.created_at`,
+  `Image.ingested_at`), never the camera-clock columns (`reported_at`,
+  `captured_at`). A camera trap clock is often unset or years off at
+  deployment. The helper raises on a naive datetime so a camera-clock column
+  cannot be wired in by accident.
+- Only `Image.origin == 'live'` counts. A bulk upload is an SD card carried
+  in by hand, so it must never make a stolen camera look alive.
+
+The API side gets the timestamps from `fetch_camera_recency` in
+`services/api/utils/camera_recency.py`, which returns both clocks in two
+grouped queries. The camera alert rules and the theft watch define contact the
+same way, so all of them agree.
 
 ## Infrastructure deployment
 

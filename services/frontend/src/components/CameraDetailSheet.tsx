@@ -38,6 +38,8 @@ import { camerasApi, type UpdateCameraRequest } from '../api/cameras';
 import type { Camera } from '../api/types';
 import { cn } from '../lib/utils';
 import { formatDateTime } from '../utils/datetime';
+import { getSignalLabel } from '../utils/camera-colors';
+import { CameraStatusBadge } from './CameraStatusBadge';
 import { formatSimExpiryStatus, simExpiryStatusClass } from '../utils/sim-expiry';
 import { useToast } from './ui/Toaster';
 
@@ -230,34 +232,6 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
     );
     setEditTags(camera.tags || []);
     setIsEditing(false);
-  };
-
-  // Helper functions for formatting
-  const getStatusColor = (status: string) => {
-    const colors = {
-      active: '#0f6064',
-      inactive: '#882000',
-      never_reported: '#71b7ba',
-    };
-    return colors[status as keyof typeof colors] || '#9ca3af';
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels = {
-      active: 'Active',
-      inactive: 'Inactive',
-      never_reported: 'No live signal yet',
-    };
-    return labels[status as keyof typeof labels] || status;
-  };
-
-  const getSignalLabel = (csq: number | null) => {
-    if (csq === null) return 'N/A';
-    if (csq >= 20) return 'Excellent';
-    if (csq >= 15) return 'Good';
-    if (csq >= 10) return 'Fair';
-    if (csq >= 2) return 'Poor';
-    return 'No signal';
   };
 
   // Point-in-time health readings (battery, signal, SD) keep showing the
@@ -488,13 +462,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Status</span>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: getStatusColor(camera.status) }}
-                      />
-                      <span>{getStatusLabel(camera.status)}</span>
-                    </span>
+                    <CameraStatusBadge status={camera.status} size="sm" />
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Site</span>

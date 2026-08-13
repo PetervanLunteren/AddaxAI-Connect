@@ -246,12 +246,6 @@ export interface SpeciesCount {
   events?: number | null;
 }
 
-export interface CameraActivitySummary {
-  active: number;
-  inactive: number;
-  never_reported: number;
-}
-
 export interface LastUpdateResponse {
   last_update: string | null;
 }

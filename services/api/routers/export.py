@@ -26,7 +26,7 @@ from sqlalchemy.orm import selectinload, aliased
 
 from shared.models import (
     User, Image, Camera, Detection, Classification, Project,
-    HumanObservation, CameraHealthReport, CameraMaintenanceEvent,
+    HumanObservation, CameraMaintenanceEvent,
     SpeciesTaxonomy, ServerSettings,
 )
 from shared.database import get_async_session
@@ -36,7 +36,8 @@ from auth.users import current_verified_user
 from auth.project_access import get_accessible_project_ids, get_allowed_site_ids
 from utils.site_scope import site_image_clause, cameras_current_site_clause
 from shared.classification_threshold import effective_classification_threshold
-from utils.camera_status import camera_status
+from shared.camera_status import camera_status
+from utils.camera_recency import fetch_camera_recency
 
 router = APIRouter(prefix="/api/projects/{project_id}/export", tags=["export"])
 logger = get_logger("api.export")
@@ -1039,24 +1040,9 @@ async def _build_camera_rows(
     cameras = (await db.execute(cameras_query)).scalars().all()
 
     camera_ids = [c.id for c in cameras]
-    last_captured_map: Dict[int, datetime] = {}
-    last_reported_map: Dict[int, datetime] = {}
+    recency = await fetch_camera_recency(db, camera_ids)
     last_maintenance_map: Dict[int, date] = {}
     if camera_ids:
-        captured_rows = await db.execute(
-            select(Image.camera_id, func.max(Image.captured_at))
-            .where(Image.camera_id.in_(camera_ids))
-            .group_by(Image.camera_id)
-        )
-        last_captured_map = {cam_id: ts for cam_id, ts in captured_rows.all()}
-
-        reported_rows = await db.execute(
-            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
-            .where(CameraHealthReport.camera_id.in_(camera_ids))
-            .group_by(CameraHealthReport.camera_id)
-        )
-        last_reported_map = {cam_id: ts for cam_id, ts in reported_rows.all()}
-
         maintenance_rows = await db.execute(
             select(CameraMaintenanceEvent.camera_id, func.max(CameraMaintenanceEvent.event_date))
             .where(CameraMaintenanceEvent.camera_id.in_(camera_ids))
@@ -1084,8 +1070,8 @@ async def _build_camera_rows(
     for camera in cameras:
         health = camera.config.get('last_health_report', {}) if camera.config else {}
         gps = camera.config.get('gps_from_report') if camera.config else None
-        last_captured = last_captured_map.get(camera.id)
-        last_reported = last_reported_map.get(camera.id)
+        last_captured = recency.last_captured.get(camera.id)
+        last_reported = recency.last_reported.get(camera.id)
         last_maintenance = last_maintenance_map.get(camera.id)
         custom = camera.custom_fields if isinstance(camera.custom_fields, dict) else {}
 
@@ -1098,7 +1084,10 @@ async def _build_camera_rows(
             camera.manufacturer or '',
             camera.model or '',
             camera.hardware_revision or '',
-            camera_status(last_reported),
+            camera_status(
+                recency.last_report_arrival.get(camera.id),
+                recency.last_image_arrival.get(camera.id),
+            ),
             health.get('battery_percentage', '') if health else '',
             health.get('signal_quality', '') if health else '',
             (

@@ -163,13 +163,6 @@ class SpeciesCount(BaseModel):
     events: Optional[int] = None
 
 
-class CameraActivitySummary(BaseModel):
-    """Camera activity status counts"""
-    active: int
-    inactive: int
-    never_reported: int
-
-
 class LastUpdateResponse(BaseModel):
     """Last update timestamp"""
     last_update: str | None  # ISO timestamp or null
@@ -413,71 +406,6 @@ async def get_species_distribution(
         SpeciesCount(species=c['species'], count=c['count'], events=c.get('events'))
         for c in counts
     ]
-
-
-@router.get(
-    "/camera-activity",
-    response_model=CameraActivitySummary,
-)
-async def get_camera_activity(
-    project_id: Optional[int] = Query(None, description="Filter to a single project"),
-    site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
-    accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(current_verified_user),
-):
-    """
-    Get camera activity status summary (filtered by accessible projects)
-
-    Categorizes cameras as:
-    - Active: Last report within 7 days
-    - Inactive: Last report older than 7 days
-    - Never Reported: No health report received
-
-    Args:
-        accessible_project_ids: Project IDs accessible to user
-        db: Database session
-        current_user: Current authenticated user
-
-    Returns:
-        Camera activity counts by status
-    """
-    from shared.models import CameraHealthReport
-
-    accessible_project_ids = narrow_to_project(accessible_project_ids, project_id)
-    site_id_list = await _scoped_site_ids(current_user, project_id, db, site_ids)
-
-    # Pair each accessible camera with the timestamp of its latest health report (NULL if never reported).
-    cam_conditions = [Camera.project_id.in_(accessible_project_ids)]
-    if site_id_list:
-        cam_conditions.append(_cameras_at_sites_condition(site_id_list))
-    result = await db.execute(
-        select(Camera.id, func.max(CameraHealthReport.reported_at))
-        .outerjoin(CameraHealthReport, CameraHealthReport.camera_id == Camera.id)
-        .where(and_(*cam_conditions))
-        .group_by(Camera.id)
-    )
-
-    # reported_at is naive camera-clock; cutoff must also be naive. A few-hour drift
-    # from the true local-vs-UTC offset is irrelevant for a 7-day window.
-    cutoff = datetime.utcnow() - timedelta(days=7)
-
-    active_count = 0
-    inactive_count = 0
-    never_reported_count = 0
-    for _, last_reported_at in result.all():
-        if last_reported_at is None:
-            never_reported_count += 1
-        elif last_reported_at >= cutoff:
-            active_count += 1
-        else:
-            inactive_count += 1
-
-    return CameraActivitySummary(
-        active=active_count,
-        inactive=inactive_count,
-        never_reported=never_reported_count,
-    )
 
 
 @router.get(
@@ -1974,7 +1902,7 @@ class TimelineSite(BaseModel):
     # metric. Computed across deployments so CDP boundaries do not look silent.
     intervals: List[TrapNightInterval] = []
     last_image_day: Optional[date] = None
-    # Mirrors the Cameras-page rule (CameraHealthReport, 7-day cutoff).
+    # Mirrors the Cameras-page rule (last contact, 7-day cutoff).
     camera_status: str = 'never_reported'
 
 

@@ -5,7 +5,7 @@ Uses synchronous database sessions for scheduled job compatibility.
 All queries are filtered by project_id for per-project reports.
 """
 from typing import Dict, Any, List, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from sqlalchemy import select, func, and_, desc
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from shared.models import (
     Image, Camera, CameraHealthReport, Detection, Classification, Project, HumanObservation,
     Deployment, Site
 )
+from shared.camera_status import camera_status
 from shared.classification_threshold import classification_passes_threshold
 from sqlalchemy import union_all
 from shared.logger import get_logger
@@ -340,8 +341,9 @@ def get_camera_health_summary(
     Returns:
         Dictionary with:
         - total: Total cameras in project
-        - active: Cameras with recent activity (7 days)
-        - inactive: Cameras without recent activity
+        - active: Cameras that reached the server in the last 7 days
+        - inactive: Cameras that reached the server before, but not recently
+        - never_reported: Cameras that never reached the server at all
         - low_battery_count: Cameras below battery threshold
         - low_battery_cameras: List of {'name': str, 'battery': int}
         - high_sd_count: Cameras above SD threshold
@@ -360,27 +362,32 @@ def get_camera_health_summary(
     battery_values = []
     sd_values = []
 
-    # Pair each camera with the timestamp of its latest health report. reported_at is
-    # naive camera-clock; a few-hour drift from UTC is irrelevant for a 7-day window.
+    # Last contact per camera: server receive time of a health report or of a
+    # live image. Same rule as the Cameras page, see shared.camera_status.
     camera_ids = [c.id for c in cameras]
-    last_reported_by_camera: dict[int, datetime] = {}
+    last_report_arrival: dict[int, datetime] = {}
+    last_image_arrival: dict[int, datetime] = {}
     if camera_ids:
-        rows = db.execute(
-            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.reported_at))
+        last_report_arrival = dict(db.execute(
+            select(CameraHealthReport.camera_id, func.max(CameraHealthReport.created_at))
             .where(CameraHealthReport.camera_id.in_(camera_ids))
             .group_by(CameraHealthReport.camera_id)
-        ).all()
-        last_reported_by_camera = {cam_id: ts for cam_id, ts in rows}
-
-    cutoff = datetime.utcnow() - timedelta(days=7)
+        ).all())
+        last_image_arrival = dict(db.execute(
+            select(Image.camera_id, func.max(Image.ingested_at))
+            .where(Image.camera_id.in_(camera_ids), Image.origin == 'live')
+            .group_by(Image.camera_id)
+        ).all())
 
     for camera in cameras:
-        last_reported_at = last_reported_by_camera.get(camera.id)
-        if last_reported_at is None:
+        status = camera_status(
+            last_report_arrival.get(camera.id), last_image_arrival.get(camera.id)
+        )
+        if status == 'never_reported':
             never_reported_cameras.append({'name': camera.device_id})
             continue
 
-        if last_reported_at >= cutoff:
+        if status == 'active':
             active += 1
         else:
             inactive_cameras.append({'name': camera.device_id})
