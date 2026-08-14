@@ -17,6 +17,11 @@ logger = get_logger("api.image_processing")
 MAX_FILE_SIZE_MB = 5
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 THUMBNAIL_MAX_WIDTH = 512  # Max width, maintains aspect ratio
+# Long side a whole-frame blur reduces to before scaling back up. Small enough
+# that a face filling the frame lands around 15px wide, far below recognition,
+# large enough that sky, ground and treeline stay readable so the live feed
+# still shows whether a camera points the right way.
+FULL_BLUR_LONG_SIDE = 32
 ALLOWED_FORMATS = {"JPEG", "PNG"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png"}
 PROJECT_IMAGES_DIR = "/app/project-images"
@@ -250,6 +255,44 @@ def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
         cropped = img.crop((x1, y1, x2, y2))
         blurred = cropped.filter(ImageFilter.GaussianBlur(radius=25))
         img.paste(blurred, (x1, y1))
+
+    output = BytesIO()
+    img.save(output, format='JPEG', quality=95, optimize=True)
+    return output.getvalue()
+
+
+def blur_whole_image(image_data: bytes) -> bytes:
+    """
+    Blur an entire frame, for images where we cannot tell where the people are.
+
+    Used when the detector has not run yet, and for files that were rejected
+    before they ever entered the pipeline. Those have no detections, so
+    apply_privacy_blur would find no regions and hand out the raw frame.
+
+    Downscales to a fixed long side and scales back up. The strength therefore
+    does not depend on the source resolution, a thumbnail and a 12 MP original
+    end up equally unreadable, and the discarded detail is gone for good, where
+    a Gaussian blur is in principle reversible. The output keeps the source
+    dimensions so callers see the size they asked for.
+
+    Args:
+        image_data: Raw image bytes (JPEG/PNG)
+
+    Returns:
+        JPEG image bytes with the whole frame blurred
+    """
+    img = Image.open(BytesIO(image_data))
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    width, height = img.size
+    if max(width, height) > FULL_BLUR_LONG_SIDE:
+        scale = FULL_BLUR_LONG_SIDE / max(width, height)
+        small = img.resize(
+            (max(1, round(width * scale)), max(1, round(height * scale))),
+            Image.Resampling.BILINEAR,
+        )
+        img = small.resize((width, height), Image.Resampling.BICUBIC)
 
     output = BytesIO()
     img.save(output, format='JPEG', quality=95, optimize=True)

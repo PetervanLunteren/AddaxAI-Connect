@@ -1781,6 +1781,51 @@ async def _get_blur_regions(
     return [d.bbox for d in result.scalars().all()]
 
 
+# The statuses at which detection rows exist. Before them the detector has not
+# run, and an image that died inside the detector never got any either.
+DETECTED_STATUSES = frozenset({"detected", "classifying", "classified"})
+
+
+def _needs_full_blur(image: Image, project: Project | None) -> bool:
+    """
+    True when the project hides people or vehicles but we cannot tell where
+    they are, so the whole frame has to go instead of nothing.
+
+    Without detections _get_blur_regions returns an empty list, which looks
+    exactly like a classified frame that genuinely holds no people, so the raw
+    image would be served. Fail closed instead.
+
+    An image that failed during classification does still have detections but
+    is covered here as well. That over-blurs a broken image, which is the safe
+    direction and keeps the rule to a single line.
+    """
+    return (
+        project is not None
+        and bool(project.blur_categories())
+        and image.status not in DETECTED_STATUSES
+    )
+
+
+def _full_blur_response(image_data: bytes, image: Image) -> StreamingResponse:
+    """
+    Whole-frame blurred response, for images the detector has not seen.
+
+    Never cached: this is a temporary state, the per-box blur takes over the
+    moment detection finishes, and a cached frame would hide it until it
+    expires.
+    """
+    from utils.image_processing import blur_whole_image
+
+    return StreamingResponse(
+        io.BytesIO(blur_whole_image(image_data)),
+        media_type="image/jpeg",
+        headers={
+            "Cache-Control": "private, max-age=0",
+            "ETag": f'"{image.uuid}-fullblur"',
+        },
+    )
+
+
 async def _stream_image_from_storage(
     image: Image,
     use_thumbnail: bool = False,
@@ -1878,13 +1923,20 @@ async def get_image_thumbnail(
         project_result = await db.execute(select(Project).where(Project.id == camera.project_id))
         project = project_result.scalar_one_or_none()
 
+    bucket = "thumbnails" if image.thumbnail_path else "raw-images"
+    object_name = image.thumbnail_path if image.thumbnail_path else image.storage_path
+
+    if _needs_full_blur(image, project):
+        storage_client = StorageClient()
+        return _full_blur_response(
+            storage_client.download_fileobj(bucket, object_name), image
+        )
+
     blur_regions = await _get_blur_regions(db, image, project) if project else []
 
     if blur_regions:
         from utils.image_processing import apply_privacy_blur
         storage_client = StorageClient()
-        bucket = "thumbnails" if image.thumbnail_path else "raw-images"
-        object_name = image.thumbnail_path if image.thumbnail_path else image.storage_path
         image_data = storage_client.download_fileobj(bucket, object_name)
         blurred_data = apply_privacy_blur(image_data, blur_regions)
         return StreamingResponse(
@@ -1972,6 +2024,12 @@ async def get_image_full(
         )
         # max-age 0 so no unblurred copy lingers in the browser cache
         return await _stream_image_from_storage(image, cache_max_age=0)
+
+    if _needs_full_blur(image, project):
+        storage_client = StorageClient()
+        return _full_blur_response(
+            storage_client.download_fileobj("raw-images", image.storage_path), image
+        )
 
     blur_regions = await _get_blur_regions(db, image, project) if project else []
 
@@ -2073,9 +2131,14 @@ async def get_annotated_image(
             detail=f"Failed to fetch image from storage: {str(e)}",
         )
 
-    # Apply privacy blur to person/vehicle regions before annotation
-    blur_regions = await _get_blur_regions(db, image, project)
-    if blur_regions:
+    # Apply privacy blur before annotation. Without detections we cannot place
+    # the regions, so the whole frame goes instead.
+    full_blur = _needs_full_blur(image, project)
+    blur_regions = [] if full_blur else await _get_blur_regions(db, image, project)
+    if full_blur:
+        from utils.image_processing import blur_whole_image
+        image_bytes = blur_whole_image(image_bytes)
+    elif blur_regions:
         from utils.image_processing import apply_privacy_blur
         image_bytes = apply_privacy_blur(image_bytes, blur_regions)
 
@@ -2150,12 +2213,20 @@ async def get_annotated_image(
             detail=f"Failed to generate annotated image: {str(e)}",
         )
 
+    # A whole-frame blur is a temporary state that ends when detection
+    # finishes, so it is not cached.
+    if full_blur:
+        etag_suffix, cache_control = "-fullblur", "private, max-age=0"
+    else:
+        etag_suffix = "-blurred" if blur_regions else ""
+        cache_control = "private, max-age=3600"
+
     # Return as streaming response with caching
     return StreamingResponse(
         io.BytesIO(annotated_bytes),
         media_type="image/jpeg",
         headers={
-            "Cache-Control": f"private, max-age=3600",
-            "ETag": f'"{uuid}-annotated{"-blurred" if blur_regions else ""}"',
+            "Cache-Control": cache_control,
+            "ETag": f'"{uuid}-annotated{etag_suffix}"',
         }
     )

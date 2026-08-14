@@ -10,21 +10,23 @@ import os
 from pathlib import Path
 from typing import List, Optional, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.models import User, Image, Camera, Rejection
+from shared.models import User, Image, Camera, Project, Rejection
 from shared.database import get_async_session
 from shared.logger import get_logger
+from auth.permissions import can_admin_project
 from auth.users import current_verified_user
 from auth.project_access import (
     get_accessible_project_ids,
     narrow_to_project,
     get_allowed_site_ids,
 )
+from utils.image_processing import blur_whole_image
 from utils.site_scope import site_image_clause
 
 
@@ -138,6 +140,13 @@ async def get_live_feed(
 async def get_rejection_image(
     project_id: int,
     rejection_id: int,
+    unblurred: bool = Query(
+        False,
+        description=(
+            "Serve without the privacy blur. Project admins only, every "
+            "use is logged with the viewer's identity."
+        ),
+    ),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -148,6 +157,16 @@ async def get_rejection_image(
     Rejected files live under <upload_root>/rejected/, not in MinIO. Access is
     gated on the rejection belonging to a project the user can see. Rejections
     have no site, so site-restricted viewers get 404, fail closed.
+
+    A rejected file never reaches the detector, so nothing says where the people
+    are and the per-box blur cannot run. When the project hides people or
+    vehicles the whole frame is blurred instead. These are usually setup shots
+    refused for a missing GPS fix, which is exactly the frame the person
+    installing the camera stands in.
+
+    With unblurred=true the blur is skipped for identification cases (camera
+    theft, infractions). Hard 403 for non-admins, never a silent fallback to the
+    blurred version, and the response is not cached.
     """
     narrow_to_project(accessible_project_ids, project_id)  # raises 403 if no access
     site_scope = await get_allowed_site_ids(current_user, project_id, db)
@@ -175,6 +194,53 @@ async def get_rejection_image(
     media_type = "image/jpeg"
     if target.suffix.lower() == ".png":
         media_type = "image/png"
+
+    if unblurred:
+        # The server is the gate, not the UI toggle. Fail hard instead of
+        # silently serving the blurred version, so a crafted URL by a
+        # non-admin can never be mistaken for a working reveal.
+        if not await can_admin_project(current_user, project_id, db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project admin access required to view without privacy blur",
+            )
+        # Audit trail for identification cases, who looked at what
+        logger.info(
+            "Unblurred rejected file served",
+            user_id=current_user.id,
+            user_email=current_user.email,
+            rejection_id=rejection.id,
+            project_id=project_id,
+        )
+        return FileResponse(
+            str(target),
+            media_type=media_type,
+            headers={"Cache-Control": "private, max-age=0"},
+        )
+
+    project = (
+        await db.execute(select(Project).where(Project.id == project_id))
+    ).scalar_one_or_none()
+
+    if project and project.blur_categories():
+        # The rejected tree also holds daily reports and other non-images, so
+        # the bytes are not always decodable. If we cannot blur them we do not
+        # serve them, fail closed. Nothing is lost, a text file served as an
+        # image was already an unreadable placeholder.
+        try:
+            blurred = blur_whole_image(target.read_bytes())
+        except OSError:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="This file cannot be shown as an image",
+            )
+        # Not cached: an admin can flip the reveal on and off, and a stale
+        # copy would make that look broken.
+        return Response(
+            content=blurred,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "private, max-age=0"},
+        )
 
     return FileResponse(
         str(target),

@@ -45,3 +45,33 @@ class TestUnblurEndpoint:
 
         assert "unblurred" not in inspect.getsource(get_image_thumbnail)
         assert "unblurred" not in inspect.getsource(get_annotated_image)
+
+
+class TestUnblurRejectedFile:
+    """A rejected file never reaches the detector, so it is blurred whole. The
+    same admin-only reveal applies, on the same terms as a stored image."""
+
+    def _source(self):
+        from routers.live_feed import get_rejection_image
+
+        return inspect.getsource(get_rejection_image)
+
+    def test_permission_is_checked_server_side(self):
+        src = self._source()
+        assert "can_admin_project(current_user, project_id, db)" in src
+
+    def test_unauthorized_request_fails_hard(self):
+        src = self._source()
+        assert "Project admin access required to view without privacy blur" in src
+        assert "HTTP_403_FORBIDDEN" in src
+
+    def test_every_unblurred_serve_is_audited(self):
+        src = self._source()
+        assert '"Unblurred rejected file served"' in src
+        assert "user_email=current_user.email" in src
+        assert "rejection_id=rejection.id" in src
+
+    def test_unblurred_response_is_not_cached(self):
+        # No unblurred copy may linger in the browser cache
+        src = self._source()
+        assert "max-age=0" in src

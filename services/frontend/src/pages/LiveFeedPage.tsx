@@ -8,12 +8,13 @@
  * enter the database. The newest item sits in a large focus area with its
  * metadata beside it; the filmstrip below swaps another item into focus.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Shield, ShieldOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { liveFeedApi, type LiveFeedItem } from '../api/liveFeed';
 import { AuthenticatedImage } from '../components/AuthenticatedImage';
+import { Button } from '../components/ui/Button';
 
 // Status colours follow the repo convention: teal done, light teal in flight,
 // burnt orange for failure or rejection.
@@ -87,18 +88,22 @@ const FeedTile: React.FC<{
   variant: 'hero' | 'thumb';
   selected?: boolean;
   onClick?: () => void;
-}> = ({ item, variant, selected, onClick }) => {
+  // Corner control, only the hero passes one. Kept out of the badge corners.
+  topRight?: React.ReactNode;
+  unblurred?: boolean;
+}> = ({ item, variant, selected, onClick, topRight, unblurred }) => {
   const isRejection = item.kind === 'rejection';
   const hero = variant === 'hero';
   const badgeColor = isRejection ? COLOR_BAD : statusColor(item.status);
   const badgeText = isRejection ? reasonLabel(item.reason) : statusLabel(item.status);
   // Hero shows the full image so it stays sharp when enlarged; thumbnails use
   // the small thumbnail. Rejected files only have their on-disk image.
-  const src = isRejection
+  const baseSrc = isRejection
     ? item.image_url
     : hero && item.uuid
       ? `/api/images/${item.uuid}/full`
       : item.thumbnail_url;
+  const src = baseSrc && unblurred ? `${baseSrc}?unblurred=true` : baseSrc;
 
   const fallback = (
     <div className="flex h-full w-full items-center justify-center text-muted-foreground">
@@ -142,6 +147,11 @@ const FeedTile: React.FC<{
       >
         {relativeTime(item.timestamp)}
       </span>
+      {/* Hero only, so a control never ends up nested inside the thumbnail
+          button. A dark pill keeps the icon readable over any frame. */}
+      {hero && topRight && (
+        <span className="absolute top-2 right-2 rounded-full bg-black/60">{topRight}</span>
+      )}
     </>
   );
 
@@ -191,12 +201,20 @@ const FocusMeta: React.FC<{ item: LiveFeedItem }> = ({ item }) => (
 );
 
 export const LiveFeedPage: React.FC = () => {
-  const { selectedProject } = useProject();
+  const { selectedProject, isProjectAdmin } = useProject();
   const projectId = selectedProject?.id;
 
   // Which item sits in the focus area. Null means follow the newest; clicking a
   // filmstrip tile pins that one into focus instead.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  // Admin-only reveal for identification cases. Nothing here has been through
+  // the detector, so the server blurs the whole frame; this asks for the
+  // original. It resets whenever another item takes focus, revealing is a
+  // conscious per-image act.
+  const [showUnblurred, setShowUnblurred] = useState(false);
+  const projectBlurs = Boolean(selectedProject?.blur_people || selectedProject?.blur_vehicles);
+  const canReveal = isProjectAdmin && projectBlurs;
 
   const { data: items, isLoading } = useQuery({
     queryKey: ['live-feed', projectId],
@@ -208,6 +226,15 @@ export const LiveFeedPage: React.FC = () => {
     // tick is fine here.
     refetchInterval: 3000,
   });
+
+  // Focus shows the pinned item, or the newest when nothing is pinned (or the
+  // pinned one has aged out of the list).
+  const heroItem = items?.find((i) => itemKey(i) === selectedKey) ?? items?.[0];
+  const heroKey = heroItem ? itemKey(heroItem) : null;
+
+  useEffect(() => {
+    setShowUnblurred(false);
+  }, [heroKey]);
 
   return (
     <div className="space-y-6">
@@ -222,41 +249,53 @@ export const LiveFeedPage: React.FC = () => {
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           Loading...
         </div>
-      ) : !items || items.length === 0 ? (
+      ) : !items || items.length === 0 || !heroItem ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           Nothing has come in yet.
         </div>
       ) : (
-        (() => {
-          // Focus shows the pinned item, or the newest when nothing is pinned
-          // (or the pinned one has aged out of the list).
-          const heroItem = items.find((i) => itemKey(i) === selectedKey) ?? items[0];
-          const heroKey = itemKey(heroItem);
-          return (
-            <div className="space-y-4">
-              {/* Focus area with its metadata beside it, centered on screen */}
-              <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-start lg:justify-center">
-                <FeedTile item={heroItem} variant="hero" />
-                <FocusMeta item={heroItem} />
-              </div>
+        <div className="space-y-4">
+          {/* Focus area with its metadata beside it, centered on screen */}
+          <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-start lg:justify-center">
+            <FeedTile
+              item={heroItem}
+              variant="hero"
+              unblurred={showUnblurred}
+              topRight={
+                canReveal ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowUnblurred(!showUnblurred)}
+                    title={showUnblurred ? 'Restore privacy blur' : 'Show without privacy blur'}
+                  >
+                    {showUnblurred ? (
+                      <ShieldOff className="h-5 w-5 text-red-500" />
+                    ) : (
+                      <Shield className="h-5 w-5 text-white" />
+                    )}
+                  </Button>
+                ) : undefined
+              }
+            />
+            <FocusMeta item={heroItem} />
+          </div>
 
-              {/* Filmstrip: click swaps the image into the focus area */}
-              {items.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {items.map((item) => (
-                    <FeedTile
-                      key={itemKey(item)}
-                      item={item}
-                      variant="thumb"
-                      selected={itemKey(item) === heroKey}
-                      onClick={() => setSelectedKey(itemKey(item))}
-                    />
-                  ))}
-                </div>
-              )}
+          {/* Filmstrip: click swaps the image into the focus area */}
+          {items.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {items.map((item) => (
+                <FeedTile
+                  key={itemKey(item)}
+                  item={item}
+                  variant="thumb"
+                  selected={itemKey(item) === heroKey}
+                  onClick={() => setSelectedKey(itemKey(item))}
+                />
+              ))}
             </div>
-          );
-        })()
+          )}
+        </div>
       )}
     </div>
   );
