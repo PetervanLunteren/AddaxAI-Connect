@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text, delete as sql_delete
 from pydantic import BaseModel
 
-from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, Detection, Classification
+from shared.models import User, Camera, Project, Image, CameraHealthReport, CameraMaintenanceEvent, Detection, Classification, BulkUploadJob
 from shared.database import get_async_session
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -560,17 +560,24 @@ async def bulk_delete(
 ):
     """Delete every selected camera and all its data (images, detections,
     classifications, MinIO objects; deployments and health reports cascade).
-    Requires project admin on each affected project. Irreversible."""
+    Requires project admin on each affected project. Irreversible.
+
+    Refuses the whole selection with a 409 when any camera still has a bulk
+    upload running, naming every camera that blocks so one pass is enough."""
     cameras = await _load_bulk_cameras(db, request.camera_ids)
     await _verify_admin_on_all_projects(current_user, cameras, db)
+    await _assert_no_live_bulk_jobs(db, cameras)
 
-    totals = {"images": 0, "detections": 0, "classifications": 0, "minio_files": 0}
+    totals = {"images": 0, "detections": 0, "classifications": 0, "bulk_jobs": 0}
+    device_ids = []
     for camera in cameras:
-        counts = await _delete_camera_cascade(db, camera)
+        counts, device_id = await _delete_camera_cascade(db, camera)
         for key in totals:
             totals[key] += counts[key]
+        device_ids.append(device_id)
 
     await db.commit()
+    totals["minio_files"] = _delete_camera_storage(device_ids)
     return BulkDeleteResponse(
         deleted_cameras=len(cameras),
         deleted_images=totals["images"],
@@ -947,15 +954,96 @@ async def update_camera(
     return await camera_detail_response(db, camera)
 
 
-async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> dict:
+# A bulk upload the worker has not finished with yet. Deleting the camera
+# under a running job would leave the worker writing images for a camera
+# that no longer exists, so these block the delete. Same set that
+# discard_bulk_upload_job refuses on, see routers/bulk_upload.py.
+LIVE_BULK_STATUSES = (
+    "uploading",
+    "queued",
+    "inspecting",
+    "awaiting_confirmation",
+    "processing",
+)
+
+
+def _camera_label(camera: Camera) -> str:
+    """Display label for a camera. Cameras have no friendly name."""
+    return camera.device_id or f"Camera {camera.id}"
+
+
+async def _assert_no_live_bulk_jobs(db: AsyncSession, cameras: List[Camera]) -> None:
+    """
+    Refuse the delete when any selected camera still has a bulk upload running.
+
+    Checks the whole selection in one query and names every blocker, so a
+    ten-camera delete does not become ten retries. Finished jobs never block;
+    _delete_camera_cascade removes those rows along with the camera.
+    """
+    by_id = {c.id: c for c in cameras}
+    if not by_id:
+        return
+
+    jobs = (
+        await db.execute(
+            select(BulkUploadJob)
+            .where(
+                BulkUploadJob.camera_id.in_(by_id.keys()),
+                BulkUploadJob.status.in_(LIVE_BULK_STATUSES),
+            )
+            .order_by(BulkUploadJob.id.asc())
+        )
+    ).scalars().all()
+    if not jobs:
+        return
+
+    blocked: dict[int, List[str]] = {}
+    for job in jobs:
+        blocked.setdefault(job.camera_id, []).append(job.original_filename)
+
+    action = (
+        "Wait for them to finish, or stop them on the bulk upload page, "
+        "then delete again."
+    )
+    if len(blocked) == 1 and len(by_id) == 1:
+        names = ", ".join(next(iter(blocked.values())))
+        count = len(jobs)
+        detail = (
+            f"This camera has {count} bulk upload{'s' if count != 1 else ''} "
+            f"still running ({names}). {action}"
+        )
+    else:
+        parts = [
+            f"{_camera_label(by_id[cam_id])} ({', '.join(names)})"
+            for cam_id, names in blocked.items()
+        ]
+        detail = (
+            f"{len(blocked)} of the selected cameras have bulk uploads still "
+            f"running. {'. '.join(parts)}. {action}"
+        )
+
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
+async def _delete_camera_cascade(
+    db: AsyncSession, camera: Camera,
+) -> tuple[dict, str]:
     """
     Delete a camera and all data hanging off it: images, their detections and
-    classifications, and the MinIO objects under the camera's storage prefix.
-    Deployments and health reports cascade at the DB level. Does not commit, so
-    single and bulk deletes share one cascade and the caller controls the
-    transaction. Returns the per-camera counts so callers can report totals.
+    classifications, and its finished bulk-upload job rows. Deployments, health
+    reports, maintenance events and feed events cascade at the DB level.
+
+    Does not commit and does not touch object storage, so single, bulk and
+    project deletes share one cascade and the caller controls the transaction.
+    Returns the per-camera counts plus the storage prefix to clean up, which
+    the caller must only delete once the commit has succeeded. Deleting the
+    objects first would destroy them for good on a rolled-back transaction,
+    leaving rows that point at files that are gone.
+
+    Call _assert_no_live_bulk_jobs first. A job the worker is still running is
+    the one case the caller must reject instead of deleting.
     """
-    counts = {"images": 0, "detections": 0, "classifications": 0, "minio_files": 0}
+    counts = {"images": 0, "detections": 0, "classifications": 0, "bulk_jobs": 0}
     camera_device_id = camera.device_id or str(camera.id)
 
     images = (
@@ -976,22 +1064,44 @@ async def _delete_camera_cascade(db: AsyncSession, camera: Camera) -> dict:
     res = await db.execute(sql_delete(Image).where(Image.camera_id == camera.id))
     counts["images"] += res.rowcount
 
+    # A finished job is a receipt of an import, not the owner of the images,
+    # which is why discarding one leaves its images in place. With the camera
+    # gone the receipt has nothing left to describe, so it goes too. This also
+    # clears the bulk_upload_jobs.camera_id foreign key, which has no ON DELETE
+    # rule and would otherwise block the camera delete at commit time.
+    res = await db.execute(
+        sql_delete(BulkUploadJob).where(BulkUploadJob.camera_id == camera.id)
+    )
+    counts["bulk_jobs"] += res.rowcount
+
+    await db.delete(camera)
+    return counts, camera_device_id
+
+
+def _delete_camera_storage(device_ids: List[str]) -> int:
+    """
+    Remove the raw images, crops and thumbnails of deleted cameras.
+
+    Runs after the transaction has committed. Object storage has no rollback,
+    so a failure here leaves orphaned files, which is recoverable, while
+    deleting before the commit loses files the database still references,
+    which is not.
+    """
+    deleted = 0
     try:
         storage = StorageClient()
-        for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
-            for obj_name in storage.list_objects(bucket, prefix=f"{camera_device_id}/"):
-                storage.delete_object(bucket, obj_name)
-                counts["minio_files"] += 1
+        for device_id in device_ids:
+            for bucket in [BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS]:
+                for obj_name in storage.list_objects(bucket, prefix=f"{device_id}/"):
+                    storage.delete_object(bucket, obj_name)
+                    deleted += 1
     except Exception as e:
         logger.error(
             "Failed to delete some MinIO files",
-            camera_id=camera.id,
-            device_id=camera_device_id,
+            device_ids=device_ids,
             error=str(e),
         )
-
-    await db.delete(camera)
-    return counts
+    return deleted
 
 
 @router.delete(
@@ -1012,7 +1122,8 @@ async def delete_camera(
         current_user: Current authenticated user
 
     Raises:
-        HTTPException: If camera not found, has associated images, or insufficient permissions
+        HTTPException: 404 if the camera is not found, 403 without project
+        admin access, 409 if a bulk upload is still running on it.
     """
     result = await db.execute(
         select(Camera).where(Camera.id == camera_id)
@@ -1032,8 +1143,10 @@ async def delete_camera(
             detail=f"Project admin access required for project {camera.project_id}",
         )
 
-    await _delete_camera_cascade(db, camera)
+    await _assert_no_live_bulk_jobs(db, [camera])
+    _, device_id = await _delete_camera_cascade(db, camera)
     await db.commit()
+    _delete_camera_storage([device_id])
 
 
 @router.post(

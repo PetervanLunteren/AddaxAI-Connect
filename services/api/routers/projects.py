@@ -9,14 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from pydantic import BaseModel, EmailStr
 
-from shared.models import User, Project, Image, Detection, Classification, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Site
+from shared.models import User, Project, Camera, ProjectMembership, UserInvitation, ServerSettings, TaxonomyMapping, Site
 from shared.database import get_async_session
 from shared.config import get_settings
-from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKET_THUMBNAILS, BUCKET_PROJECT_DOCUMENTS
+from shared.storage import StorageClient, BUCKET_PROJECT_DOCUMENTS
 from shared.logger import get_logger
 from auth.users import current_verified_user
 from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
 from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
+from routers.cameras import (
+    _assert_no_live_bulk_jobs,
+    _delete_camera_cascade,
+    _delete_camera_storage,
+)
 from utils.image_processing import delete_project_images
 from mailer.sender import get_email_sender
 
@@ -451,6 +456,7 @@ async def delete_project(
     Raises:
         HTTPException 404: Project not found
         HTTPException 400: Confirmation name doesn't match
+        HTTPException 409: A camera still has a bulk upload running
     """
     logger.info("Project deletion requested", project_id=project_id, user_id=current_user.id)
 
@@ -472,111 +478,52 @@ async def delete_project(
             detail=f"Confirmation failed. Please type the exact project name: {project.name}"
         )
 
-    # Initialize counters
-    deleted_cameras = 0
-    deleted_images = 0
-    deleted_detections = 0
-    deleted_classifications = 0
-    deleted_minio_files = 0
-
-    storage = StorageClient()
-
     # Step 1: Get all cameras for this project
     cameras_query = select(Camera).where(Camera.project_id == project_id)
     cameras_result = await db.execute(cameras_query)
-    cameras = cameras_result.scalars().all()
+    cameras = list(cameras_result.scalars().all())
 
     logger.info("Found cameras for project", project_id=project_id, camera_count=len(cameras))
 
-    # Step 2: For each camera, cascade delete all data
+    # A running bulk upload blocks the delete, same rule as deleting a single
+    # camera. Checked before anything is removed so a refusal changes nothing.
+    await _assert_no_live_bulk_jobs(db, cameras)
+
+    # Step 2: For each camera, cascade delete all data. Storage is untouched
+    # until the transaction commits, see _delete_camera_cascade.
+    deleted_images = 0
+    deleted_detections = 0
+    deleted_classifications = 0
+    device_ids = []
+
     for camera in cameras:
-        camera_device_id = camera.device_id or str(camera.id)
+        counts, device_id = await _delete_camera_cascade(db, camera)
+        deleted_images += counts["images"]
+        deleted_detections += counts["detections"]
+        deleted_classifications += counts["classifications"]
+        device_ids.append(device_id)
 
-        # Get all images for this camera
-        images_query = select(Image).where(Image.camera_id == camera.id)
-        images_result = await db.execute(images_query)
-        images = images_result.scalars().all()
+    deleted_cameras = len(cameras)
 
-        for image in images:
-            # Get all detections for this image
-            detections_query = select(Detection).where(Detection.image_id == image.id)
-            detections_result = await db.execute(detections_query)
-            detections = detections_result.scalars().all()
+    # Step 3: Delete the project itself. Memberships, invitations, reminders,
+    # rules and any remaining bulk-upload jobs cascade at the DB level.
+    await db.execute(sql_delete(Project).where(Project.id == project_id))
+    await db.commit()
 
-            for detection in detections:
-                # Delete all classifications for this detection
-                classifications_result = await db.execute(
-                    sql_delete(Classification).where(Classification.detection_id == detection.id)
-                )
-                deleted_classifications += classifications_result.rowcount
+    # Step 4: Storage cleanup, only now that the transaction has committed.
+    # Object storage cannot roll back, so anything deleted before the commit
+    # would be gone for good if the commit failed.
+    deleted_minio_files = _delete_camera_storage(device_ids)
 
-            # Delete all detections for this image
-            detections_result = await db.execute(
-                sql_delete(Detection).where(Detection.image_id == image.id)
-            )
-            deleted_detections += detections_result.rowcount
-
-        # Delete all images for this camera
-        images_result = await db.execute(
-            sql_delete(Image).where(Image.camera_id == camera.id)
-        )
-        deleted_images += images_result.rowcount
-
-        # Delete MinIO files for this camera (raw-images, crops, thumbnails by device ID)
-        try:
-            # List and delete objects in raw-images bucket
-            raw_objects = storage.list_objects(BUCKET_RAW_IMAGES, prefix=f"{camera_device_id}/")
-            for obj_name in raw_objects:
-                storage.delete_object(BUCKET_RAW_IMAGES, obj_name)
-                deleted_minio_files += 1
-
-            # List and delete objects in crops bucket
-            crop_objects = storage.list_objects(BUCKET_CROPS, prefix=f"{camera_device_id}/")
-            for obj_name in crop_objects:
-                storage.delete_object(BUCKET_CROPS, obj_name)
-                deleted_minio_files += 1
-
-            # List and delete objects in thumbnails bucket
-            thumb_objects = storage.list_objects(BUCKET_THUMBNAILS, prefix=f"{camera_device_id}/")
-            for obj_name in thumb_objects:
-                storage.delete_object(BUCKET_THUMBNAILS, obj_name)
-                deleted_minio_files += 1
-
-            logger.debug(
-                "Deleted MinIO files for camera",
-                camera_id=camera.id,
-                device_id=camera_device_id,
-                file_count=len(raw_objects) + len(crop_objects) + len(thumb_objects)
-            )
-        except Exception as e:
-            logger.error(
-                "Failed to delete some MinIO files",
-                camera_id=camera.id,
-                device_id=camera_device_id,
-                error=str(e)
-            )
-            # Continue deletion even if MinIO cleanup fails
-
-        deleted_cameras += 1
-
-    # Step 3: Delete all cameras
-    await db.execute(sql_delete(Camera).where(Camera.project_id == project_id))
-
-    # Step 4: Delete project images from MinIO
     delete_project_images(project.image_path, project.thumbnail_path)
 
-    # Step 4b: Delete project documents from MinIO
     try:
-        doc_objects = storage.list_objects(BUCKET_PROJECT_DOCUMENTS, prefix=f"{project_id}/")
-        for obj_name in doc_objects:
+        storage = StorageClient()
+        for obj_name in storage.list_objects(BUCKET_PROJECT_DOCUMENTS, prefix=f"{project_id}/"):
             storage.delete_object(BUCKET_PROJECT_DOCUMENTS, obj_name)
             deleted_minio_files += 1
     except Exception as e:
         logger.error("Failed to delete project documents from MinIO", project_id=project_id, error=str(e))
-
-    # Step 5: Delete project
-    await db.execute(sql_delete(Project).where(Project.id == project_id))
-    await db.commit()
 
     logger.info(
         "Project deleted successfully",
