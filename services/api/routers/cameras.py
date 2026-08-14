@@ -425,6 +425,58 @@ class BulkDeleteResponse(BaseModel):
     deleted_minio_files: int
 
 
+class CameraDeletePreviewItem(BaseModel):
+    """What one camera would lose. Shown before a delete is confirmed."""
+    camera_id: int
+    name: str
+    images: int
+    verified_images: int
+
+
+async def camera_delete_counts(
+    db: AsyncSession, cameras: List[Camera],
+) -> List[CameraDeletePreviewItem]:
+    """
+    Per-camera image and verified-image counts, for the delete confirmation.
+
+    Read straight from the images table, never from the camera's own daily
+    report. `CameraResponse.total_images` is what the camera says it took,
+    which is not what we hold and would put a confident wrong number in front
+    of someone about to destroy data.
+
+    Verified images are the expensive part, they are human work that no
+    reprocessing brings back, so they get their own number.
+
+    Cameras with no images are still returned, at zero, so the dialog can list
+    the whole selection.
+    """
+    counts: dict[int, tuple[int, int]] = {}
+    if cameras:
+        rows = await db.execute(
+            select(
+                Image.camera_id,
+                func.count(),
+                func.count().filter(Image.is_verified),
+            )
+            .where(Image.camera_id.in_([c.id for c in cameras]))
+            .group_by(Image.camera_id)
+        )
+        counts = {cam_id: (total, verified) for cam_id, total, verified in rows.all()}
+
+    items = [
+        CameraDeletePreviewItem(
+            camera_id=camera.id,
+            name=_camera_label(camera),
+            images=counts.get(camera.id, (0, 0))[0],
+            verified_images=counts.get(camera.id, (0, 0))[1],
+        )
+        for camera in cameras
+    ]
+    # Most destructive first, so the row that should stop you is at the top.
+    items.sort(key=lambda i: (i.images, i.verified_images), reverse=True)
+    return items
+
+
 async def _load_bulk_cameras(
     db: AsyncSession, camera_ids: List[int],
 ) -> List[Camera]:
@@ -555,6 +607,22 @@ async def bulk_set_notes(
 
     await db.commit()
     return BulkUpdateResponse(updated_count=len(cameras))
+
+
+@router.post("/delete-preview", response_model=List[CameraDeletePreviewItem])
+async def delete_preview(
+    request: BulkCameraIdsRequest,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_verified_user),
+):
+    """What deleting the selected cameras would destroy, per camera.
+
+    Read-only, but a POST because it takes the same camera list as the delete.
+    Loads and permission-checks through the same two helpers as bulk_delete, so
+    the preview can never show data the caller is not allowed to delete."""
+    cameras = await _load_bulk_cameras(db, request.camera_ids)
+    await _verify_admin_on_all_projects(current_user, cameras, db)
+    return await camera_delete_counts(db, cameras)
 
 
 @router.post("/bulk-delete", response_model=BulkDeleteResponse)

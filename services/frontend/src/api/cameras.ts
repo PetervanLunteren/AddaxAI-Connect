@@ -47,6 +47,14 @@ export interface BulkUpdateResponse {
   updated_count: number;
 }
 
+/** One row of the delete confirmation, what this camera would lose. */
+export interface CameraDeletePreviewItem {
+  camera_id: number;
+  name: string;
+  images: number;
+  verified_images: number;
+}
+
 export interface CameraBulkDeleteResponse {
   deleted_cameras: number;
   deleted_images: number;
@@ -179,6 +187,18 @@ export const camerasApi = {
     const response = await apiClient.post<BulkUpdateResponse>(
       '/api/cameras/bulk-set-notes',
       { camera_ids: cameraIds, notes },
+    );
+    return response.data;
+  },
+
+  /**
+   * What deleting the selected cameras would destroy, per camera. Read-only,
+   * POST because it takes the same camera list as the delete itself.
+   */
+  deletePreview: async (cameraIds: number[]): Promise<CameraDeletePreviewItem[]> => {
+    const response = await apiClient.post<CameraDeletePreviewItem[]>(
+      '/api/cameras/delete-preview',
+      { camera_ids: cameraIds },
     );
     return response.data;
   },

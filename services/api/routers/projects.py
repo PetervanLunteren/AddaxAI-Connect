@@ -18,9 +18,11 @@ from auth.users import current_verified_user
 from auth.permissions import require_server_admin, require_project_admin_access, can_admin_project
 from auth.project_access import get_accessible_project_ids, check_site_scope_or_400
 from routers.cameras import (
+    CameraDeletePreviewItem,
     _assert_no_live_bulk_jobs,
     _delete_camera_cascade,
     _delete_camera_storage,
+    camera_delete_counts,
 )
 from utils.image_processing import delete_project_images
 from mailer.sender import get_email_sender
@@ -422,6 +424,25 @@ async def update_project(
         created_at=project.created_at.isoformat(),
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
     )
+
+
+@router.get(
+    "/{project_id}/delete-preview",
+    response_model=List[CameraDeletePreviewItem],
+)
+async def delete_project_preview(
+    project_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_server_admin),
+):
+    """What deleting this project would destroy, per camera.
+
+    Same counts and same helper as the camera delete preview, so the two
+    dialogs can never disagree about what a camera holds."""
+    cameras = (
+        await db.execute(select(Camera).where(Camera.project_id == project_id))
+    ).scalars().all()
+    return await camera_delete_counts(db, list(cameras))
 
 
 @router.delete(

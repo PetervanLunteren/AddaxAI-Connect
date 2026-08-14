@@ -2,6 +2,7 @@
  * Projects API client
  */
 import apiClient from './client';
+import type { CameraDeletePreviewItem } from './cameras';
 import type {
   Project,
   ProjectCreate,
@@ -71,6 +72,17 @@ export const projectsApi = {
   /**
    * Delete project with cascade deletion
    */
+  /**
+   * What deleting this project would destroy, per camera. Same shape and same
+   * backend helper as the camera delete preview.
+   */
+  deletePreview: async (id: number): Promise<CameraDeletePreviewItem[]> => {
+    const response = await apiClient.get<CameraDeletePreviewItem[]>(
+      `/api/projects/${id}/delete-preview`
+    );
+    return response.data;
+  },
+
   delete: async (id: number, confirmName: string): Promise<ProjectDeleteResponse> => {
     const response = await apiClient.delete<ProjectDeleteResponse>(
       `/api/projects/${id}?confirm=${encodeURIComponent(confirmName)}`

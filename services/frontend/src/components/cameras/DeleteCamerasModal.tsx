@@ -6,8 +6,9 @@
  * Mirrors DeleteProjectModal so the two destructive flows feel identical.
  */
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, AlertTriangle, Trash2, CheckCircle } from 'lucide-react';
+import { DeleteImpactList } from '../DeleteImpactList';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,19 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
   const [deleteResult, setDeleteResult] = useState<CameraBulkDeleteResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const count = cameraIds.length;
+  // What the delete would destroy. Fetched while the dialog is open so the
+  // user sees real numbers before typing anything. Until it lands the delete
+  // button stays disabled: if we cannot say what goes, we do not let it go.
+  const {
+    data: impact,
+    isLoading: impactLoading,
+    error: impactError,
+  } = useQuery({
+    queryKey: ['camera-delete-preview', cameraIds],
+    queryFn: () => camerasApi.deletePreview(cameraIds),
+    enabled: open && cameraIds.length > 0,
+    staleTime: 0,
+  });
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -82,7 +95,9 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
     deleteMutation.mutate();
   };
 
-  const isConfirmValid = confirmText === CONFIRM_WORD;
+  // Fail closed. Nobody confirms a delete whose size we could not read.
+  const canDelete =
+    confirmText === CONFIRM_WORD && !impactLoading && !impactError && impact != null;
 
   // Show success results
   if (deleteResult) {
@@ -146,29 +161,22 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          {/* Danger Zone Warning */}
+          {/* Danger zone, naming every camera and what it holds */}
           <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-destructive">
-                  Warning: This will delete {count} camera{count === 1 ? '' : 's'} and:
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>All their camera trap images</li>
-                  <li>All animal detections</li>
-                  <li>All species classifications</li>
-                  <li>All deployment and health records</li>
-                  <li>All associated stored files</li>
-                </ul>
-              </div>
+              <DeleteImpactList
+                items={impact}
+                isLoading={impactLoading}
+                error={impactError ? (impactError as Error).message : null}
+              />
             </div>
           </div>
 
           {/* Confirmation Input */}
           <div className="space-y-2">
             <label htmlFor="confirm" className="text-sm font-medium block">
-              Type <span className="font-mono font-bold">{CONFIRM_WORD}</span> to confirm:
+              Type <span className="font-mono font-bold">{CONFIRM_WORD}</span> to confirm
             </label>
             <input
               id="confirm"
@@ -201,7 +209,7 @@ export const DeleteCamerasModal: React.FC<DeleteCamerasModalProps> = ({
             <Button
               type="submit"
               variant="destructive"
-              disabled={!isConfirmValid || deleteMutation.isPending}
+              disabled={!canDelete || deleteMutation.isPending}
             >
               {deleteMutation.isPending ? (
                 <>

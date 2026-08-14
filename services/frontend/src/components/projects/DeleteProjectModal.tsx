@@ -6,7 +6,7 @@
  * Shows deletion counts after completion.
  */
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, AlertTriangle, Trash2, CheckCircle } from 'lucide-react';
 import {
@@ -19,6 +19,7 @@ import {
 } from '../ui/Dialog';
 import { Button } from '../ui/Button';
 import { projectsApi } from '../../api/projects';
+import { DeleteImpactList } from '../DeleteImpactList';
 import type { Project, ProjectDeleteResponse } from '../../api/types';
 
 interface DeleteProjectModalProps {
@@ -33,6 +34,19 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
   const [confirmName, setConfirmName] = useState('');
   const [deleteResult, setDeleteResult] = useState<ProjectDeleteResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // What the delete would destroy, per camera. Same component and same
+  // backend helper as the camera delete, so the two dialogs agree.
+  const {
+    data: impact,
+    isLoading: impactLoading,
+    error: impactError,
+  } = useQuery({
+    queryKey: ['project-delete-preview', project.id],
+    queryFn: () => projectsApi.deletePreview(project.id),
+    enabled: open,
+    staleTime: 0,
+  });
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -77,7 +91,9 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
     deleteMutation.mutate();
   };
 
-  const isConfirmValid = confirmName === project.name;
+  // Fail closed. Nobody confirms a delete whose size we could not read.
+  const canDelete =
+    confirmName === project.name && !impactLoading && !impactError && impact != null;
 
   // Show success results
   if (deleteResult) {
@@ -145,23 +161,18 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
           <div className="border-2 border-destructive rounded-md p-4 my-4 bg-destructive/5">
             <div className="flex items-start gap-3">
               <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-destructive">Warning: This will delete:</p>
-                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                  <li>All cameras in this project</li>
-                  <li>All camera trap images</li>
-                  <li>All animal detections</li>
-                  <li>All species classifications</li>
-                  <li>All associated stored files</li>
-                </ul>
-              </div>
+              <DeleteImpactList
+                items={impact}
+                isLoading={impactLoading}
+                error={impactError ? (impactError as Error).message : null}
+              />
             </div>
           </div>
 
           {/* Confirmation Input */}
           <div className="space-y-2">
             <label htmlFor="confirm" className="text-sm font-medium block">
-              Type <span className="font-mono font-bold">{project.name}</span> to confirm:
+              Type <span className="font-mono font-bold">{project.name}</span> to confirm
             </label>
             <input
               id="confirm"
@@ -194,7 +205,7 @@ export const DeleteProjectModal: React.FC<DeleteProjectModalProps> = ({ project,
             <Button
               type="submit"
               variant="destructive"
-              disabled={!isConfirmValid || deleteMutation.isPending}
+              disabled={!canDelete || deleteMutation.isPending}
             >
               {deleteMutation.isPending ? (
                 <>
