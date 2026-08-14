@@ -7,9 +7,13 @@ delivery boundary stubbed, same harness convention as the detection
 alert tests. The silence trigger's per-camera decision is covered
 through _offending_cameras with constructed states.
 """
+import ast
+import inspect
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
+
+from shared.models import Project
 
 import theft_watch as tw
 from theft_watch import (
@@ -22,6 +26,7 @@ from theft_watch import (
     person_outlier,
     person_threshold,
     pick_attachment,
+    raw_attachment,
     silence_threshold_hours,
 )
 
@@ -200,6 +205,46 @@ class TestPickAttachment:
             {"thumbnail_path": "b.jpg", "person_area": 0.05, "ingested_at": self.T0},
         ]
         assert pick_attachment(candidates) == "b.jpg"
+
+
+class TestRawAttachment:
+    """Telegram attachments leave the server exactly as they are stored. A raw
+    thumbnail carries no blur, so it may only go out when the project blurs
+    nothing."""
+
+    def _project(self, people: bool, vehicles: bool):
+        return Project(name="p", blur_people=people, blur_vehicles=vehicles)
+
+    def test_project_that_blurs_nothing_keeps_its_photo(self):
+        assert raw_attachment("a.jpg", self._project(False, False)) == "a.jpg"
+
+    def test_blurring_people_drops_the_photo(self):
+        assert raw_attachment("a.jpg", self._project(True, False)) is None
+
+    def test_blurring_vehicles_drops_the_photo(self):
+        # A whole frame is either safe to send or it is not, so a project that
+        # hides only vehicles also loses the raw photo
+        assert raw_attachment("a.jpg", self._project(False, True)) is None
+
+    def test_missing_thumbnail_is_none(self):
+        assert raw_attachment(None, self._project(False, False)) is None
+
+    def test_every_telegram_attachment_goes_through_the_helper(self):
+        # Whatever is queued here is sent as stored, so no attachment may be
+        # built without the blur check. The classifier's annotated image is
+        # allowed through directly, that one is written blurred already.
+        src = inspect.getsource(tw)
+        values = [
+            ast.get_source_segment(src, value)
+            for node in ast.walk(ast.parse(src))
+            if isinstance(node, ast.Dict)
+            for key, value in zip(node.keys, node.values)
+            if isinstance(key, ast.Constant) and key.value == "annotated_minio_path"
+        ]
+
+        assert values, "no telegram attachment found, has the message shape changed"
+        for value in values:
+            assert "raw_attachment(" in value, value
 
 
 # --- Silence trigger decision ---------------------------------------------

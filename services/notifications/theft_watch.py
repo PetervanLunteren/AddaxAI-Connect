@@ -203,6 +203,24 @@ def pick_attachment(candidates: List[Dict[str, Any]]) -> Optional[str]:
     return best["thumbnail_path"]
 
 
+def raw_attachment(thumbnail_path: Optional[str], project) -> Optional[str]:
+    """A raw thumbnail may only be attached when the project blurs nothing.
+
+    The delivery worker fetches whatever key we queue straight from storage
+    and sends it as it is, so an attachment leaves the server unblurred. Raw
+    thumbnails carry no blur, and this service cannot apply the per-detection
+    blur the API does. A project that hides people or vehicles therefore gets
+    no photo instead of an unblurred one. The message still links to the
+    images, where the blur and the audited admin reveal both apply.
+
+    The classifier's annotated images are written blurred already, so those
+    are attached directly and do not come through here.
+    """
+    if not thumbnail_path or project.blur_categories():
+        return None
+    return thumbnail_path
+
+
 def nearby_silent_count(
     camera_id: int,
     offending: List[int],
@@ -586,7 +604,10 @@ def _notify_person(
                 "notification_log_id": log_id,
                 "chat_id": chat_id,
                 "message_text": message_content,
-                "annotated_minio_path": event.get('annotated_minio_path') or thumbnail_path,
+                "annotated_minio_path": (
+                    event.get('annotated_minio_path')
+                    or raw_attachment(thumbnail_path, project)
+                ),
                 "reply_markup": {"inline_keyboard": [buttons_row]},
             })
             queued += 1
@@ -1042,7 +1063,9 @@ def _notify_silence(
                 "notification_log_id": log_id,
                 "chat_id": chat_id,
                 "message_text": message_text,
-                "annotated_minio_path": _last_image_attachment(db, new_camera_ids),
+                "annotated_minio_path": raw_attachment(
+                    _last_image_attachment(db, new_camera_ids), project
+                ),
                 "reply_markup": {
                     "inline_keyboard": [[{"text": "View last images", "url": images_url}]]
                 },
