@@ -116,6 +116,12 @@ class HealthHistoryResponse(BaseModel):
     reports: List[HealthReportPoint]
 
 
+def _camera_label(camera: Camera) -> str:
+    """Display label for a camera. Cameras have no friendly name, so the
+    label is the device id with the row id as a fallback."""
+    return camera.device_id or f"Camera {camera.id}"
+
+
 def _localize(dt: Optional[datetime], tz: ZoneInfo) -> Optional[str]:
     """Localize a naive camera-clock datetime under the server tz and return ISO 8601."""
     if dt is None:
@@ -177,8 +183,7 @@ def camera_to_response(
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
-    # Cameras have no friendly name; the label is the device id (or a fallback).
-    display_name = camera.device_id or f"Camera {camera.id}"
+    display_name = _camera_label(camera)
 
     return CameraResponse(
         current_site=current_site,
@@ -568,7 +573,7 @@ async def bulk_delete(
     await _verify_admin_on_all_projects(current_user, cameras, db)
     await _assert_no_live_bulk_jobs(db, cameras)
 
-    totals = {"images": 0, "detections": 0, "classifications": 0, "bulk_jobs": 0}
+    totals = {"images": 0, "detections": 0, "classifications": 0}
     device_ids = []
     for camera in cameras:
         counts, device_id = await _delete_camera_cascade(db, camera)
@@ -810,7 +815,7 @@ async def get_camera_health_history(
 
     return HealthHistoryResponse(
         camera_id=camera_id,
-        camera_name=camera.device_id or f"Camera {camera.id}",
+        camera_name=_camera_label(camera),
         reports=report_points,
     )
 
@@ -967,11 +972,6 @@ LIVE_BULK_STATUSES = (
 )
 
 
-def _camera_label(camera: Camera) -> str:
-    """Display label for a camera. Cameras have no friendly name."""
-    return camera.device_id or f"Camera {camera.id}"
-
-
 async def _assert_no_live_bulk_jobs(db: AsyncSession, cameras: List[Camera]) -> None:
     """
     Refuse the delete when any selected camera still has a bulk upload running.
@@ -1001,32 +1001,21 @@ async def _assert_no_live_bulk_jobs(db: AsyncSession, cameras: List[Camera]) -> 
     for job in jobs:
         blocked.setdefault(job.camera_id, []).append(job.original_filename)
 
-    one_job = len(jobs) == 1
-    action = (
-        f"Wait for {'it' if one_job else 'them'} to finish, or stop "
-        f"{'it' if one_job else 'them'} on the bulk upload page, then delete again."
+    # One sentence shape for every case. The verb follows the camera count and
+    # the pronoun follows the upload count, which is all the grammar needed.
+    subjects = "; ".join(
+        f"{_camera_label(by_id[cam_id])} ({', '.join(names)})"
+        for cam_id, names in blocked.items()
     )
-    uploads = f"{len(jobs)} bulk upload{'' if one_job else 's'}"
-
-    if len(blocked) == 1:
-        names = ", ".join(next(iter(blocked.values())))
-        # Name the camera only when the request covered more than one, so a
-        # single-camera delete does not tell the user what they just clicked.
-        subject = (
-            "This camera" if len(by_id) == 1
-            else _camera_label(by_id[next(iter(blocked))])
-        )
-        detail = f"{subject} still has {uploads} running ({names}). {action}"
-    else:
-        parts = [
-            f"{_camera_label(by_id[cam_id])} ({', '.join(names)})"
-            for cam_id, names in blocked.items()
-        ]
-        detail = (
-            f"{len(blocked)} of the selected cameras still have bulk uploads "
-            f"running. {'. '.join(parts)}. {action}"
-        )
-
+    one_upload = len(jobs) == 1
+    it = "it" if one_upload else "them"
+    detail = (
+        f"Cannot delete yet. {subjects} "
+        f"{'has' if len(blocked) == 1 else 'have'} {len(jobs)} "
+        f"bulk upload{'' if one_upload else 's'} still running. "
+        f"Wait for {it} to finish, or stop {it} on the bulk upload page, "
+        f"then delete again."
+    )
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
@@ -1048,7 +1037,7 @@ async def _delete_camera_cascade(
     Call _assert_no_live_bulk_jobs first. A job the worker is still running is
     the one case the caller must reject instead of deleting.
     """
-    counts = {"images": 0, "detections": 0, "classifications": 0, "bulk_jobs": 0}
+    counts = {"images": 0, "detections": 0, "classifications": 0}
     camera_device_id = camera.device_id or str(camera.id)
 
     images = (
@@ -1074,10 +1063,9 @@ async def _delete_camera_cascade(
     # gone the receipt has nothing left to describe, so it goes too. This also
     # clears the bulk_upload_jobs.camera_id foreign key, which has no ON DELETE
     # rule and would otherwise block the camera delete at commit time.
-    res = await db.execute(
+    await db.execute(
         sql_delete(BulkUploadJob).where(BulkUploadJob.camera_id == camera.id)
     )
-    counts["bulk_jobs"] += res.rowcount
 
     await db.delete(camera)
     return counts, camera_device_id

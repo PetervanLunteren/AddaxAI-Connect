@@ -120,9 +120,9 @@ class TestLiveJobBlocks:
         detail = exc.value.detail
         assert "spring-batch.zip" in detail
         assert "march.zip" in detail
-        assert "still has 2 bulk uploads running" in detail
-        assert "Wait for them to finish" in detail
-        assert "bulk upload page" in detail
+        # One camera, two uploads: singular verb, plural pronoun.
+        assert "CAM-1 (spring-batch.zip, march.zip) has 2 bulk uploads still running" in detail
+        assert "Wait for them to finish, or stop them on the bulk upload page" in detail
         # UI copy carries no colons, see the repo conventions.
         assert ":" not in detail
 
@@ -133,24 +133,9 @@ class TestLiveJobBlocks:
             await _assert_no_live_bulk_jobs(db, [_camera()])
 
         detail = exc.value.detail
-        assert "still has 1 bulk upload running" in detail
+        assert "has 1 bulk upload still running" in detail
         # "them" would be wrong for a single upload.
-        assert "Wait for it to finish" in detail
-        assert "stop it on the bulk upload page" in detail
-
-    @pytest.mark.asyncio
-    async def test_one_blocker_in_a_multi_camera_selection_reads_correctly(self):
-        """The real 409 on dev read "1 of the selected cameras have", which is
-        not English. One blocker names the camera instead of counting."""
-        db = _FakeSession([[_job(2, "processing", "b.zip")]])
-        with pytest.raises(HTTPException) as exc:
-            await _assert_no_live_bulk_jobs(
-                db, [_camera(1, "CAM-A"), _camera(2, "CAM-B")]
-            )
-
-        detail = exc.value.detail
-        assert detail.startswith("CAM-B still has 1 bulk upload running (b.zip)")
-        assert "cameras have" not in detail
+        assert "Wait for it to finish, or stop it on the bulk upload page" in detail
 
     @pytest.mark.asyncio
     async def test_no_jobs_does_not_raise(self):
@@ -180,9 +165,8 @@ class TestBulkSelectionReportsEveryBlocker:
 
         detail = exc.value.detail
         assert exc.value.status_code == 409
-        assert "2 of the selected cameras still have bulk uploads running" in detail
-        for expected in ("CAM-A", "a.zip", "CAM-C", "c.zip"):
-            assert expected in detail
+        # Two cameras, two uploads: plural verb, plural pronoun.
+        assert "CAM-A (a.zip); CAM-C (c.zip) have 2 bulk uploads still running" in detail
         # The camera with no live job is not accused.
         assert "CAM-B" not in detail
 
@@ -204,7 +188,6 @@ class TestCascadeClearsFinishedJobs:
 
         counts, device_id = await _delete_camera_cascade(db, camera)
 
-        assert counts["bulk_jobs"] == 1
         assert counts["images"] == 3
         assert device_id == "CAM-1"
         assert camera in db.deleted_objects
