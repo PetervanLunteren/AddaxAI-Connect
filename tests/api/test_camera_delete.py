@@ -37,6 +37,14 @@ from routers.cameras import (  # noqa: E402
 
 ROUTERS = Path(_api) / "routers"
 
+# Every endpoint that deletes cameras. All three must refuse live jobs and must
+# commit before touching object storage.
+DELETE_PATHS = [
+    (ROUTERS / "cameras.py", "delete_camera"),
+    (ROUTERS / "cameras.py", "bulk_delete"),
+    (ROUTERS / "projects.py", "delete_project"),
+]
+
 
 class _Rows:
     def __init__(self, rows):
@@ -213,14 +221,7 @@ class TestStorageDeletedAfterCommit:
     """The file-loss guard. Object storage cannot roll back, so every delete
     path must commit first and only then remove the objects."""
 
-    @pytest.mark.parametrize(
-        "path,func",
-        [
-            (ROUTERS / "cameras.py", "delete_camera"),
-            (ROUTERS / "cameras.py", "bulk_delete"),
-            (ROUTERS / "projects.py", "delete_project"),
-        ],
-    )
+    @pytest.mark.parametrize("path,func", DELETE_PATHS)
     def test_commit_comes_before_storage_cleanup(self, path, func):
         source = _function_source(path, func)
         assert "db.commit()" in source, f"{func} does not commit"
@@ -235,14 +236,7 @@ class TestStorageDeletedAfterCommit:
         assert "StorageClient" not in source
         assert "delete_object" not in source
 
-    @pytest.mark.parametrize(
-        "path,func",
-        [
-            (ROUTERS / "cameras.py", "delete_camera"),
-            (ROUTERS / "cameras.py", "bulk_delete"),
-            (ROUTERS / "projects.py", "delete_project"),
-        ],
-    )
+    @pytest.mark.parametrize("path,func", DELETE_PATHS)
     def test_every_delete_path_checks_for_live_jobs(self, path, func):
         source = _function_source(path, func)
         assert "_assert_no_live_bulk_jobs" in source, (
