@@ -120,7 +120,8 @@ class TestLiveJobBlocks:
         detail = exc.value.detail
         assert "spring-batch.zip" in detail
         assert "march.zip" in detail
-        assert "2 bulk uploads still running" in detail
+        assert "still has 2 bulk uploads running" in detail
+        assert "Wait for them to finish" in detail
         assert "bulk upload page" in detail
         # UI copy carries no colons, see the repo conventions.
         assert ":" not in detail
@@ -130,7 +131,26 @@ class TestLiveJobBlocks:
         db = _FakeSession([[_job(1, "processing", "one.zip")]])
         with pytest.raises(HTTPException) as exc:
             await _assert_no_live_bulk_jobs(db, [_camera()])
-        assert "1 bulk upload still running" in exc.value.detail
+
+        detail = exc.value.detail
+        assert "still has 1 bulk upload running" in detail
+        # "them" would be wrong for a single upload.
+        assert "Wait for it to finish" in detail
+        assert "stop it on the bulk upload page" in detail
+
+    @pytest.mark.asyncio
+    async def test_one_blocker_in_a_multi_camera_selection_reads_correctly(self):
+        """The real 409 on dev read "1 of the selected cameras have", which is
+        not English. One blocker names the camera instead of counting."""
+        db = _FakeSession([[_job(2, "processing", "b.zip")]])
+        with pytest.raises(HTTPException) as exc:
+            await _assert_no_live_bulk_jobs(
+                db, [_camera(1, "CAM-A"), _camera(2, "CAM-B")]
+            )
+
+        detail = exc.value.detail
+        assert detail.startswith("CAM-B still has 1 bulk upload running (b.zip)")
+        assert "cameras have" not in detail
 
     @pytest.mark.asyncio
     async def test_no_jobs_does_not_raise(self):
@@ -160,7 +180,7 @@ class TestBulkSelectionReportsEveryBlocker:
 
         detail = exc.value.detail
         assert exc.value.status_code == 409
-        assert "2 of the selected cameras" in detail
+        assert "2 of the selected cameras still have bulk uploads running" in detail
         for expected in ("CAM-A", "a.zip", "CAM-C", "c.zip"):
             assert expected in detail
         # The camera with no live job is not accused.
@@ -253,3 +273,17 @@ class TestStorageDeletedAfterCommit:
         assert "_delete_camera_cascade" in source
         assert "sql_delete(Image)" not in source
         assert "sql_delete(Detection)" not in source
+
+    def test_project_delete_flushes_cameras_before_deleting_the_project(self):
+        """The cascade removes cameras with an ORM delete and the session has
+        autoflush off, so those DELETEs are still pending. Deleting the project
+        row is Core SQL and goes straight to the database, so without a flush
+        first it hits cameras.project_id, which has no ON DELETE rule. Found on
+        dev as a 500 after the refactor; unit tests with fake sessions cannot
+        see it because they never flush.
+        """
+        source = _function_source(ROUTERS / "projects.py", "delete_project")
+        assert "db.flush()" in source, "project delete must flush the camera deletes"
+        assert source.index("db.flush()") < source.index("sql_delete(Project)"), (
+            "the flush must come before the project row is deleted"
+        )

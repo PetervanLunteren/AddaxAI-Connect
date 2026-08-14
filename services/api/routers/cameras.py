@@ -1001,24 +1001,29 @@ async def _assert_no_live_bulk_jobs(db: AsyncSession, cameras: List[Camera]) -> 
     for job in jobs:
         blocked.setdefault(job.camera_id, []).append(job.original_filename)
 
+    one_job = len(jobs) == 1
     action = (
-        "Wait for them to finish, or stop them on the bulk upload page, "
-        "then delete again."
+        f"Wait for {'it' if one_job else 'them'} to finish, or stop "
+        f"{'it' if one_job else 'them'} on the bulk upload page, then delete again."
     )
-    if len(blocked) == 1 and len(by_id) == 1:
+    uploads = f"{len(jobs)} bulk upload{'' if one_job else 's'}"
+
+    if len(blocked) == 1:
         names = ", ".join(next(iter(blocked.values())))
-        count = len(jobs)
-        detail = (
-            f"This camera has {count} bulk upload{'s' if count != 1 else ''} "
-            f"still running ({names}). {action}"
+        # Name the camera only when the request covered more than one, so a
+        # single-camera delete does not tell the user what they just clicked.
+        subject = (
+            "This camera" if len(by_id) == 1
+            else _camera_label(by_id[next(iter(blocked))])
         )
+        detail = f"{subject} still has {uploads} running ({names}). {action}"
     else:
         parts = [
             f"{_camera_label(by_id[cam_id])} ({', '.join(names)})"
             for cam_id, names in blocked.items()
         ]
         detail = (
-            f"{len(blocked)} of the selected cameras have bulk uploads still "
+            f"{len(blocked)} of the selected cameras still have bulk uploads "
             f"running. {'. '.join(parts)}. {action}"
         )
 

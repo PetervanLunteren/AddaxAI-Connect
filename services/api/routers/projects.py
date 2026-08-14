@@ -505,6 +505,12 @@ async def delete_project(
 
     deleted_cameras = len(cameras)
 
+    # The cascade removes each camera with an ORM delete, and the session runs
+    # with autoflush off, so those DELETEs are still pending here. The project
+    # delete below is Core SQL and goes straight to the database, so without
+    # this flush it hits cameras.project_id, which has no ON DELETE rule.
+    await db.flush()
+
     # Step 3: Delete the project itself. Memberships, invitations, reminders,
     # rules and any remaining bulk-upload jobs cascade at the DB level.
     await db.execute(sql_delete(Project).where(Project.id == project_id))
