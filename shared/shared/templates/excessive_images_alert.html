@@ -36,11 +36,16 @@
                         <span style="font-weight: 400; color: #9ca3af; font-size: 13px;"> &middot; {{ cam.device_id }}</span>
                         {% endif %}
                     </p>
-                    <!-- Image count -->
+                    <!-- Image count, and the window those images arrived in -->
                     <p style="font-size: 14px; margin: 4px 0 0 0;">
                         <span style="font-weight: 600; color: #882000;">{{ cam.image_count }} images</span>
-                        <span style="color: #6b7280;"> received yesterday</span>
+                        <span style="color: #6b7280;">, {{ cam.first_image }} to {{ cam.last_image }}</span>
                     </p>
+                    <!-- How long the camera stayed silent afterwards. Only
+                         shown when the gap is long enough to mean something. -->
+                    {% if cam.quiet_tail %}
+                    <p style="font-size: 13px; color: #6b7280; margin: 2px 0 0 0;">No images for the last {{ cam.quiet_tail }} of the day</p>
+                    {% endif %}
                     <!-- Map link (secondary) -->
                     {% if cam.lat is not none and cam.lon is not none %}
                     <p style="font-size: 13px; color: #6b7280; margin: 4px 0 0 0;">
