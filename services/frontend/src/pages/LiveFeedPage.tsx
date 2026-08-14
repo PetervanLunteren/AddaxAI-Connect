@@ -79,6 +79,15 @@ function itemKey(item: LiveFeedItem): string {
   return item.kind === 'image' ? `image-${item.uuid}` : `rejection-${item.rejection_id}`;
 }
 
+// Why the picture is unreadable, said on the picture itself. A rejected file
+// never reaches the AI at all, so it gets a different sentence from an image
+// that is simply still in the queue.
+function blurReason(item: LiveFeedItem): string {
+  return item.kind === 'rejection'
+    ? 'Rejected files never go through the AI, so they stay blurred.'
+    : 'Blurred until the AI has found the people and vehicles. This clears on its own.';
+}
+
 // One tile, used both as the large hero (focus) and the smaller filmstrip
 // thumbnails. Shows just the pixels with a status/reason badge and a relative
 // time. The hero is static (its metadata sits beside it); thumbnails are
@@ -151,6 +160,15 @@ const FeedTile: React.FC<{
           button. A dark pill keeps the icon readable over any frame. */}
       {hero && topRight && (
         <span className="absolute top-2 right-2 rounded-full bg-black/60">{topRight}</span>
+      )}
+      {/* Focus image only. A filmstrip tile is too small to read a sentence,
+          and its badge already says Pending or why it was rejected. */}
+      {hero && item.fully_blurred && !unblurred && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+          <span className="max-w-sm rounded-lg bg-black/70 px-4 py-2 text-center text-sm text-white">
+            {blurReason(item)}
+          </span>
+        </span>
       )}
     </>
   );

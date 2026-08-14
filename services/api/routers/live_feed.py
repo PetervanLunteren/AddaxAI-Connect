@@ -26,6 +26,7 @@ from auth.project_access import (
     narrow_to_project,
     get_allowed_site_ids,
 )
+from routers.images import needs_full_blur
 from utils.image_processing import blur_whole_image
 from utils.site_scope import site_image_clause
 
@@ -40,6 +41,11 @@ class LiveFeedItem(BaseModel):
     timestamp: str  # server wall-clock (ingested_at / rejected_at), ISO 8601
     device_id: Optional[str] = None
     filename: str
+
+    # True when the serve path hides the whole frame because nothing says
+    # where the people are. The page uses it to caption the focus image, so
+    # the reason is next to the pixels instead of left to guesswork.
+    fully_blurred: bool = False
 
     # image only
     uuid: Optional[str] = None
@@ -74,6 +80,13 @@ async def get_live_feed(
     """
     narrow_to_project(accessible_project_ids, project_id)  # raises 403 if no access
     site_scope = await get_allowed_site_ids(current_user, project_id, db)
+
+    # Needed to tell each item whether the serve path will hide the whole
+    # frame. A project that blurs nothing never does.
+    project = (
+        await db.execute(select(Project).where(Project.id == project_id))
+    ).scalar_one_or_none()
+    project_blurs = bool(project and project.blur_categories())
 
     # Latest images for the project's cameras, by server arrival time.
     images_query = (
@@ -113,6 +126,7 @@ async def get_live_feed(
                 status=image.status,
                 captured_at=image.captured_at.isoformat() if image.captured_at else None,
                 thumbnail_url=f"/api/images/{image.uuid}/thumbnail",
+                fully_blurred=needs_full_blur(image, project),
             ),
         ))
 
@@ -129,6 +143,9 @@ async def get_live_feed(
                 details=r.details,
                 captured_at=r.captured_at.isoformat() if r.captured_at else None,
                 image_url=f"/api/projects/{project_id}/live-feed/rejections/{r.id}/image",
+                # A rejected file never reaches the detector, so the project
+                # setting alone decides
+                fully_blurred=project_blurs,
             ),
         ))
 

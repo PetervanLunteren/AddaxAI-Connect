@@ -1786,10 +1786,14 @@ async def _get_blur_regions(
 DETECTED_STATUSES = frozenset({"detected", "classifying", "classified"})
 
 
-def _needs_full_blur(image: Image, project: Project | None) -> bool:
+def needs_full_blur(image: Image, project: Project | None) -> bool:
     """
     True when the project hides people or vehicles but we cannot tell where
     they are, so the whole frame has to go instead of nothing.
+
+    Public because the live feed asks the same question to caption its focus
+    image. One rule, one place, so the caption cannot claim a frame is blurred
+    when the serve path decided otherwise.
 
     Without detections _get_blur_regions returns an empty list, which looks
     exactly like a classified frame that genuinely holds no people, so the raw
@@ -1926,7 +1930,7 @@ async def get_image_thumbnail(
     bucket = "thumbnails" if image.thumbnail_path else "raw-images"
     object_name = image.thumbnail_path if image.thumbnail_path else image.storage_path
 
-    if _needs_full_blur(image, project):
+    if needs_full_blur(image, project):
         storage_client = StorageClient()
         return _full_blur_response(
             storage_client.download_fileobj(bucket, object_name), image
@@ -2025,7 +2029,7 @@ async def get_image_full(
         # max-age 0 so no unblurred copy lingers in the browser cache
         return await _stream_image_from_storage(image, cache_max_age=0)
 
-    if _needs_full_blur(image, project):
+    if needs_full_blur(image, project):
         storage_client = StorageClient()
         return _full_blur_response(
             storage_client.download_fileobj("raw-images", image.storage_path), image
@@ -2133,7 +2137,7 @@ async def get_annotated_image(
 
     # Apply privacy blur before annotation. Without detections we cannot place
     # the regions, so the whole frame goes instead.
-    full_blur = _needs_full_blur(image, project)
+    full_blur = needs_full_blur(image, project)
     blur_regions = [] if full_blur else await _get_blur_regions(db, image, project)
     if full_blur:
         from utils.image_processing import blur_whole_image

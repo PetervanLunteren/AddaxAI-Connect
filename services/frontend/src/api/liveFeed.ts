@@ -10,6 +10,8 @@ export interface LiveFeedItem {
   timestamp: string;  // server wall-clock, ISO 8601
   device_id?: string | null;
   filename: string;
+  // The server hid the whole frame because nothing says where the people are
+  fully_blurred: boolean;
 
   // image only
   uuid?: string | null;

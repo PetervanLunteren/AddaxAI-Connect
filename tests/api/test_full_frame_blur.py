@@ -124,45 +124,45 @@ class TestNeedsFullBlur:
 
     @pytest.mark.parametrize("status", ["pending", "processing", "failed"])
     def test_blurs_everything_before_detection_has_run(self, status):
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
-        assert _needs_full_blur(self._image(status), self._project()) is True
+        assert needs_full_blur(self._image(status), self._project()) is True
 
     @pytest.mark.parametrize("status", ["detected", "classifying", "classified"])
     def test_leaves_detected_images_to_the_per_box_blur(self, status):
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
-        assert _needs_full_blur(self._image(status), self._project()) is False
+        assert needs_full_blur(self._image(status), self._project()) is False
 
     @pytest.mark.parametrize("status", ["pending", "processing", "failed", "classified"])
     def test_a_project_that_blurs_nothing_is_untouched(self, status):
         # Turning both toggles off must change nothing anywhere
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
         project = self._project(people=False, vehicles=False)
-        assert _needs_full_blur(self._image(status), project) is False
+        assert needs_full_blur(self._image(status), project) is False
 
     def test_vehicles_only_project_still_hides_people(self):
         # A whole-frame blur cannot pick and choose, so a project that only
         # asked for vehicles also gets its people hidden before detection.
         # Over-blurring in the safe direction, decided deliberately.
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
         project = self._project(people=False, vehicles=True)
-        assert _needs_full_blur(self._image("pending"), project) is True
+        assert needs_full_blur(self._image("pending"), project) is True
 
     def test_missing_project_does_not_crash(self):
         # The serve paths pass None when the project cannot be loaded
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
-        assert _needs_full_blur(self._image("pending"), None) is False
+        assert needs_full_blur(self._image("pending"), None) is False
 
     def test_unknown_status_fails_closed(self):
         # A status added later must blur rather than leak until someone
         # deliberately adds it to the detected set
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
-        assert _needs_full_blur(self._image("quarantined"), self._project()) is True
+        assert needs_full_blur(self._image("quarantined"), self._project()) is True
 
 
 class TestServePathsAreCovered:
@@ -177,7 +177,7 @@ class TestServePathsAreCovered:
         from routers import images
 
         src = inspect.getsource(getattr(images, func_name))
-        assert "_needs_full_blur" in src
+        assert "needs_full_blur" in src
 
     def test_full_blur_response_is_not_cached(self):
         from routers.images import _full_blur_response
@@ -194,9 +194,9 @@ class TestServePathsAreCovered:
     def test_the_rule_uses_the_blur_categories_helper(self):
         # Same requirement as every other blur consumer, one source of truth
         # for which categories a project hides
-        from routers.images import _needs_full_blur
+        from routers.images import needs_full_blur
 
-        src = inspect.getsource(_needs_full_blur)
+        src = inspect.getsource(needs_full_blur)
         assert "blur_categories()" in src
         assert '"person", "vehicle"' not in src
 
@@ -207,6 +207,19 @@ class TestServePathsAreCovered:
 
         src = inspect.getsource(get_rejection_image)
         assert "blur_whole_image" in src
+        assert "blur_categories()" in src
+
+    def test_the_feed_caption_asks_the_same_question_as_the_serve_path(self):
+        # The page captions the focus image with why it is unreadable. That
+        # flag must come from the rule itself, not from a second copy of the
+        # status list in TypeScript, or the caption and the pixels can disagree
+        from routers.live_feed import get_live_feed
+
+        src = inspect.getsource(get_live_feed)
+        assert "fully_blurred=needs_full_blur(image, project)" in src
+        # A rejected file never reaches the detector, so only the project
+        # setting decides for those
+        assert "fully_blurred=project_blurs" in src
         assert "blur_categories()" in src
 
     def test_undecodable_rejected_file_is_not_served(self):
