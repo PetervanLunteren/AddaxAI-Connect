@@ -1660,29 +1660,50 @@ async def set_image_tags(
     return SetTagsResponse(tags=image.tags or [])
 
 
+async def blur_regions_for_images(
+    db: AsyncSession, image_ids: list[int], project: Project,
+) -> dict[int, list[dict]]:
+    """
+    Return the bboxes to blur per image id, for a batch of images.
+
+    People and vehicles are independently configurable, so the category list
+    comes from Project.blur_categories(). Only detections above the project's
+    detection threshold count. Image ids with nothing to blur are absent from
+    the result.
+
+    Public because the bulk download blurs a whole selection at once and must
+    not ask this question 500 times. One query definition for the whole app,
+    _get_blur_regions below is the single-image call into it.
+    """
+    categories = project.blur_categories()
+    if not categories or not image_ids:
+        return {}
+
+    result = await db.execute(
+        select(Detection).where(
+            Detection.image_id.in_(image_ids),
+            Detection.category.in_(categories),
+            Detection.confidence >= project.detection_threshold,
+        )
+    )
+
+    regions: dict[int, list[dict]] = {}
+    for detection in result.scalars().all():
+        regions.setdefault(detection.image_id, []).append(detection.bbox)
+    return regions
+
+
 async def _get_blur_regions(
     db: AsyncSession, image: Image, project: Project,
 ) -> list[dict]:
     """
     Return detection bboxes of the categories the project blurs.
 
-    People and vehicles are independently configurable, so the category list
-    comes from Project.blur_categories(). Returns an empty list if blur is
-    fully disabled or no matching detections exist. Only includes detections
-    above the project's detection threshold.
+    Returns an empty list if blur is fully disabled or no matching detections
+    exist.
     """
-    categories = project.blur_categories()
-    if not categories:
-        return []
-
-    result = await db.execute(
-        select(Detection).where(
-            Detection.image_id == image.id,
-            Detection.category.in_(categories),
-            Detection.confidence >= project.detection_threshold,
-        )
-    )
-    return [d.bbox for d in result.scalars().all()]
+    regions = await blur_regions_for_images(db, [image.id], project)
+    return regions.get(image.id, [])
 
 
 # The statuses at which detection rows exist. Before them the detector has not

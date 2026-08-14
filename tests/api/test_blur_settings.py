@@ -38,11 +38,25 @@ class TestConsumersUseTheHelper:
         assert not hasattr(Project, "blur_people_vehicles")
 
     def test_serve_path_uses_the_helper(self):
-        from routers.images import _get_blur_regions
+        # The rule lives in the batch lookup; the single-image helper is a
+        # thin call into it, so there is one place asking which categories a
+        # project hides no matter how many images are being served at once.
+        from routers.images import _get_blur_regions, blur_regions_for_images
 
-        src = inspect.getsource(_get_blur_regions)
+        src = inspect.getsource(blur_regions_for_images)
         assert "blur_categories()" in src
         assert "blur_people_vehicles" not in src
+        assert '"person", "vehicle"' not in src
+
+        assert "blur_regions_for_images" in inspect.getsource(_get_blur_regions)
+
+    def test_bulk_download_uses_the_helper(self):
+        # The zip is the one artifact that leaves the server for good, so it
+        # must read the same setting as the screen, not a copy of it
+        from routers.image_admin import bulk_download_images
+
+        src = inspect.getsource(bulk_download_images)
+        assert "blur_regions_for_images" in src
         assert '"person", "vehicle"' not in src
 
     def test_export_uses_the_helper(self):

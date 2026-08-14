@@ -23,6 +23,8 @@ from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
+from routers.images import blur_regions_for_images, needs_full_blur
+from utils.image_processing import apply_privacy_blur, blur_whole_image
 
 # Caps for the bulk-download endpoint. Count is the hard ceiling so the
 # server never holds an unbounded zip in memory; the implicit byte budget
@@ -370,6 +372,8 @@ async def _resolve_target_image_ids(
     db: AsyncSession,
     project_id: int,
     body: BulkImageActionRequest,
+    *,
+    classified_only: bool = False,
 ) -> Tuple[List[int], List[str], List[str]]:
     """
     Resolve a BulkImageActionRequest to a concrete set of image rows.
@@ -377,6 +381,11 @@ async def _resolve_target_image_ids(
     Returns (image_ids, valid_uuids, errors). `errors` lists uuids that
     were sent explicitly but did not match the project. For the filter
     path, errors is always empty.
+
+    `classified_only` matches the filter path's own `status == "classified"`
+    clause on the uuid path as well. Off by default: hide, unhide and delete
+    must keep working on a pending or failed image, that is how a stuck import
+    gets cleaned up. The download turns it on, see bulk_download_images.
     """
     if body.image_uuids is None and body.filters is None:
         raise HTTPException(
@@ -392,13 +401,16 @@ async def _resolve_target_image_ids(
     if body.image_uuids is not None:
         if not body.image_uuids:
             return [], [], []
+        uuid_clauses = [
+            Image.uuid.in_(body.image_uuids),
+            Camera.project_id == project_id,
+        ]
+        if classified_only:
+            uuid_clauses.append(Image.status == "classified")
         result = await db.execute(
             select(Image.id, Image.uuid)
             .join(Camera, Image.camera_id == Camera.id)
-            .where(
-                Image.uuid.in_(body.image_uuids),
-                Camera.project_id == project_id,
-            )
+            .where(*uuid_clauses)
         )
         rows = result.all()
         valid_uuids = {row.uuid for row in rows}
@@ -814,7 +826,21 @@ async def bulk_download_images(
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Stream a zip of raw originals for the targeted images.
+    Stream a zip of the targeted images, blurred the same way the app shows
+    them.
+
+    A project that hides people or vehicles hides them here too. The zip is
+    the largest artifact this app produces and it leaves the server for good,
+    so it cannot be the one path that ignores the setting. There is no bulk
+    reveal: an admin who needs to identify somebody opens that one image and
+    uses the reveal in the detail view, which is logged per image. That keeps
+    a single audit trail instead of a second one nothing reads.
+
+    In practice most files still come out byte for byte identical, because
+    apply_privacy_blur returns its input untouched when an image holds no
+    person or vehicle, which is the great majority of a camera trap set. The
+    frames that do get re-encoded keep their EXIF, so capture time and GPS
+    survive.
 
     Caps at BULK_DOWNLOAD_MAX_IMAGES so the server never has to hold an
     unbounded zip in memory. Storage paths missing from MinIO are
@@ -824,7 +850,14 @@ async def bulk_download_images(
     if not await can_admin_project(current_user, project_id, db):
         raise HTTPException(status_code=403, detail="Project admin access required")
 
-    image_ids, _valid_uuids, _errors = await _resolve_target_image_ids(db, project_id, body)
+    # Classified only, on both selection paths. An image the detector has not
+    # seen has no detection rows, so we could not place the blur on it even if
+    # we wanted to, and needs_full_blur below would have to flatten the whole
+    # frame. Nobody wants a zip of grey rectangles, so those are left out of
+    # the selection instead.
+    image_ids, _valid_uuids, _errors = await _resolve_target_image_ids(
+        db, project_id, body, classified_only=True,
+    )
 
     if not image_ids:
         raise HTTPException(status_code=400, detail="No images match the selection")
@@ -847,10 +880,16 @@ async def bulk_download_images(
     rows = rows_result.all()
 
     storage = StorageClient()
-    project_name_result = await db.execute(
-        select(Project.name).where(Project.id == project_id)
-    )
-    project_name = project_name_result.scalar_one_or_none() or f"project-{project_id}"
+    project = (
+        await db.execute(select(Project).where(Project.id == project_id))
+    ).scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # One query for the whole selection, not one per image.
+    blur_regions_by_image = await blur_regions_for_images(db, image_ids, project)
+
+    project_name = project.name or f"project-{project_id}"
     project_slug = re.sub(r"[^A-Za-z0-9._-]+", "-", project_name).strip("-") or f"project-{project_id}"
     today = datetime.utcnow().strftime("%Y-%m-%d")
     zip_filename = f"images-{project_slug}-{today}.zip"
@@ -858,6 +897,8 @@ async def bulk_download_images(
     buffer = io.BytesIO()
     skipped = 0
     written = 0
+    blurred = 0
+    blurred_whole = 0
     used_paths: set[str] = set()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for row in rows:
@@ -870,6 +911,35 @@ async def bulk_download_images(
             except Exception as exc:
                 logger.warning(
                     "Skipping missing raw image during bulk download",
+                    image_uuid=image.uuid,
+                    storage_path=image.storage_path,
+                    error=str(exc),
+                )
+                skipped += 1
+                continue
+
+            # Same rule as every other serve path. needs_full_blur is False for
+            # a classified image, so this is the per-box blur in practice, but
+            # it is asked anyway: if the classified_only filter above ever
+            # changes, the download must fail closed like the rest of the app,
+            # not start handing out unblurred frames.
+            #
+            # A file that downloads but will not decode is left out of the zip
+            # entirely. Skipping one image is better than failing a 500-image
+            # request, and far better than the third option of writing it in
+            # unblurred, which is the bug this endpoint just stopped having.
+            try:
+                if needs_full_blur(image, project):
+                    data = blur_whole_image(data)
+                    blurred_whole += 1
+                else:
+                    regions = blur_regions_by_image.get(image.id, [])
+                    if regions:
+                        data = apply_privacy_blur(data, regions)
+                        blurred += 1
+            except Exception as exc:
+                logger.warning(
+                    "Skipping image that could not be blurred during bulk download",
                     image_uuid=image.uuid,
                     storage_path=image.storage_path,
                     error=str(exc),
@@ -901,6 +971,8 @@ async def bulk_download_images(
         matched=len(image_ids),
         written=written,
         skipped=skipped,
+        blurred=blurred,
+        blurred_whole=blurred_whole,
         size_mb=round(buffer.getbuffer().nbytes / 1024 / 1024, 2),
     )
     return StreamingResponse(

@@ -211,6 +211,32 @@ def process_and_upload_project_image(file: UploadFile, project_id: int) -> tuple
         raise ValueError(f"Failed to save image: {str(e)}")
 
 
+def _carried_exif(img: Image.Image) -> bytes:
+    """
+    The EXIF to write onto a blurred copy, empty when the source has none.
+
+    A blurred frame should keep the capture time, the GPS position and the
+    camera model. Those are the fields a download is for, and none of them
+    show a face.
+
+    Deliberately `getexif().tobytes()` and never `img.info["exif"]`. The raw
+    block a camera writes usually ends with an embedded thumbnail (EXIF IFD1),
+    which is a small unblurred copy of the very frame we just blurred. Copying
+    the block verbatim carries that thumbnail across and puts the leak straight
+    back. Rebuilding from the parsed tags drops IFD1 and keeps IFD0 plus the
+    Exif and GPS sub-IFDs. Checked on Pillow 10.2.0 (the pinned version) and
+    11.3, identical output on both.
+
+    Returns empty bytes rather than None when there is nothing to carry.
+    Pillow raises a TypeError on `exif=None`, so the callers would need a
+    branch for it otherwise.
+    """
+    exif = img.getexif()
+    if not exif:
+        return b""
+    return exif.tobytes()
+
+
 def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
     """
     Apply Gaussian blur to specified regions of an image for privacy.
@@ -234,6 +260,7 @@ def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
         return image_data
 
     img = Image.open(BytesIO(image_data))
+    exif = _carried_exif(img)
     if img.mode != 'RGB':
         img = img.convert('RGB')
     img_w, img_h = img.size
@@ -257,7 +284,7 @@ def apply_privacy_blur(image_data: bytes, blur_regions: List[dict]) -> bytes:
         img.paste(blurred, (x1, y1))
 
     output = BytesIO()
-    img.save(output, format='JPEG', quality=95, optimize=True)
+    img.save(output, format='JPEG', quality=95, optimize=True, exif=exif)
     return output.getvalue()
 
 
@@ -282,6 +309,7 @@ def blur_whole_image(image_data: bytes) -> bytes:
         JPEG image bytes with the whole frame blurred
     """
     img = Image.open(BytesIO(image_data))
+    exif = _carried_exif(img)
     if img.mode != 'RGB':
         img = img.convert('RGB')
 
@@ -295,7 +323,7 @@ def blur_whole_image(image_data: bytes) -> bytes:
         img = small.resize((width, height), Image.Resampling.BICUBIC)
 
     output = BytesIO()
-    img.save(output, format='JPEG', quality=95, optimize=True)
+    img.save(output, format='JPEG', quality=95, optimize=True, exif=exif)
     return output.getvalue()
 
 

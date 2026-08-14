@@ -678,7 +678,7 @@ export const ManageImagesPage: React.FC = () => {
             size="sm"
             onClick={() => downloadMutation.mutate(buildBulkTarget())}
             disabled={isMutating}
-            title="Download a zip of the raw originals (capped at 500 images per request)"
+            title="Download a zip of the selected images (capped at 500 per request). They carry the same privacy blur as everywhere else in the app."
           >
             {downloadMutation.isPending ? (
               <>
