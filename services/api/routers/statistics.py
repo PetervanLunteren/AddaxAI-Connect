@@ -55,6 +55,7 @@ from utils.sun_time import (
     reference_date_for_sun,
     transform_to_sun_time,
 )
+from utils.performance_pairing import pair_image_labels
 from utils.site_scope import site_image_clause, cameras_at_sites_clause, intersect_scope
 from utils.timeline import get_deployment_timeline
 from shared.independence_filter import (
@@ -2873,6 +2874,7 @@ class PerformanceResponse(BaseModel):
     matrix_col_totals: List[int]
     matrix_correct: int
     matrix_accuracy: float
+    matrix_subjects: int  # cells in the matrix, one per paired subject
 
 
 @router.get("/performance", response_model=PerformanceResponse)
@@ -2893,8 +2895,14 @@ async def get_performance(
 
     - Aggregate per-species instance counts (sum of human observation counts
       vs count of visible AI detections). Good for spotting per-species bias.
-    - Image-level top-1 confusion matrix, including empty/person/vehicle as
+    - Subject-level confusion matrix, including empty/person/vehicle as
       classes. Good for spotting which species the AI confuses for which.
+
+    The matrix pairs subject by subject rather than collapsing each image to
+    one label per side, because an image with a person next to a car holds
+    two correct predictions, not one right and one wrong. See
+    utils/performance_pairing.py for the pairing rules. Both views therefore
+    count subjects and agree with each other.
 
     Both views honor the project's detection and classification thresholds
     so the comparison matches what the user sees in the rest of the UI.
@@ -2953,28 +2961,24 @@ async def get_performance(
     from collections import Counter
     human_counts: Counter = Counter()  # aggregate: human instances by species
     ai_counts: Counter = Counter()     # aggregate: AI instances by species
-    matrix_counts: Counter = Counter() # matrix: (gt, pred) -> count
+    matrix_counts: Counter = Counter() # matrix: (gt, pred) -> subjects
 
     for image in images:
-        # ----- Aggregate: human side (instance-level) -----
+        # ----- Human side: species -> number of individuals -----
         # Sum HumanObservation.count for every observation row on this image.
+        image_human: Counter = Counter()
         for obs in image.human_observations:
-            human_counts[obs.species] += obs.count
+            image_human[obs.species] += obs.count
 
-        # Collect visible detections with their effective label.
+        # ----- AI side: label -> number of visible detections -----
         # "Visible" = passes detection_threshold AND (for animals) passes the
-        # per-species classification_threshold. Mirrors images.py:598-610.
-        # Each tuple carries the detection id so tie-breaks on equal
-        # confidence are deterministic and match the SQL /images?ai_top=...
-        # filter (id ASC).
-        visible_labeled: list[tuple[str, float, int]] = []  # (label, cls_conf, det_id)
-        visible_pv: list[tuple[str, float, int]] = []  # (category, det_conf, det_id)
+        # per-species classification_threshold. Mirrors images.py:785-808.
+        image_ai: Counter = Counter()
         for d in image.detections:
             if d.confidence < project.detection_threshold:
                 continue
             if d.category in ("person", "vehicle"):
-                visible_pv.append((d.category, d.confidence, d.id))
-                ai_counts[d.category] += 1
+                image_ai[d.category] += 1
             elif d.category == "animal" and d.classifications:
                 cls = d.classifications[0]
                 cls_thresh = effective_classification_threshold(
@@ -2982,34 +2986,13 @@ async def get_performance(
                 )
                 if cls.confidence < cls_thresh:
                     continue
-                visible_labeled.append((cls.species, cls.confidence, d.id))
-                ai_counts[cls.species] += 1
+                image_ai[cls.species] += 1
 
-        # ----- Matrix: image-level top-1 pairing -----
-        # Human top-1: highest-count observation, id ASC on ties.
-        # Matches the /images?human_top=... SQL filter so cell counts and
-        # the filtered list agree.
-        if image.human_observations:
-            top_obs = min(
-                image.human_observations,
-                key=lambda o: (-o.count, o.id),
-            )
-            human_top = top_obs.species
-        else:
-            human_top = "empty"
-
-        # AI top-1: person/vehicle take precedence if present (they're
-        # what the UI shows on the grid card), otherwise highest-confidence
-        # visible animal classification. Empty if no visible detections.
-        # Tie-break by detection id ASC to match the SQL filter.
-        if visible_pv:
-            ai_top = min(visible_pv, key=lambda x: (-x[1], x[2]))[0]
-        elif visible_labeled:
-            ai_top = min(visible_labeled, key=lambda x: (-x[1], x[2]))[0]
-        else:
-            ai_top = "empty"
-
-        matrix_counts[(human_top, ai_top)] += 1
+        human_counts.update(image_human)
+        ai_counts.update(image_ai)
+        # One cell per subject, so an image holding a person and a car adds
+        # two agreements instead of one agreement and one false error.
+        matrix_counts.update(pair_image_labels(image_human, image_ai))
 
     # Build aggregate rows, sorted by max(human, ai) descending so the most
     # prominent species sit at the top of the table.
@@ -3056,4 +3039,5 @@ async def get_performance(
         matrix_col_totals=col_totals,
         matrix_correct=matrix_correct,
         matrix_accuracy=matrix_accuracy,
+        matrix_subjects=total_pairs,
     )

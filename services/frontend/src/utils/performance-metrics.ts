@@ -11,7 +11,7 @@ import type { PerformanceData } from '../api/performance';
 
 export interface ClassMetrics {
   species: string;
-  support: number;        // # of verified images where this class is the human top-1
+  support: number;        // # of verified subjects a person recorded as this class
   precision: number | null;
   recall: number | null;
   f1: number | null;

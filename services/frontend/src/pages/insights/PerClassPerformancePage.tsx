@@ -437,7 +437,7 @@ export const PerClassPerformancePage: React.FC = () => {
   return (
     <InsightsPageLayout
       title="Performance"
-      subtitle="Per-class precision, recall, and F1 from verified images"
+      subtitle="Per-class precision, recall, and F1 across the subjects in verified images"
     >
       <FilterBar
         fields={filterFields}
@@ -478,7 +478,9 @@ export const PerClassPerformancePage: React.FC = () => {
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
               <span>
-                Based on {data.total_verified_images.toLocaleString()} verified image
+                Based on {data.matrix_subjects.toLocaleString()} subject
+                {data.matrix_subjects === 1 ? '' : 's'} in{' '}
+                {data.total_verified_images.toLocaleString()} verified image
                 {data.total_verified_images === 1 ? '' : 's'}
               </span>
               <span aria-hidden="true">·</span>
@@ -503,10 +505,12 @@ export const PerClassPerformancePage: React.FC = () => {
         plotKey="per-class-performance"
         what={
           <p>
-            One row per class. Support counts the verified images where this class is the human
-            top-1. Precision is the fraction of images predicted as this class that were actually
-            this class. Recall is the fraction of images that actually were this class that the
-            AI caught. F1 combines precision and recall into a single balanced score.
+            One row per class. Support counts the verified subjects a person recorded as this
+            class. Precision is the share of subjects predicted as this class that really were
+            this class. Recall is the share of subjects of this class that the AI caught. F1
+            combines precision and recall into a single balanced score. Counting subjects rather
+            than whole images means an image with a person next to a car is right on both, not
+            wrong on one.
           </p>
         }
         how={

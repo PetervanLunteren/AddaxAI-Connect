@@ -1,8 +1,10 @@
 /**
  * Performance API endpoint.
  *
- * Returns both a per-species aggregate (instance-level human vs AI counts)
- * and an image-level top-1 confusion matrix for a project.
+ * Returns both a per-species aggregate (human vs AI counts) and a confusion
+ * matrix for a project. Both count subjects, not images: an image holding a
+ * person next to a car contributes two cells, so a correct prediction on a
+ * multi-subject image cannot land off the diagonal.
  */
 import apiClient from './client';
 
@@ -22,6 +24,8 @@ export interface PerformanceData {
   matrix_col_totals: number[];
   matrix_correct: number;
   matrix_accuracy: number;
+  /** Total cells in the matrix, one per paired subject */
+  matrix_subjects: number;
 }
 
 export interface PerformanceFilters {

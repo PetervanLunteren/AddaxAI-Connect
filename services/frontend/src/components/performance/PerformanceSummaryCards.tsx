@@ -1,6 +1,7 @@
 /**
- * Four summary cards rendered above every Insights -> Performance page:
- * verified-image count, top-1 accuracy, weighted F1, macro F1.
+ * Four summary cards rendered above every Insights -> Performance page.
+ * Verified-image count, the share of subjects where the AI agreed with the
+ * validator, weighted F1, macro F1.
  */
 import React, { useMemo } from 'react';
 import { Activity, BarChart3, CheckCircle2, Target } from 'lucide-react';
@@ -16,7 +17,7 @@ export const PerformanceSummaryCards: React.FC<{ data: PerformanceData }> = ({ d
 
   const cards = [
     { title: 'Verified images', value: data.total_verified_images.toLocaleString(), icon: CheckCircle2 },
-    { title: 'Top-1 accuracy', value: fmt(data.matrix_accuracy), icon: Target },
+    { title: 'Subjects matched', value: fmt(data.matrix_accuracy), icon: Target },
     { title: 'Weighted avg F1', value: fmt(m.weightedF1), icon: Activity },
     { title: 'Macro avg F1', value: fmt(m.macroF1), icon: BarChart3 },
   ];

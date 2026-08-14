@@ -1,9 +1,12 @@
 /**
  * Insights -> Confusion matrix page.
  *
- * Pairs each verified image's top human species with its top AI prediction.
- * Diagonal = agreements, off-diagonal = mistakes. Click any non-zero cell to
- * open the underlying verified images in the Images tab.
+ * Pairs the subjects a validator recorded on a verified image with the
+ * subjects the AI predicted on the same image, one cell per subject. So an
+ * image holding a person next to a car adds two agreements, where an
+ * image-level top-1 comparison would have turned one of them into a false
+ * error. Diagonal = agreements, off-diagonal = real mistakes. Click any
+ * non-zero cell to open the images behind it in the Images tab.
  */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -162,11 +165,12 @@ const Matrix: React.FC<{
 
   const handleCellClick = (gtClass: string, predClass: string) => {
     if (gtClass === OTHER_LABEL || predClass === OTHER_LABEL) return;
-    // Image-level top-1 filters: the API mirrors the matrix construction so
-    // the cell count and the resulting list count agree.
+    // Opens the images behind the cell. The cell counts subjects, so one
+    // image can account for more than one of them and the list can be
+    // shorter than the number in the cell.
     const params = new URLSearchParams();
-    params.set('human_top', gtClass);
-    params.set('ai_top', predClass);
+    params.set('human_has', gtClass);
+    params.set('ai_has', predClass);
     params.set('verified', 'true');
     navigate(`/projects/${projectId}/images?${params.toString()}`);
   };
@@ -276,7 +280,7 @@ const Matrix: React.FC<{
                       : formatPct(ratio);
                 const tooltipValue =
                   mode === 'counts'
-                    ? `${count} verified image${count === 1 ? '' : 's'}`
+                    ? `${count} subject${count === 1 ? '' : 's'}`
                     : `${count} (${formatPct(ratio)} ${mode === 'recall' ? 'of row' : 'of column'})`;
                 return (
                   <td
@@ -295,8 +299,8 @@ const Matrix: React.FC<{
                     title={
                       isZero
                         ? undefined
-                        : `${normalizeLabel(cls)} → ${normalizeLabel(predCls)}: ${tooltipValue}${
-                            clickable ? '. Click to open them in the Images tab.' : ''
+                        : `${normalizeLabel(cls)} → ${normalizeLabel(predCls)}, ${tooltipValue}${
+                            clickable ? '. Click to open the images in the Images tab.' : ''
                           }`
                     }
                   >
@@ -459,7 +463,7 @@ export const ConfusionMatrixPage: React.FC = () => {
 
   // Project name (referenced for the empty state header copy and the
   // subtitle to keep matching the rest of the Insights pages).
-  const subtitle = 'Top-1 human species vs top-1 AI prediction across verified images';
+  const subtitle = 'What people recorded against what the AI predicted, subject by subject';
 
   return (
     <InsightsPageLayout title="Confusion matrix" subtitle={subtitle}>
@@ -501,7 +505,7 @@ export const ConfusionMatrixPage: React.FC = () => {
             <Matrix folded={folded} projectId={projectIdNum} mode={mode} />
             <div className="border-t pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Info className="h-3.5 w-3.5 shrink-0" />
-              <span>Based on {data.total_verified_images.toLocaleString()} verified image{data.total_verified_images === 1 ? '' : 's'}</span>
+              <span>Based on {data.matrix_subjects.toLocaleString()} subject{data.matrix_subjects === 1 ? '' : 's'} in {data.total_verified_images.toLocaleString()} verified image{data.total_verified_images === 1 ? '' : 's'}</span>
               <span aria-hidden="true">·</span>
               <span>{folded.classes.length} class{folded.classes.length === 1 ? '' : 'es'} shown</span>
               {topN !== null && data.matrix_classes.length > topN && (
@@ -511,7 +515,7 @@ export const ConfusionMatrixPage: React.FC = () => {
                 </>
               )}
               <span aria-hidden="true">·</span>
-              <span>Click any non-zero cell to open the underlying images</span>
+              <span>Click any non-zero cell to open the images behind it</span>
             </div>
           </div>
         </>
@@ -521,18 +525,20 @@ export const ConfusionMatrixPage: React.FC = () => {
         plotKey="confusion-matrix"
         what={
           <p>
-            Each verified image contributes one cell. The row is the human top-1 species (the
-            species with the highest count in that image, or empty when no animals were verified).
-            The column is the AI top-1 (the highest-confidence visible classification, or empty
-            when no detections were above threshold). The diagonal is agreements, off-diagonal
-            cells are mistakes.
+            Every subject in a verified image contributes one cell. The row is what a person
+            recorded, the column is what the AI predicted for that same subject. An image with a
+            person next to a car holds two subjects, so it adds two cells and both can be right.
+            The diagonal is agreements. Off the diagonal the AI named the wrong class. The{' '}
+            <em>empty</em> column means the AI found nothing where a person recorded something,
+            and the <em>empty</em> row means the AI found something nobody recorded.
           </p>
         }
         how={
           <p>
             Cell colour scales per row from pale teal (low) to dark teal (high), so the dominant
-            prediction for each true class stands out. Click any non-zero cell to open the
-            underlying verified images. Cells involving <em>empty</em>, <em>person</em>, or{' '}
+            prediction for each true class stands out. Click any non-zero cell to open the images
+            behind it. One image can hold several subjects, so that list can be shorter than the
+            number in the cell. Cells involving <em>empty</em>, <em>person</em>, or{' '}
             <em>vehicle</em> reflect detection errors rather than classification errors. When the
             class list is truncated, the smaller classes fold into an <em>other</em> row and
             column so the totals still add up.

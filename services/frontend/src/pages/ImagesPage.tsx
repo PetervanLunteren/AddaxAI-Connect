@@ -52,8 +52,8 @@ const FILTER_SCHEMA: FilterSchema = {
   min_classification_confidence: 'number',
   max_classification_confidence: 'number',
   // Confusion-matrix cell-click filters. Image-level top-1, see images.py.
-  human_top: 'string',
-  ai_top: 'string',
+  human_has: 'string',
+  ai_has: 'string',
 };
 
 const formatPct = (lo: number, hi: number): string =>
@@ -98,8 +98,8 @@ export const ImagesPage: React.FC = () => {
   const hourFrom = asString(parsed.hour_from);
   const hourTo = asString(parsed.hour_to);
   const origin = asString(parsed.origin) as '' | 'live' | 'bulk';
-  const humanTop = asString(parsed.human_top);
-  const aiTop = asString(parsed.ai_top);
+  const humanHas = asString(parsed.human_has);
+  const aiHas = asString(parsed.ai_has);
   const minDetConf = asString(parsed.min_detection_confidence);
   const maxDetConf = asString(parsed.max_detection_confidence);
   const minClsConf = asString(parsed.min_classification_confidence);
@@ -125,10 +125,10 @@ export const ImagesPage: React.FC = () => {
       max_detection_confidence: maxDetConf || undefined,
       min_classification_confidence: minClsConf || undefined,
       max_classification_confidence: maxClsConf || undefined,
-      human_top: humanTop || undefined,
-      ai_top: aiTop || undefined,
+      human_has: humanHas || undefined,
+      ai_has: aiHas || undefined,
     }),
-    [cameraIdValues, siteIdValues, tagValues, imageTagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, hourFrom, hourTo, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanTop, aiTop],
+    [cameraIdValues, siteIdValues, tagValues, imageTagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, hourFrom, hourTo, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanHas, aiHas],
   );
 
   const onFilterChange = (patch: Record<string, FilterValue>) => {
@@ -174,8 +174,8 @@ export const ImagesPage: React.FC = () => {
         max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
         min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
         max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
-        human_top: humanTop || undefined,
-        ai_top: aiTop || undefined,
+        human_has: humanHas || undefined,
+        ai_has: aiHas || undefined,
       }),
     enabled: projectId !== undefined,
   });
@@ -482,8 +482,8 @@ export const ImagesPage: React.FC = () => {
       max_detection_confidence: maxDetConf ? Number(maxDetConf) : undefined,
       min_classification_confidence: minClsConf ? Number(minClsConf) : undefined,
       max_classification_confidence: maxClsConf ? Number(maxClsConf) : undefined,
-      human_top: humanTop || undefined,
-      ai_top: aiTop || undefined,
+      human_has: humanHas || undefined,
+      ai_has: aiHas || undefined,
     };
 
     // On last image of page → prefetch next page's first image UUID
