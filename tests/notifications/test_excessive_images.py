@@ -5,20 +5,15 @@ The module had no tests at all. The point of the alert is that these cameras
 cap how many pictures they transmit per day in hardware, so a camera landing
 on its cap has gone quiet for the rest of the day. On the Drenthe project 9
 camera-days landed on exactly 50 images and 5 on exactly 25, with the last
-picture as early as 14:11. The email now carries the window and the silence
-after it, and these tests keep both from drifting.
+picture as early as 14:11. The email now names the window those images
+arrived in, and these tests keep it from drifting.
 """
-from datetime import datetime, timedelta
+from datetime import datetime
 from types import SimpleNamespace
 
 from shared.email_renderer import render_email
 
-from excessive_images import (
-    MIN_QUIET_TAIL,
-    _generate_text_content,
-    _get_cameras_over_threshold,
-    format_quiet_tail,
-)
+from excessive_images import _generate_text_content, _get_cameras_over_threshold
 
 MIDNIGHT = datetime(2026, 8, 14, 0, 0)  # end of 13 Aug
 
@@ -26,32 +21,6 @@ MIDNIGHT = datetime(2026, 8, 14, 0, 0)  # end of 13 Aug
 def at(hour: int, minute: int = 0) -> datetime:
     """A camera-clock reading on 13 Aug 2026."""
     return datetime(2026, 8, 13, hour, minute)
-
-
-class TestFormatQuietTail:
-    def test_the_real_drenthe_case(self):
-        # Camera 861943071187529, 13 Aug 2026: 50 images, last one 14:11.
-        assert format_quiet_tail(at(14, 11), MIDNIGHT) == "9h 49m"
-
-    def test_whole_hours_drop_the_minutes(self):
-        assert format_quiet_tail(at(16, 0), MIDNIGHT) == "8h"
-
-    def test_a_short_gap_is_not_worth_saying(self):
-        assert format_quiet_tail(at(23, 30), MIDNIGHT) is None
-
-    def test_exactly_the_minimum_still_counts(self):
-        assert format_quiet_tail(MIDNIGHT - MIN_QUIET_TAIL, MIDNIGHT) == "1h"
-
-    def test_just_under_the_minimum_does_not(self):
-        assert format_quiet_tail(
-            MIDNIGHT - MIN_QUIET_TAIL + timedelta(minutes=1), MIDNIGHT
-        ) is None
-
-    def test_last_image_at_midnight_gives_nothing(self):
-        assert format_quiet_tail(MIDNIGHT, MIDNIGHT) is None
-
-    def test_a_camera_quiet_since_the_early_hours(self):
-        assert format_quiet_tail(at(2, 5), MIDNIGHT) == "21h 55m"
 
 
 class _FakeDb:
@@ -84,20 +53,16 @@ def _row(**kwargs):
 
 class TestCameraRows:
     def test_times_are_formatted_from_the_camera_clock(self):
+        # The real Drenthe case: 50 images, last one at 14:11.
         db = _FakeDb([_row()])
         cams = _get_cameras_over_threshold(db, 1, at(0), MIDNIGHT, 50)
         assert cams[0]["first_image"] == "03:04"
         assert cams[0]["last_image"] == "14:11"
 
-    def test_the_quiet_tail_is_measured_to_the_end_of_the_day(self):
-        db = _FakeDb([_row()])
+    def test_a_camera_active_until_midnight(self):
+        db = _FakeDb([_row(first_image=at(0, 5), last_image=at(23, 50))])
         cams = _get_cameras_over_threshold(db, 1, at(0), MIDNIGHT, 50)
-        assert cams[0]["quiet_tail"] == "9h 49m"
-
-    def test_a_camera_active_until_midnight_gets_no_tail(self):
-        db = _FakeDb([_row(last_image=at(23, 50))])
-        cams = _get_cameras_over_threshold(db, 1, at(0), MIDNIGHT, 50)
-        assert cams[0]["quiet_tail"] is None
+        assert (cams[0]["first_image"], cams[0]["last_image"]) == ("00:05", "23:50")
 
     def test_the_existing_fields_are_untouched(self):
         db = _FakeDb([_row(notes="Facing the path")])
@@ -132,7 +97,6 @@ def _cams(**kwargs):
         image_count=50,
         first_image="03:04",
         last_image="14:11",
-        quiet_tail="9h 49m",
         lat=None,
         lon=None,
     )
@@ -140,36 +104,38 @@ def _cams(**kwargs):
     return [cam]
 
 
+def _text(cams=None):
+    return _generate_text_content(
+        "Provincie Drenthe", MIDNIGHT.date(), 50,
+        cams if cams is not None else _cams(),
+        "https://x/i", "https://x/s",
+    )
+
+
 class TestPlainTextEmail:
     def test_it_reads_as_a_window_not_a_bare_count(self):
-        body = _generate_text_content(
-            "Provincie Drenthe", MIDNIGHT.date(), 50, _cams(), "https://x/i", "https://x/s"
-        )
-        assert "50 images, 03:04 to 14:11" in body
+        assert "50 images received between 03:04 and 14:11" in _text()
 
-    def test_the_silence_is_spelled_out(self):
-        body = _generate_text_content(
-            "Provincie Drenthe", MIDNIGHT.date(), 50, _cams(), "https://x/i", "https://x/s"
-        )
-        assert "No images for the last 9h 49m of the day" in body
+    def test_it_names_the_threshold_as_the_reader_s_own_setting(self):
+        assert "1 camera went over your threshold of 50 images." in _text()
 
-    def test_no_silence_line_when_there_is_no_gap(self):
-        body = _generate_text_content(
-            "Provincie Drenthe", MIDNIGHT.date(), 50,
-            _cams(quiet_tail=None, last_image="23:50"),
-            "https://x/i", "https://x/s",
-        )
-        assert "No images for the last" not in body
-        assert "50 images, 03:04 to 23:50" in body
+    def test_several_cameras_read_as_plural(self):
+        two = _cams() + _cams(id=8, device_id="861943071171986")
+        assert "2 cameras went over your threshold of 50 images." in _text(two)
 
     def test_it_never_guesses_how_many_were_missed(self):
         # Estimating missed pictures needs a trigger rate we do not have, so
         # the email must stay on facts.
-        body = _generate_text_content(
-            "Provincie Drenthe", MIDNIGHT.date(), 50, _cams(), "https://x/i", "https://x/s"
-        ).lower()
+        body = _text().lower()
         for guess in ("potentially miss", "estimated", "approximately", "missed images"):
             assert guess not in body
+
+    def test_it_does_not_tell_the_reader_what_to_conclude(self):
+        # The window is a fact. Whether the camera hit its cap or simply saw
+        # nothing more is the reader's call, so no line claims either.
+        body = _text().lower()
+        for claim in ("no images for the last", "went quiet", "reached its limit"):
+            assert claim not in body
 
 
 class TestHtmlEmail:
@@ -189,12 +155,12 @@ class TestHtmlEmail:
     def test_the_window_renders(self):
         html = self._render(_cams())
         assert "50 images" in html
-        assert "03:04 to 14:11" in html
+        assert "received between 03:04 and 14:11" in html
 
-    def test_the_silence_renders(self):
-        assert "No images for the last 9h 49m of the day" in self._render(_cams())
+    def test_the_threshold_reads_as_the_reader_s_own_setting(self):
+        assert "went over your threshold of 50 images a day" in self._render(_cams())
 
-    def test_the_silence_line_is_dropped_when_absent(self):
-        html = self._render(_cams(quiet_tail=None))
-        assert "No images for the last" not in html
-        assert "50 images" in html
+    def test_the_html_and_the_text_agree(self):
+        html = self._render(_cams())
+        for part in ("50 images", "03:04", "14:11"):
+            assert part in html and part in _text()

@@ -33,30 +33,6 @@ settings = get_settings()
 
 DEFAULT_THRESHOLD = 50
 
-# A camera whose last picture landed just before midnight tells you nothing,
-# so the quiet tail only earns a line once the gap is at least this long.
-MIN_QUIET_TAIL = timedelta(hours=1)
-
-
-def format_quiet_tail(last_image: datetime, end_of_day: datetime) -> Optional[str]:
-    """
-    How long the camera stayed silent between its last picture and midnight,
-    as "9h 49m", or None when the gap is too short to be worth saying.
-
-    This is a plain fact, not a claim that the camera was blocked. These
-    cameras cap how many pictures they transmit per day in hardware, so one
-    that lands exactly on its cap in the early afternoon has stopped sending
-    rather than run out of animals. The reader gets the count and both times
-    and can tell those two apart. We deliberately do not estimate how many
-    pictures were missed, that needs a trigger rate we do not have.
-    """
-    gap = end_of_day - last_image
-    if gap < MIN_QUIET_TAIL:
-        return None
-    hours, remainder = divmod(int(gap.total_seconds()), 3600)
-    minutes = remainder // 60
-    return f"{hours}h {minutes}m" if minutes else f"{hours}h"
-
 
 def send_excessive_image_alerts() -> None:
     """
@@ -311,13 +287,18 @@ def _get_cameras_over_threshold(
             'device_id': row.device_id,
             'notes': row.notes,
             'image_count': row.image_count,
+            # The window those images arrived in. These cameras cap how many
+            # pictures they transmit per day in hardware, so a camera that
+            # lands on its cap has stopped sending rather than run out of
+            # animals, and the last time is when it went quiet. We show the
+            # window and leave that reading to the user.
+            #
             # captured_at is the camera clock, stored naive and read under the
             # same timezone that built the day window above, so the clock time
             # can be formatted as-is. No conversion, see the timestamp rules in
             # DEVELOPERS.md.
             'first_image': row.first_image.strftime('%H:%M'),
             'last_image': row.last_image.strftime('%H:%M'),
-            'quiet_tail': format_quiet_tail(row.last_image, end_of_day),
             'lat': float(row.lat) if row.lat is not None else None,
             'lon': float(row.lon) if row.lon is not None else None,
         })
@@ -339,7 +320,8 @@ def _generate_text_content(
         f"Date: {report_date.strftime('%B %d, %Y')}",
         "=" * 50,
         "",
-        f"{len(cameras)} camera(s) exceeded the threshold of {threshold} images:",
+        f"{len(cameras)} camera{'s' if len(cameras) != 1 else ''} went over "
+        f"your threshold of {threshold} images.",
         ""
     ]
 
@@ -350,13 +332,9 @@ def _generate_text_content(
         if cam['site_name'] and cam['device_id']:
             lines.append(f"    Camera ID: {cam['device_id']}")
         lines.append(
-            f"    {cam['image_count']} images, "
-            f"{cam['first_image']} to {cam['last_image']}"
+            f"    {cam['image_count']} images received between "
+            f"{cam['first_image']} and {cam['last_image']}"
         )
-        if cam['quiet_tail']:
-            lines.append(
-                f"    No images for the last {cam['quiet_tail']} of the day"
-            )
         lines.append(f"    View: {images_url}?camera_id={cam['id']}&show_empty=true")
         if cam['lat'] is not None and cam['lon'] is not None:
             lines.append(f"    Map: https://www.google.com/maps?q={cam['lat']},{cam['lon']}")
