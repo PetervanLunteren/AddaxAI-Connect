@@ -41,7 +41,7 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
 }) => {
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+      <div className="min-w-0 flex-1 flex items-center gap-2 py-3 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         Checking what these cameras hold
       </div>
@@ -50,7 +50,7 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
 
   if (error) {
     return (
-      <p className="py-3 text-sm text-destructive">
+      <p className="min-w-0 flex-1 py-3 text-sm text-destructive">
         Could not check what these cameras hold, so deleting is blocked. {error}
       </p>
     );
@@ -59,32 +59,35 @@ export const DeleteImpactList: React.FC<DeleteImpactListProps> = ({
   const totals = impactTotals(items);
 
   return (
-    <div className="space-y-3">
+    // min-w-0 so this can shrink inside the dialog's flex row. Without it the
+    // rows set a minimum width and the whole dialog runs off a phone screen.
+    <div className="min-w-0 flex-1 space-y-3">
       <p className="text-sm font-semibold text-destructive">
         {plural(totals.cameras, 'camera')}, {plural(totals.images, 'image')}
         {totals.verified > 0 && `, ${totals.verified} verified by hand`}
       </p>
 
-      {/* Named rows, so nobody deletes a camera that is off screen. Scrolls
-          on its own for a long selection, the page never scrolls sideways. */}
-      <div className="max-h-48 overflow-y-auto rounded-md border bg-white">
-        <table className="w-full text-sm">
-          <tbody>
-            {(items ?? []).map((item) => (
-              <tr key={item.camera_id} className="border-b last:border-b-0">
-                <td className="px-3 py-1.5 font-mono text-xs">{item.name}</td>
-                <td className="px-3 py-1.5 text-right whitespace-nowrap">
-                  {plural(item.images, 'image')}
-                </td>
-                <td className="px-3 py-1.5 text-right whitespace-nowrap text-muted-foreground">
-                  {item.verified_images > 0
-                    ? `${item.verified_images} verified`
-                    : ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Named rows, so nobody deletes a camera that is off screen. Scrolls on
+          its own for a long selection. Deliberately not a table: fixed columns
+          cannot shrink, so the counts wrap under the name on a narrow screen
+          instead of pushing the dialog sideways. */}
+      <div className="max-h-48 overflow-y-auto rounded-md border bg-white divide-y">
+        {(items ?? []).map((item) => (
+          <div
+            key={item.camera_id}
+            className="flex flex-wrap items-baseline justify-between gap-x-3 px-3 py-1.5"
+          >
+            <span className="font-mono text-xs break-all">{item.name}</span>
+            <span className="text-sm whitespace-nowrap">
+              {plural(item.images, 'image')}
+              {item.verified_images > 0 && (
+                <span className="text-muted-foreground">
+                  , {item.verified_images} verified
+                </span>
+              )}
+            </span>
+          </div>
+        ))}
       </div>
 
       <p className="text-sm text-muted-foreground">
