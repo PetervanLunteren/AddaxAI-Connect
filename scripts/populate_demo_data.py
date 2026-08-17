@@ -9,7 +9,7 @@ and deployment periods spanning 2 years.
 Usage:
     docker exec addaxai-api python /app/scripts/populate_demo_data.py
 
-Set demo_mode: true in Ansible group_vars to auto-populate on deploy
+Set demo_mode: true in the server's Ansible host_vars to auto-populate on deploy
 and refresh daily via cron.
 """
 import gc

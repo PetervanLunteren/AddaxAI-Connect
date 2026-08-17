@@ -35,7 +35,7 @@ Configure your camera to upload via FTPS with these settings:
 | Host | `your_vm_ipv4` from `ansible/inventory.yml` |
 | Port | `21` |
 | Username | `camera` |
-| Password | `ftps_password` from `ansible/group_vars/dev.yml` |
+| Password | `ftps_password` from `ansible/host_vars/<server>.yml` |
 
 ??? tip "Firewall or networking issues?"
 

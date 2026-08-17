@@ -282,8 +282,11 @@ addaxai-connect/
 │
 ├── ansible/                           # Deployment automation
 │   ├── playbook.yml                   # Main playbook
-│   ├── inventory.yml.example
-│   ├── group_vars/                    # Config variables (passwords, domain, email, etc.)
+│   ├── inventory.yml.example           # Which servers exist (yours is gitignored)
+│   ├── group_vars/all/                 # Settings shared by every server
+│   ├── host_vars/                      # Per-server settings and passwords (gitignored)
+│   ├── scripts/import-host-vars.sh     # Build host_vars from a running server
+│   ├── README.md                       # Layout and how to target one server
 │   └── roles/                         # app-deploy, docker, nginx, pure-ftpd, ssl,
 │                                      #   security, security-check, dev-tools
 │

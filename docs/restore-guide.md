@@ -5,7 +5,7 @@ How to spin up a new AddaxAI Connect server from a Wasabi backup. Use this when 
 **What you need before you start:**
 
 - A fresh Ubuntu VM, reachable over SSH.
-- Your `ansible/group_vars/dev.yml` on your laptop. This holds every secret, so the new server can be rebuilt with the same passwords. If you lost this file, generate new ones and accept that cameras need reconfiguring with the new FTPS password.
+- The old server's `ansible/host_vars/<server>.yml` on your laptop. This holds every secret, so the new server can be rebuilt with the same passwords. If you lost it and the old server still runs, rebuild it with `bash ansible/scripts/import-host-vars.sh <server>`. If both are gone, generate new passwords and accept that cameras need reconfiguring with the new FTPS password.
 - The backup bucket credentials (same `backup_*` vars used on the old server).
 - About 45 minutes total. Most of that is ansible provisioning the VM.
 
@@ -13,13 +13,13 @@ How to spin up a new AddaxAI Connect server from a Wasabi backup. Use this when 
 
 *(on your laptop)*
 
-Open `ansible/inventory.yml` and set `ansible_host` to the new VM's IPv4 address.
+Open `ansible/inventory.yml` and add an entry for the new VM, or set `ansible_host` on the existing one to the new VM's IPv4 address.
 
 ## 2. Pick a fresh domain name
 
 *(on your laptop)*
 
-In `ansible/group_vars/dev.yml`, set `domain_name` to a domain that is not in use yet. 
+In `ansible/host_vars/<server>.yml`, set `domain_name` to a domain that is not in use yet. 
 
 ## 3. Add the new VM to known_hosts
 
@@ -36,7 +36,7 @@ ssh-keyscan -H <new_vm_ipv4> >> ~/.ssh/known_hosts
 Run the full playbook.
 
 ```bash
-ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
+ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --limit <server>
 ```
 
 ## 5. Restore the data

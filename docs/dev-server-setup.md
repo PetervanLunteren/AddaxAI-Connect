@@ -12,7 +12,7 @@ Before cloning the server, take both a database dump and a full DigitalOcean sna
    cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect > backup.sql
    ```
 
-2. **Power off the droplet.** DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency. This stops all services and the OS itself, so you will lose your SSH session. When prompted for a password, enter the `app_user_password` from `ansible/group_vars/dev.yml`.
+2. **Power off the droplet.** DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency. This stops all services and the OS itself, so you will lose your SSH session. When prompted for a password, enter the `app_user_password` from `ansible/host_vars/<server>.yml`.
 
    ```bash
    cd /opt/addaxai-connect && docker compose down && sudo shutdown -h now

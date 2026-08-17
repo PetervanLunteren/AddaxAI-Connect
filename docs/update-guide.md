@@ -12,7 +12,7 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
    cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect > backup.sql
    ```
 
-2. **Power off the droplet.** *(on the production server)* DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency. This stops all services and the OS itself. You will lose your SSH session. When prompted for a password, enter the `app_user_password` from `ansible/group_vars/dev.yml`.
+2. **Power off the droplet.** *(on the production server)* DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency. This stops all services and the OS itself. You will lose your SSH session. When prompted for a password, enter the `app_user_password` from `ansible/host_vars/<server>.yml`.
 
    ```
    cd /opt/addaxai-connect && docker compose down && sudo shutdown -h now
@@ -36,10 +36,10 @@ You have two safety nets: a SQL database dump (fast to restore, covers schema an
    cd /opt/addaxai-connect && git pull origin main
    ```
 
-2. **Sync ansible-managed config.** *(from your local machine)* This regenerates `.env` from the template and installs or updates any cron jobs that the new release ships. Idempotent, so safe to run even when nothing has changed. Point `ansible/inventory.yml` at the production server first.
+2. **Sync ansible-managed config.** *(from your local machine)* This regenerates `.env` from the template and installs or updates any cron jobs that the new release ships. Idempotent, so safe to run even when nothing has changed. `--limit` picks which server, so nothing needs editing first.
 
    ```
-   cd ansible && ansible-playbook -i inventory.yml playbook.yml --tags sync-config
+   cd ansible && ansible-playbook -i inventory.yml playbook.yml --limit <server> --tags sync-config
    ```
 
 3. **Rebuild and start containers.** *(on the production server)* This rebuilds all service images with the new code and picks up any `.env` changes from the previous step. The correct services are selected automatically based on the `COMPOSE_PROFILES` variable in `.env`.

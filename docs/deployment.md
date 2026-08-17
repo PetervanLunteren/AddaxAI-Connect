@@ -28,21 +28,23 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
 
     ```bash
     cp ansible/inventory.yml.example ansible/inventory.yml
-    cp ansible/group_vars/dev.yml.example ansible/group_vars/dev.yml
+    cp ansible/group_vars/all/main.yml.example ansible/group_vars/all/main.yml
+    cp ansible/host_vars/example.yml.example ansible/host_vars/myserver.yml
     ```
 
-    Open both files in a text editor (VS Code, TextEdit, Notepad, etc.) and fill in your values.
+    Open all three files in a text editor (VS Code, TextEdit, Notepad, etc.) and fill in your values. Rename `myserver` to whatever you called your server in the inventory.
 
 4.  **Configure `ansible/inventory.yml`**
 
     | Variable | Example | Description |
     |---------|---------|-------------|
+    | `myserver` | `cam-01` | Name of your server. The `host_vars` file must match it. |
     | `your_vm_ipv4` | `123.456.789.01` | IPv4 address of your server |
     | `your_ssh_key` | `~/.ssh/id_rsa` | Path to your private SSH key |
 
-5.  **Configure `ansible/group_vars/dev.yml`**
+5.  **Configure your settings**
 
-    This is where all your settings go. The passwords below don't belong to existing accounts. You're creating them now. Generate secure ones with `openssl rand -hex 32`.
+    Everything below goes in `ansible/host_vars/myserver.yml`, except `letsencrypt_email` and `letsencrypt_staging`, which live in `ansible/group_vars/all/main.yml` with the other settings shared by every server. The passwords don't belong to existing accounts. You're creating them now. Generate secure ones with `openssl rand -hex 32`.
 
     **Passwords and secrets**
 
@@ -136,7 +138,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     Should return `pong`.
 
     ```bash
-    ansible -i ansible/inventory.yml dev -m ping
+    ansible -i ansible/inventory.yml myserver -m ping
     ```
 
 8.  **Run the playbook**
@@ -144,7 +146,7 @@ Everything runs on a single Ubuntu server. You configure a few variables, run on
     This deploys everything. After a few minutes it will pause and ask you to set up DNS, see the next step.
 
     ```bash
-    ansible-playbook -i ansible/inventory.yml ansible/playbook.yml
+    ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --limit myserver
     ```
 
     ![Ansible terminal](https://github.com/user-attachments/assets/a23784ff-af28-418f-90fb-b1834d0f5d92)
