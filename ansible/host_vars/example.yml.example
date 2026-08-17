@@ -25,10 +25,22 @@ classification_model: "deepfaune"
 # demo_mode true runs the interface with no ML workers, for a public demo
 demo_mode: false
 
-# production or development. development turns on verbose behaviour, so set
-# production on a real server.
+# production or development. Leave this out and you get production, which is
+# deliberate: a server that never sets it must keep sending notifications.
+#
+# development does two things. scripts/restore.sh clears the restored Telegram
+# bot config, so a restored copy cannot fight the real server over one bot
+# token. And the notification workers deliver only to the two allow-lists
+# below, dropping everything else, so a server loaded with restored production
+# data cannot email or message real users.
 app_environment: production
 log_level: INFO
+
+# Only read when app_environment is development. Comma separated.
+# Emails default to admin_email, so a test alert reaches you without extra
+# setup. Chat ids default to empty, so no Telegram goes out until you name one.
+# dev_notify_emails: "you@example.com"
+# dev_notify_chat_ids: "123456789"
 
 # --- Passwords. Generate long random values, do not reuse them. ---------
 # `openssl rand -base64 32` gives a good one.

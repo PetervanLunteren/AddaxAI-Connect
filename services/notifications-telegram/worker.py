@@ -16,6 +16,7 @@ import time
 from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_TELEGRAM, HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM
 from shared.config import get_settings
+from shared.notify_guard import chat_id_allowed, is_development
 from shared.database import get_sync_session
 from shared.models import TelegramLinkingToken, ProjectNotificationPreference
 from datetime import datetime, timezone
@@ -172,6 +173,20 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
         has_buttons=reply_markup is not None
     )
 
+    # A restored production database carries every real chat id, so a dev bot
+    # would message actual users. restore.sh clears the bot token on a dev box,
+    # which covers the usual case but not one configured for a fire drill.
+    allowed, reason = chat_id_allowed(chat_id)
+    if not allowed:
+        logger.warning(
+            "Blocked Telegram message on a development server",
+            log_id=log_id,
+            chat_id=chat_id[:5] + "***" if len(chat_id) > 5 else chat_id,
+            reason=reason,
+        )
+        update_notification_status(log_id, status='blocked', error_message=reason)
+        return
+
     try:
         # Initialize Telegram client
         client = TelegramClient()
@@ -324,6 +339,13 @@ def poll_for_start_commands():
 def main() -> None:
     """Main entry point for Telegram worker"""
     logger.info("Starting Telegram notifications worker")
+
+    # Say it out loud at boot, so a silent dev box is never a mystery.
+    if is_development():
+        logger.warning(
+            "Development server: Telegram is restricted to the allow-list",
+            allow_list=get_settings().dev_notify_chat_ids or "(empty, everything is blocked)",
+        )
 
     # Start background thread for bot command polling
     polling_thread = threading.Thread(

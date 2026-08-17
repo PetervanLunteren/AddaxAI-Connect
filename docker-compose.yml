@@ -122,7 +122,9 @@ services:
       # Logging configuration
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEV_NOTIFY_EMAILS: ${DEV_NOTIFY_EMAILS:-}
+      DEV_NOTIFY_CHAT_IDS: ${DEV_NOTIFY_CHAT_IDS:-}
       BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
       FTPS_UPLOAD_DIR: /uploads
       # FTPS connection for upload testing
@@ -166,7 +168,7 @@ services:
       FTPS_UPLOAD_DIR: /uploads
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
     volumes:
       - ${FTPS_UPLOAD_DIR:-/opt/addaxai-connect/uploads}:/uploads
     depends_on:
@@ -198,7 +200,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -327,7 +329,7 @@ services:
       COLD_TIER_ENABLED: ${COLD_TIER_ENABLED:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
     volumes:
       # Read-only host-root mount so the disk usage alert can measure the
       # actual disk, not the container's overlay filesystem.
@@ -373,7 +375,9 @@ services:
       DOMAIN_NAME: ${DOMAIN_NAME}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEV_NOTIFY_EMAILS: ${DEV_NOTIFY_EMAILS:-}
+      DEV_NOTIFY_CHAT_IDS: ${DEV_NOTIFY_CHAT_IDS:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -444,7 +448,9 @@ services:
       DOMAIN_NAME: ${DOMAIN_NAME}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEV_NOTIFY_EMAILS: ${DEV_NOTIFY_EMAILS:-}
+      DEV_NOTIFY_CHAT_IDS: ${DEV_NOTIFY_CHAT_IDS:-}
     depends_on:
       postgres:
         condition: service_healthy

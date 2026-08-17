@@ -23,8 +23,8 @@ def update_notification_status(
 
     Args:
         log_id: Notification log ID
-        status: New status ('sent', 'failed')
-        error_message: Error message if status is 'failed'
+        status: New status ('sent', 'failed', 'blocked')
+        error_message: Why, for 'failed' and 'blocked'
     """
     with get_sync_session() as session:
         log = session.get(NotificationLog, log_id)
@@ -37,7 +37,9 @@ def update_notification_status(
 
         if status == 'sent':
             log.sent_at = datetime.now(timezone.utc)
-        elif status == 'failed':
+        elif error_message is not None:
+            # Keyed on the message, not the status, so 'blocked' keeps its
+            # reason too rather than silently losing it.
             log.error_message = error_message
 
         session.commit()

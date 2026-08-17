@@ -13,6 +13,7 @@ from typing import List, Optional
 from shared.config import get_settings
 from shared.logger import get_logger
 from shared.email_renderer import render_email
+from shared.notify_guard import email_allowed
 
 logger = get_logger("api.mailer")
 
@@ -77,6 +78,21 @@ class EmailSender:
         """
         # Validate configuration on first use
         self._validate_config()
+
+        # Every send_* method below funnels through here, so one check covers
+        # verification, password reset, invitations and role changes. These
+        # need a human to click something, unlike the queued notifications, but
+        # on a dev server holding restored production data that human is
+        # clicking at a real person.
+        allowed, reason = email_allowed(to_email)
+        if not allowed:
+            logger.warning(
+                "Blocked email on a development server",
+                to_email=to_email,
+                subject=subject,
+                reason=reason,
+            )
+            return
 
         logger.info(
             "Attempting to send email",

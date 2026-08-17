@@ -60,7 +60,15 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # "json" or "text" (text for human-readable dev logs)
-    environment: str = "development"
+    # "production" or "development". Defaults to production on purpose: a
+    # server that never sets it must keep notifying, because a silent
+    # production server is worse than a chatty dev one. See shared/notify_guard.
+    environment: str = "production"
+
+    # Who a development server is still allowed to notify. Comma separated.
+    # Ignored entirely on production. See shared/notify_guard.py.
+    dev_notify_emails: str = ""
+    dev_notify_chat_ids: str = ""
 
     # Demo
     demo_mode: bool = False

@@ -9,6 +9,7 @@ from typing import Dict, Any
 from shared.logger import get_logger
 from shared.queue import RedisQueue, QUEUE_NOTIFICATION_EMAIL, HEARTBEAT_KEY_NOTIFICATIONS_EMAIL
 from shared.config import get_settings
+from shared.notify_guard import email_allowed, is_development
 
 from email_client import get_email_client
 from db_operations import update_notification_status
@@ -57,6 +58,21 @@ def process_email_message(message: Dict[str, Any]) -> None:
         subject=subject[:50] if subject else None
     )
 
+    # Every queued email passes through here, so this is the one place that has
+    # to hold for a dev server running on restored production data.
+    allowed, reason = email_allowed(to_email)
+    if not allowed:
+        logger.warning(
+            "Blocked email on a development server",
+            log_id=log_id,
+            to_email=to_email,
+            subject=subject[:50] if subject else None,
+            reason=reason,
+        )
+        if log_id:
+            update_notification_status(log_id, 'blocked', error_message=reason)
+        return
+
     try:
         # Send email
         email_client = get_email_client()
@@ -102,6 +118,14 @@ def main() -> None:
         mail_server=settings.mail_server,
         mail_port=settings.mail_port
     )
+
+    # Say it out loud at boot. Silently dropping mail is the kind of thing that
+    # costs an afternoon when nobody remembers the server is a dev box.
+    if is_development():
+        logger.warning(
+            "Development server: email is restricted to the allow-list",
+            allow_list=settings.dev_notify_emails or "(empty, everything is blocked)",
+        )
 
     # Validate email configuration on startup
     try:
