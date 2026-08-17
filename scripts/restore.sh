@@ -251,17 +251,22 @@ if [ "$DB_ONLY" = "true" ]; then
               -F'|' -A -t -f /dev/stdin < "$SAMPLE_SQL" 2>/dev/null | grep '|')"
     n_ok=0
     n_miss=0
+    # Every `docker compose exec -T` in here reads stdin, which would swallow
+    # the rest of the loop's input. Without the redirects this fetched exactly
+    # one image and reported success.
     while IFS='|' read -r reason uuid raw thumb; do
       [ -n "$raw" ] || continue
       if docker compose exec -T minio mc cp --quiet \
-           "$SRC_PREFIX/minio/raw-images/$raw" "local/raw-images/$raw" > /dev/null 2>&1; then
+           "$SRC_PREFIX/minio/raw-images/$raw" "local/raw-images/$raw" \
+           > /dev/null 2>&1 < /dev/null; then
         n_ok=$((n_ok + 1))
       else
         n_miss=$((n_miss + 1))
       fi
       if [ -n "$thumb" ]; then
         docker compose exec -T minio mc cp --quiet \
-          "$SRC_PREFIX/minio/thumbnails/$thumb" "local/thumbnails/$thumb" > /dev/null 2>&1 || true
+          "$SRC_PREFIX/minio/thumbnails/$thumb" "local/thumbnails/$thumb" \
+          > /dev/null 2>&1 < /dev/null || true
       fi
     done <<< "$SAMPLE"
     log "Sample images fetched: $n_ok present, $n_miss missing from the backup"
