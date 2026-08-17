@@ -1,7 +1,7 @@
 /**
  * Images page with grid view and filters
  */
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Calendar, MapPin, Grid3x3, ChevronLeft, ChevronRight, Check, Heart, Flag } from 'lucide-react';
@@ -75,14 +75,16 @@ export const ImagesPage: React.FC = () => {
   const projectId = selectedProject?.id;
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const [selectedImageUuid, setSelectedImageUuid] = useState<string | null>(null);
+  // The open image lives in the URL, so the address bar always matches the
+  // screen and a link to one image can be shared and refreshed.
+  const selectedImageUuid = searchParams.get('image');
   const [pendingFirstImage, setPendingFirstImage] = useState(false);
   const [pendingLastImage, setPendingLastImage] = useState(false);
   const [nextPageFirstUuid, setNextPageFirstUuid] = useState<string | null>(null);
   const [prevPageLastUuid, setPrevPageLastUuid] = useState<string | null>(null);
 
   // Filter state lives in the URL via FILTER_SCHEMA. The page reads from
-  // useSearchParams on every render; writes go through filtersToSearchParams.
+  // useSearchParams on every render; writes go through writeFilters.
   const parsed = filtersFromSearchParams(searchParams, FILTER_SCHEMA);
   const cameraIdValues = asStringArray(parsed.camera_ids);
   const siteIdValues = asStringArray(parsed.site_id);
@@ -131,13 +133,37 @@ export const ImagesPage: React.FC = () => {
     [cameraIdValues, siteIdValues, tagValues, imageTagValues, speciesValues, startDate, endDate, verified, liked, needsReview, validatedByValues, hourFrom, hourTo, origin, minDetConf, maxDetConf, minClsConf, maxClsConf, humanHas, aiHas],
   );
 
+  // Open or close the image modal. Replace and not push, so stepping through
+  // a page of images with the arrow keys does not bury the previous page
+  // under two dozen back presses.
+  const setSelectedImageUuid = useCallback((uuid: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (uuid) next.set('image', uuid);
+      else next.delete('image');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Write the filter params, keeping the open image. filtersToSearchParams
+  // rebuilds the query string from FILTER_SCHEMA alone, so ?image= would be
+  // dropped on every filter change without this. Every writer goes through
+  // here for that reason.
+  const writeFilters = useCallback((values: Record<string, FilterValue>) => {
+    setSearchParams((prev) => {
+      const next = filtersToSearchParams(values, FILTER_SCHEMA);
+      const image = prev.get('image');
+      if (image) next.set('image', image);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const onFilterChange = (patch: Record<string, FilterValue>) => {
-    const next = { ...filterValues, ...patch };
-    setSearchParams(filtersToSearchParams(next, FILTER_SCHEMA), { replace: true });
+    writeFilters({ ...filterValues, ...patch });
     setPage(1);
   };
   const onClearAll = () => {
-    setSearchParams(new URLSearchParams(), { replace: true });
+    writeFilters({});
     setPage(1);
   };
 
@@ -266,8 +292,7 @@ export const ImagesPage: React.FC = () => {
       );
     }
 
-    const params = filtersToSearchParams(next, FILTER_SCHEMA);
-    setSearchParams(params, { replace: true });
+    writeFilters(next);
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras, rawLabelOptions]);
@@ -758,20 +783,26 @@ export const ImagesPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Image Detail Modal */}
-      {selectedImageUuid && imagesData && (() => {
-        const currentIndex = imagesData.items.findIndex(img => img.uuid === selectedImageUuid);
+      {/* Image Detail Modal. Rendered from the URL alone, so a shared link
+          opens the image without waiting for the list behind it. */}
+      {selectedImageUuid && (() => {
+        const items = imagesData?.items ?? [];
+        const currentIndex = items.findIndex(img => img.uuid === selectedImageUuid);
+        // A shared link points at one image, which is almost never inside the
+        // visible page, so there is nothing to step to and the arrows are off.
+        const inList = currentIndex !== -1;
         return (
           <ImageDetailModal
             imageUuid={selectedImageUuid}
-            allImageUuids={imagesData.items.map(img => img.uuid)}
+            allImageUuids={items.map(img => img.uuid)}
             nextPageFirstUuid={nextPageFirstUuid}
             prevPageLastUuid={prevPageLastUuid}
             isOpen={!!selectedImageUuid}
             onClose={() => setSelectedImageUuid(null)}
             onPrevious={() => {
+              if (!inList) return;
               if (currentIndex > 0) {
-                setSelectedImageUuid(imagesData.items[currentIndex - 1].uuid);
+                setSelectedImageUuid(items[currentIndex - 1].uuid);
               } else if (page > 1) {
                 // Go to previous page, select last image
                 setPage(page - 1);
@@ -779,16 +810,17 @@ export const ImagesPage: React.FC = () => {
               }
             }}
             onNext={() => {
-              if (currentIndex < imagesData.items.length - 1) {
-                setSelectedImageUuid(imagesData.items[currentIndex + 1].uuid);
-              } else if (page < imagesData.pages) {
+              if (!inList) return;
+              if (currentIndex < items.length - 1) {
+                setSelectedImageUuid(items[currentIndex + 1].uuid);
+              } else if (imagesData && page < imagesData.pages) {
                 // Go to next page, select first image
                 setPage(page + 1);
                 setPendingFirstImage(true);
               }
             }}
-            hasPrevious={currentIndex > 0 || page > 1}
-            hasNext={currentIndex < imagesData.items.length - 1 || page < imagesData.pages}
+            hasPrevious={inList && (currentIndex > 0 || page > 1)}
+            hasNext={inList && (currentIndex < items.length - 1 || page < (imagesData?.pages ?? 1))}
           />
         );
       })()}

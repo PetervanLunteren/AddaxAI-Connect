@@ -16,7 +16,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff } from 'lucide-react';
+import { X, Download, Share2, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 
 type SlotKey = 'q' | 'w' | 'e';
@@ -26,6 +26,7 @@ const SLOT_KEYS: SlotKey[] = ['q', 'w', 'e'];
 const DIGIT_WINDOW_MS = 700;
 import { Dialog } from './ui/Dialog';
 import { Button } from './ui/Button';
+import { useToast } from './ui/Toaster';
 import { imagesApi } from '../api/images';
 import { drawDetectionOverlay } from '../utils/detection-overlay';
 import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
@@ -87,6 +88,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const adjustRef = useRef<HTMLDivElement>(null);
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
   const { isProjectAdmin, selectedProject } = useProject();
+  const toast = useToast();
 
   const queryClient = useQueryClient();
 
@@ -568,6 +570,38 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     }
   };
 
+  // Link to the images page whichever surface opened the modal, so there is
+  // one shareable address per image. The receiver needs an account and access
+  // to the project, the API checks both.
+  const shareUrl = selectedProject
+    ? `${window.location.origin}/projects/${selectedProject.id}/images?image=${imageUuid}`
+    : null;
+
+  const handleShare = async () => {
+    if (!shareUrl) return;
+    // Touch devices open the system share sheet, which is the WhatsApp case.
+    // Desktops copy instead. The pointer check is needed because desktop
+    // Chrome also has navigator.share, and its sheet offers Mail and AirDrop
+    // but no way to paste the link into Slack. Without the check the same
+    // laptop would behave differently in Chrome than in Firefox.
+    if (navigator.share && window.matchMedia('(pointer: coarse)').matches) {
+      try {
+        await navigator.share({ url: shareUrl });
+      } catch {
+        // Cancelling the sheet throws, and a cancel is not an error. No
+        // fallback copy either, that would claim success for something the
+        // user backed out of.
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy the link');
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       {/* Below md the modal is a fixed column: the photo stays fully
@@ -712,7 +746,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             {/* Header with action buttons, pinned while the panel scrolls
                 on phones */}
             <div className="flex items-center justify-between gap-1 sticky top-0 z-10 bg-background md:static">
-              <div className="flex items-center gap-1">
+              {/* Wraps because the row runs out of width at 390px: eight
+                  40px buttons plus the close button need 392px and the
+                  panel has 350px. Without wrapping flexbox shrinks the
+                  buttons instead, which nothing flags and which makes the
+                  tap targets worse. */}
+              <div className="flex flex-wrap items-center gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -837,6 +876,16 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 >
                   <Download className="h-5 w-5" />
                 </Button>
+                {shareUrl && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleShare}
+                    title="Share this image"
+                  >
+                    <Share2 className="h-5 w-5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1030,8 +1079,12 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
         </div>
         </>
         ) : (
-          <div className="py-12 text-center">
+          // Reachable from a shared link to an image that was deleted, or
+          // that the reader may not see. Needs its own close button, the
+          // whole toolbar above is gone in this branch.
+          <div className="py-12 text-center space-y-4">
             <p className="text-muted-foreground">Image not found</p>
+            <Button variant="outline" onClick={onClose}>Close</Button>
           </div>
         )}
       </div>
