@@ -57,6 +57,7 @@ nav:
   - Running your server:
     - Operations and monitoring: operations.md
     - Update guide: update-guide.md
+    - Testing an update: test-update.md
     - Restore guide: restore-guide.md
   - Developer:
     - Architecture: architecture.md

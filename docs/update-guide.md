@@ -1,86 +1,85 @@
 # Update guide
 
-How to safely update a production server to the latest version. These instructions are written for DigitalOcean droplets. The general approach applies to other cloud providers too, but the snapshot steps will differ.
+How to update a production server.
 
-You have two safety nets: a SQL database dump (fast to restore, covers schema and data) and a full DigitalOcean snapshot (covers everything including MinIO files, uploads, and configs). Between the two, you can recover from any failed update.
+Test it first on a dev server with a copy of this server's data. See
+[testing an update](test-update.md). Three minutes, and it catches most
+problems before production sees them.
 
-## 1. Back up production
+## 1. Check the backup
 
-1. **Create a database dump.** *(on the production server)* This is your most important backup. It's portable and fast to restore if anything goes wrong with the schema migration.
+*(on the production server)*
 
-   ```
-   cd /opt/addaxai-connect && docker compose exec postgres pg_dump -U addaxai addaxai_connect > backup.sql
-   ```
+The nightly backup is your rollback. Make sure it ran.
 
-2. **Power off the droplet.** *(on the production server)* DigitalOcean recommends powering off before taking a snapshot to ensure full disk consistency. This stops all services and the OS itself. You will lose your SSH session. When prompted for a password, enter the `app_user_password` from `ansible/host_vars/<server>.yml`.
-
-   ```
-   cd /opt/addaxai-connect && docker compose down && sudo shutdown -h now
-   ```
-
-3. **Take a DigitalOcean snapshot.** *(in the DigitalOcean dashboard)* Go to your droplet, click *Snapshots*, and create one. Wait for it to complete. This captures the full disk (database, MinIO files, uploads, configs) so you can restore the entire server if needed.
-
-4. **Power on the droplet.** *(in the DigitalOcean dashboard)* Go back to your droplet and click the power on button. Wait until the status shows it's running again before continuing.
-
-5. **Bring services back up.** *(on the production server)* SSH back in and start the docker compose stack. Powering off ran `docker compose down`, which removed the containers, so they do not come back on their own after boot.
-
-   ```
-   cd /opt/addaxai-connect && docker compose up -d
-   ```
-
-## 2. Update production
-
-1. **Pull the latest code.** *(on the production server)* SSH back in and pull the new version.
-
-   ```
-   cd /opt/addaxai-connect && git pull origin main
-   ```
-
-2. **Sync ansible-managed config.** *(from your local machine)* This regenerates `.env` from the template and installs or updates any cron jobs that the new release ships. Idempotent, so safe to run even when nothing has changed. `--limit` picks which server, so nothing needs editing first.
-
-   ```
-   cd ansible && ansible-playbook -i inventory.yml playbook.yml --limit <server> --tags sync-config
-   ```
-
-3. **Rebuild and start containers.** *(on the production server)* This rebuilds all service images with the new code and picks up any `.env` changes from the previous step. The correct services are selected automatically based on the `COMPOSE_PROFILES` variable in `.env`.
-
-   ```
-   cd /opt/addaxai-connect && docker compose up -d --build --force-recreate
-   ```
-
-4. **Run database migrations.** *(on the production server)* This applies any new Alembic migrations and backfills derived data. Watch the output carefully for errors. This is where most update issues surface.
-
-   ```
-   cd /opt/addaxai-connect && bash scripts/update-database.sh
-   ```
-
-5. **Verify on production.** *(on the production server)* Check that the frontend loads, you can log in, existing images display correctly, camera list and health data are intact, and all services show as healthy on the /server/health page. Confirm the version shown on the About page matches the latest release. Monitor the logs for a few minutes to catch any runtime errors.
-
-   ```
-   cd /opt/addaxai-connect && docker compose logs -f --tail 50
-   ```
-
-## Rollback
-
-You have two options depending on the severity of the issue.
-
-### Option 1: restore the database from the SQL dump
-
-Use this if only the database migration failed but the server is otherwise fine. This restores the database to the state before the update while keeping everything else intact.
-
-```
-cd /opt/addaxai-connect && docker compose down && cat backup.sql | docker compose exec -T postgres psql -U addaxai addaxai_connect && git checkout <previous-commit> && docker compose up -d --build
+```bash
+cd /opt/addaxai-connect && tail -3 logs/backup.log
 ```
 
-### Option 2: restore the full server from the snapshot
+Look for `Backup complete`, today or yesterday. If it is older, run
+`bash scripts/backup.sh` and wait.
 
-Use this if the server is in a bad state and you want to start fresh from the pre-update snapshot. This restores everything (database, MinIO files, uploads, configs) to exactly how it was before the update.
+## 2. Sync the config
 
-1. **Destroy or power off the broken droplet.** *(in the DigitalOcean dashboard)*
-2. **Create a new droplet from the snapshot.** Go to *Images > Snapshots*, click *More* on the snapshot you took in step 1.3, then click *Create Droplet*.
-3. **Update the DNS record** to point to the new droplet's IP address if it changed.
-4. **Start services.** *(on the restored server)*
+*(on your laptop)*
 
-   ```
-   cd /opt/addaxai-connect && docker compose up -d
-   ```
+Writes `.env` from your `host_vars` and installs any new cron jobs.
+
+```bash
+ansible-playbook -i ansible/inventory.yml ansible/playbook.yml \
+  --limit <server> --tags sync-config
+```
+
+Do this **before** the rebuild. New code sometimes reads a new setting.
+
+## 3. Pull and rebuild
+
+*(on the production server)*
+
+```bash
+cd /opt/addaxai-connect
+git pull origin main
+docker compose up -d --build --force-recreate
+```
+
+The code is baked into the images, so the rebuild is not optional.
+
+## 4. Migrate
+
+*(on the production server)*
+
+```bash
+bash scripts/update-database.sh
+```
+
+Watch the output. Most update problems show up here.
+
+## 5. Verify
+
+*(on the production server)*
+
+```bash
+bash scripts/verify-server.sh
+```
+
+Checks containers, migrations, health, read-only endpoints against your real
+data, a sample of images, and the logs. Prints `PASS` or `FAIL`.
+
+Then open the site and log in.
+
+## If it goes wrong
+
+Migrations do not roll back safely, so restore the database instead.
+
+```bash
+cd /opt/addaxai-connect
+git checkout <previous-tag>
+docker compose up -d --build --force-recreate
+bash scripts/restore.sh <this-server-domain> --force
+```
+
+Check out the old code first, so it matches the schema in the backup. List
+tags with `git tag --sort=-creatordate | head -5`.
+
+If the server is broken rather than the data, build a new one from the backup.
+See the [restore guide](restore-guide.md).

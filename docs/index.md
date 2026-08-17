@@ -23,6 +23,7 @@ An open-source platform that automatically processes camera trap images with mac
 
 - [Operations and monitoring](operations.md): check service health, view logs, monitor the pipeline
 - [Update guide](update-guide.md): safely update to new versions with backup and rollback
+- [Testing an update](test-update.md): run an update against a copy of your production data first
 - [Restore guide](restore-guide.md): rebuild a server from a backup when the old one is lost
 
 ## Developer
