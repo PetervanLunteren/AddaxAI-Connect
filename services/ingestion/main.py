@@ -14,7 +14,12 @@ from watchdog.events import FileSystemEventHandler, FileCreatedEvent, FileMovedE
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from shared.logger import get_logger, set_image_id
-from shared.queue import RedisQueue, QUEUE_IMAGE_INGESTED
+from shared.queue import (
+    RedisQueue,
+    QUEUE_IMAGE_INGESTED,
+    HEARTBEAT_KEY_INGESTION,
+    HEARTBEAT_TICK_SECONDS,
+)
 from shared.config import get_settings
 
 from validators import validate_image, validate_daily_report
@@ -38,6 +43,23 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 logger = get_logger("ingestion")
 settings = get_settings()
+
+
+def heartbeat_due(observer_alive: bool, now: float, last_stamp: float) -> bool:
+    """Whether the ingestion loop should stamp its liveness key now.
+
+    Conditional on the observer thread on purpose. Watchdog can die while
+    the process stays up, and from that moment no upload is ever picked
+    up again. A heartbeat that only proved "the process exists" would
+    hide exactly that failure, which is the class of bug this whole
+    check exists to catch.
+
+    Args:
+        observer_alive: whether the watchdog observer thread is running
+        now: monotonic clock reading
+        last_stamp: monotonic reading of the previous stamp
+    """
+    return observer_alive and (now - last_stamp) >= HEARTBEAT_TICK_SECONDS
 
 
 def _reject(
@@ -726,8 +748,23 @@ def main():
         cleanup_schedule="daily at 00:00 UTC"
     )
 
+    # Liveness. This service consumes no queue, so it stamps its own key
+    # here instead of from a consume loop. The queue name is irrelevant to
+    # a stamp, it is only the Redis client.
+    heartbeat = RedisQueue(QUEUE_IMAGE_INGESTED)
+    last_stamp = 0.0
+
     try:
         while True:
+            if heartbeat_due(observer.is_alive(), time.monotonic(), last_stamp):
+                last_stamp = time.monotonic()
+                try:
+                    heartbeat.stamp_heartbeat(HEARTBEAT_KEY_INGESTION)
+                except Exception as e:
+                    # A Redis blip must not take ingestion down with it.
+                    # The next tick retries; staleness fires if it never
+                    # recovers, which is the correct outcome.
+                    logger.warning("Failed to stamp heartbeat", error=str(e))
             time.sleep(1)
     except KeyboardInterrupt:
         logger.info("Shutting down ingestion service")

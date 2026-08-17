@@ -12,6 +12,7 @@ from shared.queue import (
     QUEUE_DETECTION_COMPLETE,
     QUEUE_DETECTION_COMPLETE_BULK,
     QUEUE_NOTIFICATION_EVENTS,
+    HEARTBEAT_KEY_CLASSIFICATION,
 )
 from config import get_settings
 from model_loader import load_model
@@ -548,7 +549,9 @@ def main():
             tier_bulk_raw_cold(msg.get("image_uuid"))
 
     logger.info("Listening for messages", queues=priority_queues)
-    queue.consume_forever_priority(priority_queues, handle_message)
+    queue.consume_forever_priority(
+        priority_queues, handle_message, heartbeat_key=HEARTBEAT_KEY_CLASSIFICATION
+    )
 
 
 if __name__ == "__main__":

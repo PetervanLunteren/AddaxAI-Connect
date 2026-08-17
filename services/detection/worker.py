@@ -15,6 +15,7 @@ from shared.queue import (
     QUEUE_IMAGE_INGESTED_BULK,
     QUEUE_DETECTION_COMPLETE,
     QUEUE_DETECTION_COMPLETE_BULK,
+    HEARTBEAT_KEY_DETECTION,
 )
 from config import get_settings
 from model_loader import load_model
@@ -171,6 +172,7 @@ def main():
     queue.consume_forever_priority(
         priority_queues,
         lambda msg: process_image(msg, detector),
+        heartbeat_key=HEARTBEAT_KEY_DETECTION,
     )
 
 

@@ -6,7 +6,7 @@ Provides service status information for server admins.
 import json
 import os
 from datetime import datetime, timezone
-from typing import List, Literal
+from typing import List, Literal, Optional
 import httpx
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -18,6 +18,9 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.queue import (
     RedisQueue,
+    HEARTBEAT_KEY_INGESTION,
+    HEARTBEAT_KEY_DETECTION,
+    HEARTBEAT_KEY_CLASSIFICATION,
     HEARTBEAT_KEY_NOTIFICATIONS,
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
@@ -227,18 +230,27 @@ def check_backup() -> ServiceStatus:
         )
 
 
-def check_heartbeat(name: str, heartbeat_key: str, queue_name: str) -> ServiceStatus:
+def check_heartbeat(
+    name: str, heartbeat_key: str, queue_name: Optional[str] = None
+) -> ServiceStatus:
     """
-    Check a notification worker through its Redis heartbeat.
+    Check a worker through its Redis heartbeat.
 
-    The worker stamps the key every consume-loop iteration (see
-    shared.queue.consume_forever), so a fresh stamp proves the loop is
-    actually alive, unlike the queue-accessible check below. The queue
-    depth in the message shows any backlog waiting for the worker.
+    The worker stamps the key at the top of every loop iteration (see
+    shared.queue.consume_forever and consume_forever_priority), so a
+    fresh stamp proves the loop is actually alive. An earlier version of
+    this endpoint asked whether the worker's queue was readable, which
+    only ever caught Redis being down: it reported three workers healthy
+    on a server running none of them.
+
+    With a queue_name the message carries the backlog waiting for that
+    worker. Ingestion has none to report, it watches the filesystem and
+    publishes rather than consumes, and naming the queue it publishes to
+    would show the detection backlog on the ingestion row.
     """
     try:
-        queue = RedisQueue(queue_name)
-        depth = queue.queue_depth()
+        queue = RedisQueue(queue_name or "health-check")
+        depth = queue.queue_depth() if queue_name else None
         # Same tolerant parse as the delivery liveness check, so a
         # missing key and an unreadable value classify identically
         last_seen = parse_heartbeat(queue.client.get(heartbeat_key))
@@ -257,19 +269,20 @@ def check_heartbeat(name: str, heartbeat_key: str, queue_name: str) -> ServiceSt
             age_label = f"{age_seconds} s ago"
         else:
             age_label = f"{age_seconds // 60} min ago"
+        depth_label = f" (queue depth {depth})" if depth is not None else ""
         if age.total_seconds() > HEARTBEAT_STALE_AFTER_MINUTES * 60:
             return ServiceStatus(
                 name=name,
                 status="unhealthy",
                 message=(
                     f"Last heartbeat {age_label}, stale after "
-                    f"{HEARTBEAT_STALE_AFTER_MINUTES} min (queue depth {depth})"
+                    f"{HEARTBEAT_STALE_AFTER_MINUTES} min{depth_label}"
                 ),
             )
         return ServiceStatus(
             name=name,
             status="healthy",
-            message=f"Last heartbeat {age_label} (queue depth {depth})",
+            message=f"Last heartbeat {age_label}{depth_label}",
         )
     except Exception as e:
         logger.error("Heartbeat health check failed", service=name, error=str(e))
@@ -277,35 +290,6 @@ def check_heartbeat(name: str, heartbeat_key: str, queue_name: str) -> ServiceSt
             name=name,
             status="unhealthy",
             message=f"Heartbeat check error: {str(e)}",
-        )
-
-
-def check_worker_service(name: str, queue_name: str) -> ServiceStatus:
-    """
-    Check if worker service is alive by checking queue depth.
-
-    Note: This doesn't guarantee the worker is processing, only that
-    the queue exists and is accessible. A more robust check would
-    require workers to periodically update a heartbeat in Redis.
-    """
-    try:
-        queue = RedisQueue(queue_name)
-        depth = queue.queue_depth()
-
-        # If queue is accessible, assume worker service is configured
-        # We can't easily check if the worker process is actually running
-        # without docker socket access
-        return ServiceStatus(
-            name=name,
-            status="healthy",
-            message=f"Queue accessible (depth: {depth})"
-        )
-    except Exception as e:
-        logger.error("Worker health check failed", service=name, error=str(e))
-        return ServiceStatus(
-            name=name,
-            status="unhealthy",
-            message=f"Queue error: {str(e)}"
         )
 
 
@@ -347,12 +331,12 @@ async def get_services_health(
     # Frontend
     services.append(await check_http_service("frontend", "http://frontend:80"))
 
-    # Worker services (check if their queues are accessible)
-    services.append(check_worker_service("ingestion", "image-ingested"))
-    services.append(check_worker_service("detection", "image-ingested"))
-    services.append(check_worker_service("classification", "detection-complete"))
-    # Notification workers have real heartbeats (stamped every consume
-    # loop iteration), so their rows reflect actual liveness
+    # Every worker row is a real heartbeat, stamped by the worker itself at
+    # the top of its own loop. Ingestion passes no queue: it watches the
+    # filesystem, so there is no backlog of its own to report.
+    services.append(check_heartbeat("ingestion", HEARTBEAT_KEY_INGESTION))
+    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, "image-ingested"))
+    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, "detection-complete"))
     services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, "notification-events"))
     services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, "notification-email"))
     services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, "notification-telegram"))

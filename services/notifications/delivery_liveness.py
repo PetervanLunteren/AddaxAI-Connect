@@ -1,12 +1,23 @@
-"""Delivery worker liveness — hourly check of the notification workers.
+"""Worker liveness, hourly check of every long-running worker.
 
-The email and telegram delivery workers stamp a heartbeat key in Redis
-every consume-loop iteration (see shared.queue.consume_forever). This
-check runs hourly at :15 and raises an alarm when a heartbeat has gone
-stale or a delivery queue has grown past a fixed depth, which catches a
-worker that is alive but stuck. Without it a dead delivery worker is
-invisible: the queues accept publishes with no consumer, and messages
-pile up silently (it happened twice before this existed).
+Each worker stamps a heartbeat key in Redis at the top of its own loop
+(see shared.queue.consume_forever and consume_forever_priority; ingestion
+watches the filesystem and stamps from its own loop). This check runs
+hourly at :15 and raises an alarm when a heartbeat has gone stale, or
+when a delivery queue has grown past a fixed depth, which catches a
+worker that is alive but stuck. Without it a dead worker is invisible:
+the queues accept publishes with no consumer, and messages pile up
+silently (it happened twice before this existed).
+
+The queue-depth trigger applies to the two delivery workers only. For the
+pipeline workers a deep queue is normal, not a fault: fifty cameras
+sending fifty images each puts thousands into image-ingested while
+detection works through them exactly as designed. Their heartbeat covers
+the stuck case anyway, because it is stamped before the pop, so a
+callback wedged on a hung inference stops the stamps.
+
+The module keeps its "delivery" name so the scheduler id, the Redis state
+key and the notification_logs type stay stable across the widening.
 
 Alerts go to every server admin on both channels at once, email and
 Telegram. A dead worker cannot deliver its own obituary, so the copy in
@@ -23,7 +34,7 @@ heartbeat is surfaced by the API health endpoint.
 import json
 import socket
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import redis
 from sqlalchemy import select
@@ -34,8 +45,13 @@ from shared.logger import get_logger
 from shared.models import ProjectNotificationPreference, User
 from shared.queue import (
     RedisQueue,
+    QUEUE_IMAGE_INGESTED,
+    QUEUE_DETECTION_COMPLETE,
     QUEUE_NOTIFICATION_EMAIL,
     QUEUE_NOTIFICATION_TELEGRAM,
+    HEARTBEAT_KEY_INGESTION,
+    HEARTBEAT_KEY_DETECTION,
+    HEARTBEAT_KEY_CLASSIFICATION,
     HEARTBEAT_KEY_NOTIFICATIONS_EMAIL,
     HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
     HEARTBEAT_STALE_AFTER_MINUTES,
@@ -52,11 +68,37 @@ STALE_AFTER = timedelta(minutes=HEARTBEAT_STALE_AFTER_MINUTES)
 QUEUE_DEPTH_ALERT = 200
 STATE_REDIS_KEY = "delivery_liveness:alerted"
 
-# (worker name, heartbeat key, queue it consumes). The names match the
-# health page rows.
+
+class Worker(NamedTuple):
+    """One monitored worker.
+
+    queue is None when the worker consumes none (ingestion watches the
+    filesystem). depth_alert is None when a deep queue is normal for this
+    worker and only the heartbeat should raise an alarm; the queue depth
+    is still reported in the alert as context.
+    """
+    name: str          # matches the health page row
+    heartbeat_key: str
+    label: str         # how the alert names it
+    queue: Optional[str] = None
+    depth_alert: Optional[int] = None
+
+
 WORKERS = [
-    ("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, QUEUE_NOTIFICATION_EMAIL),
-    ("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, QUEUE_NOTIFICATION_TELEGRAM),
+    Worker("ingestion", HEARTBEAT_KEY_INGESTION, "Ingestion worker"),
+    Worker("detection", HEARTBEAT_KEY_DETECTION, "Detection worker", QUEUE_IMAGE_INGESTED),
+    Worker(
+        "classification", HEARTBEAT_KEY_CLASSIFICATION, "Classification worker",
+        QUEUE_DETECTION_COMPLETE,
+    ),
+    Worker(
+        "notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, "Email delivery worker",
+        QUEUE_NOTIFICATION_EMAIL, QUEUE_DEPTH_ALERT,
+    ),
+    Worker(
+        "notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM,
+        "Telegram delivery worker", QUEUE_NOTIFICATION_TELEGRAM, QUEUE_DEPTH_ALERT,
+    ),
 ]
 
 
@@ -68,12 +110,13 @@ def heartbeat_stale(last_seen: Optional[datetime], now: datetime) -> bool:
 
 
 def worker_problem(
-    last_seen: Optional[datetime], queue_name: str, depth: int, now: datetime
+    last_seen: Optional[datetime], worker: Worker, depth: Optional[int], now: datetime
 ) -> Optional[str]:
     """One human-readable reason when the worker is unhealthy, else None.
 
     Both conditions can hold at once; they make one incident with one
-    combined reason, not two alerts.
+    combined reason, not two alerts. A worker with no depth_alert is
+    judged on its heartbeat alone, however deep its queue is.
     """
     reasons = []
     if heartbeat_stale(last_seen, now):
@@ -83,12 +126,12 @@ def worker_problem(
             days = (now - last_seen).days
             ago = f"{days} day{'s' if days != 1 else ''} ago" if days else "today"
             reasons.append(f"no heartbeat since {last_seen.isoformat()} ({ago})")
-    if depth > QUEUE_DEPTH_ALERT:
+    if worker.depth_alert is not None and depth is not None and depth > worker.depth_alert:
         if reasons:
-            reasons.append(f"queue {queue_name} depth {depth} over {QUEUE_DEPTH_ALERT}")
+            reasons.append(f"queue {worker.queue} depth {depth} over {worker.depth_alert}")
         else:
             reasons.append(
-                f"queue {queue_name} depth {depth} over {QUEUE_DEPTH_ALERT} "
+                f"queue {worker.queue} depth {depth} over {worker.depth_alert} "
                 "(heartbeat fresh, worker draining too slowly)"
             )
     return "; ".join(reasons) if reasons else None
@@ -104,34 +147,34 @@ def split_incidents(
 
 
 def check_delivery_liveness() -> None:
-    """Scheduled job. Alert server admins about delivery workers that
-    stopped heartbeating or whose queue is piling up."""
-    logger.info("Running delivery liveness check")
+    """Scheduled job. Alert server admins about workers that stopped
+    heartbeating, or whose delivery queue is piling up."""
+    logger.info("Running worker liveness check")
     redis_client = redis.from_url(settings.redis_url, decode_responses=True)
     now = datetime.now(timezone.utc)
     hostname = settings.domain_name or socket.gethostname()
 
     problems = {}
-    for name, heartbeat_key, queue_name in WORKERS:
+    for worker in WORKERS:
         # Per-worker isolation: whatever goes wrong probing one worker
-        # must never stop the other worker from being checked
+        # must never stop the other workers from being checked
         try:
-            last_seen = parse_heartbeat(redis_client.get(heartbeat_key))
-            depth = RedisQueue(queue_name).queue_depth()
-            reason = worker_problem(last_seen, queue_name, depth, now)
+            last_seen = parse_heartbeat(redis_client.get(worker.heartbeat_key))
+            depth = RedisQueue(worker.queue).queue_depth() if worker.queue else None
+            reason = worker_problem(last_seen, worker, depth, now)
         except Exception:
-            logger.exception("Failed to probe delivery worker", worker=name)
+            logger.exception("Failed to probe worker", worker=worker.name)
             continue
         if reason:
-            problems[name] = (reason, last_seen, queue_name, depth)
+            problems[worker.name] = (worker, reason, last_seen, depth)
 
     previously = _load_state(redis_client)
     new, ongoing, recovered = split_incidents(list(problems.keys()), previously)
 
     for name in new:
-        reason, last_seen, queue_name, depth = problems[name]
+        worker, reason, last_seen, depth = problems[name]
         try:
-            _send_alerts(name, reason, last_seen, queue_name, depth, hostname)
+            _send_alerts(worker, reason, last_seen, depth, hostname)
         except Exception:
             logger.exception("Failed to send liveness alert", worker=name)
 
@@ -140,7 +183,7 @@ def check_delivery_liveness() -> None:
         redis_client.set(STATE_REDIS_KEY, json.dumps(next_state))
 
     logger.info(
-        "Delivery liveness check complete",
+        "Worker liveness check complete",
         unhealthy=sorted(problems.keys()),
         new=new,
         ongoing=ongoing,
@@ -189,27 +232,22 @@ def _admin_telegram_chats() -> List[Tuple[int, str]]:
 
 
 def _send_alerts(
-    worker_name: str,
+    worker: Worker,
     reason: str,
     last_seen: Optional[datetime],
-    queue_name: str,
-    depth: int,
+    depth: Optional[int],
     hostname: str,
 ) -> None:
     """One alert about one worker, queued to both channels for every
     server admin. The dead worker's own copy waits in its queue and
     arrives after the restart, which is harmless."""
-    feature_label = (
-        "Email delivery worker" if worker_name == "notifications-email"
-        else "Telegram delivery worker"
-    )
     domain = settings.domain_name or hostname
     health_url = f"https://{domain}/server/health"
 
     trigger_data = {
-        "worker": worker_name,
+        "worker": worker.name,
         "reason": reason,
-        "queue": queue_name,
+        "queue": worker.queue,
         "queue_depth": depth,
         "last_seen": last_seen.isoformat() if last_seen else None,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -220,12 +258,13 @@ def _send_alerts(
         "timestamp": last_seen.isoformat() if last_seen else "never",
         "error": reason,
     }
-    extra = [
-        ("Queue", queue_name),
-        ("Queue depth", str(depth)),
-        ("Stale after", f"{HEARTBEAT_STALE_AFTER_MINUTES} min"),
-    ]
-    subject, text_body, html = _build_email(feature_label, payload, hostname, extra)
+    extra = [("Stale after", f"{HEARTBEAT_STALE_AFTER_MINUTES} min")]
+    if worker.queue:
+        extra = [
+            ("Queue", worker.queue),
+            ("Queue depth", str(depth)),
+        ] + extra
+    subject, text_body, html = _build_email(worker.label, payload, hostname, extra)
 
     email_queue = RedisQueue(QUEUE_NOTIFICATION_EMAIL)
     emails_queued = 0
@@ -247,12 +286,12 @@ def _send_alerts(
         emails_queued += 1
 
     # Telegram to every admin with a linked chat
-    label = "email" if worker_name == "notifications-email" else "telegram"
     message_lines = [
-        f"*{hostname}: {label} delivery worker down*",
+        f"*{hostname}: {worker.label.lower()} down*",
         reason.capitalize() + ".",
-        f"Queue {queue_name} depth {depth}.",
     ]
+    if worker.queue:
+        message_lines.append(f"Queue {worker.queue} depth {depth}.")
     message_text = "\n".join(message_lines)
 
     telegram_queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
@@ -278,7 +317,7 @@ def _send_alerts(
 
     logger.info(
         "Queued delivery liveness alert",
-        worker=worker_name,
+        worker=worker.name,
         reason=reason,
         emails=emails_queued,
         telegrams=telegrams_queued,

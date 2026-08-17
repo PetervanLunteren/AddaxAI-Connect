@@ -14,7 +14,7 @@ Also runs scheduled jobs (15-minute spacing convention):
 - Camera condition alert rules daily at 07:00 UTC
 - Scheduled species reports daily at 07:30 UTC
 - Disk usage alert check hourly at :00
-- Delivery worker liveness check hourly at :15
+- Worker liveness check hourly at :15
 - Theft watch silence check hourly at :30
 """
 from typing import Dict, Any
@@ -172,14 +172,14 @@ def main() -> None:
         name='Check disk usage hourly, email admins on threshold crossing'
     )
 
-    # Delivery worker liveness - hourly at :15 (disk owns :00; :15 only
+    # Worker liveness - hourly at :15 (disk owns :00; :15 only
     # overlaps SIM expiry on the 1st at 06:15, the least-colliding slot)
     scheduler.add_job(
         check_delivery_liveness,
         'cron',
         minute=15,
         id='delivery_liveness',
-        name='Check delivery worker liveness hourly at :15'
+        name='Check worker liveness hourly at :15'
     )
 
     # Infra alerts (cold tier + backup) - daily at 03:00 UTC, one hour after the

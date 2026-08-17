@@ -121,7 +121,7 @@ addaxai-connect/
 │   │   ├── excessive_images.py        # Excessive image alerts
 │   │   ├── project_inactivity.py      # Project inactivity alerts
 │   │   ├── disk_usage_alert.py        # Disk usage alerts
-│   │   ├── delivery_liveness.py       # Delivery worker heartbeat and queue depth alerts
+│   │   ├── delivery_liveness.py       # Worker heartbeat and queue depth alerts
 │   │   ├── infra_alert.py             # Infrastructure health alerts
 │   │   ├── sim_expiry.py              # SIM card expiry alerts
 │   │   ├── reminders.py               # Project reminder digests
@@ -402,6 +402,34 @@ The API side gets the timestamps from `fetch_camera_recency` in
 `services/api/utils/camera_recency.py`, which returns both clocks in two
 grouped queries. The camera alert rules and the theft watch define contact the
 same way, so all of them agree.
+
+## Worker liveness
+
+Every long-running worker proves it is alive by stamping a Redis key with
+the current UTC time. One writer, `RedisQueue.stamp_heartbeat`, and one
+staleness rule, 15 minutes, in `shared/shared/queue.py`.
+
+- Queue consumers stamp inside `consume_forever` and
+  `consume_forever_priority`, at the top of the loop and **before** the
+  pop. That asserts "the loop is alive", not "the process exists": a
+  callback wedged on a hung inference never comes back to stamp again.
+- The BRPOP timeout is therefore finite (`HEARTBEAT_TICK_SECONDS`). An
+  idle worker has to return to the loop top and tick, or a quiet night
+  would look like an outage.
+- Ingestion consumes no queue, it watches the filesystem, so it stamps
+  from its own loop and only while the watchdog observer thread is alive
+  (`heartbeat_due` in `services/ingestion/main.py`). Watchdog can die
+  while the process survives, and nothing would be picked up again.
+- No TTL on the keys, so the last seen time survives a restart, and a
+  missing key means the worker never ran against this Redis.
+
+Two readers, and they must agree: `/api/health/services` for the page,
+and `check_delivery_liveness` for the hourly alert. Never judge a worker
+by whether its queue is readable. A queue accepts publishes with no
+consumer, so that reported three dead workers as healthy for months.
+
+The queue-depth trigger applies to the delivery workers only. For the
+pipeline workers a deep queue is a normal backlog, not a fault.
 
 ## Infrastructure deployment
 

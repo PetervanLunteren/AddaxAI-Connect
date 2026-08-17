@@ -93,9 +93,7 @@ class RedisQueue:
         while True:
             try:
                 if heartbeat_key:
-                    self.client.set(
-                        heartbeat_key, datetime.now(timezone.utc).isoformat()
-                    )
+                    self.stamp_heartbeat(heartbeat_key)
                 message = self.consume(timeout=HEARTBEAT_TICK_SECONDS)
             except (redis.ConnectionError, redis.TimeoutError) as e:
                 logger.warning(
@@ -121,6 +119,7 @@ class RedisQueue:
         self,
         queues: list[str],
         callback: Callable[[dict], None],
+        heartbeat_key: Optional[str] = None,
     ) -> None:
         """
         Consume from multiple queues in strict priority order.
@@ -132,14 +131,26 @@ class RedisQueue:
         whenever the live queue has anything, the worker grabs that
         first.
 
+        The heartbeat works exactly as in consume_forever: stamped at the
+        top of the loop, before the pop, so it asserts "the loop is
+        alive" rather than "the process exists". A callback wedged on a
+        hung inference never returns here, the stamps stop advancing, and
+        staleness fires. The BRPOP timeout is finite for that reason; an
+        idle worker must still come back and tick. It was 0 (block
+        forever) before the heartbeat existed, and an empty pop was
+        already handled, so the timeout changes nothing else.
+
         Args:
             queues: Queue names in priority order (highest first).
             callback: Function called with the message dict.
+            heartbeat_key: Redis key to stamp each iteration, or None.
         """
         logger.info("Worker listening on priority queues", queues=queues)
         while True:
             try:
-                result = self.client.brpop(queues, timeout=0)
+                if heartbeat_key:
+                    self.stamp_heartbeat(heartbeat_key)
+                result = self.client.brpop(queues, timeout=HEARTBEAT_TICK_SECONDS)
             except (redis.ConnectionError, redis.TimeoutError) as e:
                 logger.warning(
                     "Redis read failed, reconnecting",
@@ -161,6 +172,18 @@ class RedisQueue:
                     error=str(e),
                     exc_info=True,
                 )
+
+    def stamp_heartbeat(self, heartbeat_key: str) -> None:
+        """
+        Write the current UTC time to a liveness key.
+
+        One definition of how a heartbeat is written, used by both consume
+        loops and by workers that consume no queue at all (ingestion
+        watches the filesystem). No TTL, so the last seen time survives a
+        restart and a missing key means the worker never ran against this
+        Redis.
+        """
+        self.client.set(heartbeat_key, datetime.now(timezone.utc).isoformat())
 
     def queue_depth(self) -> int:
         """Get current queue depth"""
@@ -210,12 +233,17 @@ def parse_heartbeat(raw: Optional[str]) -> Optional[datetime]:
     return stamp
 
 
-# Worker heartbeats. The three notification services stamp these keys
-# every consume_forever iteration; the API health endpoint and the hourly
-# delivery liveness check read them. Names match the health page rows.
+# Worker heartbeats. Every long-running worker stamps its key at the top
+# of its own loop; the API health endpoint and the hourly liveness check
+# read them. Names match the health page rows.
 HEARTBEAT_KEY_NOTIFICATIONS = "heartbeat:notifications"
 HEARTBEAT_KEY_NOTIFICATIONS_EMAIL = "heartbeat:notifications-email"
 HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM = "heartbeat:notifications-telegram"
+HEARTBEAT_KEY_INGESTION = "heartbeat:ingestion"
+HEARTBEAT_KEY_DETECTION = "heartbeat:detection"
+# One key for both classifiers. A server runs deepfaune or speciesnet,
+# never both, and the health page has a single "classification" row.
+HEARTBEAT_KEY_CLASSIFICATION = "heartbeat:classification"
 # How often an idle consume loop wakes to stamp, and how old a stamp may
 # get before the worker counts as dead. The margin between the two keeps
 # one slow message from raising a false alarm.
