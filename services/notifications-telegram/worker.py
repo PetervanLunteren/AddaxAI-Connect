@@ -347,14 +347,29 @@ def main() -> None:
             allow_list=get_settings().dev_notify_chat_ids or "(empty, everything is blocked)",
         )
 
-    # Start background thread for bot command polling
-    polling_thread = threading.Thread(
-        target=poll_for_start_commands,
-        daemon=True,
-        name="TelegramCommandPoller"
-    )
-    polling_thread.start()
-    logger.info("Started background thread for /start command polling")
+    # Start background thread for bot command polling.
+    #
+    # Not on a dev server with an empty allow-list. Telegram lets exactly one
+    # client hold getUpdates for a token, so a dev box restored from a
+    # production backup carries the production bot token and steals /start
+    # messages from the real server, which answers 409 Conflict to whichever
+    # poller loses the race. That is the 12 Aug 2026 incident, and blocking
+    # outbound messages alone does not prevent it because polling is a read.
+    # An allow-list with entries means Telegram on dev was set up deliberately,
+    # so polling is wanted there.
+    if is_development() and not get_settings().dev_notify_chat_ids.strip():
+        logger.warning(
+            "Development server with no Telegram allow-list: not polling for "
+            "/start commands, so this server cannot steal them from production"
+        )
+    else:
+        polling_thread = threading.Thread(
+            target=poll_for_start_commands,
+            daemon=True,
+            name="TelegramCommandPoller"
+        )
+        polling_thread.start()
+        logger.info("Started background thread for /start command polling")
 
     # Listen to Telegram queue (main thread)
     queue = RedisQueue(QUEUE_NOTIFICATION_TELEGRAM)
