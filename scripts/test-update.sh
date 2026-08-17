@@ -178,6 +178,23 @@ if [ -n "$JSON_OUT" ]; then
     printf '  "verify": "%s",\n' "$VERIFY_STATUS"
     printf '  "result": "%s",\n' "$OVERALL"
     printf '  "restore_log": "%s",\n' "$RESTORE_LOG"
+    # Embed what verify-server.sh found. Without this a failed dataset says
+    # only "verify: fail" and triage means hunting for a temp file, which is
+    # exactly what happened the first time a dataset failed here.
+    printf '  "verify_checks": '
+    if [ -f "$VERIFY_JSON" ]; then
+      python3 -c "
+import json,sys
+try:
+    d = json.load(open('$VERIFY_JSON'))
+    print(json.dumps(d.get('checks', [])))
+except Exception:
+    print('[]')
+" 2>/dev/null || printf '[]'
+    else
+      printf '[]'
+    fi
+    printf ',\n'
     printf '  "row_counts": {'
     first=1
     while IFS=, read -r t n; do

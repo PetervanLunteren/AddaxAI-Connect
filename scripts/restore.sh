@@ -247,8 +247,11 @@ if [ "$DB_ONLY" = "true" ]; then
   # query is deterministic, so the two always agree on the sample.
   SAMPLE_SQL="$APP_DIR/scripts/lib/sample-images.sql"
   if [ -f "$SAMPLE_SQL" ]; then
+    # `|| true` because grep exits 1 on no match, which under set -e failed the
+    # whole restore on a server that simply has no images yet. npuh is empty
+    # and every run of it died here.
     SAMPLE="$(docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-              -F'|' -A -t -f /dev/stdin < "$SAMPLE_SQL" 2>/dev/null | grep '|')"
+              -F'|' -A -t -f /dev/stdin < "$SAMPLE_SQL" 2>/dev/null | grep '|' || true)"
     n_ok=0
     n_miss=0
     # Every `docker compose exec -T` in here reads stdin, which would swallow
