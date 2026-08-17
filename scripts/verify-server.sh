@@ -149,27 +149,66 @@ fi
 # -------------------------------------------------------------------- health
 if [ -n "$TOKEN" ]; then
   HEALTH="$(curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" "$BASE/api/health/services")"
-  UNHEALTHY="$(printf '%s' "$HEALTH" | python3 -c "
-import json,sys
+
+  # The endpoint reports every service the application knows about, whether or
+  # not this server is configured to run it. On a demo-profile server that is
+  # four rows that can never go green: the cold-tier watchdog and the three
+  # notification workers. Failing on those would make the check useless exactly
+  # where it matters most, since demo is the public one.
+  #
+  # So a row is only a failure when its compose service is actually configured
+  # here. EXPECTED comes from `docker compose config --services`, which already
+  # respects COMPOSE_PROFILES.
+  #
+  # This is a workaround. The endpoint should not report services a server does
+  # not run, see TODO.md.
+  HEALTH_EVAL="$(printf '%s' "$HEALTH" | EXPECTED="$EXPECTED" python3 -c "
+import json, os, sys
+
+# health row name -> the compose service(s) that provide it. A row with no
+# entry here is infrastructure that every profile runs.
+PROVIDED_BY = {
+    'ingestion': ['ingestion'],
+    'detection': ['detection'],
+    'classification': ['classification-deepfaune', 'classification-speciesnet'],
+    'notifications': ['notifications'],
+    'notifications-email': ['notifications-email'],
+    'notifications-telegram': ['notifications-telegram'],
+    'cold-tier-watchdog': ['minio-tier-watchdog'],
+}
+
+configured = set(os.environ.get('EXPECTED', '').split())
 try:
-    d = json.load(sys.stdin)
+    services = json.load(sys.stdin).get('services', [])
 except Exception:
     print('PARSE_ERROR'); raise SystemExit
-bad = [s['name'] for s in d.get('services', []) if s.get('status') != 'healthy']
-print(','.join(bad) if bad else '')
-" 2>/dev/null)"
-  TOTAL="$(printf '%s' "$HEALTH" | python3 -c "
-import json,sys
-try: print(len(json.load(sys.stdin).get('services', [])))
-except Exception: print(0)
+if not services:
+    print('PARSE_ERROR'); raise SystemExit
+
+real, absent = [], []
+for s in services:
+    if s.get('status') == 'healthy':
+        continue
+    needs = PROVIDED_BY.get(s['name'])
+    if needs and not (configured & set(needs)):
+        absent.append(s['name'])      # not run on this server, expected
+    else:
+        real.append(s['name'])
+print('%d|%s|%s' % (len(services), ','.join(real), ','.join(absent)))
 " 2>/dev/null)"
 
-  if [ "$UNHEALTHY" = "PARSE_ERROR" ] || [ "$TOTAL" = "0" ]; then
+  if [ "$HEALTH_EVAL" = "PARSE_ERROR" ] || [ -z "$HEALTH_EVAL" ]; then
     fail "health" "endpoint did not return a service list"
-  elif [ -n "$UNHEALTHY" ]; then
-    fail "health" "unhealthy: $UNHEALTHY"
   else
-    pass "health" "$TOTAL services healthy"
+    TOTAL="${HEALTH_EVAL%%|*}"
+    rest="${HEALTH_EVAL#*|}"
+    REAL_BAD="${rest%%|*}"
+    NOT_RUN="${rest#*|}"
+    if [ -n "$REAL_BAD" ]; then
+      fail "health" "unhealthy: $REAL_BAD"
+    else
+      pass "health" "$TOTAL services checked${NOT_RUN:+, not run here: $NOT_RUN}"
+    fi
   fi
 fi
 
