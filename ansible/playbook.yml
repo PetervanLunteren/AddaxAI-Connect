@@ -2,11 +2,31 @@
 # AddaxAI Connect - Full Infrastructure Playbook
 # This playbook sets up a complete production-ready VM
 
+# hosts: all, so --limit picks the target. Without --limit this play would
+# reach every server in the inventory at once, which the guard below refuses.
 - name: Deploy AddaxAI Connect Infrastructure
-  hosts: dev
+  hosts: all
   become: yes
 
-  tasks:
+  # pre_tasks, not tasks. A bare `tasks:` block runs AFTER `roles:`, so the
+  # banner used to print once the whole deploy was already finished and a
+  # guard there would have been useless.
+  pre_tasks:
+    - name: Refuse to deploy to more than one server unless it was asked for
+      # Six production servers sit in this inventory. Forgetting --limit used
+      # to be impossible because the play was pinned to one group; now it is
+      # one keystroke away, so make it loud instead of silent.
+      assert:
+        that: ansible_play_hosts | length == 1
+        fail_msg: >-
+          This run targets {{ ansible_play_hosts | length }} servers
+          ({{ ansible_play_hosts | join(', ') }}).
+          Add --limit <host> to pick one, or pass -e confirm_multi=true if you
+          really mean all of them.
+        quiet: true
+      when: not (confirm_multi | default(false) | bool)
+      run_once: true
+
     - name: Display deployment information
       debug:
         msg: |

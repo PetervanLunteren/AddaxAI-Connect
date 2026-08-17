@@ -1,0 +1,40 @@
+---
+# Copy to main.yml (in this same directory) and adjust. main.yml is gitignored.
+#
+#   cp ansible/group_vars/all/main.yml.example ansible/group_vars/all/main.yml
+#
+# Settings that are the same on every server you run. No passwords here, those
+# are per server and live in host_vars/<host>.yml.
+#
+# Rule of thumb: a value belongs here when every server agrees on it, and in
+# host_vars when one server needs something different. host_vars wins.
+
+# Where the application lives on the machine
+app_user: ubuntu
+app_directory: /opt/addaxai-connect
+git_repo: https://github.com/PetervanLunteren/AddaxAI-Connect.git
+git_branch: main
+deploy_pull_images: false
+
+# Handy tools on the box
+install_vim: true
+install_htop: true
+install_tree: true
+
+# Security. The playbook stops on a critical finding when this is true.
+enable_firewall: true
+allowed_ssh_port: 22
+fail_on_security_issues: true
+
+# Port range opened for FTPS passive mode, where the cameras upload
+ftps_passive_port_min: 40000
+ftps_passive_port_max: 50000
+
+# HTTPS. Set letsencrypt_staging true only while debugging certificate issues,
+# it issues test certificates that browsers do not trust.
+enable_ssl: true
+letsencrypt_staging: false
+letsencrypt_email: "you@example.com"
+
+# Set true only on a machine with a CUDA GPU
+use_gpu: false

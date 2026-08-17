@@ -1,0 +1,97 @@
+---
+# Copy to <host>.yml, where <host> matches the name in inventory.yml. So a
+# server called myserver reads ansible/host_vars/myserver.yml.
+#
+#   cp ansible/host_vars/example.yml.example ansible/host_vars/myserver.yml
+#
+# Everything specific to one server: its domain, its passwords, its choices.
+# These files are gitignored. Keep your filled-in copies somewhere private.
+#
+# Adopting a server that already runs? Do not fill this in by hand:
+#
+#   bash ansible/scripts/import-host-vars.sh myserver
+#
+# That reads the server's own .env and writes this file for you, so ansible
+# starts from what the machine is actually doing rather than from a guess.
+
+# The domain this server answers on. Also used as its prefix inside the shared
+# cold-tier and backup buckets, so it must be unique per server.
+domain_name: "camera.example.com"
+
+# Which species classifier to run: deepfaune (38 European species) or
+# speciesnet (2,498 global species). Picks the docker compose profile too.
+classification_model: "deepfaune"
+
+# demo_mode true runs the interface with no ML workers, for a public demo
+demo_mode: false
+
+# production or development. development turns on verbose behaviour, so set
+# production on a real server.
+app_environment: production
+log_level: INFO
+
+# --- Passwords. Generate long random values, do not reuse them. ---------
+# `openssl rand -base64 32` gives a good one.
+
+# Login password for the app user created by the playbook. Leave this line out
+# entirely to keep whatever password the server already has; the role skips the
+# task when the variable is undefined.
+app_user_password: "CHANGE_ME"
+
+# Protects the nginx metrics endpoint. Same rule: leave it out to keep the
+# existing one.
+monitoring_password: "CHANGE_ME"
+
+db_user: addaxai
+db_name: addaxai_connect
+db_password: "CHANGE_ME"
+
+redis_password: "CHANGE_ME"
+
+minio_user: minioadmin
+minio_password: "CHANGE_ME"
+
+# Signs login tokens. Changing it logs everybody out.
+jwt_secret: "CHANGE_ME"
+
+# --- FTPS, where the cameras upload -------------------------------------
+ftps_username: camera
+ftps_password: "CHANGE_ME"
+ftps_upload_dir: /opt/addaxai-connect/uploads
+
+# --- Outgoing mail, for login and notification emails -------------------
+# Gmail needs an app password, not the account password.
+mail_server: "smtp.gmail.com"
+mail_port: 587
+mail_username: "you@example.com"
+mail_password: "CHANGE_ME"
+mail_from: "you@example.com"
+
+# The first server-admin account, created at deploy time. Use "Forgot password"
+# to set your own password afterwards.
+admin_email: "you@example.com"
+
+# Email server admins when the root filesystem crosses these percentages
+disk_alert_thresholds: "80,90,95"
+
+# --- Cold storage tier (optional) ---------------------------------------
+# Moves older raw images to cheap remote storage once the local copy exceeds
+# the budget. Reads stay transparent. Leave disabled to keep everything local.
+cold_tier_enabled: false
+cold_tier_endpoint: "https://s3.eu-central-1.wasabisys.com"
+cold_tier_bucket: ""
+cold_tier_region: "eu-central-1"
+cold_tier_access_key: ""
+cold_tier_secret_key: ""
+cold_tier_hot_budget_gb: 80
+
+# --- Nightly backups at 02:00 UTC (strongly recommended) ----------------
+# Use a different bucket from the cold tier, so losing one does not touch the
+# other. Several servers can share one bucket, each writes under its own
+# domain_name prefix.
+backup_enabled: false
+backup_endpoint: "https://s3.eu-central-1.wasabisys.com"
+backup_bucket: ""
+backup_region: "eu-central-1"
+backup_access_key: ""
+backup_secret_key: ""

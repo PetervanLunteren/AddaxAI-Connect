@@ -1,11 +1,38 @@
 ---
+# Copy to inventory.yml and fill in your own servers. inventory.yml is
+# gitignored, so your machines never end up in this repo.
+#
+#   cp ansible/inventory.yml.example ansible/inventory.yml
+#
+# One entry per server. The name on the left is how you address it:
+#
+#   ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --limit myserver
+#
+# Per-server settings and passwords go in host_vars/<name>.yml, one file each.
+# Settings shared by all of them go in group_vars/all/main.yml.
 
 all:
+  vars:
+    # The user ansible connects as. Ubuntu VMs usually start with root, and the
+    # playbook creates the unprivileged app user itself.
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/id_rsa
+    ansible_python_interpreter: /usr/bin/python3
+
   children:
-    dev:
+    # Group your live servers so you can target them together when you mean to.
+    # With one server this group is optional, keep it anyway, it costs nothing
+    # and the day you add a second one it is already there.
+    prod:
       hosts:
-        addaxai-connect:
-          ansible_host: your_vm_ipv4                    # Replace with VM IPv4 (e.g., 192.168.1.100)
-          ansible_user: root                            # Initial user (Ubuntu VMs typically start with root)
-          ansible_ssh_private_key_file: your_ssh_key    # Path to your SSH private key (e.g., ~/.ssh/id_rsa or C:\Users\username\.ssh\id_rsa on Windows)
-          ansible_python_interpreter: /usr/bin/python3
+        myserver:
+          ansible_host: 192.0.2.10
+        # another:
+        #   ansible_host: 192.0.2.11
+
+  # Servers outside any group. A test box you restore backups onto fits here.
+  # Do not give a group the same name as a host in it, ansible warns and
+  # --limit becomes ambiguous.
+  # hosts:
+  #   mytestserver:
+  #     ansible_host: 192.0.2.20
