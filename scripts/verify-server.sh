@@ -253,6 +253,63 @@ print('\n'.join(str(p['id']) for p in items))
   fi
 fi
 
+# -------------------------------------------------------------------- images
+# Ask the API to actually serve a stratified handful of images. The sample is
+# defined once in scripts/lib/sample-images.sql, the same file restore.sh reads
+# when it fetches objects for a --db-only run, and the query is deterministic
+# so both always pick the same rows.
+#
+# Scope is deliberately narrow: does it come back 200 and does it decode. Not
+# whether the blur is correct, which tests/api/test_full_frame_blur.py already
+# covers with real pixel assertions. Two copies of that check would drift.
+#
+# A missing object is a warning, not a failure. Some rows on these servers
+# point at objects removed by an earlier restore, and failing on those forever
+# would just train everyone to ignore a red line.
+SAMPLE_SQL="$APP_DIR/scripts/lib/sample-images.sql"
+IMG_MISSING=0
+if [ -n "$TOKEN" ] && [ -f "$SAMPLE_SQL" ]; then
+  SAMPLE="$(docker compose exec -T postgres psql \
+            -U "$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2-)" \
+            -d "$(grep -E '^POSTGRES_DB=' .env | cut -d= -f2-)" \
+            -F'|' -A -t -f /dev/stdin < "$SAMPLE_SQL" 2>/dev/null | grep '|')"
+
+  IMG_OK=0
+  IMG_BAD=""
+  while IFS='|' read -r reason uuid raw thumb; do
+    [ -n "$uuid" ] || continue
+    for kind in thumbnail full; do
+      body="$(mktemp)"
+      code="$(curl -s -o "$body" --max-time 60 -w '%{http_code}' \
+              -H "Authorization: Bearer $TOKEN" "$BASE/api/images/$uuid/$kind")"
+      size="$(wc -c < "$body" | tr -d ' ')"
+      # JPEG magic. Enough to tell a real image from an error page or a
+      # zero-length body, without needing PIL on the host.
+      magic="$(head -c 3 "$body" | od -An -tx1 | tr -d ' \n')"
+      rm -f "$body"
+
+      if [ "$code" = "404" ]; then
+        IMG_MISSING=$((IMG_MISSING + 1))          # object gone from storage
+      elif [ "$code" != "200" ]; then
+        IMG_BAD="$IMG_BAD $reason/$kind[$code]"
+      elif [ "$size" -lt 500 ] || [ "$magic" != "ffd8ff" ]; then
+        IMG_BAD="$IMG_BAD $reason/$kind[not-a-jpeg]"
+      else
+        IMG_OK=$((IMG_OK + 1))
+      fi
+    done
+  done <<< "$SAMPLE"
+
+  n_sample="$(printf '%s' "$SAMPLE" | grep -c . || true)"
+  if [ "${n_sample:-0}" -eq 0 ]; then
+    pass "images" "no images on this server, nothing to serve"
+  elif [ -n "$IMG_BAD" ]; then
+    fail "images" "$IMG_OK served, broken:$IMG_BAD${IMG_MISSING:+, $IMG_MISSING missing from storage}"
+  else
+    pass "images" "$IMG_OK served from a $n_sample image sample${IMG_MISSING:+, $IMG_MISSING missing from storage (warning)}"
+  fi
+fi
+
 # ---------------------------------------------------------------------- logs
 # Structured logs, so this counts real ERROR records rather than any line that
 # happens to contain the word.

@@ -236,6 +236,38 @@ mirror_if_present() {
 
 if [ "$DB_ONLY" = "true" ]; then
   log "Skipping every image mirror (--db-only)"
+
+  # Fetch a small stratified sample anyway, so the serve paths can still be
+  # exercised. scripts/lib/sample-images.sql picks one image per interesting
+  # case: a person box, a vehicle box, a plain classified frame, a pending or
+  # failed one, a bulk import, one per camera, the oldest and the newest.
+  # Around a dozen files instead of tens of thousands.
+  #
+  # verify-server.sh reads the same file to decide what to ask for, and the
+  # query is deterministic, so the two always agree on the sample.
+  SAMPLE_SQL="$APP_DIR/scripts/lib/sample-images.sql"
+  if [ -f "$SAMPLE_SQL" ]; then
+    SAMPLE="$(docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+              -F'|' -A -t -f /dev/stdin < "$SAMPLE_SQL" 2>/dev/null | grep '|')"
+    n_ok=0
+    n_miss=0
+    while IFS='|' read -r reason uuid raw thumb; do
+      [ -n "$raw" ] || continue
+      if docker compose exec -T minio mc cp --quiet \
+           "$SRC_PREFIX/minio/raw-images/$raw" "local/raw-images/$raw" > /dev/null 2>&1; then
+        n_ok=$((n_ok + 1))
+      else
+        n_miss=$((n_miss + 1))
+      fi
+      if [ -n "$thumb" ]; then
+        docker compose exec -T minio mc cp --quiet \
+          "$SRC_PREFIX/minio/thumbnails/$thumb" "local/thumbnails/$thumb" > /dev/null 2>&1 || true
+      fi
+    done <<< "$SAMPLE"
+    log "Sample images fetched: $n_ok present, $n_miss missing from the backup"
+  else
+    log "No $SAMPLE_SQL, skipping the image sample"
+  fi
 else
   # ---- MinIO buckets ----
   for BUCKET in raw-images crops thumbnails project-images project-documents models; do
