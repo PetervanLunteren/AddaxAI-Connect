@@ -1,15 +1,24 @@
 #!/bin/bash
 # Cold-start disaster recovery: restore this server from a Wasabi backup.
 #
-# Usage:   bash scripts/restore.sh <source-domain> [date] [--force]
+# Usage:   bash scripts/restore.sh <source-domain> [date] [--force] [--db-only]
 # Example: bash scripts/restore.sh prod.addaxai.com
 # Example: bash scripts/restore.sh prod.addaxai.com 2026-04-17
+# Example: bash scripts/restore.sh prod.addaxai.com --force --db-only
 #
 # Pulls the postgres dump and every MinIO bucket + host image dir that was
 # captured by scripts/backup.sh and loads them into the current server. Refuses
 # to run when the users table has any active rows unless --force is passed.
 # (The ansible deploy seeds an inactive system@addaxai.com bookkeeping user;
 # that one does not count as "populated".)
+#
+# --db-only restores the database and skips every image mirror. Minutes instead
+# of hours, because the images are almost all of the bytes. Use it to test an
+# update against real production data, which is what scripts/test-update.sh
+# does: migrations and the queries that break on real data shapes only need the
+# database. The result is a server whose image rows point at objects that are
+# not there, so pictures will not load. That is expected, not a failed restore.
+# Never use it for a real recovery.
 #
 # Pre-reqs (already true after ansible-playbook on a fresh VM):
 #   - .env has BACKUP_ENDPOINT, BACKUP_BUCKET, BACKUP_ACCESS_KEY, BACKUP_SECRET_KEY set
@@ -42,9 +51,11 @@ trap 'rm -f "$LOCK_FILE"' EXIT
 SRC_DOMAIN=""
 BACKUP_DATE=""
 FORCE="false"
+DB_ONLY="false"
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE="true" ;;
+    --db-only) DB_ONLY="true" ;;
     *)
       if [ -z "$SRC_DOMAIN" ]; then
         SRC_DOMAIN="$arg"
@@ -121,7 +132,12 @@ log "About to restore onto this server:"
 log "  source    : $SRC_DOMAIN"
 log "  date      : $BACKUP_DATE"
 log "  bucket    : $BACKUP_BUCKET"
-log "  this WILL overwrite the current DB, MinIO contents, and host image dirs."
+if [ "$DB_ONLY" = "true" ]; then
+  log "  scope     : DATABASE ONLY, images are not restored and will not load"
+  log "  this WILL overwrite the current DB. MinIO and host image dirs are left alone."
+else
+  log "  this WILL overwrite the current DB, MinIO contents, and host image dirs."
+fi
 log "  force mode: $FORCE"
 log ""
 log "Starting in 5 seconds. Ctrl-C to abort."
@@ -218,17 +234,21 @@ mirror_if_present() {
   done
 }
 
-# ---- MinIO buckets ----
-for BUCKET in raw-images crops thumbnails project-images project-documents models; do
-  mirror_if_present "minio/$BUCKET" "$SRC_PREFIX/minio/$BUCKET" "local/$BUCKET"
-done
-log "All MinIO buckets restored"
+if [ "$DB_ONLY" = "true" ]; then
+  log "Skipping every image mirror (--db-only)"
+else
+  # ---- MinIO buckets ----
+  for BUCKET in raw-images crops thumbnails project-images project-documents models; do
+    mirror_if_present "minio/$BUCKET" "$SRC_PREFIX/minio/$BUCKET" "local/$BUCKET"
+  done
+  log "All MinIO buckets restored"
 
-# ---- Host image dirs ----
-for HOST_DIR in project-images reference-images; do
-  mirror_if_present "host/$HOST_DIR" "$SRC_PREFIX/$HOST_DIR" "/host/$HOST_DIR"
-done
-log "Host image dirs restored"
+  # ---- Host image dirs ----
+  for HOST_DIR in project-images reference-images; do
+    mirror_if_present "host/$HOST_DIR" "$SRC_PREFIX/$HOST_DIR" "/host/$HOST_DIR"
+  done
+  log "Host image dirs restored"
+fi
 
 # ---- final ----
 log "Restarting api to pick up the fresh DB state"
@@ -237,8 +257,13 @@ docker compose restart api > /dev/null
 log "Restore complete in $(( $(date +%s) - START_EPOCH ))s"
 log ""
 log "Next steps:"
-log "  1. Open the UI and log in with a user from the restored DB."
-log "  2. Spot-check: open a project, a camera, a recent image."
+if [ "$DB_ONLY" = "true" ]; then
+  log "  1. Database only. Images will not load, that is expected here."
+  log "  2. Run: bash scripts/verify-server.sh"
+else
+  log "  1. Open the UI and log in with a user from the restored DB."
+  log "  2. Spot-check: open a project, a camera, a recent image."
+fi
 log ""
 log "The nightly backup cron resumes automatically once the .fresh-server"
 log "marker turns 24 h old. No manual toggle needed."
