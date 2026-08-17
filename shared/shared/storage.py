@@ -5,12 +5,32 @@ Provides simple interface for uploading/downloading objects from MinIO.
 """
 import boto3
 from botocore.client import Config
+from botocore.exceptions import ClientError
 from typing import BinaryIO, Optional
 from pathlib import Path
 
 from .config import get_settings
 
 settings = get_settings()
+
+
+class StorageObjectNotFound(Exception):
+    """The object is not in the bucket.
+
+    Separate from every other storage failure on purpose. A row pointing at an
+    object that is gone is a 404 for the caller, while a broken connection or a
+    permission problem is a 500, and the two used to be indistinguishable
+    because every call site caught bare Exception and answered 500. That turned
+    a missing picture into a server error, leaked the raw storage message to
+    the client, and hid genuine outages among the noise.
+    """
+
+
+def _raise_if_missing(err: ClientError, bucket: str, object_name: str) -> None:
+    """Translate the boto3 not-found codes, leave anything else alone."""
+    code = err.response.get("Error", {}).get("Code", "")
+    if code in ("NoSuchKey", "404", "NotFound"):
+        raise StorageObjectNotFound(f"{bucket}/{object_name}") from err
 
 
 class StorageClient:
@@ -84,8 +104,15 @@ class StorageClient:
 
         Returns:
             File contents as bytes
+
+        Raises:
+            StorageObjectNotFound: the object is not in the bucket
         """
-        response = self.client.get_object(Bucket=bucket, Key=object_name)
+        try:
+            response = self.client.get_object(Bucket=bucket, Key=object_name)
+        except ClientError as e:
+            _raise_if_missing(e, bucket, object_name)
+            raise
         return response['Body'].read()
 
     def tag_object_cold(self, bucket: str, object_name: str) -> None:

@@ -73,8 +73,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         # Calculate duration
         duration = time.time() - start_time
 
-        # Log outgoing response
-        logger.info(
+        # Log outgoing response. A 5xx goes out at ERROR so it is findable.
+        # Every response used to log at INFO, so a server answering 500 to
+        # every image request showed nothing at ERROR level and no log-based
+        # check or alert could see it. 4xx stays at INFO, a client asking for
+        # something it may not have is normal traffic.
+        log_response = logger.error if response.status_code >= 500 else logger.info
+        log_response(
             "Outgoing response",
             method=request.method,
             path=request.url.path,

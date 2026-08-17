@@ -7,11 +7,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from shared import __version__
 from shared.config import get_settings
 from shared.database import get_async_session
 from shared.logger import get_logger
+from shared.storage import StorageObjectNotFound
 from auth.routes import get_auth_router
 from routers import admin, logs, cameras, site_groups, camera_reference_images, camera_maintenance, images, image_admin, statistics, projects, devtools, ingestion_monitoring, project_images, project_documents, notifications, reminders, camera_alert_rules, detection_alert_rules, scheduled_reports, theft_watch_rules, users, export, species, bulk_upload, sites, deployments, feed, live_feed
 from routers import health as health_router
@@ -72,6 +74,26 @@ async def db_session_middleware(request: Request, call_next):
         request.state.db = session
         response = await call_next(request)
         return response
+
+
+@app.exception_handler(StorageObjectNotFound)
+async def storage_object_not_found_handler(request: Request, exc: StorageObjectNotFound):
+    """A row pointing at an object that is gone is a 404, not a 500.
+
+    Handled here rather than at each call site, because the serve endpoints
+    download from storage in several branches (thumbnail, full, annotated,
+    blurred, whole-frame blurred) and wrapping each one would be four copies
+    that drift. Every route gets this for free.
+
+    The detail deliberately does not carry the storage message. It used to,
+    which put the bucket name and key into a client response.
+    """
+    logger.warning(
+        "Image object missing from storage",
+        path=request.url.path,
+        object=str(exc),
+    )
+    return JSONResponse(status_code=404, content={"detail": "Image file not found in storage"})
 
 
 # Request logging middleware (must be added BEFORE CORS)

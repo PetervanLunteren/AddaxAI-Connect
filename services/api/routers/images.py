@@ -13,7 +13,7 @@ import io
 
 from shared.models import User, Image, Camera, Detection, Classification, Project, HumanObservation, Deployment, Site
 from shared.database import get_async_session
-from shared.storage import StorageClient
+from shared.storage import StorageClient, StorageObjectNotFound
 from shared.config import get_settings
 from auth.users import current_verified_user
 from auth.permissions import can_admin_project
@@ -1804,6 +1804,10 @@ async def _stream_image_from_storage(
                 "ETag": f'"{image.uuid}"',
             }
         )
+    except StorageObjectNotFound:
+        # Let the app-level handler answer 404. Catching it here would turn a
+        # missing file back into a server error.
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -2054,6 +2058,8 @@ async def get_annotated_image(
     try:
         storage_client = StorageClient()
         image_bytes = storage_client.download_fileobj("raw-images", image.storage_path)
+    except StorageObjectNotFound:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
