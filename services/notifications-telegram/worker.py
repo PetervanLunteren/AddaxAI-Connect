@@ -162,7 +162,7 @@ def process_telegram_message(message: Dict[str, Any]) -> None:
 
     # Validate required fields
     if not all([log_id, chat_id, message_text]):
-        logger.error("Missing required fields in Telegram message", message=message)
+        logger.error("Missing required fields in Telegram message", payload=message)
         return
 
     logger.info(

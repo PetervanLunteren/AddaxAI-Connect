@@ -78,6 +78,18 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
             log_record["exc_info"] = self.formatException(record.exc_info)
 
 
+# Names the standard library already owns on a LogRecord. Passing one of
+# these through `extra` makes logging raise, which crashes the caller with
+# an error that blames logging instead of naming the real problem. It bit
+# twice, both times inside an error handler, so the diagnostic you needed
+# was replaced by "Attempt to overwrite 'message' in LogRecord". A logger
+# must never be able to break the code that calls it, so a colliding key
+# is renamed with a trailing underscore and the value still gets logged.
+_RESERVED_LOGRECORD_KEYS = frozenset(
+    logging.LogRecord("", 0, "", 0, "", None, None).__dict__
+) | {"message", "asctime", "taskName"}
+
+
 class StructuredLogger:
     """
     Wrapper around logging.Logger that accepts keyword arguments.
@@ -97,8 +109,11 @@ class StructuredLogger:
         # Separate exc_info from other kwargs
         exc_info = kwargs.pop("exc_info", False)
 
-        # All remaining kwargs go into extra
-        extra = kwargs if kwargs else {}
+        # All remaining kwargs go into extra, with reserved names moved aside
+        extra = {
+            (f"{k}_" if k in _RESERVED_LOGRECORD_KEYS else k): v
+            for k, v in kwargs.items()
+        }
 
         # Call the underlying logger with extra parameter
         self._logger.log(level, msg, *args, extra=extra, exc_info=exc_info)

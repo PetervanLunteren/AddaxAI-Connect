@@ -18,6 +18,11 @@ from shared.database import get_async_session
 from shared.logger import get_logger
 from shared.queue import (
     RedisQueue,
+    QUEUE_IMAGE_INGESTED,
+    QUEUE_DETECTION_COMPLETE,
+    QUEUE_NOTIFICATION_EVENTS,
+    QUEUE_NOTIFICATION_EMAIL,
+    QUEUE_NOTIFICATION_TELEGRAM,
     HEARTBEAT_KEY_INGESTION,
     HEARTBEAT_KEY_DETECTION,
     HEARTBEAT_KEY_CLASSIFICATION,
@@ -335,11 +340,11 @@ async def get_services_health(
     # the top of its own loop. Ingestion passes no queue: it watches the
     # filesystem, so there is no backlog of its own to report.
     services.append(check_heartbeat("ingestion", HEARTBEAT_KEY_INGESTION))
-    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, "image-ingested"))
-    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, "detection-complete"))
-    services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, "notification-events"))
-    services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, "notification-email"))
-    services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, "notification-telegram"))
+    services.append(check_heartbeat("detection", HEARTBEAT_KEY_DETECTION, QUEUE_IMAGE_INGESTED))
+    services.append(check_heartbeat("classification", HEARTBEAT_KEY_CLASSIFICATION, QUEUE_DETECTION_COMPLETE))
+    services.append(check_heartbeat("notifications", HEARTBEAT_KEY_NOTIFICATIONS, QUEUE_NOTIFICATION_EVENTS))
+    services.append(check_heartbeat("notifications-email", HEARTBEAT_KEY_NOTIFICATIONS_EMAIL, QUEUE_NOTIFICATION_EMAIL))
+    services.append(check_heartbeat("notifications-telegram", HEARTBEAT_KEY_NOTIFICATIONS_TELEGRAM, QUEUE_NOTIFICATION_TELEGRAM))
     services.append(check_cold_tier_watchdog())
     services.append(check_backup())
 

@@ -998,7 +998,7 @@ def dispatch(message: dict) -> None:
     job_uuid = message.get("job_uuid")
     phase = message.get("phase", "inspect")
     if not job_uuid:
-        logger.error("Bulk upload message missing job_uuid", message=message)
+        logger.error("Bulk upload message missing job_uuid", payload=message)
         return
     if phase == "inspect":
         _inspect_job(job_uuid)

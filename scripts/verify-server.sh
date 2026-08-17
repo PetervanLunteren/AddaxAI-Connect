@@ -147,7 +147,16 @@ else
 fi
 
 # -------------------------------------------------------------------- health
-if [ -n "$TOKEN" ]; then
+# Retried rather than judged once. A worker proves itself with a Redis
+# heartbeat, and the first stamp lands a few seconds after its container
+# starts, longer when a model has to load or download. Run straight after
+# `docker compose up -d --build`, as the update guide does, a worker that is
+# perfectly fine can still be a red row. This script is the gate that decides
+# whether an update worked, so a false FAIL is expensive: it points at a
+# restore that is not needed.
+HEALTH_WAIT=90
+
+probe_health() {
   HEALTH="$(curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" "$BASE/api/health/services")"
 
   # The endpoint reports every service the application knows about, whether or
@@ -196,19 +205,38 @@ for s in services:
         real.append(s['name'])
 print('%d|%s|%s' % (len(services), ','.join(real), ','.join(absent)))
 " 2>/dev/null)"
+}
 
-  if [ "$HEALTH_EVAL" = "PARSE_ERROR" ] || [ -z "$HEALTH_EVAL" ]; then
-    fail "health" "endpoint did not return a service list"
-  else
-    TOTAL="${HEALTH_EVAL%%|*}"
-    rest="${HEALTH_EVAL#*|}"
-    REAL_BAD="${rest%%|*}"
-    NOT_RUN="${rest#*|}"
-    if [ -n "$REAL_BAD" ]; then
-      fail "health" "unhealthy: $REAL_BAD"
+if [ -n "$TOKEN" ]; then
+  health_started="$(date +%s)"
+  while :; do
+    probe_health
+    waited=$(( $(date +%s) - health_started ))
+
+    if [ "$HEALTH_EVAL" = "PARSE_ERROR" ] || [ -z "$HEALTH_EVAL" ]; then
+      REAL_BAD="endpoint did not return a service list"
+      TOTAL=""; NOT_RUN=""
     else
-      pass "health" "$TOTAL services checked${NOT_RUN:+, not run here: $NOT_RUN}"
+      TOTAL="${HEALTH_EVAL%%|*}"
+      rest="${HEALTH_EVAL#*|}"
+      REAL_BAD="${rest%%|*}"
+      NOT_RUN="${rest#*|}"
     fi
+
+    [ -z "$REAL_BAD" ] && break            # everything that runs here is healthy
+    [ "$waited" -ge "$HEALTH_WAIT" ] && break
+    sleep 10
+  done
+
+  if [ -z "$REAL_BAD" ]; then
+    # Only mention the wait when there was one, so a normal run stays quiet
+    note=""
+    [ "$waited" -ge 10 ] && note=", healthy after ${waited}s"
+    pass "health" "$TOTAL services checked${note}${NOT_RUN:+, not run here: $NOT_RUN}"
+  elif [ -z "$TOTAL" ]; then
+    fail "health" "$REAL_BAD"
+  else
+    fail "health" "unhealthy after ${waited}s: $REAL_BAD"
   fi
 fi
 
