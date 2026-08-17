@@ -28,6 +28,6 @@ An open-source platform that automatically processes camera trap images with mac
 ## Developer
 
 - [Architecture](architecture.md): technology stack, data flow, services, data storage, security, and user roles
-- [Dev server setup](dev-server-setup.md): create a development server from a production snapshot
+- [Dev server setup](dev-server-setup.md): create a development server holding a copy of production data
 
 Questions? [Open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) or email peter@addaxdatascience.com.
