@@ -104,12 +104,16 @@ for d in domains:
     ok = r.get('result') == 'pass'
     if not ok:
         failed += 1
+    # A failed restore leaves the previous dataset's rows in place, so
+    # test-update.sh omits the counts rather than reporting someone else's.
+    img = f"{counts['images']:,}" if isinstance(counts.get('images'), int) else '-'
+    cam = str(counts['cameras']) if isinstance(counts.get('cameras'), int) else '-'
     rows.append((
         d,
         'pass' if ok else 'FAIL',
         f"{r.get('seconds','?')}s",
-        f"{counts.get('images','?'):,}" if isinstance(counts.get('images'), int) else '?',
-        f"{counts.get('cameras','?')}",
+        img,
+        cam,
         '' if ok else f"restore={r.get('restore')} verify={r.get('verify')}",
     ))
 

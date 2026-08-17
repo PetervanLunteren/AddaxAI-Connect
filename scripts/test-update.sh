@@ -116,7 +116,14 @@ else
   tail -15 "$RESTORE_LOG" | sed 's/^/      /'
 fi
 
-AFTER="$(counts)"
+# Only meaningful when the restore actually landed. After a failed restore the
+# database still holds whatever the previous run left, and reporting that
+# against this dataset reads as though it had that much data.
+if [ "$RESTORE_STATUS" = "pass" ]; then
+  AFTER="$(counts)"
+else
+  AFTER=""
+fi
 
 # ---- verify -----------------------------------------------------------------
 VERIFY_JSON="/tmp/test-update-verify-$$.json"
@@ -137,13 +144,15 @@ fi
 ELAPSED=$(( $(date +%s) - START ))
 
 # ---- report -----------------------------------------------------------------
-echo ""
-echo "  Row counts after restore"
-while IFS=, read -r t n; do
-  [ -n "$t" ] || continue
-  b="$(printf '%s' "$BEFORE" | awk -F, -v k="$t" '$1==k{print $2}')"
-  printf '    %-20s %-10s (was %s)\n' "$t" "$n" "${b:-?}"
-done <<< "$AFTER"
+if [ -n "$AFTER" ]; then
+  echo ""
+  echo "  Row counts after restore"
+  while IFS=, read -r t n; do
+    [ -n "$t" ] || continue
+    b="$(printf '%s' "$BEFORE" | awk -F, -v k="$t" '$1==k{print $2}')"
+    printf '    %-20s %-10s (was %s)\n' "$t" "$n" "${b:-?}"
+  done <<< "$AFTER"
+fi
 
 echo ""
 if [ "$RESTORE_STATUS" = "pass" ] && [ "$VERIFY_STATUS" = "pass" ]; then
