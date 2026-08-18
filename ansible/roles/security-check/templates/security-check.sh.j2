@@ -343,7 +343,8 @@ else
     fail "SSH still accepts password logins" "A drop-in sorting before 01-addaxai-hardening.conf overrides it"
 fi
 
-if echo "$SSHD_EFFECTIVE" | grep -q '^permitrootlogin prohibit-password'; then
+# sshd -T prints the legacy spelling "without-password" for prohibit-password
+if echo "$SSHD_EFFECTIVE" | grep -qE '^permitrootlogin (prohibit|without)-password'; then
     pass "Root SSH login is key-only"
 else
     warn "Root SSH login is not set to prohibit-password" "Check /etc/ssh/sshd_config.d/"

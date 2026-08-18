@@ -252,7 +252,11 @@
   assert:
     that:
       - "'passwordauthentication no' in sshd_effective.stdout"
-      - "'permitrootlogin prohibit-password' in sshd_effective.stdout"
+      # sshd -T prints the legacy spelling "without-password" for
+      # prohibit-password, so accept either.
+      - >-
+        'permitrootlogin prohibit-password' in sshd_effective.stdout or
+        'permitrootlogin without-password' in sshd_effective.stdout
     fail_msg: >-
       sshd still accepts password logins. Either /etc/ssh/sshd_config has no
       "Include /etc/ssh/sshd_config.d/*.conf" line (Ubuntu 20.04 and older), or
