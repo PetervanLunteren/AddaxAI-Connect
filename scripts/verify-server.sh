@@ -368,12 +368,22 @@ if [ -n "$TOKEN" ] && [ -f "$SAMPLE_SQL" ]; then
   done <<< "$SAMPLE"
 
   n_sample="$(printf '%s' "$SAMPLE" | grep -c . || true)"
+
+  # Say nothing when nothing is missing. ${VAR:+...} expands on any non-empty
+  # value and the string "0" is non-empty, so both branches used to report
+  # "0 missing from storage (warning)" on a clean run. A warning that fires
+  # when there is nothing wrong teaches people to skip the word.
+  MISSING_NOTE=""
+  if [ "$IMG_MISSING" -gt 0 ]; then
+    MISSING_NOTE=", $IMG_MISSING missing from storage"
+  fi
+
   if [ "${n_sample:-0}" -eq 0 ]; then
     pass "images" "no images on this server, nothing to serve"
   elif [ -n "$IMG_BAD" ]; then
-    fail "images" "$IMG_OK served, broken:$IMG_BAD${IMG_MISSING:+, $IMG_MISSING missing from storage}"
+    fail "images" "$IMG_OK served, broken:$IMG_BAD$MISSING_NOTE"
   else
-    pass "images" "$IMG_OK served from a $n_sample image sample${IMG_MISSING:+, $IMG_MISSING missing from storage (warning)}"
+    pass "images" "$IMG_OK served from a $n_sample image sample${MISSING_NOTE:+$MISSING_NOTE (warning)}"
   fi
 fi
 
