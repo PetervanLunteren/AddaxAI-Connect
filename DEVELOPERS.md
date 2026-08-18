@@ -431,6 +431,33 @@ consumer, so that reported three dead workers as healthy for months.
 The queue-depth trigger applies to the delivery workers only. For the
 pipeline workers a deep queue is a normal backlog, not a fault.
 
+## Server hardening
+
+Set by the `security` ansible role, checked afterwards by `security-check`.
+
+- **Firewall.** ufw denies incoming by default. Open: SSH, 80, 443, 21, 990
+  and the passive FTP range. Postgres, Redis and MinIO stay on the docker
+  network and are never published to the host.
+- **Automatic security updates.** `unattended-upgrades`, security origins
+  only, no automatic reboot. A reboot in the night drops camera uploads and
+  nobody would link the two. The `#clear` in the config matters: apt appends
+  to a list instead of replacing it, so without it the distro defaults stay.
+- **fail2ban on SSH only.** No FTPS jail on purpose. Every camera signs in
+  with the same account from a mobile network, and a carrier shares one
+  address over many devices, so one camera with a wrong password could ban a
+  whole site silently. Pure-FTPd already caps clients per IP.
+- **SSH keys only.** Password login off, root reachable by key because
+  ansible connects as root. The drop-in is named `01-addaxai-hardening.conf`
+  because sshd uses the **first** value it reads for a keyword and cloud
+  images leave a `50-cloud-init.conf` behind that turns password login back
+  on. A file sorting after that one is read and ignored, which looks hardened
+  and is not. The role reads `sshd -T` back and fails the deploy if the
+  setting did not take, on every run, so drift shows up too.
+
+What this does not do: there is no intrusion detection, no file integrity
+monitoring and no log shipping. The server notices damage (disk filling,
+workers dying, backups failing), not a quiet intruder.
+
 ## Infrastructure deployment
 
 See [docs/deployment.md](docs/deployment.md) for deployment, and [docs/update-guide.md](docs/update-guide.md) for updates.

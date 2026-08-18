@@ -235,19 +235,20 @@ echo "9. FTPS CONFIGURATION"
 echo "======================================================================="
 echo ""
 
-# Check if vsftpd is running
-if systemctl is-active --quiet vsftpd; then
-    pass "vsftpd service is running"
+# Check if pure-ftpd is running. The role installs pure-ftpd, not vsftpd;
+# this check named the wrong daemon and warned on every healthy server.
+if systemctl is-active --quiet pure-ftpd; then
+    pass "pure-ftpd service is running"
 else
-    warn "vsftpd service is NOT running" "FTPS uploads may not work"
+    fail "pure-ftpd service is NOT running" "Run: sudo systemctl start pure-ftpd"
 fi
 
 # Check FTPS SSL certificate
-if [ -f /etc/ssl/certs/vsftpd.crt ]; then
+if [ -f /etc/ssl/certs/pure-ftpd.crt ]; then
     pass "FTPS SSL certificate exists"
 
     # Check if it's a symlink (Let's Encrypt)
-    if [ -L /etc/ssl/certs/vsftpd.crt ]; then
+    if [ -L /etc/ssl/certs/pure-ftpd.crt ]; then
         pass "FTPS using Let's Encrypt certificate (recommended)"
     else
         info "FTPS using self-signed certificate (consider using Let's Encrypt)"
@@ -287,6 +288,65 @@ if [ -f "$ENV_FILE" ]; then
     fi
 else
     warn ".env file not found" "Application may not be deployed yet"
+fi
+
+echo ""
+echo "======================================================================="
+echo "11. HOST HARDENING"
+echo "======================================================================="
+echo ""
+
+# Automatic security updates
+if systemctl is-enabled --quiet unattended-upgrades 2>/dev/null; then
+    pass "Automatic security updates are enabled"
+else
+    fail "Automatic security updates are NOT enabled" "Re-run the security role"
+fi
+
+if grep -q '"1"' /etc/apt/apt.conf.d/20auto-upgrades 2>/dev/null; then
+    pass "Daily update check and upgrade are switched on"
+else
+    fail "Daily unattended upgrade is not switched on" "Check /etc/apt/apt.conf.d/20auto-upgrades"
+fi
+
+# The service alone installs nothing, these timers trigger it
+for timer in apt-daily.timer apt-daily-upgrade.timer; do
+    if systemctl is-enabled --quiet "$timer" 2>/dev/null; then
+        pass "$timer is enabled"
+    else
+        fail "$timer is NOT enabled" "No security update will ever run"
+    fi
+done
+
+# Brute force protection on SSH
+if systemctl is-active --quiet fail2ban; then
+    pass "fail2ban is running"
+else
+    fail "fail2ban is NOT running" "Run: sudo systemctl start fail2ban"
+fi
+
+if sudo fail2ban-client status sshd >/dev/null 2>&1; then
+    BANNED=$(sudo fail2ban-client status sshd | grep -oE 'Currently banned:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$')
+    pass "fail2ban SSH jail is active (currently banned: ${BANNED:-0})"
+else
+    fail "fail2ban SSH jail is not active" "Check /etc/fail2ban/jail.d/addaxai-sshd.conf"
+fi
+
+# There is deliberately no FTPS jail. Cameras share one account on mobile
+# networks, so banning an IP can take a whole site offline.
+
+# What sshd actually runs with, not what the config files say
+SSHD_EFFECTIVE=$(sudo sshd -T 2>/dev/null || echo "")
+if echo "$SSHD_EFFECTIVE" | grep -q '^passwordauthentication no'; then
+    pass "SSH password login is disabled"
+else
+    fail "SSH still accepts password logins" "A drop-in sorting before 01-addaxai-hardening.conf overrides it"
+fi
+
+if echo "$SSHD_EFFECTIVE" | grep -q '^permitrootlogin prohibit-password'; then
+    pass "Root SSH login is key-only"
+else
+    warn "Root SSH login is not set to prohibit-password" "Check /etc/ssh/sshd_config.d/"
 fi
 
 echo ""

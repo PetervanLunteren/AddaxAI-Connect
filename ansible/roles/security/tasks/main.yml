@@ -110,3 +110,152 @@
   when:
     - ansible_user == 'root'
     - root_auth_keys.stat.exists
+
+# ---------------------------------------------------------------------------
+# Automatic OS security updates
+#
+# Ubuntu ships unattended-upgrades, but whether it is installed, enabled and
+# limited to security updates differs per cloud image. Set it here so every
+# server ends up the same. Never reboot on its own: a reboot at 06:00 drops
+# camera uploads and nobody would connect the two.
+# ---------------------------------------------------------------------------
+- name: Install unattended-upgrades
+  apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Take security updates only, and never reboot on our own
+  copy:
+    dest: /etc/apt/apt.conf.d/51addaxai-unattended-upgrades
+    mode: '0644'
+    content: |
+      // Managed by ansible (roles/security). Do not edit on the server.
+      //
+      // #clear first: apt appends to a list instead of replacing it, so
+      // without this the distro defaults in 50unattended-upgrades would stay
+      // in the list and this file would only add to them.
+      #clear Unattended-Upgrade::Allowed-Origins;
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}-security";
+          "${distro_id}ESMApps:${distro_codename}-apps-security";
+          "${distro_id}ESM:${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+- name: Run the update check and the upgrade every day
+  copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: '0644'
+    content: |
+      // Managed by ansible (roles/security). Do not edit on the server.
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Enable the unattended-upgrades service
+  systemd:
+    name: unattended-upgrades
+    enabled: yes
+    state: started
+
+- name: Enable the timers that actually trigger the upgrade
+  # The service alone installs nothing. These two timers do the work, and a
+  # disabled timer would leave the service looking enabled while no update
+  # ever runs.
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - apt-daily.timer
+    - apt-daily-upgrade.timer
+
+# ---------------------------------------------------------------------------
+# fail2ban, SSH only
+#
+# Deliberately no FTPS jail. Every camera signs in with the same account from
+# a mobile network, and a carrier shares one address over many devices, so one
+# camera with a wrong password could ban a whole site and nobody would see it.
+# Pure-FTPd already caps clients per IP and refuses anonymous logins.
+# ---------------------------------------------------------------------------
+- name: Install fail2ban
+  apt:
+    name:
+      - fail2ban
+      # The systemd backend needs this on Ubuntu 22.04. Newer releases keep no
+      # /var/log/auth.log at all, so reading the journal is the only option
+      # that works on both.
+      - python3-systemd
+    state: present
+
+- name: Configure the fail2ban SSH jail
+  copy:
+    dest: /etc/fail2ban/jail.d/addaxai-sshd.conf
+    mode: '0644'
+    content: |
+      # Managed by ansible (roles/security). Do not edit on the server.
+      [sshd]
+      enabled = true
+      backend = systemd
+      port = {{ allowed_ssh_port | default('22') }}
+      maxretry = 5
+      findtime = 10m
+      bantime = 1h
+  register: fail2ban_jail
+
+- name: Enable fail2ban and pick up the jail
+  systemd:
+    name: fail2ban
+    enabled: yes
+    state: "{{ 'restarted' if fail2ban_jail.changed else 'started' }}"
+
+# ---------------------------------------------------------------------------
+# SSH hardening
+#
+# Keys only. Root keeps key access on purpose: ansible connects as root (see
+# ansible/inventory.yml), so PermitRootLogin no would lock out every deploy.
+#
+# The filename starts with 01 for a reason. sshd uses the FIRST value it reads
+# for a keyword, and cloud images leave a 50-cloud-init.conf behind that turns
+# password login back on. A file sorting after that one would be read but
+# ignored, which looks hardened and is not.
+# ---------------------------------------------------------------------------
+- name: Harden sshd
+  copy:
+    dest: /etc/ssh/sshd_config.d/01-addaxai-hardening.conf
+    mode: '0644'
+    content: |
+      # Managed by ansible (roles/security). Do not edit on the server.
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin prohibit-password
+      PermitEmptyPasswords no
+    validate: /usr/sbin/sshd -t -f %s
+  register: sshd_hardening
+
+- name: Reload sshd
+  systemd:
+    name: ssh
+    state: reloaded
+  when: sshd_hardening.changed
+
+- name: Read back the configuration sshd actually runs with
+  command: sshd -T
+  register: sshd_effective
+  changed_when: false
+
+- name: Fail if the hardening did not take effect
+  # Runs every time, not only after a change, so drift on the server shows up
+  # on the next deploy instead of being assumed away.
+  assert:
+    that:
+      - "'passwordauthentication no' in sshd_effective.stdout"
+      - "'permitrootlogin prohibit-password' in sshd_effective.stdout"
+    fail_msg: >-
+      sshd still accepts password logins. Either /etc/ssh/sshd_config has no
+      "Include /etc/ssh/sshd_config.d/*.conf" line (Ubuntu 20.04 and older), or
+      another drop-in sorts before 01-addaxai-hardening.conf. Fix that before
+      trusting this role.
+    quiet: true
