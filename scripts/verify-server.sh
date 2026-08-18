@@ -390,8 +390,22 @@ fi
 # ---------------------------------------------------------------------- logs
 # Structured logs, so this counts real ERROR records rather than any line that
 # happens to contain the word.
+#
+# Browser-reported 4xx do not count. services/frontend/src/api/client.ts logs
+# every status >= 400 through the /api/logs endpoint at error level, so one
+# anonymous visitor loading the login page files two of them: /users/me and
+# /users/me/projects both answer 401 when nobody is signed in. On a public
+# server like demo that happens continuously, which would fail this gate on
+# every run and teach everyone to skip the line. A 401 for a logged-out
+# visitor is the server working, not failing.
+#
+# Only client-side 4xx are excused. A browser-reported 5xx is a real server
+# fault seen from the outside, and every log line that did not come from the
+# browser still counts.
 ERR_COUNT="$(docker compose logs --since "$SINCE" 2>/dev/null \
-             | grep -c '"level": "ERROR"' || true)"
+             | grep '"level": "ERROR"' \
+             | grep -vE '"status": 4[0-9]{2},.*"logger": "api\.logs"' \
+             | grep -c . || true)"
 ERR_COUNT="${ERR_COUNT:-0}"
 
 if [ "$ERR_COUNT" -gt "$MAX_ERRORS" ]; then
