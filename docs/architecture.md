@@ -110,11 +110,17 @@ Security of the remote storage:
 
 The system uses multiple layers of protection:
 
-- **Network isolation**: PostgreSQL, Redis, and MinIO are only accessible within the Docker network, not exposed to the internet
-- **TLS everywhere**: Nginx terminates HTTPS with Let's Encrypt certificates, FTPS uses explicit TLS
-- **Authentication on all services**: password protection on the database, Redis, MinIO, and FTPS
-- **Firewall**: UFW restricts inbound traffic to SSH, HTTP/HTTPS, and FTPS ports only
-- **Role-based access control**: three-tier permission system (server admin, project admin, project viewer)
+- **Network isolation**. PostgreSQL, Redis, and MinIO are only reachable within the Docker network, not from the internet.
+- **TLS everywhere**. Nginx terminates HTTPS with Let's Encrypt certificates, FTPS uses explicit TLS.
+- **Authentication on all services**. Password protection on the database, Redis, MinIO, and FTPS.
+- **Firewall**. UFW restricts inbound traffic to SSH, HTTP/HTTPS, and FTPS ports only.
+- **Server access by SSH key only**. Password login is switched off.
+- **Brute-force protection**. fail2ban blocks an address after five failed SSH logins. FTPS is deliberately left out, because all cameras share one account on mobile networks and one wrong password could ban a whole site.
+- **Automatic security updates**. The server installs its own operating system security patches every day, and reboots only when a patch needs it.
+- **Daily security check**. The same check that runs at the end of every deployment also runs each night, and emails server admins when something has drifted.
+- **Role-based access control**. Three-tier permission system (server admin, project admin, project viewer).
+
+The system does not include intrusion detection, file integrity monitoring, or log shipping to a separate system. It notices damage, like a disk filling up or a worker that died, rather than a quiet intruder.
 
 ## User roles
 
