@@ -15,6 +15,7 @@ from sqlalchemy import select
 from pydantic import BaseModel
 
 from .users import fastapi_users, auth_backend, current_verified_user, get_jwt_strategy
+from .rate_limit import login_rate_limit
 from .schemas import UserRead, UserCreate, UserUpdate
 from .user_manager import UserManager, get_user_manager
 from shared.models import User, UserInvitation, Project
@@ -50,10 +51,13 @@ def get_auth_router() -> APIRouter:
     router = APIRouter()
 
     # Login/logout routes (POST /auth/login, POST /auth/logout)
+    # The dependency covers both, but only throttles /auth/login. See
+    # auth/rate_limit.py for why logout is deliberately left alone.
     router.include_router(
         fastapi_users.get_auth_router(auth_backend),
         prefix="/auth",
         tags=["auth"],
+        dependencies=[Depends(login_rate_limit)],
     )
 
     # Registration route (POST /auth/register)
