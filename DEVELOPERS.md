@@ -439,9 +439,17 @@ Set by the `security` ansible role, checked afterwards by `security-check`.
   and the passive FTP range. Postgres, Redis and MinIO stay on the docker
   network and are never published to the host.
 - **Automatic security updates.** `unattended-upgrades`, security origins
-  only, no automatic reboot. A reboot in the night drops camera uploads and
-  nobody would link the two. The `#clear` in the config matters: apt appends
-  to a list instead of replacing it, so without it the distro defaults stay.
+  only. The `#clear` in the config matters: apt appends to a list instead of
+  replacing it, so without it the distro defaults stay.
+  Docker is **not** covered. It comes from `download.docker.com`, which is not
+  a security origin, and that is on purpose: an unattended daemon upgrade
+  restarts every container mid-upload. Upgrade docker during a normal update.
+- **Reboots happen only when a patch needs one**, at 04:30, which is a kernel
+  or a core library and so roughly monthly. It is not a scheduled reboot: with
+  no `/var/run/reboot-required` nothing happens. Measured on dev, the server
+  was back in 15 seconds and all 13 containers came up on their own
+  (`restart: unless-stopped`). `security-check` warns while a reboot is still
+  pending, so a server sitting on a patched-but-not-running kernel is visible.
 - **fail2ban on SSH only.** No FTPS jail on purpose. Every camera signs in
   with the same account from a mobile network, and a carrier shares one
   address over many devices, so one camera with a wrong password could ban a
@@ -453,6 +461,14 @@ Set by the `security` ansible role, checked afterwards by `security-check`.
   on. A file sorting after that one is read and ignored, which looks hardened
   and is not. The role reads `sshd -T` back and fails the deploy if the
   setting did not take, on every run, so drift shows up too.
+
+If you lock yourself out, the ban lasts one hour. There is no `ignoreip`, so
+a fumbled key counts like anyone else. Get in through the provider's web
+console and run `fail2ban-client set sshd unbanip <your-ip>`.
+
+`security-check` must run as root (`sudo security-check.sh`). It shells out to
+sudo, and as an unprivileged user without a terminal every one of those checks
+reports a failure that is not real.
 
 What this does not do: there is no intrusion detection, no file integrity
 monitoring and no log shipping. The server notices damage (disk filling,

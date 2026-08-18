@@ -4,6 +4,14 @@
 
 set -e
 
+# Must be root. The checks below shell out to sudo, and as an unprivileged user
+# without a terminal sudo cannot prompt, so every one of them reports a failure
+# that is not real: it used to claim the firewall was off while ufw was active.
+if [ "$(id -u)" -ne 0 ]; then
+    echo "security-check must run as root: sudo security-check.sh"
+    exit 1
+fi
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -335,6 +343,16 @@ fi
 # There is deliberately no FTPS jail. Cameras share one account on mobile
 # networks, so banning an IP can take a whole site offline.
 
+# Security updates land on disk, but a kernel or libc patch only takes effect
+# after a reboot. Without this, a server can sit for weeks on a patched-but-not
+# running kernel and nothing says so.
+if [ -f /var/run/reboot-required ]; then
+    warn "A reboot is pending for installed security updates" \
+         "$(tr '\n' ' ' < /var/run/reboot-required.pkgs 2>/dev/null)"
+else
+    pass "No reboot pending"
+fi
+
 # What sshd actually runs with, not what the config files say
 SSHD_EFFECTIVE=$(sudo sshd -T 2>/dev/null || echo "")
 if echo "$SSHD_EFFECTIVE" | grep -q '^passwordauthentication no'; then
@@ -347,7 +365,7 @@ fi
 if echo "$SSHD_EFFECTIVE" | grep -qE '^permitrootlogin (prohibit|without)-password'; then
     pass "Root SSH login is key-only"
 else
-    warn "Root SSH login is not set to prohibit-password" "Check /etc/ssh/sshd_config.d/"
+    fail "Root SSH login is not key-only" "A drop-in sorting before 01-addaxai-hardening.conf overrides it"
 fi
 
 echo ""

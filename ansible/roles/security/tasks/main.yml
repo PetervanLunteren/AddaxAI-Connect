@@ -140,7 +140,17 @@
           "${distro_id}ESMApps:${distro_codename}-apps-security";
           "${distro_id}ESM:${distro_codename}-infra-security";
       };
-      Unattended-Upgrade::Automatic-Reboot "false";
+      // Reboot only when a patch actually needs it, which is a kernel or a
+      // core library, so roughly once a month. This is not a scheduled
+      // reboot: without /var/run/reboot-required nothing happens.
+      //
+      // 04:30 and not 04:00, because a weekly docker builder prune runs at
+      // 04:00 on Sunday. The upgrade itself runs around 06:30, so the reboot
+      // lands at the next 04:30, about 22 hours later. Later than ideal, but
+      // predictable and in the quietest window: after the 02:00 backup and
+      // the 03:00 infra alert, before the 06:00 report wave.
+      Unattended-Upgrade::Automatic-Reboot "true";
+      Unattended-Upgrade::Automatic-Reboot-Time "04:30";
       Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
       Unattended-Upgrade::Remove-Unused-Dependencies "true";
 
@@ -221,6 +231,25 @@
 # password login back on. A file sorting after that one would be read but
 # ignored, which looks hardened and is not.
 # ---------------------------------------------------------------------------
+- name: Check that sshd reads drop-in config files
+  # Without the Include line a drop-in is never read. Checked before writing
+  # it, because the copy would otherwise fail with "Destination directory does
+  # not exist", which says nothing about the real cause.
+  command: grep -qE '^\s*Include\s+/etc/ssh/sshd_config\.d/\*\.conf' /etc/ssh/sshd_config
+  register: sshd_include
+  changed_when: false
+  failed_when: false
+
+- name: Fail clearly when sshd has no Include line
+  assert:
+    that: sshd_include.rc == 0
+    fail_msg: >-
+      /etc/ssh/sshd_config has no "Include /etc/ssh/sshd_config.d/*.conf", so a
+      drop-in would be ignored and the server would look hardened without being
+      it. That is Ubuntu 20.04 or older. Use Ubuntu 22.04 or newer, or add the
+      Include line to /etc/ssh/sshd_config by hand first.
+    quiet: true
+
 - name: Harden sshd
   copy:
     dest: /etc/ssh/sshd_config.d/01-addaxai-hardening.conf
