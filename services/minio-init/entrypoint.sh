@@ -53,10 +53,19 @@ REGION="${COLD_TIER_REGION:-eu-central-1}"
 # broken in current mc releases (fails with "Incorrect number of arguments").
 # This stack registers at most one remote tier, so the first Bucket/Endpoint
 # in the listing belongs to $NAME.
-mc ilm tier ls minio --json > /tmp/tiers.json
-if grep -q "\"Name\":\"$NAME\"" /tmp/tiers.json; then
-  cur_bucket=$(grep -o '"Bucket":"[^"]*"' /tmp/tiers.json | head -1 | cut -d: -f2- | tr -d '"')
-  cur_endpoint=$(grep -o '"Endpoint":"[^"]*"' /tmp/tiers.json | head -1 | cut -d: -f2- | tr -d '"')
+#
+# Parsed with shell builtins on purpose. The minio/mc image ships mc, cat, cut,
+# tr and head, and no grep, sed, awk or jq. A grep here died with "command not
+# found", which under `set -e` took the script out at the `mc ilm tier add`
+# below, before it ever reached the transition rule. Every cold-tier server ran
+# for months with minio-init exiting 1 and raw-images holding expiry rules but
+# no transition, so nothing ever drained. Use no external tool in this block.
+tiers="$(mc ilm tier ls minio --json)"
+case "$tiers" in *"\"Name\":\"$NAME\""*)
+  # Shortest prefix up to the first "Bucket":" , then everything before the
+  # closing quote. Same first-match semantics the listing guarantees.
+  rest="${tiers#*\"Bucket\":\"}"   ; cur_bucket="${rest%%\"*}"
+  rest="${tiers#*\"Endpoint\":\"}" ; cur_endpoint="${rest%%\"*}"
   if [ "$cur_bucket" = "$COLD_TIER_BUCKET" ] && [ "$cur_endpoint" = "$COLD_TIER_ENDPOINT" ]; then
     echo "Cold tier $NAME already points at $cur_bucket; updating credentials only"
     mc ilm tier update minio "$NAME" --access-key "$COLD_TIER_ACCESS_KEY" --secret-key "$COLD_TIER_SECRET_KEY"
@@ -71,7 +80,8 @@ if grep -q "\"Name\":\"$NAME\"" /tmp/tiers.json; then
       --prefix "${COLD_TIER_PREFIX}/" \
       --region "$REGION"
   fi
-else
+  ;;
+*)
   echo "Cold tier $NAME not registered yet, adding"
   mc ilm tier add s3 minio "$NAME" \
     --endpoint "$COLD_TIER_ENDPOINT" \
@@ -80,7 +90,8 @@ else
     --bucket "$COLD_TIER_BUCKET" \
     --prefix "${COLD_TIER_PREFIX}/" \
     --region "$REGION"
-fi
+  ;;
+esac
 
 # `mc ilm rule remove --all` errors when the bucket has no lifecycle
 # configuration yet (fresh bucket), so only remove when one exists.
