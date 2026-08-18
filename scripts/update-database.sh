@@ -73,4 +73,15 @@ echo "Moving legacy camera tags onto their sites..."
 docker compose exec -T api python /app/scripts/backfill_camera_tags_to_sites.py
 
 echo ""
+# An update rebuilds the containers before it migrates, so the api's connection
+# pool and its asyncpg prepared statements are built against the old schema.
+# Adding a column afterwards does not reach those cached statements: every
+# request touching the changed table keeps failing with UndefinedColumn, and it
+# never heals on its own. drenthe served 185 such errors on 18 Aug 2026, still
+# climbing an hour after the migration, and stopped the moment api restarted.
+# restore.sh has always done this at its own end; this is the same line.
+echo "Restarting api to pick up the new schema..."
+docker compose restart api > /dev/null
+
+echo ""
 echo "Done! If you see this line, all migrations have been applied successfully without errors."
