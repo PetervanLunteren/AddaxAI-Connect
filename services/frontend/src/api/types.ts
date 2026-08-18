@@ -376,6 +376,7 @@ export interface ServerSettings {
   speciesnet_admin1_region: string | null;
   notify_backup_failures: boolean;
   notify_cold_tier_failures: boolean;
+  notify_security_failures: boolean;
 }
 
 // Project user management

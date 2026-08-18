@@ -234,6 +234,19 @@
     state: present
   tags: [backup, sync-config, env-refresh]
 
+- name: Schedule the daily security check
+  # Root, because security-check.sh shells out to sudo and reports false
+  # failures without a terminal. 02:30 so it lands after the 02:00 backup
+  # and before the 03:00 infra alert reads the result.
+  cron:
+    name: "AddaxAI security check"
+    hour: "2"
+    minute: "30"
+    user: root
+    job: "bash {{ app_directory | default('/opt/addaxai-connect') }}/scripts/security-status.sh >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/security-check.log 2>&1"
+    state: present
+  tags: [security-status, sync-config, env-refresh]
+
 - name: Set up daily demo data refresh (cron)
   cron:
     name: "Refresh demo data"

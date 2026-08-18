@@ -886,6 +886,10 @@ class ServerSettings(Base):
     # so a server that has the feature off never sends alerts about it.
     notify_backup_failures = Column(Boolean, nullable=False, server_default="true")
     notify_cold_tier_failures = Column(Boolean, nullable=False, server_default="true")
+    # Email server admins when the daily security check fails. Server-wide on
+    # purpose: the security state belongs to the machine, not to a project, and
+    # only a server admin can act on it. Default TRUE.
+    notify_security_failures = Column(Boolean, nullable=False, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

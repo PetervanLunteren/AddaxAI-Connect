@@ -1449,6 +1449,7 @@ class ServerSettingsResponse(BaseModel):
     speciesnet_admin1_region: Optional[str] = None
     notify_backup_failures: bool = True
     notify_cold_tier_failures: bool = True
+    notify_security_failures: bool = True
 
 
 class ServerSettingsUpdateRequest(BaseModel):
@@ -1458,6 +1459,7 @@ class ServerSettingsUpdateRequest(BaseModel):
     speciesnet_admin1_region: Optional[str] = None
     notify_backup_failures: Optional[bool] = None
     notify_cold_tier_failures: Optional[bool] = None
+    notify_security_failures: Optional[bool] = None
 
 
 @router.get(
@@ -1486,6 +1488,7 @@ async def get_server_settings(
         speciesnet_admin1_region=settings.speciesnet_admin1_region,
         notify_backup_failures=settings.notify_backup_failures,
         notify_cold_tier_failures=settings.notify_cold_tier_failures,
+        notify_security_failures=settings.notify_security_failures,
     )
 
 
@@ -1550,6 +1553,8 @@ async def update_server_settings(
         settings.notify_backup_failures = data.notify_backup_failures
     if data.notify_cold_tier_failures is not None:
         settings.notify_cold_tier_failures = data.notify_cold_tier_failures
+    if data.notify_security_failures is not None:
+        settings.notify_security_failures = data.notify_security_failures
 
     await db.commit()
 
@@ -1561,6 +1566,7 @@ async def update_server_settings(
         speciesnet_admin1_region=settings.speciesnet_admin1_region,
         notify_backup_failures=settings.notify_backup_failures,
         notify_cold_tier_failures=settings.notify_cold_tier_failures,
+        notify_security_failures=settings.notify_security_failures,
     )
 
 

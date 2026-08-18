@@ -118,6 +118,7 @@ export const ServerSettingsPage: React.FC = () => {
   // --- Infrastructure alerts state ---
   const [notifyBackupFailures, setNotifyBackupFailures] = useState(true);
   const [notifyColdTierFailures, setNotifyColdTierFailures] = useState(true);
+  const [notifySecurityFailures, setNotifySecurityFailures] = useState(true);
   const [infraSaveStatus, setInfraSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [infraError, setInfraError] = useState<string | null>(null);
 
@@ -161,13 +162,15 @@ export const ServerSettingsPage: React.FC = () => {
     if (serverSettings) {
       setNotifyBackupFailures(serverSettings.notify_backup_failures);
       setNotifyColdTierFailures(serverSettings.notify_cold_tier_failures);
+      setNotifySecurityFailures(serverSettings.notify_security_failures);
     }
   }, [serverSettings]);
 
   const hasTimezoneChanges = timezone !== (serverSettings?.timezone ?? '') && timezone !== '';
   const hasInfraChanges =
     notifyBackupFailures !== (serverSettings?.notify_backup_failures ?? true)
-    || notifyColdTierFailures !== (serverSettings?.notify_cold_tier_failures ?? true);
+    || notifyColdTierFailures !== (serverSettings?.notify_cold_tier_failures ?? true)
+    || notifySecurityFailures !== (serverSettings?.notify_security_failures ?? true);
 
   // --- Geofencing logic ---
   const hasGeoChanges = countryCode !== (serverSettings?.speciesnet_country_code ?? '')
@@ -201,7 +204,7 @@ export const ServerSettingsPage: React.FC = () => {
 
   // --- Infrastructure alerts logic ---
   const updateInfraMutation = useMutation({
-    mutationFn: (data: { notify_backup_failures: boolean; notify_cold_tier_failures: boolean }) =>
+    mutationFn: (data: { notify_backup_failures: boolean; notify_cold_tier_failures: boolean; notify_security_failures: boolean }) =>
       adminApi.updateServerSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['server-settings'] });
@@ -221,6 +224,7 @@ export const ServerSettingsPage: React.FC = () => {
     updateInfraMutation.mutate({
       notify_backup_failures: notifyBackupFailures,
       notify_cold_tier_failures: notifyColdTierFailures,
+      notify_security_failures: notifySecurityFailures,
     });
   };
 
@@ -481,6 +485,26 @@ export const ServerSettingsPage: React.FC = () => {
                 checked={notifyColdTierFailures}
                 onChange={setNotifyColdTierFailures}
                 aria-label="Cold-tier failure alerts"
+              />
+            </div>
+          </div>
+
+          <div className="border-t my-6" />
+
+          {/* Security check alerts */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8">
+            <div className="w-full sm:w-1/2 sm:shrink-0">
+              <label htmlFor="notify-security-failures" className="text-sm font-medium block cursor-pointer">Security check alerts</label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Email server admins when the daily security check finds a problem, for example the firewall switched off, brute-force protection not running, or password login enabled on SSH. Also emails when the check itself stops running.
+              </p>
+            </div>
+            <div className="flex-1">
+              <Switch
+                id="notify-security-failures"
+                checked={notifySecurityFailures}
+                onChange={setNotifySecurityFailures}
+                aria-label="Security check alerts"
               />
             </div>
           </div>

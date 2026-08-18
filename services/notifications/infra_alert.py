@@ -1,11 +1,19 @@
-"""Infrastructure alert. Daily check of cold-tier + backup status in Redis.
+"""Infrastructure alert. Daily check of cold-tier, backup and security status
+in Redis.
 
-Sends an email to every verified server admin when either feature's last run
-ended in error (or when the backup cron key disappeared, which means the
-scheduled run did not happen at all). The two toggles on ServerSettings
-gate each feature independently. When the underlying feature is disabled
+Sends an email to every verified server admin when a feature's last run ended
+in error (or when the backup cron key disappeared, which means the scheduled
+run did not happen at all). The three toggles on ServerSettings gate each
+feature independently. When the underlying feature is disabled
 (BACKUP_ENABLED=false or COLD_TIER_ENABLED=false), no alert fires even if
 the toggle is on.
+
+The security status is written by scripts/security-status.sh, which runs the
+same security check ansible runs at the end of a deploy. It is server-wide and
+goes to server admins only, like the other two: the security state belongs to
+the machine rather than to a project, and telling a project viewer that the
+server has an unpatched kernel only spreads a list of weak spots to people who
+cannot act on it.
 """
 import json
 import os
@@ -31,6 +39,11 @@ settings = get_settings()
 
 COLD_TIER_REDIS_KEY = "cold_tier:status"
 BACKUP_REDIS_KEY = "backup:last_run"
+SECURITY_REDIS_KEY = "security:last_check"
+
+# How old the security status may get before the check is treated as dead.
+# Two missed daily runs, so a single skipped night is not an alert.
+SECURITY_STALE_HOURS = 48
 
 
 def _alert_recipients() -> List[Tuple[int, str]]:
@@ -46,20 +59,23 @@ def _alert_recipients() -> List[Tuple[int, str]]:
     return [(r.id, r.email) for r in rows if r.email]
 
 
-def _load_toggles() -> Tuple[bool, bool]:
-    """Return (notify_backup_failures, notify_cold_tier_failures). Default TRUE
-    if the row is missing (fresh server where the migration ran but nothing
-    has been saved yet)."""
+def _load_toggles() -> Tuple[bool, bool, bool]:
+    """Return (notify_backup_failures, notify_cold_tier_failures,
+    notify_security_failures). Default TRUE if the row is missing (fresh
+    server where the migration ran but nothing has been saved yet)."""
     with get_sync_session() as db:
         row = db.execute(
             select(
                 ServerSettings.notify_backup_failures,
                 ServerSettings.notify_cold_tier_failures,
+                ServerSettings.notify_security_failures,
             ).limit(1)
         ).first()
     if not row:
-        return (True, True)
-    return (row.notify_backup_failures, row.notify_cold_tier_failures)
+        return (True, True, True)
+    return (row.notify_backup_failures,
+            row.notify_cold_tier_failures,
+            row.notify_security_failures)
 
 
 def _load_status(redis_client, key: str) -> Optional[Dict]:
@@ -221,9 +237,68 @@ def _check_backup(redis_client, hostname: str, notify_on_failure: bool) -> None:
                         admins_notified=queued, timestamp=payload.get("timestamp"))
 
 
+def _hours_since(timestamp: Optional[str]) -> Optional[float]:
+    """Age of an ISO timestamp in hours, or None when it cannot be read."""
+    if not timestamp:
+        return None
+    try:
+        when = datetime.fromisoformat(timestamp)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - when).total_seconds() / 3600
+
+
+def _check_security(redis_client, hostname: str, notify_on_failure: bool) -> None:
+    payload = _load_status(redis_client, SECURITY_REDIS_KEY)
+
+    # No key at all means scripts/security-status.sh has never run here, which
+    # is a server that has not had the ansible playbook applied yet, not an
+    # insecure one. The worker code arrives with a git pull and the cron with
+    # ansible, so alerting on a missing key would fire on every server that
+    # took a code-only update. Staleness below covers a cron that dies.
+    if payload is None:
+        logger.info("No security check status in Redis, nothing to report")
+        return
+
+    status = payload.get("status", "fail")
+
+    age_h = _hours_since(payload.get("timestamp"))
+    if age_h is not None and age_h > SECURITY_STALE_HOURS:
+        payload = dict(payload)
+        status = "fail"
+        payload["error"] = (
+            f"the security check last ran {int(age_h)} hours ago, "
+            "expected daily at 02:30 UTC"
+        )
+
+    extra: List[Tuple[str, str]] = []
+    if payload.get("passed") is not None:
+        extra.append(("Checks passed", str(payload["passed"])))
+    if payload.get("failed") is not None:
+        extra.append(("Checks failed", str(payload["failed"])))
+    if payload.get("warnings") is not None:
+        extra.append(("Warnings", str(payload["warnings"])))
+
+    trigger = {"feature": "security", "status": status, "payload": payload,
+               "generated_at": datetime.now(timezone.utc).isoformat()}
+
+    if status != "ok" and notify_on_failure:
+        recipients = _alert_recipients()
+        if not recipients:
+            logger.warning("Security check failure but no active server admins to notify")
+        else:
+            subject, text_body, html = _build_email(
+                "Security check", payload, hostname, extra)
+            queued = _queue_email(recipients, subject, text_body, html, trigger)
+            logger.info("Security check failure alert queued",
+                        admins_notified=queued, timestamp=payload.get("timestamp"))
+
+
 def check_infra_alerts() -> None:
     logger.info("Running daily infra alert check")
-    notify_backup, notify_cold_tier = _load_toggles()
+    notify_backup, notify_cold_tier, notify_security = _load_toggles()
     redis_client = redis.from_url(settings.redis_url, decode_responses=True)
     hostname = settings.domain_name or socket.gethostname()
 
@@ -236,3 +311,8 @@ def check_infra_alerts() -> None:
         _check_backup(redis_client, hostname, notify_backup)
     except Exception:
         logger.exception("Backup alert check failed")
+
+    try:
+        _check_security(redis_client, hostname, notify_security)
+    except Exception:
+        logger.exception("Security alert check failed")
