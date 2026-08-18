@@ -1,4 +1,4 @@
 # Shared runtime deps (redis, sqlalchemy, pydantic, jinja2, etc.) come from
 # the shared package (shared/pyproject.toml). Only service-specific deps here.
-asyncpg==0.29.0
+asyncpg==0.31.0
 apscheduler==3.10.4
