@@ -203,6 +203,27 @@
     state: present
   tags: [docker-prune, sync-config, env-refresh]
 
+# Old images are what actually fill a disk. An update retags the new build as
+# :latest, so the previous release's image is left dangling, and nothing
+# removed them: spw and pwn were each carrying 22 GB of them on 18 Aug.
+#
+# The 14 day filter is the point. A bare prune would delete the image you roll
+# back to, five minutes after you updated. Rollback rebuilds from source so it
+# would still work, but it would take half an hour instead of two minutes.
+# Two weeks keeps the last release reachable and still frees the rest.
+#
+# An hour after the cache prune, so the two never overlap.
+- name: Schedule weekly docker image prune
+  cron:
+    name: "Docker image prune"
+    weekday: "0"
+    hour: "5"
+    minute: "0"
+    user: "{{ app_user | default('ubuntu') }}"
+    job: "docker image prune -af --filter until=336h >> {{ app_directory | default('/opt/addaxai-connect') }}/logs/docker-prune.log 2>&1"
+    state: present
+  tags: [docker-prune, sync-config, env-refresh]
+
 - name: Schedule daily backup to Wasabi
   cron:
     name: "AddaxAI backup"
