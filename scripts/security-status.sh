@@ -36,8 +36,12 @@ REDIS_PASSWORD="$(env_get REDIS_PASSWORD)"
 
 redis_set_status() {
   local payload="$1"
+  # </dev/null matters: `docker compose exec -T` reads stdin, so without it
+  # this swallows whatever the caller still had on stdin. Under cron stdin is
+  # already empty, but running the script by hand from a heredoc ate the rest
+  # of the operator's commands, which is how this was found.
   docker compose exec -T redis redis-cli -a "$REDIS_PASSWORD" \
-    SET "$REDIS_KEY" "$payload" > /dev/null 2>&1 || true
+    SET "$REDIS_KEY" "$payload" > /dev/null 2>&1 </dev/null || true
 }
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
@@ -62,7 +66,10 @@ WARNINGS="$(printf '%s\n' "$PLAIN" | grep -c '^\[WARN\]')"
 # Only the failing lines go in the email. Warnings are deliberately left out:
 # a pending reboot warns for a day or two every month and mailing about it
 # would train everyone to ignore the alert.
-FAILURES="$(printf '%s\n' "$PLAIN" | grep '^\[FAIL\]' | sed 's/^\[FAIL\] *//' | paste -sd '; ' -)"
+# awk and not `paste -sd '; '`: paste reads -d as a list of delimiters and
+# cycles through them, so it joined with ";" and never used the space.
+FAILURES="$(printf '%s\n' "$PLAIN" | grep '^\[FAIL\]' | sed 's/^\[FAIL\] *//' \
+  | awk '{ printf "%s%s", (NR > 1 ? "; " : ""), $0 }')"
 
 DURATION=$(( $(date +%s) - START_EPOCH ))
 
