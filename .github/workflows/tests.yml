@@ -1,0 +1,81 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    # One job per test directory, and not one job running `pytest tests/`.
+    #
+    # Two separate reasons, both real:
+    #
+    # 1. Collection. Several services have same-named modules (db_operations,
+    #    worker, config) and each test conftest puts its own service on
+    #    sys.path. Collecting the whole tree in one process lets the first
+    #    import win for all of them, and six ingestion files error out.
+    #
+    # 2. Dependencies. The services do not agree on every pin: api wants
+    #    Pillow 10.2.0 while ingestion and notifications-telegram want 10.1.0.
+    #    That is fine in production, where each service is its own image, but
+    #    pip cannot resolve them into one environment. A job per directory
+    #    mirrors the isolation the images already have.
+    #
+    # fail-fast is off so one broken service does not hide the rest.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dir: tests/api
+            reqs: -r services/api/requirements.txt
+          - dir: tests/ingestion
+            reqs: -r services/ingestion/requirements.txt
+          - dir: tests/notifications
+            reqs: -r services/notifications/requirements.txt
+          - dir: tests/notifications_email
+            reqs: -r services/notifications-email/requirements.txt
+          - dir: tests/notifications_telegram
+            reqs: -r services/notifications-telegram/requirements.txt
+          # Only the shared package itself, no service.
+          - dir: tests/shared
+            reqs: ""
+          # These two import cropper and annotated_image, which need Pillow and
+          # nothing else. Their service requirements pull megadetector and
+          # torch, over a gigabyte, for 35 tests that never touch a model. Same
+          # pin as those services use.
+          - dir: tests/detection
+            reqs: Pillow==10.1.0
+          - dir: tests/classification
+            reqs: Pillow==10.1.0
+
+    name: ${{ matrix.dir }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Same as every service image (python:3.11-slim), so a version
+          # difference can never be why CI and production disagree.
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install libmagic
+        # services/ingestion/validators.py uses python-magic, a binding around
+        # the system libmagic that fails to import without it.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmagic1
+
+      - name: Install dependencies
+        # The shared package carries the runtime pins; a service requirements
+        # file only adds its own.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e shared/
+          if [ -n "${{ matrix.reqs }}" ]; then pip install ${{ matrix.reqs }}; fi
+          pip install -r tests/requirements.txt
+
+      - name: Run ${{ matrix.dir }}
+        run: pytest ${{ matrix.dir }} -q

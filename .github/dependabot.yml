@@ -1,0 +1,45 @@
+# Automated dependency alerts and update pull requests.
+#
+# Every dependency in this repo is pinned to an exact version, which makes
+# builds reproducible but means nothing moves unless somebody moves it. Without
+# this file a known vulnerability in a pinned package sits there until we
+# happen to read about it.
+#
+# Weekly, not daily, and capped, so this stays a signal and not a flood of
+# pull requests nobody reviews. Security updates are not affected by the cap.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directories:
+      - /shared
+      - /services/api
+      - /services/ingestion
+      - /services/detection
+      - /services/classification-deepfaune
+      - /services/classification-speciesnet
+      - /services/bulk-upload
+      - /services/notifications
+      - /services/notifications-email
+      - /services/notifications-telegram
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: npm
+    directory: /services/frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: deps
