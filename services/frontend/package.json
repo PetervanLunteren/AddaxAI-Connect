@@ -35,7 +35,7 @@
     "react-day-picker": "^9.14.0",
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.3.8",
-    "react-hook-form": "^7.68.0",
+    "react-hook-form": "^7.85.0",
     "react-leaflet": "^4.2.1",
     "react-leaflet-cluster": "^2.1.0",
     "react-qr-code": "^2.2.0",
