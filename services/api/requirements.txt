@@ -1,7 +1,16 @@
 # Shared runtime deps (sqlalchemy, psycopg2, asyncpg, redis, boto3, pydantic,
 # pydantic-settings, geoalchemy2, python-json-logger, jinja2) come from the
 # shared package; see shared/pyproject.toml. Only service-specific deps here.
-fastapi==0.141.1
+# Held at 0.104.1 by pydantic. 0.141 imports IncEx from pydantic.main, which
+# needs a newer pydantic than the 2.5.0 shared/pyproject.toml pins, and the
+# Dockerfile installs requirements.txt first and shared/ second, so shared
+# downgrades pydantic back and the api dies on import.
+#
+# CI does not catch this: it installs shared/ first and requirements second,
+# so pydantic ends up new enough there and tests/api goes green on a build
+# that cannot start. Moving fastapi means moving pydantic in shared, which
+# every service shares. Tried 19 Aug 2026.
+fastapi==0.104.1
 uvicorn[standard]==0.52.3
 alembic==1.12.1
 python-jose[cryptography]==3.3.0
