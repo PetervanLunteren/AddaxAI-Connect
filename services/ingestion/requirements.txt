@@ -1,7 +1,6 @@
 # Shared runtime deps come from the shared package (shared/pyproject.toml).
 # Only service-specific deps go here.
 watchdog==3.0.0
-asyncpg==0.29.0
 python-magic==0.4.27
 Pillow==10.1.0
 APScheduler==3.10.4

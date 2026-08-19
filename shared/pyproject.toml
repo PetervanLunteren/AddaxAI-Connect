@@ -12,9 +12,14 @@ requires-python = ">=3.11"
 # so every image resolves the same versions and builds stay reproducible.
 # An unpinned floor here is what let the telegram image drift to redis 8.0.0
 # (default 5s socket timeout) and crash its queue consumer.
+#
+# psycopg2-binary and asyncpg are the sync and async SQLAlchemy drivers for
+# the URLs database.py builds. No module imports either by name, but every
+# service that opens a session needs them, so they are shared deps.
 dependencies = [
     "sqlalchemy==2.0.23",
     "psycopg2-binary==2.9.9",
+    "asyncpg==0.29.0",
     "redis==5.0.1",
     "boto3==1.34.0",
     "pydantic==2.5.0",
