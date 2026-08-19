@@ -1,3 +1,3 @@
 # Shared runtime deps come from the shared package (shared/pyproject.toml).
 # Only service-specific deps go here.
-aiosmtplib==3.0.1
+aiosmtplib==5.1.1
