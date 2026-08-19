@@ -2,7 +2,7 @@
 # pydantic-settings, geoalchemy2, python-json-logger, jinja2) come from the
 # shared package; see shared/pyproject.toml. Only service-specific deps here.
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
+uvicorn[standard]==0.52.3
 alembic==1.12.1
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
@@ -14,7 +14,7 @@ passlib==1.7.4
 python-multipart==0.0.6
 bcrypt==3.2.2
 fastapi-users[sqlalchemy]==12.1.2
-aiosmtplib==3.0.1
+aiosmtplib==5.1.1
 email-validator>=1.1.0,<2.1
 slowapi==0.1.9
 Pillow==12.3.0
