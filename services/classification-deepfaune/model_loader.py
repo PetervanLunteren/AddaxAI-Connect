@@ -117,9 +117,20 @@ def load_model() -> Any:
             dynamic_img_size=True  # Allow flexible input dimensions
         )
 
-        # Load DeepFaune weights
+        # Load DeepFaune weights.
+        #
+        # weights_only=True keeps torch.load on the tensor-only path. Without
+        # it torch 2.1 unpickles the file, which runs whatever code the pickle
+        # names, so anyone able to answer CLASSIFICATION_MODEL_URL gets code
+        # execution in this worker. The file is fetched over https from a URL
+        # we control, so this is defence in depth, not a live hole.
+        #
+        # We only ever read tensors out of the checkpoint below, so the strict
+        # path is enough. If a future checkpoint carries a plain object next to
+        # the weights this raises instead of loading it, which is the correct
+        # way round: an unreadable model is a crash, not a silent unsafe load.
         logger.info("Loading model weights", model_path=model_path)
-        checkpoint = torch.load(model_path, map_location=device)
+        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
 
         # Handle nested state dict (checkpoint may have 'state_dict', 'model', or weights directly)
         if 'state_dict' in checkpoint:

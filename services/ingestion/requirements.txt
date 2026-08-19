@@ -2,5 +2,5 @@
 # Only service-specific deps go here.
 watchdog==3.0.0
 python-magic==0.4.27
-Pillow==10.1.0
+Pillow==12.3.0
 APScheduler==3.10.4

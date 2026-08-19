@@ -1,4 +1,4 @@
 # Shared runtime deps come from the shared package (shared/pyproject.toml).
 # Only service-specific deps go here.
 python-magic==0.4.27
-Pillow==10.1.0
+Pillow==12.3.0

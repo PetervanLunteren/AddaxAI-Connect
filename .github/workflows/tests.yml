@@ -47,9 +47,9 @@ jobs:
           # torch, over a gigabyte, for 35 tests that never touch a model. Same
           # pin as those services use.
           - dir: tests/detection
-            reqs: Pillow==10.1.0
+            reqs: Pillow==12.3.0
           - dir: tests/classification
-            reqs: Pillow==10.1.0
+            reqs: Pillow==12.3.0
           # The watchdog has no requirements.txt, it pins inline in its
           # Dockerfile. Keep these two in step with that file.
           - dir: tests/tier_watchdog

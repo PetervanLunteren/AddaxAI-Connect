@@ -3,4 +3,4 @@
 # Do not add redis here; leaving it unpinned is what let this image drift to
 # redis 8.0.0, whose default 5s socket timeout crashed the queue consumer.
 requests==2.31.0
-Pillow==10.1.0
+Pillow==12.3.0
