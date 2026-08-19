@@ -83,3 +83,39 @@ jobs:
 
       - name: Run ${{ matrix.dir }}
         run: pytest ${{ matrix.dir }} -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    name: frontend build
+
+    # The python jobs above say nothing about the frontend, so until this job
+    # existed a dependency bump touching only package.json got a green tick
+    # from eight pytest runs that never opened it. That is how
+    # @vitejs/plugin-react 6 reached review looking fine while its peer range
+    # asks for vite 8 and this repo pins vite 5.
+    #
+    # `npm ci` rather than `npm install`: it installs the lockfile exactly and
+    # refuses an unsatisfiable peer range, which is the half of the check that
+    # catches that class of bump.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Same major as services/frontend/Dockerfile (node:20-alpine), so a
+          # version difference can never be why CI and the image disagree.
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: services/frontend
+        # `npm run build` is `tsc --noEmit && vite build`. The bar is zero type
+        # errors, not "no new errors"; vite strips types without checking them,
+        # so this is the only thing between a type error and production.
+        run: npm run build
