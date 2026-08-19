@@ -119,18 +119,25 @@ def load_model() -> Any:
 
         # Load DeepFaune weights.
         #
-        # weights_only=True keeps torch.load on the tensor-only path. Without
-        # it torch 2.1 unpickles the file, which runs whatever code the pickle
-        # names, so anyone able to answer CLASSIFICATION_MODEL_URL gets code
-        # execution in this worker. The file is fetched over https from a URL
-        # we control, so this is defence in depth, not a live hole.
+        # This unpickles the file, which runs whatever code the pickle names.
+        # weights_only=True would stop that, and it does not work here: the
+        # v1.4 checkpoint stores a torchvision Compose object next to the
+        # tensors, so the strict path refuses the whole file with "Unsupported
+        # class torchvision.transforms.transforms.Compose" and the worker
+        # cannot start. Tried on dev, 19 Aug 2026.
         #
-        # We only ever read tensors out of the checkpoint below, so the strict
-        # path is enough. If a future checkpoint carries a plain object next to
-        # the weights this raises instead of loading it, which is the correct
-        # way round: an unreadable model is a crash, not a silent unsafe load.
+        # torch 2.1 offers no way to let one class through; add_safe_globals
+        # arrives in 2.4 (checked: absent in this image, present in the 2.13
+        # the detection service gets from megadetector). So this closes with
+        # the torch 2.6 upgrade the CVE asks for anyway, either by allowing
+        # Compose explicitly or by re-saving the checkpoint as a bare
+        # state_dict. Do not add a try/except fallback, that would be an
+        # unsafe load pretending to be a safe one.
+        #
+        # Exposure meanwhile is a compromised model host, not user input: the
+        # file comes over https from CLASSIFICATION_MODEL_URL, which we set.
         logger.info("Loading model weights", model_path=model_path)
-        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
+        checkpoint = torch.load(model_path, map_location=device)
 
         # Handle nested state dict (checkpoint may have 'state_dict', 'model', or weights directly)
         if 'state_dict' in checkpoint:
