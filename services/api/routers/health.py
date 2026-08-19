@@ -153,6 +153,13 @@ def check_cold_tier_watchdog() -> ServiceStatus:
             total = objects_hot + objects_cold
             pct_cold = (objects_cold / total * 100) if total else 0.0
             ts = payload.get("timestamp", "?")
+            # Over budget right after a tick is normal, the objects were
+            # tagged seconds ago and MinIO has not run its scanner yet. Say
+            # so, otherwise a healthy row reads as a contradiction.
+            waiting = (
+                ", tagged and waiting for the storage scanner to move them"
+                if payload.get("waiting_for_ilm") else ""
+            )
             return ServiceStatus(
                 name="cold-tier-watchdog",
                 status="healthy",
@@ -160,6 +167,7 @@ def check_cold_tier_watchdog() -> ServiceStatus:
                     f"Last tick {ts}: "
                     f"{hot_gb} GB used of {budget_gb} GB budget, "
                     f"{objects_hot} hot / {objects_cold} cold ({pct_cold:.1f}% cold)"
+                    f"{waiting}"
                 ),
             )
         err = payload.get("error", "unknown error")

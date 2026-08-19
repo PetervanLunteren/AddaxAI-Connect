@@ -75,7 +75,20 @@ else
     state="$(docker compose ps -a --format '{{.Service}} {{.State}}' 2>/dev/null \
              | awk -v s="$svc" '$1==s {print $2; exit}')"
     case "$svc" in
-      $ONE_SHOT) [ "$state" = "exited" ] || [ "$state" = "running" ] || bad="$bad $svc($state)" ;;
+      # A one-shot is allowed to be gone, but only if it left cleanly. `docker
+      # compose ps` prints the state as a bare "exited" with no code, so
+      # accepting that alone passed a minio-init that died half way through
+      # registering the cold tier. That is exactly how a broken tier setup
+      # stayed invisible for months, so ask docker for the code itself.
+      $ONE_SHOT)
+        if [ "$state" = "exited" ]; then
+          cid="$(docker compose ps -aq "$svc" 2>/dev/null | head -1)"
+          code="$(docker inspect --format '{{.State.ExitCode}}' "$cid" 2>/dev/null)"
+          [ "$code" = "0" ] || bad="$bad $svc(exited/${code:-unknown})"
+        elif [ "$state" != "running" ]; then
+          bad="$bad $svc(${state:-absent})"
+        fi
+        ;;
       *)         [ "$state" = "running" ] || bad="$bad $svc(${state:-absent})" ;;
     esac
   done <<< "$EXPECTED"

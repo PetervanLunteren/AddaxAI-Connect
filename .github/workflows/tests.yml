@@ -50,6 +50,10 @@ jobs:
             reqs: Pillow==10.1.0
           - dir: tests/classification
             reqs: Pillow==10.1.0
+          # The watchdog has no requirements.txt, it pins inline in its
+          # Dockerfile. Keep these two in step with that file.
+          - dir: tests/tier_watchdog
+            reqs: boto3==1.34.0 redis==5.0.1
 
     name: ${{ matrix.dir }}
 

@@ -15,7 +15,8 @@ import logging
 import os
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import boto3
 import redis
@@ -27,6 +28,11 @@ HOT_PATH = "/data/raw-images"
 TAG_KEY = "tier"
 TAG_VALUE = "cold"
 STATUS_KEY = "cold_tier:status"
+
+# How long the ILM scanner gets to move tagged objects before a still-full
+# disk counts as evidence that transitions are broken. Comfortably longer
+# than a scan, comfortably shorter than the daily tick.
+ILM_GRACE_SECONDS = 6 * 3600
 
 
 def make_client():
@@ -59,7 +65,55 @@ def write_status(redis_client, tick_seconds: int, payload: dict):
     redis_client.set(STATUS_KEY, json.dumps(payload), ex=ttl)
 
 
-def tick(client, log):
+def read_status(redis_client) -> Optional[dict]:
+    """Last tick's payload, or None when there is nothing usable.
+
+    The key outlives the process (TTL is 3x the tick), so this survives a
+    restart. Missing on a fresh server, which correctly reads as "nothing
+    has been tagged yet".
+    """
+    raw = redis_client.get(STATUS_KEY)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+def ilm_is_stuck(current: int, budget_bytes: int,
+                 previous: Optional[dict], now: datetime) -> bool:
+    """True when tagged objects are demonstrably not reaching the cold tier.
+
+    Three things have to hold together. The disk is over budget by more than
+    the 10% margin. A previous tick already tagged objects, so ILM has been
+    given something to move. And that tick was long enough ago that the
+    scanner has had its chance.
+
+    The last two conditions are the point. Tagging and measuring happen in the
+    same tick, and the loop ticks immediately at startup, so the size read
+    just before tagging says nothing yet about whether transitions work.
+    Judging on it alone meant every deploy made while over budget raised an
+    alert, which then sat on the health page and in the 03:00 email for a full
+    day with nothing actually wrong.
+    """
+    if current <= budget_bytes * 1.10:
+        return False
+    if not previous or not previous.get("tagged_count"):
+        return False
+    stamped = previous.get("timestamp")
+    if not stamped:
+        return False
+    try:
+        tagged_at = datetime.fromisoformat(stamped)
+    except ValueError:
+        return False
+    if tagged_at.tzinfo is None:
+        tagged_at = tagged_at.replace(tzinfo=timezone.utc)
+    return now - tagged_at >= timedelta(seconds=ILM_GRACE_SECONDS)
+
+
+def tick(client, log, previous: Optional[dict] = None):
     budget_gb = float(os.environ.get("COLD_TIER_HOT_BUDGET_GB", "80"))
     budget_bytes = int(budget_gb * (1024 ** 3))
 
@@ -125,14 +179,12 @@ def tick(client, log):
     result["tagged_count"] = tagged_count
     result["tagged_gb"] = round(tagged_bytes / (1024 ** 3), 3)
 
-    # Health check against the budget contract. The watchdog runs daily and
-    # MinIO's ILM scanner runs many times per day, so on every tick after
-    # the first, hot should be at or under budget if ILM is actually moving
-    # tagged objects. The 10% margin absorbs normal between-scan lag and
-    # fresh uploads arriving between ticks. Catches missing rules, expired
-    # remote credentials, Wasabi outages, and any other reason transitions
-    # are not happening.
-    if current > budget_bytes * 1.10:
+    # Health check against the budget contract. The 10% margin absorbs normal
+    # between-scan lag and fresh uploads arriving between ticks. Catches
+    # missing rules, expired remote credentials, Wasabi outages, and any
+    # other reason transitions are not happening. See ilm_is_stuck for why
+    # the disk size on its own is not enough to convict.
+    if ilm_is_stuck(current, budget_bytes, previous, datetime.now(timezone.utc)):
         result["status"] = "error"
         result["error"] = (
             f"hot disk {current / (1024 ** 3):.2f} GB exceeds "
@@ -143,6 +195,10 @@ def tick(client, log):
         log.error(result["error"])
     else:
         result["status"] = "ok"
+        if current > budget_bytes * 1.10:
+            result["waiting_for_ilm"] = True
+            log.info("over budget, but these objects were only just tagged; "
+                     "waiting for the ILM scanner before calling it broken")
     return result
 
 
@@ -175,7 +231,7 @@ def main():
 
     while True:
         try:
-            result = tick(client, log)
+            result = tick(client, log, read_status(redis_client))
             write_status(redis_client, tick_seconds, result)
         except Exception as exc:
             log.exception("tick failed, will retry next interval")

@@ -51,8 +51,6 @@ REGION="${COLD_TIER_REGION:-eu-central-1}"
 #
 # Detection uses `mc ilm tier ls` because `mc ilm tier info NAME --json` is
 # broken in current mc releases (fails with "Incorrect number of arguments").
-# This stack registers at most one remote tier, so the first Bucket/Endpoint
-# in the listing belongs to $NAME.
 #
 # Parsed with shell builtins on purpose. The minio/mc image ships mc, cat, cut,
 # tr and head, and no grep, sed, awk or jq. A grep here died with "command not
@@ -62,10 +60,18 @@ REGION="${COLD_TIER_REGION:-eu-central-1}"
 # no transition, so nothing ever drained. Use no external tool in this block.
 tiers="$(mc ilm tier ls minio --json)"
 case "$tiers" in *"\"Name\":\"$NAME\""*)
-  # Shortest prefix up to the first "Bucket":" , then everything before the
-  # closing quote. Same first-match semantics the listing guarantees.
-  rest="${tiers#*\"Bucket\":\"}"   ; cur_bucket="${rest%%\"*}"
-  rest="${tiers#*\"Endpoint\":\"}" ; cur_endpoint="${rest%%\"*}"
+  # Cut the listing at our own entry first. mc returns one array of every
+  # tier, Name ahead of the S3 block and the next tier's Name after this
+  # one's Bucket, so the first Bucket and Endpoint after "Name":"$NAME"
+  # belong to $NAME. Reading them from the whole listing picks the first tier
+  # in the array, which broke as soon as pwn registered a second tier beside
+  # the dead one it cannot remove: the compare saw the wrong bucket, concluded
+  # ours had changed, and ran `mc ilm tier rm` against a tier holding 16k
+  # objects. That refuses, and `set -e` then kills the script before the
+  # transition rule is reinstalled.
+  after="${tiers#*\"Name\":\"$NAME\"}"
+  rest="${after#*\"Bucket\":\"}"   ; cur_bucket="${rest%%\"*}"
+  rest="${after#*\"Endpoint\":\"}" ; cur_endpoint="${rest%%\"*}"
   if [ "$cur_bucket" = "$COLD_TIER_BUCKET" ] && [ "$cur_endpoint" = "$COLD_TIER_ENDPOINT" ]; then
     echo "Cold tier $NAME already points at $cur_bucket; updating credentials only"
     mc ilm tier update minio "$NAME" --access-key "$COLD_TIER_ACCESS_KEY" --secret-key "$COLD_TIER_SECRET_KEY"
