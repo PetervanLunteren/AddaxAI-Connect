@@ -5,5 +5,5 @@
 # functions are not natively supported" instead of running them. Every async
 # test carries @pytest.mark.asyncio, so the default strict mode is correct and
 # no asyncio_mode setting is needed.
-pytest==8.3.4
+pytest==9.0.3
 pytest-asyncio==1.3.0
