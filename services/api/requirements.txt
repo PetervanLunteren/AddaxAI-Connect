@@ -6,7 +6,7 @@ uvicorn[standard]==0.24.0
 alembic==1.12.1
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
-python-multipart==0.0.6
+python-multipart==0.0.31
 bcrypt==3.2.2
 fastapi-users[sqlalchemy]==12.1.2
 aiosmtplib==3.0.1
