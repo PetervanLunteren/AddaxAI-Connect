@@ -16,6 +16,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY shared /shared
 RUN pip install --no-cache-dir -e /shared
 
+# The installs above are separate pip commands, so pip only checks each one on
+# its own: a later install can downgrade what an earlier one needs, print an
+# ERROR line, and still exit 0. pip check turns that into a failed build.
+RUN pip check
+
 # Copy service code
 COPY services/notifications .
 

@@ -73,13 +73,31 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmagic1
 
       - name: Install dependencies
-        # The shared package carries the runtime pins; a service requirements
-        # file only adds its own.
+        # Same order as the service Dockerfiles: the service requirements
+        # first, then shared/ on top of them.
+        #
+        # The order decides the outcome, because these are separate pip
+        # commands and the last one wins. shared/pyproject.toml is the single
+        # source of truth for the pins it owns, so it has to be installed
+        # last, exactly as the images do it.
+        #
+        # Installing shared first is what let fastapi 0.141 go green here on a
+        # combination whose image cannot start: fastapi wants pydantic>=2.9
+        # and shared pins 2.5.0, so CI upgraded pydantic to suit fastapi while
+        # the image downgraded it to suit shared, and the container died with
+        # ImportError on pydantic.main.IncEx.
         run: |
           python -m pip install --upgrade pip
-          pip install -e shared/
           if [ -n "${{ matrix.reqs }}" ]; then pip install ${{ matrix.reqs }}; fi
+          pip install -e shared/
           pip install -r tests/requirements.txt
+
+      - name: Check the environment is consistent
+        # pip resolves within one command only. When a later install breaks an
+        # earlier one it prints a bare ERROR line and still exits 0, which is
+        # how a broken pin reaches an image. pip check exits non-zero, so the
+        # mismatch fails here rather than in production.
+        run: pip check
 
       - name: Run ${{ matrix.dir }}
         run: pytest ${{ matrix.dir }} -q

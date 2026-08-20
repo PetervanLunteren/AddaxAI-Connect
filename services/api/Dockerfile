@@ -48,6 +48,11 @@ RUN pip install --no-cache-dir -e /shared
 # Force bcrypt 3.2.2 to override any newer version pulled by dependencies
 RUN pip install --force-reinstall --no-cache-dir bcrypt==3.2.2
 
+# The installs above are separate pip commands, so pip only checks each one on
+# its own: a later install can downgrade what an earlier one needs, print an
+# ERROR line, and still exit 0. pip check turns that into a failed build.
+RUN pip check
+
 # Install Playwright browsers (Chromium only for annotated image generation)
 # Note: Using standalone install without --with-deps to avoid Debian Trixie font package conflicts
 RUN playwright install chromium
