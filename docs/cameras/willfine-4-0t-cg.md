@@ -7,7 +7,7 @@ A 4G camera trap that uploads photos over FTPS and sends a daily health report. 
 Three routes, depending on how many cameras you need.
 
 - **[Smart Parks](https://www.smartparks.org)** build AddaxAI Connect together with Addax Data Science, so they know the system from the inside. They sell in bulk only, at about 130 euro per camera. This is the cheapest way, and usually the easiest.
-- **[Leitz Hungaria](https://www.leitz-hungaria.hu/en/Willfine-60-4-0-CG-4G-Trail-Camera)** sell single units for about 192 euro. They ship across central Europe, and worldwide by post for an extra fee. Often the easiest route for the handful of cameras a pilot study needs.
+- **[Leitz Hungaria](https://www.leitz-hungaria.hu/en/Willfine-60-4-0-CG-4G-Trail-Camera)** sell single units for about 192 euro. They ship across central Europe, and worldwide by post for an extra fee. Often the easiest route for a handful of cameras as a pilot study.
 - **[Willfine](https://www.willfine.com/products/willfine-4-0-t-cg-trail-camera/)** is the manufacturer. They sell mostly to bulk and OEM buyers and work with minimum order quantities, so check with them first what applies before you plan around it.
 
 Check that the camera works on the mobile networks in your country. These should work almost everywhere, but not in North America, where the networks use different frequencies. Ask the seller before you order.
