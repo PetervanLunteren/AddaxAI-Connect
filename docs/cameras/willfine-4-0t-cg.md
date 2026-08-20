@@ -14,7 +14,7 @@ Check that the camera works on the mobile networks in your country. These should
 
 A camera that did not come through Smart Parks runs the stock Willfine firmware. It needs the Smart Parks firmware flashed on it once before you use it, see [firmware update](#firmware-update) below.
 
-Only the Smart Parks route is tested. The cameras running on AddaxAI Connect servers today all came that way. The others sell the same camera and should work the same, but nobody has put one of those on a server yet. If they turn out to be a bit different, it takes some development and testing to get them going, so [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) and we will work it out.
+Only the Smart Parks route is tested. The cameras running on AddaxAI Connect servers today all came that way. The others sell the same camera and should work the same, but nobody has put one of those on a server yet, so there is no guarantee that cameras bought elsewhere will work. If they turn out to be a bit different, it might take some development and testing to get them going, so [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) and we will work it out.
 
 ## Setup
 
