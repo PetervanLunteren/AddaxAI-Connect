@@ -36,7 +36,7 @@
     "react-dom": "^18.2.0",
     "react-dropzone": "^20.1.0",
     "react-hook-form": "^7.85.0",
-    "react-leaflet": "^4.2.1",
+    "react-leaflet": "^5.0.0",
     "react-leaflet-cluster": "^2.1.0",
     "react-qr-code": "^2.2.0",
     "react-router-dom": "^7.18.2",
