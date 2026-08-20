@@ -73,4 +73,6 @@ If the camera never reaches the update screen, either the file or the card is th
 
 ## Known issues
 
-None reported so far. If you run into something, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues).
+This camera has a longer re-trigger delay than cameras without a cellular connection. For most wildlife monitoring that is no problem, but it can matter in some research setups. Test the camera in a real field situation before you scale up to many of them. It is the trade-off for a connected camera that uses very little power and keeps running through long deployments.
+
+If you run into something else, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues).
