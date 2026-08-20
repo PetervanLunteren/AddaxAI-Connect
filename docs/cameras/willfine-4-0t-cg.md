@@ -1,6 +1,6 @@
 # Willfine 4.0T CG
 
-A 4G camera trap that uploads photos over FTPS and sends a daily health report. This is the camera most AddaxAI Connect servers run on.
+A 4G camera trap that uploads photos over FTPS and sends a daily health report. This is the camera most AddaxAI Connect servers run on. For the hardware itself, see the [Smart Parks wiki](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg).
 
 <p style="text-align: center">
 <img alt="A Willfine 4.0T CG in a locked metal security case, mounted on a tree" src="https://github.com/user-attachments/assets/60784b6e-b20d-4d0e-a8eb-a0cd86a27787" />
@@ -43,12 +43,6 @@ Only the Smart Parks route is tested. The cameras running on AddaxAI Connect ser
 | Wireless module | LTE Cat 1, European or American version |
 | Certification | CE, FCC, RoHS |
 
-## Accessories
-
-- A security box, which is what the camera sits in on the photo above.
-- A solar charger.
-- A lock. For example a Masterlock adjustable cable, 1.80 m by 8 mm braided steel with two keys, model 8418EURD.
-
 ## Setup
 
 Register the camera in `Camera Management` with its serial number as the `Camera ID`, then point it at your server with the standard [FTPS settings](../camera-requirements.md#ftps-settings).
@@ -79,12 +73,4 @@ If the camera never reaches the update screen, either the file or the card is th
 
 ## Known issues
 
-This camera has a longer re-trigger delay than cameras without a cellular connection. For most wildlife monitoring that is no problem, but it can matter in some research setups. Test the camera in a real field situation before you scale up to many of them. It is the trade-off for a connected camera that uses very little power and keeps running through long deployments.
-
-If you run into something else, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues).
-
-## More information
-
-- [Manufacturer datasheet](https://www.willfine.com/wp-content/uploads/2025/08/Willfine_T4.0-CG_Product-Specification.pdf)
-- [Manufacturer product manual](https://www.willfine.com/wp-content/uploads/2025/09/T4.0-CG-product-manual.pdf)
-- [Manufacturer product page](https://www.willfine.com/products/willfine-4-0-t-cg-trail-camera/)
+None reported so far. If you run into something, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues).
