@@ -49,6 +49,9 @@ updates:
       # api image built and then died on ImportError for pydantic.main.IncEx.
       # email-validator belongs here too: our range is copied from what
       # fastapi-users 12.1.2 asks for (<2.1), so it only moves when that does.
+      # bcrypt and passlib too: passlib 1.7.4 breaks on bcrypt 4+, which is why
+      # bcrypt is force-pinned to 3.2.2 in the api Dockerfile, and passlib only
+      # goes away when fastapi-users 15 replaces it with pwdlib.
       fastapi:
         patterns:
           - fastapi
@@ -56,6 +59,8 @@ updates:
           - python-multipart
           - pydantic*
           - email-validator
+          - bcrypt
+          - passlib
     commit-message:
       prefix: deps
 
