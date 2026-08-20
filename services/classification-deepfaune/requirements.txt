@@ -2,7 +2,7 @@
 # Only service-specific deps go here.
 torch==2.13.0
 torchvision==0.28.0
-timm==0.9.12
+timm==1.0.28
 Pillow==12.3.0
 minio==7.2.0
 requests==2.34.2
