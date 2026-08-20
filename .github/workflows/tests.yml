@@ -121,9 +121,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          # Same major as services/frontend/Dockerfile (node:20-alpine), so a
+          # Same major as services/frontend/Dockerfile (node:22-alpine), so a
           # version difference can never be why CI and the image disagree.
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: services/frontend/package-lock.json
 

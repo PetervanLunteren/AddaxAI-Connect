@@ -45,7 +45,9 @@ function MapEventHandler({
   onZoomChange: (zoom: number) => void;
   onBoundsChange: (bounds: L.LatLngBounds) => void;
 }) {
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  // React 19 types dropped the zero-argument useRef overload, so the initial
+  // value has to be passed explicitly.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastZoomTimeRef = useRef<number>(0);
 
   const map = useMapEvents({

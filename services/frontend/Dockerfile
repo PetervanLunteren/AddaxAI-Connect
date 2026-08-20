@@ -1,5 +1,7 @@
 # Multi-stage build for production
-FROM node:20-alpine AS build
+# node 22: react-dropzone 20 declares engines node >= 22, and vite 8 wants
+# ^20.19 || >=22.12. Node 20 satisfied vite but not react-dropzone.
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
