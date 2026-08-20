@@ -7,8 +7,10 @@ A 4G camera trap that uploads photos over FTPS and sends a daily health report. 
 Three routes, depending on how many cameras you need.
 
 - **[Smart Parks](https://www.smartparks.org)** sell them in bulk only, at about 130 euro per camera. This is the cheapest way, and usually the easiest.
-- **[Leitz Hungaria](https://www.leitz-hungaria.hu/en/Willfine-60-4-0-CG-4G-Trail-Camera)** sell single units for about 192 euro. They ship across central Europe, and worldwide by post for an extra fee. But check the mobile network bands before you order. A camera built for Europe has a European modem, so it might not work on your part of the world. 
+- **[Leitz Hungaria](https://www.leitz-hungaria.hu/en/Willfine-60-4-0-CG-4G-Trail-Camera)** sell single units for about 192 euro. They ship across central Europe, and worldwide by post for an extra fee.
 - **[Willfine](https://www.willfine.com/products/willfine-4-0-t-cg-trail-camera/)** is the manufacturer. They sell mostly to bulk and OEM buyers, so ask them for a quote.
+
+Check that the camera works on the mobile networks in your country. These should work almost everywhere, but not in North America, where the networks use different frequencies. Ask the seller before you order.
 
 A camera that did not come through Smart Parks runs the stock Willfine firmware. It needs the Smart Parks firmware flashed on it once before you use it, see [firmware update](#firmware-update) below.
 
