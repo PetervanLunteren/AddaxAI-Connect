@@ -10,19 +10,19 @@
 # so pydantic ends up new enough there and tests/api goes green on a build
 # that cannot start. Moving fastapi means moving pydantic in shared, which
 # every service shares. Tried 19 Aug 2026.
-fastapi==0.104.1
+fastapi==0.141.1
 uvicorn[standard]==0.52.3
 alembic==1.12.1
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
-# Pinned by fastapi-users 12.1.2, which depends on python-multipart==0.0.6
+# Pinned by fastapi-users 12.1.2, which depends on python-multipart==0.0.32
 # exactly. 8 advisories want 0.0.31 and a clean image build refuses it with
 # ResolutionImpossible, so it moves only when fastapi-users does. Installing
 # it by hand into a running container appears to work; that is pip skipping
 # the resolve, not the pin going away. Tried 19 Aug 2026.
-python-multipart==0.0.6
+python-multipart==0.0.32
 bcrypt==3.2.2
-fastapi-users[sqlalchemy]==12.1.2
+fastapi-users[sqlalchemy]==15.0.5
 aiosmtplib==5.1.1
 email-validator>=1.1.0,<2.1
 slowapi==0.1.9
