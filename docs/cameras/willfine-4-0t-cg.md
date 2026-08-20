@@ -2,6 +2,10 @@
 
 A 4G camera trap that uploads photos over FTPS and sends a daily health report. This is the camera most AddaxAI Connect servers run on. For the hardware itself, see the [Smart Parks wiki](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg).
 
+<p style="text-align: center">
+<img class="screenshot" width="45%" alt="The Willfine 4.0T CG camera" src="https://wiki.smartparks.org/cameras/4.0t-cg.webp" />
+</p>
+
 ## Where to buy
 
 Three routes, depending on how many cameras you need.
