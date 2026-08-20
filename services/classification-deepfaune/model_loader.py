@@ -8,6 +8,8 @@ import os
 import requests
 import torch
 import timm
+import torchvision.transforms as tv_transforms
+from torchvision.transforms.functional import InterpolationMode
 from pathlib import Path
 from typing import Any
 
@@ -117,27 +119,35 @@ def load_model() -> Any:
             dynamic_img_size=True  # Allow flexible input dimensions
         )
 
-        # Load DeepFaune weights.
+        # Load DeepFaune weights on the tensor-only path.
         #
-        # This unpickles the file, which runs whatever code the pickle names.
-        # weights_only=True would stop that, and it does not work here: the
-        # v1.4 checkpoint stores a torchvision Compose object next to the
-        # tensors, so the strict path refuses the whole file with "Unsupported
-        # class torchvision.transforms.transforms.Compose" and the worker
-        # cannot start. Tried on dev, 19 Aug 2026.
+        # Without weights_only=True torch unpickles the file, which runs
+        # whatever code the pickle names, so whoever answers
+        # CLASSIFICATION_MODEL_URL gets code execution in this worker.
         #
-        # torch 2.1 offers no way to let one class through; add_safe_globals
-        # arrives in 2.4 (checked: absent in this image, present in the 2.13
-        # the detection service gets from megadetector). So this closes with
-        # the torch 2.6 upgrade the CVE asks for anyway, either by allowing
-        # Compose explicitly or by re-saving the checkpoint as a bare
-        # state_dict. Do not add a try/except fallback, that would be an
-        # unsafe load pretending to be a safe one.
+        # The checkpoint is not pure tensors: it holds args, state_dict and
+        # transform, and that transform is a torchvision Compose. Strict
+        # loading refuses any class it does not know, so the five below are
+        # allowlisted by name. They are transform objects that carry
+        # configuration, not behaviour, and nothing else in the file is
+        # allowed. Discovered by loading the real v1.4 checkpoint and adding
+        # whatever it asked for until it opened, so this is the exact set.
         #
-        # Exposure meanwhile is a compromised model host, not user input: the
-        # file comes over https from CLASSIFICATION_MODEL_URL, which we set.
+        # torch 2.6 made weights_only=True the default, so on 2.13 a bare
+        # torch.load already fails here. Naming the classes is what makes it
+        # work, and it is also what makes it safe. Do not swap it for a
+        # try/except that retries with weights_only=False; that is an unsafe
+        # load wearing a safe label.
+        torch.serialization.add_safe_globals([
+            tv_transforms.Compose,
+            tv_transforms.Resize,
+            tv_transforms.ToTensor,
+            tv_transforms.Normalize,
+            InterpolationMode,
+        ])
+
         logger.info("Loading model weights", model_path=model_path)
-        checkpoint = torch.load(model_path, map_location=device)
+        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
 
         # Handle nested state dict (checkpoint may have 'state_dict', 'model', or weights directly)
         if 'state_dict' in checkpoint:
