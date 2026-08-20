@@ -20,9 +20,13 @@ How this metadata is embedded (filename, EXIF, etc.) does not matter. A custom c
 
 ## Supported cameras
 
-* [Willfine 4.0T CG](https://wiki.smartparks.org/addaxaiconnect/cameras/willfinet40cg)
-* [Swift Enduro 4.0PCG-R](https://outdoorcameras.com.au/shop/swift-enduro-4g/)
-* INSTAR (path-based profile, see below)
+Every camera has its own page with the setup steps, the firmware notes, and the quirks worth knowing before you take it into the field.
+
+| Camera | How it is identified | Good to know |
+|---|---|---|
+| [Willfine 4.0T CG](cameras/willfine-4-0t-cg.md) | Serial number in the EXIF data | Sends daily health reports. The page has the firmware update guide. |
+| [Swift Enduro 4.0PCG-R](cameras/swift-enduro-4-0pcg-r.md) | IMEI in the filename | Sends daily health reports. |
+| [INSTAR](cameras/instar.md) | Upload directory path | Under development, not properly tested yet. Writes no EXIF, so you set the location through the upload path. Sends no health reports. |
 
 If your camera isn't listed, it needs a new profile. See below.
 
@@ -43,9 +47,11 @@ Configure your camera to upload via FTPS with these settings:
 
 ## Camera profiles
 
-A camera profile tells the system how to extract metadata from a specific camera model. It defines how to identify the camera type, how to extract the camera ID, and which fields are required. Profiles are defined in `services/ingestion/camera_profiles.py`.
+A camera profile tells the system how to extract metadata from a specific camera model. It defines how to identify the camera type, how to extract the camera ID, and which fields are required. Profiles are defined in `shared/shared/camera_profiles.py`.
 
-When an image arrives, the system checks each profile until the EXIF make and model match. The matched profile then extracts the camera ID, validates required fields, and processes the image. If no profile matches, the image is rejected.
+There are two kinds of profile. Most cameras are recognised by the make and model in the EXIF data of their photos. Cameras that write no EXIF at all, like INSTAR, are recognised by the directory they upload into instead.
+
+When an image arrives, the system first checks the upload path against the path profiles, then the EXIF make and model against the rest. The matched profile extracts the camera ID, validates the required fields, and processes the image. If no profile matches, the image is rejected.
 
 Creating a new profile usually takes a bit of time for development and testing. It involves:
 
@@ -56,43 +62,6 @@ Creating a new profile usually takes a bit of time for development and testing. 
 5. Uploading real images via your cameras over FTPS to confirm the full pipeline works end to end
 
 If you need a new camera profile, [open an issue](https://github.com/PetervanLunteren/AddaxAI-Connect/issues) with some sample files and we'll work it out.
-
-## INSTAR setup
-
-INSTAR cameras don't write any metadata into their image files (no EXIF), so the camera identifier and GPS location are taken from the upload directory path instead. The admin tells the camera which path to upload into, and the ingestion service parses the path to figure out which camera the image belongs to and where it was taken.
-
-**Step 1: pick the lat/lon string for this camera.** Use the format `lat<LATITUDE>_lon<LONGITUDE>` with a decimal point and a single underscore between the two halves. Use a `-` for southern or western hemispheres. Examples:
-
-| Coordinates | Lat/lon string |
-|---|---|
-| 52.02368 N, 12.98290 E | `lat52.02368_lon12.98290` |
-| 33.85679 S, 151.20929 E | `lat-33.85679_lon151.20929` |
-| 33.85679 S, 70.65876 W | `lat-33.85679_lon-70.65876` |
-
-**Step 2: register the camera in Camera Management.** Use the lat/lon string as the camera's `device_id` (the same field where you'd put an IMEI for other cameras). The match is case-insensitive but the rest of the string must be exact. Assign the camera to a project as usual.
-
-**Step 3: configure the INSTAR web UI.** Set the FTPS upload settings to the universal credentials in the [FTPS settings](#ftps-settings) section above. In the camera's "custom-path" field, enter:
-
-```
-INSTAR/<lat-lon-string>
-```
-
-For example: `INSTAR/lat52.02368_lon12.98290`. INSTAR drops every uploaded file straight into that directory:
-
-```
-INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.jpeg
-INSTAR/lat52.02368_lon12.98290/A_2026-04-09_16-04-05.mp4
-```
-
-**What gets processed.** Only JPEG stills with a timestamped filename are sent into the ML pipeline. INSTAR also uploads MP4 video clips into the same directory, and may produce `Test-Snapshot.jpeg` files when you press the "Test" button in the web UI. These are handled as follows:
-
-| File | Behaviour |
-|---|---|
-| `A_YYYY-MM-DD_HH-MM-SS.jpeg` | Processed as a normal image. Datetime is parsed from the filename, GPS from the path. |
-| `A_YYYY-MM-DD_HH-MM-SS.mp4` | Logged and deleted. Video is not processed. |
-| `Test-Snapshot.jpeg` | Rejected as `missing_datetime`. Visible in `File management`. |
-
-INSTAR cameras do not send daily health reports, so the battery, signal, SD usage, and "last seen" health fields stay empty. This is expected, not a misconfiguration.
 
 ## Troubleshooting
 

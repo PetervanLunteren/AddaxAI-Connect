@@ -45,8 +45,12 @@ extra_css:
 
 nav:
   - Home: index.md
-  - Getting started:
+  - Cameras:
     - Camera requirements: camera-requirements.md
+    - Willfine 4.0T CG: cameras/willfine-4-0t-cg.md
+    - Swift Enduro 4.0PCG-R: cameras/swift-enduro-4-0pcg-r.md
+    - INSTAR: cameras/instar.md
+  - Getting started:
     - Deployment: deployment.md
     - Setup guide: setup-guide.md
     - SpeciesNet setup: speciesnet-setup.md
