@@ -47,12 +47,15 @@ updates:
       # newer pydantic than shared/pyproject.toml allows, so the whole chain
       # moves together or not at all. Found the hard way on 19 Aug 2026: the
       # api image built and then died on ImportError for pydantic.main.IncEx.
+      # email-validator belongs here too: our range is copied from what
+      # fastapi-users 12.1.2 asks for (<2.1), so it only moves when that does.
       fastapi:
         patterns:
           - fastapi
           - fastapi-users*
           - python-multipart
           - pydantic*
+          - email-validator
     commit-message:
       prefix: deps
 
