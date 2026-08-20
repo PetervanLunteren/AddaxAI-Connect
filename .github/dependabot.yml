@@ -77,6 +77,17 @@ updates:
         patterns:
           - vite
           - "@vitejs/*"
+      # react and react-dom must match exactly, their @types go with them, and
+      # react-leaflet 5 declares peer react ^19. PR 62 bumped react-dom alone
+      # and PR 66 wanted react-leaflet alone; neither could land.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+          - "react-leaflet*"
+          - "@react-leaflet/*"
     commit-message:
       prefix: deps
 
