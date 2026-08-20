@@ -16,7 +16,7 @@ bcrypt==5.0.0
 fastapi-users[sqlalchemy]==15.0.5
 aiosmtplib==5.1.1
 email-validator>=2.3.0,<2.4
-slowapi==0.1.9
+slowapi==0.1.10
 Pillow==12.3.0
 httpx==0.25.2
 playwright==1.62.0
