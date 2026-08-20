@@ -7,6 +7,15 @@
 #
 # Weekly, not daily, and capped, so this stays a signal and not a flood of
 # pull requests nobody reviews. Security updates are not affected by the cap.
+#
+# The cap is per directory, not per ecosystem. Ten pip directories means the
+# ceiling is fifty pip pull requests, not five. That is what produced the
+# twenty that arrived on 18 Aug 2026.
+#
+# `groups` exists because some packages cannot move alone. One pull request per
+# package is broken on arrival when another package pins it exactly, and it
+# wastes a review either way. The security updater already grouped like this
+# and its grouped pull requests worked; the ungrouped version updates did not.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -25,6 +34,25 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    groups:
+      # torchvision pins torch exactly: 0.16.0 requires torch==2.1.0, so a
+      # torch bump on its own can never install. timm rides along, it depends
+      # on both.
+      torch:
+        patterns:
+          - torch
+          - torchvision
+          - timm
+      # fastapi-users pins python-multipart exactly, and fastapi 0.141 wants a
+      # newer pydantic than shared/pyproject.toml allows, so the whole chain
+      # moves together or not at all. Found the hard way on 19 Aug 2026: the
+      # api image built and then died on ImportError for pydantic.main.IncEx.
+      fastapi:
+        patterns:
+          - fastapi
+          - fastapi-users*
+          - python-multipart
+          - pydantic*
     commit-message:
       prefix: deps
 
@@ -34,6 +62,13 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    groups:
+      # @vitejs/plugin-react 6 declares peer vite ^8, so the plugin alone
+      # cannot install. PR 12 was exactly that and had to be closed.
+      vite:
+        patterns:
+          - vite
+          - "@vitejs/*"
     commit-message:
       prefix: deps
 
