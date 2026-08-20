@@ -28,7 +28,7 @@ from random import Random
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "services" / "api"))
 
-from passlib.context import CryptContext
+from fastapi_users.password import PasswordHelper
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
@@ -414,8 +414,10 @@ DEMO_REMINDERS = [
     {"in_days": -12, "message": "Replace the SIM that expired on the Kemperberg camera."},  # already sent
 ]
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing. Uses the same helper the app authenticates with, so a
+# hash written here verifies the same way a real signup does. passlib is
+# gone: fastapi-users 15 hashes with pwdlib (argon2id).
+pwd_context = PasswordHelper()
 
 
 # ---------------------------------------------------------------------------

@@ -1,30 +1,21 @@
 # Shared runtime deps (sqlalchemy, psycopg2, asyncpg, redis, boto3, pydantic,
 # pydantic-settings, geoalchemy2, python-json-logger, jinja2) come from the
 # shared package; see shared/pyproject.toml. Only service-specific deps here.
-# Held at 0.104.1 by pydantic. 0.141 imports IncEx from pydantic.main, which
-# needs a newer pydantic than the 2.5.0 shared/pyproject.toml pins, and the
-# Dockerfile installs requirements.txt first and shared/ second, so shared
-# downgrades pydantic back and the api dies on import.
-#
-# CI does not catch this: it installs shared/ first and requirements second,
-# so pydantic ends up new enough there and tests/api goes green on a build
-# that cannot start. Moving fastapi means moving pydantic in shared, which
-# every service shares. Tried 19 Aug 2026.
-fastapi==0.104.1
+# fastapi, fastapi-users, python-multipart, bcrypt, email-validator and the
+# pydantic pair in shared/pyproject.toml all move together. fastapi 0.141
+# wants pydantic >=2.9, fastapi-users 12 pinned python-multipart to 0.0.6 and
+# email-validator to <2.1, and fastapi-users 15 drops passlib for pwdlib,
+# which needs bcrypt >=4.1.2. Any one of them alone fails to install or fails
+# to boot.
+fastapi==0.141.1
 uvicorn[standard]==0.52.3
 alembic==1.12.1
 python-jose[cryptography]==3.4.0
-passlib==1.7.4
-# Pinned by fastapi-users 12.1.2, which depends on python-multipart==0.0.6
-# exactly. 8 advisories want 0.0.31 and a clean image build refuses it with
-# ResolutionImpossible, so it moves only when fastapi-users does. Installing
-# it by hand into a running container appears to work; that is pip skipping
-# the resolve, not the pin going away. Tried 19 Aug 2026.
-python-multipart==0.0.6
-bcrypt==3.2.2
-fastapi-users[sqlalchemy]==12.1.2
+python-multipart==0.0.32
+bcrypt==5.0.0
+fastapi-users[sqlalchemy]==15.0.5
 aiosmtplib==5.1.1
-email-validator>=1.1.0,<2.1
+email-validator>=2.3.0,<2.4
 slowapi==0.1.9
 Pillow==12.3.0
 httpx==0.25.2

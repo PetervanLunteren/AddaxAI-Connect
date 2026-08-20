@@ -212,8 +212,10 @@ def create_admin_invitation(email: str, database_url: str, domain_name: str) -> 
 
         if not system_user:
             # Create system user
-            from passlib.context import CryptContext
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            # Same helper the app authenticates with; passlib is gone with
+            # fastapi-users 15, which hashes via pwdlib (argon2id).
+            from fastapi_users.password import PasswordHelper
+            pwd_context = PasswordHelper()
 
             system_user = User(
                 email="system@addaxai.com",
