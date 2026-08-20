@@ -13,7 +13,7 @@
 fastapi==0.104.1
 uvicorn[standard]==0.52.3
 alembic==1.12.1
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 passlib==1.7.4
 # Pinned by fastapi-users 12.1.2, which depends on python-multipart==0.0.6
 # exactly. 8 advisories want 0.0.31 and a clean image build refuses it with
