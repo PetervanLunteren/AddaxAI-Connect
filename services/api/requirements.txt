@@ -15,12 +15,12 @@ uvicorn[standard]==0.52.3
 alembic==1.12.1
 python-jose[cryptography]==3.3.0
 passlib==1.7.4
-# Pinned by fastapi-users 12.1.2, which depends on python-multipart==0.0.6
+# Pinned by fastapi-users 12.1.2, which depends on python-multipart==0.0.31
 # exactly. 8 advisories want 0.0.31 and a clean image build refuses it with
 # ResolutionImpossible, so it moves only when fastapi-users does. Installing
 # it by hand into a running container appears to work; that is pip skipping
 # the resolve, not the pin going away. Tried 19 Aug 2026.
-python-multipart==0.0.6
+python-multipart==0.0.31
 bcrypt==3.2.2
 fastapi-users[sqlalchemy]==12.1.2
 aiosmtplib==5.1.1
