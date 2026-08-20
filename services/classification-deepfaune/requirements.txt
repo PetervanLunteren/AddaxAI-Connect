@@ -1,7 +1,7 @@
 # Shared runtime deps come from the shared package (shared/pyproject.toml).
 # Only service-specific deps go here.
-torch==2.1.0
-torchvision==0.16.0
+torch==2.13.0
+torchvision==0.28.0
 timm==0.9.12
 Pillow==12.3.0
 minio==7.2.0
