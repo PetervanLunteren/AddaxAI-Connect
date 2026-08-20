@@ -21,7 +21,7 @@ passlib==1.7.4
 # it by hand into a running container appears to work; that is pip skipping
 # the resolve, not the pin going away. Tried 19 Aug 2026.
 python-multipart==0.0.6
-bcrypt==3.2.2
+bcrypt==5.0.0
 fastapi-users[sqlalchemy]==12.1.2
 aiosmtplib==5.1.1
 email-validator>=1.1.0,<2.1
