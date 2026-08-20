@@ -3,6 +3,6 @@
 speciesnet>=5.0.0,<6.0.0
 Pillow==12.3.0
 minio==7.2.0
-requests==2.33.0
+requests==2.34.2
 numpy<2.0.0
 huggingface-hub>=0.20.0
