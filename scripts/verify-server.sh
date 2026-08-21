@@ -10,6 +10,7 @@
 #                    later triage session to read
 #   --since <dur>    how far back to scan logs for errors (default 10m)
 #   --max-errors <n> tolerate up to n ERROR log lines (default 0)
+#   --slow-budget <s> seconds a single read path may take (default 8)
 #   --quiet          only print the summary table
 #
 # Run it on the server, after an update or a restore:
@@ -33,12 +34,18 @@ SINCE="10m"
 JSON_OUT=""
 MAX_ERRORS=0
 QUIET="false"
+# Seconds one heavy read path may take before the run fails. Generous on
+# purpose: this is a regression alarm, not a target. The slowest endpoint on
+# the demo server sits near 2s, and a production server holds more data, so a
+# breach means something structural changed rather than a project growing.
+SLOW_BUDGET=8
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --json)        JSON_OUT="$2"; shift 2 ;;
     --since)       SINCE="$2"; shift 2 ;;
     --max-errors)  MAX_ERRORS="$2"; shift 2 ;;
+    --slow-budget) SLOW_BUDGET="$2"; shift 2 ;;
     --quiet)       QUIET="true"; shift ;;
     -h|--help)     sed -n '2,28p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -292,7 +299,34 @@ ENDPOINTS='
 /api/statistics/last-update?project_id={p}
 '
 
+# ------------------------------------------------------- config regressions
+# Two settings that cost whole seconds when they silently revert, and that
+# nothing else would notice. Both were wrong on every server until August 2026.
+
+if [ -n "$BASE" ]; then
+  ASSET="$(curl -s --max-time 30 "$BASE/login" | grep -o '/assets/index-[^"]*\.js' | head -1)"
+  if [ -z "$ASSET" ]; then
+    fail "gzip" "could not find the bundle on the login page to test"
+  elif curl -s -o /dev/null -D - --max-time 30 -H 'Accept-Encoding: gzip' "$BASE$ASSET" \
+       | grep -qi '^content-encoding: gzip'; then
+    pass "gzip" "javascript is compressed"
+  else
+    fail "gzip" "the bundle is served uncompressed, check /etc/nginx/conf.d/gzip.conf"
+  fi
+fi
+
+PG_JIT="$(docker compose exec -T postgres psql -qAt -U "$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2-)" \
+          -d "$(grep -E '^POSTGRES_DB=' .env | cut -d= -f2-)" -c 'SHOW jit' 2>/dev/null | tr -d '\r')"
+if [ "$PG_JIT" = "off" ]; then
+  pass "postgres-jit" "off, as it must be"
+elif [ -z "$PG_JIT" ]; then
+  fail "postgres-jit" "could not read the setting from postgres"
+else
+  fail "postgres-jit" "jit is $PG_JIT; it costs about a second on every heavy query here"
+fi
+
 API_FAILURES=""
+API_SLOW=""
 API_OK=0
 if [ -n "$TOKEN" ]; then
   PROJECT_IDS="$(curl -s --max-time 30 -H "Authorization: Bearer $TOKEN" "$BASE/api/projects" \
@@ -315,10 +349,17 @@ print('\n'.join(str(p['id']) for p in items))
       while read -r ep; do
         [ -n "$ep" ] || continue
         url="$BASE${ep//\{p\}/$pid}"
-        code="$(curl -s -o /dev/null --max-time 60 -w '%{http_code}' \
+        read -r code secs <<< "$(curl -s -o /dev/null --max-time 60 \
+                -w '%{http_code} %{time_total}' \
                 -H "Authorization: Bearer $TOKEN" "$url")"
         if [ "$code" = "200" ]; then
           API_OK=$((API_OK + 1))
+          # Speed is a checked property, not a hope. These are the heavy read
+          # paths and they are already being called; timing them costs nothing
+          # and turns "the dashboard got slow again" into a failed verify.
+          if awk "BEGIN{exit !($secs > $SLOW_BUDGET)}"; then
+            API_SLOW="$API_SLOW ${ep%%\?*}[${secs}s]"
+          fi
         else
           API_FAILURES="$API_FAILURES ${ep%%\?*}[$code]"
         fi
@@ -329,6 +370,12 @@ print('\n'.join(str(p['id']) for p in items))
       fail "api" "$API_OK ok, failed:$API_FAILURES"
     else
       pass "api" "$API_OK requests across $NPROJ project(s), all 200"
+    fi
+
+    if [ -n "$API_SLOW" ]; then
+      fail "api-speed" "over ${SLOW_BUDGET}s:$API_SLOW"
+    else
+      pass "api-speed" "every read path under ${SLOW_BUDGET}s"
     fi
   fi
 fi
