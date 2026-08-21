@@ -3,6 +3,8 @@ MinIO/S3 storage client wrapper
 
 Provides simple interface for uploading/downloading objects from MinIO.
 """
+import asyncio
+
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
@@ -33,15 +35,28 @@ def _raise_if_missing(err: ClientError, bucket: str, object_name: str) -> None:
         raise StorageObjectNotFound(f"{bucket}/{object_name}") from err
 
 
-class StorageClient:
-    """
-    MinIO/S3 client wrapper.
+_shared_client = None
 
-    Provides methods for uploading, downloading, and managing objects.
-    """
 
-    def __init__(self):
-        self.client = boto3.client(
+def _get_boto_client():
+    """One boto3 client per process, built on first use.
+
+    Building a client is expensive: measured at 47 ms cold and about 13 ms
+    warm inside the API container, against a 4.7 ms fetch of the object it
+    was built to get. The API constructs a StorageClient in eighteen places,
+    most of them per request, so a grid of thumbnails paid that cost once per
+    picture.
+
+    Sharing one is safe. AWS documents that "unlike Resources and Sessions,
+    clients are generally thread-safe", which covers both the threadpool
+    FastAPI uses for sync endpoints and download_fileobj_async below. The
+    documented caveat is processes, not threads: a client must not be shared
+    across a fork. It is not, because this is built lazily on first use, so
+    each uvicorn worker and each service process makes its own.
+    """
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = boto3.client(
             's3',
             endpoint_url=f"http://{settings.minio_endpoint}",
             aws_access_key_id=settings.minio_access_key,
@@ -49,6 +64,21 @@ class StorageClient:
             config=Config(signature_version='s3v4', s3={'addressing_style': 'path'}),
             region_name='us-east-1'
         )
+    return _shared_client
+
+
+class StorageClient:
+    """
+    MinIO/S3 client wrapper.
+
+    Provides methods for uploading, downloading, and managing objects.
+
+    Cheap to construct: every instance shares the one boto3 client for this
+    process, so the existing call sites did not have to change.
+    """
+
+    def __init__(self):
+        self.client = _get_boto_client()
 
     def upload_file(self, file_path: str, bucket: str, object_name: Optional[str] = None) -> str:
         """
@@ -114,6 +144,20 @@ class StorageClient:
             _raise_if_missing(e, bucket, object_name)
             raise
         return response['Body'].read()
+
+    async def download_fileobj_async(self, bucket: str, object_name: str) -> bytes:
+        """
+        download_fileobj for an async caller, off the event loop.
+
+        boto3 is synchronous, so calling download_fileobj straight from an
+        `async def` handler stops the whole loop until MinIO answers. That is
+        what made a grid of thumbnails serialise: with more browser
+        connections the page got slower, not faster (24 thumbnails took 2.92 s
+        at one at a time, 1.59 s at six, and 2.44 s at twelve).
+
+        Raises StorageObjectNotFound exactly as the sync version does.
+        """
+        return await asyncio.to_thread(self.download_fileobj, bucket, object_name)
 
     def tag_object_cold(self, bucket: str, object_name: str) -> None:
         """

@@ -1038,7 +1038,6 @@ async def list_images(
     rows = result.all()
 
     # Build response items
-    storage_client = StorageClient()
     items = []
 
     # Pre-fetch human observations for verified images in one query
@@ -1843,7 +1842,7 @@ async def _stream_image_from_storage(
     # Fetch image from MinIO
     try:
         storage_client = StorageClient()
-        image_data = storage_client.download_fileobj(bucket, object_name)
+        image_data = await storage_client.download_fileobj_async(bucket, object_name)
 
         # Determine content type from filename
         content_type = "image/jpeg"  # default
@@ -1919,7 +1918,7 @@ async def get_image_thumbnail(
     if needs_full_blur(image, project):
         storage_client = StorageClient()
         return _full_blur_response(
-            storage_client.download_fileobj(bucket, object_name), image
+            await storage_client.download_fileobj_async(bucket, object_name), image
         )
 
     blur_regions = await _get_blur_regions(db, image, project) if project else []
@@ -1927,7 +1926,7 @@ async def get_image_thumbnail(
     if blur_regions:
         from utils.image_processing import apply_privacy_blur
         storage_client = StorageClient()
-        image_data = storage_client.download_fileobj(bucket, object_name)
+        image_data = await storage_client.download_fileobj_async(bucket, object_name)
         blurred_data = apply_privacy_blur(image_data, blur_regions)
         return StreamingResponse(
             io.BytesIO(blurred_data),
@@ -2018,7 +2017,7 @@ async def get_image_full(
     if needs_full_blur(image, project):
         storage_client = StorageClient()
         return _full_blur_response(
-            storage_client.download_fileobj("raw-images", image.storage_path), image
+            await storage_client.download_fileobj_async("raw-images", image.storage_path), image
         )
 
     blur_regions = await _get_blur_regions(db, image, project) if project else []
@@ -2026,7 +2025,7 @@ async def get_image_full(
     if blur_regions:
         from utils.image_processing import apply_privacy_blur
         storage_client = StorageClient()
-        image_data = storage_client.download_fileobj("raw-images", image.storage_path)
+        image_data = await storage_client.download_fileobj_async("raw-images", image.storage_path)
         blurred_data = apply_privacy_blur(image_data, blur_regions)
         return StreamingResponse(
             io.BytesIO(blurred_data),
@@ -2114,7 +2113,7 @@ async def get_annotated_image(
     # Download full image from MinIO
     try:
         storage_client = StorageClient()
-        image_bytes = storage_client.download_fileobj("raw-images", image.storage_path)
+        image_bytes = await storage_client.download_fileobj_async("raw-images", image.storage_path)
     except StorageObjectNotFound:
         raise
     except Exception as e:

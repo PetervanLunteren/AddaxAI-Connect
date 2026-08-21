@@ -1,6 +1,7 @@
 """
 Statistics endpoints for dashboard metrics and charts.
 """
+import asyncio
 from typing import List, Optional, Any, Dict, Tuple
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -1557,13 +1558,23 @@ async def get_naive_occupancy_endpoint(
             )
 
     points: List[NaiveOccupancyPoint] = []
+    # The fits run off the event loop. Each one is a scipy maximum-likelihood
+    # optimisation plus a numerical Hessian, measured at about 85 ms per
+    # species, so the default fifteen species held the loop for over a second
+    # and every other request on this worker waited behind it. numpy and scipy
+    # drop the GIL for the heavy part, so a thread genuinely gives it up.
+    def _fit_all() -> Dict[str, Any]:
+        return {
+            p["species"]: fit_single_season_occupancy(matrices[p["species"]])
+            for p in points_raw
+            if p["species"] in matrices and matrices[p["species"]]
+        }
+
+    fits = await asyncio.to_thread(_fit_all)
+
     for p in points_raw:
         sp = p["species"]
-        fit = (
-            fit_single_season_occupancy(matrices[sp])
-            if sp in matrices and matrices[sp]
-            else None
-        )
+        fit = fits.get(sp)
         # Show the corrected estimate only when the CI is finite. Boundary
         # MLEs (psi exactly 0 or 1) and degenerate near-boundary fits both
         # come back with a null CI; in either case the point estimate is
