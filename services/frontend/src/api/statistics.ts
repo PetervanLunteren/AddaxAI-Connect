@@ -180,6 +180,7 @@ export const statisticsApi = {
     if (filters?.site_ids) params.append('site_ids', filters.site_ids);
     if (filters?.start_date) params.append('start_date', filters.start_date);
     if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.include_heatmap) params.append('include_heatmap', 'true');
     const response = await apiClient.get<TimelineResponse>(
       `/api/statistics/timeline?${params.toString()}`,
     );

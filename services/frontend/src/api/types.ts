@@ -767,6 +767,9 @@ export interface TimelineFilters {
   site_ids?: string;
   start_date?: string;
   end_date?: string;
+  /** Only the heatmap view reads `heatmap`, and it dwarfs the rest of the
+   *  response, so the bars view asks the server to leave it out. */
+  include_heatmap?: boolean;
 }
 
 // Activity overlap (Insights -> Activity overlap)

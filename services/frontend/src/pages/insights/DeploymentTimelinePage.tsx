@@ -194,12 +194,15 @@ export const DeploymentTimelinePage: React.FC = () => {
   }, [tagValues, siteIdValues, sites]);
 
   const { data, isLoading } = useQuery<TimelineResponse>({
-    queryKey: ['statistics', 'timeline', projectId, startDate, endDate, siteIdsFromTags],
+    queryKey: ['statistics', 'timeline', projectId, startDate, endDate, siteIdsFromTags, viewMode === 'heatmap'],
     queryFn: () =>
       statisticsApi.getTimeline(projectId!, {
         site_ids: siteIdsFromTags,
         start_date: startDate ?? undefined,
         end_date: endDate ?? undefined,
+        // The cells are only drawn in heatmap mode. viewMode is in the key
+        // above so switching to it refetches with them.
+        include_heatmap: viewMode === 'heatmap',
       }),
     enabled: projectId !== undefined,
   });

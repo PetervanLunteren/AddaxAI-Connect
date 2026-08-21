@@ -1961,6 +1961,14 @@ async def get_timeline(
     site_ids: Optional[str] = Query(None, description="Comma-separated site IDs"),
     start_date: Optional[date] = Query(None, description="Window start (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Window end (YYYY-MM-DD)"),
+    include_heatmap: bool = Query(
+        False,
+        description=(
+            "Include the per-site per-day cell list. Only the heatmap view "
+            "mode reads it, and it is by far the largest part of the "
+            "response, so the bars view leaves it out."
+        ),
+    ),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
@@ -1989,6 +1997,7 @@ async def get_timeline(
         date_from=start_date,
         date_to=end_date,
         today=server_now.date(),
+        include_heatmap=include_heatmap,
     )
     return TimelineResponse(**payload)
 
@@ -2156,7 +2165,13 @@ async def get_pipeline_status(
               AND (i.is_verified = TRUE OR i.status = 'classified')
               {site_clause}
         ),
-        categorized AS (
+        -- MATERIALIZED is load-bearing. Without it postgres inlines this CTE
+        -- and each of the three booleans below is then recomputed once per
+        -- reference in the final SELECT: has_person four times, has_vehicle
+        -- three, has_animal twice. Measured on demo, that was 1,853,205
+        -- shared buffer hits against 639,489, and 2.08 s against 0.72 s, for
+        -- byte-identical results.
+        categorized AS MATERIALIZED (
             SELECT
                 (
                     (s.is_verified AND EXISTS (

@@ -74,11 +74,18 @@ async def get_deployment_timeline(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     today: Optional[date] = None,
+    include_heatmap: bool = False,
 ) -> dict:
     """Return the timeline payload as a dict matching `TimelineResponse`.
 
     `today` is passed in by the router as the server-local calendar date
     so naive camera-clock comparisons remain consistent across the app.
+
+    `include_heatmap` fills the per-site per-day cell list, which only the
+    heatmap view mode reads. It is one entry per site per day with data, so
+    on demo it was 37,276 of them, 1.79 MB of the 1.8 MB response and very
+    nearly all of the 3.2 s the endpoint took. The bars view, which is the
+    default, discarded every one of them.
     """
     if today is None:
         today = date.today()
@@ -220,7 +227,8 @@ async def get_deployment_timeline(
         group_signal_days[gkey].update(signal_days_in_cdp)
         for d in image_days_in_cdp_window:
             group_image_days[gkey].add(d)
-            heatmap_by_group_date[(gkey, d)] += counts_by_camera_date.get((camera_id, d), 0)
+            if include_heatmap:
+                heatmap_by_group_date[(gkey, d)] += counts_by_camera_date.get((camera_id, d), 0)
 
         grp = groups.get(gkey)
         if grp is None:
@@ -295,7 +303,7 @@ async def get_deployment_timeline(
     heatmap = [
         {"site_id": gkey, "date": d, "count": c}
         for (gkey, d), c in heatmap_by_group_date.items()
-    ]
+    ] if include_heatmap else []
 
     return {
         "sites": sites,
