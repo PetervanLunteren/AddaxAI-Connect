@@ -10,7 +10,7 @@
  *
  * Opening the sheet marks the feed as seen, which clears the sidebar badge.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera as CameraIcon, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody } from './ui/Sheet';
@@ -22,6 +22,7 @@ import { useToast } from './ui/Toaster';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { feedApi, type FeedEventItem, type ResolveRequest } from '../api/feed';
 import { deploymentsApi } from '../api/deployments';
+import { autoSiteName, isAutoSiteName } from '../utils/site-names';
 
 interface CameraUpdatesSheetProps {
   open: boolean;
@@ -431,11 +432,21 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
         />
       )}
 
+      {/* The name starts as the placeholder ingestion would have given this
+          spot, so a site named here looks like every auto-named one. It is a
+          starting point only: the field opens selected, so typing replaces it
+          and one backspace clears it. The location is always known, a
+          deployment cannot exist without one and this action needs a
+          deployment, but the types allow null so the fallback stays. */}
       {dialog.kind === 'new_site' && (
         <NameDialog
           title="New site"
-          description="The camera gets its own site at its current location. Pick a name for it."
-          initialName=""
+          description="The camera gets its own site at its current location. The name below is a placeholder, change it if you have a better one."
+          initialName={
+            dialog.event.deployment_lat != null && dialog.event.deployment_lon != null
+              ? autoSiteName(dialog.event.deployment_lat, dialog.event.deployment_lon)
+              : ''
+          }
           confirmLabel="Create site"
           isPending={resolveMutation.isPending}
           onClose={() => setDialog({ kind: 'closed' })}
@@ -513,8 +524,7 @@ const FeedEntry: React.FC<{
   const hasAlternatives = e.candidates.some((c) => c.site_id !== e.site_id);
   // "Rename site" is for the naming pass on fresh auto-named sites. Once a
   // site has a real name, renaming belongs to the site slideout, not here.
-  // Matches the auto-name format from ingestion ("Site at 53.2460, 5.2620").
-  const autoNamed = /^Site at -?\d+\.\d+, -?\d+\.\d+$/.test(e.site_name ?? '');
+  const autoNamed = isAutoSiteName(e.site_name);
   // Resolution is terminal in the feed: one action closes the entry and every
   // button goes away. Late corrections live in the site slideout and the
   // camera slideout, not here. (A generic undo was considered and rejected:
@@ -645,6 +655,14 @@ const NameDialog: React.FC<{
   onConfirm: (name: string) => void;
 }> = ({ title, description, initialName, confirmLabel, isPending, onClose, onConfirm }) => {
   const [name, setName] = useState(initialName);
+  // Both dialogs open on a name that is only a suggestion, so the text starts
+  // selected: typing replaces it and one backspace clears it. Selecting on
+  // mount rather than on every focus, otherwise clicking into the middle of
+  // the name to fix one word would wipe the lot.
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.select();
+  }, []);
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent onClose={onClose}>
@@ -655,6 +673,7 @@ const NameDialog: React.FC<{
         <div className="py-4">
           <label className="text-xs text-muted-foreground">Site name</label>
           <input
+            ref={inputRef}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
