@@ -1142,8 +1142,11 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Keyboard shortcuts link - anchored bottom right, hidden on touch screens */}
-        <div className="hidden sm:block absolute bottom-4 right-4">
+        {/* Keyboard shortcuts link, hidden on touch screens. In the flow, not
+            absolutely placed: the modal scrolls once the panel is long enough,
+            and a bottom-anchored element then lands on top of whatever
+            happens to be under it instead of at the bottom of the view. */}
+        <div className="hidden sm:block relative text-right mt-2">
           <button
             onClick={() => setShowShortcuts(!showShortcuts)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
