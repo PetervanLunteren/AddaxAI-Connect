@@ -1109,7 +1109,15 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     {imageDetail.camera_name}
                   </button>
                 </DetailRow>
-                <DetailRow label="Site">
+                <DetailRow label="Site">{imageDetail.site?.name}</DetailRow>
+                {/* The site pin, not this photo's own EXIF fix. The pin is a
+                    running mean of every within-threshold reading, so it
+                    converges on the true spot, and it is the same number the
+                    map, the exports and the site page show. Camtrap DP puts
+                    the position on the deployment for the same reason. On dev
+                    the two agree within 10 m for 96% of photos, so a second
+                    per-photo row would only show GPS jitter. */}
+                <DetailRow label="Coordinates">
                   {imageDetail.site && (
                     <a
                       href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
