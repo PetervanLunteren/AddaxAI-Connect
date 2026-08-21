@@ -807,12 +807,18 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
             {/* Header with action buttons, pinned while the panel scrolls
                 on phones */}
             <div className="flex items-center justify-between gap-1 sticky top-0 z-10 bg-background md:static">
-              {/* Wraps because the row runs out of width at 390px: eight
-                  40px buttons plus the close button need 392px and the
-                  panel has 350px. Without wrapping flexbox shrinks the
-                  buttons instead, which nothing flags and which makes the
-                  tap targets worse. */}
-              <div className="flex flex-wrap items-center gap-1">
+              {/* Wraps because the row runs out of width at 390px, where eight
+                  40px buttons plus the close button need 374px and the panel
+                  has 350px. Without wrapping flexbox shrinks the buttons
+                  instead, which nothing flags and which makes the tap targets
+                  worse.
+
+                  gap-0.5, not gap-1: the desktop panel is 394px and loses
+                  about 15px the moment the modal gets a scrollbar, which it
+                  does as soon as the details section is folded open. At gap-1
+                  the row needs 388px and wrapped there, dropping one chevron
+                  onto a line of its own. */}
+              <div className="flex flex-wrap items-center gap-0.5">
                 <Button
                   variant="ghost"
                   size="icon"
