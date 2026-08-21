@@ -105,3 +105,16 @@ export function formatRelative(value: DateInput, fallback = 'Never'): string {
   if (diffMin >= 1) return rtf.format(-diffMin, 'minute');
   return rtf.format(0, 'second');
 }
+
+/**
+ * "3 Apr 2026, 14:31:07" — as formatDateTime but with seconds.
+ *
+ * Only for places that compare two timestamps, where the gap is the point.
+ * Camera trap photos reach the server in about twenty seconds, so minute
+ * precision would round the whole answer away.
+ */
+export function formatDateTimeSeconds(value: DateInput, fallback = '—'): string {
+  const date = parseDate(value);
+  if (!date) return fallback;
+  return new Intl.DateTimeFormat(undefined, { ...DATE_TIME_OPTIONS, second: '2-digit' }).format(date);
+}

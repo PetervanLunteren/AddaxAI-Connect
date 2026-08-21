@@ -34,7 +34,7 @@ import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { useImageCache } from '../contexts/ImageCacheContext';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
-import { formatDate, formatDateTime } from '../utils/datetime';
+import { formatDate, formatDateTime, formatDateTimeSeconds } from '../utils/datetime';
 import { TagInput } from './TagInput';
 
 // Pipeline stage in words the reader can act on. The raw values come from
@@ -1131,7 +1131,13 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                   )}
                 </DetailRow>
                 <DetailRow label="Deployment">{deploymentText}</DetailRow>
-                <DetailRow label="Received">{formatDateTime(imageDetail.ingested_at)}</DetailRow>
+                {/* Taken repeats the chip on the photo on purpose. Read on its
+                    own it is the chip; read against Received it is how long
+                    the photo took to reach us, which is why both carry
+                    seconds. Two clocks, so they can disagree: Taken is the
+                    camera's, Received is the server's. */}
+                <DetailRow label="Taken">{formatDateTimeSeconds(imageDetail.captured_at)}</DetailRow>
+                <DetailRow label="Received">{formatDateTimeSeconds(imageDetail.ingested_at)}</DetailRow>
                 <DetailRow label="Source">
                   {imageDetail.origin === 'bulk' ? 'Bulk upload' : 'Live camera'}
                 </DetailRow>
