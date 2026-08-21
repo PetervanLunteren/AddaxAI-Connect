@@ -37,6 +37,9 @@ export interface FeedEventItem {
   deployment_lon: number | null;
   // Sites within the threshold of the deployment location, nearest first.
   candidates: FeedCandidate[];
+  // Cameras standing at the assigned site right now, this one included.
+  // Drives the "N cameras" chip. 0 when the site was deleted since.
+  site_camera_count: number;
   resolved_action: string | null;
   resolved_at: string | null;
   resolved_by_email: string | null;

@@ -86,6 +86,12 @@ class FeedEventItem(BaseModel):
     # Sites within the threshold of the deployment location, nearest first,
     # for the "different site" picker. Includes the currently assigned site.
     candidates: List[FeedCandidate] = []
+    # How many cameras stand at the assigned site right now (open deployments,
+    # this event's camera included). Drives the "2 cameras" chip, which is the
+    # only way to see a shared site without opening the entry. Live, not
+    # frozen: the question it answers ("should these be split?") is about now.
+    # 0 when the site was deleted since.
+    site_camera_count: int = 0
     resolved_action: Optional[str] = None
     resolved_at: Optional[str] = None
     resolved_by_email: Optional[str] = None
@@ -149,22 +155,33 @@ async def list_feed(
     # One sites query for the whole page; candidate lists are computed in
     # Python per entry (a project has tens of sites, not thousands). The
     # scope filter also narrows the candidate picker for restricted viewers.
-    sites_scope_sql = " AND id = ANY(:scope)" if site_scope is not None else ""
+    sites_scope_sql = " AND s.id = ANY(:scope)" if site_scope is not None else ""
     sites_params = {"project_id": project_id}
     if site_scope is not None:
         sites_params["scope"] = site_scope
+    # camera_count rides along on this query rather than a second one. Open
+    # deployments only (end_date IS NULL): a closed one means the camera left,
+    # so it no longer shares the site. This differs from the Sites page, which
+    # counts every camera the site ever held; there the question is history,
+    # here it is who stands there now.
     sites = (
         await db.execute(
             text(f"""
-                SELECT id, name,
-                       ST_Y(location::geometry) AS lat,
-                       ST_X(location::geometry) AS lon
-                FROM sites WHERE project_id = :project_id{sites_scope_sql}
+                SELECT s.id, s.name,
+                       ST_Y(s.location::geometry) AS lat,
+                       ST_X(s.location::geometry) AS lon,
+                       count(DISTINCT d.camera_id) AS camera_count
+                FROM sites s
+                LEFT JOIN deployments d
+                       ON d.site_id = s.id AND d.end_date IS NULL
+                WHERE s.project_id = :project_id{sites_scope_sql}
+                GROUP BY s.id
             """),
             sites_params,
         )
     ).mappings().all()
     site_dicts = [dict(s) for s in sites]
+    camera_counts = {s["id"]: s["camera_count"] for s in site_dicts}
 
     items = []
     for r in rows:
@@ -188,6 +205,7 @@ async def list_feed(
             deployment_lat=float(r["dep_lat"]) if r["dep_lat"] is not None else None,
             deployment_lon=float(r["dep_lon"]) if r["dep_lon"] is not None else None,
             candidates=[FeedCandidate(**c) for c in candidates],
+            site_camera_count=camera_counts.get(r["site_id"], 0),
             resolved_action=r["resolved_action"],
             resolved_at=r["resolved_at"].isoformat() if r["resolved_at"] else None,
             resolved_by_email=r["resolved_by_email"],

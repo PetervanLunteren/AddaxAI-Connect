@@ -105,6 +105,43 @@ const CameraChip: React.FC<{ event: FeedEventItem }> = ({ event: e }) => (
   </span>
 );
 
+// Chips on the collapsed line, so a list of thirty entries can be scanned
+// without opening every one. They answer the three questions an entry can
+// raise, in this order: what happened (Moved), where it landed (N cameras),
+// what it needs (Unnamed). A resolved entry raises none of them, so "Done"
+// replaces the lot.
+//
+// Only "N cameras" is loud. On the morning a project's cameras all wake up,
+// nearly every entry is a new camera on its own fresh unnamed site, so the
+// shared site is the needle in the stack; orange is the one colour that
+// appears once. Colour never carries the meaning alone, every chip says its
+// word. The chips drain away as a project settles: once the sites are named
+// and nobody moves, entries carry nothing.
+const CHIP = 'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full';
+
+const EntryChips: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
+  if (e.resolved_action) {
+    return <span className={`${CHIP} bg-muted text-muted-foreground`}>Done</span>;
+  }
+  return (
+    <>
+      {e.event_type === 'camera_moved' && (
+        <span className={`${CHIP} bg-accent text-accent-foreground`}>Moved</span>
+      )}
+      {/* Palette 2 on palette 4, the one chip meant to be spotted. */}
+      {e.site_camera_count > 1 && (
+        <span className={`${CHIP} bg-[#ff8945]/20 text-[#882000]`}>
+          {e.site_camera_count} cameras
+        </span>
+      )}
+      {/* A deleted site leaves site_name null, so this drops out by itself. */}
+      {isAutoSiteName(e.site_name) && (
+        <span className={`${CHIP} bg-[#0f6064]/10 text-[#0f6064]`}>Unnamed</span>
+      )}
+    </>
+  );
+};
+
 // First line: what happened, told by place. People scan site names, not
 // camera ids (a device_id is an IMEI); the id sits in the metadata line as
 // the lookup detail.
@@ -541,7 +578,10 @@ const FeedEntry: React.FC<{
       >
         <div className="flex-1 min-w-0">
           <EventHeadline event={e} />
-          <p className="mt-0.5 text-xs text-muted-foreground">{fmtDateTime(e.created_at)}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span>{fmtDateTime(e.created_at)}</span>
+            <EntryChips event={e} />
+          </div>
         </div>
         {open ? (
           <ChevronDown className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
