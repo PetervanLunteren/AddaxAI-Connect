@@ -16,8 +16,9 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, Share2, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff } from 'lucide-react';
+import { X, Download, Share2, ChevronLeft, ChevronRight, ChevronDown, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff, Clock, Camera as CameraIcon } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
+import { useNavigate } from 'react-router-dom';
 
 type SlotKey = 'q' | 'w' | 'e';
 const SLOT_KEYS: SlotKey[] = ['q', 'w', 'e'];
@@ -33,7 +34,38 @@ import { VerificationPanel, VerificationPanelRef } from './VerificationPanel';
 import { useImageCache } from '../contexts/ImageCacheContext';
 import { useProject } from '../contexts/ProjectContext';
 import { normalizeLabel } from '../utils/labels';
+import { formatDate, formatDateTime } from '../utils/datetime';
 import { TagInput } from './TagInput';
+
+// Pipeline stage in words the reader can act on. The raw values come from
+// the workers ("classified", "detected") and mean nothing outside the code.
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Waiting to be processed',
+  processing: 'Looking for animals',
+  detected: 'Waiting for species',
+  classifying: 'Identifying species',
+  classified: 'Done',
+  failed: 'Processing failed',
+};
+
+const LIGHT_LABELS: Record<string, string> = {
+  day: 'Day',
+  night: 'Night',
+};
+
+/**
+ * One label and value line in the Details section. Renders nothing when the
+ * value is empty, so a field we cannot fill leaves no blank row behind.
+ */
+const DetailRow: React.FC<{ label: string; children?: React.ReactNode }> = ({ label, children }) => {
+  if (children === null || children === undefined || children === false || children === '') return null;
+  return (
+    <div className="flex gap-3 text-xs">
+      <span className="w-24 shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words">{children}</span>
+    </div>
+  );
+};
 
 interface ImageDetailModalProps {
   imageUuid: string;
@@ -81,6 +113,10 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
+  // Details and raw EXIF stay folded per image on purpose. Opening them once
+  // should not turn every following photo into a wall of text.
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [exifExpanded, setExifExpanded] = useState(false);
   const [localNotes, setLocalNotes] = useState('');
   const [brightness, setBrightness] = useState(50);
   const [contrast, setContrast] = useState(50);
@@ -89,6 +125,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const { getImageBlobUrl, getOrFetchImage, prefetchImage } = useImageCache();
   const { isProjectAdmin, selectedProject } = useProject();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const queryClient = useQueryClient();
 
@@ -137,6 +174,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     if (imageDetail) {
       setLocalNotes(imageDetail.verification.notes || '');
       setNotesExpanded(false);
+      setDetailsExpanded(false);
+      setExifExpanded(false);
     }
   }, [imageDetail?.uuid]);
 
@@ -602,6 +641,28 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     }
   };
 
+  // Jump from the photo to the camera that took it. Closes the modal, because
+  // the cameras page opens the detail sheet on arrival and two stacked
+  // overlays would trap the escape key.
+  const openCamera = () => {
+    if (!selectedProject || !imageDetail) return;
+    onClose();
+    navigate(`/projects/${selectedProject.id}/cameras?camera=${imageDetail.camera_id}`);
+  };
+
+  // "3, 12 Apr 2026 to now". Same phrasing as the deployment history on the
+  // camera sheet, so one period reads the same wherever you meet it.
+  const deployment = imageDetail?.deployment;
+  const deploymentText = deployment
+    ? `${deployment.number}, ${formatDate(deployment.start_date)} to ${
+        deployment.end_date ? formatDate(deployment.end_date) : 'now'
+      }`
+    : null;
+
+  const width = imageDetail?.image_metadata?.width;
+  const height = imageDetail?.image_metadata?.height;
+  const pixelSize = width && height ? `${width} × ${height}` : null;
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       {/* Below md the modal is a fixed column: the photo stays fully
@@ -934,6 +995,25 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               </Button>
             </div>
 
+            {/* When and which camera. Always visible, never behind the
+                expander: these are the two facts you need on every single
+                photo, and the site chip on the image only answers "where". */}
+            <div className="space-y-1 pb-3 border-b">
+              <p className="text-sm flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                {formatDateTime(imageDetail.captured_at)}
+              </p>
+              <button
+                type="button"
+                onClick={openCamera}
+                className="text-sm flex items-center gap-1.5 min-w-0 hover:text-primary transition-colors"
+                title="Open this camera"
+              >
+                <CameraIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{imageDetail.camera_name}</span>
+              </button>
+            </div>
+
             {/* Verification Panel */}
             <VerificationPanel
               ref={verificationPanelRef}
@@ -995,6 +1075,68 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                 disabled={tagsMutation.isPending}
                 placeholder='For example "predation event" or "injured animal"'
               />
+            </div>
+
+            {/* Everything else about this photo, folded away by default so
+                it never competes with the verification form. */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setDetailsExpanded(!detailsExpanded)}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {detailsExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                Details
+              </button>
+              {detailsExpanded && (
+                <div className="mt-2 space-y-1.5">
+                  <DetailRow label="Site">
+                    {imageDetail.site && (
+                      <a
+                        href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 hover:text-primary"
+                      >
+                        {imageDetail.site.name} ({imageDetail.site.lat.toFixed(5)}, {imageDetail.site.lon.toFixed(5)})
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                      </a>
+                    )}
+                  </DetailRow>
+                  <DetailRow label="Deployment">{deploymentText}</DetailRow>
+                  <DetailRow label="Received">{formatDateTime(imageDetail.ingested_at)}</DetailRow>
+                  <DetailRow label="Source">
+                    {imageDetail.origin === 'bulk' ? 'Bulk upload' : 'Live camera'}
+                  </DetailRow>
+                  <DetailRow label="Light">{LIGHT_LABELS[imageDetail.day_night ?? '']}</DetailRow>
+                  <DetailRow label="Camera model">{imageDetail.camera_model}</DetailRow>
+                  <DetailRow label="File">{imageDetail.filename}</DetailRow>
+                  <DetailRow label="Size">{pixelSize}</DetailRow>
+                  <DetailRow label="Status">
+                    {STATUS_LABELS[imageDetail.status] ?? imageDetail.status}
+                  </DetailRow>
+                  {Object.keys(imageDetail.image_metadata).length > 0 && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setExifExpanded(!exifExpanded)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {exifExpanded ? 'Hide raw EXIF' : 'Show raw EXIF'}
+                      </button>
+                      {exifExpanded && (
+                        <pre className="mt-1 p-2 rounded bg-muted text-[11px] overflow-x-auto">
+                          {JSON.stringify(imageDetail.image_metadata, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
           </div>

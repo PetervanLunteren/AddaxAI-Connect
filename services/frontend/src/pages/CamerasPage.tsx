@@ -232,6 +232,23 @@ export const CamerasPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameras]);
 
+  // Open one camera straight from a link, e.g. the camera line in the image
+  // detail modal. The param is consumed once and cleared, so closing the
+  // sheet does not immediately reopen it and back stays usable.
+  useEffect(() => {
+    const wanted = searchParams.get('camera');
+    if (!wanted || !cameras) return;
+    const camera = cameras.find((c) => String(c.id) === wanted);
+    if (camera) {
+      setSelectedCamera(camera);
+      setShowDetailSheet(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('camera');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameras, searchParams]);
+
   // Unseen camera updates for the header button. Shares the query key with
   // the sidebar badge, so both clear together when the sheet marks seen.
   const { data: unseenUpdates } = useQuery({

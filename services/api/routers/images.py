@@ -27,6 +27,7 @@ from utils.site_scope import intersect_scope, site_image_clause, site_in_scope
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 from utils.detection_filtering import strongest_hidden_detection
+from utils.sun_time import day_or_night
 from utils.tags import normalize_tags
 
 
@@ -139,6 +140,20 @@ class ImageDetailResponse(BaseModel):
     full_image_url: str
     camera_location: Optional[dict] = None
     site: Optional[dict] = None  # {name, lat, lon} of the deployment site, or null
+    # Server wall-clock at arrival (aware UTC). Shown beside captured_at
+    # because a camera clock can be years off, and then this is the only
+    # timestamp that tells you when the photo really reached us.
+    ingested_at: str
+    origin: str  # 'live' (FTPS) or 'bulk' (SD-card import)
+    # Manufacturer and model, from the camera record, falling back to the
+    # EXIF of this photo. Null for cameras that write neither.
+    camera_model: Optional[str] = None
+    # {number, start_date, end_date} of the deployment this image belongs
+    # to, or null for legacy and missing-GPS rows.
+    deployment: Optional[dict] = None
+    # 'day', 'night', or null when the site is unknown or the sun cannot be
+    # placed (polar night, midnight sun).
+    day_night: Optional[str] = None
     detections: List[DetectionResponse]
     # Set only when the image has no visible detections, so the user can see
     # how close an "empty" image came to the project's thresholds.
@@ -1310,24 +1325,61 @@ async def get_image(
     gps_data = camera.config.get('gps_from_report') if camera.config else None
 
     # Site this image was taken at, via its deployment. The primary "where".
+    # LEFT JOIN, not JOIN: a deployment whose site was deleted still has a
+    # number and a period worth showing, and an inner join would drop both
+    # along with the site.
     site = None
+    deployment = None
     if image.deployment_id:
-        site_row = (await db.execute(
+        dep_row = (await db.execute(
             text("""
-                SELECT s.name AS name,
+                SELECT d.deployment_number AS number,
+                       d.start_date AS start_date,
+                       d.end_date AS end_date,
+                       s.name AS name,
                        ST_Y(s.location::geometry) AS lat,
                        ST_X(s.location::geometry) AS lon
-                FROM deployments d JOIN sites s ON s.id = d.site_id
+                FROM deployments d LEFT JOIN sites s ON s.id = d.site_id
                 WHERE d.id = :dep
             """),
             {"dep": image.deployment_id},
         )).mappings().first()
-        if site_row:
-            site = {
-                "name": site_row["name"],
-                "lat": float(site_row["lat"]),
-                "lon": float(site_row["lon"]),
+        if dep_row:
+            deployment = {
+                "number": dep_row["number"],
+                "start_date": dep_row["start_date"].isoformat(),
+                "end_date": dep_row["end_date"].isoformat() if dep_row["end_date"] else None,
             }
+            if dep_row["name"] is not None:
+                site = {
+                    "name": dep_row["name"],
+                    "lat": float(dep_row["lat"]),
+                    "lon": float(dep_row["lon"]),
+                }
+
+    # Manufacturer and model. The camera record is the registered truth; the
+    # EXIF of this photo fills in for cameras registered without one. Path-based
+    # profiles (INSTAR) write no EXIF at all, so both sides can be empty.
+    exif = image.image_metadata or {}
+    camera_model = " ".join(
+        part for part in (
+            camera.manufacturer or exif.get("Make"),
+            camera.model or exif.get("Model"),
+        ) if part
+    ) or None
+
+    # Daylight or darkness at the site, for the capture moment. Needs a
+    # position, so images without a resolved site stay null rather than
+    # borrowing the camera's last reported GPS, which may be a different spot.
+    day_night = None
+    if site:
+        from routers.admin import get_server_timezone
+        day_night = day_or_night(
+            image.captured_at,
+            lat=site["lat"],
+            lon=site["lon"],
+            tz_name=await get_server_timezone(db),
+        )
 
     return ImageDetailResponse(
         id=image.id,
@@ -1341,6 +1393,11 @@ async def get_image(
         image_metadata=image.image_metadata or {},
         camera_location=gps_data,
         site=site,
+        ingested_at=image.ingested_at.isoformat(),
+        origin=image.origin,
+        camera_model=camera_model,
+        deployment=deployment,
+        day_night=day_night,
         full_image_url=full_image_url,
         detections=detections_response,
         hidden_detection=HiddenDetectionResponse(**hidden) if hidden else None,

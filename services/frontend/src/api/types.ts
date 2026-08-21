@@ -199,6 +199,15 @@ export interface ImageDetail {
   camera_location: { lat: number; lon: number } | null;
   site: { name: string; lat: number; lon: number } | null;
   captured_at: string;
+  /** Server clock at arrival. The honest timestamp when a camera clock is off. */
+  ingested_at: string;
+  /** 'live' for FTPS uploads, 'bulk' for SD-card imports. */
+  origin: string;
+  /** Manufacturer and model, from the camera record or this photo's EXIF. */
+  camera_model: string | null;
+  deployment: { number: number; start_date: string; end_date: string | null } | null;
+  /** 'day', 'night', or null when the site or the sun position is unknown. */
+  day_night: string | null;
   storage_path: string;
   status: string;
   image_metadata: Record<string, any>;

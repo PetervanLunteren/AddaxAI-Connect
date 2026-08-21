@@ -174,3 +174,26 @@ def reference_date_for_sun(
     if date_from and date_to:
         return date_from + (date_to - date_from) / 2
     return date_from or date_to or date.today()
+
+
+def day_or_night(
+    captured_at: datetime,
+    *,
+    lat: float,
+    lon: float,
+    tz_name: str,
+) -> str | None:
+    """Whether one capture time falls in daylight or in darkness.
+
+    `captured_at` is naive, the camera's own wall clock, interpreted under
+    the server timezone like every other camera-clock value.
+
+    Returns "day", "night", or None when astral cannot place the sun
+    (polar night, midnight sun), where the question has no honest answer.
+    """
+    day = captured_at.date()
+    phase = per_date_sun_phases([day], lat=lat, lon=lon, tz_name=tz_name)[day]
+    if phase is None:
+        return None
+    _, sunrise_h, sunset_h, _ = phase
+    return "day" if sunrise_h <= _hour(captured_at) < sunset_h else "night"
