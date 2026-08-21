@@ -27,6 +27,11 @@ server {
     location /auth/ {
         limit_req zone=auth_limit burst=5 nodelay;
 
+        # No compression on the auth responses. They are a few hundred bytes,
+        # so there is nothing to win, and compressing a reply that carries a
+        # token is the setup a BREACH attack needs.
+        gzip off;
+
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -118,6 +123,11 @@ server {
     # Auth endpoints - stricter rate limiting
     location /api/auth/ {
         limit_req zone=auth_limit burst=5 nodelay;
+
+        # No compression on the auth responses. They are a few hundred bytes,
+        # so there is nothing to win, and compressing a reply that carries a
+        # token is the setup a BREACH attack needs.
+        gzip off;
 
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
@@ -234,6 +244,11 @@ server {
     location /auth/ {
         limit_req zone=auth_limit burst=5 nodelay;
 
+        # No compression on the auth responses. They are a few hundred bytes,
+        # so there is nothing to win, and compressing a reply that carries a
+        # token is the setup a BREACH attack needs.
+        gzip off;
+
         proxy_pass http://api_backend;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -319,6 +334,11 @@ server {
     # Auth endpoints - stricter rate limiting
     location /api/auth/ {
         limit_req zone=auth_limit burst=5 nodelay;
+
+        # No compression on the auth responses. They are a few hundred bytes,
+        # so there is nothing to win, and compressing a reply that carries a
+        # token is the setup a BREACH attack needs.
+        gzip off;
 
         proxy_pass http://api_backend;
         proxy_http_version 1.1;

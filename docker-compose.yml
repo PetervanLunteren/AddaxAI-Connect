@@ -5,6 +5,27 @@ services:
     container_name: addaxai-postgres
     restart: unless-stopped
     profiles: [deepfaune, speciesnet, demo]
+    # Settings the stock image gets wrong for this workload. Flags rather than
+    # a mounted postgresql.conf so a fresh server needs no extra file and the
+    # image defaults stay intact.
+    #
+    # jit=off: our heaviest queries run one to four seconds over tens of
+    #   thousands of rows, which is far too short to earn back LLVM compile
+    #   time. Measured at four data sizes on demo, JIT cost a flat 1.0 to 1.5 s
+    #   per query whatever the row count, because compilation is per plan and
+    #   not per row. The postgres manual says the same: "for short queries the
+    #   added overhead of performing JIT compilation will often be higher than
+    #   the time it can save".
+    # work_mem: the shared independence CTE sorted 43k rows and spilled to disk
+    #   at the 4MB default. Small win today, and it keeps growing data off disk.
+    # random_page_cost / effective_io_concurrency: the droplets are on NVMe, so
+    #   the spinning-disk defaults make the planner shy of index scans.
+    command: >
+      postgres
+      -c jit=off
+      -c work_mem=32MB
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -118,6 +139,7 @@ services:
       MAIL_FROM: ${MAIL_FROM}
       DOMAIN_NAME: ${DOMAIN_NAME}
       DEMO_MODE: ${DEMO_MODE:-false}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
       CLASSIFICATION_MODEL: ${CLASSIFICATION_MODEL:-deepfaune}
       # Logging configuration
       LOG_LEVEL: ${LOG_LEVEL:-INFO}

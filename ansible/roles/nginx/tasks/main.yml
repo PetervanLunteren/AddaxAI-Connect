@@ -35,6 +35,15 @@
   register: ssl_cert_exists
   when: enable_ssl | default(false) and domain_name is defined and domain_name != ''
 
+- name: Enable compression for every server block
+  copy:
+    src: gzip.conf
+    dest: /etc/nginx/conf.d/gzip.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart nginx
+
 - name: Create nginx configuration for AddaxAI Connect
   template:
     src: addaxai-connect.conf.j2

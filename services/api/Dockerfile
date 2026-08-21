@@ -69,4 +69,10 @@ COPY VERSION /app/VERSION
 RUN --mount=type=bind,source=.git,target=/app/.git \
     git -C /app rev-parse --short HEAD > /app/COMMIT
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# More than one worker so a single wedged request cannot take the whole API
+# down; with one process there is one event loop and one place to block.
+# Overridable per server through UVICORN_WORKERS in .env, because a box
+# running the ML workers has less memory to spare than a demo box.
+# `sh -c` with `exec` so the variable expands and uvicorn still receives
+# SIGTERM directly, which a plain shell-form CMD would swallow.
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS:-2}"]
