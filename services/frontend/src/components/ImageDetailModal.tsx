@@ -16,7 +16,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Download, Share2, ChevronLeft, ChevronRight, ChevronDown, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff, Clock, Camera as CameraIcon } from 'lucide-react';
+import { X, Download, Share2, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, Flag, Loader2, MapPin, ExternalLink, Sparkles, Sun, Contrast, RotateCcw, Plus, Minus, Maximize2, Shield, ShieldOff, Clock } from 'lucide-react';
 import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from 'react-zoom-pan-pinch';
 import { useNavigate } from 'react-router-dom';
 
@@ -54,15 +54,16 @@ const LIGHT_LABELS: Record<string, string> = {
 };
 
 /**
- * One label and value line in the Details section. Renders nothing when the
- * value is empty, so a field we cannot fill leaves no blank row behind.
+ * One label and value line in the details popover. Same shape as the rows in
+ * the shortcuts popover next to it. Renders nothing when the value is empty,
+ * so a field we cannot fill leaves no blank row behind.
  */
 const DetailRow: React.FC<{ label: string; children?: React.ReactNode }> = ({ label, children }) => {
   if (children === null || children === undefined || children === false || children === '') return null;
   return (
-    <div className="flex gap-3 text-xs">
-      <span className="w-24 shrink-0 text-muted-foreground">{label}</span>
-      <span className="min-w-0 break-words">{children}</span>
+    <div className="flex justify-between gap-4">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words text-right">{children}</span>
     </div>
   );
 };
@@ -113,9 +114,9 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
   const [highlightedSpecies, setHighlightedSpecies] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
-  // Details and raw EXIF stay folded per image on purpose. Opening them once
-  // should not turn every following photo into a wall of text.
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  // Details and raw EXIF close again on every new image on purpose. A popover
+  // left open would cover the next photo's verification form.
+  const [showDetails, setShowDetails] = useState(false);
   const [exifExpanded, setExifExpanded] = useState(false);
   const [localNotes, setLocalNotes] = useState('');
   const [brightness, setBrightness] = useState(50);
@@ -174,7 +175,7 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
     if (imageDetail) {
       setLocalNotes(imageDetail.verification.notes || '');
       setNotesExpanded(false);
-      setDetailsExpanded(false);
+      setShowDetails(false);
       setExifExpanded(false);
     }
   }, [imageDetail?.uuid]);
@@ -726,19 +727,21 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                     </div>
                   )}
                   {/* Site chip (the primary "where"), top-left. The location
-                      belongs to the site, so the maps link lives here. */}
+                      belongs to the site, so the maps link lives here.
+                      Capped at half the frame so a long site name cannot run
+                      under the time chip facing it. */}
                   {imageDetail.site && (
                     <div
-                      className="absolute top-3 left-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
+                      className="absolute top-3 left-3 max-w-[50%] px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1"
                       style={{ backgroundColor: '#0f6064' }}
                     >
-                      <MapPin className="h-3 w-3" />
-                      {imageDetail.site.name}
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{imageDetail.site.name}</span>
                       <a
                         href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="ml-0.5 p-0.5 rounded hover:bg-white/20"
+                        className="ml-0.5 p-0.5 rounded shrink-0 hover:bg-white/20"
                         title="Open in Google Maps"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -746,6 +749,17 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
                       </a>
                     </div>
                   )}
+                  {/* Time chip, top-right, facing the site chip. Where and when
+                      are the two things you read off a camera trap photo, so
+                      they sit on the photo itself and cost no click. Camera
+                      clock, shown as recorded. */}
+                  <div
+                    className="absolute top-3 right-3 px-2 py-1 rounded text-xs font-medium text-white flex items-center gap-1 pointer-events-none"
+                    style={{ backgroundColor: '#0f6064' }}
+                  >
+                    <Clock className="h-3 w-3 shrink-0" />
+                    {formatDateTime(imageDetail.captured_at)}
+                  </div>
                   {/* Zoom controls. Hidden on touch screens, where pinch and
                       double-tap zoom already work and the buttons only sit on
                       top of the photo. */}
@@ -1001,25 +1015,6 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               </Button>
             </div>
 
-            {/* When and which camera. Always visible, never behind the
-                expander: these are the two facts you need on every single
-                photo, and the site chip on the image only answers "where". */}
-            <div className="space-y-1 pb-3 border-b">
-              <p className="text-sm flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                {formatDateTime(imageDetail.captured_at)}
-              </p>
-              <button
-                type="button"
-                onClick={openCamera}
-                className="text-sm flex items-center gap-1.5 min-w-0 hover:text-primary transition-colors"
-                title="Open this camera"
-              >
-                <CameraIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{imageDetail.camera_name}</span>
-              </button>
-            </div>
-
             {/* Verification Panel */}
             <VerificationPanel
               ref={verificationPanelRef}
@@ -1083,76 +1078,87 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               />
             </div>
 
-            {/* Everything else about this photo, folded away by default so
-                it never competes with the verification form. */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setDetailsExpanded(!detailsExpanded)}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {detailsExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-                Details
-              </button>
-              {detailsExpanded && (
-                <div className="mt-2 space-y-1.5">
-                  <DetailRow label="Site">
-                    {imageDetail.site && (
-                      <a
-                        href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 hover:text-primary"
-                      >
-                        {imageDetail.site.name} ({imageDetail.site.lat.toFixed(5)}, {imageDetail.site.lon.toFixed(5)})
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                      </a>
-                    )}
-                  </DetailRow>
-                  <DetailRow label="Deployment">{deploymentText}</DetailRow>
-                  <DetailRow label="Received">{formatDateTime(imageDetail.ingested_at)}</DetailRow>
-                  <DetailRow label="Source">
-                    {imageDetail.origin === 'bulk' ? 'Bulk upload' : 'Live camera'}
-                  </DetailRow>
-                  <DetailRow label="Light">{LIGHT_LABELS[imageDetail.day_night ?? '']}</DetailRow>
-                  <DetailRow label="Camera model">{imageDetail.camera_model}</DetailRow>
-                  <DetailRow label="File">{imageDetail.filename}</DetailRow>
-                  <DetailRow label="Size">{pixelSize}</DetailRow>
-                  <DetailRow label="Status">
-                    {STATUS_LABELS[imageDetail.status] ?? imageDetail.status}
-                  </DetailRow>
-                  {Object.keys(imageDetail.image_metadata).length > 0 && (
-                    <div className="pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setExifExpanded(!exifExpanded)}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {exifExpanded ? 'Hide raw EXIF' : 'Show raw EXIF'}
-                      </button>
-                      {exifExpanded && (
-                        <pre className="mt-1 p-2 rounded bg-muted text-[11px] overflow-x-auto">
-                          {JSON.stringify(imageDetail.image_metadata, null, 2)}
-                        </pre>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
           </div>
         </div>
 
-        {/* Keyboard shortcuts link, hidden on touch screens. In the flow, not
-            absolutely placed: the modal scrolls once the panel is long enough,
-            and a bottom-anchored element then lands on top of whatever
-            happens to be under it instead of at the bottom of the view. */}
-        <div className="hidden sm:block relative text-right mt-2">
+        {/* Two quiet links under both columns, each opening a popover upward.
+            In the flow, not absolutely placed: the modal scrolls once the
+            panel is long enough, and a bottom-anchored element then lands on
+            top of whatever happens to be under it. */}
+        <div className="flex items-center justify-end gap-4 mt-2">
+
+        {/* Everything known about this photo. A popover, so the panel keeps
+            its height and the verification form never moves. */}
+        <div className="relative">
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Show details
+          </button>
+          {showDetails && (
+            <div className="absolute bottom-6 right-0 bg-background border border-border rounded-md shadow-lg p-3 z-50 w-[300px]">
+              <div className="text-xs space-y-1">
+                <DetailRow label="Camera">
+                  <button
+                    type="button"
+                    onClick={openCamera}
+                    className="hover:text-primary transition-colors"
+                    title="Open this camera"
+                  >
+                    {imageDetail.camera_name}
+                  </button>
+                </DetailRow>
+                <DetailRow label="Site">
+                  {imageDetail.site && (
+                    <a
+                      href={`https://www.google.com/maps?q=${imageDetail.site.lat},${imageDetail.site.lon}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-primary"
+                    >
+                      {imageDetail.site.lat.toFixed(5)}, {imageDetail.site.lon.toFixed(5)}
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  )}
+                </DetailRow>
+                <DetailRow label="Deployment">{deploymentText}</DetailRow>
+                <DetailRow label="Received">{formatDateTime(imageDetail.ingested_at)}</DetailRow>
+                <DetailRow label="Source">
+                  {imageDetail.origin === 'bulk' ? 'Bulk upload' : 'Live camera'}
+                </DetailRow>
+                <DetailRow label="Light">{LIGHT_LABELS[imageDetail.day_night ?? '']}</DetailRow>
+                <DetailRow label="Camera model">{imageDetail.camera_model}</DetailRow>
+                <DetailRow label="File">{imageDetail.filename}</DetailRow>
+                <DetailRow label="Size">{pixelSize}</DetailRow>
+                <DetailRow label="Status">
+                  {STATUS_LABELS[imageDetail.status] ?? imageDetail.status}
+                </DetailRow>
+                {Object.keys(imageDetail.image_metadata).length > 0 && (
+                  <>
+                    <div className="border-t my-2" />
+                    <button
+                      type="button"
+                      onClick={() => setExifExpanded(!exifExpanded)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {exifExpanded ? 'Hide raw EXIF' : 'Show raw EXIF'}
+                    </button>
+                    {exifExpanded && (
+                      <pre className="mt-1 p-2 rounded bg-muted text-[11px] max-h-48 overflow-auto">
+                        {JSON.stringify(imageDetail.image_metadata, null, 2)}
+                      </pre>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Keyboard shortcuts, hidden on touch screens where there is no
+            keyboard to shortcut. */}
+        <div className="hidden sm:block relative">
           <button
             onClick={() => setShowShortcuts(!showShortcuts)}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -1227,6 +1233,8 @@ export const ImageDetailModal: React.FC<ImageDetailModalProps> = ({
               </div>
             </div>
           )}
+        </div>
+
         </div>
         </>
         ) : (
