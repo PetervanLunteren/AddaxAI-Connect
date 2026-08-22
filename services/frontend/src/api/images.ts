@@ -14,6 +14,9 @@ export interface ImageFilters {
   human_has?: string;  // Class a validator recorded (confusion-matrix cell click)
   ai_has?: string;     // Class the AI predicted (confusion-matrix cell click)
   show_empty?: boolean;
+  /** Only real species, so no person, vehicle or empty frame. Lets a
+   *  caller ask for wildlife without first fetching the species list. */
+  wildlife_only?: boolean;
   verified?: string;  // "true", "false", or undefined for all
   liked?: string;  // "true", "false", or undefined for all
   needs_review?: string;  // "true", "false", or undefined for all

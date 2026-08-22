@@ -20,8 +20,6 @@ import { ImageDetailModal } from '../ImageDetailModal';
 interface LastDetectionCardProps {
   projectId?: number;
   siteIds?: string;
-  /** Comma-separated wildlife species. Empty string means the project has none. */
-  wildlifeSpecies: string;
   className?: string;
 }
 
@@ -39,21 +37,20 @@ function formatWhen(captured: string): string {
 export const LastDetectionCard: React.FC<LastDetectionCardProps> = ({
   projectId,
   siteIds,
-  wildlifeSpecies,
   className = '',
 }) => {
   const [open, setOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard', 'last-detection', projectId, siteIds, wildlifeSpecies],
+    queryKey: ['dashboard', 'last-detection', projectId, siteIds],
     queryFn: () =>
       imagesApi.getAll({
         project_id: projectId,
         limit: 1,
-        species: wildlifeSpecies,
+        wildlife_only: true,
         site_id: siteIds,
       }),
-    enabled: projectId !== undefined && wildlifeSpecies.length > 0,
+    enabled: projectId !== undefined,
   });
 
   const image = data?.items?.[0];

@@ -26,6 +26,7 @@ from auth.project_access import (
 from utils.site_scope import intersect_scope, site_image_clause, site_in_scope
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
+from shared.independence_filter import NON_WILDLIFE_LABELS
 from utils.detection_filtering import strongest_hidden_detection
 from utils.sun_time import day_or_night
 from utils.tags import normalize_tags
@@ -502,6 +503,15 @@ async def list_images(
         ),
     ),
     show_empty: bool = Query(False),
+    wildlife_only: bool = Query(
+        False,
+        description=(
+            "Only images showing a real species, so no person, vehicle "
+            "or empty frame. The dashboard hero uses this. It used to "
+            "pass every wildlife label by name, which meant first "
+            "fetching the project's species list and waiting for it."
+        ),
+    ),
     verified: Optional[str] = Query(None),  # "true", "false", or None for all
     liked: Optional[str] = Query(None),  # "true", "false", or None for all
     needs_review: Optional[str] = Query(None),  # "true", "false", or None for all
@@ -798,31 +808,40 @@ async def list_images(
                 or_(Image.id.in_(animal_match), Image.id.in_(pv_match))
             )
 
-    # Subqueries for "has visible detections" — reused by both the
-    # default empty-hiding filter and the "Empty" label filter.
+    # "Has a visible detection", reused by the default empty-hiding filter and
+    # by the "Empty" label filter.
+    #
+    # Correlated EXISTS rather than a set of image ids. Same answer, verified
+    # on the demo data at 43,525 rows either way with nothing in the symmetric
+    # difference, but the planner can stop at the first matching detection per
+    # image, and on the newest-first page query it can walk the captured_at
+    # index backwards and stop entirely once the LIMIT is filled. That is
+    # 432 ms down to 1.8 ms. The enclosing query must have Image and Project
+    # in its FROM, which is why the count query joins Project it does not
+    # otherwise need.
     has_visible_pv = (
-        select(Detection.image_id)
-        .join(Image, Detection.image_id == Image.id)
-        .join(Camera, Image.camera_id == Camera.id)
-        .join(Project, Camera.project_id == Project.id)
+        select(1)
+        .select_from(Detection)
         .where(
+            Detection.image_id == Image.id,
             Detection.confidence >= Project.detection_threshold,
             Detection.category.in_(["person", "vehicle"]),
         )
-        .distinct()
+        .correlate(Image, Project)
+        .exists()
     )
     has_visible_animal = (
-        select(Detection.image_id)
-        .join(Image, Detection.image_id == Image.id)
-        .join(Camera, Image.camera_id == Camera.id)
-        .join(Project, Camera.project_id == Project.id)
+        select(1)
+        .select_from(Detection)
         .join(Classification, Classification.detection_id == Detection.id)
         .where(
+            Detection.image_id == Image.id,
             Detection.confidence >= Project.detection_threshold,
             Detection.category == "animal",
             classification_passes_threshold(),
         )
-        .distinct()
+        .correlate(Image, Project)
+        .exists()
     )
 
     # Default: hide empty images unless "Empty" is explicitly selected.
@@ -831,9 +850,27 @@ async def list_images(
     if not has_empty_label and not show_empty:
         filters.append(
             or_(
-                Image.id.in_(has_visible_pv),
-                Image.id.in_(has_visible_animal),
+                has_visible_pv,
+                has_visible_animal,
                 Image.is_verified == True,
+            )
+        )
+
+    # Wildlife only. Same answer as naming every species, without the caller
+    # having to know what they are: NON_WILDLIFE_LABELS is the one definition
+    # of "not a species", shared with the frontend's DETECTOR_CATEGORIES.
+    if wildlife_only:
+        filters.append(
+            or_(
+                and_(Image.is_verified == False, has_visible_animal),
+                and_(
+                    Image.is_verified == True,
+                    Image.id.in_(
+                        select(HumanObservation.image_id).where(
+                            HumanObservation.species.notin_(NON_WILDLIFE_LABELS)
+                        )
+                    ),
+                ),
             )
         )
 
@@ -891,8 +928,8 @@ async def list_images(
             if human_has is not None and human_has != "empty":
                 filters.append(~Image.id.in_(_ai_predicted(human_has)))
             else:
-                filters.append(~Image.id.in_(has_visible_pv))
-                filters.append(~Image.id.in_(has_visible_animal))
+                filters.append(~has_visible_pv)
+                filters.append(~has_visible_animal)
         elif ai_has is not None:
             filters.append(Image.id.in_(_ai_predicted(ai_has)))
 
@@ -957,8 +994,8 @@ async def list_images(
             or_(
                 and_(
                     Image.is_verified == False,
-                    ~Image.id.in_(has_visible_pv),
-                    ~Image.id.in_(has_visible_animal),
+                    ~has_visible_pv,
+                    ~has_visible_animal,
                 ),
                 and_(
                     Image.is_verified == True,
@@ -973,7 +1010,13 @@ async def list_images(
         species_condition = or_(*label_conditions)
 
     # Count total (join with Camera for project filtering)
-    count_query = select(func.count(Image.id)).join(Camera)
+    # Project is joined only so the correlated EXISTS above can read
+    # detection_threshold; the count itself does not need it.
+    count_query = (
+        select(func.count(Image.id))
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+    )
     if filters:
         count_query = count_query.where(and_(*filters))
 

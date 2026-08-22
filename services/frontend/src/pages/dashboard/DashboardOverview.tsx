@@ -39,9 +39,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { statisticsApi } from '../../api/statistics';
-import { imagesApi } from '../../api/images';
 import { camerasApi } from '../../api/cameras';
-import { isWildlifeLabel } from '../../utils/labels';
 import { useProject } from '../../contexts/ProjectContext';
 import type { DateRange } from '../../components/dashboard';
 import { LastDetectionCard } from '../../components/dashboard/LastDetectionCard';
@@ -82,12 +80,6 @@ export const DashboardOverview: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  const { data: allSpeciesList } = useQuery({
-    queryKey: ['species', projectId],
-    queryFn: () => imagesApi.getSpecies(projectId),
-    enabled: projectId !== undefined,
-  });
-
   const { data: cameras } = useQuery({
     queryKey: ['cameras', projectId],
     queryFn: () => camerasApi.getAll(projectId),
@@ -112,14 +104,11 @@ export const DashboardOverview: React.FC = () => {
     enabled: projectId !== undefined,
   });
 
-  // The hero shows wildlife only. Projects can blur people and vehicles, and
-  // most do, so "newest image of anything" would often open on a blurred
-  // person. Passing the list explicitly beats filtering after the fact,
-  // because the API can then still return exactly one row.
-  const wildlifeSpecies = (allSpeciesList ?? [])
-    .map((s) => String(s.value))
-    .filter((value) => isWildlifeLabel(value))
-    .join(',');
+  // The hero shows wildlife only, so no blurred person on a project that hides
+  // them. The API answers that itself now with wildlife_only. It used to take
+  // the species list by name, which meant fetching /api/images/species first
+  // and leaving the hero query waiting on it: on demo that one dependency put
+  // the photo three seconds behind everything else on the page.
 
   const dailyCounts = (timeline ?? []).map((p) => p.count);
   const delta = weekOverWeek(dailyCounts);
@@ -152,7 +141,6 @@ export const DashboardOverview: React.FC = () => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <LastDetectionCard
           projectId={projectId}
-          wildlifeSpecies={wildlifeSpecies}
           className="md:col-span-2 lg:row-span-2"
         />
 
