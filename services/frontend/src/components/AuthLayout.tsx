@@ -16,7 +16,10 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, childre
     <div
       className="min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-cover bg-center bg-no-repeat relative"
       style={{
-        backgroundImage: "url('/auth-background.webp'), url('/auth-background.jpg')",
+        // One image. CSS layers a comma-separated list, it does not fall back,
+        // so this used to fetch the 191 kB jpg as well and then paint the webp
+        // over the top of it.
+        backgroundImage: "url('/auth-background.webp')",
       }}
     >
       {/* Dark overlay for better text readability */}

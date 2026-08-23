@@ -10,12 +10,6 @@
   "theme_color": "#0f6064",
   "icons": [
     {
-      "src": "/logo-square.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
