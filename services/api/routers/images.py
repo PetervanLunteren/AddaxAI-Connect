@@ -27,7 +27,11 @@ from utils.site_scope import intersect_scope, site_image_clause, site_in_scope
 from shared.logger import get_logger
 from shared.classification_threshold import classification_passes_threshold, effective_classification_threshold
 from shared.independence_filter import NON_WILDLIFE_LABELS
-from utils.detection_filtering import strongest_hidden_detection
+from utils.detection_filtering import (
+    has_visible_animal,
+    has_visible_person_or_vehicle,
+    strongest_hidden_detection,
+)
 from utils.sun_time import day_or_night
 from utils.tags import normalize_tags
 
@@ -808,41 +812,10 @@ async def list_images(
                 or_(Image.id.in_(animal_match), Image.id.in_(pv_match))
             )
 
-    # "Has a visible detection", reused by the default empty-hiding filter and
-    # by the "Empty" label filter.
-    #
-    # Correlated EXISTS rather than a set of image ids. Same answer, verified
-    # on the demo data at 43,525 rows either way with nothing in the symmetric
-    # difference, but the planner can stop at the first matching detection per
-    # image, and on the newest-first page query it can walk the captured_at
-    # index backwards and stop entirely once the LIMIT is filled. That is
-    # 432 ms down to 1.8 ms. The enclosing query must have Image and Project
-    # in its FROM, which is why the count query joins Project it does not
-    # otherwise need.
-    has_visible_pv = (
-        select(1)
-        .select_from(Detection)
-        .where(
-            Detection.image_id == Image.id,
-            Detection.confidence >= Project.detection_threshold,
-            Detection.category.in_(["person", "vehicle"]),
-        )
-        .correlate(Image, Project)
-        .exists()
-    )
-    has_visible_animal = (
-        select(1)
-        .select_from(Detection)
-        .join(Classification, Classification.detection_id == Detection.id)
-        .where(
-            Detection.image_id == Image.id,
-            Detection.confidence >= Project.detection_threshold,
-            Detection.category == "animal",
-            classification_passes_threshold(),
-        )
-        .correlate(Image, Project)
-        .exists()
-    )
+    # One definition of "does this image show anything", shared with the
+    # statistics endpoints that ask the same question.
+    visible_pv = has_visible_person_or_vehicle()
+    visible_animal = has_visible_animal()
 
     # Default: hide empty images unless "Empty" is explicitly selected.
     # When "Empty" is in the labels, the species_condition OR below handles
@@ -850,8 +823,8 @@ async def list_images(
     if not has_empty_label and not show_empty:
         filters.append(
             or_(
-                has_visible_pv,
-                has_visible_animal,
+                visible_pv,
+                visible_animal,
                 Image.is_verified == True,
             )
         )
@@ -862,7 +835,7 @@ async def list_images(
     if wildlife_only:
         filters.append(
             or_(
-                and_(Image.is_verified == False, has_visible_animal),
+                and_(Image.is_verified == False, visible_animal),
                 and_(
                     Image.is_verified == True,
                     Image.id.in_(
@@ -928,8 +901,8 @@ async def list_images(
             if human_has is not None and human_has != "empty":
                 filters.append(~Image.id.in_(_ai_predicted(human_has)))
             else:
-                filters.append(~has_visible_pv)
-                filters.append(~has_visible_animal)
+                filters.append(~visible_pv)
+                filters.append(~visible_animal)
         elif ai_has is not None:
             filters.append(Image.id.in_(_ai_predicted(ai_has)))
 
@@ -994,8 +967,8 @@ async def list_images(
             or_(
                 and_(
                     Image.is_verified == False,
-                    ~has_visible_pv,
-                    ~has_visible_animal,
+                    ~visible_pv,
+                    ~visible_animal,
                 ),
                 and_(
                     Image.is_verified == True,

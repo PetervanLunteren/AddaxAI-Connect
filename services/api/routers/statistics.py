@@ -58,6 +58,10 @@ from utils.sun_time import (
 )
 from utils.performance_pairing import pair_image_labels
 from utils.site_scope import site_image_clause, cameras_at_sites_clause, intersect_scope
+from utils.detection_filtering import (
+    has_visible_animal,
+    has_visible_person_or_vehicle,
+)
 from utils.timeline import get_deployment_timeline
 from shared.independence_filter import (
     get_independent_species_counts,
@@ -2609,28 +2613,17 @@ async def get_verification_progress(
     label_filter = None
     if effective_label == "empty":
         # Images with no visible detections AND no human observations
-        has_vis_pv = (
-            select(Detection.image_id)
-            .join(Image, Detection.image_id == Image.id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .join(Project, Camera.project_id == Project.id)
-            .where(Detection.confidence >= Project.detection_threshold, Detection.category.in_(["person", "vehicle"]))
-            .distinct()
+        has_human_obs = (
+            select(1)
+            .select_from(HumanObservation)
+            .where(HumanObservation.image_id == Image.id)
+            .correlate(Image)
+            .exists()
         )
-        has_vis_animal = (
-            select(Detection.image_id)
-            .join(Image, Detection.image_id == Image.id)
-            .join(Camera, Image.camera_id == Camera.id)
-            .join(Project, Camera.project_id == Project.id)
-            .join(Classification, Classification.detection_id == Detection.id)
-            .where(Detection.confidence >= Project.detection_threshold, Detection.category == "animal", classification_passes_threshold())
-            .distinct()
-        )
-        has_human_obs = select(HumanObservation.image_id).distinct()
         label_filter = and_(
-            ~Image.id.in_(has_vis_pv),
-            ~Image.id.in_(has_vis_animal),
-            ~Image.id.in_(has_human_obs),
+            ~has_visible_person_or_vehicle(),
+            ~has_visible_animal(),
+            ~has_human_obs,
         )
     elif effective_label in ("person", "vehicle"):
         label_filter = Image.id.in_(
@@ -2675,21 +2668,18 @@ async def get_verification_progress(
             ),
         )
 
-    # Count total
-    total_q = select(func.count(Image.id)).join(Camera).where(and_(*base_filters))
-    if label_filter is not None:
-        total_q = total_q.where(label_filter)
-    total = (await db.execute(total_q)).scalar_one()
-
-    # Count verified
-    verified_q = (
-        select(func.count(Image.id))
-        .join(Camera)
-        .where(and_(*base_filters, Image.is_verified == True))
+    # One query, not two: the verified count differs only by is_verified.
+    # Project is joined for the thresholds the shared visible-detection
+    # predicates read; the counts themselves do not need it.
+    count_q = (
+        select(func.count(Image.id), func.count(Image.id).filter(Image.is_verified == True))
+        .join(Camera, Image.camera_id == Camera.id)
+        .join(Project, Camera.project_id == Project.id)
+        .where(and_(*base_filters))
     )
     if label_filter is not None:
-        verified_q = verified_q.where(label_filter)
-    verified = (await db.execute(verified_q)).scalar_one()
+        count_q = count_q.where(label_filter)
+    total, verified = (await db.execute(count_q)).one()
 
     percentage = round((verified / total) * 100) if total > 0 else 0.0
 
@@ -2848,34 +2838,12 @@ async def get_verification_progress_all(
             ))
 
     # "Empty" row: images with no visible detections and no human observations
-    # Correlated NOT EXISTS rather than NOT IN. Faster, because postgres can
-    # use an anti-join and stop at the first match per image, and safer: NOT IN
-    # against a subquery that ever yields a NULL matches nothing at all, which
-    # would silently report zero empty images.
-    has_vis_pv = (
-        select(1)
-        .select_from(Detection)
-        .where(
-            Detection.image_id == Image.id,
-            Detection.confidence >= Project.detection_threshold,
-            Detection.category.in_(["person", "vehicle"]),
-        )
-        .correlate(Image, Project)
-        .exists()
-    )
-    has_vis_animal = (
-        select(1)
-        .select_from(Detection)
-        .join(Classification, Classification.detection_id == Detection.id)
-        .where(
-            Detection.image_id == Image.id,
-            Detection.confidence >= Project.detection_threshold,
-            Detection.category == "animal",
-            classification_passes_threshold(),
-        )
-        .correlate(Image, Project)
-        .exists()
-    )
+    # The same "does this image show anything" as the images list uses, from
+    # the one definition. NOT EXISTS rather than NOT IN is also safer here:
+    # NOT IN against a subquery that ever yields NULL matches nothing, which
+    # would have silently reported zero empty images.
+    has_vis_pv = has_visible_person_or_vehicle()
+    has_vis_animal = has_visible_animal()
     has_human_obs = (
         select(1)
         .select_from(HumanObservation)
