@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
-Shift all demo data dates forward so the demo stays current.
+Keep the demo project small and its dates current. Runs nightly from cron.
 
-Lightweight alternative to re-running populate_demo_data.py: executes a few
-SQL UPDATEs to advance every date/timestamp column by the number of days
-since the most recent image was captured. Runs in <5 seconds with negligible
-RAM.
+Two jobs, in this order:
+
+1. Prune the project back to TARGET_SITES sites, if it has grown past that.
+   Idempotent, so a restored backup gets trimmed again on the next night
+   rather than leaving the demo slow until somebody notices.
+2. Shift every date and timestamp forward by the number of days since the
+   most recent image, so the demo always looks like it is still running.
+
+Step 2 is a lightweight alternative to re-running populate_demo_data.py:
+a few SQL UPDATEs, a few seconds, negligible RAM.
 
 Usage:
     docker exec addaxai-api python /app/scripts/shift_demo_dates.py
@@ -24,13 +30,158 @@ from shared.config import get_settings
 
 PROJECT_NAME = "De Hoge Veluwe"
 
+# How many sites the demo keeps.
+#
+# Every heavy dashboard query scans images, detections and classifications,
+# and that cost is almost exactly linear in the row count. Measured on the
+# full 62,761-image set against real subsets of it: an eighth of the data ran
+# in an eighth of the time, on all four of the heaviest queries.
+#
+# Whole sites go rather than a sample of images. What is left then looks
+# exactly like it did before: the same two years of history, the same images
+# per site per day, the same species mix, the same share verified. Sampling
+# images instead would have thinned every site into a trickle no real camera
+# trap produces, which is the opposite of a convincing demo.
+#
+# Lower it for a faster demo, raise it for a busier map.
+TARGET_SITES = 20
+
+# Of those, how many may be sites where a camera was swapped.
+#
+# Those sites are what give the deployment timeline a story, so a few have to
+# survive. But they are expensive: all nine of them together pull in 24 cameras
+# and 14,528 images, because a camera that moved carries its pictures from both
+# places. Keeping every one of them put a floor of 20,000 images under the demo
+# whatever else was cut. Three is enough to show the feature.
+SWAP_SITES_KEPT = 3
+
+
+def prune_to_target_size(session: Session, project_id: int) -> bool:
+    """Cut the project back to TARGET_SITES sites. Returns True if anything went.
+
+    Removes whole sites, with their cameras, deployments, images, detections,
+    classifications, observations and health reports. Sites are chosen by a
+    stable hash of their name, which spreads the survivors across the map and
+    across the size distribution instead of favouring the busiest ones, and
+    which makes the choice the same every night, so a second run deletes
+    nothing. SWAP_SITES_KEPT of them are sites where a camera was swapped, so
+    the deployment timeline still has a story, and no more than that, because
+    a moved camera drags its pictures from both places along with it.
+
+    Deletion order is forced by the foreign keys: classifications, detections
+    and images have NO ACTION, so they have to go by hand and in that order,
+    before the cameras they hang off. Health reports, deployments, maintenance
+    events and feed entries do cascade from cameras. A camera a bulk-upload job
+    points at is kept whatever else happens, because that foreign key does not
+    cascade either.
+    """
+    doomed = session.execute(
+        text("""
+            WITH project_sites AS (
+                SELECT DISTINCT s.id, s.name
+                FROM sites s
+                JOIN deployments d ON d.site_id = s.id
+                JOIN cameras c ON d.camera_id = c.id
+                WHERE c.project_id = :pid
+            ),
+            swap_sites AS (
+                SELECT d.site_id AS id
+                FROM deployments d
+                JOIN cameras c ON d.camera_id = c.id
+                WHERE c.project_id = :pid AND d.site_id IS NOT NULL
+                GROUP BY d.site_id
+                HAVING count(*) > 1
+            ),
+            keep_sites AS (
+                SELECT id FROM (
+                    SELECT ps.id FROM project_sites ps
+                    JOIN swap_sites sw ON sw.id = ps.id
+                    ORDER BY md5(ps.name) LIMIT :swaps
+                ) with_a_swap
+                UNION
+                SELECT id FROM (
+                    SELECT ps.id FROM project_sites ps
+                    WHERE ps.id NOT IN (SELECT id FROM swap_sites)
+                    ORDER BY md5(ps.name) LIMIT :rest
+                ) the_rest
+            ),
+            keep_cameras AS (
+                SELECT DISTINCT c.id
+                FROM cameras c
+                JOIN deployments d ON d.camera_id = c.id
+                WHERE c.project_id = :pid AND d.site_id IN (SELECT id FROM keep_sites)
+                UNION
+                SELECT camera_id FROM bulk_upload_jobs WHERE camera_id IS NOT NULL
+            )
+            SELECT c.id FROM cameras c
+            WHERE c.project_id = :pid AND c.id NOT IN (SELECT id FROM keep_cameras)
+        """),
+        {"pid": project_id, "swaps": SWAP_SITES_KEPT, "rest": TARGET_SITES - SWAP_SITES_KEPT},
+    ).scalars().all()
+
+    if not doomed:
+        print(f"Already at or below {TARGET_SITES} sites, nothing to prune.")
+        return False
+
+    print(f"Pruning to {TARGET_SITES} sites: removing {len(doomed)} camera(s)...")
+    params = {"ids": list(doomed)}
+
+    # Feed entries that point only at a doomed site would survive the camera
+    # cascade with a dangling reference, so they go first.
+    session.execute(
+        text("""
+            DELETE FROM feed_events
+            WHERE site_id IN (
+                SELECT d.site_id FROM deployments d
+                WHERE d.camera_id = ANY(:ids) AND d.site_id IS NOT NULL
+            )
+        """),
+        params,
+    )
+    session.execute(
+        text("""
+            DELETE FROM classifications WHERE detection_id IN (
+                SELECT det.id FROM detections det
+                WHERE det.image_id IN (SELECT i.id FROM images i WHERE i.camera_id = ANY(:ids))
+            )
+        """),
+        params,
+    )
+    session.execute(
+        text("DELETE FROM detections WHERE image_id IN (SELECT i.id FROM images i WHERE i.camera_id = ANY(:ids))"),
+        params,
+    )
+    # human_observations cascade from images, images do not cascade from cameras.
+    session.execute(text("DELETE FROM images WHERE camera_id = ANY(:ids)"), params)
+    # Takes health reports, deployments, maintenance events and feed entries with it.
+    session.execute(text("DELETE FROM cameras WHERE id = ANY(:ids)"), params)
+    # Any site that left with nothing deployed at it.
+    session.execute(text("DELETE FROM sites WHERE NOT EXISTS (SELECT 1 FROM deployments d WHERE d.site_id = sites.id)"))
+    return True
+
 
 def main():
     settings = get_settings()
     engine = create_engine(settings.database_url, pool_pre_ping=True)
 
+    pruned = False
+
     with Session(engine) as session:
-        # --- Determine the shift delta ----------------------------------
+        # Resolve the demo project id once, for the project-scoped work below.
+        project_id = session.execute(
+            text("SELECT id FROM projects WHERE name = :project"),
+            {"project": PROJECT_NAME},
+        ).scalar_one_or_none()
+        if project_id is None:
+            print(f"No project named {PROJECT_NAME!r}. Run populate_demo_data.py first.")
+            return
+
+        # --- Step 1: keep the demo small --------------------------------
+        # Before the shift, and before the early return below, so a demo that
+        # needs no shift today still gets trimmed.
+        pruned = prune_to_target_size(session, project_id)
+
+        # --- Step 2: determine the shift delta --------------------------
         row = session.execute(
             text("""
                 SELECT MAX(i.captured_at::date)
@@ -45,20 +196,16 @@ def main():
         most_recent = row[0]
         if most_recent is None:
             print("No images found for demo project — run populate_demo_data.py first.")
+            session.commit()
             return
 
         delta = (date.today() - most_recent).days
         if delta <= 0:
             print("No shift needed (most recent image date is today or in the future).")
+            session.commit()
             return
 
         print(f"Shifting demo dates forward by {delta} day(s)...")
-
-        # Resolve the demo project id once, for the project-scoped tables below.
-        project_id = session.execute(
-            text("SELECT id FROM projects WHERE name = :project"),
-            {"project": PROJECT_NAME},
-        ).scalar_one()
 
         # Subquery that resolves the demo project's camera IDs
         demo_cameras = """
@@ -238,6 +385,19 @@ def main():
 
         session.commit()
         print(f"Done — all demo dates shifted forward by {delta} day(s).")
+
+    if pruned:
+        # A plain DELETE leaves the pages behind, so every sequential scan
+        # would still read a full-size table and the demo would be no faster.
+        # VACUUM FULL rewrites them compactly. It takes an exclusive lock, but
+        # this runs at 03:00 on a database of a few hundred MB, and only on the
+        # night something was actually deleted.
+        print("Reclaiming space...")
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            for table in ("images", "detections", "classifications",
+                          "human_observations", "camera_health_reports"):
+                conn.execute(text(f"VACUUM (FULL, ANALYZE) {table}"))
+        print("Done, space reclaimed and statistics refreshed.")
 
 
 if __name__ == "__main__":
