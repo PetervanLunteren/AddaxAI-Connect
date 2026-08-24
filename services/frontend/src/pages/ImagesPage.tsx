@@ -27,6 +27,7 @@ import { formatDateTime } from '../utils/datetime';
 import { normalizeLabel } from '../utils/labels';
 import { getSpeciesColor, getSpeciesTextColor, setSpeciesContext } from '../utils/species-colors';
 import { useProject } from '../contexts/ProjectContext';
+import { useModalImageNavigation } from '../hooks/useModalImageNavigation';
 import type { ImageListItem } from '../api/types';
 
 const FILTER_SCHEMA: FilterSchema = {
@@ -540,6 +541,26 @@ export const ImagesPage: React.FC = () => {
     }
   }, [selectedImageUuid, imagesData, page, filterValues, queryClient]);
 
+  // Previous/next for the modal. The hook keeps navigation alive when a
+  // save drops the open image out of a filtered list, see its docstring.
+  const modalNavigation = useModalImageNavigation({
+    uuids: (imagesData?.items ?? []).map((img) => img.uuid),
+    selectedUuid: selectedImageUuid,
+    onSelect: setSelectedImageUuid,
+    canGoBeforeFirst: page > 1,
+    canGoAfterLast: page < (imagesData?.pages ?? 1),
+    onBeforeFirst: () => {
+      // Go to previous page, select last image
+      setPage(page - 1);
+      setPendingLastImage(true);
+    },
+    onAfterLast: () => {
+      // Go to next page, select first image
+      setPage(page + 1);
+      setPendingFirstImage(true);
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -785,45 +806,20 @@ export const ImagesPage: React.FC = () => {
 
       {/* Image Detail Modal. Rendered from the URL alone, so a shared link
           opens the image without waiting for the list behind it. */}
-      {selectedImageUuid && (() => {
-        const items = imagesData?.items ?? [];
-        const currentIndex = items.findIndex(img => img.uuid === selectedImageUuid);
-        // A shared link points at one image, which is almost never inside the
-        // visible page, so there is nothing to step to and the arrows are off.
-        const inList = currentIndex !== -1;
-        return (
-          <ImageDetailModal
-            imageUuid={selectedImageUuid}
-            allImageUuids={items.map(img => img.uuid)}
-            nextPageFirstUuid={nextPageFirstUuid}
-            prevPageLastUuid={prevPageLastUuid}
-            isOpen={!!selectedImageUuid}
-            onClose={() => setSelectedImageUuid(null)}
-            onPrevious={() => {
-              if (!inList) return;
-              if (currentIndex > 0) {
-                setSelectedImageUuid(items[currentIndex - 1].uuid);
-              } else if (page > 1) {
-                // Go to previous page, select last image
-                setPage(page - 1);
-                setPendingLastImage(true);
-              }
-            }}
-            onNext={() => {
-              if (!inList) return;
-              if (currentIndex < items.length - 1) {
-                setSelectedImageUuid(items[currentIndex + 1].uuid);
-              } else if (imagesData && page < imagesData.pages) {
-                // Go to next page, select first image
-                setPage(page + 1);
-                setPendingFirstImage(true);
-              }
-            }}
-            hasPrevious={inList && (currentIndex > 0 || page > 1)}
-            hasNext={inList && (currentIndex < items.length - 1 || page < (imagesData?.pages ?? 1))}
-          />
-        );
-      })()}
+      {selectedImageUuid && (
+        <ImageDetailModal
+          imageUuid={selectedImageUuid}
+          allImageUuids={(imagesData?.items ?? []).map(img => img.uuid)}
+          nextPageFirstUuid={nextPageFirstUuid}
+          prevPageLastUuid={prevPageLastUuid}
+          isOpen={!!selectedImageUuid}
+          onClose={() => setSelectedImageUuid(null)}
+          onPrevious={modalNavigation.goPrevious}
+          onNext={modalNavigation.goNext}
+          hasPrevious={modalNavigation.hasPrevious}
+          hasNext={modalNavigation.hasNext}
+        />
+      )}
     </div>
   );
 };

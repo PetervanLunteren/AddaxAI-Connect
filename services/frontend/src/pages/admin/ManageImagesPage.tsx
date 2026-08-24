@@ -39,6 +39,7 @@ import {
 import { ImageDetailModal } from '../../components/ImageDetailModal';
 import { AuthenticatedImage } from '../../components/AuthenticatedImage';
 import { useProject } from '../../contexts/ProjectContext';
+import { useModalImageNavigation } from '../../hooks/useModalImageNavigation';
 import { imageAdminApi } from '../../api/imageAdmin';
 import { camerasApi } from '../../api/cameras';
 import { sitesApi } from '../../api/sites';
@@ -437,9 +438,13 @@ export const ManageImagesPage: React.FC = () => {
     ? (imagesData?.total ?? 0)
     : selectedUuids.size;
 
-  // Image navigation within modal
-  const allImageUuids = currentPageUuids;
-  const currentModalIndex = modalImageUuid ? allImageUuids.indexOf(modalImageUuid) : -1;
+  // Image navigation within modal. The hook keeps navigation alive when
+  // the open image drops out of the refetched list, see its docstring.
+  const modalNavigation = useModalImageNavigation({
+    uuids: currentPageUuids,
+    selectedUuid: modalImageUuid,
+    onSelect: setModalImageUuid,
+  });
 
   const filterFields: FilterFieldDef[] = [
     {
@@ -832,21 +837,13 @@ export const ManageImagesPage: React.FC = () => {
       {modalImageUuid && (
         <ImageDetailModal
           imageUuid={modalImageUuid}
-          allImageUuids={allImageUuids}
+          allImageUuids={currentPageUuids}
           isOpen={!!modalImageUuid}
           onClose={() => setModalImageUuid(null)}
-          onPrevious={
-            currentModalIndex > 0
-              ? () => setModalImageUuid(allImageUuids[currentModalIndex - 1])
-              : undefined
-          }
-          onNext={
-            currentModalIndex < allImageUuids.length - 1
-              ? () => setModalImageUuid(allImageUuids[currentModalIndex + 1])
-              : undefined
-          }
-          hasPrevious={currentModalIndex > 0}
-          hasNext={currentModalIndex < allImageUuids.length - 1}
+          onPrevious={modalNavigation.goPrevious}
+          onNext={modalNavigation.goNext}
+          hasPrevious={modalNavigation.hasPrevious}
+          hasNext={modalNavigation.hasNext}
         />
       )}
 
