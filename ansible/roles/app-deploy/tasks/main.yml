@@ -348,7 +348,7 @@
       Note: The registration URL expires in 7 days and can only be used once.
       {% else %}
       - No admin email configured
-      - Add email to admin_email in group_vars/dev.yml and redeploy
+      - Add email to admin_email in host_vars/<host>.yml and redeploy
       {% endif %}
 
       Useful commands:

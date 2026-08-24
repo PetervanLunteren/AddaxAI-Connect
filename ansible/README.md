@@ -16,10 +16,12 @@ the `.example` files are committed and your filled-in copies are gitignored.
 | `host_vars/example.yml.example` | `host_vars/<host>.yml` |
 | `scripts/import-host-vars.sh` | |
 
-Your files hold real passwords in the clear. Keep a copy somewhere private, a
-private git repo works well. You do not have to treat that copy as precious:
-`scripts/import-host-vars.sh` rebuilds any `host_vars` file from the running
-server, so as long as a server is alive its settings are recoverable.
+Your files hold real passwords. Keep them somewhere that survives a lost
+laptop: a private git repo of their own, with the `host_vars` files encrypted
+by ansible-vault. See "Keeping your files in a private repo" below. You do not
+have to treat that copy as precious either: `scripts/import-host-vars.sh`
+rebuilds any `host_vars` file from the running server, so as long as a server
+is alive its settings are recoverable.
 
 ## Getting started
 
@@ -84,7 +86,11 @@ bash ansible/scripts/import-host-vars.sh myserver
 ```
 
 That reads `/opt/addaxai-connect/.env` over SSH and turns it back into ansible
-variables. It is read-only on the server, one `cat` and nothing else.
+variables. It is read-only on the server, one `cat` and nothing else. The file
+lands in the `host_vars/` folder next to your inventory; pass
+`-i path/to/inventory.yml` when that is not `ansible/inventory.yml`. With
+`ANSIBLE_VAULT_PASSWORD_FILE` set, the file is vault-encrypted before the
+script returns.
 
 The values come off the running machine rather than from a template, so
 re-running the playbook afterwards writes back the `.env` the server already
@@ -111,3 +117,40 @@ Values that `.env.j2` derives from another variable (`DATABASE_URL`,
 `REDIS_URL`, `CORS_ORIGINS`, `MINIO_ENDPOINT`, `COLD_TIER_PREFIX`,
 `BACKUP_HOST_PREFIX`, `COMPOSE_PROFILES`) are outputs, not inputs, and are
 deliberately absent from the importer.
+
+## Keeping your files in a private repo
+
+Recommended as soon as you run more than one server, or care about a lost
+laptop. Ansible loads `group_vars/` and `host_vars/` from the folder the
+inventory file is in, so the three files can live anywhere. Put them in a
+private git repo, cloned next to this one:
+
+```
+addaxai-connect-secrets/
+├── inventory.yml
+├── group_vars/all/main.yml
+└── host_vars/<host>.yml        one per server, vault-encrypted
+```
+
+Encrypt every `host_vars` file, they are the ones with passwords:
+
+```bash
+openssl rand -base64 32 > ~/.config/addaxai-connect/vault-password   # save it in your password manager too
+chmod 600 ~/.config/addaxai-connect/vault-password
+export ANSIBLE_VAULT_PASSWORD_FILE=~/.config/addaxai-connect/vault-password
+ansible-vault encrypt host_vars/*.yml
+```
+
+Then every command in this README takes the other path, and nothing else
+changes:
+
+```bash
+ansible-playbook -i ../addaxai-connect-secrets/inventory.yml ansible/playbook.yml --limit myserver
+```
+
+Edit an encrypted file with `ansible-vault edit host_vars/myserver.yml`, read
+one with `ansible-vault view`. Git only ever sees ciphertext.
+
+Two things a private repo does not cover, so keep them in the password manager
+as well: the vault password itself, and the SSH private key you reach the
+servers with.

@@ -9,7 +9,9 @@
 #   ansible-playbook -i ansible/inventory.yml ansible/playbook.yml --limit myserver
 #
 # Per-server settings and passwords go in host_vars/<name>.yml, one file each.
-# Settings shared by all of them go in group_vars/all/main.yml.
+# Settings shared by all of them go in group_vars/all/main.yml. Ansible finds
+# both folders next to whichever inventory file you pass with -i, so the three
+# can also live in a private repo of their own. See ansible/README.md.
 
 all:
   vars:

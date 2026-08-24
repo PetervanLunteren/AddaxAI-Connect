@@ -1,9 +1,14 @@
 #!/bin/bash
 # Build ansible/host_vars/<host>.yml from what a server is actually running.
 #
-# Usage:   bash ansible/scripts/import-host-vars.sh <host> [<host> ...]
+# Usage:   bash ansible/scripts/import-host-vars.sh [-i inventory.yml] <host> [<host> ...]
 # Example: bash ansible/scripts/import-host-vars.sh drenthe
-# Example: bash ansible/scripts/import-host-vars.sh spw pwn lab npuh drenthe demo dev
+# Example: bash ansible/scripts/import-host-vars.sh -i ../addaxai-connect-secrets/inventory.yml spw pwn
+#
+# The file is written to host_vars/ next to the inventory, which defaults to
+# ansible/inventory.yml. When ANSIBLE_VAULT_PASSWORD_FILE is set the file is
+# vault-encrypted before the script returns; without it, it is left plain and
+# the script says so.
 #
 # Reads /opt/addaxai-connect/.env over SSH and turns it back into ansible
 # variables. Read-only on the server: it runs one `cat` and changes nothing.
@@ -15,19 +20,30 @@
 # <host> must be a name from inventory.yml and must resolve over SSH, either
 # through ~/.ssh/config or because it is also a hostname.
 #
-# The files it writes hold real passwords in the clear, mode 600. They are
-# gitignored in this repo on purpose. Keep your copies somewhere private.
+# The files it writes hold real passwords, mode 600. Keep them in a private
+# repo, encrypted. See ansible/README.md.
 
 set -euo pipefail
 
 ANSIBLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HOST_VARS_DIR="$ANSIBLE_DIR/host_vars"
+INVENTORY="$ANSIBLE_DIR/inventory.yml"
 REMOTE_ENV="/opt/addaxai-connect/.env"
 
 log() { echo "[import-host-vars] $*"; }
 die() { echo "[import-host-vars] ERROR: $*" >&2; exit 1; }
 
-[ $# -gt 0 ] || die "no host given. Usage: bash ansible/scripts/import-host-vars.sh <host> [<host> ...]"
+while getopts "i:" opt; do
+  case "$opt" in
+    i) INVENTORY="$OPTARG" ;;
+    *) die "Usage: bash ansible/scripts/import-host-vars.sh [-i inventory.yml] <host> [<host> ...]" ;;
+  esac
+done
+shift $((OPTIND - 1))
+
+[ $# -gt 0 ] || die "no host given. Usage: bash ansible/scripts/import-host-vars.sh [-i inventory.yml] <host> [<host> ...]"
+[ -f "$INVENTORY" ] || die "inventory not found: $INVENTORY. Pass -i path/to/inventory.yml."
+
+HOST_VARS_DIR="$(cd "$(dirname "$INVENTORY")" && pwd)/host_vars"
 
 # .env key -> ansible variable. This is the reverse of
 # roles/app-deploy/templates/.env.j2; keep the two in step. Keys that .env
@@ -101,8 +117,8 @@ import_one() {
   out="$HOST_VARS_DIR/$host.yml"
   tmp="$(mktemp)"
   chmod 600 "$tmp"
-  # Secrets touch the disk unencrypted between here and the encrypt below, so
-  # keep that window inside a 600 temp file and clean it up on any exit.
+  # Secrets touch the disk in the clear between here and the encrypt at the
+  # end, so keep that window inside a 600 temp file and clean it up on any exit.
   trap 'rm -f "$tmp"' RETURN
 
   {
@@ -154,7 +170,13 @@ import_one() {
 
   mv "$tmp" "$out"
   chmod 600 "$out"
-  log "wrote $out"
+
+  if [ -n "${ANSIBLE_VAULT_PASSWORD_FILE:-}" ]; then
+    ansible-vault encrypt "$out" > /dev/null
+    log "wrote $out (vault-encrypted)"
+  else
+    log "wrote $out (plain, ANSIBLE_VAULT_PASSWORD_FILE is not set)"
+  fi
 }
 
 for host in "$@"; do

@@ -72,13 +72,12 @@ models/classification/*
 # Committed:  playbook.yml, roles/, the *.example files, and the README.
 # Ignored:    your own inventory, your own settings, your own passwords.
 #
-# Keep your filled-in copies somewhere private, a private git repo works well.
-# scripts/import-host-vars.sh rebuilds host_vars/<host>.yml from a running
-# server, so a lost laptop is recoverable as long as the servers are alive.
+# Keep your filled-in copies in a private git repo, host_vars vault-encrypted,
+# see ansible/README.md. scripts/import-host-vars.sh rebuilds host_vars/<host>.yml
+# from a running server, so a lost laptop is recoverable as long as the servers
+# are alive.
 ansible/inventory.yml
 ansible/group_vars/all/main.yml
-ansible/group_vars/dev.yml
-ansible/group_vars/production.yml
 ansible/host_vars/*.yml
 ansible/*.retry
 # Keep the templates, they carry no secrets
