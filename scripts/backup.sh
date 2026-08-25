@@ -124,7 +124,14 @@ docker compose exec -T minio mc alias set local \
 # bucket enables versioning and installs the 90-day noncurrent-version
 # expiration rule. Every later run (on any host pointing at this bucket)
 # sees the rule and skips.
-if docker compose exec -T minio mc ilm rule ls "backup-target/$BUCKET" 2>&1 | grep -q Enabled; then
+# Capture first, then grep. With `set -o pipefail`, `mc ... | grep -q` fails
+# whenever the listing is longer than grep needs: grep -q exits on the first
+# match, mc dies on SIGPIPE, and the pipeline reports mc's failure. That sent
+# every nightly run down the "first run" branch, which added one more rule
+# each night (370 of them by August 2026) and needs bucket-level permissions
+# a prefix-scoped key does not have.
+EXISTING_RULES="$(docker compose exec -T minio mc ilm rule ls "backup-target/$BUCKET" 2>&1 || true)"
+if grep -q Enabled <<< "$EXISTING_RULES"; then
   log "Backup bucket lifecycle already configured, skipping install"
 else
   log "Configuring backup bucket: versioning + 90-day retention rule"
