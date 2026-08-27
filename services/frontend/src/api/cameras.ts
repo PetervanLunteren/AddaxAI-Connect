@@ -78,6 +78,7 @@ export interface CameraRejection {
   details: string | null;
   captured_at: string | null;  // camera clock, localized ISO
   rejected_at: string;  // server wall-clock ISO
+  recent: boolean;  // inside the window the Cameras table counts
   image_url: string;  // blurred by the server when the project blurs
 }
 

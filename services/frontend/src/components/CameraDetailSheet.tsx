@@ -512,16 +512,18 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
                     <span className="text-muted-foreground">Images sent today</span>
                     <span>{camera.sent_images ?? 'N/A'}</span>
                   </div>
-                  {camera.rejected_count !== null && (
+                  {camera.rejected_count_recent !== null && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Rejected files (30 days)</span>
-                      {camera.rejected_count > 0 ? (
+                      <span className="text-muted-foreground">Rejected files</span>
+                      {/* Same number as the Cameras table. Older files sit
+                          behind the Rejected tab, collapsed. */}
+                      {camera.rejected_count_recent > 0 ? (
                         <button
                           type="button"
                           onClick={() => setActiveTab('rejections')}
                           className="text-primary hover:underline"
                         >
-                          {camera.rejected_count}
+                          {camera.rejected_count_recent}
                         </button>
                       ) : (
                         <span>0</span>

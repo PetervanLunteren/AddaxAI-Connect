@@ -25,7 +25,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status
 from utils.camera_recency import fetch_camera_recency
-from utils.camera_rejections import fetch_rejection_stats, RejectionStats as RejectionStatsType
+from utils.camera_rejections import fetch_rejection_stats, RejectionStats as RejectionStatsType, REJECTED_RECENT_DAYS
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags
 
@@ -749,6 +749,9 @@ class CameraRejectionResponse(BaseModel):
     details: Optional[str] = None
     captured_at: Optional[str] = None  # camera clock, localized ISO 8601
     rejected_at: str  # server wall-clock, ISO 8601
+    # Inside the window rejected_count_recent counts, so the panel can show
+    # the rows behind the table's number first and the rest collapsed.
+    recent: bool
     # Served by the live-feed endpoint, which owns the blur and path guards.
     image_url: str
 
@@ -792,6 +795,7 @@ async def get_camera_rejections(
 
     from routers.admin import get_server_timezone
     tz = ZoneInfo(await get_server_timezone(db))
+    since = datetime.now(timezone.utc) - timedelta(days=REJECTED_RECENT_DAYS)
 
     return [
         CameraRejectionResponse(
@@ -801,6 +805,7 @@ async def get_camera_rejections(
             details=r.details,
             captured_at=_localize(r.captured_at, tz),
             rejected_at=r.rejected_at.isoformat(),
+            recent=r.rejected_at > since,
             image_url=f"/api/projects/{camera.project_id}/live-feed/rejections/{r.id}/image",
         )
         for r in rows

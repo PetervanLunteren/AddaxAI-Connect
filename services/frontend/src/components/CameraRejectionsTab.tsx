@@ -6,7 +6,13 @@
  * so it is not on the map, in the statistics or in a deployment. This tab
  * exists so a camera that keeps sending unusable files is found from the
  * Cameras page, instead of by hunting through the global File management
- * list. The window is the 30-day retention; older files are gone.
+ * list.
+ *
+ * Two groups. "Recent" is the set the Cameras table counts, open. "Older"
+ * is everything else still kept, collapsed: nearly every camera has one old
+ * setup shot from before its first GPS fix, and that is history, not a
+ * problem. The user never sees the windows, only recent and older; the one
+ * number of days on the page is the retention note, which is about deletion.
  *
  * The picture comes through the live-feed endpoint, which blurs the whole
  * frame when the project hides people or vehicles.
@@ -14,7 +20,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { camerasApi, type CameraRejection } from '../api/cameras';
 import { AuthenticatedImage } from './AuthenticatedImage';
 import { rejectionReasonLabel } from '../utils/rejectionReason';
@@ -27,6 +33,7 @@ export const CameraRejectionsTab: React.FC<{
   isServerAdmin: boolean;
 }> = ({ cameraId, isServerAdmin }) => {
   const [reason, setReason] = useState<string>(ALL);
+  const [showOlder, setShowOlder] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['camera-rejections', cameraId],
@@ -44,19 +51,21 @@ export const CameraRejectionsTab: React.FC<{
 
   const rejections = data ?? [];
 
+  if (rejections.length === 0) {
+    return (
+      <div className="py-10 text-center text-sm text-muted-foreground">
+        No rejected files.
+      </div>
+    );
+  }
+
   // Reasons present for this camera, with counts, for the filter.
   const counts = new Map<string, number>();
   for (const r of rejections) counts.set(r.reason, (counts.get(r.reason) ?? 0) + 1);
   const reasons = Array.from(counts.keys()).sort();
   const shown = reason === ALL ? rejections : rejections.filter((r) => r.reason === reason);
-
-  if (rejections.length === 0) {
-    return (
-      <div className="py-10 text-center text-sm text-muted-foreground">
-        No rejected files in the last 30 days.
-      </div>
-    );
-  }
+  const recent = shown.filter((r) => r.recent);
+  const older = shown.filter((r) => !r.recent);
 
   return (
     <div className="space-y-4">
@@ -86,11 +95,35 @@ export const CameraRejectionsTab: React.FC<{
         </div>
       )}
 
-      <ul className="divide-y rounded-lg border">
-        {shown.map((r) => (
-          <RejectionRow key={r.id} rejection={r} />
-        ))}
-      </ul>
+      {recent.length > 0 ? (
+        <ul className="divide-y rounded-lg border">
+          {recent.map((r) => (
+            <RejectionRow key={r.id} rejection={r} />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No recent rejected files.</p>
+      )}
+
+      {older.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowOlder((v) => !v)}
+            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            {showOlder ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            Older rejected files ({older.length})
+          </button>
+          {showOlder && (
+            <ul className="mt-2 divide-y rounded-lg border">
+              {older.map((r) => (
+                <RejectionRow key={r.id} rejection={r} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 };

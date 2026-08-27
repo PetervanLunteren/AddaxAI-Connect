@@ -425,12 +425,14 @@ the table; nothing scans the filesystem at read time.
   site, fail closed. The API sends `rejected_count: null` for them and the
   UI hides the column and tab, so the number is never a false zero.
 - Two counts per camera from one query (`fetch_rejection_stats`):
-  `rejected_count` is the 30-day total, shown in the slide-out;
+  `rejected_count` is the 30-day total (in the API, not shown);
   `rejected_count_recent` is the last `REJECTED_RECENT_DAYS` (7) and drives
-  the Cameras column, the attention chip and the filter, which just say
-  "rejected files" without the window. On drenthe 30 of
-  30 cameras had a rejection in 30 days, 24 of them exactly one old setup
-  shot; only 2 had rejected anything that week.
+  the Cameras column, the attention chip, the filter and the slide-out
+  Overview row, which all just say "rejected files" without the window.
+  The Rejected tab splits rows on the same cutoff (`recent` flag): recent
+  open, older collapsed. Users see "recent" and "older", never 7 days. On
+  drenthe 30 of 30 cameras had a rejection in 30 days, 24 of them exactly
+  one old setup shot; only 2 had rejected anything that week.
 - Retention is 30 days, files and rows together, in
   `cleanup_old_rejected_files` (`services/ingestion/main.py`). Every count
   is therefore "within the last 30 days" without a parameter.
