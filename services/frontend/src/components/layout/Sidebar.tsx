@@ -91,9 +91,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // immediate query invalidation, so they never wait.
   const numericProjectId = projectId ? Number(projectId) : undefined;
 
-  // Unseen camera updates for the badge. Events are rare (a camera appearing
-  // or moving), so a slow poll is enough; opening the sheet marks the feed
-  // seen and invalidates this query, clearing the badge immediately.
+  // Camera updates that are new to this user and still open, for the badge.
+  // Events are rare (a camera appearing or moving), so a slow poll is enough;
+  // closing the sheet marks the feed seen and invalidates this query.
   const { data: unseenUpdates } = useQuery({
     queryKey: ['feed-unseen', numericProjectId],
     queryFn: () => feedApi.unseen(numericProjectId!),

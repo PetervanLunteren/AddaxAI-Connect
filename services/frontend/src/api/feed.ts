@@ -44,11 +44,12 @@ export interface FeedEventItem {
   resolved_at: string | null;
   resolved_by_email: string | null;
   // Already seen on an earlier visit; the panel collapses these under
-  // "Earlier". Stamped when the panel closes.
+  // "Already seen" together with resolved entries. Stamped when the panel
+  // closes.
   seen: boolean;
 }
 
-export type ResolveAction = 'rename_site' | 'set_site' | 'new_site' | 'not_moved';
+export type ResolveAction = 'rename_site' | 'set_site' | 'new_site' | 'not_moved' | 'confirmed';
 
 export interface ResolveRequest {
   action: ResolveAction;
@@ -56,19 +57,31 @@ export interface ResolveRequest {
   site_id?: number;  // set_site
 }
 
+// Page size of the list; the panel asks for more in steps of this.
+export const FEED_PAGE = 100;
+
+// The panel's "new" section and the badge share one rule: new to this user
+// and not yet handled by anyone. Resolved entries fold into the archive even
+// when this user never saw them, so one admin's work quiets everyone.
+export function isOpenAndNew(e: FeedEventItem): boolean {
+  return !e.seen && !e.resolved_action;
+}
+
 const base = (projectId: number) => `/api/projects/${projectId}/feed`;
 
 export const feedApi = {
-  list: async (projectId: number): Promise<FeedEventItem[]> => {
-    const { data } = await apiClient.get(base(projectId));
+  list: async (projectId: number, limit: number = FEED_PAGE): Promise<FeedEventItem[]> => {
+    const { data } = await apiClient.get(base(projectId), { params: { limit } });
     return data;
   },
   unseen: async (projectId: number): Promise<number> => {
     const { data } = await apiClient.get(`${base(projectId)}/unseen`);
     return data.count as number;
   },
-  markSeen: async (projectId: number): Promise<void> => {
-    await apiClient.post(`${base(projectId)}/seen`);
+  // upTo is the newest created_at the user had on screen, so an entry that
+  // arrived while the panel was open stays new. Omit for an empty feed.
+  markSeen: async (projectId: number, upTo?: string): Promise<void> => {
+    await apiClient.post(`${base(projectId)}/seen`, upTo ? { up_to: upTo } : {});
   },
   resolve: async (
     projectId: number,

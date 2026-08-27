@@ -8,7 +8,11 @@
  * actions (rename the site, pick a different nearby site, split off a new
  * site, or undo a move that was GPS noise); viewers see the list read-only.
  *
- * Opening the sheet marks the feed as seen, which clears the sidebar badge.
+ * Two states, kept apart. "New to you" is personal: closing the sheet stamps
+ * a per-user watermark, and entries created after it are new. "Done" is
+ * shared: one admin's action closes the entry for everyone. The badge and the
+ * top section of the list count entries that are both new and still open,
+ * so one admin working through the list quiets everyone's badge.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,9 +24,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { useToast } from './ui/Toaster';
 import { AuthenticatedImage } from './AuthenticatedImage';
-import { feedApi, type FeedEventItem, type ResolveRequest } from '../api/feed';
+import { FEED_PAGE, feedApi, isOpenAndNew, type FeedEventItem, type ResolveRequest } from '../api/feed';
 import { deploymentsApi } from '../api/deployments';
 import { autoSiteName, isAutoSiteName } from '../utils/site-names';
+import { UnnamedSiteChip } from './sites/UnnamedSiteChip';
 
 interface CameraUpdatesSheetProps {
   open: boolean;
@@ -135,9 +140,7 @@ const EntryChips: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
         </span>
       )}
       {/* A deleted site leaves site_name null, so this drops out by itself. */}
-      {isAutoSiteName(e.site_name) && (
-        <span className={`${CHIP} bg-[#0f6064]/10 text-[#0f6064]`}>Unnamed</span>
-      )}
+      <UnnamedSiteChip name={e.site_name} />
     </>
   );
 };
@@ -188,6 +191,12 @@ const EventHeadline: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   );
 };
 
+// Whether a resolution changed where the camera is or what the site is called.
+// "Confirmed" did neither, so such an entry keeps reading from the live name
+// like an open one.
+const changedSite = (e: FeedEventItem): boolean =>
+  e.resolved_action != null && e.resolved_action !== 'confirmed';
+
 // Context line under the photos: where the camera was put, worded by whether
 // the site was made for it or already existed.
 const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
@@ -200,7 +209,7 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
     // its own, so it says the current name too; a dead name with no follow-up
     // reads as stale.
     const renamedElsewhere =
-      !e.resolved_action &&
+      !changedSite(e) &&
       e.site_name != null &&
       e.original_site_name != null &&
       e.site_name !== e.original_site_name;
@@ -220,7 +229,7 @@ const EventContext: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
   // (a rename from a sibling entry propagates here). Once this entry itself
   // was corrected, site_id points at the outcome, so the frozen name takes
   // over as history and the resolution line explains the change.
-  const placedName = e.resolved_action
+  const placedName = changedSite(e)
     ? e.original_site_name ?? e.site_name
     : e.site_name ?? e.original_site_name;
   // Distance from the deployment to the assigned site, when known via the
@@ -255,6 +264,9 @@ const ResolutionLine: React.FC<{ event: FeedEventItem }> = ({ event: e }) => {
     case 'new_site':
       did = <>gave the camera its own site {site}</>;
       break;
+    case 'confirmed':
+      did = <>confirmed this, nothing to change</>;
+      break;
     default: // not_moved
       did = <>marked this as GPS noise, the camera stayed at {site}</>;
   }
@@ -286,21 +298,32 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
       return next;
     });
 
-  const { data: events, isLoading } = useQuery({
-    queryKey: ['feed', projectId],
-    queryFn: () => feedApi.list(projectId),
+  // The list grows in pages when the user asks for older entries. A full
+  // page means there may be more.
+  const [limit, setLimit] = useState(FEED_PAGE);
+  const { data: events, isLoading, isFetching } = useQuery({
+    queryKey: ['feed', projectId, limit],
+    queryFn: () => feedApi.list(projectId, limit),
     enabled: open && projectId > 0,
+    placeholderData: (prev) => prev,
   });
+  const maybeMore = (events ?? []).length >= limit;
 
   // Closing the sheet is "having seen" the feed. Stamping on close (not on
   // open) keeps the fresh/earlier split stable while the panel is open, and
-  // clears the badge once the user is done looking.
+  // clears the badge once the user is done looking. The stamp is the newest
+  // entry that was on screen, so one that landed meanwhile stays new.
   const handleClose = () => {
     onClose();
     setEarlierOpen(false);
     setOpenBuckets(new Set());
+    setLimit(FEED_PAGE);
     if (projectId > 0) {
-      feedApi.markSeen(projectId).then(() => {
+      const newest = (events ?? []).reduce<string | undefined>(
+        (acc, e) => (acc == null || e.created_at > acc ? e.created_at : acc),
+        undefined,
+      );
+      feedApi.markSeen(projectId, newest).then(() => {
         queryClient.invalidateQueries({ queryKey: ['feed-unseen', projectId] });
         queryClient.invalidateQueries({ queryKey: ['feed', projectId] });
       });
@@ -325,11 +348,11 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
     },
   });
 
-  // Fresh entries (not seen on an earlier visit) stay prominent, grouped by
-  // day; already-seen ones collapse under "Earlier" so the list stays short
-  // without any per-entry dismissing.
-  const fresh = (events ?? []).filter((e) => !e.seen);
-  const earlier = (events ?? []).filter((e) => e.seen);
+  // Entries that are new to this user and still open stay prominent, grouped
+  // by day. Everything else (seen before, or handled by someone) collapses
+  // under "Already seen" so the list stays short. Same rule as the badge.
+  const fresh = (events ?? []).filter(isOpenAndNew);
+  const earlier = (events ?? []).filter((e) => !isOpenAndNew(e));
 
   const groups: { heading: string; items: FeedEventItem[] }[] = [];
   for (const e of fresh) {
@@ -373,7 +396,11 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
       event={e}
       projectId={projectId}
       canEdit={canEdit}
-      onAction={(kind) => setDialog({ kind, event: e } as DialogMode)}
+      onAction={(kind) =>
+        kind === 'confirmed'
+          ? resolveMutation.mutate({ eventId: e.id, body: { action: 'confirmed' } })
+          : setDialog({ kind, event: e } as DialogMode)
+      }
     />
   );
 
@@ -386,7 +413,8 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
             <SheetDescription>
               New cameras and camera moves show up here, together with the site
               the system picked. Nothing here needs an answer. If a guess is
-              wrong, it can be corrected with the buttons on the entry.
+              wrong, it can be corrected with the buttons on the entry. An
+              entry that one project admin handles is done for everyone.
             </SheetDescription>
           </SheetHeader>
           <SheetBody>
@@ -405,7 +433,7 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
 
             {!isLoading && fresh.length === 0 && earlier.length > 0 && (
               <p className="text-sm text-muted-foreground">
-                Nothing new since the last visit.
+                Nothing new. Everything here has been seen or handled.
               </p>
             )}
 
@@ -449,6 +477,17 @@ export const CameraUpdatesSheet: React.FC<CameraUpdatesSheetProps> = ({
                     )}
                   </div>
                 ))}
+                {earlierOpen && maybeMore && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 ml-5"
+                    disabled={isFetching}
+                    onClick={() => setLimit((l) => l + FEED_PAGE)}
+                  >
+                    {isFetching ? 'Loading' : 'Show older entries'}
+                  </Button>
+                )}
               </div>
             )}
           </SheetBody>
@@ -533,7 +572,7 @@ const FeedEntry: React.FC<{
   event: FeedEventItem;
   projectId: number;
   canEdit: boolean;
-  onAction: (kind: 'rename' | 'different_site' | 'new_site' | 'not_moved') => void;
+  onAction: (kind: 'rename' | 'different_site' | 'new_site' | 'not_moved' | 'confirmed') => void;
 }> = ({ event: e, projectId, canEdit, onAction }) => {
   // Entries collapse to their headline so a busy day scans as a list of
   // one-line stories; everything else (photos, context, actions) shows on
@@ -567,7 +606,9 @@ const FeedEntry: React.FC<{
   // camera slideout, not here. (A generic undo was considered and rejected:
   // two of the four actions merge deployments, which destroys the information
   // an undo would need.)
-  const actionable = canEdit && e.deployment_id != null && !e.resolved_action;
+  const openEntry = canEdit && !e.resolved_action;
+  // The correcting actions need the deployment; "nothing to change" does not.
+  const actionable = openEntry && e.deployment_id != null;
 
   return (
     <li className="border rounded-md p-3">
@@ -659,6 +700,15 @@ const FeedEntry: React.FC<{
               />
             )}
           </>
+        )}
+        {/* Closes the entry for everyone without touching anything. Last, so
+            the correcting actions are read first. */}
+        {openEntry && (
+          <EntryAction
+            label="Nothing to change"
+            caption="This looks right. Mark it as done for everyone in the project."
+            onClick={() => onAction('confirmed')}
+          />
         )}
       </div>
         </>

@@ -846,15 +846,17 @@ class FeedEvent(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     # Which action a human took on this entry, if any. Re-resolving is allowed
     # (a user can change their mind); the last action wins.
-    resolved_action = Column(String(20), nullable=True)  # 'rename_site' | 'set_site' | 'new_site' | 'not_moved'
+    # 'rename_site' | 'set_site' | 'new_site' | 'not_moved' | 'confirmed'
+    # ('confirmed' = nothing to change, closes the entry without side effects)
+    resolved_action = Column(String(20), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)
     resolved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
 class FeedSeen(Base):
     """
-    When a user last opened a project's camera updates feed. Drives the unseen
-    badge: events created after this count as unseen. Its own table rather
+    When a user last closed a project's camera updates feed. Drives the unseen
+    badge: open events created after this count as unseen. Its own table rather
     than a project_memberships column because server admins access projects
     without a membership row.
     """

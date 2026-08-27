@@ -2,7 +2,7 @@
  * The placeholder name a site gets when nobody named it yet.
  *
  * Ingestion writes it when it auto-creates a site
- * (`services/ingestion/db_operations.py`, `_find_or_create_site`), and
+ * (`services/ingestion/db_operations.py`, `_resolve_site`), and
  * `scripts/backfill_sites.py` uses the same format. Four decimals, a comma
  * and a space. Change one and change all of them.
  *

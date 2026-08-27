@@ -54,6 +54,7 @@ import type { Camera } from '../api/types';
 import { buildSiteHealth, type SiteColorMode } from '../utils/site-health';
 import { SitesMapView } from '../components/sites/SitesMapView';
 import { SiteMergePicker } from '../components/sites/SiteMergePicker';
+import { UnnamedSiteChip } from '../components/sites/UnnamedSiteChip';
 import { SiteDetailSheet } from '../components/SiteDetailSheet';
 import { ColumnPicker } from '../components/ui/ColumnPicker';
 import { SortableHeader } from '../components/ui/SortableHeader';
@@ -428,7 +429,15 @@ export const SitesPage: React.FC = () => {
   const renderSiteCell = (id: SiteColumnId, site: SiteListItem): React.ReactNode => {
     switch (id) {
       case 'name':
-        return site.name;
+        // The chip is the same nudge the camera updates feed shows, so a
+        // site that still needs a name is visible here after its feed entry
+        // has scrolled off.
+        return (
+          <span className="inline-flex items-center gap-2">
+            {site.name}
+            <UnnamedSiteChip name={site.name} />
+          </span>
+        );
       case 'tags':
         return site.tags && site.tags.length > 0 ? (
           <div className="flex flex-wrap gap-1">

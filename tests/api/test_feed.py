@@ -49,3 +49,46 @@ def test_site_at_exact_location_included():
         {"id": 9, "name": "same spot", "lat": DEP_LAT, "lon": DEP_LON},
     ])
     assert result == [{"site_id": 9, "name": "same spot", "distance_m": 0.0}]
+
+
+# --- resolve request validation ---------------------------------------------
+# The resolve endpoint needs a database, so the pure parts are tested here:
+# which actions the request accepts, and the name rule the naming actions
+# share.
+from fastapi import HTTPException  # noqa: E402
+import pytest  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
+
+from routers.feed import (  # noqa: E402
+    MarkSeenRequest,
+    ResolveFeedEventRequest,
+    _required_name,
+)
+
+
+@pytest.mark.parametrize("action", ["rename_site", "set_site", "new_site", "not_moved", "confirmed"])
+def test_resolve_accepts_every_action(action):
+    assert ResolveFeedEventRequest(action=action).action == action
+
+
+def test_resolve_rejects_unknown_action():
+    with pytest.raises(ValidationError):
+        ResolveFeedEventRequest(action="dismiss")
+
+
+def test_confirmed_takes_no_extra_fields():
+    req = ResolveFeedEventRequest(action="confirmed")
+    assert req.name is None and req.site_id is None
+
+
+def test_required_name_strips_and_rejects_blank():
+    assert _required_name(ResolveFeedEventRequest(action="new_site", name="  bridge north ")) == "bridge north"
+    with pytest.raises(HTTPException) as exc:
+        _required_name(ResolveFeedEventRequest(action="rename_site", name="   "))
+    assert exc.value.status_code == 422
+
+
+def test_mark_seen_defaults_to_now():
+    # No body means "stamp now"; the endpoint substitutes func.now().
+    assert MarkSeenRequest().up_to is None
+    assert MarkSeenRequest(up_to="2026-08-27T10:00:00+00:00").up_to is not None

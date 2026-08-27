@@ -12,20 +12,28 @@ actions:
 - new_site: this spot deserves its own site (co-located cameras)
 - not_moved: the "move" was GPS noise, fold the deployment back where it was
 
+- confirmed: the placement is right, nothing to change; closes the entry
+
 Entries never block ingestion and ignoring them is harmless. Re-resolving is
 allowed (a user can change their mind, the last action wins). An entry's
 site_id is updated by set_site / new_site / not_moved so the feed always shows
 where the camera is now, not the superseded guess.
 
-feed_seen drives the unseen badge: events created after the user's stamp
-count as unseen. Reads are open to any project member; resolving requires
-project admin.
+Two states, kept apart on purpose (this is what every multi-user inbox does):
+- Seen is personal. feed_seen holds one watermark per user per project;
+  entries created after it are new to that user.
+- Done is shared. resolved_action on the entry, set by one admin, closes the
+  entry for everyone.
+The badge counts entries that are both new to the user and still open, so
+one admin working through the list quiets everyone's badge. Reads are open
+to any project member; resolving requires project admin.
 """
 import uuid as uuid_module
+from datetime import datetime
 from typing import List, Literal, Optional
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from geoalchemy2.elements import WKTElement
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, text
@@ -49,7 +57,10 @@ router = APIRouter(
     tags=["feed"],
 )
 
+# Page size. The panel asks for more in steps of this when the user wants
+# older entries; the cap keeps one request bounded.
 FEED_LIMIT = 100
+FEED_LIMIT_MAX = 1000
 
 
 class FeedCandidate(BaseModel):
@@ -96,26 +107,30 @@ class FeedEventItem(BaseModel):
     resolved_at: Optional[str] = None
     resolved_by_email: Optional[str] = None
     # Whether this user had already seen the entry on an earlier visit. The
-    # UI shows fresh entries prominently and collapses seen ones; the seen
-    # stamp is written when the panel closes, so the split is stable while
-    # the panel is open.
+    # UI shows entries that are new and still open prominently and collapses
+    # the rest; the seen stamp is written when the panel closes, so the split
+    # is stable while the panel is open.
     seen: bool = False
 
 
 @router.get("", response_model=List[FeedEventItem])
 async def list_feed(
     project_id: int,
+    limit: int = Query(FEED_LIMIT, ge=1, le=FEED_LIMIT_MAX),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
     """The project's most recent camera updates, newest first.
 
+    `limit` grows in steps when the panel asks for older entries. A full page
+    (len == limit) tells the client there may be more.
+
     Site-restricted viewers only see events at their sites. Moves that
     involve an out-of-scope site on either end are hidden entirely, so no
     other site's name or distance leaks through the move context."""
     scope_sql = ""
-    params = {"project_id": project_id, "limit": FEED_LIMIT, "user_id": user.id}
+    params = {"project_id": project_id, "limit": limit, "user_id": user.id}
     if site_scope is not None:
         scope_sql = (
             " AND e.site_id = ANY(:scope)"
@@ -225,7 +240,11 @@ async def unseen_count(
     user: User = Depends(require_project_access),
     site_scope: Optional[List[int]] = Depends(get_site_scope),
 ):
-    """How many feed entries this user has not seen yet (the sidebar badge)."""
+    """How many entries are new to this user and still open (the badge).
+
+    Resolved entries are left out on purpose: once one admin has handled an
+    entry, nobody else needs to be pulled to it. The panel applies the same
+    rule to its "new" section, so the badge and the panel always agree."""
     last_seen = (
         await db.execute(
             select(FeedSeen.last_seen_at).where(
@@ -234,7 +253,10 @@ async def unseen_count(
         )
     ).scalar_one_or_none()
 
-    query = select(func.count(FeedEvent.id)).where(FeedEvent.project_id == project_id)
+    query = select(func.count(FeedEvent.id)).where(
+        FeedEvent.project_id == project_id,
+        FeedEvent.resolved_action.is_(None),
+    )
     if site_scope is not None:
         # Same visibility rule as the list, count only what the viewer can see
         query = query.where(
@@ -247,19 +269,29 @@ async def unseen_count(
     return UnseenResponse(count=count)
 
 
+class MarkSeenRequest(BaseModel):
+    # The newest created_at the user actually had on screen. An entry that
+    # lands while the panel is open is then still new on the next visit,
+    # instead of being swallowed by a "now" stamp. Omitted (empty feed) means
+    # now. The stamp never moves backwards.
+    up_to: Optional[datetime] = None
+
+
 @router.post("/seen", status_code=status.HTTP_204_NO_CONTENT)
 async def mark_seen(
     project_id: int,
+    request: MarkSeenRequest = MarkSeenRequest(),
     db: AsyncSession = Depends(get_async_session),
     user: User = Depends(require_project_access),
 ):
-    """Stamp now as this user's last feed visit, clearing the badge."""
+    """Stamp this user's last feed visit, clearing the badge."""
+    stamp = request.up_to if request.up_to is not None else func.now()
     await db.execute(
         pg_insert(FeedSeen)
-        .values(user_id=user.id, project_id=project_id, last_seen_at=func.now())
+        .values(user_id=user.id, project_id=project_id, last_seen_at=stamp)
         .on_conflict_do_update(
             index_elements=[FeedSeen.user_id, FeedSeen.project_id],
-            set_={"last_seen_at": func.now()},
+            set_={"last_seen_at": func.greatest(FeedSeen.last_seen_at, stamp)},
         )
     )
     await db.commit()
@@ -323,8 +355,9 @@ async def event_thumbnails(
 
 
 class ResolveFeedEventRequest(BaseModel):
-    action: Literal['rename_site', 'set_site', 'new_site', 'not_moved']
-    # rename_site and new_site need `name`; set_site needs `site_id`.
+    action: Literal['rename_site', 'set_site', 'new_site', 'not_moved', 'confirmed']
+    # rename_site and new_site need `name`; set_site needs `site_id`;
+    # not_moved and confirmed take nothing.
     name: Optional[str] = None
     site_id: Optional[int] = None
 
@@ -472,6 +505,11 @@ async def resolve_event(
             )
         merged = await reassign_deployment_site(db, deployment, site.id)
         event.site_id = site.id
+
+    elif request.action == 'confirmed':
+        # Nothing to change. Only the resolved_* stamp below, so it also
+        # works on an entry whose deployment or site is gone since.
+        pass
 
     else:  # not_moved
         if event.from_site_id is None:

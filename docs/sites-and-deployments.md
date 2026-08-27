@@ -22,11 +22,11 @@ A camera's position is not taken from a single photo. The app keeps averaging th
 
 ## The camera updates panel
 
-Open the Cameras page and click Updates. The button shows how many entries are new to you, and the Cameras item in the menu shows the same count from any page.
+Open the Cameras page and click Updates. The button shows how many entries are new to you and not yet handled, and the Cameras item in the menu shows the same count from any page.
 
 ![The Updates button on the Cameras page](https://github.com/user-attachments/assets/3b0e1674-4ff6-45af-b78d-fbc827524696)
 
-*The Updates button on the Cameras page. The count shows how many entries are new to you.*
+*The Updates button on the Cameras page. The count shows how many entries are new to you and still open.*
 
 Every automatic decision becomes one entry. Entries show as one-line sentences, so the list reads like a short report. The sentence tells you if something is wanted from you. A placeholder name in the title means the site waits for a real name. A real name means there is nothing to do.
 
@@ -42,11 +42,18 @@ Click an entry to see more: the camera id, a few photos from that spot, where th
 
 Nothing in this panel needs an answer. The app already acted, and ignoring every entry is fine. When you take an action, the entry closes and records who did what and when. The buttons then go away.
 
+Two things are tracked, and they work differently:
+
+- **New to you** is personal. Closing the panel marks everything you had on screen as seen, for you only. Another user still sees those entries as new until they open the panel themselves.
+- **Done** is shared. When one project admin handles an entry, it is done for everyone in the project. It drops out of the count and folds into the seen entries for all users.
+
+So one admin working through the list on Monday morning clears the count for the whole team.
+
 ![A closed entry with the resolution line](https://github.com/user-attachments/assets/0b50bf64-973a-4151-b7e2-137cecb3acd3)
 
 *A closed entry. It keeps what happened and records who corrected it and when.*
 
-Entries you have seen before fold into "Already seen" at the bottom, grouped by time range. New entries always sit on top.
+Entries you have seen before, and entries someone has handled, fold into "Already seen" at the bottom, grouped by time range. New entries always sit on top. The panel loads the newest hundred entries; a button at the bottom of the archive loads older ones.
 
 ![The already seen section with time ranges](https://github.com/user-attachments/assets/5e4e4b2b-c02b-432b-b579-010348367849)
 
@@ -61,6 +68,7 @@ Which buttons an entry shows depends on the situation. Only project admins can u
 - **Different site** moves the camera to another existing site nearby. It only shows when there is one within 250 metres. Use it when several sites sit close together and the app picked the wrong one.
 - **New site** splits the camera off to its own new site at its exact spot. It only shows when the camera was placed on a site that already existed. Use it when two cameras stand close together but should count as separate places, like both ends of a wildlife bridge.
 - **It did not move** undoes a move that was GPS noise. The camera and its images go back to the previous site, as if the move never happened. Use it when the entry shows a move but you know the camera hangs where it always was.
+- **Nothing to change** closes the entry without changing anything. Use it when the placement is right and you want the entry out of the way for the whole team. It is the only button that shows on every open entry, also on one whose site or placement was merged away later.
 
 ## Common situations
 
@@ -91,6 +99,10 @@ Cameras within 250 metres of each other share one site by default. That is often
 ### Moving many cameras at once
 
 Field days work without extra steps. Move twenty cameras, and twenty entries appear, one per camera. Cameras that arrive at a new spot get new sites to name. Cameras that return to a known site snap onto it by name, even when the devices got shuffled and a different camera ends up at each spot. A rotation project, where cameras move between fixed stations every few weeks, only costs you one naming pass on the first day. Every rotation after that needs no work at all.
+
+### A site that still has no name
+
+The "Unnamed" marker on a feed entry also shows next to the site on the Sites page, so a site that needs a name stays visible after its entry has moved down the list. Rename it there.
 
 ### Fixing something later
 
