@@ -28,6 +28,17 @@ import type { Camera } from '../../api/types';
  */
 export const LOW_BATTERY_PERCENT = 30;
 export const SD_NEARLY_FULL_PERCENT = 80;
+/**
+ * The chip keys on recency, not on the 30-day count. Nearly every camera
+ * has one old rejection (the setup shot before its first GPS fix), so
+ * "any rejected file" would flag the whole project and hide the one
+ * camera that started rejecting everything this morning.
+ */
+export const REJECTED_RECENT_DAYS = 7;
+
+export const hasRecentRejection = (c: Camera, now = Date.now()): boolean =>
+  !!c.last_rejected_at &&
+  now - new Date(c.last_rejected_at).getTime() < REJECTED_RECENT_DAYS * 24 * 3600 * 1000;
 
 interface AttentionItem {
   count: number;
@@ -64,8 +75,8 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
       c.sd_utilization_percentage > SD_NEARLY_FULL_PERCENT,
   ).length;
   // Files the server refused but could tie to the camera (no GPS fix, no
-  // date). Null means the viewer sees no rejections at all, so nothing counts.
-  const withRejected = cameras.filter((c) => (c.rejected_count ?? 0) > 0).length;
+  // date), recently. Null means the viewer sees no rejections at all.
+  const withRejected = cameras.filter((c) => hasRecentRejection(c)).length;
 
   const candidates: AttentionItem[] = [
     {
@@ -85,8 +96,8 @@ export const CameraAttentionBar: React.FC<CameraAttentionBarProps> = ({
     },
     {
       count: withRejected,
-      label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files`,
-      patch: { rejected: 'any' },
+      label: `${withRejected} ${plural(withRejected, 'camera', 'cameras')} with rejected files in the last ${REJECTED_RECENT_DAYS} days`,
+      patch: { rejected: 'recent' },
     },
   ];
 

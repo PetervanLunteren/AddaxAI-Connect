@@ -103,7 +103,7 @@ import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import type { LogMaintenanceRequest } from '../api/cameras';
 import { DeleteCamerasModal } from '../components/cameras/DeleteCamerasModal';
-import { CameraAttentionBar } from '../components/cameras/CameraAttentionBar';
+import { CameraAttentionBar, REJECTED_RECENT_DAYS, hasRecentRejection } from '../components/cameras/CameraAttentionBar';
 import { useToast } from '../components/ui/Toaster';
 import { CameraUpdatesSheet } from '../components/CameraUpdatesSheet';
 import { feedApi } from '../api/feed';
@@ -527,8 +527,9 @@ export const CamerasPage: React.FC = () => {
       label: 'Rejected files',
       primary: false,
       options: [
-        { value: 'any', label: 'With rejected files' },
-        { value: 'none', label: 'Without rejected files' },
+        { value: 'recent', label: `In the last ${REJECTED_RECENT_DAYS} days` },
+        { value: 'any', label: 'Any in the last 30 days' },
+        { value: 'none', label: 'None' },
       ],
     },
   ];
@@ -663,9 +664,11 @@ export const CamerasPage: React.FC = () => {
     }
     if (filters.rejected) {
       // Null means the viewer sees no rejections at all; neither bucket fits.
-      result = result.filter((c) =>
-        filters.rejected === 'any' ? (c.rejected_count ?? 0) > 0 : c.rejected_count === 0
-      );
+      result = result.filter((c) => {
+        if (filters.rejected === 'recent') return hasRecentRejection(c);
+        if (filters.rejected === 'any') return (c.rejected_count ?? 0) > 0;
+        return c.rejected_count === 0;
+      });
     }
 
     // Sort (nulls last). Non-sortable columns return null and fall through

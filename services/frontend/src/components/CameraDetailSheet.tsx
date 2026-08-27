@@ -285,7 +285,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
 
           <SheetBody className="space-y-6">
             {/* Tab navigation */}
-            <div className="flex border-b -mt-2">
+            <div className="flex flex-wrap border-b -mt-2">
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Placements" />

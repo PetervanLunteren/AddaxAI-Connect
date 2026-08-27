@@ -30,6 +30,8 @@ export interface Camera {
   // Rejected files attributed to this camera in the last 30 days. Null for
   // site-restricted viewers, who see no rejections anywhere; hide it then.
   rejected_count: number | null;
+  // Newest rejection, server wall-clock ISO. Null when none or hidden.
+  last_rejected_at: string | null;
 }
 
 // Camera maintenance events. The vocabulary mirrors VALID_ACTION_TYPES

@@ -25,7 +25,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status
 from utils.camera_recency import fetch_camera_recency
-from utils.camera_rejections import fetch_rejection_counts
+from utils.camera_rejections import fetch_rejection_stats, RejectionStats as RejectionStatsType
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags
 
@@ -62,6 +62,9 @@ class CameraResponse(BaseModel):
     # no rejections anywhere (same rule as the Live feed), and the UI hides
     # the column and tab rather than showing a zero that is not true.
     rejected_count: Optional[int] = None
+    # Server wall-clock of the newest rejection, ISO 8601. Drives the
+    # attention chip: recent trouble, not the one setup shot from weeks ago.
+    last_rejected_at: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -180,6 +183,7 @@ def camera_to_response(
     current_site: Optional[dict] = None,
     last_maintenance_date: Optional[date] = None,
     rejected_count: Optional[int] = None,
+    last_rejected_at: Optional[datetime] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
 
@@ -215,6 +219,7 @@ def camera_to_response(
         sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
         rejected_count=rejected_count,
+        last_rejected_at=last_rejected_at.isoformat() if last_rejected_at else None,
     )
 
 
@@ -233,8 +238,11 @@ async def camera_detail_response(
     """
     recency = await fetch_camera_recency(db, [camera.id])
     rejected_count = None
+    last_rejected_at = None
     if site_scope is None:
-        rejected_count = (await fetch_rejection_counts(db, [camera.id])).get(camera.id, 0)
+        stats = await fetch_rejection_stats(db, [camera.id])
+        rejected_count = stats.counts.get(camera.id, 0)
+        last_rejected_at = stats.last_rejected.get(camera.id)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -269,6 +277,7 @@ async def camera_detail_response(
         current_site=current_site,
         last_maintenance_date=last_maintenance_date,
         rejected_count=rejected_count,
+        last_rejected_at=last_rejected_at,
     )
 
 
@@ -319,9 +328,9 @@ async def list_cameras(
     recency = await fetch_camera_recency(db, camera_ids)
     # Restricted viewers see no rejections at all (a rejection has no site),
     # so their count stays None and the UI hides it.
-    rejection_counts: dict[int, int] = {}
+    rejections = RejectionStatsType()
     if site_scope is None:
-        rejection_counts = await fetch_rejection_counts(db, camera_ids)
+        rejections = await fetch_rejection_stats(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         maintenance_rows = await db.execute(
@@ -364,7 +373,8 @@ async def list_cameras(
             last_image_arrival=recency.last_image_arrival.get(camera.id),
             current_site=current_site_map.get(camera.id),
             last_maintenance_date=last_maintenance_map.get(camera.id),
-            rejected_count=None if site_scope is not None else rejection_counts.get(camera.id, 0),
+            rejected_count=None if site_scope is not None else rejections.counts.get(camera.id, 0),
+            last_rejected_at=rejections.last_rejected.get(camera.id),
         )
         for camera in cameras
     ]
