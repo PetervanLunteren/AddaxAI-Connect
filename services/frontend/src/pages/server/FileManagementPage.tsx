@@ -225,10 +225,18 @@ export const FileManagementPage: React.FC = () => {
     },
   });
 
+  // The Cameras page and the camera panel show these rows too (count and
+  // list), and their cache lives five minutes. Drop all three together.
+  const invalidateRejections = () => {
+    queryClient.invalidateQueries({ queryKey: ['rejected-files'] });
+    queryClient.invalidateQueries({ queryKey: ['cameras'] });
+    queryClient.invalidateQueries({ queryKey: ['camera-rejections'] });
+  };
+
   const deleteMutation = useMutation({
     mutationFn: deleteRejectedFiles,
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['rejected-files'] });
+      invalidateRejections();
       setSelectedFiles(new Set());
       setShowDeleteConfirm(false);
       if (result.errors.length > 0) {
@@ -245,7 +253,7 @@ export const FileManagementPage: React.FC = () => {
   const reprocessMutation = useMutation({
     mutationFn: reprocessRejectedFiles,
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['rejected-files'] });
+      invalidateRejections();
       setSelectedFiles(new Set());
       setShowReprocessConfirm(false);
       if (result.errors.length > 0) {

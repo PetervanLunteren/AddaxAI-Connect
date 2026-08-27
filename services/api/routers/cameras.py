@@ -25,7 +25,7 @@ from shared.storage import StorageClient, BUCKET_RAW_IMAGES, BUCKET_CROPS, BUCKE
 from shared.logger import get_logger
 from shared.camera_status import camera_status as _camera_status
 from utils.camera_recency import fetch_camera_recency
-from utils.camera_rejections import fetch_rejection_stats, RejectionStats as RejectionStatsType, REJECTED_RECENT_DAYS
+from utils.camera_rejections import fetch_recent_rejection_counts, REJECTED_RECENT_DAYS
 from utils.site_scope import cameras_current_site_clause, site_in_scope
 from utils.tags import normalize_tags
 
@@ -57,14 +57,12 @@ class CameraResponse(BaseModel):
     reference_thumbnail_url: Optional[str] = None
     sim_expiry_date: Optional[str] = None  # YYYY-MM-DD or null
     last_maintenance_date: Optional[str] = None  # YYYY-MM-DD or null, max event_date of the camera's maintenance log
-    # Rejected files attributed to this camera, within the 30-day retention.
-    # None for site-restricted viewers: a rejection has no site, so they see
-    # no rejections anywhere (same rule as the Live feed), and the UI hides
-    # the column and tab rather than showing a zero that is not true.
-    rejected_count: Optional[int] = None
-    # The same, last 7 days only (REJECTED_RECENT_DAYS). Drives the Cameras
-    # column and the attention chip: trouble now, not the one setup shot
-    # from weeks ago. None under the same rule as rejected_count.
+    # Rejected files attributed to this camera in the last REJECTED_RECENT_DAYS
+    # (trouble now, not the one setup shot from weeks ago; the full list is
+    # behind /cameras/{id}/rejections). None for site-restricted viewers: a
+    # rejection has no site, so they see no rejections anywhere (same rule as
+    # the Live feed), and the UI hides the column, filter and tab rather than
+    # showing a zero that is not true.
     rejected_count_recent: Optional[int] = None
 
     class Config:
@@ -183,7 +181,6 @@ def camera_to_response(
     last_image_arrival: Optional[datetime] = None,
     current_site: Optional[dict] = None,
     last_maintenance_date: Optional[date] = None,
-    rejected_count: Optional[int] = None,
     rejected_count_recent: Optional[int] = None,
 ) -> CameraResponse:
     """Convert a Camera model to the API response shape.
@@ -191,7 +188,7 @@ def camera_to_response(
     `last_captured_at` / `last_reported_at` are camera-clock readings and
     feed the two displayed timestamps. The `*_arrival` pair are server
     receive times and feed the status, see `shared.camera_status`.
-    `rejected_count` stays None for site-restricted viewers.
+    `rejected_count_recent` stays None for site-restricted viewers.
     """
     health_data = camera.config.get('last_health_report', {}) if camera.config else {}
     gps_data = camera.config.get('gps_from_report') if camera.config else None
@@ -219,7 +216,6 @@ def camera_to_response(
         reference_thumbnail_url=f"/reference-images/{camera.reference_thumbnail_path}" if camera.reference_thumbnail_path else None,
         sim_expiry_date=camera.sim_expiry_date.isoformat() if camera.sim_expiry_date else None,
         last_maintenance_date=last_maintenance_date.isoformat() if last_maintenance_date else None,
-        rejected_count=rejected_count,
         rejected_count_recent=rejected_count_recent,
     )
 
@@ -238,12 +234,9 @@ async def camera_detail_response(
     endpoints can leave it out, admins are never restricted.
     """
     recency = await fetch_camera_recency(db, [camera.id])
-    rejected_count = None
     rejected_count_recent = None
     if site_scope is None:
-        stats = await fetch_rejection_stats(db, [camera.id])
-        rejected_count = stats.counts.get(camera.id, 0)
-        rejected_count_recent = stats.recent_counts.get(camera.id, 0)
+        rejected_count_recent = (await fetch_recent_rejection_counts(db, [camera.id])).get(camera.id, 0)
 
     last_maintenance_date = (await db.execute(
         select(func.max(CameraMaintenanceEvent.event_date))
@@ -277,7 +270,6 @@ async def camera_detail_response(
         last_image_arrival=recency.last_image_arrival.get(camera.id),
         current_site=current_site,
         last_maintenance_date=last_maintenance_date,
-        rejected_count=rejected_count,
         rejected_count_recent=rejected_count_recent,
     )
 
@@ -329,9 +321,9 @@ async def list_cameras(
     recency = await fetch_camera_recency(db, camera_ids)
     # Restricted viewers see no rejections at all (a rejection has no site),
     # so their count stays None and the UI hides it.
-    rejections = RejectionStatsType()
+    recent_rejections: dict[int, int] = {}
     if site_scope is None:
-        rejections = await fetch_rejection_stats(db, camera_ids)
+        recent_rejections = await fetch_recent_rejection_counts(db, camera_ids)
     last_maintenance_map: dict[int, date] = {}
     if camera_ids:
         maintenance_rows = await db.execute(
@@ -374,8 +366,7 @@ async def list_cameras(
             last_image_arrival=recency.last_image_arrival.get(camera.id),
             current_site=current_site_map.get(camera.id),
             last_maintenance_date=last_maintenance_map.get(camera.id),
-            rejected_count=None if site_scope is not None else rejections.counts.get(camera.id, 0),
-            rejected_count_recent=None if site_scope is not None else rejections.recent_counts.get(camera.id, 0),
+            rejected_count_recent=None if site_scope is not None else recent_rejections.get(camera.id, 0),
         )
         for camera in cameras
     ]
@@ -769,8 +760,8 @@ async def get_camera_rejections(
     """
     The rejected files attributed to this camera, newest first.
 
-    Every row still within the 30-day retention, the same set the
-    `rejected_count` on the camera counts. Site-restricted viewers get an
+    Every row still within the 30-day retention, flagged `recent` on the
+    same cutoff `rejected_count_recent` uses. Site-restricted viewers get an
     empty list, fail closed, matching the Live feed.
     """
     camera = (await db.execute(select(Camera).where(Camera.id == camera_id))).scalar_one_or_none()

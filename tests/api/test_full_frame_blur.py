@@ -228,7 +228,8 @@ class TestServePathsAreCovered:
         from routers.live_feed import get_rejection_image
 
         src = inspect.getsource(get_rejection_image)
-        handler = src.split("except OSError:", 1)[1]
+        # OSError from the blur, ValueError from the on-the-fly thumbnail
+        handler = src.split("except (OSError, ValueError):", 1)[1]
         assert handler.lstrip().startswith("raise HTTPException"), (
             "A file that cannot be blurred must be refused, never fall through "
             "to serving the raw bytes"

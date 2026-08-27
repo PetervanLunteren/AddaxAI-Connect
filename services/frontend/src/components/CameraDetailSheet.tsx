@@ -289,7 +289,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
               <TabButton tab="overview" label="Overview" />
               <TabButton tab="history" label="History" />
               <TabButton tab="deployments" label="Placements" />
-              {camera.rejected_count !== null && <TabButton tab="rejections" label="Rejected" />}
+              {camera.rejected_count_recent !== null && <TabButton tab="rejections" label="Rejected" />}
               {canAdmin && <TabButton tab="maintenance" label="Service" />}
               {canAdmin && <TabButton tab="details" label="Details" />}
             </div>
@@ -573,7 +573,7 @@ export const CameraDetailSheet: React.FC<CameraDetailSheetProps> = ({
             )}
 
             {/* Rejected tab: files refused by the server, attributed to this camera */}
-            {activeTab === 'rejections' && camera.rejected_count !== null && (
+            {activeTab === 'rejections' && camera.rejected_count_recent !== null && (
               <CameraRejectionsTab cameraId={camera.id} isServerAdmin={isServerAdmin} />
             )}
 

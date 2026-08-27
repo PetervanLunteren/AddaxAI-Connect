@@ -258,6 +258,13 @@ async def update_alert_rule(
     rule = await load_own_row(db, CameraAlertRule, project_id, rule_id, current_user, "Alert rule not found")
 
     next_type = request.rule_type if request.rule_type is not None else rule.rule_type
+    if next_type != rule.rule_type and request.threshold is None:
+        # 20 percent battery is not 20 rejected files. The old number may
+        # pass validation for the new type and still mean nothing.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="threshold is required when the rule type changes",
+        )
     next_threshold = request.threshold if request.threshold is not None else rule.threshold
     next_channels = request.channels if request.channels is not None else rule.channels
     if request.scope_all:

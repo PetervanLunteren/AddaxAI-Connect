@@ -215,10 +215,6 @@ export const CamerasPage: React.FC = () => {
     cameraColumnPrefs.save(visibleColumns);
   }, [visibleColumns]);
   const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
-  const visibleColumnDefs = useMemo(
-    () => cameraColumnPrefs.columns.filter((c) => visibleColumnSet.has(c.id)),
-    [visibleColumnSet],
-  );
 
   // Fetch cameras for current project
   const { data: cameras, isLoading } = useQuery({
@@ -226,6 +222,18 @@ export const CamerasPage: React.FC = () => {
     queryFn: () => camerasApi.getAll(currentProject?.id),
     enabled: !!currentProject,
   });
+
+  // Site-restricted viewers get null counts (they see no rejections at
+  // all). Then the column would be a row of dashes and the filter could
+  // never match, so both go.
+  const showRejected = cameras?.some((c) => c.rejected_count_recent !== null) ?? false;
+  const visibleColumnDefs = useMemo(
+    () =>
+      cameraColumnPrefs.columns.filter(
+        (c) => visibleColumnSet.has(c.id) && (c.id !== 'rejected' || showRejected),
+      ),
+    [visibleColumnSet, showRejected],
+  );
 
   // Keep the open detail sheet in sync with the list. The sheet holds a
   // snapshot row, so derived fields (e.g. last maintenance after logging
@@ -444,7 +452,7 @@ export const CamerasPage: React.FC = () => {
     );
   }, [cameras]);
 
-  const filterFields: FilterFieldDef[] = [
+  const allFilterFields: FilterFieldDef[] = [
     {
       kind: 'search',
       key: 'search',
@@ -532,6 +540,9 @@ export const CamerasPage: React.FC = () => {
       ],
     },
   ];
+  const filterFields = allFilterFields.filter(
+    (f) => showRejected || !('key' in f) || f.key !== 'rejected',
+  );
 
   const handleSort = (column: ColumnId) => {
     setSort((prev) =>

@@ -140,6 +140,27 @@ def reprocess_destination(upload_root: Path, source_path: Optional[str], disk_pa
     return root / Path(disk_path).name
 
 
+def _mkdir_for_ftps(directory: Path, upload_root: Path) -> None:
+    """Create `directory` (and parents) under the upload root so the FTPS
+    user can write into it too.
+
+    This container runs as root and the upload tree belongs to the `camera`
+    user with a setgid group. A plain mkdir leaves root-owned 755 folders,
+    which a camera uploading into the same path could not write to. The
+    folders are normally pruned again once the file is processed, so this
+    only matters for the seconds in between, but a silent upload failure is
+    the wrong thing to leave open.
+    """
+    missing = []
+    current = directory
+    while current != upload_root and not current.exists():
+        missing.append(current)
+        current = current.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    for created in missing:
+        os.chmod(created, 0o2775)
+
+
 def _remove_legacy_sidecar(disk_path: Path) -> None:
     """Rows written before 2026-08-27 had a .error.json next to the file.
     Ingestion no longer writes it; remove it with the file so nothing is
@@ -267,11 +288,14 @@ async def reprocess_rejected_files(
                 continue
 
             if not filepath.exists():
-                errors.append(f"File not found: {row.filename}")
+                # Nothing left to reprocess. Drop the row too, or it sits in
+                # the list as a phantom until retention removes it.
+                await db.delete(row)
+                errors.append(f"File no longer exists, removed from the list: {row.filename}")
                 continue
 
             destination = reprocess_destination(upload_root, row.source_path, row.disk_path)
-            destination.parent.mkdir(parents=True, exist_ok=True)
+            _mkdir_for_ftps(destination.parent, upload_root.resolve())
             shutil.move(str(filepath), str(destination))
             _remove_legacy_sidecar(filepath)
             logger.info(

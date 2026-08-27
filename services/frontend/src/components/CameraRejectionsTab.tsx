@@ -150,7 +150,7 @@ const RejectionRow: React.FC<{ rejection: CameraRejection }> = ({ rejection }) =
   <li className="flex gap-3 p-3">
     <div className="h-16 w-24 shrink-0 overflow-hidden rounded bg-muted">
       <AuthenticatedImage
-        src={rejection.image_url}
+        src={`${rejection.image_url}?thumb=true`}
         alt={rejection.filename}
         className="h-full w-full object-cover"
         fallback={

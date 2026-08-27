@@ -7,6 +7,7 @@ project (e.g. an image sent at setup before the GPS fix). Rejections are read
 from the rejections table, not by scanning the filesystem.
 """
 import os
+from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Literal
 
@@ -27,12 +28,19 @@ from auth.project_access import (
     get_allowed_site_ids,
 )
 from routers.images import needs_full_blur
-from utils.image_processing import blur_whole_image
+from utils.image_processing import blur_whole_image, generate_thumbnail
 from utils.site_scope import site_image_clause
 
 
 router = APIRouter(prefix="/api/projects/{project_id}/live-feed", tags=["live-feed"])
 logger = get_logger("api.live_feed")
+
+# Width of the small rendition of a rejected file. Rejected files have no
+# stored thumbnail (they never went through ingestion), so the list views
+# ask for one and it is made on the fly. Wide enough for a filmstrip tile,
+# small enough that a camera with 50 rejections costs a few hundred KB and
+# not 20 MB of originals.
+REJECTION_THUMB_WIDTH = 320
 
 
 class LiveFeedItem(BaseModel):
@@ -164,12 +172,14 @@ async def get_rejection_image(
             "use is logged with the viewer's identity."
         ),
     ),
+    thumb: bool = Query(False, description="Serve a small rendition for list views."),
     accessible_project_ids: List[int] = Depends(get_accessible_project_ids),
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_verified_user),
 ):
     """
-    Stream a rejected file's bytes from disk (full image on click).
+    Stream a rejected file's bytes from disk (full image on click), or a
+    small rendition with thumb=true.
 
     Rejected files live under <upload_root>/rejected/, not in MinIO. Access is
     gated on the rejection belonging to a project the user can see. Rejections
@@ -229,38 +239,32 @@ async def get_rejection_image(
             rejection_id=rejection.id,
             project_id=project_id,
         )
-        return FileResponse(
-            str(target),
-            media_type=media_type,
-            headers={"Cache-Control": "private, max-age=0"},
-        )
 
     project = (
         await db.execute(select(Project).where(Project.id == project_id))
     ).scalar_one_or_none()
+    must_blur = not unblurred and bool(project and project.blur_categories())
 
-    if project and project.blur_categories():
-        # The rejected tree also holds daily reports and other non-images, so
-        # the bytes are not always decodable. If we cannot blur them we do not
-        # serve them, fail closed. Nothing is lost, a text file served as an
-        # image was already an unreadable placeholder.
-        try:
-            blurred = blur_whole_image(target.read_bytes())
-        except OSError:
-            raise HTTPException(
-                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail="This file cannot be shown as an image",
-            )
-        # Not cached: an admin can flip the reveal on and off, and a stale
-        # copy would make that look broken.
-        return Response(
-            content=blurred,
-            media_type="image/jpeg",
-            headers={"Cache-Control": "private, max-age=0"},
+    # Not cached when blurring is in play: an admin can flip the reveal on
+    # and off, and a stale copy would make that look broken.
+    cache = "private, max-age=0" if (unblurred or must_blur) else "private, max-age=3600"
+
+    if not must_blur and not thumb:
+        return FileResponse(str(target), media_type=media_type, headers={"Cache-Control": cache})
+
+    # The rejected tree also holds daily reports and other non-images, so
+    # the bytes are not always decodable. If we cannot process them we do
+    # not serve them, fail closed. Nothing is lost, a text file served as an
+    # image was already an unreadable placeholder.
+    try:
+        data = target.read_bytes()
+        if must_blur:
+            data = blur_whole_image(data)
+        if thumb:
+            data = generate_thumbnail(BytesIO(data), max_width=REJECTION_THUMB_WIDTH).getvalue()
+    except (OSError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="This file cannot be shown as an image",
         )
-
-    return FileResponse(
-        str(target),
-        media_type=media_type,
-        headers={"Cache-Control": "private, max-age=3600"},
-    )
+    return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": cache})
